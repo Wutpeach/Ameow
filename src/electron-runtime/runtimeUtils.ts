@@ -86,6 +86,18 @@ export const buildOutputStem = (
       .slice(0, 6);
     return sanitizeFileStem(`pinterest_${shortId}`);
   }
+  if (resolvedSiteHint === "youtube") {
+    const youtubeId = extractYoutubeVideoId(url);
+    if (youtubeId) {
+      return sanitizeFileStem(`youtube_${youtubeId}`);
+    }
+  }
+  if (resolvedSiteHint === "bilibili") {
+    const bilibiliId = extractBilibiliVideoId(url);
+    if (bilibiliId) {
+      return sanitizeFileStem(`bilibili_${bilibiliId}`);
+    }
+  }
   try {
     const parsed = new URL(url);
     const segments = parsed.pathname.split("/").filter(Boolean);
@@ -105,6 +117,61 @@ export const buildOutputStem = (
     // Fall through to trace-based naming.
   }
   return sanitizeFileStem(traceId);
+};
+
+const extractYoutubeVideoId = (url: string): string | null => {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "youtu.be") {
+      const shortId = parsed.pathname.split("/").filter(Boolean)[0];
+      return shortId || null;
+    }
+
+    if (!hostname.includes("youtube.com")) {
+      return null;
+    }
+
+    const watchId = parsed.searchParams.get("v")?.trim();
+    if (watchId) {
+      return watchId;
+    }
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length >= 2 && ["shorts", "embed", "live"].includes(segments[0])) {
+      return segments[1] ?? null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const extractBilibiliVideoId = (url: string): string | null => {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+
+    const bvidMatch = pathname.match(/\/video\/(BV[0-9A-Za-z]+)/i);
+    if (bvidMatch?.[1]) {
+      return `BV${bvidMatch[1].slice(2)}`;
+    }
+
+    const avidMatch = pathname.match(/\/video\/(av\d+)/i);
+    if (avidMatch?.[1]) {
+      return avidMatch[1].toLowerCase();
+    }
+
+    const bangumiMatch = pathname.match(/\/bangumi\/play\/((?:ep|ss)\d+)/i);
+    if (bangumiMatch?.[1]) {
+      return bangumiMatch[1].toLowerCase();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 };
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -52,14 +52,18 @@ describe("runYtDlpDownload", () => {
 
   it("uses title plus resolution and quality in the output template when rename is disabled", async () => {
     readdirMock.mockResolvedValue([]);
-    readFileMock.mockResolvedValue(
-      path.join("D:/downloads", "Sample Video[1920x1080][highest].mp4"),
-    );
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Sample Video"
+        : path.join("D:/downloads", "Sample Video[1920x1080][highest].mp4")
+    ));
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
       const outputIndex = args.indexOf("-o");
       const mergeOutputIndex = args.indexOf("--merge-output-format");
+      const titleReportIndex = args.indexOf("after_move:title");
       expect(outputIndex).toBeGreaterThanOrEqual(0);
       expect(mergeOutputIndex).toBeGreaterThanOrEqual(0);
+      expect(titleReportIndex).toBeGreaterThanOrEqual(0);
       expect(args[outputIndex + 1]).toBe(path.join(
         "D:/downloads",
         "Sample Video[%(width|unknown)sx%(height|unknown)s][highest].%(ext)s",
@@ -128,13 +132,16 @@ describe("runYtDlpDownload", () => {
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "video.mp4.ytdl"));
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "video.f137.mp4"));
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "trace-yt-after-move.txt"));
+    expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "trace-yt-title.txt"));
   });
 
   it("emits an early downloading activity while yt-dlp is still resolving media", async () => {
     readdirMock.mockResolvedValue([]);
-    readFileMock.mockResolvedValue(
-      path.join("D:/downloads", "Sample Video.mp4"),
-    );
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Sample Video"
+        : path.join("D:/downloads", "Sample Video.mp4")
+    ));
     const onProgress = vi.fn(async () => undefined);
     runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
       await options?.onStderrLine?.("[youtube] abc123: Downloading webpage");
@@ -182,7 +189,11 @@ describe("runYtDlpDownload", () => {
 
   it("adds referer, no-playlist, cookies, and youtube extractor args for injected current-item downloads", async () => {
     readdirMock.mockResolvedValue([]);
-    readFileMock.mockResolvedValue(path.join("D:/downloads", "Injected Video.mp4"));
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Injected Video"
+        : path.join("D:/downloads", "Injected Video.mp4")
+    ));
     writeCookiesFileMock.mockResolvedValue("D:/temp/trace-injected-cookies.txt");
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
       expect(args).toContain("--no-playlist");

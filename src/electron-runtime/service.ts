@@ -25,7 +25,6 @@ import {
   cleanupGalleryDlMetadataSidecars,
   resolveGalleryDlMetadataTitleFromSidecars,
 } from "./galleryDlMetadata.js";
-import { probeYtDlpMetadataTitle } from "./ytDlpMetadata.js";
 import type {
   DownloadResultPayload,
   DownloadProgressPayload,
@@ -39,13 +38,11 @@ import type {
   VideoQueueStatePayload,
 } from "../types/videoRuntime.js";
 import type {
-  KnownSiteHint,
   EngineExecutionContext,
   EnginePlan,
   RawDownloadInput,
   ResolvedDownloadPlan,
 } from "../core/index.js";
-import { resolveSiteHint } from "../core/index.js";
 import { builtinEngines, createEngineRegistry } from "../engines/index.js";
 import { DownloadOrchestrator } from "../orchestration/download-orchestrator.js";
 import { loadBuiltinProviders } from "../sites/provider-loader.js";
@@ -94,17 +91,6 @@ const queueTaskLabel = (request: RawDownloadInput): string =>
   || request.pageUrl?.trim()
   || request.videoUrl?.trim()
   || request.url.trim();
-
-const shouldProbeMissingYtDlpTitle = (
-  request: RawDownloadInput,
-  resolvedSiteHint: KnownSiteHint | undefined,
-): boolean => {
-  if (request.title?.trim() || request.selectionScope === "playlist") {
-    return false;
-  }
-
-  return resolvedSiteHint === "youtube" || resolvedSiteHint === "bilibili";
-};
 
 export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
@@ -567,6 +553,61 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
     }
   }
 
+  private async applyResolvedTitleToCompletedDownload({
+    traceId,
+    outputDir,
+    outputStem,
+    filePath,
+    title,
+    request,
+    config,
+  }: {
+    traceId: string;
+    outputDir: string;
+    outputStem: string;
+    filePath: string;
+    title: string;
+    request: RawDownloadInput;
+    config: Record<string, unknown>;
+  }): Promise<{ filePath: string; title: string } | null> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      return null;
+    }
+
+    const preferredTitleStem = buildOutputStem(
+      traceId,
+      request.pageUrl ?? request.url,
+      config,
+      normalizedTitle,
+      request.siteHint,
+    );
+    if (preferredTitleStem === outputStem) {
+      return {
+        filePath,
+        title: normalizedTitle,
+      };
+    }
+
+    const renamedOutputStem = await resolveAvailableOutputStem(
+      outputDir,
+      preferredTitleStem,
+      Array.from(this.reservedOutputStems.values()).filter((stem) => stem !== outputStem),
+    );
+    const renamedFilePath = path.join(
+      path.dirname(filePath),
+      `${renamedOutputStem}${path.extname(filePath)}`,
+    );
+    if (renamedFilePath !== filePath) {
+      await fs.rename(filePath, renamedFilePath);
+    }
+    this.reservedOutputStems.set(traceId, renamedOutputStem);
+    return {
+      filePath: renamedFilePath,
+      title: normalizedTitle,
+    };
+  }
+
   private async pumpQueue(): Promise<void> {
     while (this.active.size < this.maxConcurrent && this.pending.length > 0) {
       const nextTask = this.pending.shift();
@@ -616,27 +657,7 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
         activeTask.request,
         this.options.environment.fetch ?? globalThis.fetch,
       );
-      const resolvedSiteHint = resolveSiteHint(
-        activeTask.request.siteHint,
-        activeTask.request.pageUrl,
-        activeTask.request.url,
-      );
       telemetryPlan = this.siteRegistry.resolve(activeTask.request);
-      if (shouldProbeMissingYtDlpTitle(activeTask.request, resolvedSiteHint)) {
-        const probedTitle = await probeYtDlpMetadataTitle({
-          sourceUrl: activeTask.request.url,
-          pageUrl: activeTask.request.pageUrl,
-          cookies: activeTask.request.cookies,
-          selectionScope: activeTask.request.selectionScope,
-          binaries,
-          signal: activeTask.abortController.signal,
-        });
-        if (probedTitle && probedTitle !== activeTask.request.title) {
-          activeTask.request.title = probedTitle;
-          activeTask.label = queueTaskLabel(activeTask.request);
-          await this.emitQueueState();
-        }
-      }
       const preferredOutputStem = buildOutputStem(
         traceId,
         activeTask.request.pageUrl ?? activeTask.request.url,
@@ -675,6 +696,33 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
             : context;
         },
       );
+      if (
+        result.success
+        && result.file_path
+        && executedEngineId === "yt-dlp"
+        && !activeTask.request.title?.trim()
+        && result.title?.trim()
+      ) {
+        const renamed = await this.applyResolvedTitleToCompletedDownload({
+          traceId,
+          outputDir: resolvedOutputDir,
+          outputStem,
+          filePath: result.file_path,
+          title: result.title,
+          request: activeTask.request,
+          config,
+        });
+        if (renamed) {
+          activeTask.request.title = renamed.title;
+          activeTask.label = queueTaskLabel(activeTask.request);
+          await this.emitQueueState();
+          result = {
+            ...result,
+            file_path: renamed.filePath,
+            title: renamed.title,
+          };
+        }
+      }
       if (result.success && result.file_path && executedEngineId === "gallery-dl") {
         const originalFilePath = result.file_path;
         const metadataTitle = await resolveGalleryDlMetadataTitleFromSidecars(
@@ -683,34 +731,24 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
           originalFilePath,
         );
         if (metadataTitle) {
-          const preferredMetadataStem = buildOutputStem(
+          const renamed = await this.applyResolvedTitleToCompletedDownload({
             traceId,
-            activeTask.request.pageUrl ?? activeTask.request.url,
+            outputDir: resolvedOutputDir,
+            outputStem,
+            filePath: result.file_path,
+            title: metadataTitle,
+            request: activeTask.request,
             config,
-            metadataTitle,
-            activeTask.request.siteHint,
-          );
-          if (preferredMetadataStem !== outputStem) {
-            const renamedOutputStem = await resolveAvailableOutputStem(
-              resolvedOutputDir,
-              preferredMetadataStem,
-              Array.from(this.reservedOutputStems.values()).filter((stem) => stem !== outputStem),
-            );
-            const renamedFilePath = path.join(
-              path.dirname(result.file_path),
-              `${renamedOutputStem}${path.extname(result.file_path)}`,
-            );
-            if (renamedFilePath !== result.file_path) {
-              await fs.rename(result.file_path, renamedFilePath);
-              this.reservedOutputStems.set(traceId, renamedOutputStem);
-              activeTask.request.title = metadataTitle;
-              activeTask.label = queueTaskLabel(activeTask.request);
-              await this.emitQueueState();
-              result = {
-                ...result,
-                file_path: renamedFilePath,
-              };
-            }
+          });
+          if (renamed) {
+            activeTask.request.title = renamed.title;
+            activeTask.label = queueTaskLabel(activeTask.request);
+            await this.emitQueueState();
+            result = {
+              ...result,
+              file_path: renamed.filePath,
+              title: renamed.title,
+            };
           }
         }
         await cleanupGalleryDlMetadataSidecars(

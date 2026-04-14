@@ -16,6 +16,7 @@ export type DownloadResultPayload = {
   traceId: string;
   success: boolean;
   file_path?: string;
+  title?: string;
   error?: string;
 };
 

@@ -9,10 +9,6 @@ import { pinterestProvider } from "../sites/pinterest";
 import { xiaohongshuProvider } from "../sites/xiaohongshu";
 import { youtubeProvider } from "../sites/youtube";
 
-const { probeYtDlpMetadataTitleMock } = vi.hoisted(() => ({
-  probeYtDlpMetadataTitleMock: vi.fn<() => Promise<string | undefined>>(async () => undefined),
-}));
-
 const { probeGalleryDlMetadataTitleMock } = vi.hoisted(() => ({
   probeGalleryDlMetadataTitleMock: vi.fn<() => Promise<string | undefined>>(async () => undefined),
 }));
@@ -51,10 +47,6 @@ const {
 } = vi.hoisted(() => ({
   prepareVideoTranscodeTaskFromDownloadMock: vi.fn(),
   runPreparedVideoTranscodeTaskMock: vi.fn(),
-}));
-
-vi.mock("./ytDlpMetadata.js", () => ({
-  probeYtDlpMetadataTitle: probeYtDlpMetadataTitleMock,
 }));
 
 vi.mock("./galleryDlMetadata.js", () => ({
@@ -152,8 +144,6 @@ describe("FlowSelectElectronDownloadRuntime", () => {
     resolveGalleryDlMetadataTitleFromSidecarsMock.mockReset();
     resolveGalleryDlMetadataTitleFromSidecarsMock.mockResolvedValue(undefined);
     cleanupGalleryDlMetadataSidecarsMock.mockClear();
-    probeYtDlpMetadataTitleMock.mockReset();
-    probeYtDlpMetadataTitleMock.mockResolvedValue(undefined);
     prepareVideoTranscodeTaskFromDownloadMock.mockReset();
     prepareVideoTranscodeTaskFromDownloadMock.mockResolvedValue(null);
     runPreparedVideoTranscodeTaskMock.mockReset();
@@ -1108,33 +1098,52 @@ describe("FlowSelectElectronDownloadRuntime", () => {
     }
   });
 
-  it("probes yt-dlp metadata titles for pasted YouTube URLs before allocating the output stem", async () => {
+  it("uses a youtube id stem immediately and renames to the resolved title after yt-dlp completes", async () => {
+    const tempDir = path.join(
+      os.tmpdir(),
+      `flowselect-ytdlp-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
     const outputStems: string[] = [];
-    probeYtDlpMetadataTitleMock.mockResolvedValue("Recovered YouTube Title");
+    const completions: Array<{ file_path?: string; success: boolean; title?: string }> = [];
 
     const runtime = createRuntime({
+      configString: JSON.stringify({ outputPath: tempDir }),
       providers: [youtubeProvider, genericProvider],
       engines: [
         createEngineStub("yt-dlp", async (context) => {
           outputStems.push(context.outputStem);
+          const filePath = path.join(context.outputDir, `${context.outputStem}.mp4`);
+          writeFileSync(filePath, "video");
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            file_path: filePath,
+            title: "Recovered YouTube Title",
           };
         }),
       ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(payload as { file_path?: string; success: boolean; title?: string });
+        }
+      },
     });
 
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-    });
+    try {
+      await runtime.queueVideoDownload({
+        url: "https://www.youtube.com/watch?v=abc123",
+      });
 
-    await waitFor(() => outputStems.length === 1);
-    expect(probeYtDlpMetadataTitleMock).toHaveBeenCalledWith(expect.objectContaining({
-      sourceUrl: "https://www.youtube.com/watch?v=abc123",
-    }));
-    expect(outputStems).toEqual(["Recovered YouTube Title"]);
+      await waitFor(() => completions.length === 1);
+      expect(outputStems).toEqual(["youtube_abc123"]);
+      expect(completions[0]).toMatchObject({
+        success: true,
+        title: "Recovered YouTube Title",
+        file_path: expect.stringMatching(/Recovered YouTube Title\.mp4$/),
+      });
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("queues downstream transcode after a highest-quality YouTube download completes with MKV output", async () => {

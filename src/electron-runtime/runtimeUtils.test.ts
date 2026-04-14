@@ -50,6 +50,26 @@ describe("buildOutputStem", () => {
       ),
     ).toBe("Sample Video");
   });
+
+  it("falls back to a youtube video id stem when no title is available", () => {
+    expect(
+      buildOutputStem(
+        "trace-1",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        {},
+      ),
+    ).toBe("youtube_dQw4w9WgXcQ");
+  });
+
+  it("falls back to a bilibili BV stem when no title is available", () => {
+    expect(
+      buildOutputStem(
+        "trace-1",
+        "https://www.bilibili.com/video/BV1xx411c7mD",
+        {},
+      ),
+    ).toBe("bilibili_BV1xx411c7mD");
+  });
 });
 
 describe("sanitizeFileStem", () => {

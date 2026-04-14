@@ -152,7 +152,7 @@ const resolveYtdlpFormatProfile = (
   }
 };
 
-const readReportedPath = async (reportPath: string): Promise<string | null> => {
+const readReportedValue = async (reportPath: string): Promise<string | null> => {
   try {
     const raw = await fs.readFile(reportPath, "utf8");
     const resolved = raw
@@ -255,6 +255,7 @@ export const runYtDlpDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
   const reportPath = path.join(context.outputDir, `${context.traceId}-after-move.txt`);
+  const titleReportPath = path.join(context.outputDir, `${context.traceId}-title.txt`);
   const outputTemplate = buildYtdlpOutputTemplate(context);
   const artifactPrefixes = resolveYtdlpArtifactPrefixes(context);
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, artifactPrefixes));
@@ -279,6 +280,9 @@ export const runYtDlpDownload = async (
     "--print-to-file",
     "after_move:filepath",
     reportPath,
+    "--print-to-file",
+    "after_move:title",
+    titleReportPath,
     "-o",
     outputTemplate,
   ];
@@ -398,7 +402,8 @@ export const runYtDlpDownload = async (
       },
     });
 
-    const reportedPath = await readReportedPath(reportPath);
+    const reportedPath = await readReportedValue(reportPath);
+    const reportedTitle = await readReportedValue(titleReportPath);
     if (exitCode !== 0) {
       throw new Error(stderrLines[stderrLines.length - 1] ?? `yt-dlp exited with code ${exitCode}`);
     }
@@ -410,6 +415,7 @@ export const runYtDlpDownload = async (
       traceId: context.traceId,
       success: true,
       file_path: reportedPath,
+      title: reportedTitle ?? undefined,
     };
   } catch (error) {
     if (isInjectionDebugEnabled(context.config)) {
@@ -425,5 +431,6 @@ export const runYtDlpDownload = async (
   } finally {
     await cleanupCookiesFile(cookiesPath);
     await fs.unlink(reportPath).catch(() => undefined);
+    await fs.unlink(titleReportPath).catch(() => undefined);
   }
 };
