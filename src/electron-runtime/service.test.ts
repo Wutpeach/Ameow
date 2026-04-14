@@ -1146,6 +1146,36 @@ describe("FlowSelectElectronDownloadRuntime", () => {
     }
   });
 
+  it("emits an early downloading activity before the engine reports yt-dlp progress", async () => {
+    const progressEvents: Array<{ stage?: string; speed?: string }> = [];
+
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: "D:/downloads/youtube_abc123.mp4",
+        })),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-progress") {
+          progressEvents.push(payload as { stage?: string; speed?: string });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => progressEvents.length >= 1);
+    expect(progressEvents[0]).toMatchObject({
+      stage: "downloading",
+      speed: "Resolving media...",
+    });
+  });
+
   it("queues downstream transcode after a highest-quality YouTube download completes with MKV output", async () => {
     const events: RuntimeEmitterEvent[] = [];
     const transcodeCompletions: Array<() => void> = [];

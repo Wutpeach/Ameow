@@ -92,6 +92,13 @@ const queueTaskLabel = (request: RawDownloadInput): string =>
   || request.videoUrl?.trim()
   || request.url.trim();
 
+const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
+  percent: -1,
+  stage: "downloading" as const,
+  speed: "Resolving media...",
+  eta: "",
+};
+
 export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
 
@@ -639,6 +646,10 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
       const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
       outputDir = resolvedOutputDir;
       const binaries = resolveRuntimeBinaryPaths(this.options.environment);
+      await this.options.eventSink.emit("video-download-progress", {
+        traceId,
+        ...EARLY_VIDEO_ACTIVITY_PAYLOAD,
+      });
       const preShortLinkRequest = activeTask.request;
       activeTask.request = await resolveShortLinkDownloadInput(
         activeTask.request,

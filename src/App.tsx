@@ -1568,6 +1568,7 @@ function App({
 
     try {
       await task();
+      await prepareMainWindowForForegroundTask();
       showForegroundTaskOutcome({
         cancelled: false,
         error: null,
@@ -1575,6 +1576,7 @@ function App({
       });
     } catch (error) {
       console.error(failureLogLabel, error);
+      await prepareMainWindowForForegroundTask();
       showForegroundTaskOutcome({
         cancelled: true,
         error: summarizeForegroundTaskError(error),
