@@ -1552,6 +1552,42 @@ function App({
     setIsProcessing(true);
   }, [prepareMainWindowForForegroundTask]);
 
+  const summarizeForegroundTaskError = useCallback((error: unknown): string => {
+    const fallbackMessage = checkSequenceOverflow(error)
+      ? i18n.t("desktop:app.sequenceOverflowMessage")
+      : "Download failed";
+    return summarizeDownloadError(String(error ?? "").trim()) ?? fallbackMessage;
+  }, []);
+
+  const runForegroundImageTask = useCallback(async (
+    task: () => Promise<void>,
+    failureLogLabel: string,
+  ) => {
+    resetDownloadOutcome();
+    await startForegroundProcessing();
+
+    try {
+      await task();
+      showForegroundTaskOutcome({
+        cancelled: false,
+        error: null,
+        durationMs: 1400,
+      });
+    } catch (error) {
+      console.error(failureLogLabel, error);
+      showForegroundTaskOutcome({
+        cancelled: true,
+        error: summarizeForegroundTaskError(error),
+        durationMs: 1800,
+      });
+    }
+  }, [
+    resetDownloadOutcome,
+    showForegroundTaskOutcome,
+    startForegroundProcessing,
+    summarizeForegroundTaskError,
+  ]);
+
   useEffect(() => {
     if (!hasOngoingTask) {
       return;
@@ -3267,9 +3303,7 @@ function App({
     // 2. Check if clipboard text is an image URL
     if (text && isImageUrl(text)) {
       console.log("Pasted image URL:", text);
-      resetDownloadOutcome();
-      await startForegroundProcessing();
-      try {
+      await runForegroundImageTask(async () => {
         // Distinguish between Data URL and HTTP URL
         if (text.startsWith("data:image/")) {
           const result = await desktopCommands.invoke<string>("save_data_url", {
@@ -3284,11 +3318,7 @@ function App({
           });
           console.log("Download result:", result);
         }
-      } catch (err) {
-        console.error("Failed to process image:", err);
-        checkSequenceOverflow(err);
-      }
-      setTimeout(() => setIsProcessing(false), 1000);
+      }, "Failed to process pasted image URL:");
       return;
     }
 
@@ -3299,10 +3329,7 @@ function App({
         "Detected clipboard image file from paste event:",
         pastedImageFile.name || "<unnamed>",
       );
-      resetDownloadOutcome();
-      await startForegroundProcessing();
-
-      try {
+      await runForegroundImageTask(async () => {
         const dataUrl = await fileToDataUrl(pastedImageFile);
         const result = await desktopCommands.invoke<string>("save_data_url", {
           dataUrl,
@@ -3310,12 +3337,7 @@ function App({
           originalFilename: pastedImageFile.name || undefined,
         });
         console.log("Save clipboard image file result:", result);
-      } catch (err) {
-        console.error("Failed to save clipboard image file:", err);
-        checkSequenceOverflow(err);
-      }
-
-      setTimeout(() => setIsProcessing(false), 1000);
+      }, "Failed to save clipboard image file:");
       return;
     }
 
@@ -3324,10 +3346,7 @@ function App({
     const pastedHtmlImageUrl = pastedHtml ? extractImageUrlFromHtml(pastedHtml) : null;
     if (pastedHtmlImageUrl) {
       console.log("Detected clipboard image from HTML payload:", pastedHtmlImageUrl);
-      resetDownloadOutcome();
-      await startForegroundProcessing();
-
-      try {
+      await runForegroundImageTask(async () => {
         if (pastedHtmlImageUrl.startsWith("data:image/")) {
           const result = await desktopCommands.invoke<string>("save_data_url", {
             dataUrl: pastedHtmlImageUrl,
@@ -3341,12 +3360,7 @@ function App({
           });
           console.log("Download clipboard HTML image result:", result);
         }
-      } catch (err) {
-        console.error("Failed to process clipboard HTML image:", err);
-        checkSequenceOverflow(err);
-      }
-
-      setTimeout(() => setIsProcessing(false), 1000);
+      }, "Failed to process clipboard HTML image:");
       return;
     }
 
@@ -3355,21 +3369,13 @@ function App({
       const clipboardImageDataUrl = await readClipboardImageDataUrl();
       if (clipboardImageDataUrl) {
         console.log("Detected clipboard image, saving to output folder");
-        resetDownloadOutcome();
-        await startForegroundProcessing();
-
-        try {
+        await runForegroundImageTask(async () => {
           const result = await desktopCommands.invoke<string>("save_data_url", {
             dataUrl: clipboardImageDataUrl,
             targetDir: outputPath || null,
           });
           console.log("Save clipboard image result:", result);
-        } catch (err) {
-          console.error("Failed to save clipboard image:", err);
-          checkSequenceOverflow(err);
-        }
-
-        setTimeout(() => setIsProcessing(false), 1000);
+        }, "Failed to save clipboard image:");
         return;
       }
     } catch (err) {
@@ -3581,18 +3587,12 @@ function App({
         const imageUrl = extractPinterestImageUrlFromHtml(html);
         if (imageUrl) {
           console.log("Detected Pinterest image pin, downloading extracted image:", imageUrl);
-          resetDownloadOutcome();
-          await startForegroundProcessing();
-          try {
+          await runForegroundImageTask(async () => {
             await desktopCommands.invoke<string>("download_image", {
               url: imageUrl,
               targetDir: outputPath || null,
             });
-          } catch (err) {
-            console.error("Failed to download Pinterest image:", err);
-            checkSequenceOverflow(err);
-          }
-          setTimeout(() => setIsProcessing(false), 1000);
+          }, "Failed to download Pinterest image:");
           return;
         }
       }
@@ -3758,10 +3758,7 @@ function App({
           pageUrl: xiaohongshuPageUrl,
           imageUrl: resolvedXiaohongshuImageUrl,
         });
-        resetDownloadOutcome();
-        await startForegroundProcessing();
-
-        try {
+        await runForegroundImageTask(async () => {
           const result = await desktopCommands.invoke<string>("download_image", {
             url: resolvedXiaohongshuImageUrl,
             targetDir: outputPath || null,
@@ -3772,12 +3769,7 @@ function App({
             },
           });
           console.log("Download result:", result);
-        } catch (err) {
-          console.error("Failed to process Xiaohongshu resolved page image:", err);
-          checkSequenceOverflow(err);
-        }
-
-        setTimeout(() => setIsProcessing(false), 1000);
+        }, "Failed to process Xiaohongshu resolved page image:");
         return;
       }
 
@@ -3840,10 +3832,7 @@ function App({
       } else {
         console.log("Detected image URL:", resolvedImageUrl);
       }
-      resetDownloadOutcome();
-      await startForegroundProcessing();
-
-      try {
+      await runForegroundImageTask(async () => {
         const protectedImageFallback =
           protectedImageDragPayload &&
           (!protectedImageDragPayload.imageUrl || protectedImageDragPayload.imageUrl === resolvedImageUrl)
@@ -3949,12 +3938,7 @@ function App({
             }
           }
         }
-      } catch (err) {
-        console.error("Failed to process image:", err);
-        checkSequenceOverflow(err);
-      }
-
-      setTimeout(() => setIsProcessing(false), 1000);
+      }, "Failed to process image:");
       return;
     }
 
