@@ -94,7 +94,7 @@ const queueTaskLabel = (request: RawDownloadInput): string =>
 
 const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
   percent: -1,
-  stage: "downloading" as const,
+  stage: "preparing" as const,
   speed: "Resolving media...",
   eta: "",
 };

@@ -350,7 +350,7 @@ export const runYtDlpDownload = async (
     traceId: context.traceId,
     percent: 0,
     stage: "preparing",
-    speed: "Starting...",
+    speed: YTDLP_ACTIVITY_FALLBACK,
     eta: "",
   });
 
@@ -374,11 +374,10 @@ export const runYtDlpDownload = async (
         }
         const activity = normalizeYtDlpActivity(line);
         if (activity && !emittedActivity) {
-          emittedActivity = true;
           await context.onProgress({
             traceId: context.traceId,
             percent: -1,
-            stage: "downloading",
+            stage: "preparing",
             speed: activity,
             eta: "",
           });
@@ -390,11 +389,10 @@ export const runYtDlpDownload = async (
         }
         const activity = normalizeYtDlpActivity(line);
         if (activity && !emittedActivity) {
-          emittedActivity = true;
           await context.onProgress({
             traceId: context.traceId,
             percent: -1,
-            stage: "downloading",
+            stage: "preparing",
             speed: activity,
             eta: "",
           });

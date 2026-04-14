@@ -177,12 +177,12 @@ describe("runYtDlpDownload", () => {
     expect(onProgress).toHaveBeenNthCalledWith(1, expect.objectContaining({
       traceId: "trace-activity",
       stage: "preparing",
-      speed: "Starting...",
+      speed: "Resolving media...",
     }));
     expect(onProgress).toHaveBeenNthCalledWith(2, expect.objectContaining({
       traceId: "trace-activity",
       percent: -1,
-      stage: "downloading",
+      stage: "preparing",
       speed: "Resolving media...",
     }));
   });

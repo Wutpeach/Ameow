@@ -526,6 +526,10 @@ const getDownloadStatusText = (
   const etaLabel = i18n.t("desktop:app.downloadStatus.eta", { eta: etaText });
   const activityLabel = getDownloadActivityLabel(speedText);
 
+  if (effectiveStage === "preparing") {
+    return activityLabel ?? stageLabel;
+  }
+
   if (effectiveStage !== "downloading") {
     return stageLabel;
   }
@@ -5354,13 +5358,18 @@ function App({
           </motion.div>
         ) : isProcessing ? (
           <motion.div
-            key={isForegroundTaskOutcomeVisible ? "foreground-outcome" : "foreground-loading"}
+            key="foreground-task"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: [1, 1.05, 1], opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ duration: 0.3 }}
             draggable={false}
             style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",

@@ -1171,7 +1171,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
 
     await waitFor(() => progressEvents.length >= 1);
     expect(progressEvents[0]).toMatchObject({
-      stage: "downloading",
+      stage: "preparing",
       speed: "Resolving media...",
     });
   });
