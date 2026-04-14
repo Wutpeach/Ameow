@@ -816,7 +816,7 @@ function App({
   const userAgent = navigator.userAgent.toLowerCase();
   const isMacOS = userAgent.includes("mac");
   const isWindows = userAgent.includes("windows");
-  const supportsCompactPassthroughHotspot = isMacOS || isWindows;
+  const supportsCompactPassthroughHotspot = isWindows;
   const startupWindowEnvironment = {
     protocol: window.location.protocol,
     userAgent: navigator.userAgent,
@@ -4454,6 +4454,16 @@ function App({
 	      <motion.div
 	      ref={containerRef}
       tabIndex={0}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        console.log("DragEnter types:", e.dataTransfer.types);
+        updateDropHoverState(true);
+        resetIdleTimer();
+        if (isMinimized) {
+          void expandWindow();
+        }
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
