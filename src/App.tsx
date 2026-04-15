@@ -5429,37 +5429,69 @@ function App({
                 pointerEvents: "none",
               }}
             >
-              {isForegroundTaskOutcomeVisible ? (
-                downloadCancelled ? (
-                  <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
+              <AnimatePresence mode="sync" initial={false}>
+                {isForegroundTaskOutcomeVisible ? (
+                  <motion.div
+                    key={downloadCancelled ? "foreground-error" : "foreground-success"}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: [1, 1.05, 1], opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {downloadCancelled ? (
+                      <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
+                    ) : (
+                      <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
+                    )}
+                    {downloadCancelled && downloadErrorMessage ? (
+                      <span
+                        title={downloadErrorMessage}
+                        style={{
+                          fontSize: 9,
+                          lineHeight: 1.2,
+                          color: colors.textSecondary,
+                          textAlign: "center",
+                          userSelect: "none",
+                          pointerEvents: "none",
+                          padding: "0 8px",
+                        }}
+                      >
+                        {downloadErrorMessage}
+                      </span>
+                    ) : null}
+                  </motion.div>
                 ) : (
-                  <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
-                )
-              ) : (
-                <CircularProgressIndicator
-                  strokeColor={colors.accentSolid}
-                  trackColor={colors.borderStart}
-                  textColor={colors.textSecondary}
-                  percent={0}
-                  indeterminate
-                />
-              )}
-              {isForegroundTaskOutcomeVisible && downloadCancelled && downloadErrorMessage ? (
-                <span
-                  title={downloadErrorMessage}
-                  style={{
-                    fontSize: 9,
-                    lineHeight: 1.2,
-                    color: colors.textSecondary,
-                    textAlign: "center",
-                    userSelect: "none",
-                    pointerEvents: "none",
-                    padding: "0 8px",
-                  }}
-                >
-                  {downloadErrorMessage}
-                </span>
-              ) : null}
+                  <motion.div
+                    key="foreground-loading"
+                    initial={{ scale: 1, opacity: 1 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <CircularProgressIndicator
+                      strokeColor={colors.accentSolid}
+                      trackColor={colors.borderStart}
+                      textColor={colors.textSecondary}
+                      percent={0}
+                      indeterminate
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         ) : visualIsMinimized ? (
