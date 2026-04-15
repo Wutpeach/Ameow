@@ -2,7 +2,12 @@ import { startTransition, useState, useEffect, useRef, useCallback, type CSSProp
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { CatIcon } from "./components/CatIcon";
-import { CheckIcon, CloseIcon } from "./components/icons/AppIcons";
+import {
+  CENTER_OVERLAY_CONTENT_STYLE,
+  CENTER_OVERLAY_PRESENCE_MOTION,
+  CircularProgressIndicator,
+  ForegroundOutcomeOverlay,
+} from "./components/ForegroundOutcomeOverlay";
 import { NeonIconButton } from "./components/ui";
 import {
   COMPACT_EASE,
@@ -495,127 +500,6 @@ const getTranscodeEtaLabel = (etaSeconds: number | null | undefined): string | n
 
 const joinStatusParts = (...parts: Array<string | null | undefined>): string =>
   parts.filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" · ");
-
-type CircularProgressIndicatorProps = {
-  strokeColor: string;
-  trackColor: string;
-  textColor: string;
-  percent: number;
-  indeterminate: boolean;
-  centerLabel?: string;
-};
-
-const CircularProgressIndicator = ({
-  strokeColor,
-  trackColor,
-  textColor,
-  percent,
-  indeterminate,
-  centerLabel = "...",
-}: CircularProgressIndicatorProps) => (
-  <div
-    style={{
-      position: "relative",
-      width: 48,
-      height: 48,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      pointerEvents: "none",
-    }}
-  >
-    <div
-      style={{
-        width: 48,
-        height: 48,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        animation: indeterminate ? "spin 1s linear infinite" : "none",
-        transformOrigin: "center",
-        pointerEvents: "none",
-      }}
-    >
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 48 48"
-        style={{
-          transform: "rotate(-90deg)",
-          display: "block",
-          pointerEvents: "none",
-        }}
-      >
-        <circle
-          cx="24"
-          cy="24"
-          r="20"
-          fill="none"
-          stroke={trackColor}
-          strokeWidth="4"
-        />
-        <circle
-          cx="24"
-          cy="24"
-          r="20"
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={2 * Math.PI * 20}
-          strokeDashoffset={indeterminate
-            ? 2 * Math.PI * 20 * 0.75
-            : 2 * Math.PI * 20 * (1 - Math.max(0, Math.min(100, percent)) / 100)}
-          style={{
-            transition: indeterminate ? "none" : "stroke-dashoffset 0.3s ease",
-            transformOrigin: "center",
-          }}
-        />
-      </svg>
-    </div>
-    <span
-      style={{
-        position: "absolute",
-        fontSize: 11,
-        fontWeight: 500,
-        color: textColor,
-        textAlign: "center",
-        userSelect: "none",
-        pointerEvents: "none",
-      }}
-    >
-      {indeterminate ? centerLabel : `${Math.round(percent)}%`}
-    </span>
-  </div>
-);
-
-const CENTER_OVERLAY_PRESENCE_MOTION = {
-  initial: { scale: 0, opacity: 0 },
-  animate: { scale: 1, opacity: 1 },
-  exit: { scale: 0, opacity: 0 },
-  transition: { duration: 0.3 },
-} as const;
-
-const CENTER_OVERLAY_CONTENT_STYLE: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 4,
-  pointerEvents: "none",
-  userSelect: "none",
-};
-
-const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
-  width: 48,
-  height: 48,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  pointerEvents: "none",
-};
 
 const DOWNLOAD_STAGE_ORDER: Record<DownloadStage, number> = {
   preparing: 0,
@@ -5416,97 +5300,6 @@ function App({
               </button>
             ) : null}
           </motion.div>
-        ) : isProcessing ? (
-          <div
-            key="foreground-task"
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "grid",
-              placeItems: "center",
-              pointerEvents: "none",
-              userSelect: "none",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                width: 170,
-                maxWidth: "100%",
-                pointerEvents: "none",
-              }}
-            >
-              <AnimatePresence mode="sync" initial={false}>
-                {isForegroundTaskOutcomeVisible ? (
-                  <motion.div
-                    key={downloadCancelled ? "foreground-error" : "foreground-success"}
-                    initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-                    animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-                    exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-                    transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    <div style={FIXED_CENTER_ICON_FRAME_STYLE}>
-                      {downloadCancelled ? (
-                        <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
-                      ) : (
-                        <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
-                      )}
-                    </div>
-                    {downloadCancelled && downloadErrorMessage ? (
-                      <span
-                        title={downloadErrorMessage}
-                        style={{
-                          fontSize: 9,
-                          lineHeight: 1.2,
-                          color: colors.textSecondary,
-                          textAlign: "center",
-                          userSelect: "none",
-                          pointerEvents: "none",
-                          padding: "0 8px",
-                        }}
-                      >
-                        {downloadErrorMessage}
-                      </span>
-                    ) : null}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="foreground-loading"
-                    initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-                    animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-                    exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-                    transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    <CircularProgressIndicator
-                      strokeColor={colors.accentSolid}
-                      trackColor={colors.borderStart}
-                      textColor={colors.textSecondary}
-                      percent={0}
-                      indeterminate
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
         ) : visualIsMinimized ? (
           <motion.div
             key="minimized"
@@ -5545,6 +5338,17 @@ function App({
           </motion.div>
         ) : null}
         </AnimatePresence>
+        <ForegroundOutcomeOverlay
+          visible={isProcessing}
+          outcomeVisible={isForegroundTaskOutcomeVisible}
+          cancelled={downloadCancelled}
+          errorMessage={downloadErrorMessage}
+          successColor={colors.successIcon}
+          errorColor={colors.errorIcon}
+          loadingStrokeColor={colors.accentSolid}
+          loadingTrackColor={colors.borderStart}
+          loadingTextColor={colors.textSecondary}
+        />
 
         <AnimatePresence>
           {shouldShowRuntimeIndicator ? (
