@@ -187,6 +187,49 @@ describe("runYtDlpDownload", () => {
     }));
   });
 
+  it("skips heavy youtube extractor args for plain url downloads without page context", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Plain URL Video"
+        : path.join("D:/downloads", "Plain URL Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).not.toContain("--extractor-args");
+      expect(args).not.toContain("youtube:player_js_variant=tv");
+      expect(args).not.toContain("--remote-components");
+      expect(args).not.toContain("--js-runtimes");
+      expect(args.at(-1)).toBe("https://www.youtube.com/watch?v=plain123");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-plain-youtube",
+      outputDir: "D:/downloads",
+      outputStem: "youtube_plain123",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=plain123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=plain123",
+        ytdlpQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Plain URL Video.mp4"),
+    });
+  });
+
   it("adds referer, no-playlist, cookies, and youtube extractor args for injected current-item downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (

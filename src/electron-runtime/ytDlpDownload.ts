@@ -11,6 +11,12 @@ import { resolveRenameEnabled } from "./renameRules.js";
 const isYouTubeUrl = (value: string): boolean =>
   value.includes("youtube.com/") || value.includes("youtu.be/");
 
+const shouldUseExtendedYouTubeExtractorMode = (context: EngineExecutionContext): boolean => (
+  context.intent.selectionScope === "current_item"
+  || Boolean(context.intent.cookies?.trim())
+  || Boolean(context.intent.pageUrl?.trim())
+);
+
 const YTDLP_FORMAT_SELECTOR_BEST = "bestvideo+bestaudio/best";
 const YTDLP_FORMAT_SELECTOR_BALANCED = [
   "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
@@ -307,7 +313,7 @@ export const runYtDlpDownload = async (
     args.push("--cookies", cookiesPath);
   }
 
-  if (isYouTubeUrl(sourceUrl)) {
+  if (isYouTubeUrl(sourceUrl) && shouldUseExtendedYouTubeExtractorMode(context)) {
     args.push(
       "--extractor-args",
       "youtube:player_js_variant=tv",
