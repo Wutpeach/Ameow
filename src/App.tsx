@@ -589,6 +589,34 @@ const CircularProgressIndicator = ({
   </div>
 );
 
+const CENTER_OVERLAY_PRESENCE_MOTION = {
+  initial: { scale: 0, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 0, opacity: 0 },
+  transition: { duration: 0.3 },
+} as const;
+
+const CENTER_OVERLAY_CONTENT_STYLE: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  pointerEvents: "none",
+  userSelect: "none",
+};
+
+const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
+  width: 48,
+  height: 48,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  pointerEvents: "none",
+};
+
 const DOWNLOAD_STAGE_ORDER: Record<DownloadStage, number> = {
   preparing: 0,
   downloading: 1,
@@ -5299,24 +5327,12 @@ function App({
         {primaryTask ? (
           <motion.div
             key="progress"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
+            initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+            animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+            exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+            transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
             draggable={false}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
+            style={CENTER_OVERLAY_CONTENT_STYLE}
           >
             <CircularProgressIndicator
               strokeColor={primaryTaskStroke}
@@ -5401,13 +5417,8 @@ function App({
             ) : null}
           </motion.div>
         ) : isProcessing ? (
-          <motion.div
+          <div
             key="foreground-task"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: [1, 1.05, 1], opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            draggable={false}
             style={{
               position: "absolute",
               inset: 0,
@@ -5433,10 +5444,10 @@ function App({
                 {isForegroundTaskOutcomeVisible ? (
                   <motion.div
                     key={downloadCancelled ? "foreground-error" : "foreground-success"}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: [1, 1.05, 1], opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
+                    initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+                    animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+                    exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+                    transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
                     style={{
                       display: "flex",
                       flexDirection: "column",
@@ -5446,11 +5457,13 @@ function App({
                       pointerEvents: "none",
                     }}
                   >
-                    {downloadCancelled ? (
-                      <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
-                    ) : (
-                      <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
-                    )}
+                    <div style={FIXED_CENTER_ICON_FRAME_STYLE}>
+                      {downloadCancelled ? (
+                        <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
+                      ) : (
+                        <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
+                      )}
+                    </div>
                     {downloadCancelled && downloadErrorMessage ? (
                       <span
                         title={downloadErrorMessage}
@@ -5471,10 +5484,10 @@ function App({
                 ) : (
                   <motion.div
                     key="foreground-loading"
-                    initial={{ scale: 1, opacity: 1 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
+                    initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+                    animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+                    exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+                    transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -5493,7 +5506,7 @@ function App({
                 )}
               </AnimatePresence>
             </div>
-          </motion.div>
+          </div>
         ) : visualIsMinimized ? (
           <motion.div
             key="minimized"
