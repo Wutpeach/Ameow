@@ -906,6 +906,7 @@ function App({
   const deferredStartupInitializationTimerRef = useRef<number | null>(null);
   const deferredStartupInitializationIdleRef = useRef<number | null>(null);
   const foregroundTaskOutcomeTimerRef = useRef<number | null>(null);
+  const foregroundOutcomeRequestIdRef = useRef(0);
   const isForegroundTaskOutcomeVisibleRef = useRef(false);
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
   const compactNativeSettleFrameRef = useRef<number | null>(null);
@@ -1046,7 +1047,17 @@ function App({
     }
   }, []);
 
+  const waitForForegroundOutcomeStableFrame = useCallback(async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  }, []);
+
   const resetDownloadOutcome = useCallback(() => {
+    foregroundOutcomeRequestIdRef.current += 1;
     clearForegroundTaskOutcomeTimer();
     isForegroundTaskOutcomeVisibleRef.current = false;
     setIsForegroundTaskOutcomeVisible(false);
@@ -1539,20 +1550,37 @@ function App({
     error: string | null;
     durationMs: number;
   }) => {
+    const requestId = foregroundOutcomeRequestIdRef.current + 1;
+    foregroundOutcomeRequestIdRef.current = requestId;
     clearForegroundTaskOutcomeTimer();
-    isForegroundTaskOutcomeVisibleRef.current = true;
-    setIsForegroundTaskOutcomeVisible(true);
-    void prepareMainWindowForForegroundTask();
+    isForegroundTaskOutcomeVisibleRef.current = false;
+    setIsForegroundTaskOutcomeVisible(false);
     setDownloadCancelled(cancelled);
     setDownloadErrorMessage(cancelled ? error : null);
     setIsProcessing(true);
-    foregroundTaskOutcomeTimerRef.current = window.setTimeout(() => {
-      foregroundTaskOutcomeTimerRef.current = null;
-      isForegroundTaskOutcomeVisibleRef.current = false;
-      setIsForegroundTaskOutcomeVisible(false);
-      setIsProcessing(false);
-    }, durationMs);
-  }, [clearForegroundTaskOutcomeTimer, prepareMainWindowForForegroundTask]);
+    void (async () => {
+      await prepareMainWindowForForegroundTask();
+      await waitForForegroundOutcomeStableFrame();
+      if (foregroundOutcomeRequestIdRef.current !== requestId) {
+        return;
+      }
+      isForegroundTaskOutcomeVisibleRef.current = true;
+      setIsForegroundTaskOutcomeVisible(true);
+      foregroundTaskOutcomeTimerRef.current = window.setTimeout(() => {
+        if (foregroundOutcomeRequestIdRef.current !== requestId) {
+          return;
+        }
+        foregroundTaskOutcomeTimerRef.current = null;
+        isForegroundTaskOutcomeVisibleRef.current = false;
+        setIsForegroundTaskOutcomeVisible(false);
+        setIsProcessing(false);
+      }, durationMs);
+    })();
+  }, [
+    clearForegroundTaskOutcomeTimer,
+    prepareMainWindowForForegroundTask,
+    waitForForegroundOutcomeStableFrame,
+  ]);
 
   const startForegroundProcessing = useCallback(async () => {
     await prepareMainWindowForForegroundTask();
