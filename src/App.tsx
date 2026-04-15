@@ -496,6 +496,99 @@ const getTranscodeEtaLabel = (etaSeconds: number | null | undefined): string | n
 const joinStatusParts = (...parts: Array<string | null | undefined>): string =>
   parts.filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" · ");
 
+type CircularProgressIndicatorProps = {
+  strokeColor: string;
+  trackColor: string;
+  textColor: string;
+  percent: number;
+  indeterminate: boolean;
+  centerLabel?: string;
+};
+
+const CircularProgressIndicator = ({
+  strokeColor,
+  trackColor,
+  textColor,
+  percent,
+  indeterminate,
+  centerLabel = "...",
+}: CircularProgressIndicatorProps) => (
+  <div
+    style={{
+      position: "relative",
+      width: 48,
+      height: 48,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      pointerEvents: "none",
+    }}
+  >
+    <div
+      style={{
+        width: 48,
+        height: 48,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        animation: indeterminate ? "spin 1s linear infinite" : "none",
+        transformOrigin: "center",
+        pointerEvents: "none",
+      }}
+    >
+      <svg
+        width="48"
+        height="48"
+        viewBox="0 0 48 48"
+        style={{
+          transform: "rotate(-90deg)",
+          display: "block",
+          pointerEvents: "none",
+        }}
+      >
+        <circle
+          cx="24"
+          cy="24"
+          r="20"
+          fill="none"
+          stroke={trackColor}
+          strokeWidth="4"
+        />
+        <circle
+          cx="24"
+          cy="24"
+          r="20"
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={2 * Math.PI * 20}
+          strokeDashoffset={indeterminate
+            ? 2 * Math.PI * 20 * 0.75
+            : 2 * Math.PI * 20 * (1 - Math.max(0, Math.min(100, percent)) / 100)}
+          style={{
+            transition: indeterminate ? "none" : "stroke-dashoffset 0.3s ease",
+            transformOrigin: "center",
+          }}
+        />
+      </svg>
+    </div>
+    <span
+      style={{
+        position: "absolute",
+        fontSize: 11,
+        fontWeight: 500,
+        color: textColor,
+        textAlign: "center",
+        userSelect: "none",
+        pointerEvents: "none",
+      }}
+    >
+      {indeterminate ? centerLabel : `${Math.round(percent)}%`}
+    </span>
+  </div>
+);
+
 const DOWNLOAD_STAGE_ORDER: Record<DownloadStage, number> = {
   preparing: 0,
   downloading: 1,
@@ -969,7 +1062,7 @@ function App({
         traceId: primaryDownloadTask.traceId,
         percent: -1,
         stage: "preparing" as DownloadStage,
-        speed: getDownloadStageLabel("preparing"),
+        speed: "Resolving media...",
         eta: "",
       }
     : null;
@@ -5225,62 +5318,13 @@ function App({
               userSelect: 'none',
             }}
           >
-            <div style={{
-              position: 'relative',
-              width: 48,
-              height: 48,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-            }}>
-              <svg
-                width="48"
-                height="48"
-                viewBox="0 0 48 48"
-                style={{
-                  transform: 'rotate(-90deg)',
-                  display: 'block',
-                  pointerEvents: 'none',
-                }}
-              >
-                <circle
-                  cx="24" cy="24" r="20"
-                  fill="none"
-                  stroke={primaryTaskTrackStroke}
-                  strokeWidth="4"
-                />
-                <circle
-                  cx="24" cy="24" r="20"
-                  fill="none"
-                  stroke={primaryTaskStroke}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 20}
-                  strokeDashoffset={primaryTask.indeterminate
-                    ? 2 * Math.PI * 20 * 0.75
-                    : 2 * Math.PI * 20 * (1 - Math.max(0, Math.min(100, primaryTask.percent)) / 100)}
-                  style={{
-                    transition: primaryTask.indeterminate ? 'none' : 'stroke-dashoffset 0.3s ease',
-                    animation: primaryTask.indeterminate ? 'spin 1s linear infinite' : 'none',
-                    transformOrigin: 'center',
-                  }}
-                />
-              </svg>
-              <span style={{
-                position: 'absolute',
-                fontSize: 11,
-                fontWeight: 500,
-                color: primaryTaskTextColor,
-                textAlign: 'center',
-                userSelect: 'none',
-                pointerEvents: 'none',
-              }}>
-                {primaryTask.indeterminate
-                  ? '...'
-                  : `${Math.round(primaryTask.percent)}%`}
-              </span>
-            </div>
+            <CircularProgressIndicator
+              strokeColor={primaryTaskStroke}
+              trackColor={primaryTaskTrackStroke}
+              textColor={primaryTaskTextColor}
+              percent={primaryTask.percent}
+              indeterminate={primaryTask.indeterminate}
+            />
             {primaryTaskStatusText ? (
               <span style={{ fontSize: 10, color: primaryTaskStatusColor, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>
                 {primaryTaskStatusText}
@@ -5366,57 +5410,57 @@ function App({
             draggable={false}
             style={{
               position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              maxWidth: 170,
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
               pointerEvents: "none",
               userSelect: "none",
             }}
           >
-            {isForegroundTaskOutcomeVisible ? (
-              downloadCancelled ? (
-                <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                width: 170,
+                maxWidth: "100%",
+                pointerEvents: "none",
+              }}
+            >
+              {isForegroundTaskOutcomeVisible ? (
+                downloadCancelled ? (
+                  <CloseIcon size={48} style={{ color: colors.errorIcon, pointerEvents: "none" }} strokeWidth={3} />
+                ) : (
+                  <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
+                )
               ) : (
-                <CheckIcon size={48} style={{ color: colors.successIcon, pointerEvents: "none" }} strokeWidth={3} />
-              )
-            ) : (
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  border: `2px solid ${colors.borderStart}`,
-                  borderTopColor: colors.accentSolid,
-                  display: "block",
-                  animation: "spin 0.75s linear infinite",
-                  boxShadow: `0 0 10px ${colors.accentGlow}`,
-                }}
-              />
-            )}
-            {isForegroundTaskOutcomeVisible && downloadCancelled && downloadErrorMessage ? (
-              <span
-                title={downloadErrorMessage}
-                style={{
-                  fontSize: 9,
-                  lineHeight: 1.2,
-                  color: colors.textSecondary,
-                  textAlign: "center",
-                  userSelect: "none",
-                  pointerEvents: "none",
-                  padding: "0 8px",
-                }}
-              >
-                {downloadErrorMessage}
-              </span>
-            ) : null}
+                <CircularProgressIndicator
+                  strokeColor={colors.accentSolid}
+                  trackColor={colors.borderStart}
+                  textColor={colors.textSecondary}
+                  percent={0}
+                  indeterminate
+                />
+              )}
+              {isForegroundTaskOutcomeVisible && downloadCancelled && downloadErrorMessage ? (
+                <span
+                  title={downloadErrorMessage}
+                  style={{
+                    fontSize: 9,
+                    lineHeight: 1.2,
+                    color: colors.textSecondary,
+                    textAlign: "center",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                    padding: "0 8px",
+                  }}
+                >
+                  {downloadErrorMessage}
+                </span>
+              ) : null}
+            </div>
           </motion.div>
         ) : visualIsMinimized ? (
           <motion.div
