@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { CheckIcon, CloseIcon } from "./icons/AppIcons";
 
@@ -146,64 +146,105 @@ export const ForegroundOutcomeOverlay = ({
   loadingStrokeColor,
   loadingTrackColor,
   loadingTextColor,
-}: ForegroundOutcomeOverlayProps) => (
-  <AnimatePresence mode="sync" initial={false}>
-    {visible ? (
-      <motion.div
-        key="foreground-outcome-overlay"
-        initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-        animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-        exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-        transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-        style={CENTER_OVERLAY_CONTENT_STYLE}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            width: 170,
-            maxWidth: "100%",
-            pointerEvents: "none",
-          }}
+}: ForegroundOutcomeOverlayProps) => {
+  const shouldReduceMotion = useReducedMotion();
+  const iconSpringTransition = shouldReduceMotion
+    ? { duration: 0.12 }
+    : { type: "spring" as const, stiffness: 580, damping: 28, mass: 0.72 };
+  const ringAnimate = outcomeVisible
+    ? { opacity: 0, scale: 0.88, filter: "blur(0.5px)" }
+    : { opacity: 1, scale: 1, filter: "blur(0px)" };
+  const outcomeAnimate = outcomeVisible
+    ? { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }
+    : { opacity: 0, scale: 0.82, y: 4, filter: "blur(0.8px)" };
+
+  return (
+    <AnimatePresence mode="sync" initial={false}>
+      {visible ? (
+        <motion.div
+          key="foreground-outcome-overlay"
+          initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+          animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+          exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+          transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
+          style={CENTER_OVERLAY_CONTENT_STYLE}
         >
-          <div style={FIXED_CENTER_ICON_FRAME_STYLE}>
-            {outcomeVisible ? (
-              cancelled ? (
-                <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
-              ) : (
-                <CheckIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={3} />
-              )
-            ) : (
-              <CircularProgressIndicator
-                strokeColor={loadingStrokeColor}
-                trackColor={loadingTrackColor}
-                textColor={loadingTextColor}
-                percent={0}
-                indeterminate
-              />
-            )}
-          </div>
-          {outcomeVisible && cancelled && errorMessage ? (
-            <span
-              title={errorMessage}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              width: 170,
+              maxWidth: "100%",
+              pointerEvents: "none",
+            }}
+          >
+            <div
               style={{
-                fontSize: 9,
-                lineHeight: 1.2,
-                color: loadingTextColor,
-                textAlign: "center",
-                userSelect: "none",
-                pointerEvents: "none",
-                padding: "0 8px",
+                ...FIXED_CENTER_ICON_FRAME_STYLE,
+                position: "relative",
               }}
             >
-              {errorMessage}
-            </span>
-          ) : null}
-        </div>
-      </motion.div>
-    ) : null}
-  </AnimatePresence>
-);
+              <motion.div
+                animate={ringAnimate}
+                transition={iconSpringTransition}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <CircularProgressIndicator
+                  strokeColor={loadingStrokeColor}
+                  trackColor={loadingTrackColor}
+                  textColor={loadingTextColor}
+                  percent={0}
+                  indeterminate
+                />
+              </motion.div>
+              <motion.div
+                animate={outcomeAnimate}
+                transition={iconSpringTransition}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                {cancelled ? (
+                  <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
+                ) : (
+                  <CheckIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={3} />
+                )}
+              </motion.div>
+            </div>
+            {outcomeVisible && cancelled && errorMessage ? (
+              <span
+                title={errorMessage}
+                style={{
+                  fontSize: 9,
+                  lineHeight: 1.2,
+                  color: loadingTextColor,
+                  textAlign: "center",
+                  userSelect: "none",
+                  pointerEvents: "none",
+                  padding: "0 8px",
+                }}
+              >
+                {errorMessage}
+              </span>
+            ) : null}
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+};
