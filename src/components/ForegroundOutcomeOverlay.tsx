@@ -159,8 +159,8 @@ export const ForegroundOutcomeOverlay = ({
   const outcomeEnterTransition = shouldReduceMotion
     ? { duration: 0.12 }
     : {
-        duration: 0.42,
-        times: [0, 0.42, 0.72, 0.9, 1],
+        duration: 0.34,
+        times: [0, 0.46, 1],
         ease: [0.22, 1, 0.36, 1] as const,
       };
   const ringAnimate = outcomeVisible
@@ -170,11 +170,11 @@ export const ForegroundOutcomeOverlay = ({
     ? shouldReduceMotion
       ? { opacity: 1, scale: 1, filter: "blur(0px)" }
       : {
-          opacity: [0, 0, 1, 1, 1],
-          scale: [0.52, 0.52, 1.14, 0.97, 1],
-          filter: ["blur(1px)", "blur(1px)", "blur(0px)", "blur(0px)", "blur(0px)"],
+          opacity: [0, 0, 1],
+          scale: [0.84, 0.84, 1],
+          filter: ["blur(0.8px)", "blur(0.8px)", "blur(0px)"],
         }
-    : { opacity: 0, scale: 0.52, filter: "blur(1px)" };
+    : { opacity: 0, scale: 0.84, filter: "blur(0.8px)" };
   const outcomeTransition = outcomeVisible
     ? outcomeEnterTransition
     : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: [0.32, 0.72, 0, 1] as const };
