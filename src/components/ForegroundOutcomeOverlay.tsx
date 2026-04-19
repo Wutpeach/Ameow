@@ -148,15 +148,46 @@ export const ForegroundOutcomeOverlay = ({
   loadingTextColor,
 }: ForegroundOutcomeOverlayProps) => {
   const shouldReduceMotion = useReducedMotion();
-  const iconSpringTransition = shouldReduceMotion
+
+  const ringExitTransition = shouldReduceMotion
+    ? { duration: 0.1 }
+    : {
+        opacity: { duration: 0.14, ease: [0.32, 0.72, 0, 1] as const },
+        scale: { duration: 0.16, ease: [0.32, 0.72, 0, 1] as const },
+        filter: { duration: 0.16, ease: [0.32, 0.72, 0, 1] as const },
+      };
+  const outcomeEnterTransition = shouldReduceMotion
     ? { duration: 0.12 }
-    : { type: "spring" as const, stiffness: 580, damping: 28, mass: 0.72 };
+    : {
+        duration: 0.42,
+        times: [0, 0.42, 0.72, 0.9, 1],
+        ease: [0.22, 1, 0.36, 1] as const,
+      };
   const ringAnimate = outcomeVisible
-    ? { opacity: 0, scale: 0.88, filter: "blur(0.5px)" }
+    ? { opacity: 0, scale: 0.58, filter: "blur(1px)" }
     : { opacity: 1, scale: 1, filter: "blur(0px)" };
   const outcomeAnimate = outcomeVisible
-    ? { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }
-    : { opacity: 0, scale: 0.82, y: 4, filter: "blur(0.8px)" };
+    ? shouldReduceMotion
+      ? { opacity: 1, scale: 1, filter: "blur(0px)" }
+      : {
+          opacity: [0, 0, 1, 1, 1],
+          scale: [0.52, 0.52, 1.14, 0.97, 1],
+          filter: ["blur(1px)", "blur(1px)", "blur(0px)", "blur(0px)", "blur(0px)"],
+        }
+    : { opacity: 0, scale: 0.52, filter: "blur(1px)" };
+  const outcomeTransition = outcomeVisible
+    ? outcomeEnterTransition
+    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: [0.32, 0.72, 0, 1] as const };
+  const errorMessageAnimate = outcomeVisible
+    ? shouldReduceMotion
+      ? { opacity: 1, y: 0 }
+      : { opacity: [0, 0, 1], y: [4, 4, 0] }
+    : { opacity: 0, y: 4 };
+  const errorMessageTransition = outcomeVisible
+    ? shouldReduceMotion
+      ? { duration: 0.12 }
+      : { duration: 0.28, times: [0, 0.55, 1], ease: [0.22, 1, 0.36, 1] as const }
+    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: [0.32, 0.72, 0, 1] as const };
 
   return (
     <AnimatePresence mode="sync" initial={false}>
@@ -189,13 +220,14 @@ export const ForegroundOutcomeOverlay = ({
             >
               <motion.div
                 animate={ringAnimate}
-                transition={iconSpringTransition}
+                transition={ringExitTransition}
                 style={{
                   position: "absolute",
                   inset: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transformOrigin: "center center",
                   pointerEvents: "none",
                 }}
               >
@@ -209,13 +241,14 @@ export const ForegroundOutcomeOverlay = ({
               </motion.div>
               <motion.div
                 animate={outcomeAnimate}
-                transition={iconSpringTransition}
+                transition={outcomeTransition}
                 style={{
                   position: "absolute",
                   inset: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  transformOrigin: "center center",
                   pointerEvents: "none",
                 }}
               >
@@ -227,7 +260,9 @@ export const ForegroundOutcomeOverlay = ({
               </motion.div>
             </div>
             {outcomeVisible && cancelled && errorMessage ? (
-              <span
+              <motion.span
+                animate={errorMessageAnimate}
+                transition={errorMessageTransition}
                 title={errorMessage}
                 style={{
                   fontSize: 9,
@@ -240,7 +275,7 @@ export const ForegroundOutcomeOverlay = ({
                 }}
               >
                 {errorMessage}
-              </span>
+              </motion.span>
             ) : null}
           </div>
         </motion.div>
