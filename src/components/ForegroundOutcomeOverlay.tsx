@@ -157,63 +157,26 @@ export const ForegroundOutcomeOverlay = ({
         transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
         style={CENTER_OVERLAY_CONTENT_STYLE}
       >
-        <AnimatePresence mode="sync" initial={false}>
-          {outcomeVisible ? (
-            <motion.div
-              key={cancelled ? "foreground-error" : "foreground-success"}
-              initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-              animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-              exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-              transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                width: 170,
-                maxWidth: "100%",
-                pointerEvents: "none",
-              }}
-            >
-              <div style={FIXED_CENTER_ICON_FRAME_STYLE}>
-                {cancelled ? (
-                  <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
-                ) : (
-                  <CheckIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={3} />
-                )}
-              </div>
-              {cancelled && errorMessage ? (
-                <span
-                  title={errorMessage}
-                  style={{
-                    fontSize: 9,
-                    lineHeight: 1.2,
-                    color: loadingTextColor,
-                    textAlign: "center",
-                    userSelect: "none",
-                    pointerEvents: "none",
-                    padding: "0 8px",
-                  }}
-                >
-                  {errorMessage}
-                </span>
-              ) : null}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="foreground-loading"
-              initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-              animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-              exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-              transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "none",
-              }}
-            >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            width: 170,
+            maxWidth: "100%",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={FIXED_CENTER_ICON_FRAME_STYLE}>
+            {outcomeVisible ? (
+              cancelled ? (
+                <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
+              ) : (
+                <CheckIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={3} />
+              )
+            ) : (
               <CircularProgressIndicator
                 strokeColor={loadingStrokeColor}
                 trackColor={loadingTrackColor}
@@ -221,9 +184,25 @@ export const ForegroundOutcomeOverlay = ({
                 percent={0}
                 indeterminate
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </div>
+          {outcomeVisible && cancelled && errorMessage ? (
+            <span
+              title={errorMessage}
+              style={{
+                fontSize: 9,
+                lineHeight: 1.2,
+                color: loadingTextColor,
+                textAlign: "center",
+                userSelect: "none",
+                pointerEvents: "none",
+                padding: "0 8px",
+              }}
+            >
+              {errorMessage}
+            </span>
+          ) : null}
+        </div>
       </motion.div>
     ) : null}
   </AnimatePresence>
