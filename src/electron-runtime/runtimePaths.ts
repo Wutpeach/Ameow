@@ -23,20 +23,26 @@ const createStatusEntry = (
   source: RuntimeDependencySource | null,
   entryPath: string | null,
   error: string | null,
+  overrides: Partial<RuntimeDependencyStatusEntry> = {},
 ): RuntimeDependencyStatusEntry => ({
   state,
   source,
   path: entryPath,
   error,
+  ...overrides,
 });
 
 const readyStatus = (
   entryPath: string,
   source: RuntimeDependencySource,
-): RuntimeDependencyStatusEntry => createStatusEntry("ready", source, entryPath, null);
+  overrides: Partial<RuntimeDependencyStatusEntry> = {},
+): RuntimeDependencyStatusEntry => createStatusEntry("ready", source, entryPath, null, overrides);
 
-const missingStatus = (error: string): RuntimeDependencyStatusEntry =>
-  createStatusEntry("missing", null, null, error);
+const missingStatus = (
+  error: string,
+  overrides: Partial<RuntimeDependencyStatusEntry> = {},
+): RuntimeDependencyStatusEntry =>
+  createStatusEntry("missing", null, null, error, overrides);
 
 const firstCandidate = (candidates: string[]): string | null => candidates[0] ?? null;
 
@@ -93,6 +99,14 @@ const managedDenoPathFor = (environment: ElectronRuntimeEnvironment): string => 
   return path.join(realRoot, denoBinaryNameFor(environment.platform));
 };
 
+const managedYtDlpPathFor = (environment: ElectronRuntimeEnvironment): string => {
+  const root = runtimeRootFor(environment, "yt-dlp");
+  if (environment.platform === "win32") {
+    return path.join(root, "venv", "Scripts", "yt-dlp.exe");
+  }
+  return path.join(root, "venv", "bin", "yt-dlp");
+};
+
 const resolveBundledStatus = (
   label: string,
   candidates: string[],
@@ -127,6 +141,55 @@ const resolveManagedStatus = (
   );
 };
 
+const resolveYtDlpStatus = (
+  environment: ElectronRuntimeEnvironment,
+): RuntimeDependencyStatusEntry => {
+  const bundledCandidates = resolveBundledCandidates(
+    environment,
+    ytDlpBinaryNameFor(environment.platform, environment.arch),
+  );
+  if (environment.platform !== "darwin") {
+    return resolveBundledStatus("yt-dlp", bundledCandidates);
+  }
+
+  const managedPath = managedYtDlpPathFor(environment);
+  const bundledPath = existingCandidate(bundledCandidates);
+
+  if (fileExists(managedPath)) {
+    return readyStatus(managedPath, "managed", {
+      expectedSource: "managed",
+      fallbackSource: bundledPath ? "bundled" : null,
+      fallbackPath: bundledPath,
+    });
+  }
+
+  if (bundledPath) {
+    return readyStatus(bundledPath, "bundled", {
+      expectedSource: "managed",
+      fallbackSource: "bundled",
+      fallbackPath: bundledPath,
+      error: `Missing managed yt-dlp runtime. Falling back to bundled macOS binary at ${bundledPath}`,
+    });
+  }
+
+  return missingStatus(
+    `Missing managed yt-dlp runtime. Expected ${JSON.stringify([managedPath])}; bundled fallback checked ${JSON.stringify(bundledCandidates)}`,
+    {
+      expectedSource: "managed",
+      fallbackSource: "bundled",
+      fallbackPath: firstCandidate(bundledCandidates),
+    },
+  );
+};
+
+const resolveYtDlpBinaryPath = (environment: ElectronRuntimeEnvironment): string => {
+  const status = resolveYtDlpStatus(environment);
+  if (status.path) {
+    return status.path;
+  }
+  return managedYtDlpPathFor(environment);
+};
+
 export const resolveRuntimeBinaryPaths = (
   environment: ElectronRuntimeEnvironment,
 ): RuntimeBinaryPaths => {
@@ -137,12 +200,7 @@ export const resolveRuntimeBinaryPaths = (
   );
   const resolvedGalleryDl = existingCandidateOrFirst(galleryDlBundledCandidates);
   return {
-    ytDlp: existingCandidateOrFirst(
-      resolveBundledCandidates(
-        environment,
-        ytDlpBinaryNameFor(environment.platform, environment.arch),
-      ),
-    ) ?? "",
+    ytDlp: resolveYtDlpBinaryPath(environment),
     galleryDl: resolvedGalleryDl ?? "",
     ffmpeg: ffmpegPaths.ffmpeg,
     ffprobe: ffmpegPaths.ffprobe,
@@ -153,10 +211,6 @@ export const resolveRuntimeBinaryPaths = (
 export const inspectRuntimeDependencyStatus = (
   environment: ElectronRuntimeEnvironment,
 ): RuntimeDependencyStatusSnapshot => {
-  const ytDlpCandidates = resolveBundledCandidates(
-    environment,
-    ytDlpBinaryNameFor(environment.platform, environment.arch),
-  );
   const galleryDlBundledCandidates = resolveBundledCandidates(
     environment,
     galleryDlBinaryNameFor(environment.platform, environment.arch),
@@ -166,7 +220,7 @@ export const inspectRuntimeDependencyStatus = (
   const galleryDlPath = existingCandidate(galleryDlBundledCandidates);
 
   return {
-    ytDlp: resolveBundledStatus("yt-dlp", ytDlpCandidates),
+    ytDlp: resolveYtDlpStatus(environment),
     galleryDl: galleryDlPath
       ? readyStatus(galleryDlPath, "bundled")
       : missingStatus(

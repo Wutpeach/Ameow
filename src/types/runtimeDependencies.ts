@@ -5,7 +5,10 @@ export type RuntimeDependencySource = "bundled" | "managed";
 export type RuntimeDependencyStatusEntry = {
   state: RuntimeDependencyState;
   source: RuntimeDependencySource | null;
+  expectedSource?: RuntimeDependencySource | null;
+  fallbackSource?: RuntimeDependencySource | null;
   path: string | null;
+  fallbackPath?: string | null;
   error: string | null;
 };
 

@@ -2,7 +2,10 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { inspectRuntimeDependencyStatus } from "./runtimePaths";
+import {
+  inspectRuntimeDependencyStatus,
+  resolveRuntimeBinaryPaths,
+} from "./runtimePaths";
 import type { ElectronRuntimeEnvironment } from "./contracts";
 
 const tempRoots: string[] = [];
@@ -109,11 +112,65 @@ describe("inspectRuntimeDependencyStatus", () => {
     const snapshot = inspectRuntimeDependencyStatus(environment);
 
     expect(snapshot.ytDlp.state).toBe("ready");
+    expect(snapshot.ytDlp.source).toBe("bundled");
+    expect(snapshot.ytDlp.expectedSource).toBe("managed");
+    expect(snapshot.ytDlp.fallbackSource).toBe("bundled");
     expect(snapshot.ytDlp.path).toContain("yt-dlp-aarch64-apple-darwin");
+    expect(snapshot.ytDlp.error).toContain("Missing managed yt-dlp runtime");
     expect(snapshot.galleryDl.state).toBe("ready");
     expect(snapshot.galleryDl.path).toContain("gallery-dl-aarch64-apple-darwin");
     expect(snapshot.ffmpeg.path).toContain(path.join("ffmpeg", "aarch64-apple-darwin", "ffmpeg"));
     expect(snapshot.deno.path).toContain(path.join("deno", "aarch64-apple-darwin", "deno"));
   });
-});
 
+  it("prefers macOS managed yt-dlp when the managed runtime exists", () => {
+    const environment = createEnvironment({
+      platform: "darwin",
+      arch: "arm64",
+    });
+    const binariesDir = path.join(environment.repoRoot, "desktop-assets", "binaries");
+    const managedYtDlpDir = path.join(
+      environment.configDir,
+      "runtimes",
+      "yt-dlp",
+      "aarch64-apple-darwin",
+      "venv",
+      "bin",
+    );
+    mkdirSync(binariesDir, { recursive: true });
+    mkdirSync(managedYtDlpDir, { recursive: true });
+
+    writeFileSync(path.join(binariesDir, "yt-dlp-aarch64-apple-darwin"), "bundled");
+    writeFileSync(path.join(managedYtDlpDir, "yt-dlp"), "managed");
+
+    const snapshot = inspectRuntimeDependencyStatus(environment);
+    const binaries = resolveRuntimeBinaryPaths(environment);
+
+    expect(snapshot.ytDlp.state).toBe("ready");
+    expect(snapshot.ytDlp.source).toBe("managed");
+    expect(snapshot.ytDlp.expectedSource).toBe("managed");
+    expect(snapshot.ytDlp.fallbackSource).toBe("bundled");
+    expect(snapshot.ytDlp.path).toContain(path.join("yt-dlp", "aarch64-apple-darwin", "venv", "bin", "yt-dlp"));
+    expect(snapshot.ytDlp.fallbackPath).toContain("yt-dlp-aarch64-apple-darwin");
+    expect(snapshot.ytDlp.error).toBeNull();
+    expect(binaries.ytDlp).toBe(snapshot.ytDlp.path);
+  });
+
+  it("reports macOS managed yt-dlp missing and exposes the bundled fallback path hint", () => {
+    const environment = createEnvironment({
+      platform: "darwin",
+      arch: "arm64",
+    });
+
+    const snapshot = inspectRuntimeDependencyStatus(environment);
+    const binaries = resolveRuntimeBinaryPaths(environment);
+
+    expect(snapshot.ytDlp.state).toBe("missing");
+    expect(snapshot.ytDlp.source).toBeNull();
+    expect(snapshot.ytDlp.expectedSource).toBe("managed");
+    expect(snapshot.ytDlp.fallbackSource).toBe("bundled");
+    expect(snapshot.ytDlp.fallbackPath).toContain("yt-dlp-aarch64-apple-darwin");
+    expect(snapshot.ytDlp.error).toContain("Missing managed yt-dlp runtime");
+    expect(binaries.ytDlp).toContain(path.join("yt-dlp", "aarch64-apple-darwin", "venv", "bin", "yt-dlp"));
+  });
+});
