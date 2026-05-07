@@ -76,6 +76,7 @@
         "ready": "运行时已就绪"
       },
       "component": {
+        "ytDlp": "yt-dlp",
         "ffmpeg": "FFmpeg",
         "deno": "Deno"
       },

@@ -41,6 +41,15 @@ describe("hasMissingManagedRuntimeComponents", () => {
     }))).toBe(false);
   });
 
+  it("returns true when macOS yt-dlp is expected to be managed and missing", () => {
+    expect(hasMissingManagedRuntimeComponents(createStatus({
+      ytDlp: {
+        ...missingEntry,
+        expectedSource: "managed",
+      },
+    }))).toBe(true);
+  });
+
   it("returns true when any managed runtime is missing", () => {
     expect(hasMissingManagedRuntimeComponents(createStatus({
       ffmpeg: missingEntry,

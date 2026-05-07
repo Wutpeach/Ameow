@@ -76,6 +76,7 @@
         "ready": "Runtime ready"
       },
       "component": {
+        "ytDlp": "yt-dlp",
         "ffmpeg": "FFmpeg",
         "deno": "Deno"
       },

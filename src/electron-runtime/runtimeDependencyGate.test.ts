@@ -45,6 +45,25 @@ describe("createRuntimeDependencyResolver", () => {
     });
   });
 
+  it("treats managed yt-dlp as a missing managed component instead of a fatal bundled failure", () => {
+    const resolver = createRuntimeDependencyResolver(
+      createStatus({
+        ytDlp: {
+          ...missingEntry,
+          expectedSource: "managed",
+          error: "Missing managed yt-dlp runtime",
+        },
+      }),
+      () => createStatus(),
+    );
+
+    expect(resolver.getGateState()).toMatchObject({
+      phase: "idle",
+      missingComponents: ["ytDlp"],
+      lastError: null,
+    });
+  });
+
   it("reports ready when bundled runtimes are present and managed runtimes are healthy", () => {
     const resolver = createRuntimeDependencyResolver(
       createStatus(),

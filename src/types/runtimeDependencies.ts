@@ -29,6 +29,7 @@ export type RuntimeDependencyGatePhase =
   | "failed";
 
 export type RuntimeDependencyManagedComponent =
+  | "ytDlp"
   | "ffmpeg"
   | "deno";
 

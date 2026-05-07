@@ -6,6 +6,7 @@ import type {
 import type { RuntimeDependencyResolver } from "./contracts.js";
 
 const managedComponents: RuntimeDependencyManagedComponent[] = [
+  "ytDlp",
   "ffmpeg",
   "deno",
 ];
@@ -33,6 +34,9 @@ const missingComponentsFrom = (
   snapshot: RuntimeDependencyStatusSnapshot,
 ): RuntimeDependencyManagedComponent[] => {
   const missing: RuntimeDependencyManagedComponent[] = [];
+  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource === "managed") {
+    missing.push("ytDlp");
+  }
   if (snapshot.ffmpeg.state !== "ready") {
     missing.push("ffmpeg");
   }
@@ -45,7 +49,7 @@ const missingComponentsFrom = (
 const bundledFailureErrorFrom = (
   snapshot: RuntimeDependencyStatusSnapshot,
 ): string | null => {
-  if (snapshot.ytDlp.state !== "ready") {
+  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
     return snapshot.ytDlp.error ?? "Missing bundled yt-dlp runtime";
   }
   if (snapshot.galleryDl.state !== "ready") {
@@ -123,6 +127,9 @@ export const createRuntimeDependencyResolver = (
       if (!managedComponents.includes(component)) {
         return;
       }
+      if (component === "ytDlp") {
+        currentSnapshot = { ...currentSnapshot, ytDlp: status };
+      } else
       if (component === "ffmpeg") {
         currentSnapshot = { ...currentSnapshot, ffmpeg: status };
       } else if (component === "deno") {

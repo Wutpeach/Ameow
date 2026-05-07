@@ -95,6 +95,11 @@ import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
 import {
+  ensureManagedYtDlpReady,
+  getManagedYtDlpVersion,
+  isManagedYtDlpSupported,
+} from "./managedYtDlpRuntime.mts";
+import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
   UI_LAB_WINDOW_CONTENT_HEIGHT,
@@ -180,7 +185,7 @@ const YTDLP_FORMAT_SELECTOR_DATA_SAVER = [
   "worst[ext=mp4]/",
   "worst",
 ].join("");
-const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ffmpeg", "deno"];
+const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ytDlp", "ffmpeg", "deno"];
 const RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
 const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
@@ -2979,6 +2984,17 @@ function managedFfmpegPaths() {
   };
 }
 
+function managedYtDlpPaths() {
+  const root = managedRuntimeRoot("yt-dlp");
+  return {
+    root,
+    venvDir: join(root, "venv"),
+    python: join(root, "venv", "bin", "python3"),
+    ytDlp: join(root, "venv", "bin", "yt-dlp"),
+    metadata: join(root, "metadata.json"),
+  };
+}
+
 function buildElectronRuntimeEnvironment() {
   return {
     repoRoot,
@@ -3090,6 +3106,9 @@ async function getRuntimeDependencyStatus() {
 
 function collectMissingManagedRuntimeComponents(snapshot) {
   const missingComponents = [];
+  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource === "managed") {
+    missingComponents.push("ytDlp");
+  }
   if (snapshot.ffmpeg.state !== "ready") {
     missingComponents.push("ffmpeg");
   }
@@ -3136,7 +3155,7 @@ function applyRuntimeDependencyGateState(nextState) {
 
 function syncRuntimeDependencyGateStateFromSnapshot(snapshot) {
   const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-  if (snapshot.ytDlp.state !== "ready") {
+  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
     return applyRuntimeDependencyGateState({
       phase: "failed",
       missingComponents,
@@ -3532,6 +3551,38 @@ async function ensureManagedFfmpegRuntimeReady(trigger, missingComponents) {
   }
 }
 
+async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, desiredVersion = null) {
+  if (!isManagedYtDlpSupported()) {
+    const bundledPath = resolveBundledBinary("yt-dlp");
+    if (!bundledPath) {
+      throw new Error("Bundled yt-dlp binary is missing");
+    }
+    return bundledPath;
+  }
+
+  const paths = managedYtDlpPaths();
+  if (!desiredVersion && existsSync(paths.ytDlp)) {
+    return paths.ytDlp;
+  }
+
+  logInfo("Electron", `Bootstrapping managed yt-dlp runtime (${trigger})`);
+  const runtime = await ensureManagedYtDlpReady({
+    configDir: getUserDataDir(),
+    target: currentManagedRuntimeTarget(),
+    desiredVersion,
+    onStage: async (stage) => {
+      await updateRuntimeDependencyGateDownloadActivity(
+        missingComponents,
+        "ytDlp",
+        stage,
+        stage === "installing" ? 1 : null,
+        stage === "installing" ? 1 : null,
+      );
+    },
+  });
+  return runtime.ytDlpPath;
+}
+
 async function ensureMissingManagedRuntimesReady(trigger) {
   const initialSnapshot = await getRuntimeDependencyStatus();
   const missingComponents = collectMissingManagedRuntimeComponents(initialSnapshot);
@@ -3539,7 +3590,12 @@ async function ensureMissingManagedRuntimesReady(trigger) {
     return initialSnapshot;
   }
 
-  if (initialSnapshot.ffmpeg.state !== "ready") {
+  if (initialSnapshot.ytDlp.state !== "ready" && initialSnapshot.ytDlp.expectedSource === "managed") {
+    await ensureManagedYtDlpRuntimeReady(trigger, missingComponents);
+  }
+
+  const afterYtDlp = await getRuntimeDependencyStatus();
+  if (afterYtDlp.ffmpeg.state !== "ready") {
     await ensureManagedFfmpegRuntimeReady(trigger, missingComponents);
   }
 
@@ -3930,6 +3986,17 @@ async function updateDownloaderBinary(toolId) {
 }
 
 async function updateYtdlpBinary() {
+  if (isManagedYtDlpSupported()) {
+    const { latest } = await resolveLatestDownloaderVersion("yt-dlp", true);
+    const runtimePath = await ensureManagedYtDlpRuntimeReady(
+      "settings_update",
+      collectMissingManagedRuntimeComponents(await getRuntimeDependencyStatus()),
+      latest,
+    );
+    const currentVersion = await getLocalDownloaderVersion("yt-dlp", runtimePath);
+    await writeDownloaderLatestCache("yt-dlp", currentVersion);
+    return currentVersion;
+  }
   return updateDownloaderBinary("yt-dlp");
 }
 
@@ -3968,6 +4035,26 @@ async function checkBundledDownloaderVersion(toolId) {
 }
 
 async function checkYtdlpVersion() {
+  if (isManagedYtDlpSupported()) {
+    const managed = await getManagedYtDlpVersion(getUserDataDir(), currentManagedRuntimeTarget());
+    let current = "missing";
+    let localError = null;
+    if (managed?.path) {
+      current = managed.version;
+    } else {
+      localError = "Managed yt-dlp runtime is missing";
+    }
+    const { latest, latestError } = await resolveLatestDownloaderVersion("yt-dlp");
+    return {
+      current,
+      latest,
+      updateAvailable:
+        current !== "missing" && current !== "unknown" && latest
+          ? compareLooseVersions(current, latest) < 0
+          : null,
+      latestError: latestError ?? localError,
+    };
+  }
   const versionInfo = await checkBundledDownloaderVersion("yt-dlp");
   return {
     current: versionInfo.current,
@@ -4814,15 +4901,6 @@ async function settleVideoDownloadTask(task, outcome) {
 }
 
 async function runVideoDownloadTask(task) {
-  const ytdlpPath = resolveBundledBinary("yt-dlp");
-  if (!ytdlpPath) {
-    await settleVideoDownloadTask(task, {
-      success: false,
-      error: "Bundled yt-dlp binary is missing",
-    });
-    return;
-  }
-
   const sourceUrl = resolveQueuedVideoSourceUrl(task);
   if (!sourceUrl) {
     await settleVideoDownloadTask(task, {
@@ -4835,6 +4913,16 @@ async function runVideoDownloadTask(task) {
   try {
     const runtimeSnapshot = await getRuntimeDependencyStatus();
     const missingManagedComponents = collectMissingManagedRuntimeComponents(runtimeSnapshot);
+    const ytdlpPath = isManagedYtDlpSupported()
+      ? await ensureManagedYtDlpRuntimeReady("ytdlp_download", missingManagedComponents)
+      : resolveBundledBinary("yt-dlp");
+    if (!ytdlpPath) {
+      throw new Error(
+        isManagedYtDlpSupported()
+          ? "Managed yt-dlp runtime is missing"
+          : "Bundled yt-dlp binary is missing",
+      );
+    }
     const ffmpegPath = await ensureManagedFfmpegRuntimeReady(
       "ytdlp_download",
       missingManagedComponents,
