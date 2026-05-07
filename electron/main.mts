@@ -98,7 +98,7 @@ import {
   ensureManagedYtDlpReady,
   getManagedYtDlpVersion,
   isManagedYtDlpSupported,
-} from "./managedYtDlpRuntime.mts";
+} from "./managedYtDlpRuntime.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
@@ -1224,6 +1224,37 @@ function summarizeInjectedVideoSelectionPayload(payload) {
     payload?.videoCandidates,
     normalizedSiteHint,
   );
+  const rawExtensionData = (
+    payload?.extensionData && typeof payload.extensionData === "object" && !Array.isArray(payload.extensionData)
+      ? payload.extensionData
+      : payload?.extension_data && typeof payload.extension_data === "object" && !Array.isArray(payload.extension_data)
+        ? payload.extension_data
+        : null
+  );
+  const rawYouTubeExtensionData = rawExtensionData?.youtube
+    && typeof rawExtensionData.youtube === "object"
+    && !Array.isArray(rawExtensionData.youtube)
+    ? rawExtensionData.youtube
+    : null;
+  const youtubeExtensionSource = normalizeOptionalString(rawYouTubeExtensionData?.source);
+  const normalizedExtensionData = rawYouTubeExtensionData
+    ? {
+        youtube: {
+          forceExtended: typeof rawYouTubeExtensionData.forceExtended === "boolean"
+            ? rawYouTubeExtensionData.forceExtended
+            : null,
+          allowCookies: typeof rawYouTubeExtensionData.allowCookies === "boolean"
+            ? rawYouTubeExtensionData.allowCookies
+            : null,
+          source:
+            youtubeExtensionSource === "injected"
+            || youtubeExtensionSource === "pasted"
+            || youtubeExtensionSource === "context_menu"
+              ? youtubeExtensionSource
+              : null,
+        },
+      }
+    : null;
 
   return {
     requestId: normalizeOptionalString(payload?.requestId) ?? null,
@@ -1237,6 +1268,7 @@ function summarizeInjectedVideoSelectionPayload(payload) {
     siteHint: normalizedSiteHint ?? null,
     titlePresent: Boolean(normalizedTitle),
     cookiesPresent: Boolean(normalizedCookies),
+    extensionData: normalizedExtensionData,
     videoCandidateCount: normalizedVideoCandidates.length,
     clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec) ?? null,
     clipEndSec: normalizeOptionalNumber(payload?.clipEndSec ?? payload?.clip_end_sec) ?? null,
@@ -5108,6 +5140,49 @@ async function enqueueElectronVideoDownload(payload) {
       ?? normalizeYtdlpQualityPreference(payload?.defaultVideoDownloadQuality)
       ?? mergedPreferences.ytdlpQuality,
     siteHint,
+    extensionData: (() => {
+      const rawExtensionData = payload?.extensionData && typeof payload.extensionData === "object" && !Array.isArray(payload.extensionData)
+        ? payload.extensionData
+        : payload?.extension_data && typeof payload.extension_data === "object" && !Array.isArray(payload.extension_data)
+          ? payload.extension_data
+          : null;
+      const rawYouTubeExtensionData = rawExtensionData?.youtube
+        && typeof rawExtensionData.youtube === "object"
+        && !Array.isArray(rawExtensionData.youtube)
+        ? rawExtensionData.youtube
+        : null;
+      if (!rawYouTubeExtensionData) {
+        return undefined;
+      }
+
+      const youtubeSource = normalizeOptionalString(rawYouTubeExtensionData.source);
+      const normalizedYouTubeData = {
+        forceExtended: typeof rawYouTubeExtensionData.forceExtended === "boolean"
+          ? rawYouTubeExtensionData.forceExtended
+          : undefined,
+        allowCookies: typeof rawYouTubeExtensionData.allowCookies === "boolean"
+          ? rawYouTubeExtensionData.allowCookies
+          : undefined,
+        source:
+          youtubeSource === "injected"
+          || youtubeSource === "pasted"
+          || youtubeSource === "context_menu"
+            ? youtubeSource
+            : undefined,
+      };
+
+      if (
+        normalizedYouTubeData.forceExtended === undefined
+        && normalizedYouTubeData.allowCookies === undefined
+        && normalizedYouTubeData.source === undefined
+      ) {
+        return undefined;
+      }
+
+      return {
+        youtube: normalizedYouTubeData,
+      };
+    })(),
   };
   logInjectedVideoSelectionDebug(
     config,
