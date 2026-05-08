@@ -98,6 +98,7 @@ import {
   ensureManagedYtDlpReady,
   getManagedYtDlpVersion,
   isManagedYtDlpSupported,
+  managedYtDlpMinimumPythonVersion,
 } from "./managedYtDlpRuntime.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
@@ -3583,7 +3584,7 @@ async function ensureManagedFfmpegRuntimeReady(trigger, missingComponents) {
   }
 }
 
-async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, desiredVersion = null) {
+async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, options = {}) {
   if (!isManagedYtDlpSupported()) {
     const bundledPath = resolveBundledBinary("yt-dlp");
     if (!bundledPath) {
@@ -3593,7 +3594,8 @@ async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, desire
   }
 
   const paths = managedYtDlpPaths();
-  if (!desiredVersion && existsSync(paths.ytDlp)) {
+  const forceReinstall = options.forceReinstall === true;
+  if (!forceReinstall && existsSync(paths.ytDlp)) {
     return paths.ytDlp;
   }
 
@@ -3601,7 +3603,6 @@ async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, desire
   const runtime = await ensureManagedYtDlpReady({
     configDir: getUserDataDir(),
     target: currentManagedRuntimeTarget(),
-    desiredVersion,
     onStage: async (stage) => {
       await updateRuntimeDependencyGateDownloadActivity(
         missingComponents,
@@ -3651,7 +3652,7 @@ async function startRuntimeDependencyBootstrap(reason = "frontend_after_visible"
 
   const snapshot = await getRuntimeDependencyStatus();
   const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-  if (snapshot.ytDlp.state !== "ready") {
+  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
     return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
   }
   if (missingComponents.length === 0) {
@@ -3761,6 +3762,47 @@ function buildGitHubHeaders() {
   };
 }
 
+function comparePep440LikeVersions(left, right) {
+  const tokenize = (value) => String(value)
+    .toLowerCase()
+    .replace(/^v/, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? Number(part) : part));
+
+  const leftParts = tokenize(left);
+  const rightParts = tokenize(right);
+  const width = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < width; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+    if (typeof leftValue === "number" && typeof rightValue === "number") {
+      if (leftValue > rightValue) {
+        return 1;
+      }
+      if (leftValue < rightValue) {
+        return -1;
+      }
+      continue;
+    }
+    const leftText = String(leftValue);
+    const rightText = String(rightValue);
+    if (leftText > rightText) {
+      return 1;
+    }
+    if (leftText < rightText) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+function isPrereleaseLikeVersion(version) {
+  return /(?:^|[.\-+_])(dev|a|b|rc)\d*$/i.test(String(version).trim());
+}
+
 async function fetchLatestDownloaderRelease(toolId) {
   const config = resolveOfficialDownloaderRelease(toolId);
   const response = await fetchWithDesktopSession(config.releaseApi, {
@@ -3771,6 +3813,36 @@ async function fetchLatestDownloaderRelease(toolId) {
   }
 
   return response.json();
+}
+
+async function fetchLatestPyPiPackageVersion(packageName) {
+  const response = await fetchWithDesktopSession(`https://pypi.org/simple/${packageName}/`, {
+    headers: {
+      Accept: "text/html",
+      "User-Agent": "FlowSelect-Electron",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`PyPI latest lookup failed: ${response.status}`);
+  }
+  const html = await response.text();
+  const versions = Array.from(
+    html.matchAll(
+      new RegExp(
+        `${packageName.replace("-", "_")}-([0-9][0-9a-z.+_-]*?)(?:-[^"'<\\s]*?)?\\.(?:whl|tar\\.gz|zip)`,
+        "gi",
+      ),
+    ),
+    (match) => normalizeVersionString(match[1]),
+  ).filter(Boolean);
+  if (versions.length === 0) {
+    throw new Error("PyPI simple index did not expose any package versions");
+  }
+  const stableVersions = versions.filter((version) => !isPrereleaseLikeVersion(version));
+  const candidates = stableVersions.length > 0 ? stableVersions : versions;
+  return candidates.sort(comparePep440LikeVersions).at(-1) ?? null;
 }
 
 async function resolveLatestDownloaderVersion(toolId, forceRefresh = false) {
@@ -3788,10 +3860,20 @@ async function resolveLatestDownloaderVersion(toolId, forceRefresh = false) {
   }
 
   try {
-    const payload = await fetchLatestDownloaderRelease(toolId);
-    const latest = normalizeVersionString(payload?.tag_name ?? payload?.name);
+    const payload = toolId === "yt-dlp" && isManagedYtDlpSupported()
+      ? await fetchLatestPyPiPackageVersion("yt-dlp")
+      : await fetchLatestDownloaderRelease(toolId);
+    const latest = normalizeVersionString(
+      toolId === "yt-dlp" && isManagedYtDlpSupported()
+        ? payload
+        : payload?.tag_name ?? payload?.name,
+    );
     if (!latest) {
-      throw new Error("GitHub latest lookup did not return a version tag");
+      throw new Error(
+        toolId === "yt-dlp" && isManagedYtDlpSupported()
+          ? "PyPI latest lookup did not return a package version"
+          : "GitHub latest lookup did not return a version tag",
+      );
     }
 
     await writeDownloaderLatestCache(toolId, latest);
@@ -4019,14 +4101,16 @@ async function updateDownloaderBinary(toolId) {
 
 async function updateYtdlpBinary() {
   if (isManagedYtDlpSupported()) {
-    const { latest } = await resolveLatestDownloaderVersion("yt-dlp", true);
     const runtimePath = await ensureManagedYtDlpRuntimeReady(
       "settings_update",
       collectMissingManagedRuntimeComponents(await getRuntimeDependencyStatus()),
-      latest,
+      { forceReinstall: true },
     );
     const currentVersion = await getLocalDownloaderVersion("yt-dlp", runtimePath);
     await writeDownloaderLatestCache("yt-dlp", currentVersion);
+    const nextSnapshot = await getRuntimeDependencyStatus();
+    syncRuntimeDependencyGateStateFromSnapshot(nextSnapshot);
+    emitAppEvent("runtime-dependency-gate-state", { ...runtimeDependencyGateState });
     return currentVersion;
   }
   return updateDownloaderBinary("yt-dlp");
@@ -4068,6 +4152,7 @@ async function checkBundledDownloaderVersion(toolId) {
 
 async function checkYtdlpVersion() {
   if (isManagedYtDlpSupported()) {
+    const status = await getRuntimeDependencyStatus();
     const managed = await getManagedYtDlpVersion(getUserDataDir(), currentManagedRuntimeTarget());
     let current = "missing";
     let localError = null;
@@ -4077,14 +4162,29 @@ async function checkYtdlpVersion() {
       localError = "Managed yt-dlp runtime is missing";
     }
     const { latest, latestError } = await resolveLatestDownloaderVersion("yt-dlp");
+    const pythonBlocksLatestStable = Boolean(
+      managed
+      && latest
+      && !managed.pythonSupportsLatestStable
+      && compareLooseVersions(managed.version, latest) < 0,
+    );
+    const effectiveLatestError = pythonBlocksLatestStable
+      ? `Latest stable yt-dlp requires Python ${managedYtDlpMinimumPythonVersion()}+, current managed runtime uses ${managed.pythonVersion ?? "an older Python"}.`
+      : latestError ?? localError;
     return {
       current,
       latest,
       updateAvailable:
-        current !== "missing" && current !== "unknown" && latest
+        current !== "missing" && current !== "unknown" && latest && !pythonBlocksLatestStable
           ? compareLooseVersions(current, latest) < 0
           : null,
-      latestError: latestError ?? localError,
+      latestError: effectiveLatestError,
+      source: managed?.path ? "managed" : status.ytDlp.fallbackPath ? "bundled" : "missing",
+      path: managed?.path ?? status.ytDlp.fallbackPath ?? null,
+      pythonVersion: managed?.pythonVersion ?? null,
+      pythonPath: managed?.pythonPath ?? null,
+      pythonSupportsLatestStable: managed?.pythonSupportsLatestStable ?? null,
+      updateChannel: managed?.path ? "managed_python_package" : "unavailable",
     };
   }
   const versionInfo = await checkBundledDownloaderVersion("yt-dlp");
@@ -4093,6 +4193,12 @@ async function checkYtdlpVersion() {
     latest: versionInfo.latest,
     updateAvailable: versionInfo.updateAvailable,
     latestError: versionInfo.latestError,
+    source: versionInfo.path ? "bundled" : "missing",
+    path: versionInfo.path ?? null,
+    pythonVersion: null,
+    pythonPath: null,
+    pythonSupportsLatestStable: null,
+    updateChannel: versionInfo.path ? "bundled_release" : "unavailable",
   };
 }
 

@@ -108,6 +108,19 @@ const readOptionalHttpUrlString = (
   ...keys: string[]
 ): string | undefined => normalizeHttpUrl(readOptionalTrimmedString(payload, ...keys));
 
+const readOptionalBoolean = (
+  payload: Record<string, unknown>,
+  ...keys: string[]
+): boolean | undefined => {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+  return undefined;
+};
+
 const readRequiredHttpUrlString = (
   payload: Record<string, unknown>,
   ...keys: string[]
@@ -349,6 +362,33 @@ const normalizeQueueVideoDownloadRequest = (
       }),
     };
   })();
+  const rawExtensionData = asObject(request.extensionData ?? request.extension_data);
+  const rawYouTubeExtensionData = asObject(rawExtensionData.youtube);
+  const extensionData = (() => {
+    const youtubeSource = readOptionalTrimmedString(rawYouTubeExtensionData, "source");
+    const normalizedYoutubeSource: "injected" | "pasted" | "context_menu" | undefined = (
+      youtubeSource === "injected" || youtubeSource === "pasted" || youtubeSource === "context_menu"
+    )
+      ? youtubeSource
+      : undefined;
+    const normalizedYouTube = {
+      forceExtended: readOptionalBoolean(rawYouTubeExtensionData, "forceExtended", "force_extended"),
+      allowCookies: readOptionalBoolean(rawYouTubeExtensionData, "allowCookies", "allow_cookies"),
+      source: normalizedYoutubeSource,
+    };
+
+    if (
+      normalizedYouTube.forceExtended === undefined
+      && normalizedYouTube.allowCookies === undefined
+      && normalizedYouTube.source === undefined
+    ) {
+      return undefined;
+    }
+
+    return {
+      youtube: normalizedYouTube,
+    };
+  })();
 
   return {
     url: readRequiredHttpUrlString(request, "url"),
@@ -388,6 +428,7 @@ const normalizeQueueVideoDownloadRequest = (
         : undefined;
     })(),
     siteHint,
+    extensionData,
     dragDiagnostic,
     diagnostics,
   };

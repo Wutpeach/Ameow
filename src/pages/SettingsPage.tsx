@@ -319,13 +319,8 @@ function SettingsPage() {
   }, []);
 
   const refreshYtdlpVersion = useCallback(async () => {
-    const status = await refreshRuntimeDependencyStatus();
-    if (!status || status.ytDlp.state !== "ready") {
-      setYtdlpInfo(null);
-      return null;
-    }
-
     try {
+      await refreshRuntimeDependencyStatus();
       const versionInfo = await desktopCommands.invoke<YtdlpVersionInfo>("check_ytdlp_version");
       setYtdlpInfo(versionInfo);
       return versionInfo;
@@ -360,10 +355,19 @@ function SettingsPage() {
 
   const ytdlpCurrentVersion = ytdlpInfo?.current ?? t("desktop:settings.downloaders.unknown");
   const ytdlpStatus = (() => {
+    const ytDlpExpectedManaged = runtimeDependencyStatus?.ytDlp.expectedSource === "managed";
+    const ytDlpMissingManaged = !!runtimeDependencyStatus
+      && runtimeDependencyStatus.ytDlp.state !== "ready"
+      && ytDlpExpectedManaged;
+    const pythonLimitedManaged = ytdlpInfo?.source === "managed"
+      && ytdlpInfo.pythonSupportsLatestStable === false;
+
     if (!ytdlpInfo) {
       return {
         color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
+        message: ytDlpMissingManaged
+          ? t("desktop:settings.downloaders.ytdlp.managedMissing")
+          : t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
       };
     }
     const hasCurrentVersion = ytdlpInfo.current !== "missing" && ytdlpInfo.current !== "unknown";
@@ -380,14 +384,20 @@ function SettingsPage() {
     if (ytdlpInfo.latest && hasCurrentVersion) {
       return {
         color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.ytdlp.upToDate"),
+        message: pythonLimitedManaged
+          ? t("desktop:settings.downloaders.ytdlp.pythonLimitedManaged")
+          : ytDlpExpectedManaged
+          ? t("desktop:settings.downloaders.ytdlp.upToDateManaged")
+          : t("desktop:settings.downloaders.ytdlp.upToDate"),
       };
     }
 
     if (!hasCurrentVersion) {
       return {
         color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
+        message: ytDlpMissingManaged
+          ? t("desktop:settings.downloaders.ytdlp.managedMissing")
+          : t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
       };
     }
 
@@ -767,7 +777,11 @@ function SettingsPage() {
     try {
       const latestVersion = await desktopCommands.invoke<string>("update_ytdlp");
       await desktopEvents.emit("ytdlp-version-refresh", { source: "settings" });
-      await refreshYtdlpVersion();
+      await Promise.all([
+        refreshRuntimeDependencyStatus(),
+        refreshRuntimeDependencyGateState(),
+        refreshYtdlpVersion(),
+      ]);
       showYtdlpHint(t("desktop:settings.downloaders.ytdlp.updatedTo", { version: latestVersion }));
     } catch (err) {
       console.error("Failed to update yt-dlp:", err);

@@ -29,6 +29,7 @@ export const bilibiliProvider: SiteProvider = {
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       ytdlpQuality: input.ytdlpQuality,
+      extensionData: input.extensionData,
       preferredFormat: "best",
       clipStartSec: input.clipStartSec,
       clipEndSec: input.clipEndSec,

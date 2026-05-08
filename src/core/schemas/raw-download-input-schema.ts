@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+const youtubeExtensionDataSchema = z.object({
+  forceExtended: z.boolean().optional(),
+  allowCookies: z.boolean().optional(),
+  source: z.enum(["injected", "pasted", "context_menu"]).optional(),
+});
+
+const downloadExtensionDataSchema = z.object({
+  youtube: youtubeExtensionDataSchema.optional(),
+}).catchall(z.unknown());
+
 export const mediaCandidateSchema = z.object({
   url: z.url(),
   type: z.string().trim().optional(),
@@ -20,5 +30,6 @@ export const rawDownloadInputSchema = z.object({
   clipEndSec: z.number().finite().nonnegative().optional(),
   ytdlpQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   siteHint: z.string().trim().optional(),
+  extensionData: downloadExtensionDataSchema.optional(),
   diagnostics: z.record(z.string(), z.unknown()).optional(),
 });

@@ -29,11 +29,23 @@ type ManagedYtDlpPaths = {
 type ManagedYtDlpStatus = {
   version: string | null;
   pythonVersion: string | null;
+  pythonPath: string | null;
+  pythonSupportsLatestStable: boolean | null;
   installedAtMs: number | null;
   updatedAtMs: number | null;
 };
 
+type SystemPythonInfo = {
+  command: string;
+  resolvedPath: string;
+  version: string;
+  versionTuple: [number, number, number];
+  supportsLatestStable: boolean;
+};
+
 const isMac = process.platform === "darwin";
+const PYPI_SIMPLE_INDEX_URL = "https://pypi.org/simple";
+const MANAGED_YTDLP_MIN_PYTHON: [number, number, number] = [3, 10, 0];
 
 const normalizeVersionString = (value: string | null | undefined): string | null => {
   const normalized = value?.trim().replace(/^v/i, "");
@@ -79,6 +91,44 @@ const readJsonFile = async (filePath: string): Promise<Record<string, unknown> |
   }
 };
 
+const parsePythonVersionTuple = (
+  value: string | null | undefined,
+): [number, number, number] | null => {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+};
+
+const compareVersionTuples = (
+  left: [number, number, number],
+  right: [number, number, number],
+): number => {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] > right[index]) {
+      return 1;
+    }
+    if (left[index] < right[index]) {
+      return -1;
+    }
+  }
+  return 0;
+};
+
+export const managedYtDlpMinimumPythonVersion = (): string =>
+  `${MANAGED_YTDLP_MIN_PYTHON[0]}.${MANAGED_YTDLP_MIN_PYTHON[1]}`;
+
+export const pythonSupportsLatestManagedYtDlp = (
+  version: string | null | undefined,
+): boolean => {
+  const tuple = parsePythonVersionTuple(version);
+  return tuple ? compareVersionTuples(tuple, MANAGED_YTDLP_MIN_PYTHON) >= 0 : false;
+};
+
 const replaceFile = async (targetPath: string, temporaryPath: string): Promise<void> => {
   try {
     await unlink(targetPath).catch(() => {});
@@ -113,36 +163,98 @@ export const readManagedYtDlpStatus = async (
   return {
     version: typeof metadata?.ytDlpVersion === "string" ? metadata.ytDlpVersion : null,
     pythonVersion: typeof metadata?.pythonVersion === "string" ? metadata.pythonVersion : null,
+    pythonPath: typeof metadata?.pythonPath === "string" ? metadata.pythonPath : null,
+    pythonSupportsLatestStable:
+      typeof metadata?.pythonSupportsLatestStable === "boolean"
+        ? metadata.pythonSupportsLatestStable
+        : null,
     installedAtMs: typeof metadata?.installedAtMs === "number" ? metadata.installedAtMs : null,
     updatedAtMs: typeof metadata?.updatedAtMs === "number" ? metadata.updatedAtMs : null,
   };
 };
 
-export const detectSystemPython3 = async (): Promise<string> => {
-  const candidates = ["/usr/bin/python3", "/opt/homebrew/bin/python3", "/usr/local/bin/python3"];
+const inspectSystemPython3 = async (command: string): Promise<SystemPythonInfo | null> => {
+  try {
+    const { stdout } = await runCapturedCommand(command, [
+      "-c",
+      "import sys; print(sys.executable); print('.'.join(str(part) for part in sys.version_info[:3]))",
+    ]);
+    const [resolvedPathRaw, versionRaw] = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const versionTuple = parsePythonVersionTuple(versionRaw);
+    if (!resolvedPathRaw || !versionRaw || !versionTuple) {
+      return null;
+    }
+    return {
+      command,
+      resolvedPath: resolvedPathRaw,
+      version: versionRaw,
+      versionTuple,
+      supportsLatestStable: pythonSupportsLatestManagedYtDlp(versionRaw),
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const detectSystemPython3 = async (): Promise<SystemPythonInfo> => {
+  const candidates = [
+    process.env.FLOWSELECT_PYTHON3_PATH?.trim() || null,
+    "/opt/homebrew/bin/python3",
+    "/usr/local/bin/python3",
+    "/usr/bin/python3",
+    "python3",
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  const inspected: SystemPythonInfo[] = [];
+  const seenResolvedPaths = new Set<string>();
+
   for (const candidate of candidates) {
-    if (!existsSync(candidate)) {
+    if (candidate.includes("/") && !existsSync(candidate)) {
       continue;
     }
-    try {
-      await runCapturedCommand(candidate, ["--version"]);
-      return candidate;
-    } catch {
-      // continue
+    const info = await inspectSystemPython3(candidate);
+    if (!info || seenResolvedPaths.has(info.resolvedPath)) {
+      continue;
     }
+    seenResolvedPaths.add(info.resolvedPath);
+    inspected.push(info);
   }
-  throw new Error("Python 3 is required on macOS to bootstrap managed yt-dlp, but no working python3 was found.");
+
+  if (inspected.length === 0) {
+    throw new Error("Python 3 is required on macOS to bootstrap managed yt-dlp, but no working python3 was found.");
+  }
+
+  const compatibleCandidates = inspected
+    .filter((candidate) => candidate.supportsLatestStable)
+    .sort((left, right) => compareVersionTuples(right.versionTuple, left.versionTuple));
+  if (compatibleCandidates.length > 0) {
+    return compatibleCandidates[0];
+  }
+
+  return inspected.sort((left, right) => compareVersionTuples(right.versionTuple, left.versionTuple))[0];
 };
 
 const ensureVirtualenvReady = async (
-  python3Path: string,
+  systemPython: SystemPythonInfo,
   paths: ManagedYtDlpPaths,
 ): Promise<void> => {
   if (existsSync(paths.pythonPath) && existsSync(paths.ytDlpPath)) {
-    return;
+    try {
+      const venvPythonVersion = await getPythonVersion(paths.pythonPath);
+      const venvSupportsLatestStable = pythonSupportsLatestManagedYtDlp(venvPythonVersion);
+      if (!venvSupportsLatestStable && systemPython.supportsLatestStable) {
+        await rm(paths.venvDir, { recursive: true, force: true });
+      } else {
+        return;
+      }
+    } catch {
+      await rm(paths.venvDir, { recursive: true, force: true });
+    }
   }
   await mkdir(paths.root, { recursive: true });
-  await runCapturedCommand(python3Path, ["-m", "venv", paths.venvDir]);
+  await runCapturedCommand(systemPython.resolvedPath, ["-m", "venv", paths.venvDir]);
 };
 
 const writeMetadata = async (
@@ -150,6 +262,8 @@ const writeMetadata = async (
   payload: {
     version: string;
     pythonVersion: string;
+    pythonPath: string;
+    pythonSupportsLatestStable: boolean;
     installedAtMs?: number | null;
     updatedAtMs: number;
     runtimeTarget: string;
@@ -160,6 +274,8 @@ const writeMetadata = async (
     source: "managed-python-package",
     ytDlpVersion: payload.version,
     pythonVersion: payload.pythonVersion,
+    pythonPath: payload.pythonPath,
+    pythonSupportsLatestStable: payload.pythonSupportsLatestStable,
     installedAtMs: previous.installedAtMs ?? payload.installedAtMs ?? payload.updatedAtMs,
     updatedAtMs: payload.updatedAtMs,
     runtimeTarget: payload.runtimeTarget,
@@ -188,12 +304,10 @@ const getYtDlpVersion = async (ytDlpPath: string): Promise<string> => {
 export const ensureManagedYtDlpReady = async ({
   configDir,
   target,
-  desiredVersion,
   onStage,
 }: {
   configDir: string;
   target: string;
-  desiredVersion?: string | null;
   onStage?(stage: "checking" | "installing" | "verifying"): void | Promise<void>;
 }): Promise<{ ytDlpPath: string; version: string; pythonVersion: string }> => {
   if (!isManagedYtDlpSupported()) {
@@ -203,10 +317,17 @@ export const ensureManagedYtDlpReady = async ({
   await onStage?.("checking");
   const systemPython = await detectSystemPython3();
   await ensureVirtualenvReady(systemPython, paths);
-  const installTarget = desiredVersion ? `yt-dlp==${desiredVersion}` : "yt-dlp";
   await onStage?.("installing");
-  await runCapturedCommand(paths.pythonPath, ["-m", "pip", "install", "--upgrade", "pip"]);
-  await runCapturedCommand(paths.pythonPath, ["-m", "pip", "install", "--upgrade", installTarget]);
+  await runCapturedCommand(paths.pythonPath, [
+    "-m",
+    "pip",
+    "install",
+    "--upgrade",
+    "--index-url",
+    PYPI_SIMPLE_INDEX_URL,
+    "--no-cache-dir",
+    "yt-dlp",
+  ]);
   if (!existsSync(paths.ytDlpPath)) {
     throw new Error(`Managed yt-dlp entrypoint is missing after install: ${paths.ytDlpPath}`);
   }
@@ -223,6 +344,8 @@ export const ensureManagedYtDlpReady = async ({
   await writeMetadata(paths, {
     version,
     pythonVersion,
+    pythonPath: systemPython.resolvedPath,
+    pythonSupportsLatestStable: systemPython.supportsLatestStable,
     updatedAtMs: timestamp,
     runtimeTarget: target,
   });
@@ -236,13 +359,25 @@ export const ensureManagedYtDlpReady = async ({
 export const getManagedYtDlpVersion = async (
   configDir: string,
   target: string,
-): Promise<{ version: string; path: string } | null> => {
+): Promise<{
+  version: string;
+  path: string;
+  pythonVersion: string | null;
+  pythonPath: string | null;
+  pythonSupportsLatestStable: boolean;
+} | null> => {
   const paths = buildManagedYtDlpPaths(configDir, target);
   if (!existsSync(paths.ytDlpPath)) {
     return null;
   }
+  const metadata = await readManagedYtDlpStatus(paths);
   return {
     version: await getYtDlpVersion(paths.ytDlpPath),
     path: paths.ytDlpPath,
+    pythonVersion: metadata.pythonVersion,
+    pythonPath: metadata.pythonPath,
+    pythonSupportsLatestStable:
+      metadata.pythonSupportsLatestStable
+      ?? pythonSupportsLatestManagedYtDlp(metadata.pythonVersion),
   };
 };

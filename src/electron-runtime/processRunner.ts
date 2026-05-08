@@ -18,6 +18,11 @@ type CapturedCommandResult = {
   stderr: string;
 };
 
+const createAbortError = (): DOMException => new DOMException(
+  "The operation was aborted",
+  "AbortError",
+);
+
 const attachLineStream = (
   childStream: StreamingChildProcess["stdout"],
   onLine?: (line: string) => void | Promise<void>,
@@ -101,6 +106,10 @@ export const runStreamingCommand = async (
   args: string[],
   options: StreamingCommandOptions = {},
 ): Promise<number> => {
+  if (options.signal?.aborted) {
+    throw createAbortError();
+  }
+
   const child = spawn(command, args, {
     env: options.env,
     stdio: ["ignore", "pipe", "pipe"],

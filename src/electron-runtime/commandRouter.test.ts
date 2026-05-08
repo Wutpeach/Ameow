@@ -230,6 +230,37 @@ describe("createElectronRuntimeCommandRouter", () => {
     }));
   });
 
+  it("normalizes extension youtube mode hints on queue requests", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await router.invoke<{ accepted: boolean; traceId: string }>("queue_video_download", {
+      url: "https://www.youtube.com/watch?v=abc123",
+      page_url: "https://www.youtube.com/watch?v=abc123",
+      selection_scope: "current_item",
+      extension_data: {
+        youtube: {
+          force_extended: true,
+          allow_cookies: false,
+          source: "injected",
+        },
+      },
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      selectionScope: "current_item",
+      extensionData: {
+        youtube: {
+          forceExtended: true,
+          allowCookies: false,
+          source: "injected",
+        },
+      },
+    }));
+  });
+
   it("drops invalid Pinterest video hints before dispatching queue requests", async () => {
     const runtime = createRuntimeStub();
     const router = createElectronRuntimeCommandRouter({ runtime });

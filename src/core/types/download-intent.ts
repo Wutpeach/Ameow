@@ -1,5 +1,9 @@
 import type { MediaCandidate } from "./media-candidate.js";
-import type { DownloadSelectionScope, YtdlpQualityPreference } from "./raw-download-input.js";
+import type {
+  DownloadExtensionData,
+  DownloadSelectionScope,
+  YtdlpQualityPreference,
+} from "./raw-download-input.js";
 
 type BaseIntent = {
   siteId: string;
@@ -13,7 +17,7 @@ type BaseIntent = {
   candidates: MediaCandidate[];
   selectionScope?: DownloadSelectionScope;
   ytdlpQuality?: YtdlpQualityPreference;
-  extensionData?: Record<string, unknown>;
+  extensionData?: DownloadExtensionData;
 };
 
 export type VideoDownloadIntent = BaseIntent & {

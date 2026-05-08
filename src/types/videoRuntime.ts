@@ -125,6 +125,13 @@ export type QueuedVideoDownloadRequest = {
   clipEndSec?: number;
   ytdlpQuality?: "best" | "balanced" | "data_saver";
   siteHint?: string;
+  extensionData?: {
+    youtube?: {
+      forceExtended?: boolean;
+      allowCookies?: boolean;
+      source?: "injected" | "pasted" | "context_menu";
+    };
+  };
   dragDiagnostic?: PinterestDragDiagnostic;
   diagnostics?: Record<string, unknown>;
 };

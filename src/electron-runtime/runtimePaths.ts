@@ -164,11 +164,12 @@ const resolveYtDlpStatus = (
   }
 
   if (bundledPath) {
-    return readyStatus(bundledPath, "bundled", {
+    return missingStatus(
+      `Missing managed yt-dlp runtime. Bundled macOS fallback is available at ${bundledPath}`,
+      {
       expectedSource: "managed",
       fallbackSource: "bundled",
       fallbackPath: bundledPath,
-      error: `Missing managed yt-dlp runtime. Falling back to bundled macOS binary at ${bundledPath}`,
     });
   }
 
@@ -186,6 +187,9 @@ const resolveYtDlpBinaryPath = (environment: ElectronRuntimeEnvironment): string
   const status = resolveYtDlpStatus(environment);
   if (status.path) {
     return status.path;
+  }
+  if (status.fallbackPath && fileExists(status.fallbackPath)) {
+    return status.fallbackPath;
   }
   return managedYtDlpPathFor(environment);
 };

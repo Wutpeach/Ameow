@@ -29,6 +29,7 @@ export const youtubeProvider: SiteProvider = {
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       ytdlpQuality: input.ytdlpQuality,
+      extensionData: input.extensionData,
       preferredFormat: "best",
     };
     return {

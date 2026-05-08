@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { mediaCandidateSchema } from "./raw-download-input-schema.js";
 
+const youtubeExtensionDataSchema = z.object({
+  forceExtended: z.boolean().optional(),
+  allowCookies: z.boolean().optional(),
+  source: z.enum(["injected", "pasted", "context_menu"]).optional(),
+});
+
+const downloadExtensionDataSchema = z.object({
+  youtube: youtubeExtensionDataSchema.optional(),
+}).catchall(z.unknown());
+
 const baseIntentSchema = z.object({
   siteId: z.string().trim().min(1),
   originalUrl: z.url(),
@@ -13,7 +23,7 @@ const baseIntentSchema = z.object({
   candidates: z.array(mediaCandidateSchema),
   selectionScope: z.enum(["current_item", "playlist"]).optional(),
   ytdlpQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
-  extensionData: z.record(z.string(), z.unknown()).optional(),
+  extensionData: downloadExtensionDataSchema.optional(),
 });
 
 export const videoDownloadIntentSchema = baseIntentSchema.extend({

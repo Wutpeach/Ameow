@@ -501,6 +501,13 @@
       pageUrl,
       title,
       selectionScope: 'current_item',
+      extensionData: {
+        youtube: {
+          forceExtended: false,
+          allowCookies: false,
+          source: 'injected',
+        },
+      },
       clipStartSec: startSec,
       clipEndSec: endSec,
     });
@@ -887,6 +894,13 @@
       pageUrl,
       title,
       selectionScope: 'current_item',
+      extensionData: {
+        youtube: {
+          forceExtended: false,
+          allowCookies: false,
+          source: 'injected',
+        },
+      },
     });
   }
 

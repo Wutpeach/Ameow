@@ -15,6 +15,19 @@ const waitFor = async (
 };
 
 describe("runStreamingCommand", () => {
+  it("rejects immediately when the abort signal is already cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(runStreamingCommand(
+      "this-command-should-never-spawn",
+      [],
+      { signal: controller.signal },
+    )).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
   it("waits for async stdout line handlers to finish before resolving", async () => {
     const order: string[] = [];
     const releaseHandlerRef: { current: (() => void) | null } = { current: null };

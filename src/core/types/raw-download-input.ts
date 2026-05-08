@@ -4,6 +4,16 @@ export type DownloadSelectionScope = "current_item" | "playlist";
 
 export type YtdlpQualityPreference = "best" | "balanced" | "data_saver";
 
+export type YouTubeExtensionData = {
+  forceExtended?: boolean;
+  allowCookies?: boolean;
+  source?: "injected" | "pasted" | "context_menu";
+};
+
+export type DownloadExtensionData = Record<string, unknown> & {
+  youtube?: YouTubeExtensionData;
+};
+
 export type RawDownloadInput = {
   url: string;
   pageUrl?: string;
@@ -16,5 +26,6 @@ export type RawDownloadInput = {
   clipEndSec?: number;
   ytdlpQuality?: YtdlpQualityPreference;
   siteHint?: string;
+  extensionData?: DownloadExtensionData;
   diagnostics?: Record<string, unknown>;
 };

@@ -25,6 +25,7 @@ export const genericProvider: SiteProvider = {
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       ytdlpQuality: input.ytdlpQuality,
+      extensionData: input.extensionData,
       preferredFormat: "best",
     };
     const strategy = getRuntimeManualSiteStrategy("generic");

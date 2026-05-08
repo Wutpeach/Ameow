@@ -99,6 +99,8 @@ const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
   eta: "",
 };
 
+const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - startedAtMs}ms`;
+
 export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
 
@@ -636,6 +638,14 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
     if (!activeTask) {
       return;
     }
+    const taskStartedAtMs = Date.now();
+    this.logger.log(`>>> [ElectronRuntimeTiming] task start: ${JSON.stringify({
+      traceId,
+      url: activeTask.request.url,
+      pageUrl: activeTask.request.pageUrl ?? null,
+      siteHint: activeTask.request.siteHint ?? null,
+      quality: activeTask.request.ytdlpQuality ?? "best",
+    })}`);
 
     let outputDir: string | null = null;
     let telemetryPlan: ResolvedDownloadPlan | null = null;
@@ -669,6 +679,12 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
         this.options.environment.fetch ?? globalThis.fetch,
       );
       telemetryPlan = this.siteRegistry.resolve(activeTask.request);
+      this.logger.log(`>>> [ElectronRuntimeTiming] task pre-engine complete: ${JSON.stringify({
+        traceId,
+        elapsedMs: formatElapsedMs(taskStartedAtMs),
+        providerId: telemetryPlan?.providerId ?? null,
+        engineCandidates: telemetryPlan?.engines.map((plan) => plan.engine) ?? [],
+      })}`);
       const preferredOutputStem = buildOutputStem(
         traceId,
         activeTask.request.pageUrl ?? activeTask.request.url,
@@ -707,6 +723,14 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
             : context;
         },
       );
+      this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
+        traceId,
+        elapsedMs: formatElapsedMs(taskStartedAtMs),
+        providerId: executedProviderId ?? telemetryPlan?.providerId ?? null,
+        engineId: executedEngineId ?? null,
+        success: result.success,
+        filePathPresent: Boolean(result.file_path),
+      })}`);
       if (
         result.success
         && result.file_path
@@ -769,6 +793,11 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
         );
       }
       await this.options.eventSink.emit("video-download-complete", result);
+      this.logger.log(`>>> [ElectronRuntimeTiming] task complete event emitted: ${JSON.stringify({
+        traceId,
+        elapsedMs: formatElapsedMs(taskStartedAtMs),
+        success: result.success,
+      })}`);
       await this.recordDownloadTelemetry(
         traceId,
         activeTask.request,
@@ -789,6 +818,11 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
     } catch (error) {
       const runtimeError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
       this.logger.log(`>>> [ElectronRuntime] task ${traceId} failed: ${runtimeError.message}`);
+      this.logger.log(`>>> [ElectronRuntimeTiming] task failed: ${JSON.stringify({
+        traceId,
+        elapsedMs: formatElapsedMs(taskStartedAtMs),
+        error: runtimeError.message,
+      })}`);
       await this.recordDownloadTelemetry(
         traceId,
         activeTask.request,

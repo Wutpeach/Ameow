@@ -18,6 +18,9 @@
         "downloadingMedia": "Downloading media...",
         "checkingExistingFile": "Checking existing file...",
         "savingFile": "Saving file..."
+      },
+      "youtube": {
+        "retryingCompatibleExtractor": "Retrying with compatible extractor..."
       }
     },
     "downloadStatus": {
@@ -189,8 +192,11 @@
         "version": "Version {{version}}",
         "description": "General-purpose video downloader.",
         "checkUnavailable": "Check unavailable.",
+        "managedMissing": "Managed runtime missing. Retry from the runtime section or update yt-dlp.",
         "updateAvailable": "Update: {{version}}",
         "upToDate": "Up to date.",
+        "upToDateManaged": "Up to date from the managed Python package source.",
+        "pythonLimitedManaged": "Installed the newest yt-dlp compatible with this Mac's Python runtime.",
         "localVersionOnly": "Local version only.",
         "updatedFromMain": "yt-dlp updated from main window",
         "updatedTo": "yt-dlp updated to {{version}}",

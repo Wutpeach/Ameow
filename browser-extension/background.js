@@ -320,6 +320,36 @@ function normalizeMediaSelectionPayload(message) {
   const selectionScope = normalizeSelectionScope(message?.selectionScope) || 'current_item';
   const videoCandidates = normalizeVideoCandidates(message?.videoCandidates);
   const videoUrl = normalizeHttpUrl(message?.videoUrl);
+  const rawExtensionData = message?.extensionData && typeof message.extensionData === 'object'
+    ? message.extensionData
+    : message?.extension_data && typeof message.extension_data === 'object'
+      ? message.extension_data
+      : null;
+  const rawYouTubeExtensionData = rawExtensionData?.youtube && typeof rawExtensionData.youtube === 'object'
+    ? rawExtensionData.youtube
+    : null;
+  const normalizedExtensionData = rawYouTubeExtensionData
+    ? {
+        youtube: {
+          forceExtended: typeof rawYouTubeExtensionData.forceExtended === 'boolean'
+            ? rawYouTubeExtensionData.forceExtended
+            : typeof rawYouTubeExtensionData.force_extended === 'boolean'
+              ? rawYouTubeExtensionData.force_extended
+              : undefined,
+          allowCookies: typeof rawYouTubeExtensionData.allowCookies === 'boolean'
+            ? rawYouTubeExtensionData.allowCookies
+            : typeof rawYouTubeExtensionData.allow_cookies === 'boolean'
+              ? rawYouTubeExtensionData.allow_cookies
+              : undefined,
+          source:
+            rawYouTubeExtensionData.source === 'injected'
+            || rawYouTubeExtensionData.source === 'pasted'
+            || rawYouTubeExtensionData.source === 'context_menu'
+              ? rawYouTubeExtensionData.source
+              : undefined,
+        },
+      }
+    : undefined;
   const siteHint = deriveSiteHint([
     message?.siteHint,
     pageUrl,
@@ -336,6 +366,7 @@ function normalizeMediaSelectionPayload(message) {
     videoCandidates,
     videoUrl,
     siteHint,
+    extensionData: normalizedExtensionData,
     clipStartSec,
     clipEndSec,
     title: typeof message?.title === 'string' ? message.title : undefined,
@@ -707,6 +738,9 @@ function deriveSiteHint(values) {
 function summarizeVideoSelectionForDebug(payload) {
   const normalizedTitle = typeof payload?.title === 'string' ? payload.title.trim() : '';
   const normalizedCandidates = Array.isArray(payload?.videoCandidates) ? payload.videoCandidates : [];
+  const youtubeExtensionData = payload?.extensionData?.youtube && typeof payload.extensionData.youtube === 'object'
+    ? payload.extensionData.youtube
+    : null;
 
   return {
     url: normalizeHttpUrl(payload?.url) || null,
@@ -716,6 +750,13 @@ function summarizeVideoSelectionForDebug(payload) {
     siteHint: typeof payload?.siteHint === 'string' ? payload.siteHint : null,
     titlePresent: normalizedTitle.length > 0,
     cookiesPresent: typeof payload?.cookies === 'string' && payload.cookies.trim().length > 0,
+    extensionData: youtubeExtensionData ? {
+      youtube: {
+        forceExtended: youtubeExtensionData.forceExtended === true,
+        allowCookies: youtubeExtensionData.allowCookies === true,
+        source: typeof youtubeExtensionData.source === 'string' ? youtubeExtensionData.source : null,
+      },
+    } : null,
     videoCandidateCount: normalizedCandidates.length,
     clipStartSec: Number.isFinite(payload?.clipStartSec) ? payload.clipStartSec : null,
     clipEndSec: Number.isFinite(payload?.clipEndSec) ? payload.clipEndSec : null,
@@ -1969,8 +2010,9 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
     const requestedUrl = resolvedSelectionUrls.requestedUrl || originalRequestedUrl;
     const pageUrl = resolvedSelectionUrls.pageUrl || originalPageUrl;
     const siteHint = resolvedSelectionUrls.siteHint || originalSiteHint;
+    const wantsCookies = siteHint !== 'youtube' || normalized.extensionData?.youtube?.allowCookies === true;
     const [cookies, qualityPreference, injectionDebugEnabled] = await Promise.all([
-      getCookiesForUrl(pageUrl || requestedUrl || ''),
+      wantsCookies ? getCookiesForUrl(pageUrl || requestedUrl || '') : Promise.resolve(undefined),
       directDownloadQuality.getQualityPreference(),
       injectionDebugConfig?.getEnabled ? injectionDebugConfig.getEnabled() : Promise.resolve(false),
     ]);
@@ -1999,6 +2041,7 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
       clipStartSec: normalized.clipStartSec,
       clipEndSec: normalized.clipEndSec,
       ytdlpQualityPreference: qualityPreference,
+      extensionData: normalized.extensionData,
       cookies,
     };
 

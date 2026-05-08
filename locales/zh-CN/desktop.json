@@ -18,6 +18,9 @@
         "downloadingMedia": "下载媒体中...",
         "checkingExistingFile": "检查已有文件中...",
         "savingFile": "保存文件中..."
+      },
+      "youtube": {
+        "retryingCompatibleExtractor": "正在尝试兼容解析方式..."
       }
     },
     "downloadStatus": {
@@ -189,8 +192,11 @@
         "version": "版本 {{version}}",
         "description": "通用视频下载器。",
         "checkUnavailable": "暂时无法检查。",
+        "managedMissing": "托管运行时缺失。可在运行时区域重试，或直接更新 yt-dlp。",
         "updateAvailable": "可更新到：{{version}}",
         "upToDate": "已是最新。",
+        "upToDateManaged": "已从托管 Python 包源更新到最新可用版本。",
+        "pythonLimitedManaged": "已安装当前这台 Mac 的 Python 运行时所兼容的最新 yt-dlp。",
         "localVersionOnly": "仅显示本地版本。",
         "updatedFromMain": "yt-dlp 已在主窗口更新",
         "updatedTo": "yt-dlp 已更新到 {{version}}",
