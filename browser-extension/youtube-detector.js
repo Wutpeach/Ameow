@@ -23,6 +23,7 @@
   const controlStyleUtils = window.FlowSelectControlStyleUtils || null;
   const injectionDebugConfig = window.FlowSelectInjectionDebugConfig || null;
   const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || 'en';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
   let currentBundle = {
     language: FALLBACK_LANGUAGE,
     common: {},
@@ -467,9 +468,6 @@
   }
 
   function downloadSelectedClip() {
-    const pageUrl = window.location.href;
-    const downloadUrl = buildCurrentItemDownloadUrl();
-    const title = extractVideoTitle();
     const startSec = clipState.startSec;
     const endSec = clipState.endSec;
 
@@ -494,23 +492,12 @@
     }
 
     console.log('[FlowSelect YouTube] Clip range:', startSec, endSec);
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
 
-    sendVideoSelectionMessage({
-      type: 'video_selection',
-      url: downloadUrl,
-      pageUrl,
-      title,
-      selectionScope: 'current_item',
-      extensionData: {
-        youtube: {
-          forceExtended: false,
-          allowCookies: false,
-          source: 'injected',
-        },
-      },
-      clipStartSec: startSec,
-      clipEndSec: endSec,
-    });
+    sendVideoSelectionMessage(payload);
   }
 
   function handlePrimaryDownload() {
@@ -877,22 +864,16 @@
     return document.title.replace(' - YouTube', '');
   }
 
-  function downloadVideo() {
-    const videoId = getVideoId();
-    const pageUrl = window.location.href;
-    const downloadUrl = buildCurrentItemDownloadUrl();
-    const title = extractVideoTitle();
+  function buildCurrentVideoSelectionPayload() {
+    if (!isVideoPage()) {
+      return null;
+    }
 
-    console.log('[FlowSelect YouTube] Video ID:', videoId);
-    console.log('[FlowSelect YouTube] Page URL:', pageUrl);
-    console.log('[FlowSelect YouTube] Download URL:', downloadUrl);
-    console.log('[FlowSelect YouTube] Title:', title);
-
-    sendVideoSelectionMessage({
+    const payload = {
       type: 'video_selection',
-      url: downloadUrl,
-      pageUrl,
-      title,
+      url: buildCurrentItemDownloadUrl(),
+      pageUrl: window.location.href,
+      title: extractVideoTitle(),
       selectionScope: 'current_item',
       extensionData: {
         youtube: {
@@ -901,7 +882,29 @@
           source: 'injected',
         },
       },
-    });
+    };
+
+    if (hasValidClipRange()) {
+      payload.clipStartSec = clipState.startSec;
+      payload.clipEndSec = clipState.endSec;
+    }
+
+    return payload;
+  }
+
+  function downloadVideo() {
+    const videoId = getVideoId();
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
+
+    console.log('[FlowSelect YouTube] Video ID:', videoId);
+    console.log('[FlowSelect YouTube] Page URL:', payload.pageUrl);
+    console.log('[FlowSelect YouTube] Download URL:', payload.url);
+    console.log('[FlowSelect YouTube] Title:', payload.title);
+
+    sendVideoSelectionMessage(payload);
   }
 
   const observer = new MutationObserver(() => {
@@ -928,15 +931,25 @@
   }
 
   if (chrome?.runtime?.onMessage) {
-    chrome.runtime.onMessage.addListener((message) => {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type !== 'language_update') {
-        return;
+        if (message?.type === RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+          const payload = buildCurrentVideoSelectionPayload();
+          sendResponse(
+            payload
+              ? { success: true, payload }
+              : { success: false, reason: 'no_video_found' },
+          );
+          return true;
+        }
+        return false;
       }
 
       const nextLanguage = localeUtils?.normalizeAppLanguage?.(message.language);
       if (nextLanguage) {
         void applyLanguage(nextLanguage);
       }
+      return true;
     });
   }
 

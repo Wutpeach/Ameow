@@ -41,6 +41,7 @@ function createSelectionUtils() {
 
 function loadDetectorHooks(currentUrl) {
   const parsedCurrentUrl = new URL(currentUrl);
+  let messageListener = null;
   const window = {
     location: {
       href: parsedCurrentUrl.toString(),
@@ -83,7 +84,9 @@ function loadDetectorHooks(currentUrl) {
     chrome: {
       runtime: {
         onMessage: {
-          addListener() {},
+          addListener(listener) {
+            messageListener = listener;
+          },
         },
       },
     },
@@ -104,12 +107,15 @@ function loadDetectorHooks(currentUrl) {
   };
 
   vm.runInNewContext(detectorSource, context, { filename: detectorPath });
-  return context.window.FlowSelectGenericVideoDetectorTestHooks;
+  return {
+    hooks: context.window.FlowSelectGenericVideoDetectorTestHooks,
+    messageListener,
+  };
 }
 
 describe("generic video detector", () => {
   it("normalizes xiaohongshu note urls and strips search params", () => {
-    const hooks = loadDetectorHooks("https://www.xiaohongshu.com/explore/1234567890abcdef?foo=1");
+    const { hooks } = loadDetectorHooks("https://www.xiaohongshu.com/explore/1234567890abcdef?foo=1");
 
     expect(
       hooks.normalizeXiaohongshuNoteUrl(
@@ -119,7 +125,7 @@ describe("generic video detector", () => {
   });
 
   it("accepts xiaohongshu profile note urls as canonical note pages", () => {
-    const hooks = loadDetectorHooks(
+    const { hooks } = loadDetectorHooks(
       "https://www.xiaohongshu.com/user/profile/64e721f3000000000200c2b9/69d4a1b200000000230214b0?xsec_source=pc_user",
     );
 
@@ -133,7 +139,7 @@ describe("generic video detector", () => {
   });
 
   it("does not treat xiaohongshu profile pages as safe route fallbacks", () => {
-    const hooks = loadDetectorHooks(
+    const { hooks } = loadDetectorHooks(
       "https://www.xiaohongshu.com/user/profile/5bb2348e1602500001ecb898?channel_type=web_explore_feed",
     );
 
@@ -153,7 +159,7 @@ describe("generic video detector", () => {
   });
 
   it("keeps current-page fallback on normal content pages", () => {
-    const hooks = loadDetectorHooks("https://www.instagram.com/reel/C9abc123/");
+    const { hooks } = loadDetectorHooks("https://www.instagram.com/reel/C9abc123/");
 
     expect(
       hooks.resolveSelectionPageUrl(
@@ -162,5 +168,48 @@ describe("generic video detector", () => {
         "https://www.instagram.com/reel/C9abc123/",
       ),
     ).toBe("https://www.instagram.com/reel/C9abc123/");
+  });
+
+  it("responds to pasted video resolution messages with requested url fallback", () => {
+    const { messageListener } = loadDetectorHooks("https://www.instagram.com/reel/C9abc123/");
+    let response = null;
+
+    expect(typeof messageListener).toBe("function");
+    const handled = messageListener(
+      {
+        type: "flowselect_resolve_pasted_video_selection",
+        requestedSrcUrl: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
+      },
+      {},
+      (payload) => {
+        response = payload;
+      },
+    );
+
+    expect(handled).toBe(true);
+    expect(response).toEqual({
+      success: true,
+      payload: {
+        url: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
+        pageUrl: "https://www.instagram.com/reel/C9abc123/",
+        videoUrl: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
+        videoCandidates: [
+          {
+            url: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
+            type: "indirect_media",
+            confidence: "medium",
+            source: "context_menu_src",
+            mediaType: "video",
+          },
+        ],
+        title: "",
+        selectionScope: "current_item",
+        diagnostics: {
+          resolver: "generic_video_detector",
+          source: "fallback",
+          candidateCount: 1,
+        },
+      },
+    });
   });
 });

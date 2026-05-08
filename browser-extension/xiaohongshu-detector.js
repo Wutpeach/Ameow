@@ -9,6 +9,7 @@
   const DRAG_PAYLOAD_MARKER = 'FLOWSELECT_XIAOHONGSHU_DRAG';
   const DRAG_PAYLOAD_MIME = 'application/x-flowselect-xiaohongshu-drag';
   const INTERNAL_REGISTER_XIAOHONGSHU_DRAG_MESSAGE = 'register_xiaohongshu_drag';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
   const RESOLVE_XIAOHONGSHU_DRAG_MESSAGE = 'resolve_xiaohongshu_drag';
   const RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE = 'resolve_xiaohongshu_context_media';
   const NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE = 'navigate_xiaohongshu_note';
@@ -2493,6 +2494,43 @@
     return document.title || '';
   }
 
+  async function buildCurrentVideoSelectionPayload() {
+    const pageUrl = window.location.href;
+    const videoCandidates = extractVideoCandidates();
+    const videoUrl = extractVideoUrl(videoCandidates);
+    const noteId = extractNoteIdFromUrl(pageUrl);
+    const imageUrl = !videoUrl && videoCandidates.length === 0 ? extractPrimaryImageUrl() : null;
+    const title = extractTitle();
+
+    let resolvedMedia = null;
+    if (!videoUrl && videoCandidates.length === 0) {
+      resolvedMedia = await resolveXiaohongshuMedia({
+        pageUrl,
+        detailUrl: normalizeUrl(window.location.href),
+        noteId,
+        preferredImageUrl: imageUrl,
+      });
+    }
+
+    if (
+      videoUrl
+      || videoCandidates.length > 0
+      || (resolvedMedia?.kind === 'video' && (resolvedMedia.videoUrl || resolvedMedia.videoCandidates.length > 0))
+    ) {
+      return {
+        type: 'video_selection',
+        url: videoUrl || resolvedMedia?.videoUrl || pageUrl,
+        pageUrl,
+        videoUrl: videoUrl || resolvedMedia?.videoUrl || null,
+        videoCandidates: videoCandidates.length > 0 ? videoCandidates : (resolvedMedia?.videoCandidates || []),
+        title,
+        selectionScope: 'current_item',
+      };
+    }
+
+    return null;
+  }
+
   async function handleDownload() {
     const pageUrl = window.location.href;
     const videoCandidates = extractVideoCandidates();
@@ -2510,6 +2548,12 @@
       title,
     });
 
+    const videoPayload = await buildCurrentVideoSelectionPayload();
+    if (videoPayload) {
+      chrome.runtime.sendMessage(videoPayload);
+      return;
+    }
+
     let resolvedMedia = null;
     if (!videoUrl && videoCandidates.length === 0) {
       resolvedMedia = await resolveXiaohongshuMedia({
@@ -2518,22 +2562,6 @@
         noteId,
         preferredImageUrl: imageUrl,
       });
-    }
-
-    if (
-      videoUrl
-      || videoCandidates.length > 0
-      || (resolvedMedia?.kind === 'video' && (resolvedMedia.videoUrl || resolvedMedia.videoCandidates.length > 0))
-    ) {
-      chrome.runtime.sendMessage({
-        type: 'video_selection',
-        url: videoUrl || resolvedMedia?.videoUrl || pageUrl,
-        pageUrl,
-        videoUrl: videoUrl || resolvedMedia?.videoUrl || null,
-        videoCandidates: videoCandidates.length > 0 ? videoCandidates : (resolvedMedia?.videoCandidates || []),
-        title,
-      });
-      return;
     }
 
     const resolvedImageUrl = resolvedMedia?.kind === 'image'
@@ -2551,6 +2579,10 @@
     }
 
     console.warn('[FlowSelect XHS] No downloadable media resolved for note', pageUrl);
+  }
+
+  async function buildPastedVideoSelectionPayload() {
+    return buildCurrentVideoSelectionPayload();
   }
 
   function createControlBarButton() {
@@ -2737,6 +2769,23 @@
     }, 800);
 
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+        void buildPastedVideoSelectionPayload().then((payload) => {
+          sendResponse(
+            payload
+              ? { success: true, payload }
+              : { success: false, reason: 'no_video_found' },
+          );
+        }).catch((error) => {
+          console.warn('[FlowSelect XHS] Failed to resolve pasted video selection:', error);
+          sendResponse({
+            success: false,
+            reason: 'resolve_failed',
+          });
+        });
+        return true;
+      }
+
       if (message?.type === RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE) {
         const cached = getFreshContextPayload();
         const pageUrl = normalizeNoteUrl(message.pageUrl)

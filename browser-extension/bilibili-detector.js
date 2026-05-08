@@ -22,6 +22,7 @@
   const controlStyleUtils = window.FlowSelectControlStyleUtils || null;
   const localeUtils = window.FlowSelectLocaleUtils || null;
   const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || 'en';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
   let currentBundle = {
     language: FALLBACK_LANGUAGE,
     common: {},
@@ -596,9 +597,6 @@
   }
 
   function downloadSelectedClip() {
-    const pageUrl = window.location.href;
-    const downloadUrl = buildCurrentItemDownloadUrl();
-    const title = extractVideoTitle();
     const startSec = clipState.startSec;
     const endSec = clipState.endSec;
 
@@ -622,15 +620,12 @@
       return;
     }
 
-    sendVideoSelectionMessage({
-      type: 'video_selection',
-      url: downloadUrl,
-      pageUrl,
-      title,
-      selectionScope: 'current_item',
-      clipStartSec: startSec,
-      clipEndSec: endSec,
-    });
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
+
+    sendVideoSelectionMessage(payload);
   }
 
   function handlePrimaryDownload() {
@@ -1151,24 +1146,44 @@
     return document.title.replace(/_哔哩哔哩.*$/, '').replace(/_bilibili.*$/i, '');
   }
 
+  function buildCurrentVideoSelectionPayload() {
+    if (!isVideoPage()) {
+      return null;
+    }
+
+    const payload = {
+      type: 'video_selection',
+      url: buildCurrentItemDownloadUrl(),
+      pageUrl: window.location.href,
+      title: extractVideoTitle(),
+      selectionScope: 'current_item',
+    };
+
+    if (hasValidClipRange()) {
+      payload.clipStartSec = clipState.startSec;
+      payload.clipEndSec = clipState.endSec;
+    }
+
+    return payload;
+  }
+
   function downloadVideo() {
     const videoId = getVideoId();
-    const pageUrl = window.location.href;
-    const downloadUrl = buildCurrentItemDownloadUrl();
-    const title = extractVideoTitle();
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
 
     console.log('[FlowSelect Bilibili] Video ID:', videoId);
-    console.log('[FlowSelect Bilibili] Page URL:', pageUrl);
-    console.log('[FlowSelect Bilibili] Download URL:', downloadUrl);
-    console.log('[FlowSelect Bilibili] Title:', title);
+    console.log('[FlowSelect Bilibili] Page URL:', payload.pageUrl);
+    console.log('[FlowSelect Bilibili] Download URL:', payload.url);
+    console.log('[FlowSelect Bilibili] Title:', payload.title);
 
-    sendVideoSelectionMessage({
-      type: 'video_selection',
-      url: downloadUrl,
-      pageUrl,
-      title,
-      selectionScope: 'current_item',
-    });
+    sendVideoSelectionMessage(payload);
+  }
+
+  function buildPastedVideoSelectionPayload() {
+    return buildCurrentVideoSelectionPayload();
   }
 
   const observer = new MutationObserver(() => {
@@ -1195,15 +1210,25 @@
   }
 
   if (chrome?.runtime?.onMessage) {
-    chrome.runtime.onMessage.addListener((message) => {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type !== 'language_update') {
-        return;
+        if (message?.type === RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+          const payload = buildPastedVideoSelectionPayload();
+          sendResponse(
+            payload
+              ? { success: true, payload }
+              : { success: false, reason: 'no_video_found' },
+          );
+          return true;
+        }
+        return false;
       }
 
       const nextLanguage = localeUtils?.normalizeAppLanguage?.(message.language);
       if (nextLanguage) {
         void applyLanguage(nextLanguage);
       }
+      return true;
     });
   }
 

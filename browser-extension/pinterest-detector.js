@@ -5,6 +5,7 @@
   "use strict";
 
   const DETAIL_BUTTON_ID = "flowselect-pinterest-download-btn";
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = "flowselect_resolve_pasted_video_selection";
   const DETAIL_BUTTON_CLASS = "flowselect-pinterest-action-btn";
   const DETAIL_GROUP_BUTTON_CLASS = "flowselect-pinterest-detail-group-btn";
   const DETAIL_GROUP_SLOT_CLASS = "flowselect-pinterest-detail-group-slot";
@@ -437,14 +438,50 @@
     return document.title.replace(/\s*\|\s*Pinterest\s*$/i, "").trim();
   }
 
+  function buildCurrentPinVideoSelectionPayload(scope, pageUrl, options = {}) {
+    if (!pageUrl) {
+      return null;
+    }
+
+    const dragPayload = buildDragPayload(scope, pageUrl);
+    return {
+      type: "video_selection",
+      ...dragPayload,
+      url: pageUrl,
+      pageUrl,
+      selectionScope: options.selectionScope || "current_item",
+    };
+  }
+
   function sendDownloadMessage({ pageUrl, videoUrl = null, videoCandidates = [], title = "" }) {
-    chrome.runtime.sendMessage({
+    const payload = buildCurrentPinVideoSelectionPayload(document.body, pageUrl, {
+      selectionScope: "current_item",
+    }) || {
       type: "video_selection",
       url: videoUrl || pageUrl,
       pageUrl,
       videoUrl,
       videoCandidates,
       title,
+      selectionScope: "current_item",
+    };
+
+    chrome.runtime.sendMessage({
+      ...payload,
+      videoUrl: payload.videoUrl ?? videoUrl,
+      videoCandidates: Array.isArray(payload.videoCandidates) ? payload.videoCandidates : videoCandidates,
+      title: payload.title || title,
+    });
+  }
+
+  function buildPastedVideoSelectionPayload() {
+    const pageUrl = normalizePinUrl(window.location.href);
+    if (!pageUrl || !isPinterestPinPage()) {
+      return null;
+    }
+
+    return buildCurrentPinVideoSelectionPayload(document.body, pageUrl, {
+      selectionScope: "current_item",
     });
   }
 
@@ -975,6 +1012,20 @@
   }
 
   function init() {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+        return false;
+      }
+
+      const payload = buildPastedVideoSelectionPayload();
+      sendResponse(
+        payload
+          ? { success: true, payload }
+          : { success: false, reason: "no_video_found" },
+      );
+      return true;
+    });
+
     scheduleDetect();
 
     document.addEventListener("dragstart", (event) => {

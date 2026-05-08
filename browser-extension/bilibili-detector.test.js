@@ -69,6 +69,7 @@ class FakeHtmlElement extends FakeElement {
 
 function loadHooks() {
   const selectorMap = new Map();
+  let messageListener = null;
   const window = {
     location: {
       href: "https://www.bilibili.com/video/BV1xx411c7mD?p=1",
@@ -115,12 +116,15 @@ function loadHooks() {
     chrome: {
       runtime: {
         onMessage: {
-          addListener() {},
+          addListener(listener) {
+            messageListener = listener;
+          },
         },
       },
     },
     document: {
       readyState: "loading",
+      title: "",
       addEventListener() {},
       querySelector(selector) {
         return selectorMap.get(selector) || null;
@@ -138,6 +142,7 @@ function loadHooks() {
   vm.runInNewContext(detectorSource, context, { filename: detectorPath });
   return {
     hooks: context.window.FlowSelectBilibiliDetectorTestHooks,
+    messageListener,
     selectorMap,
   };
 }
@@ -210,5 +215,31 @@ describe("bilibili detector", () => {
 
     expect(hooks.resolveControlContainerFromNativeButton(nativeButton)).toBe(controlContainer);
     expect(hooks.findNativeControlButtonCandidate()).toBe(nativeButton);
+  });
+
+  it("responds to pasted video resolution with the current item bilibili url", () => {
+    const { messageListener } = loadHooks();
+    let response = null;
+
+    expect(typeof messageListener).toBe("function");
+    const handled = messageListener(
+      { type: "flowselect_resolve_pasted_video_selection" },
+      {},
+      (payload) => {
+        response = payload;
+      },
+    );
+
+    expect(handled).toBe(true);
+    expect(response).toEqual({
+      success: true,
+      payload: {
+        type: "video_selection",
+        url: "https://www.bilibili.com/video/BV1xx411c7mD?p=1",
+        pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=1",
+        title: "",
+        selectionScope: "current_item",
+      },
+    });
   });
 });

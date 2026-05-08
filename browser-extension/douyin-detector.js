@@ -6,6 +6,7 @@
   'use strict';
 
   const PROCESSED_ATTR = 'data-flowselect-processed';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
 
   // Cat icon SVG
   const CAT_ICON_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -373,25 +374,42 @@
   // ============================================
   // Download Functions
   // ============================================
-  function downloadVideo() {
+  function buildCurrentVideoSelectionPayload() {
+    if (!isVideoPage()) {
+      return null;
+    }
+
     const pageUrl = window.location.href;
     const videoCandidates = extractVideoCandidates();
     const videoUrl = videoCandidates.find((candidate) => candidate.type !== 'manifest_m3u8')?.url || null;
-    const title = extractVideoTitle();
 
-    console.log('[FlowSelect Douyin] Downloading video');
-    console.log('[FlowSelect Douyin] Page URL:', pageUrl);
-    console.log('[FlowSelect Douyin] Video URL:', videoUrl);
-    console.log('[FlowSelect Douyin] Title:', title);
-
-    chrome.runtime.sendMessage({
+    return {
       type: 'video_selection',
       url: videoUrl || pageUrl,
-      pageUrl: pageUrl,
-      videoUrl: videoUrl,
-      videoCandidates: videoCandidates,
-      title: title
-    });
+      pageUrl,
+      videoUrl,
+      videoCandidates,
+      title: extractVideoTitle(),
+      selectionScope: 'current_item',
+    };
+  }
+
+  function downloadVideo() {
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
+
+    console.log('[FlowSelect Douyin] Downloading video');
+    console.log('[FlowSelect Douyin] Page URL:', payload.pageUrl);
+    console.log('[FlowSelect Douyin] Video URL:', payload.videoUrl);
+    console.log('[FlowSelect Douyin] Title:', payload.title);
+
+    chrome.runtime.sendMessage(payload);
+  }
+
+  function buildPastedVideoSelectionPayload() {
+    return buildCurrentVideoSelectionPayload();
   }
 
   // Download video by URL (for cover buttons)
@@ -448,6 +466,19 @@
   // Initialize
   function init() {
     console.log('[FlowSelect Douyin] Detector initialized');
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+        return false;
+      }
+
+      const payload = buildPastedVideoSelectionPayload();
+      sendResponse(
+        payload
+          ? { success: true, payload }
+          : { success: false, reason: 'no_video_found' },
+      );
+      return true;
+    });
     detectAll();
     observer.observe(document.body, { childList: true, subtree: true });
     // Check for URL changes periodically (for SPA navigation)

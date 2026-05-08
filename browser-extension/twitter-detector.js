@@ -5,6 +5,43 @@
   'use strict';
 
   const PROCESSED_ATTR = 'data-flowselect-processed';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+
+  function normalizeStatusUrl(rawUrl) {
+    if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(rawUrl);
+      if (!/(?:^|\.)twitter\.com$|(?:^|\.)x\.com$/i.test(parsed.hostname)) {
+        return null;
+      }
+      if (!/\/[^/]+\/status\/\d+/i.test(parsed.pathname)) {
+        return null;
+      }
+      parsed.search = '';
+      parsed.hash = '';
+      return parsed.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function buildCurrentVideoSelectionPayload(url = window.location.href) {
+    const statusUrl = normalizeStatusUrl(url);
+    if (!statusUrl) {
+      return null;
+    }
+
+    return {
+      type: 'video_selection',
+      url: statusUrl,
+      pageUrl: statusUrl,
+      title: document.title || '',
+      selectionScope: 'current_item',
+    };
+  }
 
   // 检测视频推文
   function detectVideoTweets() {
@@ -35,7 +72,7 @@
   // 提取推文 URL
   function extractTweetUrl(tweet) {
     const timeLink = tweet.querySelector('a[href*="/status/"] time');
-    return timeLink?.parentElement?.href;
+    return normalizeStatusUrl(timeLink?.parentElement?.href);
   }
 
   // 注入下载按钮
@@ -64,12 +101,12 @@
   // 发送下载请求
   function downloadVideo(tweetUrl) {
     console.log('[FlowSelect Twitter] Downloading:', tweetUrl);
-    chrome.runtime.sendMessage({
-      type: 'video_selection',
-      url: tweetUrl,
-      pageUrl: tweetUrl,
-      title: document.title
-    });
+    const payload = buildCurrentVideoSelectionPayload(tweetUrl);
+    if (!payload) {
+      return;
+    }
+
+    chrome.runtime.sendMessage(payload);
   }
 
   // MutationObserver 监听新推文
@@ -80,6 +117,19 @@
   // 初始化
   function init() {
     console.log('[FlowSelect Twitter] Detector initialized');
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
+        return false;
+      }
+
+      const payload = buildCurrentVideoSelectionPayload();
+      sendResponse(
+        payload
+          ? { success: true, payload }
+          : { success: false, reason: 'no_video_found' },
+      );
+      return true;
+    });
     detectVideoTweets();
     observer.observe(document.body, { childList: true, subtree: true });
   }

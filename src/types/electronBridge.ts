@@ -28,6 +28,7 @@ export type FlowSelectRendererCommand =
   | "open_current_output_folder"
   | "open_folder"
   | "process_files"
+  | "queue_pasted_video_download"
   | "queue_video_download"
   | "refresh_runtime_dependency_gate_state"
   | "resolve_xiaohongshu_drag_media"

@@ -2,10 +2,12 @@ import { startTransition, useState, useEffect, useRef, useCallback, type CSSProp
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { CatIcon } from "./components/CatIcon";
+import { CircularProgressIndicator } from "./components/CircularProgressIndicator";
 import {
   CENTER_OVERLAY_CONTENT_STYLE,
   CENTER_OVERLAY_PRESENCE_MOTION,
-  CircularProgressIndicator,
+} from "./components/foregroundOverlayShared";
+import {
   ForegroundOutcomeOverlay,
 } from "./components/ForegroundOutcomeOverlay";
 import { NeonIconButton } from "./components/ui";
@@ -1621,6 +1623,7 @@ function App({
       });
     }
   }, [
+    prepareMainWindowForForegroundTask,
     resetDownloadOutcome,
     showForegroundTaskOutcome,
     startForegroundProcessing,
@@ -2036,6 +2039,20 @@ function App({
     refreshRuntimeDependencyContext,
     resetDownloadOutcome,
     runtimeDependencyStatus,
+  ]);
+
+  const enqueuePastedVideoDownload = useCallback(async (url: string) => {
+    await prepareMainWindowForForegroundTask();
+    resetDownloadOutcome();
+    void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_pasted_video_download", { url }).catch((err) => {
+      console.error("Failed to queue pasted video download:", err);
+      checkSequenceOverflow(err);
+      setDownloadCancelled(true);
+      setDownloadErrorMessage(summarizeDownloadError(String(err)));
+    });
+  }, [
+    prepareMainWindowForForegroundTask,
+    resetDownloadOutcome,
   ]);
 
   const cancelVideoTask = useCallback(async (
@@ -3334,8 +3351,7 @@ function App({
     // 1. Check if clipboard text is a video URL (highest priority)
     if (text && isResolvableVideoInputUrl(text)) {
       console.log("Pasted video URL:", text);
-      resetDownloadOutcome();
-      await enqueueVideoDownload(text);
+      await enqueuePastedVideoDownload(text);
       return;
     }
 
@@ -5181,13 +5197,9 @@ function App({
           {shouldRenderMiniControls ? (
             <motion.div
               key="mini-controls"
-              initial={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.88 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={miniControlsPresenceTransition}
               style={{
                 position: "absolute",
@@ -5653,13 +5665,9 @@ function App({
           {shouldRenderMiniControls ? (
             <motion.div
               key="mini-controls-footer"
-              initial={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.88 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={miniControlsPresenceTransition}
               style={{
                 position: "absolute",

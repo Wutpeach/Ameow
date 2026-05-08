@@ -19,6 +19,7 @@ const REQUEST_TIMEOUT_MS = 7000;
 const CONNECTING_WAIT_TIMEOUT_MS = 500;
 const VIDEO_SELECTION_CONNECT_TIMEOUT_MS = 3500;
 const VIDEO_SELECTION_RETRY_CONNECT_TIMEOUT_MS = 5000;
+const PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS = 20000;
 const PROTECTED_IMAGE_DRAG_TTL_MS = 2 * 60 * 1000;
 const PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS = 15000;
 const PROTECTED_IMAGE_BACKGROUND_FETCH_TIMEOUT_MS = 12000;
@@ -35,6 +36,7 @@ const WS_ACTION_LANGUAGE_INFO = 'language_info';
 const WS_ACTION_LANGUAGE_CHANGED = 'language_changed';
 const INTERNAL_VIDEO_SELECTION_MESSAGE = 'video_selection';
 const INTERNAL_RESOLVE_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_video_selection';
+const INTERNAL_RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
 const INTERNAL_RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE = 'resolve_xiaohongshu_context_media';
 const INTERNAL_NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE = 'navigate_xiaohongshu_note';
 const INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE = 'save_image_from_page';
@@ -1033,6 +1035,53 @@ async function reportXiaohongshuDragResolutionResult(requestId, result) {
   }
 }
 
+async function reportPastedVideoSelectionResolutionResult(requestId, result) {
+  if (!requestId) {
+    return;
+  }
+
+  const response = await sendRequestToApp(
+    'pasted_video_selection_result',
+    {
+      correlationRequestId: requestId,
+      success: result?.success === true,
+      url: normalizeHttpUrl(result?.url),
+      pageUrl: normalizeHttpUrl(result?.pageUrl),
+      videoUrl: normalizeHttpUrl(result?.videoUrl),
+      videoCandidates: normalizeVideoCandidates(result?.videoCandidates),
+      siteHint: typeof result?.siteHint === 'string' ? result.siteHint : undefined,
+      title: typeof result?.title === 'string' ? result.title : undefined,
+      cookies: typeof result?.cookies === 'string' && result.cookies.trim()
+        ? result.cookies
+        : undefined,
+      selectionScope: result?.selectionScope === 'current_item' || result?.selectionScope === 'playlist'
+        ? result.selectionScope
+        : undefined,
+      clipStartSec: normalizeClipTimeSeconds(result?.clipStartSec) ?? undefined,
+      clipEndSec: normalizeClipTimeSeconds(result?.clipEndSec) ?? undefined,
+      ytdlpQualityPreference:
+        result?.ytdlpQualityPreference === 'best'
+        || result?.ytdlpQualityPreference === 'balanced'
+        || result?.ytdlpQualityPreference === 'data_saver'
+          ? result.ytdlpQualityPreference
+          : undefined,
+      extensionData: result?.extensionData && typeof result.extensionData === 'object'
+        ? result.extensionData
+        : undefined,
+      code: typeof result?.code === 'string' ? result.code : undefined,
+      error: typeof result?.error === 'string' ? result.error : undefined,
+    },
+    PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS,
+  );
+
+  if (!response?.success) {
+    console.warn(
+      '[FlowSelect] pasted_video_selection_result was not acknowledged:',
+      response?.data?.code || response?.message || 'unknown'
+    );
+  }
+}
+
 async function handleProtectedImageResolveRequest(data) {
   cleanupProtectedImageDragRegistry();
 
@@ -1575,6 +1624,9 @@ function handleMessage(message) {
     case 'resolve_protected_image':
       void handleProtectedImageResolveRequest(message.data || {});
       break;
+    case 'resolve_pasted_video_selection':
+      void handlePastedVideoSelectionResolveRequest(message.data || {});
+      break;
     case 'resolve_xiaohongshu_drag':
       void handleXiaohongshuDragResolveRequest(message.data || {});
       break;
@@ -1754,6 +1806,15 @@ function queueVideoSelectionToApp(data) {
 
     return sendSelectionRequest(APP_VIDEO_SELECTION_ACTION);
   });
+}
+
+function isPastedVideoSelectionSiteHintSupported(siteHint) {
+  return siteHint === 'bilibili'
+    || siteHint === 'douyin'
+    || siteHint === 'youtube'
+    || siteHint === 'twitter-x'
+    || siteHint === 'pinterest'
+    || siteHint === 'xiaohongshu';
 }
 
 function normalizeVideoCandidates(rawCandidates) {
@@ -1985,7 +2046,7 @@ async function resolveVideoSelectionShortLinks(options = {}) {
   };
 }
 
-async function handleVideoSelectionRequest(message, senderContext = {}) {
+async function buildForwardedVideoSelectionPayload(message, senderContext = {}) {
   const normalized = normalizeMediaSelectionPayload(message);
   const originalRequestedUrl = normalized.requestedUrl;
   const originalPageUrl = selectFirstHttpUrl(normalized.pageUrl, senderContext.tabUrl, originalRequestedUrl);
@@ -1999,38 +2060,38 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
     senderContext.tabUrl,
   ]);
 
-  try {
-    const resolvedSelectionUrls = await resolveVideoSelectionShortLinks({
-      requestedUrl: originalRequestedUrl,
-      pageUrl: originalPageUrl,
-      videoUrl: normalized.videoUrl,
-      siteHint: originalSiteHint,
-      senderTabUrl: senderContext.tabUrl,
-    });
-    const requestedUrl = resolvedSelectionUrls.requestedUrl || originalRequestedUrl;
-    const pageUrl = resolvedSelectionUrls.pageUrl || originalPageUrl;
-    const siteHint = resolvedSelectionUrls.siteHint || originalSiteHint;
-    const wantsCookies = siteHint !== 'youtube' || normalized.extensionData?.youtube?.allowCookies === true;
-    const [cookies, qualityPreference, injectionDebugEnabled] = await Promise.all([
-      wantsCookies ? getCookiesForUrl(pageUrl || requestedUrl || '') : Promise.resolve(undefined),
-      directDownloadQuality.getQualityPreference(),
-      injectionDebugConfig?.getEnabled ? injectionDebugConfig.getEnabled() : Promise.resolve(false),
-    ]);
+  const resolvedSelectionUrls = await resolveVideoSelectionShortLinks({
+    requestedUrl: originalRequestedUrl,
+    pageUrl: originalPageUrl,
+    videoUrl: normalized.videoUrl,
+    siteHint: originalSiteHint,
+    senderTabUrl: senderContext.tabUrl,
+  });
+  const requestedUrl = resolvedSelectionUrls.requestedUrl || originalRequestedUrl;
+  const pageUrl = resolvedSelectionUrls.pageUrl || originalPageUrl;
+  const siteHint = resolvedSelectionUrls.siteHint || originalSiteHint;
+  const wantsCookies = siteHint !== 'youtube' || normalized.extensionData?.youtube?.allowCookies === true;
+  const [cookies, qualityPreference, injectionDebugEnabled] = await Promise.all([
+    wantsCookies ? getCookiesForUrl(pageUrl || requestedUrl || '') : Promise.resolve(undefined),
+    directDownloadQuality.getQualityPreference(),
+    injectionDebugConfig?.getEnabled ? injectionDebugConfig.getEnabled() : Promise.resolve(false),
+  ]);
 
-    console.info('[FlowSelect] Using yt-dlp quality preference:', qualityPreference);
-    const resolvedRouting = videoSelectionRouting?.resolveVideoSelectionRouting
-      ? videoSelectionRouting.resolveVideoSelectionRouting({
-          requestedUrl,
-          pageUrl,
-          senderTabUrl: senderContext.tabUrl,
-          fallbackUrl: message.url,
-        })
-      : {
-          routeUrl: requestedUrl || pageUrl || normalizeHttpUrl(senderContext.tabUrl) || normalizeHttpUrl(message.url),
-          pageUrl: pageUrl || normalizeHttpUrl(senderContext.tabUrl) || requestedUrl || normalizeHttpUrl(message.url),
-        };
+  console.info('[FlowSelect] Using yt-dlp quality preference:', qualityPreference);
+  const resolvedRouting = videoSelectionRouting?.resolveVideoSelectionRouting
+    ? videoSelectionRouting.resolveVideoSelectionRouting({
+        requestedUrl,
+        pageUrl,
+        senderTabUrl: senderContext.tabUrl,
+        fallbackUrl: message.url,
+      })
+    : {
+        routeUrl: requestedUrl || pageUrl || normalizeHttpUrl(senderContext.tabUrl) || normalizeHttpUrl(message.url),
+        pageUrl: pageUrl || normalizeHttpUrl(senderContext.tabUrl) || requestedUrl || normalizeHttpUrl(message.url),
+      };
 
-    const forwardedPayload = {
+  return {
+    forwardedPayload: {
       url: resolvedRouting.routeUrl || requestedUrl || message.url,
       pageUrl: resolvedRouting.pageUrl || pageUrl || requestedUrl || message.pageUrl || senderContext.tabUrl || message.url,
       siteHint,
@@ -2043,32 +2104,45 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
       ytdlpQualityPreference: qualityPreference,
       extensionData: normalized.extensionData,
       cookies,
-    };
+    },
+    injectionDebugEnabled,
+    normalized,
+    originalPageUrl,
+    originalRequestedUrl,
+    originalSiteHint,
+    resolvedSelectionUrls,
+    selectionScope,
+  };
+}
 
-    if (injectionDebugEnabled) {
+async function handleVideoSelectionRequest(message, senderContext = {}) {
+  try {
+    const prepared = await buildForwardedVideoSelectionPayload(message, senderContext);
+
+    if (prepared.injectionDebugEnabled) {
       logInjectedVideoSelectionDebug(
         'Injected video_selection request received',
         {
           ...summarizeVideoSelectionForDebug({
             ...message,
-            url: originalRequestedUrl,
-            pageUrl: originalPageUrl,
-            selectionScope,
-            siteHint: originalSiteHint,
-            clipStartSec: normalized.clipStartSec,
-            clipEndSec: normalized.clipEndSec,
+            url: prepared.originalRequestedUrl,
+            pageUrl: prepared.originalPageUrl,
+            selectionScope: prepared.selectionScope,
+            siteHint: prepared.originalSiteHint,
+            clipStartSec: prepared.normalized.clipStartSec,
+            clipEndSec: prepared.normalized.clipEndSec,
           }),
           senderTabUrl: normalizeHttpUrl(senderContext.tabUrl) || null,
-          shortLinkExpansions: resolvedSelectionUrls.shortLinkExpansions,
+          shortLinkExpansions: prepared.resolvedSelectionUrls.shortLinkExpansions,
         },
       );
       logInjectedVideoSelectionDebug(
         'Forwarding video_selected_v2 payload',
-        summarizeVideoSelectionForDebug(forwardedPayload),
+        summarizeVideoSelectionForDebug(prepared.forwardedPayload),
       );
     }
 
-    const result = await queueVideoSelectionToApp(forwardedPayload);
+    const result = await queueVideoSelectionToApp(prepared.forwardedPayload);
     return {
       success: Boolean(result?.success),
       connected: isConnected(),
@@ -2081,6 +2155,87 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
       connected: isConnected(),
       reason: 'prepare_failed',
     };
+  }
+}
+
+async function handlePastedVideoSelectionResolveRequest(data) {
+  const requestId = typeof data?.requestId === 'string' ? data.requestId.trim() : '';
+  const rawUrl = normalizeHttpUrl(data?.url);
+  const pageUrl = normalizeHttpUrl(data?.pageUrl) || rawUrl;
+  const siteHint = deriveSiteHint([
+    data?.siteHint,
+    pageUrl,
+    rawUrl,
+    normalizeHttpUrl(data?.videoUrl),
+  ]);
+
+  if (!requestId || !rawUrl) {
+    await reportPastedVideoSelectionResolutionResult(requestId, {
+      success: false,
+      code: 'pasted_video_missing_request',
+      error: 'Missing pasted video request metadata',
+    });
+    return;
+  }
+
+  if (!isPastedVideoSelectionSiteHintSupported(siteHint)) {
+    await reportPastedVideoSelectionResolutionResult(requestId, {
+      success: false,
+      code: 'pasted_video_unsupported_site',
+      error: `Unsupported pasted video site: ${siteHint || 'unknown'}`,
+    });
+    return;
+  }
+
+  let tab = null;
+  let createdTab = false;
+
+  try {
+    tab = await findMatchingVideoSelectionTab(pageUrl || rawUrl);
+    if (!tab?.id) {
+      tab = await createTab({
+        url: pageUrl || rawUrl,
+        active: false,
+      });
+      createdTab = true;
+      await waitForTabComplete(tab.id);
+    }
+
+    const selectionPayload = await requestResolvedPastedVideoSelection(tab.id, {
+      source: 'pasted',
+      requestedUrl: rawUrl,
+      pageUrl: pageUrl || rawUrl,
+      siteHint,
+    });
+
+    if (!selectionPayload || typeof selectionPayload !== 'object') {
+      await reportPastedVideoSelectionResolutionResult(requestId, {
+        success: false,
+        code: 'pasted_video_no_selection',
+        error: 'No downloadable media was resolved for the pasted URL',
+      });
+      return;
+    }
+
+    const prepared = await buildForwardedVideoSelectionPayload(selectionPayload, {
+      tabUrl: normalizeHttpUrl(tab.url) || pageUrl || rawUrl,
+    });
+
+    await reportPastedVideoSelectionResolutionResult(requestId, {
+      success: true,
+      ...prepared.forwardedPayload,
+    });
+  } catch (error) {
+    console.warn('[FlowSelect] Failed to resolve pasted video selection:', error);
+    await reportPastedVideoSelectionResolutionResult(requestId, {
+      success: false,
+      code: 'pasted_video_resolution_failed',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    if (createdTab && tab?.id) {
+      await removeTabQuietly(tab.id);
+    }
   }
 }
 
@@ -2387,6 +2542,39 @@ async function requestResolvedVideoSelection(tabId, options = {}) {
   }
 
   return null;
+}
+
+async function requestResolvedPastedVideoSelection(tabId, options = {}) {
+  try {
+    const response = await sendMessageToTab(
+      tabId,
+      {
+        type: INTERNAL_RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE,
+        source: options.source || 'pasted',
+        requestedUrl: options.requestedUrl || undefined,
+        pageUrl: options.pageUrl || undefined,
+        siteHint: options.siteHint || undefined,
+      },
+    );
+
+    if (response?.success && response.payload && typeof response.payload === 'object') {
+      return response.payload;
+    }
+  } catch (error) {
+    console.warn('[FlowSelect] Failed to resolve pasted video selection in-tab:', error);
+  }
+
+  return null;
+}
+
+async function findMatchingVideoSelectionTab(url) {
+  const normalizedUrl = normalizeHttpUrl(url);
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  const tabs = await chrome.tabs.query({});
+  return tabs.find((tab) => normalizeHttpUrl(tab.url) === normalizedUrl && typeof tab.id === 'number') || null;
 }
 
 async function requestResolvedXiaohongshuContextMedia(tabId, options = {}) {
