@@ -4,7 +4,6 @@
 (function() {
   'use strict';
 
-  const BUTTON_ID = 'flowselect-xhs-download-btn';
   const CONTROL_BUTTON_CLASS = 'flowselect-xhs-control-btn';
   const DRAG_PAYLOAD_MARKER = 'FLOWSELECT_XIAOHONGSHU_DRAG';
   const DRAG_PAYLOAD_MIME = 'application/x-flowselect-xiaohongshu-drag';
@@ -2717,37 +2716,18 @@
   }
 
   function ensureButton() {
-    if (!isVideoPage()) {
-      const existing = document.getElementById(BUTTON_ID);
-      if (existing) existing.remove();
-      document.querySelectorAll(`.${CONTROL_BUTTON_CLASS}`).forEach((el) => el.remove());
-      return;
-    }
-
-    const injectedInControlBar = ensureControlBarButton();
-
-    // Keep floating button as fallback when control bar is not available.
-    if (injectedInControlBar) {
-      const floating = document.getElementById(BUTTON_ID);
-      if (floating) floating.remove();
-      return;
-    }
-
-    const existing = document.getElementById(BUTTON_ID);
-    if (existing) return;
-
-    const button = document.createElement('button');
-    button.id = BUTTON_ID;
-    button.className = 'flowselect-xhs-download-btn';
-    button.title = 'Download with FlowSelect';
-    button.innerHTML = CAT_ICON_SVG;
-    button.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleDownload();
+    document.getElementById('flowselect-xhs-download-btn')?.remove();
+    document.querySelectorAll(`.${CONTROL_BUTTON_CLASS}`).forEach((el) => {
+      if (!isVideoPage() || el.parentElement == null) {
+        el.remove();
+      }
     });
-    document.body.appendChild(button);
-    console.info('[FlowSelect XHS] Floating button injected');
+
+    if (!isVideoPage()) {
+      return;
+    }
+
+    ensureControlBarButton();
   }
 
   function init() {
