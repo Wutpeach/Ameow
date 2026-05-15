@@ -2,11 +2,11 @@
 
 [中文](./getting-started.md) | [English](./getting-started.en.md)
 
-This page is for first-time FlowSelect installation and first-time use.
+This page is for first-time Ameow installation and first-time use.
 
 ## 1. Download
 
-Go to [GitHub Releases](https://github.com/Wutpeach/FlowSelect/releases) and download the build for your platform.
+Go to [GitHub Releases](https://github.com/Wutpeach/Ameow/releases) and download the build for your platform.
 
 ### Windows
 
@@ -24,23 +24,23 @@ Go to [GitHub Releases](https://github.com/Wutpeach/FlowSelect/releases) and dow
 ### Windows
 
 1. Run the installer, or extract the Portable ZIP.
-2. Launch `FlowSelect`.
+2. Launch `Ameow`.
 3. After first launch, a small floating window will appear on the desktop.
 
 ### macOS
 
-1. Open the DMG and drag `FlowSelect.app` into `Applications`.
-2. Launch FlowSelect from `Applications`.
+1. Open the DMG and drag `Ameow.app` into `Applications`.
+2. Launch Ameow from `Applications`.
 3. If macOS blocks the app on first launch, first try right-click `Open`, or allow it from `System Settings > Privacy & Security`.
 4. If quarantine still blocks the app, run:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
+xattr -dr com.apple.quarantine "/Applications/Ameow.app"
 ```
 
 ## 3. Collect Your First Assets
 
-You can send content into FlowSelect in several ways:
+You can send content into Ameow in several ways:
 
 - Drag local files into the floating window to copy them into the current output folder.
 - Drag a folder into the floating window to make it the new output folder.
@@ -49,7 +49,7 @@ You can send content into FlowSelect in several ways:
 
 ## 4. Output Folder And Settings
 
-- The default output folder is `Desktop/FlowSelect_Received`.
+- The default output folder is `Desktop/Ameow_Received`.
 - Double-click the empty area of the main window to quickly open the current output folder.
 - Right-click the main window to open the current output folder or choose a new one.
 - In Settings, you can manage:

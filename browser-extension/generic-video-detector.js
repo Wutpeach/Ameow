@@ -1,14 +1,14 @@
 (function () {
   "use strict";
 
-  const domUtils = window.FlowSelectDomInjectionUtils || null;
-  const selectionUtils = window.FlowSelectGenericVideoSelectionUtils || null;
+  const domUtils = window.AmeowDomInjectionUtils || null;
+  const selectionUtils = window.AmeowGenericVideoSelectionUtils || null;
   const CONTEXT_TTL_MS = 10000;
   const MIN_VIDEO_WIDTH = 120;
   const MIN_VIDEO_HEIGHT = 68;
   const PERFORMANCE_SCAN_LIMIT = 80;
-  const MESSAGE_RESOLVE_VIDEO_SELECTION = "flowselect_resolve_video_selection";
-  const MESSAGE_RESOLVE_PASTED_VIDEO_SELECTION = "flowselect_resolve_pasted_video_selection";
+  const MESSAGE_RESOLVE_VIDEO_SELECTION = "ameow_resolve_video_selection";
+  const MESSAGE_RESOLVE_PASTED_VIDEO_SELECTION = "ameow_resolve_pasted_video_selection";
   const SELECTION_SCOPE_CURRENT_ITEM = "current_item";
   const MEDIA_ROUTE_PATH_RE =
     /\/(?:video|watch|reel|reels|p|status|pin|detail|post|clip|shorts|tv)\/[^/?#]+/i;
@@ -600,7 +600,7 @@
     return null;
   }
 
-  window.FlowSelectGenericVideoDetectorTestHooks = {
+  window.AmeowGenericVideoDetectorTestHooks = {
     normalizeContentUrl,
     normalizeXiaohongshuNoteUrl,
     resolveSelectionPageUrl,
@@ -661,7 +661,7 @@
         payload,
       });
     } catch (error) {
-      console.error("[FlowSelect Generic] Failed to resolve video selection:", error);
+      console.error("[Ameow Generic] Failed to resolve video selection:", error);
       sendResponse({
         success: false,
         reason: "resolve_failed",

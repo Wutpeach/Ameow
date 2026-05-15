@@ -136,7 +136,7 @@ const createRuntime = (options: {
   engines: options.engines,
 });
 
-describe("FlowSelectElectronDownloadRuntime", () => {
+describe("AmeowElectronDownloadRuntime", () => {
   afterEach(() => {
     resetRenameSequenceState();
     probeGalleryDlMetadataTitleMock.mockReset();
@@ -414,7 +414,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
   it("renames gallery-dl downloads from info-json metadata after completion", async () => {
     const tempDir = path.join(
       os.tmpdir(),
-      `flowselect-gallerydl-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `ameow-gallerydl-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const completions: Array<{ file_path?: string; success: boolean }> = [];
     resolveGalleryDlMetadataTitleFromSidecarsMock.mockResolvedValue("alice - Sunset over the lake");
@@ -469,7 +469,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
   it("removes generic gallery-dl info.json sidecars after completion", async () => {
     const tempDir = path.join(
       os.tmpdir(),
-      `flowselect-gallerydl-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `ameow-gallerydl-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const completions: Array<{ file_path?: string; success: boolean }> = [];
     resolveGalleryDlMetadataTitleFromSidecarsMock.mockResolvedValue("karl_shakur - DW1rwBtlnR9");
@@ -920,7 +920,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
   });
 
   it("reserves distinct output stems for concurrent same-title tasks", async () => {
-    const outputDir = path.join(os.tmpdir(), `flowselect-service-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const outputDir = path.join(os.tmpdir(), `ameow-service-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     const outputStems: string[] = [];
     const completions: Array<() => void> = [];
 
@@ -1053,7 +1053,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
   });
 
   it("uses shared rename-rule stems when rename mode is enabled", async () => {
-    const outputDir = path.join(os.tmpdir(), `flowselect-service-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const outputDir = path.join(os.tmpdir(), `ameow-service-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     const outputStems: string[] = [];
     const completions: Array<() => void> = [];
 
@@ -1101,7 +1101,7 @@ describe("FlowSelectElectronDownloadRuntime", () => {
   it("uses a youtube id stem immediately and renames to the resolved title after yt-dlp completes", async () => {
     const tempDir = path.join(
       os.tmpdir(),
-      `flowselect-ytdlp-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `ameow-ytdlp-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const outputStems: string[] = [];
     const completions: Array<{ file_path?: string; success: boolean; title?: string }> = [];

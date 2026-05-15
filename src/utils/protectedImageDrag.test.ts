@@ -4,7 +4,7 @@ import { extractEmbeddedProtectedImageDragPayload } from "./protectedImageDrag";
 
 function encodePayload(payload: object): string {
   const json = JSON.stringify(payload);
-  return `FLOWSELECT_PROTECTED_IMAGE_DRAG:${btoa(
+  return `AMEOW_PROTECTED_IMAGE_DRAG:${btoa(
     encodeURIComponent(json).replace(/%([0-9A-F]{2})/gi, (_, hex) =>
       String.fromCharCode(Number.parseInt(hex, 16)),
     ),

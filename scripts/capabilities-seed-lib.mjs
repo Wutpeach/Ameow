@@ -262,7 +262,7 @@ async function readTextViaHttp(source, redirectCount = 0) {
       {
         headers: {
           Accept: "text/plain",
-          "User-Agent": "FlowSelect-capabilities-seed-generator",
+          "User-Agent": "Ameow-capabilities-seed-generator",
         },
       },
       (response) => {

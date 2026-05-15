@@ -7,10 +7,10 @@ import {
   isWindowsAutostartEnabled,
 } from "./autostart.mjs";
 
-const EXEC_PATH = "C:\\Program Files\\FlowSelect\\FlowSelect.exe";
+const EXEC_PATH = "C:\\Program Files\\Ameow\\Ameow.exe";
 
 const createLaunchItem = (overrides: Partial<LaunchItems> = {}): LaunchItems => ({
-  name: "FlowSelect",
+  name: "Ameow",
   path: EXEC_PATH,
   args: [],
   scope: "user",
@@ -48,7 +48,7 @@ describe("buildWindowsAutostartSettings", () => {
       enabled: true,
       path: EXEC_PATH,
       args: [],
-      name: "FlowSelect",
+      name: "Ameow",
     });
   });
 
@@ -58,7 +58,7 @@ describe("buildWindowsAutostartSettings", () => {
       enabled: false,
       path: EXEC_PATH,
       args: [],
-      name: "FlowSelect",
+      name: "Ameow",
     });
   });
 });
@@ -96,7 +96,7 @@ describe("isWindowsAutostartEnabled", () => {
           executableWillLaunchAtLogin: true,
           launchItems: [
             createLaunchItem({
-              path: "\"c:\\PROGRAM FILES\\FlowSelect\\FlowSelect.exe\"",
+              path: "\"c:\\PROGRAM FILES\\Ameow\\Ameow.exe\"",
             }),
           ],
         }),
@@ -126,7 +126,7 @@ describe("isWindowsAutostartEnabled", () => {
           executableWillLaunchAtLogin: true,
           launchItems: [
             createLaunchItem({
-              path: "C:\\Users\\Administrator\\AppData\\Local\\FlowSelect\\FlowSelectStub.exe",
+              path: "C:\\Users\\Administrator\\AppData\\Local\\Ameow\\AmeowStub.exe",
             }),
           ],
         }),

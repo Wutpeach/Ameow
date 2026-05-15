@@ -49,7 +49,7 @@ function loadDetectorHooks(currentUrl) {
     },
     innerWidth: 1440,
     innerHeight: 900,
-    FlowSelectDomInjectionUtils: {
+    AmeowDomInjectionUtils: {
       isRenderableElement() {
         return false;
       },
@@ -60,7 +60,7 @@ function loadDetectorHooks(currentUrl) {
         return null;
       },
     },
-    FlowSelectGenericVideoSelectionUtils: createSelectionUtils(),
+    AmeowGenericVideoSelectionUtils: createSelectionUtils(),
   };
 
   const context = {
@@ -108,7 +108,7 @@ function loadDetectorHooks(currentUrl) {
 
   vm.runInNewContext(detectorSource, context, { filename: detectorPath });
   return {
-    hooks: context.window.FlowSelectGenericVideoDetectorTestHooks,
+    hooks: context.window.AmeowGenericVideoDetectorTestHooks,
     messageListener,
   };
 }
@@ -177,7 +177,7 @@ describe("generic video detector", () => {
     expect(typeof messageListener).toBe("function");
     const handled = messageListener(
       {
-        type: "flowselect_resolve_pasted_video_selection",
+        type: "ameow_resolve_pasted_video_selection",
         requestedSrcUrl: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
       },
       {},

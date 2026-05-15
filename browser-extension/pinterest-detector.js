@@ -1,20 +1,20 @@
-// FlowSelect Browser Extension - Pinterest Detector
+// Ameow Browser Extension - Pinterest Detector
 // Keeps Pinterest card drag payloads enriched and injects a download icon on animated pin detail pages.
 
 (function () {
   "use strict";
 
-  const DETAIL_BUTTON_ID = "flowselect-pinterest-download-btn";
-  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = "flowselect_resolve_pasted_video_selection";
-  const DETAIL_BUTTON_CLASS = "flowselect-pinterest-action-btn";
-  const DETAIL_GROUP_BUTTON_CLASS = "flowselect-pinterest-detail-group-btn";
-  const DETAIL_GROUP_SLOT_CLASS = "flowselect-pinterest-detail-group-slot";
-  const DETAIL_SLOT_ATTR = "data-flowselect-pinterest-detail-slot";
-  const CARD_HOST_ATTR = "data-flowselect-pinterest-card-host";
-  const HOST_PATCH_ATTR = "data-flowselect-pinterest-host-patched";
-  const DRAG_SYNC_BOUND_ATTR = "data-flowselect-pinterest-drag-bound";
-  const LEGACY_CARD_BUTTON_CLASS = "flowselect-pinterest-card-btn";
-  const DRAG_PAYLOAD_MARKER = "FLOWSELECT_PINTEREST_DRAG";
+  const DETAIL_BUTTON_ID = "ameow-pinterest-download-btn";
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = "ameow_resolve_pasted_video_selection";
+  const DETAIL_BUTTON_CLASS = "ameow-pinterest-action-btn";
+  const DETAIL_GROUP_BUTTON_CLASS = "ameow-pinterest-detail-group-btn";
+  const DETAIL_GROUP_SLOT_CLASS = "ameow-pinterest-detail-group-slot";
+  const DETAIL_SLOT_ATTR = "data-ameow-pinterest-detail-slot";
+  const CARD_HOST_ATTR = "data-ameow-pinterest-card-host";
+  const HOST_PATCH_ATTR = "data-ameow-pinterest-host-patched";
+  const DRAG_SYNC_BOUND_ATTR = "data-ameow-pinterest-drag-bound";
+  const LEGACY_CARD_BUTTON_CLASS = "ameow-pinterest-card-btn";
+  const DRAG_PAYLOAD_MARKER = "AMEOW_PINTEREST_DRAG";
   const PIN_PATH_RE = /\/pin\/(\d+)\/?/i;
   const EXACT_DURATION_RE = /^(?:\d{1,2}:)?\d{1,2}:\d{2}$/;
   const VIDEO_HINT_RE =
@@ -568,7 +568,7 @@
     }
     if (dragPayloadText) {
       event.dataTransfer.setData("text/plain", `${pageUrl}\n${dragPayloadText}`);
-      event.dataTransfer.setData("application/x-flowselect-pinterest-drag", dragPayloadText);
+      event.dataTransfer.setData("application/x-ameow-pinterest-drag", dragPayloadText);
     } else {
       event.dataTransfer.setData("text/plain", pageUrl);
     }
@@ -936,15 +936,15 @@
         /\b(react|comments?|share|send|more actions?)\b/i.test(label) ||
         /(\u8d5e|\u70b9\u8d5e|\u8bc4\u8bba|\u5206\u4eab|\u53d1\u9001)/.test(label)
       ) {
-        element.setAttribute("aria-label", "Download with FlowSelect");
+        element.setAttribute("aria-label", "Download with Ameow");
       }
     });
 
     button.id = DETAIL_BUTTON_ID;
     button.type = "button";
     button.classList.add(DETAIL_GROUP_BUTTON_CLASS);
-    button.title = "Download with FlowSelect";
-    button.setAttribute("aria-label", "Download with FlowSelect");
+    button.title = "Download with Ameow";
+    button.setAttribute("aria-label", "Download with Ameow");
     button.removeAttribute("aria-expanded");
     button.removeAttribute("aria-haspopup");
 

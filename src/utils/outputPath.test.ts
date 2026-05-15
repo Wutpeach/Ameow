@@ -30,20 +30,20 @@ describe("saveOutputPath", () => {
       .mockResolvedValueOnce(true);
     emitMock.mockResolvedValueOnce(undefined);
 
-    await expect(saveOutputPath("D:/FlowSelect")).resolves.toBe(true);
+    await expect(saveOutputPath("D:/Ameow")).resolves.toBe(true);
 
     expect(invokeMock).toHaveBeenNthCalledWith(1, "get_config");
     expect(invokeMock).toHaveBeenNthCalledWith(2, "save_config", {
-      json: JSON.stringify({ outputPath: "D:/FlowSelect" }),
+      json: JSON.stringify({ outputPath: "D:/Ameow" }),
     });
-    expect(emitMock).toHaveBeenCalledWith("output-path-changed", { path: "D:/FlowSelect" });
+    expect(emitMock).toHaveBeenCalledWith("output-path-changed", { path: "D:/Ameow" });
     expect(invokeMock).toHaveBeenNthCalledWith(3, "reset_rename_counter");
   });
 
   it("returns false without writing when the output path is unchanged", async () => {
-    invokeMock.mockResolvedValueOnce(JSON.stringify({ outputPath: "D:/FlowSelect" }));
+    invokeMock.mockResolvedValueOnce(JSON.stringify({ outputPath: "D:/Ameow" }));
 
-    await expect(saveOutputPath("D:/FlowSelect")).resolves.toBe(false);
+    await expect(saveOutputPath("D:/Ameow")).resolves.toBe(false);
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(emitMock).not.toHaveBeenCalled();

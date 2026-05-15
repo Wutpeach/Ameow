@@ -96,8 +96,8 @@ function main() {
   const windowsAsset = findRequiredFileByPatterns(
     files,
     [
-      /^FlowSelect_.*_windows_x64_installer\.exe$/,
-      /^FlowSelect_.*_x64-setup\.exe$/,
+      /^Ameow_.*_windows_x64_installer\.exe$/,
+      /^Ameow_.*_x64-setup\.exe$/,
     ],
     "Windows updater asset",
   );

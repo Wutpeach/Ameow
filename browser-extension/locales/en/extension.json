@@ -49,14 +49,14 @@
     "playerControls": {
       "buttons": {
         "screenshot": "Screenshot",
-        "download": "Download with FlowSelect",
+        "download": "Download with Ameow",
         "setIn": "Set IN point",
         "setOut": "Set OUT point"
       },
       "clip": {
         "inSelected": "IN: {time} (right-click to clear)",
         "outSelected": "OUT: {time} (right-click to clear)",
-        "downloadSelection": "Download clip {start} -> {end}"
+        "downloadSelection": "Download section {start} -> {end}"
       },
       "overlayActions": {
         "save": "Save",
@@ -65,8 +65,8 @@
         "delete": "Delete"
       },
       "alerts": {
-        "backgroundUnavailable": "FlowSelect extension background is unavailable. Please reload the extension.",
-        "desktopUnavailable": "FlowSelect desktop app is not connected. Please open FlowSelect and try again.",
+        "backgroundUnavailable": "Ameow extension background is unavailable. Please reload the extension.",
+        "desktopUnavailable": "Ameow desktop app is not connected. Please open Ameow and try again.",
         "playbackTimeUnavailable": "Unable to read current playback time.",
         "clipPointsRequired": "Please set both IN and OUT points first.",
         "clipRangeInvalid": "OUT must be later than IN.",

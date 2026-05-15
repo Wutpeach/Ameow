@@ -17,7 +17,7 @@ describe("browser extension manifest", () => {
   it("registers the Twitter/X injected detector", () => {
     expect(findContentScript("https://x.com/*")).toMatchObject({
       js: ["twitter-detector.js"],
-      css: ["flowselect-shared.css", "twitter-button.css"],
+      css: ["ameow-shared.css", "twitter-button.css"],
       run_at: "document_idle",
     });
   });
@@ -25,7 +25,7 @@ describe("browser extension manifest", () => {
   it("keeps the Bilibili injected detector registered", () => {
     expect(findContentScript("https://www.bilibili.com/*")).toMatchObject({
       js: ["locale-utils.js", "control-style-utils.js", "bilibili-detector.js"],
-      css: ["flowselect-shared.css", "bilibili-button.css"],
+      css: ["ameow-shared.css", "bilibili-button.css"],
       run_at: "document_idle",
     });
   });

@@ -4,7 +4,7 @@
     "yt-dlp:x86_64-pc-windows-msvc": {
       "toolId": "yt-dlp",
       "target": "x86_64-pc-windows-msvc",
-      "path": "D:\\FlowSelect\\desktop-assets\\binaries\\yt-dlp-x86_64-pc-windows-msvc.exe",
+      "path": "D:\\Ameow\\desktop-assets\\binaries\\yt-dlp-x86_64-pc-windows-msvc.exe",
       "outputName": "yt-dlp-x86_64-pc-windows-msvc.exe",
       "source": "official-upstream",
       "releaseRepo": "yt-dlp/yt-dlp",
@@ -19,7 +19,7 @@
     "gallery-dl:x86_64-pc-windows-msvc": {
       "toolId": "gallery-dl",
       "target": "x86_64-pc-windows-msvc",
-      "path": "D:\\FlowSelect\\desktop-assets\\binaries\\gallery-dl-x86_64-pc-windows-msvc.exe",
+      "path": "D:\\Ameow\\desktop-assets\\binaries\\gallery-dl-x86_64-pc-windows-msvc.exe",
       "outputName": "gallery-dl-x86_64-pc-windows-msvc.exe",
       "source": "official-upstream",
       "releaseRepo": "gdl-org/builds",
@@ -34,7 +34,7 @@
     "yt-dlp:aarch64-apple-darwin": {
       "toolId": "yt-dlp",
       "target": "aarch64-apple-darwin",
-      "path": "/Users/mabel/Documents/FlowSelect/desktop-assets/binaries/yt-dlp-aarch64-apple-darwin",
+      "path": "/Users/mabel/Documents/Ameow/desktop-assets/binaries/yt-dlp-aarch64-apple-darwin",
       "outputName": "yt-dlp-aarch64-apple-darwin",
       "source": "official-upstream",
       "releaseRepo": "yt-dlp/yt-dlp",
@@ -49,7 +49,7 @@
     "gallery-dl:aarch64-apple-darwin": {
       "toolId": "gallery-dl",
       "target": "aarch64-apple-darwin",
-      "path": "/Users/mabel/Documents/FlowSelect/desktop-assets/binaries/gallery-dl-aarch64-apple-darwin",
+      "path": "/Users/mabel/Documents/Ameow/desktop-assets/binaries/gallery-dl-aarch64-apple-darwin",
       "outputName": "gallery-dl-aarch64-apple-darwin",
       "source": "official-upstream",
       "releaseRepo": "gdl-org/builds",

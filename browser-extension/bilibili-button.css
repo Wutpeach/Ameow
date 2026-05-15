@@ -1,14 +1,14 @@
-/* FlowSelect Browser Extension - Bilibili Download Button Styles */
+/* Ameow Browser Extension - Bilibili Download Button Styles */
 
 :root {
-  --flowselect-site-accent: #00a1d6;
-  --flowselect-site-accent-soft: rgba(0, 161, 214, 0.18);
+  --ameow-site-accent: #00a1d6;
+  --ameow-site-accent-soft: rgba(0, 161, 214, 0.18);
 }
 
 /* Button wrapper - matches Bilibili's control bar item pattern */
-.flowselect-bilibili-btn,
-.flowselect-bilibili-set-in-btn,
-.flowselect-bilibili-set-out-btn {
+.ameow-bilibili-btn,
+.ameow-bilibili-set-in-btn,
+.ameow-bilibili-set-out-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,7 +20,7 @@
   font-size: 0;
 }
 
-.flowselect-bilibili-screenshot-btn {
+.ameow-bilibili-screenshot-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -31,16 +31,16 @@
 }
 
 /* For squirtle player (old player) */
-.squirtle-controller-wrap .flowselect-bilibili-btn,
-.squirtle-controller-wrap .flowselect-bilibili-set-in-btn,
-.squirtle-controller-wrap .flowselect-bilibili-set-out-btn {
+.squirtle-controller-wrap .ameow-bilibili-btn,
+.squirtle-controller-wrap .ameow-bilibili-set-in-btn,
+.squirtle-controller-wrap .ameow-bilibili-set-out-btn {
   align-items: center;
   padding-top: 0;
 }
 
 /* Icon container */
-.flowselect-bilibili-btn svg,
-.flowselect-bilibili-screenshot-btn svg {
+.ameow-bilibili-btn svg,
+.ameow-bilibili-screenshot-btn svg {
   display: block;
   width: 22px;
   height: 22px;
@@ -50,8 +50,8 @@
   pointer-events: none;
 }
 
-.flowselect-bilibili-set-in-btn svg,
-.flowselect-bilibili-set-out-btn svg {
+.ameow-bilibili-set-in-btn svg,
+.ameow-bilibili-set-out-btn svg {
   display: block;
   width: 20px;
   height: 20px;
@@ -60,103 +60,103 @@
   pointer-events: none;
 }
 
-.flowselect-bilibili-set-in-btn svg *,
-.flowselect-bilibili-set-out-btn svg * {
+.ameow-bilibili-set-in-btn svg *,
+.ameow-bilibili-set-out-btn svg * {
   fill: currentColor;
   stroke: currentColor;
 }
 
-.flowselect-bilibili-set-out-btn svg {
+.ameow-bilibili-set-out-btn svg {
   transform: scaleX(-1);
 }
 
 /* Hover effect */
-.flowselect-bilibili-btn:hover svg,
-.flowselect-bilibili-set-in-btn:hover svg,
-.flowselect-bilibili-set-out-btn:hover svg {
-  color: var(--flowselect-site-accent);
-  fill: var(--flowselect-site-accent);
+.ameow-bilibili-btn:hover svg,
+.ameow-bilibili-set-in-btn:hover svg,
+.ameow-bilibili-set-out-btn:hover svg {
+  color: var(--ameow-site-accent);
+  fill: var(--ameow-site-accent);
 }
 
-.flowselect-bilibili-screenshot-btn:hover svg {
-  color: var(--flowselect-site-accent);
-  fill: var(--flowselect-site-accent);
+.ameow-bilibili-screenshot-btn:hover svg {
+  color: var(--ameow-site-accent);
+  fill: var(--ameow-site-accent);
 }
 
 /* Active effect */
-.flowselect-bilibili-btn:active svg,
-.flowselect-bilibili-set-in-btn:active svg {
+.ameow-bilibili-btn:active svg,
+.ameow-bilibili-set-in-btn:active svg {
   transform: scale(0.95);
 }
 
-.flowselect-bilibili-set-out-btn:active svg {
+.ameow-bilibili-set-out-btn:active svg {
   transform: scaleX(-1) scale(0.95);
 }
 
-.flowselect-bilibili-screenshot-btn:active svg {
+.ameow-bilibili-screenshot-btn:active svg {
   transform: scale(0.95);
 }
 
 /* Fullscreen mode - larger icons */
-body.player-mode-full .flowselect-bilibili-btn svg,
-body.player-fullscreen-fix .flowselect-bilibili-btn svg,
-body.player-mode-web .flowselect-bilibili-btn svg,
-body.player-full-win .flowselect-bilibili-btn svg {
+body.player-mode-full .ameow-bilibili-btn svg,
+body.player-fullscreen-fix .ameow-bilibili-btn svg,
+body.player-mode-web .ameow-bilibili-btn svg,
+body.player-full-win .ameow-bilibili-btn svg {
   width: 28px;
   height: 28px;
 }
 
-body.player-mode-full .flowselect-bilibili-set-in-btn svg,
-body.player-mode-full .flowselect-bilibili-set-out-btn svg,
-body.player-fullscreen-fix .flowselect-bilibili-set-in-btn svg,
-body.player-fullscreen-fix .flowselect-bilibili-set-out-btn svg,
-body.player-mode-web .flowselect-bilibili-set-in-btn svg,
-body.player-mode-web .flowselect-bilibili-set-out-btn svg,
-body.player-full-win .flowselect-bilibili-set-in-btn svg,
-body.player-full-win .flowselect-bilibili-set-out-btn svg {
+body.player-mode-full .ameow-bilibili-set-in-btn svg,
+body.player-mode-full .ameow-bilibili-set-out-btn svg,
+body.player-fullscreen-fix .ameow-bilibili-set-in-btn svg,
+body.player-fullscreen-fix .ameow-bilibili-set-out-btn svg,
+body.player-mode-web .ameow-bilibili-set-in-btn svg,
+body.player-mode-web .ameow-bilibili-set-out-btn svg,
+body.player-full-win .ameow-bilibili-set-in-btn svg,
+body.player-full-win .ameow-bilibili-set-out-btn svg {
   width: 24px;
   height: 24px;
 }
 
-body.player-mode-full .flowselect-bilibili-screenshot-btn svg,
-body.player-fullscreen-fix .flowselect-bilibili-screenshot-btn svg,
-body.player-mode-web .flowselect-bilibili-screenshot-btn svg,
-body.player-full-win .flowselect-bilibili-screenshot-btn svg {
+body.player-mode-full .ameow-bilibili-screenshot-btn svg,
+body.player-fullscreen-fix .ameow-bilibili-screenshot-btn svg,
+body.player-mode-web .ameow-bilibili-screenshot-btn svg,
+body.player-full-win .ameow-bilibili-screenshot-btn svg {
   width: 28px;
   height: 28px;
 }
 
 /* Fullscreen mode - padding adjustment */
-body.player-mode-full .bpx-player-control-wrap .flowselect-bilibili-btn,
-body.player-fullscreen-fix .bpx-player-control-wrap .flowselect-bilibili-btn,
-body.player-mode-web .bpx-player-control-wrap .flowselect-bilibili-btn,
-body.player-full-win .bpx-player-control-wrap .flowselect-bilibili-btn {
+body.player-mode-full .bpx-player-control-wrap .ameow-bilibili-btn,
+body.player-fullscreen-fix .bpx-player-control-wrap .ameow-bilibili-btn,
+body.player-mode-web .bpx-player-control-wrap .ameow-bilibili-btn,
+body.player-full-win .bpx-player-control-wrap .ameow-bilibili-btn {
   padding-top: 2px;
 }
 
-body.player-mode-full .bpx-player-control-wrap .flowselect-bilibili-set-in-btn,
-body.player-mode-full .bpx-player-control-wrap .flowselect-bilibili-set-out-btn,
-body.player-fullscreen-fix .bpx-player-control-wrap .flowselect-bilibili-set-in-btn,
-body.player-fullscreen-fix .bpx-player-control-wrap .flowselect-bilibili-set-out-btn,
-body.player-mode-web .bpx-player-control-wrap .flowselect-bilibili-set-in-btn,
-body.player-mode-web .bpx-player-control-wrap .flowselect-bilibili-set-out-btn,
-body.player-full-win .bpx-player-control-wrap .flowselect-bilibili-set-in-btn,
-body.player-full-win .bpx-player-control-wrap .flowselect-bilibili-set-out-btn {
+body.player-mode-full .bpx-player-control-wrap .ameow-bilibili-set-in-btn,
+body.player-mode-full .bpx-player-control-wrap .ameow-bilibili-set-out-btn,
+body.player-fullscreen-fix .bpx-player-control-wrap .ameow-bilibili-set-in-btn,
+body.player-fullscreen-fix .bpx-player-control-wrap .ameow-bilibili-set-out-btn,
+body.player-mode-web .bpx-player-control-wrap .ameow-bilibili-set-in-btn,
+body.player-mode-web .bpx-player-control-wrap .ameow-bilibili-set-out-btn,
+body.player-full-win .bpx-player-control-wrap .ameow-bilibili-set-in-btn,
+body.player-full-win .bpx-player-control-wrap .ameow-bilibili-set-out-btn {
   padding-top: 2px;
 }
 
-body.player-mode-full .bpx-player-control-wrap .flowselect-bilibili-screenshot-btn,
-body.player-fullscreen-fix .bpx-player-control-wrap .flowselect-bilibili-screenshot-btn,
-body.player-mode-web .bpx-player-control-wrap .flowselect-bilibili-screenshot-btn,
-body.player-full-win .bpx-player-control-wrap .flowselect-bilibili-screenshot-btn {
+body.player-mode-full .bpx-player-control-wrap .ameow-bilibili-screenshot-btn,
+body.player-fullscreen-fix .bpx-player-control-wrap .ameow-bilibili-screenshot-btn,
+body.player-mode-web .bpx-player-control-wrap .ameow-bilibili-screenshot-btn,
+body.player-full-win .bpx-player-control-wrap .ameow-bilibili-screenshot-btn {
   padding-top: 2px;
 }
 
-.flowselect-bilibili-set-in-btn[data-selected="true"],
-.flowselect-bilibili-set-out-btn[data-selected="true"] {
+.ameow-bilibili-set-in-btn[data-selected="true"],
+.ameow-bilibili-set-out-btn[data-selected="true"] {
   color: #8fc0ff;
 }
 
-.flowselect-bilibili-btn[data-clip-ready="true"] {
+.ameow-bilibili-btn[data-clip-ready="true"] {
   color: #7dd3fc;
 }

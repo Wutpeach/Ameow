@@ -33,7 +33,7 @@ describe("renameRules", () => {
   });
 
   it("allocates descending stems by default and skips occupied names", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-rename-rules-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-rename-rules-"));
     try {
       writeFileSync(path.join(outputDir, "99.mp4"), "video");
       await expect(allocateRenameStem(outputDir, {})).resolves.toBe("98");
@@ -43,7 +43,7 @@ describe("renameRules", () => {
   });
 
   it("allocates ascending stems when configured", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-rename-rules-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-rename-rules-"));
     try {
       await expect(allocateRenameStem(outputDir, { renameRulePreset: "asc_number" })).resolves.toBe("1");
       await expect(allocateRenameStem(outputDir, { renameRulePreset: "asc_number" })).resolves.toBe("2");
@@ -53,7 +53,7 @@ describe("renameRules", () => {
   });
 
   it("resets in-memory rename allocation state", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-rename-rules-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-rename-rules-"));
     try {
       await expect(allocateRenameStem(outputDir, {})).resolves.toBe("99");
       resetRenameSequenceState();

@@ -1,16 +1,16 @@
-FlowSelect macOS install
+Ameow macOS install
 
-1. Drag FlowSelect.app into Applications.
-2. Open FlowSelect from Applications.
+1. Drag Ameow.app into Applications.
+2. Open Ameow from Applications.
 3. If macOS blocks the app on first launch:
-   - Right-click FlowSelect.app and choose Open, or
+   - Right-click Ameow.app and choose Open, or
    - Go to System Settings > Privacy & Security and allow the app, or
    - Open Terminal and run the manual repair command below after the app is already installed in Applications.
 
 Advanced manual repair command:
-xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
+xattr -dr com.apple.quarantine "/Applications/Ameow.app"
 
 Notes:
-- The manual repair command only repairs an installed copy of FlowSelect.app.
+- The manual repair command only repairs an installed copy of Ameow.app.
 - It does not perform the drag-to-Applications install step for you.
-- If you installed FlowSelect somewhere else, adjust the app path in the manual command.
+- If you installed Ameow somewhere else, adjust the app path in the manual command.

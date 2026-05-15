@@ -108,7 +108,7 @@ describe("upgradeImageUrl", () => {
   it("prefers deterministic X upgrades before consulting maxurl", async () => {
     const result = await upgradeImageUrl({
       imageUrl: "https://pbs.twimg.com/media/HFcbbVTa8AItONk?format=jpg&name=small",
-      pageUrl: "https://x.com/flowselect/status/1234567890",
+      pageUrl: "https://x.com/ameow/status/1234567890",
     });
 
     expect(result).toEqual({

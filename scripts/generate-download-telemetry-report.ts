@@ -40,19 +40,19 @@ const defaultTelemetryInputPath = (): string => {
         os.homedir(),
         "Library",
         "Application Support",
-        "FlowSelect",
+        "Ameow",
         "telemetry",
         "download-outcomes.jsonl",
       );
     case "win32":
       return path.join(
         process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"),
-        "FlowSelect",
+        "Ameow",
         "telemetry",
         "download-outcomes.jsonl",
       );
     default:
-      return path.join(os.homedir(), ".config", "FlowSelect", "telemetry", "download-outcomes.jsonl");
+      return path.join(os.homedir(), ".config", "Ameow", "telemetry", "download-outcomes.jsonl");
   }
 };
 

@@ -86,7 +86,7 @@ describe("youtube detector", () => {
 
     expect(typeof messageListener).toBe("function");
     const handled = messageListener(
-      { type: "flowselect_resolve_pasted_video_selection" },
+      { type: "ameow_resolve_pasted_video_selection" },
       {},
       (payload) => {
         response = payload;

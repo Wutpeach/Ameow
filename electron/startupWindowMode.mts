@@ -2,7 +2,7 @@ export type StartupWindowMode = "compact" | "full";
 
 export const MAIN_WINDOW_FULL_SIZE = 200;
 export const MAIN_WINDOW_COMPACT_STARTUP_SIZE = 80;
-const STARTUP_WINDOW_MODE_ARGUMENT_PREFIX = "--flowselect-startup-window-mode=";
+const STARTUP_WINDOW_MODE_ARGUMENT_PREFIX = "--ameow-startup-window-mode=";
 
 export const resolveMainWindowStartupMode = ({
   platform,

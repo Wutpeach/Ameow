@@ -22,8 +22,8 @@ import {
 } from "./components/ui/shared-styles";
 import type { AppUpdateInfo, AppUpdatePhase } from "./types/appUpdate";
 import type {
-  FlowSelectCurrentWindowInteractionMode,
-  FlowSelectStartupWindowMode,
+  AmeowCurrentWindowInteractionMode,
+  AmeowStartupWindowMode,
 } from "./types/electronBridge";
 import {
   desktopClipboard,
@@ -815,7 +815,7 @@ const getVideoTranscodeFormatLabel = (task: VideoTranscodeTaskPayload): string |
 };
 
 type AppProps = {
-  initialStartupWindowMode?: FlowSelectStartupWindowMode;
+  initialStartupWindowMode?: AmeowStartupWindowMode;
 };
 
 function App({
@@ -928,7 +928,7 @@ function App({
   const lastPanelOutputFolderShortcutAtRef = useRef(0);
   const isDropHoveringRef = useRef(false);
   const shellPhaseRef = useRef(shellPhase);
-  const interactionModeRef = useRef<FlowSelectCurrentWindowInteractionMode>("interactive");
+  const interactionModeRef = useRef<AmeowCurrentWindowInteractionMode>("interactive");
   const compactHotspotInsideRef = useRef(false);
   const compactHotspotFrameRef = useRef<number | null>(null);
   const compactNativeSettledRef = useRef(startsInNativeCompactStartupWindow);
@@ -1134,7 +1134,7 @@ function App({
   }, []);
 
   const applyCurrentWindowInteractionMode = useCallback((
-    nextMode: FlowSelectCurrentWindowInteractionMode,
+    nextMode: AmeowCurrentWindowInteractionMode,
   ) => {
     if (interactionModeRef.current === nextMode) {
       return;
@@ -3557,8 +3557,8 @@ function App({
     const html = e.dataTransfer.getData("text/html");
     const rawUriList = e.dataTransfer.getData("text/uri-list");
     const rawPlain = e.dataTransfer.getData("text/plain");
-    const rawProtectedImageDrag = e.dataTransfer.getData("application/x-flowselect-protected-image-drag");
-    const rawXiaohongshuDrag = e.dataTransfer.getData("application/x-flowselect-xiaohongshu-drag");
+    const rawProtectedImageDrag = e.dataTransfer.getData("application/x-ameow-protected-image-drag");
+    const rawXiaohongshuDrag = e.dataTransfer.getData("application/x-ameow-xiaohongshu-drag");
     const embeddedPinterestDragPayload =
       extractEmbeddedPinterestDragPayload(html) ??
       extractEmbeddedPinterestDragPayload(rawPlain) ??

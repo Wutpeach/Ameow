@@ -40,7 +40,7 @@ const createContext = (
     candidates: [],
     preferredFormat: "mp4",
   },
-  outputDir: overrides.outputDir ?? mkdtempSync(path.join(os.tmpdir(), "flowselect-direct-")),
+  outputDir: overrides.outputDir ?? mkdtempSync(path.join(os.tmpdir(), "ameow-direct-")),
   outputStem: "output",
   config: {},
   binaries: {
@@ -68,7 +68,7 @@ describe("runDirectVideoDownload", () => {
   });
 
   it("does not send a page referer for Xiaohongshu direct assets", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-direct-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-direct-"));
     const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
       const headers = new Headers(init?.headers);
       expect(headers.get("Referer")).toBeNull();
@@ -92,7 +92,7 @@ describe("runDirectVideoDownload", () => {
   });
 
   it("keeps the page referer for non-Xiaohongshu direct downloads", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-direct-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-direct-"));
     const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
       const headers = new Headers(init?.headers);
       expect(headers.get("Referer")).toBe("https://www.example.com/watch/123");

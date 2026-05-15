@@ -11,7 +11,7 @@
 
   <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
   <text x="54" y="70" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">Browser extension install flow</text>
-  <text x="54" y="104" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">Load the local extension folder, then open FlowSelect until the popup reports Connected.</text>
+  <text x="54" y="104" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="18">Load the local extension folder, then open Ameow until the popup reports Connected.</text>
 
   <g filter="url(#shadow)">
     <rect x="54" y="146" width="198" height="150" rx="22" fill="#0B1120" stroke="#1D4ED8" stroke-width="2"/>
@@ -32,7 +32,7 @@
     <circle cx="562" cy="188" r="18" fill="#1D4ED8"/>
     <text x="555" y="194" fill="#EFF6FF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">3</text>
     <text x="542" y="228" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Start desktop app</text>
-    <text x="542" y="260" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Run FlowSelect</text>
+    <text x="542" y="260" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Run Ameow</text>
     <text x="542" y="284" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">WebSocket auto-starts</text>
 
     <rect x="750" y="146" width="198" height="150" rx="22" fill="#0B1120" stroke="#1D4ED8" stroke-width="2"/>

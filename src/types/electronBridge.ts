@@ -1,6 +1,6 @@
 import type { AppUpdateInfo } from "./appUpdate.js";
 
-export type FlowSelectWindowLabel =
+export type AmeowWindowLabel =
   | "main"
   | "settings"
   | "context-menu"
@@ -8,7 +8,7 @@ export type FlowSelectWindowLabel =
 
 // These command names intentionally preserve the stable renderer command vocabulary
 // while the transport stays fully Electron-owned.
-export type FlowSelectRendererCommand =
+export type AmeowRendererCommand =
   | "begin_open_output_folder_from_context_menu"
   | "begin_pick_output_folder_from_context_menu"
   | "broadcast_theme"
@@ -45,7 +45,7 @@ export type FlowSelectRendererCommand =
   | "update_gallery_dl"
   | "update_ytdlp";
 
-export type FlowSelectAppEvent =
+export type AmeowAppEvent =
   | "app-update-preference-changed"
   | "context-menu-closed"
   | "devmode-changed"
@@ -70,7 +70,7 @@ export type FlowSelectAppEvent =
   | "video-transcode-retried"
   | "ytdlp-version-refresh";
 
-export type FlowSelectRendererEvent =
+export type AmeowRendererEvent =
   | "app-update-preference-changed"
   | "context-menu-closed"
   | "output-path-changed"
@@ -78,48 +78,48 @@ export type FlowSelectRendererEvent =
   | "theme-changed"
   | "ytdlp-version-refresh";
 
-export type FlowSelectEventPayload<TPayload> = {
+export type AmeowEventPayload<TPayload> = {
   payload: TPayload;
 };
 
-export type FlowSelectPoint = {
+export type AmeowPoint = {
   x: number;
   y: number;
 };
 
-export type FlowSelectSize = {
+export type AmeowSize = {
   width: number;
   height: number;
 };
 
-export type FlowSelectBounds = FlowSelectPoint & FlowSelectSize;
-export type FlowSelectStartupWindowMode = "compact" | "full";
+export type AmeowBounds = AmeowPoint & AmeowSize;
+export type AmeowStartupWindowMode = "compact" | "full";
 
-export type FlowSelectDisplay = {
-  position: FlowSelectPoint;
-  size: FlowSelectSize;
+export type AmeowDisplay = {
+  position: AmeowPoint;
+  size: AmeowSize;
   scaleFactor: number;
 };
 
-export type FlowSelectDialogFilter = {
+export type AmeowDialogFilter = {
   name: string;
   extensions: string[];
 };
 
-export type FlowSelectDialogOpenOptions = {
+export type AmeowDialogOpenOptions = {
   directory?: boolean;
   multiple?: boolean;
   title?: string;
-  filters?: FlowSelectDialogFilter[];
+  filters?: AmeowDialogFilter[];
 };
 
-export type FlowSelectClipboardImage = {
+export type AmeowClipboardImage = {
   width: number;
   height: number;
   rgba: number[];
 };
 
-export type FlowSelectDroppedFolderPathFailureReason =
+export type AmeowDroppedFolderPathFailureReason =
   | "EMPTY_PATH"
   | "UNRESOLVED_DROP"
   | "PRELOAD_ERROR"
@@ -127,7 +127,7 @@ export type FlowSelectDroppedFolderPathFailureReason =
   | "NOT_FOUND"
   | "STAT_FAILED";
 
-export type FlowSelectDroppedFolderPathResult =
+export type AmeowDroppedFolderPathResult =
   | {
       success: true;
       path: string;
@@ -137,10 +137,10 @@ export type FlowSelectDroppedFolderPathResult =
       success: false;
       path: string;
       error: string;
-      reason: FlowSelectDroppedFolderPathFailureReason;
+      reason: AmeowDroppedFolderPathFailureReason;
     };
 
-export type FlowSelectSecondaryWindowOptions = {
+export type AmeowSecondaryWindowOptions = {
   title: string;
   width: number;
   height: number;
@@ -152,82 +152,82 @@ export type FlowSelectSecondaryWindowOptions = {
   skipTaskbar?: boolean;
 };
 
-export type FlowSelectContextMenuWindowOptions = FlowSelectSecondaryWindowOptions & {
+export type AmeowContextMenuWindowOptions = AmeowSecondaryWindowOptions & {
   parent: "main";
 };
 
-export type FlowSelectAnimateBoundsOptions = {
+export type AmeowAnimateBoundsOptions = {
   durationMs?: number;
   transitionToken?: number;
 };
 
-export type FlowSelectAnimateBoundsResult = {
+export type AmeowAnimateBoundsResult = {
   transitionToken: number | null;
 };
 
-export type FlowSelectCurrentWindowInteractionMode = "interactive" | "compact-passthrough";
+export type AmeowCurrentWindowInteractionMode = "interactive" | "compact-passthrough";
 
-export interface FlowSelectCurrentWindowApi {
-  outerPosition(): Promise<FlowSelectPoint>;
-  outerSize(): Promise<FlowSelectSize>;
+export interface AmeowCurrentWindowApi {
+  outerPosition(): Promise<AmeowPoint>;
+  outerSize(): Promise<AmeowSize>;
   scaleFactor(): Promise<number>;
-  startupWindowMode(): FlowSelectStartupWindowMode;
+  startupWindowMode(): AmeowStartupWindowMode;
   startDragging(): Promise<void>;
-  setPosition(position: FlowSelectPoint): void;
-  setInteractionMode(mode: FlowSelectCurrentWindowInteractionMode): void;
+  setPosition(position: AmeowPoint): void;
+  setInteractionMode(mode: AmeowCurrentWindowInteractionMode): void;
   animateBounds(
-    bounds: FlowSelectBounds,
-    options?: FlowSelectAnimateBoundsOptions,
-  ): Promise<FlowSelectAnimateBoundsResult>;
+    bounds: AmeowBounds,
+    options?: AmeowAnimateBoundsOptions,
+  ): Promise<AmeowAnimateBoundsResult>;
   rendererReady(): Promise<void>;
   close(): Promise<void>;
   hide(): Promise<void>;
   onFocusChanged(
-    listener: (event: FlowSelectEventPayload<boolean>) => void,
+    listener: (event: AmeowEventPayload<boolean>) => void,
   ): Promise<() => void>;
   onBlur(listener: () => void): Promise<() => void>;
 }
 
-export interface FlowSelectSystemApi {
-  currentMonitor(): Promise<FlowSelectDisplay | null>;
+export interface AmeowSystemApi {
+  currentMonitor(): Promise<AmeowDisplay | null>;
   openDialog(
-    options: FlowSelectDialogOpenOptions,
+    options: AmeowDialogOpenOptions,
   ): Promise<string | string[] | null>;
   openExternal(url: string): Promise<void>;
   relaunch(): Promise<void>;
 }
 
-export interface FlowSelectDropApi {
-  consumePendingFolderDrop(): Promise<FlowSelectDroppedFolderPathResult | null>;
+export interface AmeowDropApi {
+  consumePendingFolderDrop(): Promise<AmeowDroppedFolderPathResult | null>;
 }
 
-export interface FlowSelectElectronBridge {
+export interface AmeowElectronBridge {
   commands: {
     invoke<TResult>(
-      command: FlowSelectRendererCommand,
+      command: AmeowRendererCommand,
       payload?: Record<string, unknown>,
     ): Promise<TResult>;
   };
   events: {
     on<TPayload>(
-      event: FlowSelectAppEvent,
-      listener: (event: FlowSelectEventPayload<TPayload>) => void,
+      event: AmeowAppEvent,
+      listener: (event: AmeowEventPayload<TPayload>) => void,
     ): Promise<() => void>;
-    emit<TPayload>(event: FlowSelectRendererEvent, payload: TPayload): Promise<void>;
+    emit<TPayload>(event: AmeowRendererEvent, payload: TPayload): Promise<void>;
   };
   windows: {
-    has(label: FlowSelectWindowLabel): Promise<boolean>;
-    focus(label: FlowSelectWindowLabel): Promise<void>;
+    has(label: AmeowWindowLabel): Promise<boolean>;
+    focus(label: AmeowWindowLabel): Promise<void>;
     close(label: "settings" | "context-menu" | "ui-lab"): Promise<void>;
-    openSettings(options: FlowSelectSecondaryWindowOptions): Promise<void>;
-    openContextMenu(options: FlowSelectContextMenuWindowOptions): Promise<void>;
-    openUiLab(options: FlowSelectSecondaryWindowOptions): Promise<void>;
+    openSettings(options: AmeowSecondaryWindowOptions): Promise<void>;
+    openContextMenu(options: AmeowContextMenuWindowOptions): Promise<void>;
+    openUiLab(options: AmeowSecondaryWindowOptions): Promise<void>;
   };
-  currentWindow: FlowSelectCurrentWindowApi;
-  system: FlowSelectSystemApi;
-  drop: FlowSelectDropApi;
+  currentWindow: AmeowCurrentWindowApi;
+  system: AmeowSystemApi;
+  drop: AmeowDropApi;
   clipboard: {
-    readImage(): Promise<FlowSelectClipboardImage | null>;
+    readImage(): Promise<AmeowClipboardImage | null>;
   };
   updater: {
     check(): Promise<AppUpdateInfo | null>;

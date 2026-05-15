@@ -272,7 +272,7 @@ const siblingPathWithSuffix = (
 
 const resolveTempOutputPath = (task: PreparedVideoTranscodeTask): string => {
   const basePath = task.finalPath === task.sourcePath ? task.sourcePath : task.finalPath;
-  return siblingPathWithSuffix(basePath, "flowselect-transcode", ".mp4");
+  return siblingPathWithSuffix(basePath, "ameow-transcode", ".mp4");
 };
 
 const replaceFile = async (targetPath: string, sourcePath: string): Promise<void> => {

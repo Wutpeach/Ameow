@@ -40,7 +40,7 @@ describe("download capability seed", () => {
         }),
       ]),
     );
-    expect(registry.findInteractionCapabilityForUrl("https://x.com/flowselect/status/1")).toMatchObject({
+    expect(registry.findInteractionCapabilityForUrl("https://x.com/ameow/status/1")).toMatchObject({
       siteId: "twitter-x",
       supportedModes: expect.arrayContaining(["injected_button"]),
     });

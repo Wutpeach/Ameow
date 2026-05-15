@@ -31,6 +31,8 @@ export const youtubeProvider: SiteProvider = {
       ytdlpQuality: input.ytdlpQuality,
       extensionData: input.extensionData,
       preferredFormat: "best",
+      clipStartSec: input.clipStartSec,
+      clipEndSec: input.clipEndSec,
     };
     return {
       providerId: "youtube",

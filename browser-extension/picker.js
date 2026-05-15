@@ -1,7 +1,7 @@
-// FlowSelect Browser Extension - Element Picker
+// Ameow Browser Extension - Element Picker
 // SVG-based highlight overlay (inspired by uBlock epicker.js)
 
-class FlowSelectPicker {
+class AmeowPicker {
   constructor(options = {}) {
     this.onSelect = options.onSelect || (() => {});
     this.onCancel = options.onCancel || (() => {});
@@ -22,7 +22,7 @@ class FlowSelectPicker {
     this.isActive = true;
     this.createOverlay();
     this.attachListeners();
-    document.body.classList.add('flowselect-picker-active');
+    document.body.classList.add('ameow-picker-active');
   }
 
   stop() {
@@ -30,22 +30,22 @@ class FlowSelectPicker {
     this.isActive = false;
     this.detachListeners();
     this.removeOverlay();
-    document.body.classList.remove('flowselect-picker-active');
+    document.body.classList.remove('ameow-picker-active');
     this.currentElement = null;
   }
 
   createOverlay() {
     // Create container
     this.overlay = document.createElement('div');
-    this.overlay.id = 'flowselect-picker-overlay';
+    this.overlay.id = 'ameow-picker-overlay';
 
     // Create SVG for highlighting
     const svgNS = 'http://www.w3.org/2000/svg';
     this.svgRoot = document.createElementNS(svgNS, 'svg');
-    this.svgRoot.setAttribute('class', 'flowselect-svg-overlay');
+    this.svgRoot.setAttribute('class', 'ameow-svg-overlay');
 
     this.highlightPath = document.createElementNS(svgNS, 'path');
-    this.highlightPath.setAttribute('class', 'flowselect-highlight');
+    this.highlightPath.setAttribute('class', 'ameow-highlight');
     this.svgRoot.appendChild(this.highlightPath);
 
     this.overlay.appendChild(this.svgRoot);
@@ -62,7 +62,7 @@ class FlowSelectPicker {
   }
 
   attachListeners() {
-    console.log('[FlowSelect Picker] attachListeners called');
+    console.log('[Ameow Picker] attachListeners called');
     document.addEventListener('mousemove', this.handleMouseMove, true);
     document.addEventListener('keydown', this.handleKeyDown, true);
     document.addEventListener('contextmenu', this.handleContextMenu, true);
@@ -93,20 +93,20 @@ class FlowSelectPicker {
   }
 
   handleClick(event) {
-    console.log('[FlowSelect Picker] handleClick triggered');
+    console.log('[Ameow Picker] handleClick triggered');
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    console.log('[FlowSelect Picker] currentElement:', this.currentElement);
+    console.log('[Ameow Picker] currentElement:', this.currentElement);
     if (this.currentElement) {
       const videoData = this.extractVideoData(this.currentElement);
-      console.log('[FlowSelect Picker] extractVideoData result:', videoData);
+      console.log('[Ameow Picker] extractVideoData result:', videoData);
       if (videoData) {
-        console.log('[FlowSelect Picker] Calling onSelect');
+        console.log('[Ameow Picker] Calling onSelect');
         this.onSelect(videoData);
       } else {
-        console.log('[FlowSelect Picker] No video data found');
+        console.log('[Ameow Picker] No video data found');
       }
     }
   }
@@ -196,4 +196,4 @@ class FlowSelectPicker {
 }
 
 // Export for content script
-window.FlowSelectPicker = FlowSelectPicker;
+window.AmeowPicker = AmeowPicker;

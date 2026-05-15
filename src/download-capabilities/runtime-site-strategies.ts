@@ -4,7 +4,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "youtube",
     displayName: "YouTube",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "single_engine",
     engineOrder: ["yt-dlp"],
     matchHints: {
@@ -14,7 +14,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "bilibili",
     displayName: "Bilibili",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "single_engine",
     engineOrder: ["yt-dlp"],
     matchHints: {
@@ -24,7 +24,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "twitter-x",
     displayName: "Twitter/X",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "single_engine",
     engineOrder: ["yt-dlp"],
     matchHints: {
@@ -34,7 +34,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "douyin",
     displayName: "Douyin",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "conditional_direct",
     engineOrder: ["direct", "yt-dlp"],
     matchHints: {
@@ -44,7 +44,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "xiaohongshu",
     displayName: "Xiaohongshu",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "conditional_direct",
     engineOrder: ["direct", "yt-dlp"],
     matchHints: {
@@ -54,7 +54,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "pinterest",
     displayName: "Pinterest",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "conditional_direct",
     engineOrder: ["direct", "gallery-dl"],
     matchHints: {
@@ -64,7 +64,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "weibo",
     displayName: "Weibo",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "ordered_fallback",
     engineOrder: ["gallery-dl", "yt-dlp"],
     matchHints: {
@@ -74,7 +74,7 @@ export const runtimeManualSiteStrategies = [
   {
     siteId: "generic",
     displayName: "Generic",
-    sourceId: "flowselect-manual-sites",
+    sourceId: "ameow-manual-sites",
     strategyKind: "single_engine",
     engineOrder: ["yt-dlp"],
     notes: ["Default project strategy when no explicit site strategy matches."],

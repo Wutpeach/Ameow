@@ -1,12 +1,12 @@
-// FlowSelect Browser Extension - Douyin Video Detector
+// Ameow Browser Extension - Douyin Video Detector
 // Detects video pages and injects download buttons
 // Supports: /video/ pages, discover/featured, video covers, search results, user profiles
 
 (function() {
   'use strict';
 
-  const PROCESSED_ATTR = 'data-flowselect-processed';
-  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+  const PROCESSED_ATTR = 'data-ameow-processed';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
 
   // Cat icon SVG
   const CAT_ICON_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -65,7 +65,7 @@
     // Check if already processed
     if (controls.hasAttribute(PROCESSED_ATTR)) return;
 
-    console.log('[FlowSelect Douyin] Video detected:', videoId);
+    console.log('[Ameow Douyin] Video detected:', videoId);
     injectControlBarButton(controls);
     controls.setAttribute(PROCESSED_ATTR, 'true');
   }
@@ -73,12 +73,12 @@
   // Inject button into player control bar
   function injectControlBarButton(controls) {
     // Remove existing control bar button if any
-    document.querySelectorAll('.flowselect-douyin-control-btn').forEach(el => el.remove());
+    document.querySelectorAll('.ameow-douyin-control-btn').forEach(el => el.remove());
 
     const btn = document.createElement('div');
-    btn.className = 'flowselect-douyin-control-btn';
+    btn.className = 'ameow-douyin-control-btn';
     btn.innerHTML = CAT_ICON_SVG;
-    btn.title = 'Download with FlowSelect';
+    btn.title = 'Download with Ameow';
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -88,7 +88,7 @@
 
     // Insert at the beginning of controls
     controls.insertBefore(btn, controls.firstChild);
-    console.log('[FlowSelect Douyin] Control bar button injected');
+    console.log('[Ameow Douyin] Control bar button injected');
   }
 
   // ============================================
@@ -135,9 +135,9 @@
   // Inject button on video cover/card
   function injectCoverButton(cover, videoUrl) {
     const btn = document.createElement('div');
-    btn.className = 'flowselect-douyin-cover-btn';
+    btn.className = 'ameow-douyin-cover-btn';
     btn.innerHTML = CAT_ICON_SVG;
-    btn.title = 'Download with FlowSelect';
+    btn.title = 'Download with Ameow';
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -152,7 +152,7 @@
     }
 
     cover.appendChild(btn);
-    console.log('[FlowSelect Douyin] Cover button injected for:', videoUrl);
+    console.log('[Ameow Douyin] Cover button injected for:', videoUrl);
   }
 
   // Extract title from cover element
@@ -185,7 +185,7 @@
         if (controls && !controls.hasAttribute(PROCESSED_ATTR)) {
           injectControlBarButton(controls);
           controls.setAttribute(PROCESSED_ATTR, 'true');
-          console.log('[FlowSelect Douyin] Modal control bar button injected');
+          console.log('[Ameow Douyin] Modal control bar button injected');
         }
       }
     }
@@ -278,7 +278,7 @@
     // Method 1: video element src/currentSrc
     const videoEl = document.querySelector('video');
     if (videoEl) {
-      console.log('[FlowSelect Douyin] Video element found');
+      console.log('[Ameow Douyin] Video element found');
       collectCandidate(videoEl.currentSrc, 'video_element');
       collectCandidate(videoEl.src, 'video_element');
       collectCandidate(videoEl.getAttribute('src'), 'video_element');
@@ -309,7 +309,7 @@
         }
       }
     } catch (e) {
-      console.error('[FlowSelect Douyin] RENDER_DATA parse error:', e);
+      console.error('[Ameow Douyin] RENDER_DATA parse error:', e);
     }
 
     // Method 4: React Fiber
@@ -328,7 +328,7 @@
         }
       }
     } catch (e) {
-      console.error('[FlowSelect Douyin] React Fiber error:', e);
+      console.error('[Ameow Douyin] React Fiber error:', e);
     }
 
     // Method 5: Performance resource scan
@@ -347,7 +347,7 @@
     const candidates = extractVideoCandidates();
     const directCandidate = candidates.find((candidate) => candidate.type !== 'manifest_m3u8');
     if (!directCandidate) {
-      console.log('[FlowSelect Douyin] Direct candidate not found');
+      console.log('[Ameow Douyin] Direct candidate not found');
       return null;
     }
     return directCandidate.url;
@@ -400,10 +400,10 @@
       return;
     }
 
-    console.log('[FlowSelect Douyin] Downloading video');
-    console.log('[FlowSelect Douyin] Page URL:', payload.pageUrl);
-    console.log('[FlowSelect Douyin] Video URL:', payload.videoUrl);
-    console.log('[FlowSelect Douyin] Title:', payload.title);
+    console.log('[Ameow Douyin] Downloading video');
+    console.log('[Ameow Douyin] Page URL:', payload.pageUrl);
+    console.log('[Ameow Douyin] Video URL:', payload.videoUrl);
+    console.log('[Ameow Douyin] Title:', payload.title);
 
     chrome.runtime.sendMessage(payload);
   }
@@ -414,8 +414,8 @@
 
   // Download video by URL (for cover buttons)
   function downloadVideoByUrl(pageUrl, title) {
-    console.log('[FlowSelect Douyin] Downloading by URL:', pageUrl);
-    console.log('[FlowSelect Douyin] Title:', title);
+    console.log('[Ameow Douyin] Downloading by URL:', pageUrl);
+    console.log('[Ameow Douyin] Title:', title);
 
     chrome.runtime.sendMessage({
       type: 'video_selection',
@@ -431,7 +431,7 @@
   // ============================================
   function detectAll() {
     const pageType = getPageType();
-    console.log('[FlowSelect Douyin] Page type:', pageType);
+    console.log('[Ameow Douyin] Page type:', pageType);
 
     // Always try to detect video player on video pages
     if (pageType === 'video') {
@@ -455,7 +455,7 @@
   function checkUrlChange() {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
-      console.log('[FlowSelect Douyin] URL changed:', lastUrl);
+      console.log('[Ameow Douyin] URL changed:', lastUrl);
       // Reset processed state for new page
       const processed = document.querySelectorAll(`[${PROCESSED_ATTR}]`);
       processed.forEach(el => el.removeAttribute(PROCESSED_ATTR));
@@ -465,7 +465,7 @@
 
   // Initialize
   function init() {
-    console.log('[FlowSelect Douyin] Detector initialized');
+    console.log('[Ameow Douyin] Detector initialized');
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
         return false;

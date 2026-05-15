@@ -36,10 +36,10 @@
       "directoryDialogTitle": "确认素材导出路径",
       "errors": {
         "unresolved": "无法从这次拖拽中读取本地文件夹。",
-        "preloadFailed": "FlowSelect 无法检查这个拖入的文件夹。",
+        "preloadFailed": "Ameow 无法检查这个拖入的文件夹。",
         "notDirectory": "拖入的内容不是文件夹。",
         "notFound": "找不到拖入的文件夹。",
-        "statFailed": "FlowSelect 无法访问这个拖入的文件夹。",
+        "statFailed": "Ameow 无法访问这个拖入的文件夹。",
         "saveFailed": "设置导出文件夹失败。"
       }
     },
@@ -136,7 +136,7 @@
     },
     "shortcut": {
       "title": "全局快捷键",
-      "hint": "用一个快捷键从任意位置唤起 FlowSelect。",
+      "hint": "用一个快捷键从任意位置唤起 Ameow。",
       "press": "按下你的快捷键",
       "clickToRecord": "点击录制快捷键",
       "confirm": "确认",
@@ -144,7 +144,7 @@
     },
     "launchAtStartup": {
       "title": "开机启动",
-      "hint": "登录系统后自动打开 FlowSelect。"
+      "hint": "登录系统后自动打开 Ameow。"
     },
     "rename": {
       "title": "重命名下载媒体",
@@ -169,7 +169,7 @@
       "executableFilter": "可执行文件"
     },
     "pluginsPage": {
-      "intro": "这里会管理扩展 FlowSelect 工作流的插件与集成功能。随着插件系统成长，新的入口也会收纳到这里。",
+      "intro": "这里会管理扩展 Ameow 工作流的插件与集成功能。随着插件系统成长，新的入口也会收纳到这里。",
       "installed": {
         "title": "当前已接入",
         "hint": "这个版本中已经可用的集成功能。"
@@ -254,7 +254,7 @@
     },
     "versionCard": {
       "title": "应用版本",
-      "appName": "FlowSelect",
+      "appName": "Ameow",
       "currentLabel": "当前版本",
       "checkButton": "检查",
       "checkingButton": "检查中...",

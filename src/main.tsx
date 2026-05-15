@@ -10,7 +10,7 @@ import { desktopCommands, desktopCurrentWindow } from "./desktop/runtime";
 import { I18nRuntimeBridge } from "./i18n/I18nRuntimeBridge";
 import { initializeI18n } from "./i18n";
 import { resolveAppLanguage } from "./i18n/language";
-import type { FlowSelectStartupWindowMode } from "./types/electronBridge";
+import type { AmeowStartupWindowMode } from "./types/electronBridge";
 import {
   getRendererReadyAnimationFrameCount,
   getRendererReadyFallbackDelayMs,
@@ -25,7 +25,7 @@ const UiLabPage = import.meta.env.DEV
   : null;
 
 const scheduleRendererReadySignal = (routePath: string) => {
-  if (!window.flowselect) {
+  if (!window.ameow) {
     return;
   }
 
@@ -85,12 +85,12 @@ const bootstrap = async () => {
     hash: window.location.hash,
     pathname: window.location.pathname,
   });
-  const initialStartupWindowMode: FlowSelectStartupWindowMode = expectsElectronBridge && window.flowselect
+  const initialStartupWindowMode: AmeowStartupWindowMode = expectsElectronBridge && window.ameow
     ? desktopCurrentWindow.startupWindowMode()
     : "full";
   let bootstrapConfigStr: string | null = null;
 
-  if (expectsElectronBridge && window.flowselect) {
+  if (expectsElectronBridge && window.ameow) {
     try {
       bootstrapConfigStr = await desktopCommands.invoke<string>("get_config");
     } catch (error) {
@@ -98,17 +98,17 @@ const bootstrap = async () => {
     }
   }
 
-  const initialTheme: Theme | undefined = expectsElectronBridge && window.flowselect
+  const initialTheme: Theme | undefined = expectsElectronBridge && window.ameow
     ? resolveDesktopBootstrapTheme(bootstrapConfigStr)
     : undefined;
-  const initialLanguage = expectsElectronBridge && window.flowselect
+  const initialLanguage = expectsElectronBridge && window.ameow
     ? resolveDesktopBootstrapLanguage(bootstrapConfigStr, navigator.language)
     : fallbackLanguage;
 
   await initializeI18n(initialLanguage);
 
-  if (expectsElectronBridge && !window.flowselect) {
-    console.error("FlowSelect Electron bridge is unavailable in the renderer process.");
+  if (expectsElectronBridge && !window.ameow) {
+    console.error("Ameow Electron bridge is unavailable in the renderer process.");
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <div
         style={{
@@ -125,7 +125,7 @@ const bootstrap = async () => {
       >
         <div style={{ maxWidth: 320, display: "flex", flexDirection: "column", gap: 12 }}>
           <strong style={{ fontSize: 16, fontWeight: 700 }}>
-            FlowSelect desktop bridge failed to load
+            Ameow desktop bridge failed to load
           </strong>
           <span style={{ fontSize: 13, lineHeight: 1.5, color: "rgba(245,245,245,0.78)" }}>
             Restart the Electron dev process so the latest preload and main-process changes take effect.

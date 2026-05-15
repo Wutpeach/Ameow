@@ -1,6 +1,6 @@
 # Electron Runtime Foundation
 
-This document freezes the runtime boundary for FlowSelect after the Electron cutover. It should be treated as the repo-visible contract for the current desktop runtime, preload bridge, and packaging flow.
+This document freezes the runtime boundary for Ameow after the Electron cutover. It should be treated as the repo-visible contract for the current desktop runtime, preload bridge, and packaging flow.
 
 ## Current Ownership Snapshot
 
@@ -26,17 +26,17 @@ This document freezes the runtime boundary for FlowSelect after the Electron cut
 
 | Legacy surface | Electron replacement | Contract |
 |-----------------|----------------------|----------|
-| Legacy renderer invoke boundary | `window.flowselect.commands.invoke` | Keep current command names and payload keys stable across the Electron runtime. |
-| Legacy renderer event boundary | `window.flowselect.events.on` / `emit` | Keep current event names and payload shapes stable. |
-| `WebviewWindow.getByLabel(...)` | `window.flowselect.windows.has` / `focus` | Keep labels `main`, `settings`, `context-menu`. |
-| `new WebviewWindow("settings", ...)` | `window.flowselect.windows.openSettings(...)` | Electron main owns BrowserWindow creation. |
-| `new WebviewWindow("context-menu", ...)` | `window.flowselect.windows.openContextMenu(...)` | Electron main owns BrowserWindow creation and parent wiring. |
-| `getCurrentWindow()` + `currentMonitor()` | `window.flowselect.currentWindow.*` and `window.flowselect.system.currentMonitor()` | Keep logical-position math in the renderer-facing contract. |
-| Legacy desktop dialog open | `window.flowselect.system.openDialog(...)` | Dialog invocation stays main-owned. |
-| Legacy clipboard image read | `window.flowselect.clipboard.readImage()` | Return structured pixel data, not Node/Electron handles. |
-| Legacy external open | `window.flowselect.system.openExternal(...)` | External opens stay main-owned. |
-| Legacy relaunch request | `window.flowselect.system.relaunch()` | Relaunch remains preload-mediated only. |
-| Legacy updater check/install surface | `window.flowselect.updater.check()` / `downloadAndInstall()` | Do not leak raw updater objects into renderer. |
+| Legacy renderer invoke boundary | `window.ameow.commands.invoke` | Keep current command names and payload keys stable across the Electron runtime. |
+| Legacy renderer event boundary | `window.ameow.events.on` / `emit` | Keep current event names and payload shapes stable. |
+| `WebviewWindow.getByLabel(...)` | `window.ameow.windows.has` / `focus` | Keep labels `main`, `settings`, `context-menu`. |
+| `new WebviewWindow("settings", ...)` | `window.ameow.windows.openSettings(...)` | Electron main owns BrowserWindow creation. |
+| `new WebviewWindow("context-menu", ...)` | `window.ameow.windows.openContextMenu(...)` | Electron main owns BrowserWindow creation and parent wiring. |
+| `getCurrentWindow()` + `currentMonitor()` | `window.ameow.currentWindow.*` and `window.ameow.system.currentMonitor()` | Keep logical-position math in the renderer-facing contract. |
+| Legacy desktop dialog open | `window.ameow.system.openDialog(...)` | Dialog invocation stays main-owned. |
+| Legacy clipboard image read | `window.ameow.clipboard.readImage()` | Return structured pixel data, not Node/Electron handles. |
+| Legacy external open | `window.ameow.system.openExternal(...)` | External opens stay main-owned. |
+| Legacy relaunch request | `window.ameow.system.relaunch()` | Relaunch remains preload-mediated only. |
+| Legacy updater check/install surface | `window.ameow.updater.check()` / `downloadAndInstall()` | Do not leak raw updater objects into renderer. |
 | Legacy tray/global-shortcut/autostart/single-instance behavior | Electron main process services | Preserve user-visible behavior unless a later contract change explicitly documents a break. |
 | Legacy loopback WS server | Electron main `ws` server | Keep host, port, action names, and `requestId` correlation stable. |
 
@@ -46,13 +46,13 @@ The concrete renderer-facing preload surface lives in `src/types/electronBridge.
 
 Required namespaces:
 
-- `window.flowselect.commands`
-- `window.flowselect.events`
-- `window.flowselect.windows`
-- `window.flowselect.currentWindow`
-- `window.flowselect.system`
-- `window.flowselect.clipboard`
-- `window.flowselect.updater`
+- `window.ameow.commands`
+- `window.ameow.events`
+- `window.ameow.windows`
+- `window.ameow.currentWindow`
+- `window.ameow.system`
+- `window.ameow.clipboard`
+- `window.ameow.updater`
 
 Renderer rule:
 
@@ -98,7 +98,6 @@ Rules:
 ## Config Compatibility
 
 - Keep the effective config file name as `settings.json` under the app config directory.
-- Preserve one-time migration from `<configDir>/com.flowselect.app/settings.json`.
 - Keep `get_config` returning a raw JSON string.
 - Keep `save_config({ json })` accepting a raw JSON string.
 
@@ -139,8 +138,8 @@ Autostart remains runtime-owned OS state, not a `settings.json` key.
 
 Renderer updater contract:
 
-- Windows installer builds may surface an update from `window.flowselect.updater.check()`.
-- macOS unsigned builds should return `null` from `window.flowselect.updater.check()` and keep manual release links as the visible update path.
+- Windows installer builds may surface an update from `window.ameow.updater.check()`.
+- macOS unsigned builds should return `null` from `window.ameow.updater.check()` and keep manual release links as the visible update path.
 
 ## Download Runtime Core
 

@@ -201,7 +201,7 @@ const inspectSystemPython3 = async (command: string): Promise<SystemPythonInfo |
 
 export const detectSystemPython3 = async (): Promise<SystemPythonInfo> => {
   const candidates = [
-    process.env.FLOWSELECT_PYTHON3_PATH?.trim() || null,
+    process.env.AMEOW_PYTHON3_PATH?.trim() || null,
     "/opt/homebrew/bin/python3",
     "/usr/local/bin/python3",
     "/usr/bin/python3",
@@ -280,7 +280,7 @@ const writeMetadata = async (
     updatedAtMs: payload.updatedAtMs,
     runtimeTarget: payload.runtimeTarget,
   };
-  const tempDir = await mkdtemp(join(tmpdir(), "flowselect-ytdlp-metadata-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "ameow-ytdlp-metadata-"));
   const tempPath = join(tempDir, basename(paths.metadataPath));
   try {
     await writeFile(tempPath, `${JSON.stringify(nextPayload, null, 2)}\n`, "utf8");

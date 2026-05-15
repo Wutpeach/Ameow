@@ -1,8 +1,8 @@
-(function initFlowSelectLocaleUtils(root) {
+(function initAmeowLocaleUtils(root) {
   "use strict";
 
   const FALLBACK_LANGUAGE = "en";
-  const LANGUAGE_STORAGE_KEY = "flowselectCurrentLanguage";
+  const LANGUAGE_STORAGE_KEY = "ameowCurrentLanguage";
   const DEFAULT_NAMESPACES = ["extension", "common"];
 
   function isEnglishVariant(normalized) {
@@ -64,7 +64,7 @@
       const result = await storageGet(LANGUAGE_STORAGE_KEY);
       return normalizeAppLanguage(result?.[LANGUAGE_STORAGE_KEY]);
     } catch (error) {
-      console.error("[FlowSelect] Failed to load cached language:", error);
+      console.error("[Ameow] Failed to load cached language:", error);
       return null;
     }
   }
@@ -85,7 +85,7 @@
           resolve(response ?? null);
         });
       } catch (error) {
-        console.error("[FlowSelect] Failed to send runtime message:", error);
+        console.error("[Ameow] Failed to send runtime message:", error);
         resolve(null);
       }
     });
@@ -141,7 +141,7 @@
 
       return bundle;
     } catch (error) {
-      console.error("[FlowSelect] Failed to load locale bundle:", error);
+      console.error("[Ameow] Failed to load locale bundle:", error);
 
       if (normalizedLanguage !== FALLBACK_LANGUAGE) {
         return loadLocaleBundle(FALLBACK_LANGUAGE, options);
@@ -210,7 +210,7 @@
     return formatTemplate(translate(bundle, key, fallback), values);
   }
 
-  root.FlowSelectLocaleUtils = {
+  root.AmeowLocaleUtils = {
     DEFAULT_NAMESPACES,
     FALLBACK_LANGUAGE,
     LANGUAGE_STORAGE_KEY,

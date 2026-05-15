@@ -173,6 +173,6 @@ describe("normalizeVideoCandidates", () => {
 describe("resolveVideoSelectionSiteHint", () => {
   it("normalizes aliases and falls back to url detection", () => {
     expect(resolveVideoSelectionSiteHint("xhs")).toBe("xiaohongshu");
-    expect(resolveVideoSelectionSiteHint(undefined, "https://x.com/flowselect/status/123")).toBe("twitter-x");
+    expect(resolveVideoSelectionSiteHint(undefined, "https://x.com/ameow/status/123")).toBe("twitter-x");
   });
 });

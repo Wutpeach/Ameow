@@ -1,6 +1,6 @@
-export type FlowSelectAppLanguage = "en" | "zh-CN";
+export type AmeowAppLanguage = "en" | "zh-CN";
 
-const FALLBACK_LANGUAGE: FlowSelectAppLanguage = "en";
+const FALLBACK_LANGUAGE: AmeowAppLanguage = "en";
 
 const parseConfigObject = (raw: string): Record<string, unknown> | null => {
   try {
@@ -16,7 +16,7 @@ const parseConfigObject = (raw: string): Record<string, unknown> | null => {
 
 export const normalizeAppLanguage = (
   value: unknown,
-): FlowSelectAppLanguage | null => {
+): AmeowAppLanguage | null => {
   if (typeof value !== "string") {
     return null;
   }
@@ -39,7 +39,7 @@ export const resolveStartupLanguageFromConfig = (
   systemLocale?: string | null,
   options: { persistResolvedLanguage?: boolean } = {},
 ): {
-  language: FlowSelectAppLanguage;
+  language: AmeowAppLanguage;
   nextConfigRaw: string | null;
 } => {
   const fallbackLanguage = normalizeAppLanguage(systemLocale) ?? FALLBACK_LANGUAGE;

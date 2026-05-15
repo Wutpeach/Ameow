@@ -72,7 +72,7 @@
 
   <rect x="680" y="586" width="440" height="82" rx="22" fill="#0F172A" stroke="#1D4ED8"/>
   <text x="716" y="622" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Output folder</text>
-  <text x="716" y="650" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Desktop/FlowSelect_Received</text>
+  <text x="716" y="650" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Desktop/Ameow_Received</text>
   <rect x="992" y="612" width="96" height="30" rx="15" fill="#1D4ED8"/>
   <text x="1018" y="632" fill="#EFF6FF" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Open</text>
 </svg>

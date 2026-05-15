@@ -1,4 +1,4 @@
-// FlowSelect Browser Extension - Control Style Utils
+// Ameow Browser Extension - Control Style Utils
 // Reusable helpers to keep injected control buttons visually aligned with native controls.
 
 (function() {
@@ -102,7 +102,7 @@
     }
   }
 
-  window.FlowSelectControlStyleUtils = {
+  window.AmeowControlStyleUtils = {
     isRenderableElement,
     findNativeControlButtons,
     isControlBarReady,

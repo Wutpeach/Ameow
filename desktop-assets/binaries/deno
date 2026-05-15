@@ -37,7 +37,7 @@ find_deno_bin() {
 
 DENO_BIN="$(find_deno_bin || true)"
 if [ -z "$DENO_BIN" ]; then
-  echo "FlowSelect deno wrapper: no real deno binary found in PATH" >&2
+  echo "Ameow deno wrapper: no real deno binary found in PATH" >&2
   exit 127
 fi
 

@@ -59,7 +59,7 @@
     };
   }
 
-  globalScope.FlowSelectVideoSelectionRouting = {
+  globalScope.AmeowVideoSelectionRouting = {
     resolveVideoSelectionRouting,
   };
 })(typeof self !== "undefined" ? self : globalThis);

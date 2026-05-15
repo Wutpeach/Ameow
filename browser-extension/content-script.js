@@ -1,10 +1,10 @@
-// FlowSelect Browser Extension - Content Script
+// Ameow Browser Extension - Content Script
 // Entry point for element picker
 
 (function() {
   'use strict';
 
-  console.log('[FlowSelect Content] Script loaded');
+  console.log('[Ameow Content] Script loaded');
 
   let pickerActive = false;
   let picker = null;
@@ -13,7 +13,7 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
       case 'start_picker':
-        console.log('[FlowSelect Content] Received start_picker');
+        console.log('[Ameow Content] Received start_picker');
         startPicker();
         sendResponse({ success: true });
         break;
@@ -26,13 +26,13 @@
   });
 
   function startPicker() {
-    console.log('[FlowSelect] startPicker called');
+    console.log('[Ameow] startPicker called');
     if (pickerActive) return;
     pickerActive = true;
 
     // Dynamically load picker.js if not already loaded
     if (!picker) {
-      picker = new FlowSelectPicker({
+      picker = new AmeowPicker({
         onSelect: handleVideoSelect,
         onCancel: stopPicker
       });
@@ -49,13 +49,13 @@
   }
 
   function handleVideoSelect(videoData) {
-    console.log('[FlowSelect Content] handleVideoSelect called:', videoData);
+    console.log('[Ameow Content] handleVideoSelect called:', videoData);
     chrome.runtime.sendMessage({
       type: 'video_selection',
       url: videoData.src,
       title: videoData.title || document.title
     });
-    console.log('[FlowSelect Content] Message sent to background');
+    console.log('[Ameow Content] Message sent to background');
     stopPicker();
   }
 })();

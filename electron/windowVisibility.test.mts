@@ -27,7 +27,7 @@ describe("shouldUsePackagedWindowsOpaqueWindow", () => {
     expect(shouldUsePackagedWindowsOpaqueWindow({
       platform: "win32",
       isPackaged: true,
-      argv: ["FlowSelect.exe", FORCE_OPAQUE_WINDOW_ARGUMENT],
+      argv: ["Ameow.exe", FORCE_OPAQUE_WINDOW_ARGUMENT],
     })).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe("shouldEnablePackagedStartupDiagnostics", () => {
     expect(shouldEnablePackagedStartupDiagnostics({
       platform: "win32",
       isPackaged: true,
-      argv: ["FlowSelect.exe", "--flowselect-startup-diagnostics"],
+      argv: ["Ameow.exe", "--ameow-startup-diagnostics"],
     })).toBe(true);
   });
 
@@ -56,7 +56,7 @@ describe("shouldEnablePackagedStartupDiagnostics", () => {
       platform: "win32",
       isPackaged: true,
       env: {
-        FLOWSELECT_STARTUP_DIAGNOSTICS: "true",
+        AMEOW_STARTUP_DIAGNOSTICS: "true",
       },
     })).toBe(true);
   });
@@ -65,7 +65,7 @@ describe("shouldEnablePackagedStartupDiagnostics", () => {
     expect(shouldEnablePackagedStartupDiagnostics({
       platform: "darwin",
       isPackaged: true,
-      argv: ["FlowSelect.app", "--flowselect-startup-diagnostics"],
+      argv: ["Ameow.app", "--ameow-startup-diagnostics"],
     })).toBe(false);
   });
 });

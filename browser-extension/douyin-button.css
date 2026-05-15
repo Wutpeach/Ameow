@@ -1,12 +1,12 @@
-/* FlowSelect Browser Extension - Douyin Download Button Styles */
+/* Ameow Browser Extension - Douyin Download Button Styles */
 
 :root {
-  --flowselect-site-accent: #fe2c55;
-  --flowselect-site-accent-soft: rgba(254, 44, 85, 0.18);
+  --ameow-site-accent: #fe2c55;
+  --ameow-site-accent-soft: rgba(254, 44, 85, 0.18);
 }
 
 /* Control bar button (inside xgplayer controls) */
-.flowselect-douyin-control-btn {
+.ameow-douyin-control-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18,22 +18,22 @@
   cursor: pointer;
 }
 
-.flowselect-douyin-control-btn:hover {
-  color: var(--flowselect-site-accent);
+.ameow-douyin-control-btn:hover {
+  color: var(--ameow-site-accent);
 }
 
-.flowselect-douyin-control-btn:active {
+.ameow-douyin-control-btn:active {
   opacity: 0.8;
 }
 
-.flowselect-douyin-control-btn svg {
+.ameow-douyin-control-btn svg {
   width: 22px;
   height: 22px;
   pointer-events: none;
 }
 
 /* Cover/Card button styles */
-.flowselect-douyin-cover-btn {
+.ameow-douyin-cover-btn {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -44,23 +44,23 @@
   opacity: 0;
 }
 
-.flowselect-douyin-cover-btn:hover {
-  background: var(--flowselect-site-accent-soft);
-  color: var(--flowselect-site-accent);
+.ameow-douyin-cover-btn:hover {
+  background: var(--ameow-site-accent-soft);
+  color: var(--ameow-site-accent);
   transform: scale(1.1);
 }
 
-.flowselect-douyin-cover-btn:active {
+.ameow-douyin-cover-btn:active {
   transform: scale(0.95);
 }
 
-.flowselect-douyin-cover-btn svg {
+.ameow-douyin-cover-btn svg {
   width: 18px;
   height: 18px;
   pointer-events: none;
 }
 
 /* Show button on hover */
-*:hover > .flowselect-douyin-cover-btn {
+*:hover > .ameow-douyin-cover-btn {
   opacity: 1;
 }

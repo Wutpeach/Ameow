@@ -13,7 +13,7 @@
   <circle cx="1080" cy="160" r="150" fill="#38BDF8" opacity="0.1"/>
 
   <text x="80" y="102" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="40" font-weight="700">Browser-assisted capture</text>
-  <text x="80" y="142" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="20">The extension can detect platform pages, forward cookies, sync quality preferences, and push picks into FlowSelect.</text>
+  <text x="80" y="142" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="20">The extension can detect platform pages, forward cookies, sync quality preferences, and push picks into Ameow.</text>
 
   <rect x="80" y="194" width="760" height="490" rx="28" fill="#F8FAFC" filter="url(#shadow)"/>
   <rect x="80" y="194" width="760" height="54" rx="28" fill="#E2E8F0"/>
@@ -21,7 +21,7 @@
   <circle cx="148" cy="221" r="8" fill="#F59E0B"/>
   <circle cx="174" cy="221" r="8" fill="#22C55E"/>
   <rect x="228" y="207" width="520" height="28" rx="14" fill="#CBD5E1"/>
-  <text x="252" y="226" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="15">https://www.youtube.com/watch?v=flowselect</text>
+  <text x="252" y="226" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="15">https://www.youtube.com/watch?v=ameow</text>
 
   <rect x="126" y="280" width="668" height="324" rx="22" fill="#0F172A"/>
   <rect x="156" y="320" width="608" height="244" rx="18" fill="#111827" stroke="#1D4ED8"/>
@@ -50,6 +50,6 @@
   <text x="906" y="564" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Cookies, quality, clip range</text>
 
   <rect x="876" y="600" width="244" height="84" rx="22" fill="#0B1120" stroke="#1E40AF"/>
-  <text x="906" y="638" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">FlowSelect ready</text>
+  <text x="906" y="638" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Ameow ready</text>
   <text x="906" y="666" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Desktop app receives the next pick.</text>
 </svg>

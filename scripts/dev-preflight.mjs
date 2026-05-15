@@ -93,7 +93,7 @@ const ensureLocalesForDev = async () => {
 
 const shouldForceDownloaderEnsure = () => (
   process.argv.includes("--force")
-  || truthyFlags.has((process.env.FLOWSELECT_FORCE_DEV_PREFLIGHT ?? "").trim().toLowerCase())
+  || truthyFlags.has((process.env.AMEOW_FORCE_DEV_PREFLIGHT ?? "").trim().toLowerCase())
 );
 
 const ensureDownloadersForDev = async () => {

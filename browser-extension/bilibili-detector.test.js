@@ -80,7 +80,7 @@ function loadHooks() {
     getComputedStyle(element) {
       return element?._style || { display: "block", visibility: "visible" };
     },
-    FlowSelectControlStyleUtils: {
+    AmeowControlStyleUtils: {
       isControlBarReady() {
         return false;
       },
@@ -141,7 +141,7 @@ function loadHooks() {
 
   vm.runInNewContext(detectorSource, context, { filename: detectorPath });
   return {
-    hooks: context.window.FlowSelectBilibiliDetectorTestHooks,
+    hooks: context.window.AmeowBilibiliDetectorTestHooks,
     messageListener,
     selectorMap,
   };
@@ -176,7 +176,7 @@ describe("bilibili detector", () => {
   it("detects whether injected buttons still exist inside the control container", () => {
     const { hooks } = loadHooks();
     const injectedButton = new FakeHtmlElement({
-      classNames: ["flowselect-bilibili-btn"],
+      classNames: ["ameow-bilibili-btn"],
       width: 24,
       height: 24,
     });
@@ -223,7 +223,7 @@ describe("bilibili detector", () => {
 
     expect(typeof messageListener).toBe("function");
     const handled = messageListener(
-      { type: "flowselect_resolve_pasted_video_selection" },
+      { type: "ameow_resolve_pasted_video_selection" },
       {},
       (payload) => {
         response = payload;

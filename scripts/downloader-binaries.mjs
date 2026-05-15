@@ -169,7 +169,7 @@ export async function fetchLatestRelease(toolId) {
   const response = await fetch(`${GITHUB_API_BASE}/repos/${source.releaseRepo}/releases/latest`, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "FlowSelect-downloader-bootstrap",
+      "User-Agent": "Ameow-downloader-bootstrap",
     },
   });
   if (!response.ok) {
@@ -208,7 +208,7 @@ async function downloadToFileInternal(url, outputPath, redirectCount = 0) {
     const request = requestModuleFor(url).request(url, {
       headers: {
         Accept: "application/octet-stream",
-        "User-Agent": "FlowSelect-downloader-bootstrap",
+        "User-Agent": "Ameow-downloader-bootstrap",
       },
     }, (response) => {
       const statusCode = response.statusCode ?? 0;

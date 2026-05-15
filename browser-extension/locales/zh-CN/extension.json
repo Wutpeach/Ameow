@@ -49,14 +49,14 @@
     "playerControls": {
       "buttons": {
         "screenshot": "截图",
-        "download": "使用 FlowSelect 下载",
+        "download": "使用 Ameow 下载",
         "setIn": "设置 IN 点",
         "setOut": "设置 OUT 点"
       },
       "clip": {
         "inSelected": "IN: {time}（右键清除）",
         "outSelected": "OUT: {time}（右键清除）",
-        "downloadSelection": "下载片段 {start} -> {end}"
+        "downloadSelection": "下载区间片段 {start} -> {end}"
       },
       "overlayActions": {
         "save": "保存",
@@ -65,8 +65,8 @@
         "delete": "删除"
       },
       "alerts": {
-        "backgroundUnavailable": "FlowSelect 扩展后台不可用，请重新加载扩展。",
-        "desktopUnavailable": "FlowSelect 桌面应用未连接，请先打开 FlowSelect 再重试。",
+        "backgroundUnavailable": "Ameow 扩展后台不可用，请重新加载扩展。",
+        "desktopUnavailable": "Ameow 桌面应用未连接，请先打开 Ameow 再重试。",
         "playbackTimeUnavailable": "无法读取当前播放时间。",
         "clipPointsRequired": "请先设置 IN 和 OUT 点。",
         "clipRangeInvalid": "OUT 必须晚于 IN。",

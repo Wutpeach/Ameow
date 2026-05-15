@@ -22,7 +22,7 @@ type DroppedFolderPathResult =
       reason: DroppedFolderPathFailureReason;
     };
 
-export const VALIDATE_DROPPED_FOLDER_PATH_CHANNEL = "flowselect:drop:validate-folder-path";
+export const VALIDATE_DROPPED_FOLDER_PATH_CHANNEL = "ameow:drop:validate-folder-path";
 
 const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
 const WINDOWS_UNC_PATH_PATTERN = /^\\\\[^\\/?*"<>|]+\\[^\\/?*"<>|]+/;

@@ -1,4 +1,4 @@
-.flowselect-weibo-floating-btn {
+.ameow-weibo-floating-btn {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -17,22 +17,22 @@
   transition: transform 120ms ease, background-color 120ms ease;
 }
 
-.flowselect-weibo-floating-btn:hover {
+.ameow-weibo-floating-btn:hover {
   background: rgb(0 0 0 / 82%);
   transform: translateY(-1px);
 }
 
-.flowselect-weibo-floating-btn:active {
+.ameow-weibo-floating-btn:active {
   transform: translateY(0);
 }
 
-.flowselect-weibo-floating-btn svg {
+.ameow-weibo-floating-btn svg {
   width: 20px;
   height: 20px;
   display: block;
 }
 
-.flowselect-weibo-control-btn {
+.ameow-weibo-control-btn {
   width: 32px;
   height: 32px;
   display: inline-flex;
@@ -43,37 +43,37 @@
   user-select: none;
 }
 
-.flowselect-weibo-control-btn:hover {
+.ameow-weibo-control-btn:hover {
   opacity: 0.88;
 }
 
-.flowselect-weibo-control-btn svg {
+.ameow-weibo-control-btn svg {
   width: 20px;
   height: 20px;
   display: block;
 }
 
-.vjs-control-bar > .vjs-flowselect-download {
-  width: var(--flowselect-weibo-vjs-button-width, 18px);
-  min-width: var(--flowselect-weibo-vjs-button-width, 18px);
-  height: var(--flowselect-weibo-vjs-button-height, 14px);
+.vjs-control-bar > .vjs-ameow-download {
+  width: var(--ameow-weibo-vjs-button-width, 18px);
+  min-width: var(--ameow-weibo-vjs-button-width, 18px);
+  height: var(--ameow-weibo-vjs-button-height, 14px);
   color: inherit;
   display: flex;
-  flex: 0 0 var(--flowselect-weibo-vjs-button-width, 18px);
+  flex: 0 0 var(--ameow-weibo-vjs-button-width, 18px);
   align-items: center;
   justify-content: center;
   align-self: center;
   vertical-align: middle;
   box-sizing: border-box;
   margin: 0;
-  margin-right: var(--flowselect-weibo-vjs-button-gap, 5px);
+  margin-right: var(--ameow-weibo-vjs-button-gap, 5px);
   padding: 0;
   position: relative;
-  top: var(--flowselect-weibo-vjs-button-top, 0px);
-  line-height: var(--flowselect-weibo-vjs-button-line-height, 14px);
+  top: var(--ameow-weibo-vjs-button-top, 0px);
+  line-height: var(--ameow-weibo-vjs-button-line-height, 14px);
 }
 
-.vjs-control-bar > .vjs-flowselect-download > .vjs-flowselect-download-button {
+.vjs-control-bar > .vjs-ameow-download > .vjs-ameow-download-button {
   width: 100%;
   height: 100%;
   padding: 0;
@@ -87,7 +87,7 @@
   cursor: pointer;
 }
 
-.vjs-control-bar > .vjs-flowselect-download .vjs-icon-placeholder {
+.vjs-control-bar > .vjs-ameow-download .vjs-icon-placeholder {
   width: auto;
   height: auto;
   display: flex;
@@ -97,10 +97,10 @@
   line-height: 1;
 }
 
-.vjs-control-bar > .vjs-flowselect-download .vjs-icon-placeholder svg {
-  width: var(--flowselect-weibo-vjs-icon-size, 17px);
-  height: var(--flowselect-weibo-vjs-icon-size, 17px);
+.vjs-control-bar > .vjs-ameow-download .vjs-icon-placeholder svg {
+  width: var(--ameow-weibo-vjs-icon-size, 17px);
+  height: var(--ameow-weibo-vjs-icon-size, 17px);
   display: block;
   pointer-events: none;
-  transform: translateY(var(--flowselect-weibo-vjs-icon-offset-y, 0px));
+  transform: translateY(var(--ameow-weibo-vjs-icon-offset-y, 0px));
 }

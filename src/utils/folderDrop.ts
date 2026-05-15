@@ -1,10 +1,10 @@
 import type {
-  FlowSelectDroppedFolderPathFailureReason,
-  FlowSelectDroppedFolderPathResult,
+  AmeowDroppedFolderPathFailureReason,
+  AmeowDroppedFolderPathResult,
 } from "../types/electronBridge";
 
 const droppedFolderErrorKeyByReason: Record<
-  FlowSelectDroppedFolderPathFailureReason,
+  AmeowDroppedFolderPathFailureReason,
   string
 > = {
   EMPTY_PATH: "app.drop.errors.unresolved",
@@ -16,7 +16,7 @@ const droppedFolderErrorKeyByReason: Record<
 };
 
 export const shouldHandleDroppedFolderResult = (
-  result: FlowSelectDroppedFolderPathResult | null,
+  result: AmeowDroppedFolderPathResult | null,
 ): boolean => {
   if (!result) {
     return false;
@@ -30,5 +30,5 @@ export const shouldHandleDroppedFolderResult = (
 };
 
 export const getDroppedFolderErrorTranslationKey = (
-  reason: FlowSelectDroppedFolderPathFailureReason,
+  reason: AmeowDroppedFolderPathFailureReason,
 ): string => droppedFolderErrorKeyByReason[reason];

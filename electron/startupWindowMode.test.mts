@@ -36,21 +36,21 @@ describe("startupWindowMode", () => {
 
   it("round-trips the BrowserWindow startup-mode argument", () => {
     expect(parseStartupWindowModeArgument([
-      "FlowSelect.exe",
+      "Ameow.exe",
       buildStartupWindowModeArgument("compact"),
     ])).toBe("compact");
 
     expect(parseStartupWindowModeArgument([
-      "FlowSelect.exe",
+      "Ameow.exe",
       buildStartupWindowModeArgument("full"),
     ])).toBe("full");
   });
 
   it("falls back to full mode for missing or invalid startup-mode arguments", () => {
-    expect(parseStartupWindowModeArgument(["FlowSelect.exe"])).toBe("full");
+    expect(parseStartupWindowModeArgument(["Ameow.exe"])).toBe("full");
     expect(parseStartupWindowModeArgument([
-      "FlowSelect.exe",
-      "--flowselect-startup-window-mode=unexpected",
+      "Ameow.exe",
+      "--ameow-startup-window-mode=unexpected",
     ])).toBe("full");
   });
 });

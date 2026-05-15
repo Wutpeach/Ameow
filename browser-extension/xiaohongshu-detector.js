@@ -1,19 +1,19 @@
-// FlowSelect Browser Extension - Xiaohongshu Video Detector
+// Ameow Browser Extension - Xiaohongshu Video Detector
 // Detects playable video source on note pages and injects a download button.
 
 (function() {
   'use strict';
 
-  const CONTROL_BUTTON_CLASS = 'flowselect-xhs-control-btn';
-  const DRAG_PAYLOAD_MARKER = 'FLOWSELECT_XIAOHONGSHU_DRAG';
-  const DRAG_PAYLOAD_MIME = 'application/x-flowselect-xiaohongshu-drag';
+  const CONTROL_BUTTON_CLASS = 'ameow-xhs-control-btn';
+  const DRAG_PAYLOAD_MARKER = 'AMEOW_XIAOHONGSHU_DRAG';
+  const DRAG_PAYLOAD_MIME = 'application/x-ameow-xiaohongshu-drag';
   const INTERNAL_REGISTER_XIAOHONGSHU_DRAG_MESSAGE = 'register_xiaohongshu_drag';
-  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
   const RESOLVE_XIAOHONGSHU_DRAG_MESSAGE = 'resolve_xiaohongshu_drag';
   const RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE = 'resolve_xiaohongshu_context_media';
   const NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE = 'navigate_xiaohongshu_note';
-  const NOTE_LINK_CACHE_KEY = '__FLOWSELECT_XHS_NOTE_LINK_CACHE';
-  const NOTE_LINK_CACHE_NODE_ID = 'flowselect-xhs-note-link-cache';
+  const NOTE_LINK_CACHE_KEY = '__AMEOW_XHS_NOTE_LINK_CACHE';
+  const NOTE_LINK_CACHE_NODE_ID = 'ameow-xhs-note-link-cache';
   const CONTEXT_SELECTION_TTL_MS = 10_000;
   const XIAOHONGSHU_FEED_API_PATH = '/api/sns/web/v1/feed';
   const XIAOHONGSHU_NOTE_DETAIL_PATH = '/api/sns/web/v1/note';
@@ -45,7 +45,7 @@
   }
 
   function logXhsDragResolution(stage, details = {}) {
-    console.info(`[FlowSelect XHS] ${stage}`, details);
+    console.info(`[Ameow XHS] ${stage}`, details);
   }
 
   function isVideoPage() {
@@ -104,7 +104,7 @@
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
       return globalThis.crypto.randomUUID();
     }
-    return `flowselect-xhs-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `ameow-xhs-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   function normalizeNoteId(raw) {
@@ -1843,7 +1843,7 @@
       videoIntentSources: payload.videoIntentSources || [],
       title: payload.title || null,
     }).catch((error) => {
-      console.warn('[FlowSelect XHS] Failed to register drag token:', error);
+      console.warn('[Ameow XHS] Failed to register drag token:', error);
     });
   }
 
@@ -2428,7 +2428,7 @@
       return;
     }
 
-    console.info('[FlowSelect XHS] Drag payload prepared', {
+    console.info('[Ameow XHS] Drag payload prepared', {
       pageUrl,
       detailUrl: payload.detailUrl || null,
       noteId: payload.noteId,
@@ -2538,7 +2538,7 @@
     const imageUrl = !videoUrl && videoCandidates.length === 0 ? extractPrimaryImageUrl() : null;
     const title = extractTitle();
 
-    console.info('[FlowSelect XHS] Download clicked', {
+    console.info('[Ameow XHS] Download clicked', {
       pageUrl,
       noteId,
       videoUrl,
@@ -2577,7 +2577,7 @@
       return;
     }
 
-    console.warn('[FlowSelect XHS] No downloadable media resolved for note', pageUrl);
+    console.warn('[Ameow XHS] No downloadable media resolved for note', pageUrl);
   }
 
   async function buildPastedVideoSelectionPayload() {
@@ -2587,13 +2587,13 @@
   function createControlBarButton() {
     const button = document.createElement('xg-pip');
     button.className = `xgplayer-pip ${CONTROL_BUTTON_CLASS}`;
-    button.title = 'Download with FlowSelect';
+    button.title = 'Download with Ameow';
 
     const icon = document.createElement('xg-icon');
     icon.className = 'xgplayer-icon';
 
     const iconWrap = document.createElement('div');
-    iconWrap.className = 'flowselect-xhs-icon';
+    iconWrap.className = 'ameow-xhs-icon';
     iconWrap.innerHTML = CAT_ICON_SVG;
 
     icon.appendChild(iconWrap);
@@ -2699,7 +2699,7 @@
     let button = controls.querySelector(`.${CONTROL_BUTTON_CLASS}`);
     if (!button) {
       button = createControlBarButton();
-      console.info('[FlowSelect XHS] Control button injected');
+      console.info('[Ameow XHS] Control button injected');
     }
 
     const { anchor, playback } = resolveControlAnchor(controls);
@@ -2716,7 +2716,7 @@
   }
 
   function ensureButton() {
-    document.getElementById('flowselect-xhs-download-btn')?.remove();
+    document.getElementById('ameow-xhs-download-btn')?.remove();
     document.querySelectorAll(`.${CONTROL_BUTTON_CLASS}`).forEach((el) => {
       if (!isVideoPage() || el.parentElement == null) {
         el.remove();
@@ -2731,8 +2731,8 @@
   }
 
   function init() {
-    window.__flowselectXhsLoaded = true;
-    console.info('[FlowSelect XHS] Detector loaded at', window.location.href);
+    window.__ameowXhsLoaded = true;
+    console.info('[Ameow XHS] Detector loaded at', window.location.href);
     ensureButton();
     document.addEventListener('dragstart', handleDragStart, true);
     document.addEventListener('contextmenu', rememberContextPayload, true);
@@ -2757,7 +2757,7 @@
               : { success: false, reason: 'no_video_found' },
           );
         }).catch((error) => {
-          console.warn('[FlowSelect XHS] Failed to resolve pasted video selection:', error);
+          console.warn('[Ameow XHS] Failed to resolve pasted video selection:', error);
           sendResponse({
             success: false,
             reason: 'resolve_failed',
@@ -2795,7 +2795,7 @@
           return true;
         }
 
-        console.info('[FlowSelect XHS] Resolving context media in content script', {
+        console.info('[Ameow XHS] Resolving context media in content script', {
           pageUrl,
           detailUrl,
           noteId,
@@ -2837,7 +2837,7 @@
             },
           });
         }).catch((error) => {
-          console.warn('[FlowSelect XHS] Failed to resolve context media in content script', error);
+          console.warn('[Ameow XHS] Failed to resolve context media in content script', error);
           sendResponse({
             success: false,
             code: 'xiaohongshu_context_resolution_failed',
@@ -2873,7 +2873,7 @@
         fallbackPageUrl: dragPageUrl,
       });
 
-      console.info('[FlowSelect XHS] Resolving drag media in content script', {
+      console.info('[Ameow XHS] Resolving drag media in content script', {
         token: redactToken(typeof message.token === 'string' ? message.token : ''),
         pageUrl: dragPageUrl,
         detailUrl: dragDetailUrl,
@@ -2908,7 +2908,7 @@
           ? message.videoIntentSources
           : [],
       }).then((result) => {
-        console.info('[FlowSelect XHS] Resolved drag media in content script', {
+        console.info('[Ameow XHS] Resolved drag media in content script', {
           kind: result?.kind ?? 'unknown',
           pageUrl: result?.pageUrl ?? null,
           imageUrl: result?.imageUrl ?? null,
@@ -2925,7 +2925,7 @@
           ...result,
         });
       }).catch((error) => {
-        console.warn('[FlowSelect XHS] Failed to resolve drag media in content script', error);
+        console.warn('[Ameow XHS] Failed to resolve drag media in content script', error);
         sendResponse({
           success: false,
           kind: 'unknown',

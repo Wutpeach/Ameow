@@ -5,7 +5,7 @@ import type {
   Settings as LoginItemSettingsInput,
 } from "electron";
 
-const WINDOWS_AUTOSTART_ENTRY_NAME = "FlowSelect";
+const WINDOWS_AUTOSTART_ENTRY_NAME = "Ameow";
 
 const normalizeWindowsRegistryValue = (value: unknown): string => {
   if (typeof value !== "string") {

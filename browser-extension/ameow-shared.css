@@ -1,0 +1,223 @@
+:root {
+  --ameow-surface-start: #201e25;
+  --ameow-surface-end: #323137;
+  --ameow-surface-elevated-start: #24222a;
+  --ameow-surface-elevated-end: #38353d;
+  --ameow-panel-bg: linear-gradient(180deg, rgba(26, 25, 30, 0.96) 0%, rgba(37, 35, 41, 0.96) 100%);
+  --ameow-panel-border: rgba(91, 89, 97, 0.74);
+  --ameow-panel-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  --ameow-card-border: rgba(75, 73, 81, 0.88);
+  --ameow-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --ameow-text-primary: #eeeeee;
+  --ameow-text-secondary: #aaaaaa;
+  --ameow-text-tertiary: rgba(238, 238, 238, 0.68);
+  --ameow-accent: #60a5fa;
+  --ameow-accent-strong: #3b82f6;
+  --ameow-accent-soft: rgba(59, 130, 246, 0.2);
+  --ameow-accent-border: rgba(96, 165, 250, 0.42);
+  --ameow-success: #34d399;
+  --ameow-success-soft: rgba(52, 211, 153, 0.22);
+  --ameow-danger: #f87171;
+  --ameow-danger-soft: rgba(248, 113, 113, 0.2);
+  --ameow-danger-border: rgba(248, 113, 113, 0.28);
+  --ameow-control-color: rgba(255, 255, 255, 0.88);
+  --ameow-control-muted: rgba(255, 255, 255, 0.76);
+  --ameow-overlay-bg: rgba(8, 8, 10, 0.62);
+  --ameow-overlay-btn-bg: rgba(17, 17, 20, 0.82);
+  --ameow-overlay-btn-border: rgba(255, 255, 255, 0.08);
+  --ameow-site-accent: var(--ameow-accent);
+  --ameow-site-accent-soft: var(--ameow-accent-soft);
+}
+
+:where(
+  .ameow-bilibili-btn,
+  .ameow-bilibili-set-in-btn,
+  .ameow-bilibili-set-out-btn,
+  .ameow-bilibili-screenshot-btn,
+  .ameow-youtube-btn,
+  .ameow-youtube-set-in-btn,
+  .ameow-youtube-set-out-btn,
+  .ameow-youtube-screenshot-btn,
+  .ameow-xhs-control-btn,
+  .ameow-douyin-control-btn
+) {
+  color: var(--ameow-control-muted);
+  transition: color 0.16s ease, opacity 0.16s ease, transform 0.16s ease;
+}
+
+:where(
+  .ameow-bilibili-btn,
+  .ameow-bilibili-set-in-btn,
+  .ameow-bilibili-set-out-btn,
+  .ameow-bilibili-screenshot-btn,
+  .ameow-youtube-btn,
+  .ameow-youtube-set-in-btn,
+  .ameow-youtube-set-out-btn,
+  .ameow-youtube-screenshot-btn,
+  .ameow-douyin-control-btn
+):hover {
+  color: var(--ameow-site-accent);
+}
+
+:where(
+  .ameow-bilibili-btn,
+  .ameow-bilibili-set-in-btn,
+  .ameow-bilibili-set-out-btn,
+  .ameow-bilibili-screenshot-btn,
+  .ameow-youtube-btn,
+  .ameow-youtube-set-in-btn,
+  .ameow-youtube-set-out-btn,
+  .ameow-youtube-screenshot-btn,
+  .ameow-douyin-control-btn
+):active {
+  opacity: 0.84;
+}
+
+:where(#ameow-youtube-screenshot-panel, #ameow-bilibili-screenshot-panel) {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 272px;
+  max-height: calc(100vh - 24px);
+  z-index: 2147483646;
+  padding: 12px;
+  border: 1px solid var(--ameow-panel-border);
+  border-radius: 12px;
+  box-sizing: border-box;
+  background: var(--ameow-panel-bg);
+  box-shadow: var(--ameow-panel-shadow);
+  backdrop-filter: blur(12px);
+  color: var(--ameow-text-primary);
+}
+
+:where(#ameow-youtube-screenshot-panel, #ameow-bilibili-screenshot-panel).ameow-hidden {
+  display: none;
+}
+
+:where(#ameow-youtube-screenshot-list, #ameow-bilibili-screenshot-list) {
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+:where(#ameow-youtube-screenshot-list, #ameow-bilibili-screenshot-list)::-webkit-scrollbar {
+  width: 6px;
+}
+
+:where(#ameow-youtube-screenshot-list, #ameow-bilibili-screenshot-list)::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 6px;
+}
+
+:where(.ameow-youtube-screenshot-item, .ameow-bilibili-screenshot-item) {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-elevated-end) 100%);
+  border: 1px solid var(--ameow-card-border);
+  box-shadow: var(--ameow-card-shadow);
+  margin-bottom: 12px;
+}
+
+:where(.ameow-youtube-screenshot-item, .ameow-bilibili-screenshot-item):last-child {
+  margin-bottom: 0;
+}
+
+:where(.ameow-youtube-screenshot-item, .ameow-bilibili-screenshot-item) img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+:where(.ameow-youtube-screenshot-overlay, .ameow-bilibili-screenshot-overlay) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  opacity: 0;
+  background: var(--ameow-overlay-bg);
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+:where(.ameow-youtube-screenshot-item, .ameow-bilibili-screenshot-item):hover
+  :where(.ameow-youtube-screenshot-overlay, .ameow-bilibili-screenshot-overlay) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button) {
+  border: 1px solid var(--ameow-overlay-btn-border);
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.95);
+  background: var(--ameow-overlay-btn-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button):hover {
+  color: var(--ameow-accent);
+  background: var(--ameow-accent-soft);
+  border-color: var(--ameow-accent-border);
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button):active {
+  transform: scale(0.96);
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button).ameow-danger:hover {
+  color: var(--ameow-danger);
+  background: var(--ameow-danger-soft);
+  border-color: var(--ameow-danger-border);
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button)[data-copied="true"] {
+  color: var(--ameow-success);
+  background: var(--ameow-success-soft);
+  border-color: rgba(52, 211, 153, 0.26);
+}
+
+:where(.ameow-youtube-screenshot-overlay button, .ameow-bilibili-screenshot-overlay button) svg {
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+}
+
+:where(.ameow-youtube-screenshot-time, .ameow-bilibili-screenshot-time) {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:where(.ameow-xhs-download-btn, .ameow-douyin-cover-btn) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(12, 12, 14, 0.74);
+  color: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s ease, background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+:where(.ameow-xhs-download-btn, .ameow-douyin-cover-btn):hover {
+  background: var(--ameow-site-accent-soft);
+  color: var(--ameow-site-accent);
+  border-color: rgba(255, 255, 255, 0.18);
+}

@@ -1,28 +1,28 @@
-// FlowSelect Browser Extension - Bilibili Video Detector
+// Ameow Browser Extension - Bilibili Video Detector
 // Detects video pages and injects download/screenshot controls
 
 (function() {
   'use strict';
 
-  const PROCESSED_ATTR = 'data-flowselect-processed';
+  const PROCESSED_ATTR = 'data-ameow-processed';
   const BUTTON_CLASSES = [
-    'flowselect-bilibili-btn',
-    'flowselect-bilibili-set-in-btn',
-    'flowselect-bilibili-set-out-btn',
-    'flowselect-bilibili-screenshot-btn',
+    'ameow-bilibili-btn',
+    'ameow-bilibili-set-in-btn',
+    'ameow-bilibili-set-out-btn',
+    'ameow-bilibili-screenshot-btn',
   ];
-  const SCREENSHOT_PANEL_ID = 'flowselect-bilibili-screenshot-panel';
-  const SCREENSHOT_LIST_ID = 'flowselect-bilibili-screenshot-list';
+  const SCREENSHOT_PANEL_ID = 'ameow-bilibili-screenshot-panel';
+  const SCREENSHOT_LIST_ID = 'ameow-bilibili-screenshot-list';
   const MAX_SCREENSHOTS = 20;
   const screenshots = [];
   const clipState = {
     startSec: null,
     endSec: null,
   };
-  const controlStyleUtils = window.FlowSelectControlStyleUtils || null;
-  const localeUtils = window.FlowSelectLocaleUtils || null;
+  const controlStyleUtils = window.AmeowControlStyleUtils || null;
+  const localeUtils = window.AmeowLocaleUtils || null;
   const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || 'en';
-  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
   let currentBundle = {
     language: FALLBACK_LANGUAGE,
     common: {},
@@ -208,7 +208,7 @@
   }
 
   function updateStaticControlLabels() {
-    const screenshotBtn = document.querySelector('.flowselect-bilibili-screenshot-btn');
+    const screenshotBtn = document.querySelector('.ameow-bilibili-screenshot-btn');
     setButtonTitle(
       screenshotBtn,
       t('injected.playerControls.buttons.screenshot', 'Screenshot'),
@@ -242,10 +242,10 @@
 
     const nativeBaseClass = getNativeControlButtonBaseClass(controls);
     if (!isControlBarReady(controls, nativeBaseClass)) {
-      console.info('[FlowSelect Bilibili] Control bar container found before native controls settle');
+      console.info('[Ameow Bilibili] Control bar container found before native controls settle');
     }
 
-    console.log('[FlowSelect Bilibili] Video detected:', videoId);
+    console.log('[Ameow Bilibili] Video detected:', videoId);
     injectControlButtons(controls, nativeBaseClass);
     controls.setAttribute(PROCESSED_ATTR, 'true');
     verifyInjectedButtonsPersist(controls);
@@ -445,7 +445,7 @@
         return;
       }
 
-      console.info('[FlowSelect Bilibili] Native rerender removed injected buttons, retrying');
+      console.info('[Ameow Bilibili] Native rerender removed injected buttons, retrying');
       container.removeAttribute(PROCESSED_ATTR);
       detectVideoPlayer();
     }, 300);
@@ -475,11 +475,11 @@
   function sendVideoSelectionMessage(payload) {
     chrome.runtime.sendMessage(payload, (response) => {
       if (chrome.runtime.lastError) {
-        console.warn('[FlowSelect Bilibili] Failed to contact background:', chrome.runtime.lastError.message);
+        console.warn('[Ameow Bilibili] Failed to contact background:', chrome.runtime.lastError.message);
         notify(
           t(
             'injected.playerControls.alerts.backgroundUnavailable',
-            'FlowSelect extension background is unavailable. Please reload the extension.',
+            'Ameow extension background is unavailable. Please reload the extension.',
           ),
         );
         return;
@@ -489,7 +489,7 @@
         notify(
           t(
             'injected.playerControls.alerts.desktopUnavailable',
-            'FlowSelect desktop app is not connected. Please open FlowSelect and try again.',
+            'Ameow desktop app is not connected. Please open Ameow and try again.',
           ),
         );
       }
@@ -516,9 +516,9 @@
   }
 
   function updateClipButtonsState() {
-    const fullBtn = document.querySelector('.flowselect-bilibili-btn');
-    const inBtn = document.querySelector('.flowselect-bilibili-set-in-btn');
-    const outBtn = document.querySelector('.flowselect-bilibili-set-out-btn');
+    const fullBtn = document.querySelector('.ameow-bilibili-btn');
+    const inBtn = document.querySelector('.ameow-bilibili-set-in-btn');
+    const outBtn = document.querySelector('.ameow-bilibili-set-out-btn');
 
     if (!(fullBtn instanceof HTMLElement) ||
         !(inBtn instanceof HTMLElement) ||
@@ -552,14 +552,14 @@
             start: formatPlaybackTime(clipState.startSec),
             end: formatPlaybackTime(clipState.endSec),
           },
-          `Download clip ${formatPlaybackTime(clipState.startSec)} -> ${formatPlaybackTime(clipState.endSec)}`,
+          `Download section ${formatPlaybackTime(clipState.startSec)} -> ${formatPlaybackTime(clipState.endSec)}`,
         ),
       );
     } else {
       fullBtn.removeAttribute('data-clip-ready');
       setButtonTitle(
         fullBtn,
-        t('injected.playerControls.buttons.download', 'Download with FlowSelect'),
+        t('injected.playerControls.buttons.download', 'Download with Ameow'),
       );
     }
   }
@@ -642,21 +642,21 @@
 
     const nativeBaseClass = resolvedNativeBaseClass || getNativeControlButtonBaseClass(container);
     const screenshotButton = createControlButton({
-      className: 'flowselect-bilibili-screenshot-btn',
+      className: 'ameow-bilibili-screenshot-btn',
       title: t('injected.playerControls.buttons.screenshot', 'Screenshot'),
       icon: CAMERA_ICON_SVG,
       nativeBaseClass,
       onClick: takeScreenshot,
     });
     const downloadButton = createControlButton({
-      className: 'flowselect-bilibili-btn',
-      title: t('injected.playerControls.buttons.download', 'Download with FlowSelect'),
+      className: 'ameow-bilibili-btn',
+      title: t('injected.playerControls.buttons.download', 'Download with Ameow'),
       icon: CAT_ICON_SVG,
       nativeBaseClass,
       onClick: handlePrimaryDownload,
     });
     const inButton = createControlButton({
-      className: 'flowselect-bilibili-set-in-btn',
+      className: 'ameow-bilibili-set-in-btn',
       title: t('injected.playerControls.buttons.setIn', 'Set IN point'),
       icon: CLIP_POINT_ICON_SVG,
       nativeBaseClass,
@@ -664,7 +664,7 @@
       onContextMenu: (event) => handleClipPointContextMenu(event, 'startSec'),
     });
     const outButton = createControlButton({
-      className: 'flowselect-bilibili-set-out-btn',
+      className: 'ameow-bilibili-set-out-btn',
       title: t('injected.playerControls.buttons.setOut', 'Set OUT point'),
       icon: CLIP_POINT_ICON_SVG,
       nativeBaseClass,
@@ -678,7 +678,7 @@
       container.insertBefore(button, container.firstChild);
     }
     updateClipButtonsState();
-    console.log('[FlowSelect Bilibili] Control buttons injected');
+    console.log('[Ameow Bilibili] Control buttons injected');
   }
 
   function syncButtonSpacingWithNative(container, customButtons, nativeBaseClass) {
@@ -721,8 +721,8 @@
     const referenceMarginRight = Number.parseFloat(referenceStyle.marginRight) || 0;
 
     for (const button of customButtons) {
-      const isSetInButton = button.classList.contains('flowselect-bilibili-set-in-btn');
-      const isSetOutButton = button.classList.contains('flowselect-bilibili-set-out-btn');
+      const isSetInButton = button.classList.contains('ameow-bilibili-set-in-btn');
+      const isSetOutButton = button.classList.contains('ameow-bilibili-set-out-btn');
       button.style.marginLeft = isSetOutButton
         ? `${Math.min(referenceMarginLeft, 2)}px`
         : referenceStyle.marginLeft;
@@ -800,7 +800,7 @@
     if (!panel) {
       panel = document.createElement('div');
       panel.id = SCREENSHOT_PANEL_ID;
-      panel.className = 'flowselect-hidden';
+      panel.className = 'ameow-hidden';
       panel.innerHTML = `<div id="${SCREENSHOT_LIST_ID}"></div>`;
       document.body.appendChild(panel);
     }
@@ -820,11 +820,11 @@
 
     list.innerHTML = '';
     if (screenshots.length === 0) {
-      panel.classList.add('flowselect-hidden');
+      panel.classList.add('ameow-hidden');
       return;
     }
 
-    panel.classList.remove('flowselect-hidden');
+    panel.classList.remove('ameow-hidden');
     for (const screenshot of screenshots) {
       list.appendChild(createScreenshotItem(screenshot));
     }
@@ -832,7 +832,7 @@
 
   function createScreenshotItem(screenshot) {
     const item = document.createElement('div');
-    item.className = 'flowselect-bilibili-screenshot-item';
+    item.className = 'ameow-bilibili-screenshot-item';
 
     const img = document.createElement('img');
     img.src = screenshot.url;
@@ -840,10 +840,10 @@
     img.loading = 'lazy';
 
     const overlay = document.createElement('div');
-    overlay.className = 'flowselect-bilibili-screenshot-overlay';
+    overlay.className = 'ameow-bilibili-screenshot-overlay';
 
     const timestamp = document.createElement('span');
-    timestamp.className = 'flowselect-bilibili-screenshot-time';
+    timestamp.className = 'ameow-bilibili-screenshot-time';
     timestamp.textContent = screenshot.playbackLabel;
 
     const saveButton = createOverlayActionButton({
@@ -861,7 +861,7 @@
       icon: SCREENSHOT_DELETE_ICON_SVG,
       onClick: () => removeScreenshot(screenshot.id),
     });
-    deleteButton.classList.add('flowselect-danger');
+    deleteButton.classList.add('ameow-danger');
 
     overlay.append(saveButton, copyButton, deleteButton, timestamp);
     item.append(img, overlay);
@@ -915,7 +915,7 @@
       }
       addScreenshot(screenshot);
     } catch (error) {
-      console.error('[FlowSelect Bilibili] Screenshot failed:', error);
+      console.error('[Ameow Bilibili] Screenshot failed:', error);
       notify(
         t('injected.playerControls.alerts.screenshotFailed', 'Screenshot failed. Please try again.'),
       );
@@ -990,14 +990,14 @@
   }
 
   async function saveScreenshot(screenshot) {
-    const savedByFlowSelect = await saveScreenshotViaFlowSelect(screenshot);
-    if (savedByFlowSelect) {
+    const savedByAmeow = await saveScreenshotViaAmeow(screenshot);
+    if (savedByAmeow) {
       return;
     }
     saveScreenshotByBrowser(screenshot);
   }
 
-  async function saveScreenshotViaFlowSelect(screenshot) {
+  async function saveScreenshotViaAmeow(screenshot) {
     if (!chrome?.runtime?.sendMessage) {
       return false;
     }
@@ -1027,7 +1027,7 @@
 
       return Boolean(response?.success);
     } catch (error) {
-      console.error('[FlowSelect Bilibili] Save screenshot via app failed:', error);
+      console.error('[Ameow Bilibili] Save screenshot via app failed:', error);
       return false;
     }
   }
@@ -1088,7 +1088,7 @@
         button.innerHTML = SCREENSHOT_COPY_ICON_SVG;
       }, 1200);
     } catch (error) {
-      console.error('[FlowSelect Bilibili] Copy screenshot failed:', error);
+      console.error('[Ameow Bilibili] Copy screenshot failed:', error);
       notify(
         t(
           'injected.playerControls.alerts.copyFailed',
@@ -1174,10 +1174,10 @@
       return;
     }
 
-    console.log('[FlowSelect Bilibili] Video ID:', videoId);
-    console.log('[FlowSelect Bilibili] Page URL:', payload.pageUrl);
-    console.log('[FlowSelect Bilibili] Download URL:', payload.url);
-    console.log('[FlowSelect Bilibili] Title:', payload.title);
+    console.log('[Ameow Bilibili] Video ID:', videoId);
+    console.log('[Ameow Bilibili] Page URL:', payload.pageUrl);
+    console.log('[Ameow Bilibili] Download URL:', payload.url);
+    console.log('[Ameow Bilibili] Title:', payload.title);
 
     sendVideoSelectionMessage(payload);
   }
@@ -1197,7 +1197,7 @@
       lastUrl = window.location.href;
       const currentVideoKey = getCurrentVideoKey();
       if (currentVideoKey !== lastVideoKey) {
-        console.log('[FlowSelect Bilibili] Video changed:', lastUrl);
+        console.log('[Ameow Bilibili] Video changed:', lastUrl);
         lastVideoKey = currentVideoKey;
         resetClipState();
         const processed = document.querySelectorAll(`[${PROCESSED_ATTR}]`);
@@ -1233,7 +1233,7 @@
   }
 
   async function init() {
-    console.log('[FlowSelect Bilibili] Detector initialized');
+    console.log('[Ameow Bilibili] Detector initialized');
 
     if (localeUtils?.resolveCurrentLanguage) {
       const initialLanguage = await localeUtils.resolveCurrentLanguage(navigator.language);
@@ -1255,7 +1255,7 @@
   }
 
   if (typeof window !== 'undefined') {
-    window.FlowSelectBilibiliDetectorTestHooks = {
+    window.AmeowBilibiliDetectorTestHooks = {
       findControlContainer,
       findNativeControlButtonCandidate,
       resolveControlContainerFromNativeButton,

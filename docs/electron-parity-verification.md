@@ -17,7 +17,7 @@ This document records the final parity and release-acceptance gate used to remov
 | Context menu window | `electron/main.mts`, `src/App.tsx` | Secondary-window routing stays Electron-owned and compiles/tests clean after cleanup. | Passed |
 | Browser-extension connectivity | `electron/main.mts`, `browser-extension/` | WebSocket endpoint contract remains `127.0.0.1:39527`; browser-extension packaging passed. | Passed |
 | Download flows | `src/electron-runtime/`, `electron/main.mts`, `desktop-assets/binaries/` | App build, runtime path tests, and bundled downloader smoke checks passed after moving assets out of `src-tauri/`. | Passed |
-| Config persistence | `electron/main.mts` | Electron main still preserves the legacy `com.flowselect.app/settings.json` migration path and compiles/tests clean. | Passed |
+| Config persistence | `electron/main.mts` | Electron main now reads and writes Ameow-owned config paths only and compiles/tests clean. | Passed |
 | Updater, build, and release behavior | `.github/workflows/release.yml`, `electron-builder.config.mjs`, `scripts/package-portable.ps1` | Windows installer packaging, portable packaging, and release workflow wiring all target Electron artifacts only. | Passed |
 
 ## Automated Gate Evidence
@@ -56,7 +56,7 @@ npm run package:portable:skip-build
 
 The following conditions are now true:
 
-- Renderer runtime access is Electron-only through `window.flowselect`.
+- Renderer runtime access is Electron-only through `window.ameow`.
 - Desktop packaging no longer reads from `src-tauri/`.
 - Release automation no longer depends on Tauri CLI, Cargo manifests, or Tauri bundle output paths.
 - Locale sync no longer emits desktop resources into `src-tauri/resources/locales`.

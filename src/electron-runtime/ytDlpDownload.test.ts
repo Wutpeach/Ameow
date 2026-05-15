@@ -342,6 +342,140 @@ describe("runYtDlpDownload", () => {
     expect(cleanupCookiesFileMock).toHaveBeenCalledWith("D:/temp/trace-injected-cookies.txt");
   });
 
+  it("adds yt-dlp download sections for YouTube clip downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Clip Video"
+        : path.join("D:/downloads", "5250-8750_Clip Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      const outputIndex = args.indexOf("-o");
+      const sectionIndex = args.indexOf("--download-sections");
+      expect(outputIndex).toBeGreaterThanOrEqual(0);
+      expect(sectionIndex).toBeGreaterThanOrEqual(0);
+      expect(args[outputIndex + 1]).toBe(path.join(
+        "D:/downloads",
+        "5250-8750_Clip Video.%(ext)s",
+      ));
+      expect(args[sectionIndex + 1]).toBe("*00:00:05.250-00:00:08.750");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Clip Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=clip123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=clip123",
+        pageUrl: "https://www.youtube.com/watch?v=clip123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        ytdlpQuality: "best",
+        clipStartSec: 5.25,
+        clipEndSec: 8.75,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "5250-8750_Clip Video.mp4"),
+    });
+  });
+
+  it("adds yt-dlp download sections for Bilibili clip downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Bilibili Clip"
+        : path.join("D:/downloads", "12000-24000_Bilibili Clip.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      const sectionIndex = args.indexOf("--download-sections");
+      expect(sectionIndex).toBeGreaterThanOrEqual(0);
+      expect(args[sectionIndex + 1]).toBe("*00:00:12-00:00:24");
+      expect(args).not.toContain("--extractor-args");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-bilibili-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Bilibili Clip",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
+      },
+      intent: {
+        originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
+        pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
+        selectionScope: "current_item",
+        siteId: "bilibili",
+        ytdlpQuality: "best",
+        clipStartSec: 12,
+        clipEndSec: 24,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "12000-24000_Bilibili Clip.mp4"),
+    });
+  });
+
+  it("rejects clip downloads for sites outside YouTube and Bilibili", async () => {
+    readdirMock.mockResolvedValue([]);
+
+    const context = {
+      traceId: "trace-twitter-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Twitter Clip",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://x.com/ameow/status/1234567890",
+      },
+      intent: {
+        originalUrl: "https://x.com/ameow/status/1234567890",
+        pageUrl: "https://x.com/ameow/status/1234567890",
+        selectionScope: "current_item",
+        siteId: "twitter-x",
+        ytdlpQuality: "best",
+        clipStartSec: 3,
+        clipEndSec: 9,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toThrow(
+      "Clip downloads are only supported for YouTube and Bilibili",
+    );
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
+  });
+
   it("keeps injected public youtube downloads on light mode when no cookies or force hint exist", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (

@@ -40,7 +40,7 @@ describe("applyAppVersionToExtensionManifest", () => {
   it("removes version_name for stable versions", () => {
     const manifest = applyAppVersionToExtensionManifest({
       manifest_version: 3,
-      name: "FlowSelect Video Picker",
+      name: "Ameow Video Picker",
       version: "0.0.0",
       version_name: "old-value",
     }, "0.3.0");
@@ -52,7 +52,7 @@ describe("applyAppVersionToExtensionManifest", () => {
   it("stores the full prerelease in version_name while keeping version installable", () => {
     const manifest = applyAppVersionToExtensionManifest({
       manifest_version: 3,
-      name: "FlowSelect Video Picker",
+      name: "Ameow Video Picker",
       version: "0.0.0",
     }, "0.4.0-beta.8");
 

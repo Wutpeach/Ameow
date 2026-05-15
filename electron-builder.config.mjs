@@ -62,9 +62,9 @@ const NODE_MODULES_JUNK_EXCLUDES = [
 ];
 
 export default {
-  appId: "com.flowselect.desktop",
-  productName: "FlowSelect",
-  executableName: "FlowSelect",
+  appId: "com.ameow.desktop",
+  productName: "Ameow",
+  executableName: "Ameow",
   asar: false,
   directories: {
     output: ELECTRON_BUILDER_OUTPUT_DIR,
@@ -87,7 +87,7 @@ export default {
         arch: ["x64"],
       },
     ],
-    artifactName: "FlowSelect_${version}_windows_${arch}_installer.${ext}",
+    artifactName: "Ameow_${version}_windows_${arch}_installer.${ext}",
   },
   nsis: {
     oneClick: false,
@@ -97,7 +97,7 @@ export default {
   mac: {
     icon: "desktop-assets/icons/icon.icns",
     target: ["zip"],
-    artifactName: "FlowSelect_${version}_macos_${arch}.${ext}",
+    artifactName: "Ameow_${version}_macos_${arch}.${ext}",
     category: "public.app-category.utilities",
     identity: null,
     hardenedRuntime: false,

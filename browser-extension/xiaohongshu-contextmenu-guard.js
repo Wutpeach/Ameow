@@ -2,10 +2,10 @@
   "use strict";
 
   const PAGE_BRIDGE_SCRIPT_PATH = "xiaohongshu-page-bridge.js";
-  const PAGE_BRIDGE_MESSAGE_SOURCE = "flowselect-xiaohongshu-page";
-  const PAGE_BRIDGE_EVENT_TYPE = "FLOWSELECT_XIAOHONGSHU_NOTE_LINKS";
-  const NOTE_LINK_CACHE_KEY = "__FLOWSELECT_XHS_NOTE_LINK_CACHE";
-  const NOTE_LINK_CACHE_NODE_ID = "flowselect-xhs-note-link-cache";
+  const PAGE_BRIDGE_MESSAGE_SOURCE = "ameow-xiaohongshu-page";
+  const PAGE_BRIDGE_EVENT_TYPE = "AMEOW_XIAOHONGSHU_NOTE_LINKS";
+  const NOTE_LINK_CACHE_KEY = "__AMEOW_XHS_NOTE_LINK_CACHE";
+  const NOTE_LINK_CACHE_NODE_ID = "ameow-xhs-note-link-cache";
 
   let pageBridgeInjected = false;
   let pageBridgeInjectionPromise = null;
@@ -67,7 +67,7 @@
     node = document.createElement("script");
     node.id = NOTE_LINK_CACHE_NODE_ID;
     node.type = "application/json";
-    node.setAttribute("data-flowselect-role", "xiaohongshu-note-link-cache");
+    node.setAttribute("data-ameow-role", "xiaohongshu-note-link-cache");
     node.textContent = "{}";
     parent.appendChild(node);
     return node;
@@ -198,7 +198,7 @@
       return !isDetailPage();
     }
 
-    if (event.target.closest("#flowselect-xhs-download-btn, .flowselect-xhs-control-btn")) {
+    if (event.target.closest("#ameow-xhs-download-btn, .ameow-xhs-control-btn")) {
       return false;
     }
 
@@ -219,7 +219,7 @@
 
   if (isXiaohongshuHost()) {
     void injectPageBridge().catch((error) => {
-      console.warn("[FlowSelect XHS] Failed to inject page bridge:", error);
+      console.warn("[Ameow XHS] Failed to inject page bridge:", error);
     });
   }
 })();

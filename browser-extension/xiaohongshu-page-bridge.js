@@ -1,9 +1,9 @@
 (function () {
   "use strict";
 
-  const PAGE_BRIDGE_FLAG = "__flowselectXiaohongshuPageBridgeInstalled";
-  const PAGE_MESSAGE_SOURCE = "flowselect-xiaohongshu-page";
-  const PAGE_EVENT_TYPE = "FLOWSELECT_XIAOHONGSHU_NOTE_LINKS";
+  const PAGE_BRIDGE_FLAG = "__ameowXiaohongshuPageBridgeInstalled";
+  const PAGE_MESSAGE_SOURCE = "ameow-xiaohongshu-page";
+  const PAGE_EVENT_TYPE = "AMEOW_XIAOHONGSHU_NOTE_LINKS";
 
   if (window[PAGE_BRIDGE_FLAG]) {
     return;
@@ -303,7 +303,7 @@
 
   const originalFetch = window.fetch;
   if (typeof originalFetch === "function") {
-    window.fetch = async function flowselectXhsFetch(...args) {
+    window.fetch = async function ameowXhsFetch(...args) {
       const response = await originalFetch.apply(this, args);
       Promise.resolve().then(() => inspectJsonResponse(response, typeof args[0] === "string" ? args[0] : args[0]?.url));
       return response;
@@ -315,18 +315,18 @@
     const open = OriginalXHR.prototype.open;
     const send = OriginalXHR.prototype.send;
 
-    OriginalXHR.prototype.open = function flowselectXhsOpen(method, url, ...rest) {
-      this.__flowselectXhsResponseUrl = typeof url === "string" ? url : null;
+    OriginalXHR.prototype.open = function ameowXhsOpen(method, url, ...rest) {
+      this.__ameowXhsResponseUrl = typeof url === "string" ? url : null;
       return open.call(this, method, url, ...rest);
     };
 
-    OriginalXHR.prototype.send = function flowselectXhsSend(...args) {
+    OriginalXHR.prototype.send = function ameowXhsSend(...args) {
       this.addEventListener("load", () => {
         const responseType = this.responseType;
         if (responseType && responseType !== "text" && responseType !== "") {
           return;
         }
-        const responseUrl = normalizeUrl(this.responseURL || this.__flowselectXhsResponseUrl);
+        const responseUrl = normalizeUrl(this.responseURL || this.__ameowXhsResponseUrl);
         if (!responseUrl || !/\/api\/sns\/web\/v1\/(?:feed|note|search|user)|\/api\/sec\//i.test(responseUrl)) {
           return;
         }

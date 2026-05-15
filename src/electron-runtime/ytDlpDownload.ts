@@ -257,25 +257,65 @@ const resolveYtdlpQualityLabel = (
   }
 };
 
+const YTDLP_SECTION_DOWNLOAD_SITE_IDS = new Set(["youtube", "bilibili"]);
+
+const isClipSectionDownloadSupported = (siteId: string | undefined): boolean => (
+  typeof siteId === "string" && YTDLP_SECTION_DOWNLOAD_SITE_IDS.has(siteId)
+);
+
+const formatClipTimeForYtdlp = (seconds: number): string => {
+  const totalMilliseconds = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(totalMilliseconds / 3_600_000);
+  const minutes = Math.floor((totalMilliseconds % 3_600_000) / 60_000);
+  const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  const base = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")}`;
+  return milliseconds > 0
+    ? `${base}.${String(milliseconds).padStart(3, "0")}`
+    : base;
+};
+
 const resolveClipRangeSeconds = (
   context: EngineExecutionContext,
 ): { startSec: number; endSec: number } | null => {
   const rawIntent = context.intent as Record<string, unknown>;
-  const startSec = rawIntent.clipStartSec;
-  const endSec = rawIntent.clipEndSec;
-  if (
-    typeof startSec !== "number"
-    || !Number.isFinite(startSec)
-    || typeof endSec !== "number"
-    || !Number.isFinite(endSec)
-  ) {
+  const rawStartSec = rawIntent.clipStartSec;
+  const rawEndSec = rawIntent.clipEndSec;
+  const hasStartSec = rawStartSec !== undefined && rawStartSec !== null;
+  const hasEndSec = rawEndSec !== undefined && rawEndSec !== null;
+
+  if (!hasStartSec && !hasEndSec) {
     return null;
   }
+
+  if (!isClipSectionDownloadSupported(context.intent.siteId)) {
+    throw new Error("Clip downloads are only supported for YouTube and Bilibili");
+  }
+
+  if (!hasStartSec || !hasEndSec) {
+    throw new Error("Clip downloads require both clipStartSec and clipEndSec");
+  }
+
+  const startSec = Number(rawStartSec);
+  const endSec = Number(rawEndSec);
+  if (!Number.isFinite(startSec) || startSec < 0 || !Number.isFinite(endSec) || endSec < 0) {
+    throw new Error("Clip download range must use finite non-negative seconds");
+  }
+  if (endSec <= startSec) {
+    throw new Error("Clip download end time must be later than the start time");
+  }
+
   return { startSec, endSec };
 };
 
-const resolveClipRangeStemPrefix = (context: EngineExecutionContext): string | null => {
-  const clipRange = resolveClipRangeSeconds(context);
+const buildYtdlpDownloadSectionArg = (
+  clipRange: { startSec: number; endSec: number },
+): string => `*${formatClipTimeForYtdlp(clipRange.startSec)}-${formatClipTimeForYtdlp(clipRange.endSec)}`;
+
+const resolveClipRangeStemPrefix = (
+  context: EngineExecutionContext,
+  clipRange: { startSec: number; endSec: number } | null,
+): string | null => {
   if (!clipRange) {
     return null;
   }
@@ -284,20 +324,26 @@ const resolveClipRangeStemPrefix = (context: EngineExecutionContext): string | n
   return `${clipStartMs}-${clipEndMs}_${context.outputStem}`;
 };
 
-const resolveYtdlpArtifactPrefixes = (context: EngineExecutionContext): string[] => {
-  const clipRangePrefix = resolveClipRangeStemPrefix(context);
+const resolveYtdlpArtifactPrefixes = (
+  context: EngineExecutionContext,
+  clipRange: { startSec: number; endSec: number } | null,
+): string[] => {
+  const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
   return clipRangePrefix
     ? [context.outputStem, clipRangePrefix]
     : [context.outputStem];
 };
 
-const buildYtdlpOutputTemplate = (context: EngineExecutionContext): string => {
+const buildYtdlpOutputTemplate = (
+  context: EngineExecutionContext,
+  clipRange: { startSec: number; endSec: number } | null,
+): string => {
   const runtimeConfig = context.config ?? {};
   if (resolveRenameEnabled(runtimeConfig)) {
     return path.join(context.outputDir, `${context.outputStem}.%(ext)s`);
   }
 
-  const clipRangePrefix = resolveClipRangeStemPrefix(context);
+  const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
   if (clipRangePrefix) {
     return path.join(context.outputDir, `${clipRangePrefix}.%(ext)s`);
   }
@@ -324,10 +370,11 @@ export const runYtDlpDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
   const taskStartedAtMs = Date.now();
+  const clipRange = resolveClipRangeSeconds(context);
   const reportPath = path.join(context.outputDir, `${context.traceId}-after-move.txt`);
   const titleReportPath = path.join(context.outputDir, `${context.traceId}-title.txt`);
-  const outputTemplate = buildYtdlpOutputTemplate(context);
-  const artifactPrefixes = resolveYtdlpArtifactPrefixes(context);
+  const outputTemplate = buildYtdlpOutputTemplate(context, clipRange);
+  const artifactPrefixes = resolveYtdlpArtifactPrefixes(context, clipRange);
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, artifactPrefixes));
   const ffmpegDir = path.dirname(context.binaries.ffmpeg);
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
@@ -388,6 +435,9 @@ export const runYtDlpDownload = async (
     }
     if (context.intent.pageUrl) {
       args.push("--add-header", `Referer:${context.intent.pageUrl}`);
+    }
+    if (clipRange) {
+      args.push("--download-sections", buildYtdlpDownloadSectionArg(clipRange));
     }
 
     const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);

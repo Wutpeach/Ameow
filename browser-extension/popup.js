@@ -1,15 +1,15 @@
-// FlowSelect Browser Extension - Popup Script
+// Ameow Browser Extension - Popup Script
 
-const directDownloadQuality = window.FlowSelectDirectDownloadQuality;
-const localeUtils = window.FlowSelectLocaleUtils;
+const directDownloadQuality = window.AmeowDirectDownloadQuality;
+const localeUtils = window.AmeowLocaleUtils;
 const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || "en";
 const STATUS_STATE_CONNECTED = "connected";
 const STATUS_STATE_CONNECTING = "connecting";
 const STATUS_STATE_OFFLINE = "offline";
 
 function applyTheme(theme) {
-  document.body.classList.toggle("flowselect-theme-white", theme === "white");
-  document.body.classList.toggle("flowselect-theme-black", theme !== "white");
+  document.body.classList.toggle("ameow-theme-white", theme === "white");
+  document.body.classList.toggle("ameow-theme-black", theme !== "white");
 }
 
 function sendRuntimeMessage(message) {
@@ -23,7 +23,7 @@ function sendRuntimeMessage(message) {
         resolve(response ?? null);
       });
     } catch (error) {
-      console.error("[FlowSelect] Failed to send runtime message:", error);
+      console.error("[Ameow] Failed to send runtime message:", error);
       resolve(null);
     }
   });
@@ -77,10 +77,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderStaticCopy() {
-    popupTitle.textContent = t("app.name", "FlowSelect");
+    popupTitle.textContent = t("app.name", "Ameow");
     popupSubtitle.textContent = t("popup.subtitle", "Extension");
     qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
-    document.title = t("app.name", "FlowSelect");
+    document.title = t("app.name", "Ameow");
   }
 
   function getStatusCopy(state) {
@@ -128,13 +128,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const label = document.createElement("span");
 
       button.type = "button";
-      button.className = "flowselect-quality-btn";
+      button.className = "ameow-quality-btn";
       button.dataset.quality = option.value;
       if (option.value === normalizedSelectedValue) {
         button.classList.add("active");
       }
 
-      label.className = "flowselect-quality-value";
+      label.className = "ameow-quality-value";
       label.textContent = t(option.labelKey, option.value);
       button.title = t(option.descriptionKey, "");
       button.appendChild(label);
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const savedValue = await directDownloadQuality.setQualityPreference(option.value);
           renderQualityOptions(savedValue);
         } catch (error) {
-          console.error("[FlowSelect] Failed to save quality preference:", error);
+          console.error("[Ameow] Failed to save quality preference:", error);
         }
       });
 
@@ -212,7 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentQualityPreference = await directDownloadQuality.getQualityPreference();
       renderQualityOptions(currentQualityPreference);
     } catch (error) {
-      console.error("[FlowSelect] Failed to load quality preference:", error);
+      console.error("[Ameow] Failed to load quality preference:", error);
     }
 
     chrome.runtime.sendMessage({ type: "connect" }, () => {

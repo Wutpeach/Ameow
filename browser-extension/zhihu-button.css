@@ -1,11 +1,11 @@
-/* FlowSelect Browser Extension - Zhihu Download Button */
+/* Ameow Browser Extension - Zhihu Download Button */
 
 :root {
-  --flowselect-site-accent: #1772f6;
-  --flowselect-site-accent-soft: rgba(23, 114, 246, 0.18);
+  --ameow-site-accent: #1772f6;
+  --ameow-site-accent-soft: rgba(23, 114, 246, 0.18);
 }
 
-.flowselect-zhihu-control-btn {
+.ameow-zhihu-control-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -23,15 +23,15 @@
   transition: color 0.16s ease, transform 0.16s ease, opacity 0.16s ease;
 }
 
-.flowselect-zhihu-control-btn:hover {
+.ameow-zhihu-control-btn:hover {
   color: rgba(255, 255, 255, 1);
 }
 
-.flowselect-zhihu-control-btn:active {
+.ameow-zhihu-control-btn:active {
   opacity: 0.84;
 }
 
-.flowselect-zhihu-control-btn svg {
+.ameow-zhihu-control-btn svg {
   width: 18px;
   height: 18px;
   display: block;

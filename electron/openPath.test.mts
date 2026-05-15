@@ -6,25 +6,25 @@ describe("openPathOrThrow", () => {
   it("opens a path when Electron reports success", async () => {
     const openPath = vi.fn().mockResolvedValue("");
 
-    await expect(openPathOrThrow("/tmp/FlowSelect", {
+    await expect(openPathOrThrow("/tmp/Ameow", {
       shellLike: { openPath },
     })).resolves.toBeUndefined();
 
-    expect(openPath).toHaveBeenCalledWith("/tmp/FlowSelect");
+    expect(openPath).toHaveBeenCalledWith("/tmp/Ameow");
   });
 
   it("creates the directory first when requested", async () => {
     const openPath = vi.fn().mockResolvedValue("");
     const mkdirLike = vi.fn().mockResolvedValue(undefined);
 
-    await expect(openPathOrThrow("/tmp/FlowSelect", {
+    await expect(openPathOrThrow("/tmp/Ameow", {
       ensureDirectory: true,
       mkdirLike,
       shellLike: { openPath },
     })).resolves.toBeUndefined();
 
-    expect(mkdirLike).toHaveBeenCalledWith("/tmp/FlowSelect", { recursive: true });
-    expect(openPath).toHaveBeenCalledWith("/tmp/FlowSelect");
+    expect(mkdirLike).toHaveBeenCalledWith("/tmp/Ameow", { recursive: true });
+    expect(openPath).toHaveBeenCalledWith("/tmp/Ameow");
   });
 
   it("throws when Electron returns an openPath error string", async () => {

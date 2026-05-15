@@ -1,29 +1,29 @@
-// FlowSelect Browser Extension - YouTube Video Detector
+// Ameow Browser Extension - YouTube Video Detector
 // Detects video pages and injects download/screenshot buttons
 
 (function() {
   'use strict';
 
-  const PROCESSED_ATTR = 'data-flowselect-processed';
+  const PROCESSED_ATTR = 'data-ameow-processed';
   const BUTTON_CLASSES = [
-    'flowselect-youtube-btn',
-    'flowselect-youtube-set-in-btn',
-    'flowselect-youtube-set-out-btn',
-    'flowselect-youtube-screenshot-btn',
+    'ameow-youtube-btn',
+    'ameow-youtube-set-in-btn',
+    'ameow-youtube-set-out-btn',
+    'ameow-youtube-screenshot-btn',
   ];
-  const SCREENSHOT_PANEL_ID = 'flowselect-youtube-screenshot-panel';
-  const SCREENSHOT_LIST_ID = 'flowselect-youtube-screenshot-list';
+  const SCREENSHOT_PANEL_ID = 'ameow-youtube-screenshot-panel';
+  const SCREENSHOT_LIST_ID = 'ameow-youtube-screenshot-list';
   const MAX_SCREENSHOTS = 20;
   const screenshots = [];
   const clipState = {
     startSec: null,
     endSec: null,
   };
-  const localeUtils = window.FlowSelectLocaleUtils || null;
-  const controlStyleUtils = window.FlowSelectControlStyleUtils || null;
-  const injectionDebugConfig = window.FlowSelectInjectionDebugConfig || null;
+  const localeUtils = window.AmeowLocaleUtils || null;
+  const controlStyleUtils = window.AmeowControlStyleUtils || null;
+  const injectionDebugConfig = window.AmeowInjectionDebugConfig || null;
   const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || 'en';
-  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+  const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
   let currentBundle = {
     language: FALLBACK_LANGUAGE,
     common: {},
@@ -123,7 +123,7 @@
     if (rightControls.hasAttribute(PROCESSED_ATTR)) return;
     if (!isControlBarReady(rightControls)) return;
 
-    console.log('[FlowSelect YouTube] Video detected:', videoId);
+    console.log('[Ameow YouTube] Video detected:', videoId);
     injectControlButtons(rightControls);
     rightControls.setAttribute(PROCESSED_ATTR, 'true');
   }
@@ -251,11 +251,11 @@
     }
 
     if (typeof payload === 'undefined') {
-      console.info(`[FlowSelect YouTube] ${message}`);
+      console.info(`[Ameow YouTube] ${message}`);
       return;
     }
 
-    console.info(`[FlowSelect YouTube] ${message}`, payload);
+    console.info(`[Ameow YouTube] ${message}`, payload);
   }
 
   async function applyLanguage(nextLanguage) {
@@ -277,7 +277,7 @@
   }
 
   function updateStaticControlLabels() {
-    const screenshotBtn = document.querySelector('.flowselect-youtube-screenshot-btn');
+    const screenshotBtn = document.querySelector('.ameow-youtube-screenshot-btn');
     setButtonTitle(
       screenshotBtn,
       t('injected.playerControls.buttons.screenshot', 'Screenshot'),
@@ -308,7 +308,7 @@
       btn.innerHTML = html;
     } else if (text) {
       const label = document.createElement('span');
-      label.className = 'flowselect-youtube-btn-label';
+      label.className = 'ameow-youtube-btn-label';
       label.textContent = text;
       btn.appendChild(label);
     }
@@ -350,11 +350,11 @@
     logInjectionDebug('Injected video_selection payload', summarizeVideoSelectionPayload(payload));
     chrome.runtime.sendMessage(payload, (response) => {
       if (chrome.runtime.lastError) {
-        console.warn('[FlowSelect YouTube] Failed to contact background:', chrome.runtime.lastError.message);
+        console.warn('[Ameow YouTube] Failed to contact background:', chrome.runtime.lastError.message);
         notify(
           t(
             'injected.playerControls.alerts.backgroundUnavailable',
-            'FlowSelect extension background is unavailable. Please reload the extension.',
+            'Ameow extension background is unavailable. Please reload the extension.',
           ),
         );
         return;
@@ -364,7 +364,7 @@
         notify(
           t(
             'injected.playerControls.alerts.desktopUnavailable',
-            'FlowSelect desktop app is not connected. Please open FlowSelect and try again.',
+            'Ameow desktop app is not connected. Please open Ameow and try again.',
           ),
         );
       }
@@ -391,9 +391,9 @@
   }
 
   function updateClipButtonsState() {
-    const fullBtn = document.querySelector('.flowselect-youtube-btn');
-    const inBtn = document.querySelector('.flowselect-youtube-set-in-btn');
-    const outBtn = document.querySelector('.flowselect-youtube-set-out-btn');
+    const fullBtn = document.querySelector('.ameow-youtube-btn');
+    const inBtn = document.querySelector('.ameow-youtube-set-in-btn');
+    const outBtn = document.querySelector('.ameow-youtube-set-out-btn');
 
     if (!inBtn || !outBtn || !fullBtn) return;
 
@@ -423,14 +423,14 @@
             start: formatTimestamp(clipState.startSec),
             end: formatTimestamp(clipState.endSec),
           },
-          `Download clip ${formatTimestamp(clipState.startSec)} -> ${formatTimestamp(clipState.endSec)}`,
+          `Download section ${formatTimestamp(clipState.startSec)} -> ${formatTimestamp(clipState.endSec)}`,
         ),
       );
     } else {
       fullBtn.removeAttribute('data-clip-ready');
       setButtonTitle(
         fullBtn,
-        t('injected.playerControls.buttons.download', 'Download with FlowSelect'),
+        t('injected.playerControls.buttons.download', 'Download with Ameow'),
       );
     }
   }
@@ -447,7 +447,7 @@
       return;
     }
     clipState.startSec = current;
-    console.log('[FlowSelect YouTube] IN point set:', current);
+    console.log('[Ameow YouTube] IN point set:', current);
     updateClipButtonsState();
   }
 
@@ -463,7 +463,7 @@
       return;
     }
     clipState.endSec = current;
-    console.log('[FlowSelect YouTube] OUT point set:', current);
+    console.log('[Ameow YouTube] OUT point set:', current);
     updateClipButtonsState();
   }
 
@@ -491,7 +491,7 @@
       return;
     }
 
-    console.log('[FlowSelect YouTube] Clip range:', startSec, endSec);
+    console.log('[Ameow YouTube] Clip range:', startSec, endSec);
     const payload = buildCurrentVideoSelectionPayload();
     if (!payload) {
       return;
@@ -512,26 +512,26 @@
     removeInjectedButtons();
 
     const screenshotBtn = createButton({
-      className: 'flowselect-youtube-screenshot-btn',
+      className: 'ameow-youtube-screenshot-btn',
       title: t('injected.playerControls.buttons.screenshot', 'Screenshot'),
       html: CAMERA_ICON_SVG,
       onClick: takeScreenshot,
     });
     const fullBtn = createButton({
-      className: 'flowselect-youtube-btn',
-      title: t('injected.playerControls.buttons.download', 'Download with FlowSelect'),
+      className: 'ameow-youtube-btn',
+      title: t('injected.playerControls.buttons.download', 'Download with Ameow'),
       html: CAT_ICON_SVG,
       onClick: handlePrimaryDownload,
     });
     const inBtn = createButton({
-      className: 'flowselect-youtube-set-in-btn',
+      className: 'ameow-youtube-set-in-btn',
       title: t('injected.playerControls.buttons.setIn', 'Set IN point'),
       html: CLIP_POINT_ICON_SVG,
       onClick: setInPoint,
       onContextMenu: (event) => handleClipPointContextMenu(event, 'startSec'),
     });
     const outBtn = createButton({
-      className: 'flowselect-youtube-set-out-btn',
+      className: 'ameow-youtube-set-out-btn',
       title: t('injected.playerControls.buttons.setOut', 'Set OUT point'),
       html: CLIP_POINT_ICON_SVG,
       onClick: setOutPoint,
@@ -544,7 +544,7 @@
     }
 
     updateClipButtonsState();
-    console.log('[FlowSelect YouTube] Buttons injected');
+    console.log('[Ameow YouTube] Buttons injected');
   }
 
   function ensureScreenshotPanel() {
@@ -552,7 +552,7 @@
     if (!panel) {
       panel = document.createElement('div');
       panel.id = SCREENSHOT_PANEL_ID;
-      panel.className = 'flowselect-hidden';
+      panel.className = 'ameow-hidden';
       panel.innerHTML = `<div id="${SCREENSHOT_LIST_ID}"></div>`;
       document.body.appendChild(panel);
     }
@@ -572,11 +572,11 @@
     list.innerHTML = '';
 
     if (screenshots.length === 0) {
-      panel.classList.add('flowselect-hidden');
+      panel.classList.add('ameow-hidden');
       return;
     }
 
-    panel.classList.remove('flowselect-hidden');
+    panel.classList.remove('ameow-hidden');
     for (const screenshot of screenshots) {
       list.appendChild(createScreenshotItem(screenshot));
     }
@@ -584,7 +584,7 @@
 
   function createScreenshotItem(screenshot) {
     const item = document.createElement('div');
-    item.className = 'flowselect-youtube-screenshot-item';
+    item.className = 'ameow-youtube-screenshot-item';
 
     const img = document.createElement('img');
     img.src = screenshot.url;
@@ -592,10 +592,10 @@
     img.loading = 'lazy';
 
     const overlay = document.createElement('div');
-    overlay.className = 'flowselect-youtube-screenshot-overlay';
+    overlay.className = 'ameow-youtube-screenshot-overlay';
 
     const timestamp = document.createElement('span');
-    timestamp.className = 'flowselect-youtube-screenshot-time';
+    timestamp.className = 'ameow-youtube-screenshot-time';
     timestamp.textContent = screenshot.playbackLabel;
 
     const saveButton = createOverlayActionButton({
@@ -613,7 +613,7 @@
       icon: SCREENSHOT_DELETE_ICON_SVG,
       onClick: () => removeScreenshot(screenshot.id),
     });
-    deleteButton.classList.add('flowselect-danger');
+    deleteButton.classList.add('ameow-danger');
 
     overlay.append(saveButton, copyButton, deleteButton, timestamp);
     item.append(img, overlay);
@@ -667,7 +667,7 @@
       }
       addScreenshot(screenshot);
     } catch (error) {
-      console.error('[FlowSelect YouTube] Screenshot failed:', error);
+      console.error('[Ameow YouTube] Screenshot failed:', error);
       notify(
         t('injected.playerControls.alerts.screenshotFailed', 'Screenshot failed. Please try again.'),
       );
@@ -713,14 +713,14 @@
   }
 
   async function saveScreenshot(screenshot) {
-    const savedByFlowSelect = await saveScreenshotViaFlowSelect(screenshot);
-    if (savedByFlowSelect) {
+    const savedByAmeow = await saveScreenshotViaAmeow(screenshot);
+    if (savedByAmeow) {
       return;
     }
     saveScreenshotByBrowser(screenshot);
   }
 
-  async function saveScreenshotViaFlowSelect(screenshot) {
+  async function saveScreenshotViaAmeow(screenshot) {
     if (!chrome?.runtime?.sendMessage) {
       return false;
     }
@@ -750,7 +750,7 @@
 
       return Boolean(response?.success);
     } catch (error) {
-      console.error('[FlowSelect YouTube] Save screenshot via app failed:', error);
+      console.error('[Ameow YouTube] Save screenshot via app failed:', error);
       return false;
     }
   }
@@ -811,7 +811,7 @@
         button.innerHTML = SCREENSHOT_COPY_ICON_SVG;
       }, 1200);
     } catch (error) {
-      console.error('[FlowSelect YouTube] Copy screenshot failed:', error);
+      console.error('[Ameow YouTube] Copy screenshot failed:', error);
       notify(
         t(
           'injected.playerControls.alerts.copyFailed',
@@ -899,10 +899,10 @@
       return;
     }
 
-    console.log('[FlowSelect YouTube] Video ID:', videoId);
-    console.log('[FlowSelect YouTube] Page URL:', payload.pageUrl);
-    console.log('[FlowSelect YouTube] Download URL:', payload.url);
-    console.log('[FlowSelect YouTube] Title:', payload.title);
+    console.log('[Ameow YouTube] Video ID:', videoId);
+    console.log('[Ameow YouTube] Page URL:', payload.pageUrl);
+    console.log('[Ameow YouTube] Download URL:', payload.url);
+    console.log('[Ameow YouTube] Title:', payload.title);
 
     sendVideoSelectionMessage(payload);
   }
@@ -918,7 +918,7 @@
       lastUrl = window.location.href;
       const currentVideoKey = getCurrentVideoKey();
       if (currentVideoKey !== lastVideoKey) {
-        console.log('[FlowSelect YouTube] Video changed:', lastUrl);
+        console.log('[Ameow YouTube] Video changed:', lastUrl);
         lastVideoKey = currentVideoKey;
         resetClipState();
         const processed = document.querySelectorAll(`[${PROCESSED_ATTR}]`);
@@ -954,13 +954,13 @@
   }
 
   async function init() {
-    console.log('[FlowSelect YouTube] Detector initialized');
+    console.log('[Ameow YouTube] Detector initialized');
 
     if (injectionDebugConfig?.getEnabled) {
       try {
         syncInjectionDebugState(await injectionDebugConfig.getEnabled());
       } catch (error) {
-        console.warn('[FlowSelect YouTube] Failed to read injection debug config:', error);
+        console.warn('[Ameow YouTube] Failed to read injection debug config:', error);
       }
     }
     if (injectionDebugConfig?.observe) {

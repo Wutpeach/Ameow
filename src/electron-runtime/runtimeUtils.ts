@@ -29,7 +29,7 @@ export const sanitizeFileStem = (input: string): string => {
     .trim()
     .slice(0, 96)
     .replace(/[. ]+$/g, "")
-    || "flowselect-video";
+    || "ameow-video";
 
   return WINDOWS_RESERVED_FILE_STEM_PATTERN.test(sanitized)
     ? sanitized.replace(WINDOWS_RESERVED_FILE_STEM_PATTERN, "$1_")
@@ -61,8 +61,8 @@ export const resolveOutputDir = (
   const configured = typeof config.outputPath === "string" ? config.outputPath.trim() : "";
   const outputDir = configured
     || (environment.desktopDir
-      ? path.join(environment.desktopDir, "FlowSelect_Received")
-      : path.join(environment.repoRoot, "FlowSelect_Received"));
+      ? path.join(environment.desktopDir, "Ameow_Received")
+      : path.join(environment.repoRoot, "Ameow_Received"));
   mkdirSync(outputDir, { recursive: true });
   return outputDir;
 };

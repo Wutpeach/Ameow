@@ -22,7 +22,7 @@ const installGuideSourcePath = join(repoRoot, "distribution", "macos", "install-
 const dmgBackgroundPath = join(repoRoot, "background.png");
 const dmgVolumeIconPngPath = join(repoRoot, "app-icon.png");
 const dmgLayout = {
-  volumeName: "FlowSelect Installer",
+  volumeName: "Ameow Installer",
   windowSize: { width: 638, height: 360 },
   iconSize: 100,
   textSize: 14,
@@ -109,7 +109,7 @@ function ensureCommandAvailable(command) {
 function readProductMetadata() {
   const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
   return {
-    productName: String(builderConfig.productName || "FlowSelect").trim() || "FlowSelect",
+    productName: String(builderConfig.productName || "Ameow").trim() || "Ameow",
     version: String(packageJson.version || "").trim(),
   };
 }
@@ -244,10 +244,10 @@ function main() {
   const dmgDir = join(outputRoot, ELECTRON_DMG_SUBDIR);
   const appBundlePath = findAppBundle(outputRoot, arch);
   const outputPath = join(dmgDir, outputFileName(productName, version, arch));
-  const browserExtensionOutputPath = join(dmgDir, `FlowSelect_${version}_browser_extension.zip`);
-  const stagingRoot = mkdtempSync(join(tmpdir(), "flowselect-macos-dmg-"));
+  const browserExtensionOutputPath = join(dmgDir, `Ameow_${version}_browser_extension.zip`);
+  const stagingRoot = mkdtempSync(join(tmpdir(), "ameow-macos-dmg-"));
   const stagingDir = join(stagingRoot, "staging");
-  const volumeIconOutputPath = join(stagingRoot, "FlowSelect-Installer.icns");
+  const volumeIconOutputPath = join(stagingRoot, "Ameow-Installer.icns");
 
   ensureDir(dmgDir);
   removeExistingDmgs(dmgDir);
@@ -294,7 +294,7 @@ function main() {
       String(dmgLayout.applicationsPosition.x),
       String(dmgLayout.applicationsPosition.y),
       "--add-file",
-      "Install FlowSelect on macOS.txt",
+      "Install Ameow on macOS.txt",
       installGuideSourcePath,
       String(dmgLayout.installGuidePosition.x),
       String(dmgLayout.installGuidePosition.y),

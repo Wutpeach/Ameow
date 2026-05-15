@@ -1,8 +1,8 @@
 (function () {
   "use strict";
 
-  const domUtils = window.FlowSelectDomInjectionUtils || null;
-  const BUTTON_MARKER_ATTR = "data-flowselect-instagram-button";
+  const domUtils = window.AmeowDomInjectionUtils || null;
+  const BUTTON_MARKER_ATTR = "data-ameow-instagram-button";
   const URL_CHECK_INTERVAL_MS = 700;
   const CONTENT_PATH_RE = /^\/(?:p|reel|reels)\/[^/?#]+\/?$/i;
   const REEL_PATH_RE = /^\/(?:reel|reels)\/[^/?#]+\/?$/i;
@@ -73,13 +73,13 @@
   }
 
   function alertDesktopUnavailable() {
-    window.alert("FlowSelect desktop app is not connected. Please open FlowSelect and try again.");
+    window.alert("Ameow desktop app is not connected. Please open Ameow and try again.");
   }
 
   function submitCurrentPageUrl(referenceButton) {
     const pageUrl = resolveSubmissionUrl(referenceButton);
     if (!pageUrl) {
-      console.warn("[FlowSelect Instagram] Unable to resolve a valid page URL");
+      console.warn("[Ameow Instagram] Unable to resolve a valid page URL");
       return;
     }
 
@@ -93,7 +93,7 @@
       (response) => {
         if (chrome.runtime?.lastError) {
           console.warn(
-            "[FlowSelect Instagram] Failed to contact background:",
+            "[Ameow Instagram] Failed to contact background:",
             chrome.runtime.lastError.message,
           );
           alertDesktopUnavailable();
@@ -185,7 +185,7 @@
     clearClickArtifacts(clone);
     clone.setAttribute(BUTTON_MARKER_ATTR, kind);
     replaceButtonIcon(clone);
-    bindButtonInteraction(clone, "Download with FlowSelect");
+    bindButtonInteraction(clone, "Download with Ameow");
     return clone;
   }
 
@@ -360,7 +360,7 @@
 
   function init() {
     if (!domUtils) {
-      console.warn("[FlowSelect Instagram] DOM injection utils are unavailable");
+      console.warn("[Ameow Instagram] DOM injection utils are unavailable");
       return;
     }
 

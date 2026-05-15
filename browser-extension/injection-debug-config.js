@@ -1,7 +1,7 @@
-(function initFlowSelectInjectionDebugConfig(root) {
+(function initAmeowInjectionDebugConfig(root) {
   "use strict";
 
-  const STORAGE_KEY = "flowselectExtensionInjectionDebugEnabled";
+  const STORAGE_KEY = "ameowExtensionInjectionDebugEnabled";
 
   function normalizeEnabled(value) {
     return value === true;
@@ -40,7 +40,7 @@
       const result = await storageGet(STORAGE_KEY);
       return normalizeEnabled(result?.[STORAGE_KEY]);
     } catch (error) {
-      console.error("[FlowSelect] Failed to load injection debug config:", error);
+      console.error("[Ameow] Failed to load injection debug config:", error);
       return false;
     }
   }
@@ -99,7 +99,7 @@
     };
   }
 
-  root.FlowSelectInjectionDebugConfig = {
+  root.AmeowInjectionDebugConfig = {
     STORAGE_KEY,
     getEnabled,
     normalizeEnabled,

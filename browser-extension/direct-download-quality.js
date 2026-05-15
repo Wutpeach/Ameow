@@ -1,4 +1,4 @@
-(function initFlowSelectDirectDownloadQuality(root) {
+(function initAmeowDirectDownloadQuality(root) {
   "use strict";
 
   const STORAGE_KEY = "defaultVideoDownloadQuality";
@@ -65,7 +65,7 @@
       const result = await storageGet([STORAGE_KEY, LEGACY_STORAGE_KEY]);
       return normalizeQualityPreference(result?.[STORAGE_KEY] ?? result?.[LEGACY_STORAGE_KEY]);
     } catch (error) {
-      console.error("[FlowSelect] Failed to load quality preference:", error);
+      console.error("[Ameow] Failed to load quality preference:", error);
       return DEFAULT_QUALITY_PREFERENCE;
     }
   }
@@ -83,7 +83,7 @@
     return normalized;
   }
 
-  root.FlowSelectDirectDownloadQuality = {
+  root.AmeowDirectDownloadQuality = {
     STORAGE_KEY,
     LEGACY_STORAGE_KEY,
     DEFAULT_QUALITY_PREFERENCE,

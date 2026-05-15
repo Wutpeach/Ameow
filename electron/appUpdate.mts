@@ -11,7 +11,7 @@ type GitHubRelease = {
   assets?: unknown;
 };
 
-export const APP_GITHUB_REPOSITORY = "Wutpeach/FlowSelect";
+export const APP_GITHUB_REPOSITORY = "Wutpeach/Ameow";
 export const APP_RELEASES_URL = `https://github.com/${APP_GITHUB_REPOSITORY}/releases`;
 export const APP_RELEASES_API = `https://api.github.com/repos/${APP_GITHUB_REPOSITORY}/releases`;
 export const APP_UPDATE_MANIFEST_ASSET_NAME = "latest.json";

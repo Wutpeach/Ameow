@@ -116,9 +116,9 @@ function main() {
   const manifest = applyAppVersionToExtensionManifest(sourceManifest, version);
   ensureDir(outputDir);
 
-  const artifactName = `FlowSelect_${version}_browser_extension.zip`;
+  const artifactName = `Ameow_${version}_browser_extension.zip`;
   const outputPath = join(outputDir, artifactName);
-  const stagingRoot = mkdtempSync(join(tmpdir(), "flowselect-browser-extension-"));
+  const stagingRoot = mkdtempSync(join(tmpdir(), "ameow-browser-extension-"));
   const stagedSourceDir = join(stagingRoot, "browser-extension");
 
   try {

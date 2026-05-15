@@ -13,7 +13,7 @@ const loadRoutingHelper = () => {
     URL,
   };
   vm.runInNewContext(helperSource, context, { filename: helperPath });
-  return context.self.FlowSelectVideoSelectionRouting;
+  return context.self.AmeowVideoSelectionRouting;
 };
 
 describe("video selection routing helper", () => {

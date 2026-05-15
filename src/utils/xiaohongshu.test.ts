@@ -10,7 +10,7 @@ import {
 
 function encodePayload(payload: object): string {
   const json = JSON.stringify(payload);
-  return `FLOWSELECT_XIAOHONGSHU_DRAG:${btoa(
+  return `AMEOW_XIAOHONGSHU_DRAG:${btoa(
     encodeURIComponent(json).replace(/%([0-9A-F]{2})/gi, (_, hex) =>
       String.fromCharCode(Number.parseInt(hex, 16)),
     ),
@@ -76,7 +76,7 @@ describe("extractEmbeddedXiaohongshuDragPayload", () => {
     expect(
       extractEmbeddedXiaohongshuDragPayload(
         encodePayload({
-          token: "flowselect-xhs-token",
+          token: "ameow-xhs-token",
           pageUrl: "https://www.xiaohongshu.com/explore/69d4d5170000000022024263",
           noteId: "69d4d5170000000022024263",
           exactImageUrl: "https://sns-webpic-qc.xhscdn.com/example-note-cover",
@@ -94,7 +94,7 @@ describe("extractEmbeddedXiaohongshuDragPayload", () => {
         }),
       ),
     ).toEqual({
-      token: "flowselect-xhs-token",
+      token: "ameow-xhs-token",
       pageUrl: "https://www.xiaohongshu.com/explore/69d4d5170000000022024263",
       detailUrl: null,
       sourcePageUrl: null,

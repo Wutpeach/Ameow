@@ -32,7 +32,7 @@ describe("validateDroppedFolderPath", () => {
   });
 
   it("accepts existing directories", async () => {
-    const folderPath = await mkdtemp(join(tmpdir(), "flowselect-folder-drop-"));
+    const folderPath = await mkdtemp(join(tmpdir(), "ameow-folder-drop-"));
     tempPaths.push(folderPath);
 
     await expect(validateDroppedFolderPath({ path: folderPath })).resolves.toEqual({
@@ -43,7 +43,7 @@ describe("validateDroppedFolderPath", () => {
   });
 
   it("rejects regular files", async () => {
-    const folderPath = await mkdtemp(join(tmpdir(), "flowselect-folder-drop-file-"));
+    const folderPath = await mkdtemp(join(tmpdir(), "ameow-folder-drop-file-"));
     tempPaths.push(folderPath);
 
     const filePath = join(folderPath, "example.txt");
@@ -58,9 +58,9 @@ describe("validateDroppedFolderPath", () => {
   });
 
   it("rejects missing paths", async () => {
-    await expect(validateDroppedFolderPath({ path: "C:\\missing\\flowselect-folder" })).resolves.toEqual({
+    await expect(validateDroppedFolderPath({ path: "C:\\missing\\ameow-folder" })).resolves.toEqual({
       success: false,
-      path: "C:\\missing\\flowselect-folder",
+      path: "C:\\missing\\ameow-folder",
       error: "Dropped folder was not found.",
       reason: "NOT_FOUND",
     });

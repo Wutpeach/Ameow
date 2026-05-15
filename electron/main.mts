@@ -123,7 +123,7 @@ const WINDOW_LABELS = {
 const FALLBACK_LANGUAGE = "en";
 const FALLBACK_THEME = "black";
 const WS_PORT = 39527;
-const DEFAULT_OUTPUT_FOLDER_NAME = "FlowSelect_Received";
+const DEFAULT_OUTPUT_FOLDER_NAME = "Ameow_Received";
 const STARTUP_DIAGNOSTICS_FILE_NAME = "startup-diagnostics-latest.txt";
 const SHORTCUT_SHOW_EVENT = "shortcut-show";
 const SHORTCUT_TOGGLE_COOLDOWN_MS = 420;
@@ -153,8 +153,8 @@ const XIAOHONGSHU_HIDDEN_DETAIL_POLL_INTERVAL_MS = 700;
 const XIAOHONGSHU_HIDDEN_DETAIL_INITIAL_SETTLE_MS = 900;
 const SHORT_LINK_NAVIGATION_TIMEOUT_MS = 12_000;
 const SHORT_LINK_NAVIGATION_SETTLE_MS = 1_200;
-const YTDLP_PROGRESS_PREFIX = "__FLOWSELECT_PROGRESS__=";
-const YTDLP_FILE_PATH_PREFIX = "__FLOWSELECT_FILE_PATH__=";
+const YTDLP_PROGRESS_PREFIX = "__AMEOW_PROGRESS__=";
+const YTDLP_FILE_PATH_PREFIX = "__AMEOW_FILE_PATH__=";
 const YTDLP_FORMAT_SELECTOR_BEST = "bestvideo+bestaudio/best";
 const YTDLP_FORMAT_SELECTOR_BALANCED = [
   "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
@@ -405,7 +405,7 @@ async function initializeRuntimeLogCapture() {
   const sessionHeader = formatRuntimeLogLine(
     "session",
     [
-      "FlowSelect runtime log started",
+      "Ameow runtime log started",
       `version=${app.getVersion()}`,
       `platform=${process.platform}`,
       `arch=${process.arch}`,
@@ -731,13 +731,13 @@ async function delayTransparentPackagedWindowReveal(label, transparentWindow) {
   });
 }
 
-type FlowSelectWindowAppearanceOptions = {
+type AmeowWindowAppearanceOptions = {
   allowTransparency?: boolean;
   currentTheme: string;
   preferZeroAlphaTransparentBackground?: boolean;
 };
 
-type FlowSelectBrowserWindowCreationOptions = {
+type AmeowBrowserWindowCreationOptions = {
   routePath: string;
   width: number;
   height: number;
@@ -759,7 +759,7 @@ function resolveWindowAppearance({
   allowTransparency = true,
   currentTheme,
   preferZeroAlphaTransparentBackground = false,
-}: FlowSelectWindowAppearanceOptions) {
+}: AmeowWindowAppearanceOptions) {
   const transparentWindow = allowTransparency && !forceOpaquePackagedWindow;
   const backgroundColor = transparentWindow && process.platform === "win32" && app.isPackaged
     ? resolvePackagedWindowsTransparentWindowBackground(
@@ -777,7 +777,7 @@ function resolveWindowAppearance({
   };
 }
 
-async function createFlowSelectBrowserWindow(label: string, {
+async function createAmeowBrowserWindow(label: string, {
   routePath,
   width,
   height,
@@ -793,7 +793,7 @@ async function createFlowSelectBrowserWindow(label: string, {
   skipTaskbar = process.platform === "win32",
   parentLabel,
   preferZeroAlphaTransparentBackground = false,
-}: FlowSelectBrowserWindowCreationOptions, startupConfigSnapshot = null) {
+}: AmeowBrowserWindowCreationOptions, startupConfigSnapshot = null) {
   const preloadPath = join(__dirname, "preload.mjs");
   const iconPath = getIconPath();
   const currentTheme = startupConfigSnapshot?.theme ?? await readCurrentTheme();
@@ -1158,19 +1158,7 @@ function getDownloaderLatestCachePath(toolId) {
 }
 
 async function migrateLegacyConfigIfNeeded() {
-  const configPath = getConfigPath();
-  if (existsSync(configPath)) {
-    return;
-  }
-
-  const legacyPath = join(app.getPath("appData"), "com.flowselect.app", "settings.json");
-  if (!existsSync(legacyPath)) {
-    return;
-  }
-
-  await mkdir(dirname(configPath), { recursive: true });
-  await copyFile(legacyPath, configPath);
-  logInfo("Electron", "Migrated config", `${legacyPath} -> ${configPath}`);
+  return;
 }
 
 async function ensureUserDataDirs() {
@@ -1775,7 +1763,7 @@ async function resolveUrlViaHiddenNavigation(targetUrl) {
     return undefined;
   }
 
-  const partition = `flowselect-short-link-${nextOpaqueId("partition")}`;
+  const partition = `ameow-short-link-${nextOpaqueId("partition")}`;
   const hiddenWindow = new BrowserWindow({
     show: false,
     width: 1280,
@@ -2337,8 +2325,8 @@ function extractXiaohongshuHiddenPageMediaPageContext(options) {
     '.play-icon, [class*="play-icon"], [class*="video-play"], [class*="play-btn"], [class*="player-btn"], button[aria-label*="play"], button[aria-label*="播放"]',
   );
   let clickedPlay = false;
-  if (videoCandidates.length === 0 && playTarget && !window.__FLOWSELECT_XHS_HIDDEN_PLAY_CLICKED__) {
-    window.__FLOWSELECT_XHS_HIDDEN_PLAY_CLICKED__ = true;
+  if (videoCandidates.length === 0 && playTarget && !window.__AMEOW_XHS_HIDDEN_PLAY_CLICKED__) {
+    window.__AMEOW_XHS_HIDDEN_PLAY_CLICKED__ = true;
     clickedPlay = true;
     const clickable = playTarget.closest("button, [role='button'], div") || playTarget;
     ["pointerdown", "mousedown", "mouseup", "click"].forEach((eventName) => {
@@ -2438,7 +2426,7 @@ async function resolveXiaohongshuViaHiddenDetailPage({
   const cookieHeader = buildCookieHeaderFromNetscape(cookies);
 
   for (const targetUrl of targetUrls) {
-    const partition = `flowselect-xiaohongshu-hidden-${nextOpaqueId("partition")}`;
+    const partition = `ameow-xiaohongshu-hidden-${nextOpaqueId("partition")}`;
     const hiddenSession = session.fromPartition(partition, { cache: false });
     const hiddenWindow = new BrowserWindow({
       show: false,
@@ -2687,7 +2675,7 @@ async function pathExists(targetPath) {
 
 async function buildUniqueTargetPath(targetDir, preferredName, extension) {
   await mkdir(targetDir, { recursive: true });
-  const safeBaseName = sanitizeFileNameSegment(preferredName) || "flowselect";
+  const safeBaseName = sanitizeFileNameSegment(preferredName) || "ameow";
   const safeExtension = ensureExtension(extension);
   const directPath = join(targetDir, `${safeBaseName}.${safeExtension}`);
   if (!(await pathExists(directPath))) {
@@ -2730,9 +2718,9 @@ function inferNameFromUrl(url) {
     const parsed = new URL(url);
     const fileName = basename(parsed.pathname);
     const stem = parse(fileName).name;
-    return sanitizeFileNameSegment(stem) || "flowselect";
+    return sanitizeFileNameSegment(stem) || "ameow";
   } catch {
-    return "flowselect";
+    return "ameow";
   }
 }
 
@@ -2895,7 +2883,7 @@ async function saveDataUrl(dataUrl, targetDir, originalFilename, options = {}) {
     : inferExtensionFromMime(mimeType);
   const preferredName = originalFilename
     ? parse(originalFilename).name
-    : "flowselect";
+    : "ameow";
   const finalTargetDir = targetDir || (await resolveCurrentOutputFolderPath());
   const renameEnabled = resolveRenameEnabled(config);
   let renamedStem = null;
@@ -3502,7 +3490,7 @@ async function ensureManagedDenoRuntimeReady(trigger, missingComponents) {
   }
 
   const artifact = selectDenoRuntimeArtifactSpec();
-  const tempDir = await mkdtemp(join(tmpdir(), "flowselect-deno-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "ameow-deno-"));
   const archivePath = join(tempDir, "deno.zip");
   const extractDir = join(tempDir, "extract");
   const tempTargetPath = join(tempDir, basename(targetPath));
@@ -3548,7 +3536,7 @@ async function ensureManagedFfmpegRuntimeReady(trigger, missingComponents) {
   }
 
   const artifact = selectFfmpegRuntimeArtifactSpec();
-  const tempDir = await mkdtemp(join(tmpdir(), "flowselect-ffmpeg-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "ameow-ffmpeg-"));
   const archivePath = join(tempDir, "ffmpeg.zip");
   const extractDir = join(tempDir, "extract");
   const tempFfmpegPath = join(tempDir, basename(paths.ffmpeg));
@@ -3768,7 +3756,7 @@ async function writeDownloaderLatestCache(toolId, version) {
 function buildGitHubHeaders() {
   return {
     Accept: "application/vnd.github+json",
-    "User-Agent": "FlowSelect-Electron",
+    "User-Agent": "Ameow-Electron",
   };
 }
 
@@ -3829,7 +3817,7 @@ async function fetchLatestPyPiPackageVersion(packageName) {
   const response = await fetchWithDesktopSession(`https://pypi.org/simple/${packageName}/`, {
     headers: {
       Accept: "text/html",
-      "User-Agent": "FlowSelect-Electron",
+      "User-Agent": "Ameow-Electron",
       "Cache-Control": "no-cache",
       Pragma: "no-cache",
     },
@@ -4082,7 +4070,7 @@ async function updateDownloaderBinary(toolId) {
   const binaryPath = await resolveDownloaderBinaryPathForUpdate(toolId);
   const release = await fetchLatestDownloaderRelease(toolId);
   const asset = selectDownloaderReleaseAsset(toolId, release);
-  const tempDir = await mkdtemp(join(tmpdir(), `flowselect-${toolId.replace(/[^a-z0-9]/gi, "-")}-`));
+  const tempDir = await mkdtemp(join(tmpdir(), `ameow-${toolId.replace(/[^a-z0-9]/gi, "-")}-`));
   const tempPath = join(tempDir, basename(binaryPath));
 
   await downloadToFile(asset.browser_download_url, tempPath, {
@@ -4283,7 +4271,7 @@ async function loadTrayLabels(language) {
       || "Settings",
     quit: fromDocument(primary, ["tray", "quit"])
       || fromDocument(fallback, ["tray", "quit"])
-      || "Quit FlowSelect",
+      || "Quit Ameow",
   };
 }
 
@@ -4325,7 +4313,7 @@ function createTrayImage() {
 function emitAppEvent(event, payload) {
   for (const win of windows.values()) {
     if (!win.isDestroyed()) {
-      win.webContents.send(`flowselect:event:${event}`, { payload });
+      win.webContents.send(`ameow:event:${event}`, { payload });
     }
   }
 }
@@ -5062,7 +5050,7 @@ async function saveTempCookiesFile(rawCookies) {
   if (!cookies) {
     return null;
   }
-  const cookiesPath = join(tmpdir(), `${nextOpaqueId("flowselect-cookies")}.txt`);
+  const cookiesPath = join(tmpdir(), `${nextOpaqueId("ameow-cookies")}.txt`);
   await writeFile(cookiesPath, cookies, "utf8");
   return cookiesPath;
 }
@@ -5478,12 +5466,12 @@ async function updateTrayMenu(startupConfigSnapshot = null) {
     });
   }
 
-  tray.setToolTip("FlowSelect");
+  tray.setToolTip("Ameow");
   tray.setContextMenu(menu);
 }
 
 function getBaseRendererUrl() {
-  const envUrl = process.env.FLOWSELECT_FRONTEND_URL ?? process.env.FLOWSELECT_ELECTRON_DEV_SERVER_URL;
+  const envUrl = process.env.AMEOW_FRONTEND_URL ?? process.env.AMEOW_ELECTRON_DEV_SERVER_URL;
   if (envUrl) {
     return envUrl.replace(/\/$/, "");
   }
@@ -5519,11 +5507,11 @@ function getWindow(label) {
 function registerWindow(label, win) {
   windows.set(label, win);
   win.on("focus", () => {
-    win.webContents.send("flowselect:current-window:focus-changed", true);
+    win.webContents.send("ameow:current-window:focus-changed", true);
   });
   win.on("blur", () => {
-    win.webContents.send("flowselect:current-window:focus-changed", false);
-    win.webContents.send("flowselect:current-window:blur");
+    win.webContents.send("ameow:current-window:focus-changed", false);
+    win.webContents.send("ameow:current-window:blur");
   });
   win.on("closed", () => {
     windows.delete(label);
@@ -5553,7 +5541,7 @@ async function createMainWindow(startupConfigSnapshot = null) {
   const {
     browserWindow: mainWindow,
     transparentWindow,
-  } = await createFlowSelectBrowserWindow(WINDOW_LABELS.main, {
+  } = await createAmeowBrowserWindow(WINDOW_LABELS.main, {
     routePath: "/",
     width: initialWindowSize,
     height: initialWindowSize,
@@ -5746,7 +5734,7 @@ async function openSecondaryWindow(label, options) {
   const {
     browserWindow,
     transparentWindow,
-  } = await createFlowSelectBrowserWindow(label, {
+  } = await createAmeowBrowserWindow(label, {
     routePath,
     width: secondaryWindowOuterSize?.width ?? resolvedOptions.width,
     height: secondaryWindowOuterSize?.height ?? resolvedOptions.height,
@@ -6096,8 +6084,8 @@ async function downloadAndInstallAppUpdate() {
   }
 
   const parsedUrl = new URL(installerUrl);
-  const installerFileName = basename(parsedUrl.pathname) || "FlowSelect_update_installer.exe";
-  const downloadDir = await mkdtemp(join(tmpdir(), "flowselect-app-update-"));
+  const installerFileName = basename(parsedUrl.pathname) || "Ameow_update_installer.exe";
+  const downloadDir = await mkdtemp(join(tmpdir(), "ameow-app-update-"));
   const installerPath = join(downloadDir, installerFileName);
   await downloadToFile(installerUrl, installerPath, {
     headers: buildGitHubHeaders(),
@@ -6856,11 +6844,11 @@ async function handleCommand(command, payload = {}) {
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle("flowselect:command:invoke", async (_event, request) => {
+  ipcMain.handle("ameow:command:invoke", async (_event, request) => {
     return handleCommand(request.command, request.payload);
   });
 
-  ipcMain.handle("flowselect:event:emit", async (_event, request) => {
+  ipcMain.handle("ameow:event:emit", async (_event, request) => {
     emitAppEvent(request.event, request.payload);
   });
 
@@ -6868,12 +6856,12 @@ function registerIpcHandlers() {
     validateDroppedFolderPath({ path: request?.path })
   ));
 
-  ipcMain.handle("flowselect:window:has", (_event, request) => {
+  ipcMain.handle("ameow:window:has", (_event, request) => {
     const win = getWindow(request.label);
     return Boolean(win && !win.isDestroyed());
   });
 
-  ipcMain.handle("flowselect:window:focus", async (_event, request) => {
+  ipcMain.handle("ameow:window:focus", async (_event, request) => {
     const win = getWindow(request.label);
     if (win && !win.isDestroyed()) {
       win.show();
@@ -6881,27 +6869,27 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle("flowselect:window:close", async (_event, request) => {
+  ipcMain.handle("ameow:window:close", async (_event, request) => {
     const win = getWindow(request.label);
     if (win && !win.isDestroyed()) {
       win.close();
     }
   });
 
-  ipcMain.handle("flowselect:window:open-settings", async (_event, request) => {
+  ipcMain.handle("ameow:window:open-settings", async (_event, request) => {
     await openSecondaryWindow(WINDOW_LABELS.settings, request.options);
   });
 
-  ipcMain.handle("flowselect:window:open-context-menu", async (_event, request) => {
+  ipcMain.handle("ameow:window:open-context-menu", async (_event, request) => {
     await openSecondaryWindow(WINDOW_LABELS.contextMenu, request.options);
   });
 
-  ipcMain.handle("flowselect:window:open-ui-lab", async (_event, request) => {
+  ipcMain.handle("ameow:window:open-ui-lab", async (_event, request) => {
     assertUiLabEnabled();
     await openSecondaryWindow(WINDOW_LABELS.uiLab, request.options);
   });
 
-  ipcMain.handle("flowselect:current-window:outer-position", (event) => {
+  ipcMain.handle("ameow:current-window:outer-position", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       throw new Error("Current window not found");
@@ -6910,7 +6898,7 @@ function registerIpcHandlers() {
     return { x, y };
   });
 
-  ipcMain.handle("flowselect:current-window:outer-size", (event) => {
+  ipcMain.handle("ameow:current-window:outer-size", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       throw new Error("Current window not found");
@@ -6919,7 +6907,7 @@ function registerIpcHandlers() {
     return { width, height };
   });
 
-  ipcMain.handle("flowselect:current-window:scale-factor", (event) => {
+  ipcMain.handle("ameow:current-window:scale-factor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       throw new Error("Current window not found");
@@ -6928,11 +6916,11 @@ function registerIpcHandlers() {
     return display.scaleFactor;
   });
 
-  ipcMain.handle("flowselect:current-window:start-dragging", () => {
+  ipcMain.handle("ameow:current-window:start-dragging", () => {
     return;
   });
 
-  ipcMain.handle("flowselect:current-window:renderer-ready", (event) => {
+  ipcMain.handle("ameow:current-window:renderer-ready", (event) => {
     const resolveRendererReady = pendingRendererReadySignals.get(event.sender.id);
     void queueStartupDiagnostic("WindowDiag", "ipc:renderer-ready", {
       senderId: event.sender.id,
@@ -6944,7 +6932,7 @@ function registerIpcHandlers() {
     });
   });
 
-  ipcMain.on("flowselect:current-window:set-position", (event, payload) => {
+  ipcMain.on("ameow:current-window:set-position", (event, payload) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       return;
@@ -6959,7 +6947,7 @@ function registerIpcHandlers() {
     win.setPosition(Math.round(x), Math.round(y));
   });
 
-  ipcMain.on("flowselect:current-window:set-interaction-mode", (event, payload) => {
+  ipcMain.on("ameow:current-window:set-interaction-mode", (event, payload) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       return;
@@ -6976,7 +6964,7 @@ function registerIpcHandlers() {
     win.setFocusable(true);
   });
 
-  ipcMain.handle("flowselect:current-window:animate-bounds", async (event, request) => {
+  ipcMain.handle("ameow:current-window:animate-bounds", async (event, request) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       throw new Error("Current window not found");
@@ -7000,17 +6988,17 @@ function registerIpcHandlers() {
     };
   });
 
-  ipcMain.handle("flowselect:current-window:close", (event) => {
+  ipcMain.handle("ameow:current-window:close", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.close();
   });
 
-  ipcMain.handle("flowselect:current-window:hide", (event) => {
+  ipcMain.handle("ameow:current-window:hide", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.hide();
   });
 
-  ipcMain.handle("flowselect:system:current-monitor", (event) => {
+  ipcMain.handle("ameow:system:current-monitor", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       return null;
@@ -7029,18 +7017,18 @@ function registerIpcHandlers() {
     };
   });
 
-  ipcMain.handle("flowselect:system:open-dialog", (event, request) =>
+  ipcMain.handle("ameow:system:open-dialog", (event, request) =>
     openDialogForEvent(event, request.options));
-  ipcMain.handle("flowselect:system:open-external", async (_event, request) => {
+  ipcMain.handle("ameow:system:open-external", async (_event, request) => {
     await shell.openExternal(request.url);
   });
-  ipcMain.handle("flowselect:system:relaunch", () => {
+  ipcMain.handle("ameow:system:relaunch", () => {
     app.relaunch();
     app.exit(0);
   });
-  ipcMain.handle("flowselect:clipboard:read-image", () => readClipboardImage());
-  ipcMain.handle("flowselect:updater:check", () => checkForAppUpdate());
-  ipcMain.handle("flowselect:updater:download-and-install", () =>
+  ipcMain.handle("ameow:clipboard:read-image", () => readClipboardImage());
+  ipcMain.handle("ameow:updater:check", () => checkForAppUpdate());
+  ipcMain.handle("ameow:updater:download-and-install", () =>
     downloadAndInstallAppUpdate());
 }
 
@@ -7118,17 +7106,17 @@ async function bootstrap() {
     }
     for (const pending of pendingProtectedImageRequests.values()) {
       clearTimeout(pending.timeoutId);
-      pending.rejectResolution(new Error("FlowSelect is shutting down"));
+      pending.rejectResolution(new Error("Ameow is shutting down"));
     }
     pendingProtectedImageRequests.clear();
     for (const pending of pendingPastedVideoSelectionRequests.values()) {
       clearTimeout(pending.timeoutId);
-      pending.rejectResolution(new Error("FlowSelect is shutting down"));
+      pending.rejectResolution(new Error("Ameow is shutting down"));
     }
     pendingPastedVideoSelectionRequests.clear();
     for (const pending of pendingXiaohongshuDragRequests.values()) {
       clearTimeout(pending.timeoutId);
-      pending.rejectResolution(new Error("FlowSelect is shutting down"));
+      pending.rejectResolution(new Error("Ameow is shutting down"));
     }
     pendingXiaohongshuDragRequests.clear();
     if (wsServer) {

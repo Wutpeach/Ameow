@@ -1,14 +1,14 @@
-// FlowSelect Browser Extension - Zhihu Video Detector
+// Ameow Browser Extension - Zhihu Video Detector
 // Detects Zhihu zvideo player controls and injects a download button into the control bar.
 
 (function () {
   "use strict";
 
-  const PROCESSED_ATTR = "data-flowselect-zhihu-processed";
-  const BUTTON_CLASS = "flowselect-zhihu-control-btn";
-  const BUTTON_ATTR = "data-flowselect-zhihu-button";
+  const PROCESSED_ATTR = "data-ameow-zhihu-processed";
+  const BUTTON_CLASS = "ameow-zhihu-control-btn";
+  const BUTTON_ATTR = "data-ameow-zhihu-button";
   const BUTTON_VALUE = "control";
-  const ITEM_ATTR = "data-flowselect-zhihu-item";
+  const ITEM_ATTR = "data-ameow-zhihu-item";
   const ITEM_VALUE = "control";
   const DETECT_DELAY_MS = 140;
   const URL_CHECK_INTERVAL_MS = 900;
@@ -474,8 +474,8 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = [nativeClassName.trim(), BUTTON_CLASS].filter(Boolean).join(" ");
-    button.title = "Download with FlowSelect";
-    button.setAttribute("aria-label", "Download with FlowSelect");
+    button.title = "Download with Ameow";
+    button.setAttribute("aria-label", "Download with Ameow");
     button.setAttribute(BUTTON_ATTR, BUTTON_VALUE);
     button.innerHTML = CAT_ICON_SVG;
 

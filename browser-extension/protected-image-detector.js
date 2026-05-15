@@ -1,13 +1,13 @@
 (function () {
   "use strict";
 
-  const DRAG_PAYLOAD_MARKER = "FLOWSELECT_PROTECTED_IMAGE_DRAG";
-  const DRAG_PAYLOAD_MIME = "application/x-flowselect-protected-image-drag";
-  const PAGE_REQUEST_TYPE = "FLOWSELECT_RESOLVE_PROTECTED_IMAGE_REQUEST";
-  const PAGE_RESPONSE_TYPE = "FLOWSELECT_RESOLVE_PROTECTED_IMAGE_RESPONSE";
-  const PAGE_BRIDGE_FLAG = "__flowselectProtectedImageBridgeInstalled";
-  const PAGE_MESSAGE_SOURCE = "flowselect-protected-image-page";
-  const EXTENSION_MESSAGE_SOURCE = "flowselect-protected-image-extension";
+  const DRAG_PAYLOAD_MARKER = "AMEOW_PROTECTED_IMAGE_DRAG";
+  const DRAG_PAYLOAD_MIME = "application/x-ameow-protected-image-drag";
+  const PAGE_REQUEST_TYPE = "AMEOW_RESOLVE_PROTECTED_IMAGE_REQUEST";
+  const PAGE_RESPONSE_TYPE = "AMEOW_RESOLVE_PROTECTED_IMAGE_RESPONSE";
+  const PAGE_BRIDGE_FLAG = "__ameowProtectedImageBridgeInstalled";
+  const PAGE_MESSAGE_SOURCE = "ameow-protected-image-page";
+  const EXTENSION_MESSAGE_SOURCE = "ameow-protected-image-extension";
   const PAGE_RESPONSE_TIMEOUT_MS = 12000;
   const PAGE_BRIDGE_SCRIPT_PATH = "protected-image-page-bridge.js";
   const EXCLUDED_HOST_RE =
@@ -60,7 +60,7 @@
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
       return globalThis.crypto.randomUUID();
     }
-    return `flowselect-img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `ameow-img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   function resolveImageElement(target) {
@@ -344,7 +344,7 @@
           };
         }
       } catch (error) {
-        console.warn("[FlowSelect] Protected image canvas export failed, falling back to fetch:", error);
+        console.warn("[Ameow] Protected image canvas export failed, falling back to fetch:", error);
       }
     }
 
@@ -358,7 +358,7 @@
       pageUrl: payload.pageUrl,
       imageUrl: payload.imageUrl,
     }).catch((error) => {
-      console.warn("[FlowSelect] Failed to register protected image drag:", error);
+      console.warn("[Ameow] Failed to register protected image drag:", error);
     });
   }
 
@@ -503,18 +503,18 @@
 
     const localResult = await resolveProtectedImageInContentScript(imageUrl);
     if (localResult?.success) {
-      console.info("[FlowSelect] Protected image resolved in content script context");
+      console.info("[Ameow] Protected image resolved in content script context");
       return localResult;
     }
 
     console.warn(
-      "[FlowSelect] Protected image local resolution failed, trying page bridge:",
+      "[Ameow] Protected image local resolution failed, trying page bridge:",
       localResult?.code || localResult?.error || "unknown",
     );
 
     const pageResult = await resolveProtectedImageFromPage(imageUrl, pageUrl || window.location.href);
     if (pageResult?.success) {
-      console.info("[FlowSelect] Protected image resolved through page bridge");
+      console.info("[Ameow] Protected image resolved through page bridge");
       return pageResult;
     }
 

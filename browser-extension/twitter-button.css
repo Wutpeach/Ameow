@@ -1,11 +1,11 @@
-/* FlowSelect Browser Extension - Twitter Download Button Styles */
+/* Ameow Browser Extension - Twitter Download Button Styles */
 
 :root {
-  --flowselect-site-accent: rgb(29, 155, 240);
-  --flowselect-site-accent-soft: rgba(29, 155, 240, 0.14);
+  --ameow-site-accent: rgb(29, 155, 240);
+  --ameow-site-accent-soft: rgba(29, 155, 240, 0.14);
 }
 
-.flowselect-download-btn {
+.ameow-download-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -26,7 +26,7 @@
   transition: color 0.18s ease;
 }
 
-.flowselect-download-btn::before {
+.ameow-download-btn::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -39,19 +39,19 @@
   transition: background-color 0.18s ease;
 }
 
-.flowselect-download-btn:hover {
-  color: var(--flowselect-site-accent);
+.ameow-download-btn:hover {
+  color: var(--ameow-site-accent);
 }
 
-.flowselect-download-btn:hover::before {
-  background-color: var(--flowselect-site-accent-soft);
+.ameow-download-btn:hover::before {
+  background-color: var(--ameow-site-accent-soft);
 }
 
-.flowselect-download-btn:active::before {
+.ameow-download-btn:active::before {
   background-color: rgba(29, 155, 240, 0.2);
 }
 
-.flowselect-download-btn svg {
+.ameow-download-btn svg {
   position: relative;
   z-index: 1;
   display: block;
@@ -63,6 +63,6 @@
   pointer-events: none;
 }
 
-.flowselect-download-btn svg * {
+.ameow-download-btn svg * {
   fill: currentColor;
 }

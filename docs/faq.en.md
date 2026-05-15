@@ -9,7 +9,7 @@ First try right-click `Open`, or allow the app from `System Settings > Privacy &
 If quarantine still blocks the app, run:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
+xattr -dr com.apple.quarantine "/Applications/Ameow.app"
 ```
 
 ## What If Downloads Fail Or Never Start?
@@ -18,12 +18,12 @@ First confirm:
 
 - the output folder is still writable
 - the network connection is working
-- FlowSelect is not being blocked by a firewall or security tool
+- Ameow is not being blocked by a firewall or security tool
 - the current site is still supported, or the current URL is still valid
 
 If the issue is part of a web-video download flow, also try:
 
-- copying the page URL again and pasting it back into FlowSelect
+- copying the page URL again and pasting it back into Ameow
 - restarting the app and retrying
 - confirming that the browser extension is connected to the desktop app
 
@@ -31,7 +31,7 @@ If the issue is part of a web-video download flow, also try:
 
 First confirm:
 
-- the FlowSelect desktop app is already running
+- the Ameow desktop app is already running
 - the extension popup is not showing `Disconnected`
 - local communication is not being blocked by a firewall
 
@@ -43,7 +43,7 @@ If the issue continues:
 
 ## What If I Cannot Find The Downloaded Files?
 
-- The default output folder is `Desktop/FlowSelect_Received`.
+- The default output folder is `Desktop/Ameow_Received`.
 - Double-click the empty area of the main window to quickly open the current output folder.
 - Right-click the main window to open the current output folder or choose a new one.
 

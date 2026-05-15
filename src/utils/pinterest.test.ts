@@ -8,7 +8,7 @@ import {
 
 function encodeEmbeddedPayload(payload: object): string {
   const json = JSON.stringify(payload);
-  return `FLOWSELECT_PINTEREST_DRAG:${btoa(
+  return `AMEOW_PINTEREST_DRAG:${btoa(
     encodeURIComponent(json).replace(/%([0-9A-F]{2})/gi, (_, hex) =>
       String.fromCharCode(Number.parseInt(hex, 16)),
     ),

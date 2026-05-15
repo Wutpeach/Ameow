@@ -23,7 +23,7 @@ const loadHelper = (overrides = {}) => {
     ...overrides,
   };
   vm.runInNewContext(helperSource, context, { filename: helperPath });
-  return context.self.FlowSelectShortLinkResolution;
+  return context.self.AmeowShortLinkResolution;
 };
 
 describe("short-link resolution helper", () => {

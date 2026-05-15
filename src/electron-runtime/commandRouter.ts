@@ -1,4 +1,4 @@
-import type { FlowSelectRendererCommand } from "../types/electronBridge.js";
+import type { AmeowRendererCommand } from "../types/electronBridge.js";
 import type {
   RuntimeDependencyGateStatePayload,
   RuntimeDependencyStatusSnapshot,
@@ -16,7 +16,7 @@ import { orderVideoCandidatesForSite } from "../core/video-candidate-order.js";
 import { createInteractionCapabilityDiagnostic } from "../download-capabilities/runtime-interaction-capabilities.js";
 
 export type ElectronRuntimeCommand = Extract<
-  FlowSelectRendererCommand,
+  AmeowRendererCommand,
   | "cancel_download"
   | "get_runtime_dependency_gate_state"
   | "get_runtime_dependency_status"
@@ -37,14 +37,14 @@ export type ElectronRuntimeCommandResultMap = {
 type CommandPayload = Record<string, unknown> | undefined;
 
 type CommandFallback = (
-  command: FlowSelectRendererCommand,
+  command: AmeowRendererCommand,
   payload?: Record<string, unknown>,
 ) => Promise<unknown>;
 
 export interface ElectronRuntimeCommandRouter {
-  supports(command: FlowSelectRendererCommand): command is ElectronRuntimeCommand;
+  supports(command: AmeowRendererCommand): command is ElectronRuntimeCommand;
   invoke<TResult>(
-    command: FlowSelectRendererCommand,
+    command: AmeowRendererCommand,
     payload?: Record<string, unknown>,
   ): Promise<TResult>;
 }
@@ -445,7 +445,7 @@ const normalizeBootstrapReason = (payload: CommandPayload): string | undefined =
 };
 
 export const isElectronRuntimeCommand = (
-  command: FlowSelectRendererCommand,
+  command: AmeowRendererCommand,
 ): command is ElectronRuntimeCommand => supportedCommands.has(command as ElectronRuntimeCommand);
 
 export const createElectronRuntimeCommandRouter = (
@@ -453,7 +453,7 @@ export const createElectronRuntimeCommandRouter = (
 ): ElectronRuntimeCommandRouter => ({
   supports: isElectronRuntimeCommand,
   async invoke<TResult>(
-    command: FlowSelectRendererCommand,
+    command: AmeowRendererCommand,
     payload?: Record<string, unknown>,
   ): Promise<TResult> {
     switch (command) {

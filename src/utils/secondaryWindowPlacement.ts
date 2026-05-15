@@ -1,15 +1,15 @@
-import type { FlowSelectDisplay, FlowSelectPoint, FlowSelectSize } from "../types/electronBridge";
+import type { AmeowDisplay, AmeowPoint, AmeowSize } from "../types/electronBridge";
 
 type PreferredSide = "right" | "left";
 
 export type ResolveSecondaryWindowPositionOptions = {
-  anchorPosition: FlowSelectPoint;
-  anchorSize: FlowSelectSize;
-  targetSize: FlowSelectSize;
+  anchorPosition: AmeowPoint;
+  anchorSize: AmeowSize;
+  targetSize: AmeowSize;
   gap: number;
   edgePadding: number;
   scaleFactor: number;
-  monitor: FlowSelectDisplay | null;
+  monitor: AmeowDisplay | null;
   preferredSide?: PreferredSide;
 };
 
@@ -26,7 +26,7 @@ export const resolveSecondaryWindowPosition = ({
   scaleFactor,
   monitor,
   preferredSide = "right",
-}: ResolveSecondaryWindowPositionOptions): FlowSelectPoint => {
+}: ResolveSecondaryWindowPositionOptions): AmeowPoint => {
   const safeScaleFactor = Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1;
   const gapPx = gap * safeScaleFactor;
   const edgePaddingPx = edgePadding * safeScaleFactor;

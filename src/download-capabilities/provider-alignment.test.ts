@@ -49,7 +49,7 @@ describe("manual capability overlay stays aligned with current provider routing"
 
   it("keeps twitter-x on the single yt-dlp strategy", () => {
     expectPlanAlignedWithStrategy("twitter-x", {
-      url: "https://x.com/flowselect/status/1234567890",
+      url: "https://x.com/ameow/status/1234567890",
     });
   });
 

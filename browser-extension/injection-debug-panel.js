@@ -1,10 +1,10 @@
-(function initFlowSelectInjectionDebugPanel(root) {
+(function initAmeowInjectionDebugPanel(root) {
   "use strict";
 
-  const PANEL_ID = "flowselect-injection-debug-panel";
-  const PANEL_POSITION_KEY = "flowselectInjectionDebugPanelPosition";
-  const PANEL_SIZE_KEY = "flowselectInjectionDebugPanelSize";
-  const OVERRIDES_PREFIX = "flowselectInjectionDebugOverrides:";
+  const PANEL_ID = "ameow-injection-debug-panel";
+  const PANEL_POSITION_KEY = "ameowInjectionDebugPanelPosition";
+  const PANEL_SIZE_KEY = "ameowInjectionDebugPanelSize";
+  const OVERRIDES_PREFIX = "ameowInjectionDebugOverrides:";
   const SNAPSHOT_REFRESH_MS = 280;
   const DEFAULT_PANEL_WIDTH_PX = 312;
   const DEFAULT_PANEL_HEIGHT_PX = 208;
@@ -238,7 +238,7 @@
         currentSize = size;
       }
     } catch (error) {
-      console.error("[FlowSelect] Failed to load injection debug panel state:", error);
+      console.error("[Ameow] Failed to load injection debug panel state:", error);
     }
   }
 
@@ -249,7 +249,7 @@
     try {
       await storageSet({ [PANEL_POSITION_KEY]: currentPosition });
     } catch (error) {
-      console.error("[FlowSelect] Failed to persist injection debug panel position:", error);
+      console.error("[Ameow] Failed to persist injection debug panel position:", error);
     }
   }
 
@@ -260,7 +260,7 @@
     try {
       await storageSet({ [PANEL_SIZE_KEY]: currentSize });
     } catch (error) {
-      console.error("[FlowSelect] Failed to persist injection debug panel size:", error);
+      console.error("[Ameow] Failed to persist injection debug panel size:", error);
     }
   }
 
@@ -424,7 +424,7 @@
         [`${OVERRIDES_PREFIX}${activeAdapter.id}`]: activeAdapter.getOverrides(),
       });
     } catch (error) {
-      console.error("[FlowSelect] Failed to persist injection debug overrides:", error);
+      console.error("[Ameow] Failed to persist injection debug overrides:", error);
     }
   }
 
@@ -440,7 +440,7 @@
         adapter.setOverrides(overrides);
       }
     } catch (error) {
-      console.error("[FlowSelect] Failed to load injection debug overrides:", error);
+      console.error("[Ameow] Failed to load injection debug overrides:", error);
     }
   }
 
@@ -617,7 +617,7 @@
     renderDiagnostics();
   }
 
-  root.FlowSelectInjectionDebugPanel = {
+  root.AmeowInjectionDebugPanel = {
     mountAdapter,
     refresh,
     unmountAdapter,

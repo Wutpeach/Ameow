@@ -1,34 +1,34 @@
 import type { AppUpdateInfo } from "../types/appUpdate";
 import type {
-  FlowSelectAppEvent,
-  FlowSelectClipboardImage,
-  FlowSelectContextMenuWindowOptions,
-  FlowSelectCurrentWindowApi,
-  FlowSelectDialogOpenOptions,
-  FlowSelectDisplay,
-  FlowSelectDroppedFolderPathResult,
-  FlowSelectElectronBridge,
-  FlowSelectEventPayload,
-  FlowSelectRendererCommand,
-  FlowSelectRendererEvent,
-  FlowSelectSecondaryWindowOptions,
-  FlowSelectWindowLabel,
+  AmeowAppEvent,
+  AmeowClipboardImage,
+  AmeowContextMenuWindowOptions,
+  AmeowCurrentWindowApi,
+  AmeowDialogOpenOptions,
+  AmeowDisplay,
+  AmeowDroppedFolderPathResult,
+  AmeowElectronBridge,
+  AmeowEventPayload,
+  AmeowRendererCommand,
+  AmeowRendererEvent,
+  AmeowSecondaryWindowOptions,
+  AmeowWindowLabel,
 } from "../types/electronBridge";
 
-const resolveElectronBridge = (): FlowSelectElectronBridge => {
-  if (typeof window === "undefined" || !window.flowselect) {
-    throw new Error("FlowSelect Electron bridge is unavailable");
+const resolveElectronBridge = (): AmeowElectronBridge => {
+  if (typeof window === "undefined" || !window.ameow) {
+    throw new Error("Ameow Electron bridge is unavailable");
   }
-  return window.flowselect;
+  return window.ameow;
 };
 
 export const isElectronRenderer = (): boolean => (
-  typeof window !== "undefined" && Boolean(window.flowselect)
+  typeof window !== "undefined" && Boolean(window.ameow)
 );
 
 export const desktopCommands = {
   async invoke<TResult>(
-    command: FlowSelectRendererCommand,
+    command: AmeowRendererCommand,
     payload?: Record<string, unknown>,
   ): Promise<TResult> {
     return resolveElectronBridge().commands.invoke<TResult>(command, payload);
@@ -37,20 +37,20 @@ export const desktopCommands = {
 
 export const desktopEvents = {
   async on<TPayload>(
-    event: FlowSelectAppEvent,
-    listener: (event: FlowSelectEventPayload<TPayload>) => void,
+    event: AmeowAppEvent,
+    listener: (event: AmeowEventPayload<TPayload>) => void,
   ): Promise<() => void> {
     return resolveElectronBridge().events.on<TPayload>(event, listener);
   },
   async emit<TPayload>(
-    event: FlowSelectRendererEvent,
+    event: AmeowRendererEvent,
     payload: TPayload,
   ): Promise<void> {
     await resolveElectronBridge().events.emit(event, payload);
   },
 };
 
-export const desktopCurrentWindow: FlowSelectCurrentWindowApi = {
+export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   async outerPosition() {
     return resolveElectronBridge().currentWindow.outerPosition();
   },
@@ -93,11 +93,11 @@ export const desktopCurrentWindow: FlowSelectCurrentWindowApi = {
 };
 
 export const desktopSystem = {
-  async currentMonitor(): Promise<FlowSelectDisplay | null> {
+  async currentMonitor(): Promise<AmeowDisplay | null> {
     return resolveElectronBridge().system.currentMonitor();
   },
   async openDialog(
-    options: FlowSelectDialogOpenOptions,
+    options: AmeowDialogOpenOptions,
   ): Promise<string | string[] | null> {
     return resolveElectronBridge().system.openDialog(options);
   },
@@ -110,13 +110,13 @@ export const desktopSystem = {
 };
 
 export const desktopDrop = {
-  async consumePendingFolderDrop(): Promise<FlowSelectDroppedFolderPathResult | null> {
+  async consumePendingFolderDrop(): Promise<AmeowDroppedFolderPathResult | null> {
     return resolveElectronBridge().drop.consumePendingFolderDrop();
   },
 };
 
 export const desktopClipboard = {
-  async readImage(): Promise<FlowSelectClipboardImage | null> {
+  async readImage(): Promise<AmeowClipboardImage | null> {
     return resolveElectronBridge().clipboard.readImage();
   },
 };
@@ -131,22 +131,22 @@ export const desktopUpdater = {
 };
 
 export const desktopWindows = {
-  async has(label: FlowSelectWindowLabel): Promise<boolean> {
+  async has(label: AmeowWindowLabel): Promise<boolean> {
     return resolveElectronBridge().windows.has(label);
   },
-  async focus(label: FlowSelectWindowLabel): Promise<void> {
+  async focus(label: AmeowWindowLabel): Promise<void> {
     await resolveElectronBridge().windows.focus(label);
   },
   async close(label: "settings" | "context-menu" | "ui-lab"): Promise<void> {
     await resolveElectronBridge().windows.close(label);
   },
-  async openSettings(options: FlowSelectSecondaryWindowOptions): Promise<void> {
+  async openSettings(options: AmeowSecondaryWindowOptions): Promise<void> {
     await resolveElectronBridge().windows.openSettings(options);
   },
-  async openContextMenu(options: FlowSelectContextMenuWindowOptions): Promise<void> {
+  async openContextMenu(options: AmeowContextMenuWindowOptions): Promise<void> {
     await resolveElectronBridge().windows.openContextMenu(options);
   },
-  async openUiLab(options: FlowSelectSecondaryWindowOptions): Promise<void> {
+  async openUiLab(options: AmeowSecondaryWindowOptions): Promise<void> {
     await resolveElectronBridge().windows.openUiLab(options);
   },
 };

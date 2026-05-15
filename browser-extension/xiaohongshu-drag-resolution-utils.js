@@ -39,7 +39,7 @@
     return normalizedMediaType === "image" && result.kind === "image" && Boolean(imageUrl);
   }
 
-  globalScope.FlowSelectXiaohongshuDragResolutionUtils = {
+  globalScope.AmeowXiaohongshuDragResolutionUtils = {
     hasResolvedXiaohongshuDragMedia,
   };
 })(typeof self !== "undefined" ? self : globalThis);

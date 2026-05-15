@@ -1,25 +1,25 @@
-# FlowSelect
+# Ameow
 
 <div align="center">
-  <img src="./app-icon.png" width="112" alt="FlowSelect logo" />
+  <img src="./app-icon.png" width="112" alt="Ameow logo" />
   <p><strong>A floating desktop collector for files, images, web video, and browser-extension assisted capture.</strong></p>
   <p>
     <a href="./README.md">中文</a> |
     <a href="./README.en.md">English</a> |
-    <a href="https://github.com/Wutpeach/FlowSelect/releases">Download Releases</a> |
+    <a href="https://github.com/Wutpeach/Ameow/releases">Download Releases</a> |
     <a href="./docs/getting-started.en.md">Getting Started</a> |
     <a href="./docs/browser-extension.en.md">Browser Extension</a> |
     <a href="./docs/faq.en.md">FAQ</a> |
     <a href="./release-notes/">Release Notes</a>
   </p>
   <p>
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/Wutpeach/FlowSelect?display_name=tag" />
-    <img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/Wutpeach/FlowSelect/release.yml?label=release" />
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/Wutpeach/Ameow?display_name=tag" />
+    <img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/Wutpeach/Ameow/release.yml?label=release" />
     <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-111827" />
   </p>
 </div>
 
-FlowSelect is a lightweight Electron desktop collector with a small always-on-top window for gathering files, images, and web video into a controlled output folder. It supports drag and drop, paste flows, and browser-extension assisted capture so desktop and browser assets can flow into the same workspace.
+Ameow is a lightweight Electron desktop collector with a small always-on-top window for gathering files, images, and web video into a controlled output folder. It supports drag and drop, paste flows, and browser-extension assisted capture so desktop and browser assets can flow into the same workspace.
 
 ## Good Fit For
 
@@ -36,13 +36,13 @@ FlowSelect is a lightweight Electron desktop collector with a small always-on-to
 
 ## Downloads
 
-FlowSelect ships through GitHub Releases, including desktop builds and the browser-extension package.
+Ameow ships through GitHub Releases, including desktop builds and the browser-extension package.
 
 <p>
-  <a href="https://github.com/Wutpeach/FlowSelect/releases/latest"><img alt="Windows Installer EXE" src="https://img.shields.io/badge/Windows-Installer_EXE-2563EB?logo=windows&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/FlowSelect/releases/latest"><img alt="Windows Portable ZIP" src="https://img.shields.io/badge/Windows-Portable_ZIP-0F6CBD?logo=windows&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/FlowSelect/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/FlowSelect/releases/latest"><img alt="macOS Intel DMG" src="https://img.shields.io/badge/macOS-Intel_DMG-374151?logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Installer EXE" src="https://img.shields.io/badge/Windows-Installer_EXE-2563EB?logo=windows&logoColor=white" /></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Portable ZIP" src="https://img.shields.io/badge/Windows-Portable_ZIP-0F6CBD?logo=windows&logoColor=white" /></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Intel DMG" src="https://img.shields.io/badge/macOS-Intel_DMG-374151?logo=apple&logoColor=white" /></a>
 </p>
 
 For installation, first launch, and platform-specific help, see [Getting Started](./docs/getting-started.en.md).
@@ -81,6 +81,6 @@ npm run test
 
 ## Acknowledgements
 
-Some of FlowSelect's core capabilities are built on top of excellent open-source projects. Special thanks to `yt-dlp`, `gallery-dl`, and `FFmpeg` for providing the foundation for web media extraction, resource downloading, and downstream media processing.
+Some of Ameow's core capabilities are built on top of excellent open-source projects. Special thanks to `yt-dlp`, `gallery-dl`, and `FFmpeg` for providing the foundation for web media extraction, resource downloading, and downstream media processing.
 
 We also appreciate the maintainers of the many other open-source projects used throughout this repository.

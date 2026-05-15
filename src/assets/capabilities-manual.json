@@ -3,10 +3,10 @@
   "generatedAt": "2026-04-13T14:30:00.000Z",
   "sources": [
     {
-      "id": "flowselect-manual-sites",
+      "id": "ameow-manual-sites",
       "type": "manual",
       "engine": null,
-      "label": "FlowSelect manual capability overlay",
+      "label": "Ameow manual capability overlay",
       "fetchedAt": "2026-04-13T14:30:00.000Z",
       "entryCount": 8,
       "notes": [
@@ -20,7 +20,7 @@
       "siteId": "youtube",
       "displayName": "YouTube",
       "engine": "yt-dlp",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -34,7 +34,7 @@
       "siteId": "bilibili",
       "displayName": "Bilibili",
       "engine": "yt-dlp",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -47,7 +47,7 @@
       "siteId": "twitter-x",
       "displayName": "Twitter/X",
       "engine": "yt-dlp",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -60,7 +60,7 @@
       "siteId": "douyin",
       "displayName": "Douyin",
       "engine": "direct",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -74,7 +74,7 @@
       "siteId": "xiaohongshu",
       "displayName": "Xiaohongshu",
       "engine": "direct",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -87,7 +87,7 @@
       "siteId": "pinterest",
       "displayName": "Pinterest",
       "engine": "gallery-dl",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -100,7 +100,7 @@
       "siteId": "weibo",
       "displayName": "Weibo",
       "engine": "gallery-dl",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "optional",
@@ -113,7 +113,7 @@
       "siteId": "generic",
       "displayName": "Generic",
       "engine": "yt-dlp",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
       "authRequirement": "unknown",
@@ -124,49 +124,49 @@
   "interactionCapabilities": [
     {
       "siteId": "youtube",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "native_ok",
       "supportedModes": ["paste", "context_menu", "injected_button"]
     },
     {
       "siteId": "bilibili",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "native_ok",
       "supportedModes": ["paste", "context_menu", "injected_button"]
     },
     {
       "siteId": "twitter-x",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "native_ok",
       "supportedModes": ["paste", "context_menu", "injected_button"]
     },
     {
       "siteId": "douyin",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "needs_special_adapter",
       "supportedModes": ["paste", "context_menu"]
     },
     {
       "siteId": "xiaohongshu",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "needs_special_adapter",
       "supportedModes": ["paste", "drag", "context_menu", "injected_button", "page_bridge"]
     },
     {
       "siteId": "pinterest",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "needs_special_adapter",
       "supportedModes": ["paste", "drag", "context_menu", "injected_button"]
     },
     {
       "siteId": "weibo",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "needs_special_adapter",
       "supportedModes": ["paste", "context_menu"]
     },
     {
       "siteId": "generic",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "interactionStatus": "unknown",
       "supportedModes": ["paste", "drag", "context_menu"]
     }
@@ -175,7 +175,7 @@
     {
       "siteId": "youtube",
       "displayName": "YouTube",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
       "engineOrder": ["yt-dlp"],
       "matchHints": {
@@ -185,7 +185,7 @@
     {
       "siteId": "bilibili",
       "displayName": "Bilibili",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
       "engineOrder": ["yt-dlp"],
       "matchHints": {
@@ -195,7 +195,7 @@
     {
       "siteId": "twitter-x",
       "displayName": "Twitter/X",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
       "engineOrder": ["yt-dlp"],
       "matchHints": {
@@ -205,7 +205,7 @@
     {
       "siteId": "douyin",
       "displayName": "Douyin",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "conditional_direct",
       "engineOrder": ["direct", "yt-dlp"],
       "matchHints": {
@@ -215,7 +215,7 @@
     {
       "siteId": "xiaohongshu",
       "displayName": "Xiaohongshu",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "conditional_direct",
       "engineOrder": ["direct", "yt-dlp"],
       "matchHints": {
@@ -225,7 +225,7 @@
     {
       "siteId": "pinterest",
       "displayName": "Pinterest",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "conditional_direct",
       "engineOrder": ["direct", "gallery-dl"],
       "matchHints": {
@@ -235,7 +235,7 @@
     {
       "siteId": "weibo",
       "displayName": "Weibo",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "ordered_fallback",
       "engineOrder": ["gallery-dl", "yt-dlp"],
       "matchHints": {
@@ -245,7 +245,7 @@
     {
       "siteId": "generic",
       "displayName": "Generic",
-      "sourceId": "flowselect-manual-sites",
+      "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
       "engineOrder": ["yt-dlp"],
       "notes": ["Default project strategy when no explicit site strategy matches."]

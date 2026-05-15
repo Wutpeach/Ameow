@@ -1,4 +1,4 @@
-import type { FlowSelectAppEvent } from "../types/electronBridge.js";
+import type { AmeowAppEvent } from "../types/electronBridge.js";
 import type {
   RuntimeDependencyGateStatePayload,
   RuntimeDependencyManagedComponent,
@@ -24,7 +24,7 @@ export type RuntimeManagedComponent = RuntimeDependencyManagedComponent;
 
 export type RuntimeEmitterEvent =
   | Extract<
-      FlowSelectAppEvent,
+      AmeowAppEvent,
       | "runtime-dependency-gate-state"
       | "video-download-complete"
       | "video-download-progress"

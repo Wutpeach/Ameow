@@ -1,6 +1,6 @@
 const XIAOHONGSHU_PAGE_URL_PATTERN = /^https?:\/\/(?:www\.)?(?:xiaohongshu\.com|xhslink\.com)\//i;
 const XIAOHONGSHU_VIDEO_HINT_PATTERN = /<video\b|https?:\/\/[^"'\\\s<>]+(?:\.mp4|\.m4v|\.mov|\.m3u8)(?:[?#][^"'\\\s<>]*)?|:\/\/[^"'\\\s<>]*video[^"'\\\s<>]*\.xhscdn\.com\//i;
-const XIAOHONGSHU_DRAG_PAYLOAD_RE = /FLOWSELECT_XIAOHONGSHU_DRAG:([A-Za-z0-9+/=_-]+)/i;
+const XIAOHONGSHU_DRAG_PAYLOAD_RE = /AMEOW_XIAOHONGSHU_DRAG:([A-Za-z0-9+/=_-]+)/i;
 
 export type XiaohongshuDragCandidate = {
   url: string;

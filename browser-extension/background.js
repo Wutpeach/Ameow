@@ -1,5 +1,5 @@
-// FlowSelect Browser Extension - Background Service Worker
-// WebSocket client for communication with FlowSelect desktop app
+// Ameow Browser Extension - Background Service Worker
+// WebSocket client for communication with Ameow desktop app
 
 importScripts(
   "direct-download-quality.js",
@@ -14,7 +14,7 @@ let ws = null;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
 const WS_URL = 'ws://127.0.0.1:39527';
-const WS_RECONNECT_ALARM = 'flowselect-ws-reconnect';
+const WS_RECONNECT_ALARM = 'ameow-ws-reconnect';
 const REQUEST_TIMEOUT_MS = 7000;
 const CONNECTING_WAIT_TIMEOUT_MS = 500;
 const VIDEO_SELECTION_CONNECT_TIMEOUT_MS = 3500;
@@ -29,20 +29,20 @@ const XIAOHONGSHU_BACKGROUND_TAB_TIMEOUT_MS = 18000;
 const CONNECTING_STATUS_TEXT = 'Connecting';
 const OFFLINE_STATUS_TEXT = 'Offline';
 const FALLBACK_LANGUAGE = 'en';
-const LANGUAGE_STORAGE_KEY = 'flowselectCurrentLanguage';
-const PENDING_DOWNLOAD_PREFERENCES_SYNC_KEY = 'flowselectPendingDownloadPreferencesSync';
+const LANGUAGE_STORAGE_KEY = 'ameowCurrentLanguage';
+const PENDING_DOWNLOAD_PREFERENCES_SYNC_KEY = 'ameowPendingDownloadPreferencesSync';
 const WS_ACTION_GET_LANGUAGE = 'get_language';
 const WS_ACTION_LANGUAGE_INFO = 'language_info';
 const WS_ACTION_LANGUAGE_CHANGED = 'language_changed';
 const INTERNAL_VIDEO_SELECTION_MESSAGE = 'video_selection';
-const INTERNAL_RESOLVE_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_video_selection';
-const INTERNAL_RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'flowselect_resolve_pasted_video_selection';
+const INTERNAL_RESOLVE_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_video_selection';
+const INTERNAL_RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
 const INTERNAL_RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE = 'resolve_xiaohongshu_context_media';
 const INTERNAL_NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE = 'navigate_xiaohongshu_note';
 const INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE = 'save_image_from_page';
 const INTERNAL_REGISTER_XIAOHONGSHU_DRAG_MESSAGE = 'register_xiaohongshu_drag';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
-const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'flowselect_download_video';
+const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
 const pendingRequests = new Map();
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
@@ -52,12 +52,12 @@ let lastConnectionIssue = OFFLINE_STATUS_TEXT;
 // Store current theme from desktop app
 let currentTheme = 'black';
 let currentLanguage = resolvePreferredLanguage(undefined, self.navigator?.language);
-const directDownloadQuality = self.FlowSelectDirectDownloadQuality;
-const genericVideoSelectionUtils = self.FlowSelectGenericVideoSelectionUtils;
-const injectionDebugConfig = self.FlowSelectInjectionDebugConfig;
-const shortLinkResolution = self.FlowSelectShortLinkResolution;
-const videoSelectionRouting = self.FlowSelectVideoSelectionRouting;
-const xiaohongshuDragResolutionUtils = self.FlowSelectXiaohongshuDragResolutionUtils;
+const directDownloadQuality = self.AmeowDirectDownloadQuality;
+const genericVideoSelectionUtils = self.AmeowGenericVideoSelectionUtils;
+const injectionDebugConfig = self.AmeowInjectionDebugConfig;
+const shortLinkResolution = self.AmeowShortLinkResolution;
+const videoSelectionRouting = self.AmeowVideoSelectionRouting;
+const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
 
 function isEnglishVariant(normalized) {
@@ -131,7 +131,7 @@ async function setPendingDownloadPreferencesSync(pending) {
       [PENDING_DOWNLOAD_PREFERENCES_SYNC_KEY]: pending === true,
     });
   } catch (error) {
-    console.error('[FlowSelect] Failed to persist pending preference sync state:', error);
+    console.error('[Ameow] Failed to persist pending preference sync state:', error);
   }
 }
 
@@ -144,7 +144,7 @@ async function getCachedLanguage() {
     const result = await storageGet(LANGUAGE_STORAGE_KEY);
     return normalizeAppLanguage(result?.[LANGUAGE_STORAGE_KEY]);
   } catch (error) {
-    console.error('[FlowSelect] Failed to load cached language:', error);
+    console.error('[Ameow] Failed to load cached language:', error);
     return null;
   }
 }
@@ -157,7 +157,7 @@ async function cacheLanguage(language) {
   try {
     await storageSet({ [LANGUAGE_STORAGE_KEY]: language });
   } catch (error) {
-    console.error('[FlowSelect] Failed to cache language:', error);
+    console.error('[Ameow] Failed to cache language:', error);
   }
 }
 
@@ -192,8 +192,8 @@ function setCurrentLanguage(nextLanguage, options = {}) {
 
 function getContextMenuTitle() {
   return currentLanguage === 'zh-CN'
-    ? '使用 FlowSelect 下载当前媒体'
-    : 'Download Current Media with FlowSelect';
+    ? '使用 Ameow 下载当前媒体'
+    : 'Download Current Media with Ameow';
 }
 
 function ensureContextMenus() {
@@ -211,7 +211,7 @@ function ensureContextMenus() {
         },
         () => {
           if (chrome.runtime?.lastError) {
-            console.warn('[FlowSelect] Failed to create context menu:', chrome.runtime.lastError.message);
+            console.warn('[Ameow] Failed to create context menu:', chrome.runtime.lastError.message);
             resolve(false);
             return;
           }
@@ -242,7 +242,7 @@ function requestLanguageFromApp(socket = ws) {
     socket.send(JSON.stringify({ action: WS_ACTION_GET_LANGUAGE }));
     return true;
   } catch (error) {
-    console.error('[FlowSelect] Failed to request language from desktop app:', error);
+    console.error('[Ameow] Failed to request language from desktop app:', error);
     return false;
   }
 }
@@ -501,7 +501,7 @@ function handlePageImageSelectionRequest(message, senderContext = {}) {
   ).then((result) => {
     if (!result?.success) {
       console.warn(
-        '[FlowSelect] Image selection request was not completed:',
+        '[Ameow] Image selection request was not completed:',
         result?.data?.code || result?.message || 'unknown',
       );
     }
@@ -512,7 +512,7 @@ function handlePageImageSelectionRequest(message, senderContext = {}) {
       reason: result?.data?.code || null,
     };
   }).catch((error) => {
-    console.error('[FlowSelect] Failed to prepare image selection request:', error);
+    console.error('[Ameow] Failed to prepare image selection request:', error);
     return {
       success: false,
       connected: isConnected(),
@@ -562,7 +562,7 @@ async function setExtensionInjectionDebugEnabled(enabled) {
     notifyExtensionInjectionDebugConfigUpdate(normalized);
     return normalized;
   } catch (error) {
-    console.error('[FlowSelect] Failed to persist injection debug config:', error);
+    console.error('[Ameow] Failed to persist injection debug config:', error);
     return normalized;
   }
 }
@@ -578,7 +578,7 @@ function syncExtensionInjectionDebugConfigFromApp() {
   ).then((response) => {
     if (!response?.success) {
       console.warn(
-        '[FlowSelect] Failed to sync extension injection debug config:',
+        '[Ameow] Failed to sync extension injection debug config:',
         response?.data?.code || response?.message || 'unknown'
       );
       return false;
@@ -587,7 +587,7 @@ function syncExtensionInjectionDebugConfigFromApp() {
     const enabled = response?.data?.enabled === true;
     return setExtensionInjectionDebugEnabled(enabled).then(() => true);
   }).catch((error) => {
-    console.error('[FlowSelect] Failed to sync extension injection debug config:', error);
+    console.error('[Ameow] Failed to sync extension injection debug config:', error);
     return false;
   });
 }
@@ -769,11 +769,11 @@ function summarizeVideoSelectionForDebug(payload) {
 
 function logInjectedVideoSelectionDebug(message, payload) {
   if (typeof payload === 'undefined') {
-    console.info(`[FlowSelect] ${message}`);
+    console.info(`[Ameow] ${message}`);
     return;
   }
 
-  console.info(`[FlowSelect] ${message}`, payload);
+  console.info(`[Ameow] ${message}`, payload);
 }
 
 function cleanupProtectedImageDragRegistry() {
@@ -839,7 +839,7 @@ async function getCookieHeaderForRequestUrl(url) {
     const cookies = await chrome.cookies.getAll({ url: normalizedUrl });
     return buildCookieHeader(cookies);
   } catch (error) {
-    console.warn('[FlowSelect] Failed to read cookies for protected image request:', error);
+    console.warn('[Ameow] Failed to read cookies for protected image request:', error);
     return '';
   }
 }
@@ -993,7 +993,7 @@ async function reportProtectedImageResolutionResult(requestId, result) {
 
   if (!response?.success) {
     console.warn(
-      '[FlowSelect] protected_image_resolution_result was not acknowledged:',
+      '[Ameow] protected_image_resolution_result was not acknowledged:',
       response?.data?.code || response?.message || 'unknown'
     );
   }
@@ -1029,7 +1029,7 @@ async function reportXiaohongshuDragResolutionResult(requestId, result) {
 
   if (!response?.success) {
     console.warn(
-      '[FlowSelect] xiaohongshu_drag_resolution_result was not acknowledged:',
+      '[Ameow] xiaohongshu_drag_resolution_result was not acknowledged:',
       response?.data?.code || response?.message || 'unknown'
     );
   }
@@ -1076,7 +1076,7 @@ async function reportPastedVideoSelectionResolutionResult(requestId, result) {
 
   if (!response?.success) {
     console.warn(
-      '[FlowSelect] pasted_video_selection_result was not acknowledged:',
+      '[Ameow] pasted_video_selection_result was not acknowledged:',
       response?.data?.code || response?.message || 'unknown'
     );
   }
@@ -1113,7 +1113,7 @@ async function handleProtectedImageResolveRequest(data) {
     ? data.targetDir
     : undefined;
 
-  console.info('[FlowSelect] Resolving protected image fallback:', {
+  console.info('[Ameow] Resolving protected image fallback:', {
     requestId,
     token,
     tabId: entry.tabId,
@@ -1145,7 +1145,7 @@ async function handleProtectedImageResolveRequest(data) {
 
     if (!resolution?.success || typeof resolution?.dataUrl !== 'string') {
       console.warn(
-        '[FlowSelect] Protected image tab resolution failed, trying extension background fetch:',
+        '[Ameow] Protected image tab resolution failed, trying extension background fetch:',
         resolution?.code || resolution?.error || 'unknown'
       );
       resolution = await fetchProtectedImageInBackground(imageUrl, pageUrl);
@@ -1153,7 +1153,7 @@ async function handleProtectedImageResolveRequest(data) {
 
     if (!resolution?.success || typeof resolution?.dataUrl !== 'string') {
       console.warn(
-        '[FlowSelect] Protected image byte resolution failed, trying desktop authenticated download:',
+        '[Ameow] Protected image byte resolution failed, trying desktop authenticated download:',
         resolution?.code || resolution?.error || 'unknown'
       );
       const desktopDownloadResult = await downloadProtectedImageViaDesktopApp(
@@ -1171,7 +1171,7 @@ async function handleProtectedImageResolveRequest(data) {
         && desktopDownloadResult.message.trim()
       ) {
         console.info(
-          '[FlowSelect] Protected image fallback saved via authenticated desktop download:',
+          '[Ameow] Protected image fallback saved via authenticated desktop download:',
           desktopDownloadResult.message.trim()
         );
         await reportProtectedImageResolutionResult(requestId, {
@@ -1211,7 +1211,7 @@ async function handleProtectedImageResolveRequest(data) {
     );
 
     if (saveResult?.success && typeof saveResult.message === 'string' && saveResult.message.trim()) {
-      console.info('[FlowSelect] Protected image fallback saved via FlowSelect:', saveResult.message.trim());
+      console.info('[Ameow] Protected image fallback saved via Ameow:', saveResult.message.trim());
       await reportProtectedImageResolutionResult(requestId, {
         success: true,
         filePath: saveResult.message.trim(),
@@ -1229,7 +1229,7 @@ async function handleProtectedImageResolveRequest(data) {
         : 'Protected image save_data_url fallback failed',
     });
   } catch (error) {
-    console.warn('[FlowSelect] Protected image fallback failed:', error);
+    console.warn('[Ameow] Protected image fallback failed:', error);
     await reportProtectedImageResolutionResult(requestId, {
       success: false,
       code: 'protected_image_resolution_failed',
@@ -1243,7 +1243,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
 
   const requestId = typeof data?.requestId === 'string' ? data.requestId.trim() : '';
   const token = typeof data?.token === 'string' ? data.token.trim() : '';
-  console.info('[FlowSelect] Resolving Xiaohongshu drag in extension background:', {
+  console.info('[Ameow] Resolving Xiaohongshu drag in extension background:', {
     requestId,
     token,
     pageUrl: normalizeHttpUrl(data?.pageUrl) || null,
@@ -1265,7 +1265,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
 
   const entry = xiaohongshuDragRegistry.get(token);
   if (!entry) {
-    console.warn('[FlowSelect] Xiaohongshu drag token was missing in registry:', {
+    console.warn('[Ameow] Xiaohongshu drag token was missing in registry:', {
       requestId,
       token,
     });
@@ -1278,7 +1278,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
     return;
   }
 
-  console.info('[FlowSelect] Xiaohongshu drag registry hit:', {
+  console.info('[Ameow] Xiaohongshu drag registry hit:', {
     requestId,
     token,
     registryPageUrl: entry.pageUrl,
@@ -1337,7 +1337,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
         videoIntentConfidence: requestVideoIntentConfidence,
       }) === true
     )) {
-      console.info('[FlowSelect] Xiaohongshu drag did not expose direct media in source tab; trying background tab fallback:', {
+      console.info('[Ameow] Xiaohongshu drag did not expose direct media in source tab; trying background tab fallback:', {
         requestId,
         token,
         pageUrl: normalizeHttpUrl(data?.pageUrl) || entry.pageUrl || null,
@@ -1369,7 +1369,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
       }
     }
 
-    console.info('[FlowSelect] Xiaohongshu drag tab resolution completed:', {
+    console.info('[Ameow] Xiaohongshu drag tab resolution completed:', {
       requestId,
       token,
       tabId: entry.tabId,
@@ -1406,7 +1406,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
       error: typeof resolution?.error === 'string' ? resolution.error : undefined,
     });
   } catch (error) {
-    console.warn('[FlowSelect] Xiaohongshu drag resolution failed in extension background:', {
+    console.warn('[Ameow] Xiaohongshu drag resolution failed in extension background:', {
       requestId,
       token,
       error: error instanceof Error ? error.message : String(error),
@@ -1451,7 +1451,7 @@ function connect(options = {}) {
       return;
     }
 
-    console.info('[FlowSelect] Connected to desktop app');
+    console.info('[Ameow] Connected to desktop app');
     reconnectAttempts = 0;
     lastConnectionIssue = '';
     notifyConnectionStatus();
@@ -1461,7 +1461,7 @@ function connect(options = {}) {
       // Query current theme after connection.
       socket.send(JSON.stringify({ action: 'get_theme' }));
     } catch (error) {
-      console.warn('[FlowSelect] Failed to request theme from desktop app:', error);
+      console.warn('[Ameow] Failed to request theme from desktop app:', error);
     }
 
     requestLanguageFromApp(socket);
@@ -1481,7 +1481,7 @@ function connect(options = {}) {
       }
       handleMessage(message);
     } catch (e) {
-      console.error('[FlowSelect] Failed to parse message:', e);
+      console.error('[Ameow] Failed to parse message:', e);
     }
   };
 
@@ -1490,7 +1490,7 @@ function connect(options = {}) {
       return;
     }
 
-    console.info('[FlowSelect] Disconnected');
+    console.info('[Ameow] Disconnected');
     clearExtensionInjectionDebugConfigOnDisconnect();
     rejectPendingRequests('ws_closed');
     detachSocketHandlers(socket);
@@ -1508,12 +1508,12 @@ function connect(options = {}) {
     if (!isConnected()) {
       clearExtensionInjectionDebugConfigOnDisconnect();
       lastConnectionIssue = unavailableStatusText();
-      console.warn('[FlowSelect] WebSocket unavailable. Open the FlowSelect desktop app to enable browser-extension features.');
+      console.warn('[Ameow] WebSocket unavailable. Open the Ameow desktop app to enable browser-extension features.');
       notifyConnectionStatus();
       scheduleReconnect();
       return;
     }
-    console.error('[FlowSelect] WebSocket error while connected.');
+    console.error('[Ameow] WebSocket error while connected.');
   };
 }
 
@@ -1541,7 +1541,7 @@ function scheduleReconnectAlarm(delayMs) {
       when: Date.now() + Math.max(1000, delayMs),
     });
   } catch (error) {
-    console.error('[FlowSelect] Failed to schedule reconnect alarm:', error);
+    console.error('[Ameow] Failed to schedule reconnect alarm:', error);
   }
 }
 
@@ -1553,7 +1553,7 @@ function clearReconnectAlarm() {
   try {
     chrome.alarms.clear(WS_RECONNECT_ALARM, () => {});
   } catch (error) {
-    console.error('[FlowSelect] Failed to clear reconnect alarm:', error);
+    console.error('[Ameow] Failed to clear reconnect alarm:', error);
   }
 }
 
@@ -1674,14 +1674,14 @@ function syncDownloadPreferencesToApp() {
       await setPendingDownloadPreferencesSync(!success);
       if (!success) {
         console.warn(
-          '[FlowSelect] Download preferences sync was not acknowledged:',
+          '[Ameow] Download preferences sync was not acknowledged:',
           response?.data?.code || response?.message || 'unknown'
         );
       }
       return success;
     })
     .catch(async (error) => {
-      console.error('[FlowSelect] Failed to sync download preferences:', error);
+      console.error('[Ameow] Failed to sync download preferences:', error);
       await setPendingDownloadPreferencesSync(true);
       return false;
     });
@@ -1791,7 +1791,7 @@ function queueVideoSelectionToApp(data) {
     }
 
     console.info(
-      '[FlowSelect] Retrying video selection after recoverable connection failure:',
+      '[Ameow] Retrying video selection after recoverable connection failure:',
       result?.data?.code || result?.message || 'unknown'
     );
     resetSocketForRetry();
@@ -1902,7 +1902,7 @@ function normalizeSelectionScope(value) {
 // Convert cookies to Netscape format for yt-dlp
 function cookiesToNetscape(cookies) {
   // Netscape cookie file header is required
-  const header = '# Netscape HTTP Cookie File\n# https://curl.haxx.se/docs/http-cookies.html\n# This file was generated by FlowSelect\n\n';
+  const header = '# Netscape HTTP Cookie File\n# https://curl.haxx.se/docs/http-cookies.html\n# This file was generated by Ameow\n\n';
   const lines = cookies.map(cookie => {
     const secure = cookie.secure ? 'TRUE' : 'FALSE';
     const expiry = cookie.expirationDate ? Math.floor(cookie.expirationDate) : 0;
@@ -1941,7 +1941,7 @@ async function getCookiesForUrl(url) {
       return cookiesToNetscape(allCookies);
     }
   } catch (e) {
-    console.error('[FlowSelect] Failed to get cookies:', e);
+    console.error('[Ameow] Failed to get cookies:', e);
   }
   return '';
 }
@@ -2004,7 +2004,7 @@ async function resolveVideoSelectionShortLinks(options = {}) {
           ? { url, resolution }
           : null;
       } catch (error) {
-        console.warn('[FlowSelect] Failed to expand short link before forwarding video selection:', {
+        console.warn('[Ameow] Failed to expand short link before forwarding video selection:', {
           url,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -2077,7 +2077,7 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
     injectionDebugConfig?.getEnabled ? injectionDebugConfig.getEnabled() : Promise.resolve(false),
   ]);
 
-  console.info('[FlowSelect] Using yt-dlp quality preference:', qualityPreference);
+  console.info('[Ameow] Using yt-dlp quality preference:', qualityPreference);
   const resolvedRouting = videoSelectionRouting?.resolveVideoSelectionRouting
     ? videoSelectionRouting.resolveVideoSelectionRouting({
         requestedUrl,
@@ -2149,7 +2149,7 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
       reason: result?.data?.code || null,
     };
   } catch (error) {
-    console.error('[FlowSelect] Failed to prepare video selection request:', error);
+    console.error('[Ameow] Failed to prepare video selection request:', error);
     return {
       success: false,
       connected: isConnected(),
@@ -2226,7 +2226,7 @@ async function handlePastedVideoSelectionResolveRequest(data) {
       ...prepared.forwardedPayload,
     });
   } catch (error) {
-    console.warn('[FlowSelect] Failed to resolve pasted video selection:', error);
+    console.warn('[Ameow] Failed to resolve pasted video selection:', error);
     await reportPastedVideoSelectionResolutionResult(requestId, {
       success: false,
       code: 'pasted_video_resolution_failed',
@@ -2431,7 +2431,7 @@ async function resolveXiaohongshuViaBackgroundTab(entry, options = {}) {
           detailUrl: normalizeHttpUrl(options.detailUrl) || entry.detailUrl || null,
         });
       } catch (error) {
-        console.warn('[FlowSelect] Failed to navigate Xiaohongshu background tab to target note:', error);
+        console.warn('[Ameow] Failed to navigate Xiaohongshu background tab to target note:', error);
       }
     }
 
@@ -2466,7 +2466,7 @@ async function resolveXiaohongshuViaBackgroundTab(entry, options = {}) {
         || normalizeHttpUrl(options.pageUrl)
         || entry.pageUrl;
 
-    console.info('[FlowSelect] Resolving Xiaohongshu via background tab:', {
+    console.info('[Ameow] Resolving Xiaohongshu via background tab:', {
       tabId,
       initialUrl,
       currentUrl,
@@ -2538,7 +2538,7 @@ async function requestResolvedVideoSelection(tabId, options = {}) {
       return response.payload;
     }
   } catch (error) {
-    console.warn('[FlowSelect] Failed to resolve in-tab video selection:', error);
+    console.warn('[Ameow] Failed to resolve in-tab video selection:', error);
   }
 
   return null;
@@ -2561,7 +2561,7 @@ async function requestResolvedPastedVideoSelection(tabId, options = {}) {
       return response.payload;
     }
   } catch (error) {
-    console.warn('[FlowSelect] Failed to resolve pasted video selection in-tab:', error);
+    console.warn('[Ameow] Failed to resolve pasted video selection in-tab:', error);
   }
 
   return null;
@@ -2597,7 +2597,7 @@ async function requestResolvedXiaohongshuContextMedia(tabId, options = {}) {
       return response.payload;
     }
   } catch (error) {
-    console.warn('[FlowSelect] Failed to resolve Xiaohongshu context media:', error);
+    console.warn('[Ameow] Failed to resolve Xiaohongshu context media:', error);
   }
 
   return null;
@@ -2642,7 +2642,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       pageUrl,
       createdAt: Date.now(),
     });
-    console.info('[FlowSelect] Registered protected image drag token:', {
+    console.info('[Ameow] Registered protected image drag token:', {
       token,
       tabId,
       frameId: sender.frameId,
@@ -2691,7 +2691,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       videoIntentSources,
       createdAt: Date.now(),
     });
-    console.info('[FlowSelect] Registered Xiaohongshu drag token:', {
+    console.info('[Ameow] Registered Xiaohongshu drag token:', {
       token,
       tabId,
       frameId: sender.frameId,
@@ -2727,7 +2727,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       requireRenameEnabled: true,
     }).then((result) => {
       if (!result?.success) {
-        console.warn('[FlowSelect] save_screenshot fallback reason:', result?.data?.code || result?.message || 'unknown');
+        console.warn('[Ameow] save_screenshot fallback reason:', result?.data?.code || result?.message || 'unknown');
       }
       sendResponse({
         success: Boolean(result?.success),
@@ -2781,7 +2781,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       sendResponse(result);
     }).catch((error) => {
-      console.error('[FlowSelect] Failed to trigger current video download:', error);
+      console.error('[Ameow] Failed to trigger current video download:', error);
       sendResponse({
         success: false,
         connected: isConnected(),
@@ -2871,7 +2871,7 @@ if (chrome?.contextMenus?.onClicked) {
       });
       const payload = resolvedSelection || buildContextMenuFallbackSelection(info, tab);
       if (!payload) {
-        console.warn('[FlowSelect] Context menu selection could not be resolved');
+        console.warn('[Ameow] Context menu selection could not be resolved');
         return null;
       }
 
@@ -2884,11 +2884,11 @@ if (chrome?.contextMenus?.onClicked) {
       }
 
       console.warn(
-        '[FlowSelect] Context menu media request was not queued:',
+        '[Ameow] Context menu media request was not queued:',
         result.reason || 'unknown',
       );
     }).catch((error) => {
-      console.error('[FlowSelect] Failed to queue context-menu media selection:', error);
+      console.error('[Ameow] Failed to queue context-menu media selection:', error);
     });
   });
 }

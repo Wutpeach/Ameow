@@ -305,7 +305,7 @@
     };
   }
 
-  globalScope.FlowSelectShortLinkResolution = {
+  globalScope.AmeowShortLinkResolution = {
     isKnownShortLinkHost,
     isLikelyShortLinkUrl,
     normalizeHttpUrl,

@@ -90,7 +90,7 @@ describe("sanitizeFileStem", () => {
 
 describe("resolveAvailableOutputStem", () => {
   it("adds a numeric suffix when the preferred stem already exists on disk", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-runtime-utils-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-runtime-utils-"));
     try {
       writeFileSync(path.join(outputDir, "Pin 图卡片.mp4"), "video");
       writeFileSync(path.join(outputDir, "Pin 图卡片 (2).mp4"), "video");
@@ -102,7 +102,7 @@ describe("resolveAvailableOutputStem", () => {
   });
 
   it("ignores sidecar artifacts when picking the next available stem", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-runtime-utils-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-runtime-utils-"));
     try {
       writeFileSync(path.join(outputDir, "Pin 图卡片.txt"), "metadata");
       writeFileSync(path.join(outputDir, "Pin 图卡片.mp4.part"), "partial");
@@ -114,7 +114,7 @@ describe("resolveAvailableOutputStem", () => {
   });
 
   it("reserves suffixes that are already claimed by active tasks", async () => {
-    const outputDir = mkdtempSync(path.join(os.tmpdir(), "flowselect-runtime-utils-"));
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-runtime-utils-"));
     try {
       await expect(
         resolveAvailableOutputStem(outputDir, "Pin 图卡片", ["Pin 图卡片", "Pin 图卡片 (2)"]),

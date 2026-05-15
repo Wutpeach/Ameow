@@ -13,7 +13,7 @@ function loadHelpers() {
   };
 
   vm.runInNewContext(helperSource, context, { filename: helperPath });
-  return context.self.FlowSelectXiaohongshuDragResolutionUtils;
+  return context.self.AmeowXiaohongshuDragResolutionUtils;
 }
 
 describe("xiaohongshu drag resolution utils", () => {

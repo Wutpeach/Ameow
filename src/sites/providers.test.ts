@@ -107,7 +107,7 @@ describe("builtin site providers", () => {
   });
 
   it("routes x.com status URLs to the Twitter/X provider instead of the generic fallback", () => {
-    const url = "https://x.com/flowselect/status/1234567890";
+    const url = "https://x.com/ameow/status/1234567890";
     const plan = resolvePlan({ url });
     const intent = expectVideoIntent(plan?.intent);
 
@@ -155,6 +155,29 @@ describe("builtin site providers", () => {
     });
     expect(intent.siteId).toBe("youtube");
     expect(intent.selectionScope).toBe("current_item");
+  });
+
+  it("preserves YouTube clip metadata on the resolved provider intent", () => {
+    const url = "https://www.youtube.com/watch?v=clip123";
+    const plan = resolvePlan({
+      url,
+      pageUrl: url,
+      selectionScope: "current_item",
+      clipStartSec: 5.25,
+      clipEndSec: 8.75,
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("youtube");
+    expect(plan.engines).toHaveLength(1);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: url,
+    });
+    expect(intent.siteId).toBe("youtube");
+    expect(intent.selectionScope).toBe("current_item");
+    expect(intent.clipStartSec).toBe(5.25);
+    expect(intent.clipEndSec).toBe(8.75);
   });
 
   it("prefers direct then gallery-dl for Pinterest direct-hint plans", () => {

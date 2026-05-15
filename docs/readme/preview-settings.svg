@@ -31,7 +31,7 @@
 
   <text x="156" y="386" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Output Folder</text>
   <rect x="156" y="402" width="348" height="42" rx="14" fill="#0F172A" stroke="#334155"/>
-  <text x="180" y="429" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Desktop/FlowSelect_Received</text>
+  <text x="180" y="429" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="16">Desktop/Ameow_Received</text>
 
   <text x="156" y="480" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Global Shortcut</text>
   <rect x="156" y="496" width="220" height="42" rx="14" fill="#0F172A" stroke="#334155"/>

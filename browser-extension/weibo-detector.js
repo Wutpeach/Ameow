@@ -1,21 +1,21 @@
 (function () {
   "use strict";
 
-  const CONTROL_BUTTON_CLASS = "flowselect-weibo-control-btn";
-  const FLOATING_BUTTON_CLASS = "flowselect-weibo-floating-btn";
-  const CONTROL_BUTTON_ATTR = "data-flowselect-weibo-button";
+  const CONTROL_BUTTON_CLASS = "ameow-weibo-control-btn";
+  const FLOATING_BUTTON_CLASS = "ameow-weibo-floating-btn";
+  const CONTROL_BUTTON_ATTR = "data-ameow-weibo-button";
   const CONTROL_BUTTON_VALUE = "control";
   const FLOATING_BUTTON_VALUE = "floating";
-  const POSITION_PATCH_ATTR = "data-flowselect-weibo-position-patched";
+  const POSITION_PATCH_ATTR = "data-ameow-weibo-position-patched";
   const DETECT_DELAY_MS = 160;
   const VJS_BASE_HEIGHT_PX = 14;
   const VJS_BASE_BUTTON_WIDTH_PX = 18;
   const VJS_BASE_GAP_PX = 5;
   const VJS_LARGE_BUTTON_ICON_OFFSET_Y_PX = -1;
-  const controlStyleUtils = window.FlowSelectControlStyleUtils || null;
-  const injectionDebugConfig = window.FlowSelectInjectionDebugConfig || null;
-  const injectionDebugPanel = window.FlowSelectInjectionDebugPanel || null;
-  const DEBUG_MARK_ATTR = "data-flowselect-weibo-debug-mark";
+  const controlStyleUtils = window.AmeowControlStyleUtils || null;
+  const injectionDebugConfig = window.AmeowInjectionDebugConfig || null;
+  const injectionDebugPanel = window.AmeowInjectionDebugPanel || null;
+  const DEBUG_MARK_ATTR = "data-ameow-weibo-debug-mark";
   const DEBUG_OVERRIDE_DEFAULTS = Object.freeze({
     buttonWidthOffset: 0,
     buttonHeightOffset: 0,
@@ -278,12 +278,12 @@
       },
       (response) => {
         if (chrome.runtime?.lastError) {
-          window.alert("FlowSelect extension background is unavailable. Please reload the extension.");
+          window.alert("Ameow extension background is unavailable. Please reload the extension.");
           return;
         }
 
         if (!response?.success) {
-          window.alert("FlowSelect desktop app is not connected. Please open FlowSelect and try again.");
+          window.alert("Ameow desktop app is not connected. Please open Ameow and try again.");
         }
       },
     );
@@ -430,8 +430,8 @@
       return;
     }
 
-    button.title = "Download with FlowSelect";
-    button.setAttribute("aria-label", "Download with FlowSelect");
+    button.title = "Download with Ameow";
+    button.setAttribute("aria-label", "Download with Ameow");
 
     const handleActivate = (event) => {
       event.preventDefault();
@@ -451,21 +451,21 @@
     const useVideoJsStyle = document.querySelector(".vjs-control-bar") instanceof HTMLElement;
     if (useVideoJsStyle) {
       const wrapper = document.createElement("div");
-      wrapper.className = `${CONTROL_BUTTON_CLASS} vjs-flowselect-download vjs-menu-button vjs-menu-button-popup vjs-control vjs-button`;
+      wrapper.className = `${CONTROL_BUTTON_CLASS} vjs-ameow-download vjs-menu-button vjs-menu-button-popup vjs-control vjs-button`;
       wrapper.setAttribute(CONTROL_BUTTON_ATTR, CONTROL_BUTTON_VALUE);
       wrapper.innerHTML = `
         <button
-          class="vjs-flowselect-download-button vjs-button"
+          class="vjs-ameow-download-button vjs-button"
           type="button"
-          title="Download with FlowSelect"
+          title="Download with Ameow"
           aria-disabled="false"
-          aria-label="Download with FlowSelect"
+          aria-label="Download with Ameow"
         >
           <span class="vjs-icon-placeholder" aria-hidden="true">${CAT_ICON_SVG}</span>
-          <span class="vjs-control-text" aria-live="polite">Download with FlowSelect</span>
+          <span class="vjs-control-text" aria-live="polite">Download with Ameow</span>
         </button>
       `;
-      const button = wrapper.querySelector(".vjs-flowselect-download-button");
+      const button = wrapper.querySelector(".vjs-ameow-download-button");
       bindButton(button instanceof HTMLElement ? button : wrapper);
       return wrapper;
     }
@@ -485,8 +485,8 @@
     button.type = "button";
     button.className = FLOATING_BUTTON_CLASS;
     button.setAttribute(CONTROL_BUTTON_ATTR, FLOATING_BUTTON_VALUE);
-    button.title = "Download with FlowSelect";
-    button.setAttribute("aria-label", "Download with FlowSelect");
+    button.title = "Download with Ameow";
+    button.setAttribute("aria-label", "Download with Ameow");
     button.innerHTML = CAT_ICON_SVG;
     bindButton(button);
     return button;
@@ -544,20 +544,20 @@
       : debugOverrides.previewIconOffsetY;
     const iconOffsetY = Math.round(baseIconOffsetY + modeIconOffsetY);
 
-    button.style.setProperty("--flowselect-weibo-vjs-button-width", `${buttonWidth}px`);
-    button.style.setProperty("--flowselect-weibo-vjs-button-height", `${buttonHeight}px`);
-    button.style.setProperty("--flowselect-weibo-vjs-button-gap", `${gap}px`);
-    button.style.setProperty("--flowselect-weibo-vjs-button-top", "0px");
-    button.style.setProperty("--flowselect-weibo-vjs-button-line-height", `${buttonHeight}px`);
-    button.style.setProperty("--flowselect-weibo-vjs-icon-size", `${iconSize}px`);
+    button.style.setProperty("--ameow-weibo-vjs-button-width", `${buttonWidth}px`);
+    button.style.setProperty("--ameow-weibo-vjs-button-height", `${buttonHeight}px`);
+    button.style.setProperty("--ameow-weibo-vjs-button-gap", `${gap}px`);
+    button.style.setProperty("--ameow-weibo-vjs-button-top", "0px");
+    button.style.setProperty("--ameow-weibo-vjs-button-line-height", `${buttonHeight}px`);
+    button.style.setProperty("--ameow-weibo-vjs-icon-size", `${iconSize}px`);
 
     const buttonRect = button.getBoundingClientRect();
     const baseTopOffset = Math.round(
       (anchorRect.top + anchorRect.height / 2) - (buttonRect.top + buttonRect.height / 2),
     );
     const centerDelta = Math.round(baseTopOffset + debugOverrides.topOffset);
-    button.style.setProperty("--flowselect-weibo-vjs-button-top", `${centerDelta}px`);
-    button.style.setProperty("--flowselect-weibo-vjs-icon-offset-y", `${iconOffsetY}px`);
+    button.style.setProperty("--ameow-weibo-vjs-button-top", `${centerDelta}px`);
+    button.style.setProperty("--ameow-weibo-vjs-icon-offset-y", `${iconOffsetY}px`);
 
     const finalButtonRect = button.getBoundingClientRect();
     const controlBar = button.parentElement;

@@ -6,7 +6,7 @@ import { resolvePendingFolderDrop } from "./preloadDrop.mjs";
 import { parseStartupWindowModeArgument } from "./startupWindowMode.mjs";
 
 const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
-const eventChannel = (event) => `flowselect:event:${event}`;
+const eventChannel = (event) => `ameow:event:${event}`;
 let pendingFolderDropPromise = null;
 const startupWindowMode = parseStartupWindowModeArgument(process.argv);
 
@@ -28,10 +28,10 @@ window.addEventListener("drop", (event) => {
   });
 }, true);
 
-contextBridge.exposeInMainWorld("flowselect", {
+contextBridge.exposeInMainWorld("ameow", {
   commands: {
     invoke(command, payload) {
-      return invoke("flowselect:command:invoke", { command, payload });
+      return invoke("ameow:command:invoke", { command, payload });
     },
   },
   events: {
@@ -47,94 +47,94 @@ contextBridge.exposeInMainWorld("flowselect", {
       };
     },
     emit(event, payload) {
-      return invoke("flowselect:event:emit", { event, payload });
+      return invoke("ameow:event:emit", { event, payload });
     },
   },
   windows: {
     has(label) {
-      return invoke("flowselect:window:has", { label });
+      return invoke("ameow:window:has", { label });
     },
     focus(label) {
-      return invoke("flowselect:window:focus", { label });
+      return invoke("ameow:window:focus", { label });
     },
     close(label) {
-      return invoke("flowselect:window:close", { label });
+      return invoke("ameow:window:close", { label });
     },
     openSettings(options) {
-      return invoke("flowselect:window:open-settings", { options });
+      return invoke("ameow:window:open-settings", { options });
     },
     openContextMenu(options) {
-      return invoke("flowselect:window:open-context-menu", { options });
+      return invoke("ameow:window:open-context-menu", { options });
     },
     openUiLab(options) {
-      return invoke("flowselect:window:open-ui-lab", { options });
+      return invoke("ameow:window:open-ui-lab", { options });
     },
   },
   currentWindow: {
     outerPosition() {
-      return invoke("flowselect:current-window:outer-position");
+      return invoke("ameow:current-window:outer-position");
     },
     outerSize() {
-      return invoke("flowselect:current-window:outer-size");
+      return invoke("ameow:current-window:outer-size");
     },
     scaleFactor() {
-      return invoke("flowselect:current-window:scale-factor");
+      return invoke("ameow:current-window:scale-factor");
     },
     startupWindowMode() {
       return startupWindowMode;
     },
     startDragging() {
-      return invoke("flowselect:current-window:start-dragging");
+      return invoke("ameow:current-window:start-dragging");
     },
     setPosition(position) {
-      ipcRenderer.send("flowselect:current-window:set-position", position);
+      ipcRenderer.send("ameow:current-window:set-position", position);
     },
     setInteractionMode(mode) {
-      ipcRenderer.send("flowselect:current-window:set-interaction-mode", { mode });
+      ipcRenderer.send("ameow:current-window:set-interaction-mode", { mode });
     },
     animateBounds(bounds, options) {
-      return invoke("flowselect:current-window:animate-bounds", { bounds, options });
+      return invoke("ameow:current-window:animate-bounds", { bounds, options });
     },
     rendererReady() {
-      return invoke("flowselect:current-window:renderer-ready");
+      return invoke("ameow:current-window:renderer-ready");
     },
     close() {
-      return invoke("flowselect:current-window:close");
+      return invoke("ameow:current-window:close");
     },
     hide() {
-      return invoke("flowselect:current-window:hide");
+      return invoke("ameow:current-window:hide");
     },
     async onFocusChanged(listener) {
       const wrapped = (_ipcEvent, focused) => {
         listener({ payload: Boolean(focused) });
       };
-      ipcRenderer.on("flowselect:current-window:focus-changed", wrapped);
+      ipcRenderer.on("ameow:current-window:focus-changed", wrapped);
       return () => {
-        ipcRenderer.removeListener("flowselect:current-window:focus-changed", wrapped);
+        ipcRenderer.removeListener("ameow:current-window:focus-changed", wrapped);
       };
     },
     async onBlur(listener) {
       const wrapped = () => {
         listener();
       };
-      ipcRenderer.on("flowselect:current-window:blur", wrapped);
+      ipcRenderer.on("ameow:current-window:blur", wrapped);
       return () => {
-        ipcRenderer.removeListener("flowselect:current-window:blur", wrapped);
+        ipcRenderer.removeListener("ameow:current-window:blur", wrapped);
       };
     },
   },
   system: {
     currentMonitor() {
-      return invoke("flowselect:system:current-monitor");
+      return invoke("ameow:system:current-monitor");
     },
     openDialog(options) {
-      return invoke("flowselect:system:open-dialog", { options });
+      return invoke("ameow:system:open-dialog", { options });
     },
     openExternal(url) {
-      return invoke("flowselect:system:open-external", { url });
+      return invoke("ameow:system:open-external", { url });
     },
     relaunch() {
-      return invoke("flowselect:system:relaunch");
+      return invoke("ameow:system:relaunch");
     },
   },
   drop: {
@@ -149,15 +149,15 @@ contextBridge.exposeInMainWorld("flowselect", {
   },
   clipboard: {
     readImage() {
-      return invoke("flowselect:clipboard:read-image");
+      return invoke("ameow:clipboard:read-image");
     },
   },
   updater: {
     check() {
-      return invoke("flowselect:updater:check");
+      return invoke("ameow:updater:check");
     },
     downloadAndInstall() {
-      return invoke("flowselect:updater:download-and-install");
+      return invoke("ameow:updater:download-and-install");
     },
   },
 });

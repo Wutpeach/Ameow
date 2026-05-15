@@ -416,7 +416,7 @@
     return clone;
   }
 
-  window.FlowSelectDomInjectionUtils = {
+  window.AmeowDomInjectionUtils = {
     isRenderableElement,
     normalizeHttpUrl,
     resolveCanonicalUrl,

@@ -1,6 +1,6 @@
-/* FlowSelect Browser Extension - Picker Styles */
+/* Ameow Browser Extension - Picker Styles */
 
-#flowselect-picker-overlay {
+#ameow-picker-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -9,7 +9,7 @@
   z-index: 2147483647;
 }
 
-.flowselect-svg-overlay {
+.ameow-svg-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -18,17 +18,17 @@
   overflow: visible;
 }
 
-.flowselect-highlight {
+.ameow-highlight {
   fill: rgba(64, 158, 255, 0.2);
   stroke: #409eff;
   stroke-width: 2;
   stroke-dasharray: 5, 3;
 }
 
-body.flowselect-picker-active {
+body.ameow-picker-active {
   cursor: crosshair !important;
 }
 
-body.flowselect-picker-active * {
+body.ameow-picker-active * {
   cursor: crosshair !important;
 }

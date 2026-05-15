@@ -41,7 +41,7 @@ type EmbeddedPinterestDragPayload = {
   title: string | null;
 };
 
-const PINTEREST_DRAG_PAYLOAD_RE = /FLOWSELECT_PINTEREST_DRAG:([A-Za-z0-9+/=_-]+)/i;
+const PINTEREST_DRAG_PAYLOAD_RE = /AMEOW_PINTEREST_DRAG:([A-Za-z0-9+/=_-]+)/i;
 
 function scorePinterestImageUrl(url: string): number {
   if (/\/originals\//i.test(url)) {

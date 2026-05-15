@@ -14,7 +14,7 @@ describe("download telemetry sink", () => {
   });
 
   it("appends validated telemetry events as JSONL", async () => {
-    const tempDir = path.join(os.tmpdir(), `flowselect-telemetry-${Date.now()}`);
+    const tempDir = path.join(os.tmpdir(), `ameow-telemetry-${Date.now()}`);
     tempDirs.push(tempDir);
     const filePath = path.join(tempDir, "telemetry", "download-outcomes.jsonl");
     const sink = createJsonlDownloadTelemetrySink(filePath);

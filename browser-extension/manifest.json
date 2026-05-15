@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FlowSelect Video Picker",
+  "name": "Ameow Video Picker",
   "version": "0.3.0.7",
-  "description": "Pick video elements from web pages for FlowSelect",
+  "description": "Pick video elements from web pages for Ameow",
   "permissions": [
     "activeTab",
     "scripting",
@@ -57,7 +57,7 @@
         "twitter-detector.js"
       ],
       "css": [
-        "flowselect-shared.css",
+        "ameow-shared.css",
         "twitter-button.css"
       ],
       "run_at": "document_idle"
@@ -73,7 +73,7 @@
         "youtube-detector.js"
       ],
       "css": [
-        "flowselect-shared.css",
+        "ameow-shared.css",
         "youtube-button.css"
       ],
       "run_at": "document_idle"
@@ -89,7 +89,7 @@
         "bilibili-detector.js"
       ],
       "css": [
-        "flowselect-shared.css",
+        "ameow-shared.css",
         "bilibili-button.css"
       ],
       "run_at": "document_idle"
@@ -117,7 +117,7 @@
         "xiaohongshu-detector.js"
       ],
       "css": [
-        "flowselect-shared.css",
+        "ameow-shared.css",
         "xiaohongshu-button.css"
       ],
       "run_at": "document_idle"
@@ -131,7 +131,7 @@
         "pinterest-detector.js"
       ],
       "css": [
-        "flowselect-shared.css",
+        "ameow-shared.css",
         "pinterest-button.css"
       ],
       "run_at": "document_idle"

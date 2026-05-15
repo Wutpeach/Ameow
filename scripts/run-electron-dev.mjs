@@ -214,7 +214,7 @@ const startElectron = () => {
     [electronBin, "."],
     {
       ...process.env,
-      FLOWSELECT_ELECTRON_DEV_SERVER_URL: devServerUrl,
+      AMEOW_ELECTRON_DEV_SERVER_URL: devServerUrl,
     },
   );
   electron = child;

@@ -1,11 +1,11 @@
 (function () {
   "use strict";
 
-  const PAGE_REQUEST_TYPE = "FLOWSELECT_RESOLVE_PROTECTED_IMAGE_REQUEST";
-  const PAGE_RESPONSE_TYPE = "FLOWSELECT_RESOLVE_PROTECTED_IMAGE_RESPONSE";
-  const PAGE_BRIDGE_FLAG = "__flowselectProtectedImageBridgeInstalled";
-  const PAGE_MESSAGE_SOURCE = "flowselect-protected-image-page";
-  const EXTENSION_MESSAGE_SOURCE = "flowselect-protected-image-extension";
+  const PAGE_REQUEST_TYPE = "AMEOW_RESOLVE_PROTECTED_IMAGE_REQUEST";
+  const PAGE_RESPONSE_TYPE = "AMEOW_RESOLVE_PROTECTED_IMAGE_RESPONSE";
+  const PAGE_BRIDGE_FLAG = "__ameowProtectedImageBridgeInstalled";
+  const PAGE_MESSAGE_SOURCE = "ameow-protected-image-page";
+  const EXTENSION_MESSAGE_SOURCE = "ameow-protected-image-extension";
 
   if (window[PAGE_BRIDGE_FLAG]) {
     return;

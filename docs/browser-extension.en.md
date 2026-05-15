@@ -2,7 +2,7 @@
 
 [中文](./browser-extension.md) | [English](./browser-extension.en.md)
 
-The FlowSelect repository includes a Manifest V3 browser extension in [`browser-extension/`](../browser-extension). It targets Chromium-based browsers such as Chrome and Edge.
+The Ameow repository includes a Manifest V3 browser extension in [`browser-extension/`](../browser-extension). It targets Chromium-based browsers such as Chrome and Edge.
 
 ## 1. Install The Extension
 
@@ -17,7 +17,7 @@ You can load it from the repository source folder or from the packaged extension
 
 ### Load From The Release Archive
 
-1. Download `FlowSelect_<version>_browser_extension.zip` from [GitHub Releases](https://github.com/Wutpeach/FlowSelect/releases).
+1. Download `Ameow_<version>_browser_extension.zip` from [GitHub Releases](https://github.com/Wutpeach/Ameow/releases).
 2. Extract the archive.
 3. Open your browser's extensions page and enable Developer Mode.
 4. Choose "Load unpacked".
@@ -25,7 +25,7 @@ You can load it from the repository source folder or from the packaged extension
 
 ## 2. Connect To The Desktop App
 
-1. Start the FlowSelect desktop app first.
+1. Start the Ameow desktop app first.
 2. Open the extension popup.
 3. Confirm the extension status shows `Connected`.
 
@@ -33,7 +33,7 @@ The extension communicates with the desktop app over a local WebSocket connectio
 
 ## 3. Current Capabilities
 
-- Send selected video URLs into FlowSelect.
+- Send selected video URLs into Ameow.
 - Pass browser cookies into the desktop app for authenticated download flows.
 - Sync download quality preferences.
 - Sync AE-friendly conversion preferences.

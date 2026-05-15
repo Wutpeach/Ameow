@@ -9,7 +9,7 @@
 如果仍然被 quarantine 阻止，可执行：
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
+xattr -dr com.apple.quarantine "/Applications/Ameow.app"
 ```
 
 ## 下载失败或一直没有开始怎么办？
@@ -18,7 +18,7 @@ xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
 
 - 输出目录仍然可写。
 - 网络连接正常。
-- FlowSelect 没有被系统防火墙或安全软件阻止。
+- Ameow 没有被系统防火墙或安全软件阻止。
 - 当前站点仍在支持范围内，或当前链接本身仍然有效。
 
 如果问题出现在网页视频下载流程，也可以尝试：
@@ -31,7 +31,7 @@ xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
 
 先确认：
 
-- FlowSelect 桌面应用已经启动。
+- Ameow 桌面应用已经启动。
 - 浏览器扩展弹窗中的状态不是 `Disconnected`。
 - 本地通信没有被系统防火墙拦截。
 
@@ -43,7 +43,7 @@ xattr -dr com.apple.quarantine "/Applications/FlowSelect.app"
 
 ## 找不到下载后的文件怎么办？
 
-- 默认输出目录为 `Desktop/FlowSelect_Received`。
+- 默认输出目录为 `Desktop/Ameow_Received`。
 - 双击主窗口空白区域，可以快速打开当前输出目录。
 - 右键主窗口，可以打开当前输出目录或重新选择新的输出目录。
 

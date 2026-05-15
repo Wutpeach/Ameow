@@ -5,7 +5,7 @@ export type ProtectedImageDragPayload = {
 };
 
 const PROTECTED_IMAGE_DRAG_PAYLOAD_RE =
-  /FLOWSELECT_PROTECTED_IMAGE_DRAG:([A-Za-z0-9+/=_-]+)/i;
+  /AMEOW_PROTECTED_IMAGE_DRAG:([A-Za-z0-9+/=_-]+)/i;
 
 function decodeUtf8Base64(value: string): string | null {
   if (typeof value !== "string" || !value.trim()) {

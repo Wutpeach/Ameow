@@ -10,7 +10,7 @@ function loadDetector() {
   let messageListener = null;
   const window = {
     location: {
-      href: "https://x.com/flowselect/status/1234567890?t=1",
+      href: "https://x.com/ameow/status/1234567890?t=1",
     },
   };
 
@@ -35,7 +35,7 @@ function loadDetector() {
     },
     document: {
       readyState: "complete",
-      title: "FlowSelect on X",
+      title: "Ameow on X",
       addEventListener() {},
       querySelectorAll() {
         return [];
@@ -55,7 +55,7 @@ describe("twitter detector", () => {
 
     expect(typeof messageListener).toBe("function");
     const handled = messageListener(
-      { type: "flowselect_resolve_pasted_video_selection" },
+      { type: "ameow_resolve_pasted_video_selection" },
       {},
       (payload) => {
         response = payload;
@@ -67,9 +67,9 @@ describe("twitter detector", () => {
       success: true,
       payload: {
         type: "video_selection",
-        url: "https://x.com/flowselect/status/1234567890",
-        pageUrl: "https://x.com/flowselect/status/1234567890",
-        title: "FlowSelect on X",
+        url: "https://x.com/ameow/status/1234567890",
+        pageUrl: "https://x.com/ameow/status/1234567890",
+        title: "Ameow on X",
         selectionScope: "current_item",
       },
     });

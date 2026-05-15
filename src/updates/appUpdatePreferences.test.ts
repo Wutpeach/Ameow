@@ -14,8 +14,8 @@ describe("parseDesktopAppConfig", () => {
   });
 
   it("returns the parsed object for valid config json", () => {
-    expect(parseDesktopAppConfig(JSON.stringify({ outputPath: "D:/FlowSelect" }))).toEqual({
-      outputPath: "D:/FlowSelect",
+    expect(parseDesktopAppConfig(JSON.stringify({ outputPath: "D:/Ameow" }))).toEqual({
+      outputPath: "D:/Ameow",
     });
   });
 });

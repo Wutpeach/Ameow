@@ -1,11 +1,11 @@
-/* FlowSelect Browser Extension - Xiaohongshu Download Button */
+/* Ameow Browser Extension - Xiaohongshu Download Button */
 
 :root {
-  --flowselect-site-accent: #ff2442;
-  --flowselect-site-accent-soft: rgba(255, 36, 66, 0.18);
+  --ameow-site-accent: #ff2442;
+  --ameow-site-accent-soft: rgba(255, 36, 66, 0.18);
 }
 
-.flowselect-xhs-download-btn {
+.ameow-xhs-download-btn {
   position: fixed;
   right: 22px;
   bottom: 22px;
@@ -16,24 +16,24 @@
   z-index: 2147483647;
 }
 
-.flowselect-xhs-download-btn:hover {
-  background: var(--flowselect-site-accent-soft);
+.ameow-xhs-download-btn:hover {
+  background: var(--ameow-site-accent-soft);
   border-color: rgba(255, 36, 66, 0.32);
   transform: translateY(-1px) scale(1.06);
 }
 
-.flowselect-xhs-download-btn:active {
+.ameow-xhs-download-btn:active {
   transform: scale(0.96);
 }
 
-.flowselect-xhs-download-btn svg {
+.ameow-xhs-download-btn svg {
   width: 24px;
   height: 24px;
   pointer-events: none;
 }
 
 /* Inline control button for xgplayer bar */
-.flowselect-xhs-control-btn {
+.ameow-xhs-control-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -46,7 +46,7 @@
   cursor: pointer;
 }
 
-.flowselect-xhs-control-btn xg-icon {
+.ameow-xhs-control-btn xg-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -54,7 +54,7 @@
   height: 100%;
 }
 
-.flowselect-xhs-control-btn .flowselect-xhs-icon {
+.ameow-xhs-control-btn .ameow-xhs-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -64,16 +64,16 @@
   transition: transform 0.16s ease, color 0.16s ease;
 }
 
-.flowselect-xhs-control-btn:hover .flowselect-xhs-icon {
-  color: var(--flowselect-site-accent);
+.ameow-xhs-control-btn:hover .ameow-xhs-icon {
+  color: var(--ameow-site-accent);
   transform: scale(1.08);
 }
 
-.flowselect-xhs-control-btn:active .flowselect-xhs-icon {
+.ameow-xhs-control-btn:active .ameow-xhs-icon {
   transform: scale(0.95);
 }
 
-.flowselect-xhs-control-btn .flowselect-xhs-icon svg {
+.ameow-xhs-control-btn .ameow-xhs-icon svg {
   display: block;
   width: 100%;
   height: 100%;

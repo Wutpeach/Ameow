@@ -1,8 +1,8 @@
-import type { FlowSelectElectronBridge } from "./types/electronBridge";
+import type { AmeowElectronBridge } from "./types/electronBridge";
 
 declare global {
   interface Window {
-    flowselect?: FlowSelectElectronBridge;
+    ameow?: AmeowElectronBridge;
   }
 }
 

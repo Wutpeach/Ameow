@@ -101,7 +101,7 @@ const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
 
 const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - startedAtMs}ms`;
 
-export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntime {
+export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
 
   private readonly options: ElectronDownloadRuntimeOptions;
@@ -895,4 +895,4 @@ export class FlowSelectElectronDownloadRuntime implements ElectronDownloadRuntim
 
 export const createElectronDownloadRuntime = (
   options: ElectronDownloadRuntimeOptions,
-): ElectronDownloadRuntime => new FlowSelectElectronDownloadRuntime(options);
+): ElectronDownloadRuntime => new AmeowElectronDownloadRuntime(options);

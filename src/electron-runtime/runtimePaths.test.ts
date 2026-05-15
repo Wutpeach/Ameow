@@ -13,7 +13,7 @@ const tempRoots: string[] = [];
 const createEnvironment = (
   overrides: Partial<ElectronRuntimeEnvironment> = {},
 ): ElectronRuntimeEnvironment => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "flowselect-electron-runtime-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "ameow-electron-runtime-"));
   tempRoots.push(root);
   return {
     repoRoot: root,

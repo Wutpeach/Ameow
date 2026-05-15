@@ -16,7 +16,7 @@
     }
 
     try {
-      const resolved = new URL(trimmed, baseUrl || "https://flowselect.invalid/").toString();
+      const resolved = new URL(trimmed, baseUrl || "https://ameow.invalid/").toString();
       return /^https?:\/\//i.test(resolved) ? resolved : null;
     } catch {
       return null;
@@ -135,7 +135,7 @@
     );
   }
 
-  globalScope.FlowSelectGenericVideoSelectionUtils = {
+  globalScope.AmeowGenericVideoSelectionUtils = {
     classifyVideoCandidateType,
     mergeVideoCandidates,
     normalizeHttpUrl,

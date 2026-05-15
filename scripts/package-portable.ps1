@@ -73,12 +73,12 @@ try {
   $builderOutputRoot = "dist-release"
   $unpackedDir = Join-Path $builderOutputRoot "win-unpacked"
   $portableRoot = Join-Path $builderOutputRoot "portable"
-  $portableDir = Join-Path $portableRoot "FlowSelect_portable"
-  $stagingDir = Join-Path $portableRoot ("FlowSelect_portable_staging_{0}" -f $PID)
-  $stagingAppDir = Join-Path $stagingDir "FlowSelect_portable"
-  $portableZip = Join-Path $portableRoot ("FlowSelect_{0}_windows_x64_portable.zip" -f $Version)
-  $browserExtensionZip = Join-Path $portableRoot ("FlowSelect_{0}_browser_extension.zip" -f $Version)
-  $unpackedExe = Join-Path $unpackedDir "FlowSelect.exe"
+  $portableDir = Join-Path $portableRoot "Ameow_portable"
+  $stagingDir = Join-Path $portableRoot ("Ameow_portable_staging_{0}" -f $PID)
+  $stagingAppDir = Join-Path $stagingDir "Ameow_portable"
+  $portableZip = Join-Path $portableRoot ("Ameow_{0}_windows_x64_portable.zip" -f $Version)
+  $browserExtensionZip = Join-Path $portableRoot ("Ameow_{0}_browser_extension.zip" -f $Version)
+  $unpackedExe = Join-Path $unpackedDir "Ameow.exe"
 
   if (-not (Test-Path $unpackedExe)) {
     throw "Cannot find Electron portable executable: $unpackedExe. Run npm run package:win:dir or package without -SkipBuild."
@@ -113,7 +113,7 @@ try {
       try {
         Remove-Item $portableDir -Recurse -Force -ErrorAction Stop
       } catch {
-        throw "Failed to remove FlowSelect_portable directory. Close all running portable instances and retry to avoid stale validation artifacts."
+        throw "Failed to remove Ameow_portable directory. Close all running portable instances and retry to avoid stale validation artifacts."
       }
     }
     Copy-Item $stagingAppDir $portableDir -Recurse -Force -ErrorAction Stop
@@ -128,7 +128,7 @@ try {
   if (-not (Test-Path $verificationRoot)) {
     New-Item -ItemType Directory -Force -Path $verificationRoot | Out-Null
   }
-  $verificationDirName = "FlowSelect_portable_verify_{0:yyyyMMdd_HHmmss}" -f (Get-Date)
+  $verificationDirName = "Ameow_portable_verify_{0:yyyyMMdd_HHmmss}" -f (Get-Date)
   $verificationDir = Join-Path $verificationRoot $verificationDirName
   if (Test-Path $verificationDir) {
     Remove-Item $verificationDir -Recurse -Force
@@ -140,9 +140,9 @@ try {
     Remove-Item $verificationDir -Recurse -Force -ErrorAction SilentlyContinue
     throw "Failed to expand portable ZIP for verification ($portableZip): $_"
   }
-  $freshExtractionRoot = Join-Path $verificationDir "FlowSelect_portable"
+  $freshExtractionRoot = Join-Path $verificationDir "Ameow_portable"
   if (-not (Test-Path $freshExtractionRoot)) {
-    throw "Verification extraction missing FlowSelect_portable directory: $freshExtractionRoot"
+    throw "Verification extraction missing Ameow_portable directory: $freshExtractionRoot"
   }
 
   $portableVerificationInfo = @{

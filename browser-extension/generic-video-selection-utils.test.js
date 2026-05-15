@@ -13,7 +13,7 @@ const loadHelper = () => {
     URL,
   };
   vm.runInNewContext(helperSource, context, { filename: helperPath });
-  return context.self.FlowSelectGenericVideoSelectionUtils;
+  return context.self.AmeowGenericVideoSelectionUtils;
 };
 
 describe("generic video selection utils", () => {
