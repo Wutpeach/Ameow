@@ -109,6 +109,7 @@ import {
   resolvePinnedDownloaderRelease,
 } from "./managedRuntimeBootstrap.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
+import { exportSupportLogFile } from "./supportLogExport.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -2859,32 +2860,19 @@ async function getClipboardFilePaths() {
 }
 
 async function exportSupportLog() {
-  const config = await readConfigObject();
-  const logFileName = `support-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
-  const outputPath = join(getLogsDir(), logFileName);
-  const runtimeStatus = await getRuntimeDependencyStatus();
-  const recentRuntimeLogLines = await readRecentRuntimeLogLines();
-  const lines = [
-    "[environment]",
-    `appVersion=${app.getVersion()}`,
-    `platform=${process.platform}`,
-    `arch=${process.arch}`,
-    `configPath=${getConfigPath()}`,
-    `logDir=${getLogsDir()}`,
-    `runtimeLogPath=${getRuntimeLogPath()}`,
-    "",
-    "[settings]",
-    JSON.stringify(config, null, 2),
-    "",
-    "[runtime]",
-    JSON.stringify(runtimeStatus, null, 2),
-    "",
-    "[recent-runtime-log]",
-    ...(recentRuntimeLogLines.length > 0 ? recentRuntimeLogLines : ["<no runtime log lines captured>"]),
-    "",
-  ];
-  await writeFile(outputPath, `${lines.join("\n")}\n`, "utf8");
-  return outputPath;
+  return exportSupportLogFile({
+    environment: {
+      appVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      configPath: getConfigPath(),
+      logDir: getLogsDir(),
+      runtimeLogPath: getRuntimeLogPath(),
+    },
+    readConfigObject,
+    getRuntimeDependencyStatus,
+    readRecentRuntimeLogLines,
+  });
 }
 
 function resolveBundledBinary(toolId) {
