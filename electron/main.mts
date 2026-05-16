@@ -17,7 +17,6 @@ import { createWriteStream, existsSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import {
-  appendFile,
   access,
   copyFile,
   cp,
@@ -110,6 +109,7 @@ import {
 } from "./managedRuntimeBootstrap.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
+import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -207,8 +207,6 @@ const runtimeDependencyGateController = createRuntimeDependencyGateController({
   ensureManagedDenoRuntimeReady,
 });
 let uiLabScenarioActive = false;
-let startupDiagnosticsWriteChain = Promise.resolve();
-const pendingRendererReadySignals = new Map();
 const activeWindowBoundsAnimations = new Map();
 
 const startupDiagnosticsEnabled = shouldEnablePackagedStartupDiagnostics({
@@ -259,6 +257,21 @@ function getStartupCapturePath(label, phase) {
   return join(getLogsDir(), `startup-capture-${label}-${phase}.png`);
 }
 
+const startupDiagnosticsController = createStartupDiagnosticsController({
+  enabled: startupDiagnosticsEnabled,
+  getStartupDiagnosticsPath,
+  getStartupCapturePath,
+  appendRuntimeLogLine,
+  logInfo,
+  rendererReadyTimeoutMs: RENDERER_READY_TIMEOUT_MS,
+  windowStartupCaptureDelayMs: WINDOW_STARTUP_CAPTURE_DELAY_MS,
+});
+const attachWindowStartupDiagnostics = startupDiagnosticsController.attachWindowStartupDiagnostics;
+const collectWindowStartupArtifacts = startupDiagnosticsController.collectWindowStartupArtifacts;
+const getWindowSnapshot = startupDiagnosticsController.getWindowSnapshot;
+const queueStartupDiagnostic = startupDiagnosticsController.queueStartupDiagnostic;
+const waitForRendererReady = startupDiagnosticsController.waitForRendererReady;
+
 function serializeDiagnosticPayload(payload) {
   if (typeof payload === "string") {
     return payload;
@@ -268,260 +281,6 @@ function serializeDiagnosticPayload(payload) {
   } catch {
     return String(payload);
   }
-}
-
-function queueStartupDiagnostic(scope, message, payload) {
-  if (!startupDiagnosticsEnabled) {
-    return Promise.resolve();
-  }
-
-  const serializedPayload = payload == null ? "" : serializeDiagnosticPayload(payload);
-  const line = `[${new Date().toISOString()}] [${scope}] ${message}${serializedPayload ? ` ${serializedPayload}` : ""}`;
-  logInfo(scope, message, serializedPayload || undefined);
-  startupDiagnosticsWriteChain = startupDiagnosticsWriteChain
-    .catch(() => undefined)
-    .then(async () => {
-      try {
-        await appendFile(getStartupDiagnosticsPath(), `${line}\n`, "utf8");
-      } catch (error) {
-        console.error(">>> [StartupDiag] Failed to append diagnostic:", error);
-      }
-    });
-  return startupDiagnosticsWriteChain;
-}
-
-function getWindowSnapshot(win) {
-  return {
-    title: win.getTitle(),
-    bounds: win.getBounds(),
-    visible: win.isVisible(),
-    minimized: win.isMinimized(),
-    focused: win.isFocused(),
-    alwaysOnTop: win.isAlwaysOnTop(),
-    destroyed: win.isDestroyed(),
-    url: win.webContents.getURL(),
-  };
-}
-
-function summarizeCapturedImage(image) {
-  const { width, height } = image.getSize();
-  const bitmap = image.toBitmap();
-  const pixelCount = width * height;
-  let nonTransparentPixelCount = 0;
-  let opaquePixelCount = 0;
-  let alphaTotal = 0;
-
-  for (let index = 3; index < bitmap.length; index += 4) {
-    const alpha = bitmap[index];
-    alphaTotal += alpha;
-    if (alpha > 0) {
-      nonTransparentPixelCount += 1;
-    }
-    if (alpha === 255) {
-      opaquePixelCount += 1;
-    }
-  }
-
-  return {
-    width,
-    height,
-    pixelCount,
-    nonTransparentPixelCount,
-    nonTransparentRatio: pixelCount === 0
-      ? 0
-      : Number((nonTransparentPixelCount / pixelCount).toFixed(4)),
-    opaquePixelCount,
-    averageAlpha: pixelCount === 0
-      ? 0
-      : Number((alphaTotal / pixelCount).toFixed(2)),
-  };
-}
-
-async function captureWindowStartupSurface(win, label, phase) {
-  if (!startupDiagnosticsEnabled || win.isDestroyed()) {
-    return;
-  }
-
-  try {
-    const image = await win.webContents.capturePage();
-    const capturePath = getStartupCapturePath(label, phase);
-    await writeFile(capturePath, image.toPNG());
-    await queueStartupDiagnostic("WindowDiag", `${label}:capture-${phase}`, {
-      path: capturePath,
-      summary: summarizeCapturedImage(image),
-    });
-  } catch (error) {
-    await queueStartupDiagnostic("WindowDiag", `${label}:capture-${phase}-failed`, {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function collectRendererStartupSnapshot(win, label, phase) {
-  if (!startupDiagnosticsEnabled || win.isDestroyed()) {
-    return;
-  }
-
-  try {
-    const snapshot = await win.webContents.executeJavaScript(
-      `(() => {
-        const root = document.getElementById("root");
-        const body = document.body;
-        const doc = document.documentElement;
-        const rootStyle = root ? window.getComputedStyle(root) : null;
-        const bodyStyle = body ? window.getComputedStyle(body) : null;
-        const docStyle = doc ? window.getComputedStyle(doc) : null;
-        const rect = root ? root.getBoundingClientRect() : null;
-
-        return {
-          href: window.location.href,
-          readyState: document.readyState,
-          visibilityState: document.visibilityState,
-          bodyChildElementCount: body?.childElementCount ?? 0,
-          rootChildElementCount: root?.childElementCount ?? 0,
-          bodyHtmlLength: body?.innerHTML?.length ?? 0,
-          rootHtmlLength: root?.innerHTML?.length ?? 0,
-          bodyTextLength: body?.innerText?.length ?? 0,
-          rootRect: rect
-            ? {
-                width: Math.round(rect.width),
-                height: Math.round(rect.height),
-              }
-            : null,
-          docBackground: docStyle?.background ?? null,
-          bodyBackground: bodyStyle?.background ?? null,
-          rootBackground: rootStyle?.background ?? null,
-          bodyOpacity: bodyStyle?.opacity ?? null,
-          rootOpacity: rootStyle?.opacity ?? null,
-          bodyVisibility: bodyStyle?.visibility ?? null,
-          rootVisibility: rootStyle?.visibility ?? null,
-          activeElementTag: document.activeElement?.tagName ?? null,
-        };
-      })()`,
-      true,
-    );
-    await queueStartupDiagnostic("WindowDiag", `${label}:renderer-snapshot-${phase}`, snapshot);
-  } catch (error) {
-    await queueStartupDiagnostic("WindowDiag", `${label}:renderer-snapshot-${phase}-failed`, {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-async function collectWindowStartupArtifacts(win, label, phase) {
-  if (!startupDiagnosticsEnabled || win.isDestroyed()) {
-    return;
-  }
-
-  await new Promise((resolveDelay) => {
-    setTimeout(resolveDelay, WINDOW_STARTUP_CAPTURE_DELAY_MS);
-  });
-  await collectRendererStartupSnapshot(win, label, phase);
-  await captureWindowStartupSurface(win, label, phase);
-}
-
-function attachWindowStartupDiagnostics(win, label) {
-  win.webContents.on("console-message", (details) => {
-    const {
-      level,
-      message,
-      lineNumber,
-      sourceId,
-    } = details;
-    void appendRuntimeLogLine(
-      "renderer",
-      `[${label}] level=${level} ${message} (${sourceId}:${lineNumber})`,
-    );
-    if (!startupDiagnosticsEnabled) {
-      return;
-    }
-    void queueStartupDiagnostic("RendererConsole", `${label}:console-message`, {
-      level,
-      message,
-      line: lineNumber,
-      sourceId,
-    });
-  });
-  if (!startupDiagnosticsEnabled) {
-    return;
-  }
-  win.webContents.once("dom-ready", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:dom-ready`, getWindowSnapshot(win));
-  });
-  win.once("ready-to-show", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:ready-to-show`, getWindowSnapshot(win));
-  });
-  win.once("show", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:show`, getWindowSnapshot(win));
-  });
-  win.once("hide", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:hide`, getWindowSnapshot(win));
-  });
-  win.webContents.once("did-finish-load", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:did-finish-load`, getWindowSnapshot(win));
-  });
-  win.webContents.once(
-    "did-fail-load",
-    (_event, errorCode, errorDescription, validatedURL) => {
-      void queueStartupDiagnostic("WindowDiag", `${label}:did-fail-load`, {
-        errorCode,
-        errorDescription,
-        validatedURL,
-      });
-    },
-  );
-  win.webContents.on("render-process-gone", (_event, details) => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:render-process-gone`, details);
-  });
-  win.on("unresponsive", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:unresponsive`, getWindowSnapshot(win));
-  });
-  win.on("responsive", () => {
-    void queueStartupDiagnostic("WindowDiag", `${label}:responsive`, getWindowSnapshot(win));
-  });
-}
-
-function waitForRendererReady(win, label) {
-  return new Promise((resolveRendererReady) => {
-    let resolved = false;
-    const timeoutId = setTimeout(() => {
-      if (resolved) {
-        return;
-      }
-      resolved = true;
-      pendingRendererReadySignals.delete(win.webContents.id);
-      void queueStartupDiagnostic("WindowDiag", `${label}:renderer-ready-timeout`, {
-        timeoutMs: RENDERER_READY_TIMEOUT_MS,
-      });
-      resolveRendererReady(undefined);
-    }, RENDERER_READY_TIMEOUT_MS);
-
-    const finish = (payload) => {
-      if (resolved) {
-        return;
-      }
-      resolved = true;
-      clearTimeout(timeoutId);
-      pendingRendererReadySignals.delete(win.webContents.id);
-      void queueStartupDiagnostic("WindowDiag", `${label}:renderer-ready`, payload ?? getWindowSnapshot(win));
-      resolveRendererReady(undefined);
-    };
-
-    pendingRendererReadySignals.set(win.webContents.id, finish);
-
-    if (win.isDestroyed()) {
-      finish({
-        reason: "window-destroyed-before-renderer-ready",
-      });
-      return;
-    }
-
-    win.once("closed", () => {
-      finish({
-        reason: "window-closed-before-renderer-ready",
-      });
-    });
-  });
 }
 
 async function delayTransparentPackagedWindowReveal(label, transparentWindow) {
@@ -4939,14 +4698,13 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("ameow:current-window:renderer-ready", (event) => {
-    const resolveRendererReady = pendingRendererReadySignals.get(event.sender.id);
+    const matchedPendingWindow = startupDiagnosticsController.resolveRendererReadySignal(event.sender.id, {
+      url: event.sender.getURL(),
+    });
     void queueStartupDiagnostic("WindowDiag", "ipc:renderer-ready", {
       senderId: event.sender.id,
       url: event.sender.getURL(),
-      matchedPendingWindow: Boolean(resolveRendererReady),
-    });
-    resolveRendererReady?.({
-      url: event.sender.getURL(),
+      matchedPendingWindow,
     });
   });
 
