@@ -1,5 +1,5 @@
 import { createWriteStream, promises as fs } from "node:fs";
-import type { EngineExecutionContext } from "../core/index.js";
+import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 
@@ -136,7 +136,9 @@ export const runDirectVideoDownload = async (
   } catch (error) {
     writer.destroy();
     await fs.unlink(outputPath).catch(() => undefined);
+    if (error instanceof DownloadRuntimeError) {
+      throw error;
+    }
     throw new Error(summarizeError(error));
   }
 };
-

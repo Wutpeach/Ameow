@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { EngineExecutionContext } from "../core/index.js";
+import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import { runDirectVideoDownload } from "./directDownload.js";
 
 const createContext = (
@@ -142,5 +142,32 @@ describe("runDirectVideoDownload", () => {
       fetch: fetchMock,
     }));
     expect(result.success).toBe(true);
+  });
+
+  it("preserves runtime error codes thrown during stream reads", async () => {
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), "ameow-direct-"));
+    const runtimeError = new DownloadRuntimeError(
+      "E_EXECUTION_FAILED",
+      "stream failed with classified runtime error",
+    );
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+      },
+      pull() {
+        throw runtimeError;
+      },
+    }), {
+      status: 200,
+      headers: {
+        "content-type": "video/mp4",
+        "content-length": "6",
+      },
+    }));
+
+    await expect(runDirectVideoDownload(createContext({
+      outputDir,
+      fetch: fetchMock,
+    }))).rejects.toBe(runtimeError);
   });
 });
