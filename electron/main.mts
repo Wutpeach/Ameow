@@ -108,6 +108,8 @@ import {
   getMainWindowOuterSize,
   getSecondaryWindowOuterSize,
 } from "../src/constants/windowMetrics.js";
+import { createExtensionRequestBridge } from "./extensionRequestBridge.mjs";
+import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -135,7 +137,6 @@ const LOG_DIR_NAME = "logs";
 const RUNTIME_LOG_FILE_NAME = "runtime-latest.log";
 const RUNTIME_LOG_BUFFER_LIMIT = 1500;
 const EXPORTED_RUNTIME_LOG_LINE_LIMIT = 800;
-const VIDEO_QUEUE_MAX_CONCURRENT = 3;
 const SETTINGS_WINDOW_WIDTH = SETTINGS_WINDOW_CONTENT_WIDTH;
 const SETTINGS_WINDOW_HEIGHT = SETTINGS_WINDOW_CONTENT_HEIGHT;
 const SETTINGS_WINDOW_GAP = 16;
@@ -144,47 +145,13 @@ const UI_LAB_WINDOW_HEIGHT = UI_LAB_WINDOW_CONTENT_HEIGHT;
 const UI_LAB_WINDOW_GAP = 16;
 const WINDOW_EDGE_PADDING = 8;
 const PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS = 15_000;
-const PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS = 20_000;
 const XIAOHONGSHU_DRAG_RESOLUTION_TIMEOUT_MS = 30_000;
 const XIAOHONGSHU_HIDDEN_DETAIL_POLL_ATTEMPTS = 7;
 const XIAOHONGSHU_HIDDEN_DETAIL_POLL_INTERVAL_MS = 700;
 const XIAOHONGSHU_HIDDEN_DETAIL_INITIAL_SETTLE_MS = 900;
 const SHORT_LINK_NAVIGATION_TIMEOUT_MS = 12_000;
 const SHORT_LINK_NAVIGATION_SETTLE_MS = 1_200;
-const YTDLP_PROGRESS_PREFIX = "__AMEOW_PROGRESS__=";
-const YTDLP_FILE_PATH_PREFIX = "__AMEOW_FILE_PATH__=";
-const YTDLP_FORMAT_SELECTOR_BEST = "bestvideo+bestaudio/best";
-const YTDLP_FORMAT_SELECTOR_BALANCED = [
-  "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height=1080][ext=mp4]+ba[ext=m4a]/",
-  "b[height=1080][vcodec^=avc1][ext=mp4]/",
-  "b[height=1080][ext=mp4]/",
-  "best[height=1080][ext=mp4]/",
-  "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/",
-  "b[height<=1080][vcodec^=avc1][ext=mp4]/",
-  "b[height<=1080][ext=mp4]/",
-  "best[height<=1080][ext=mp4]/",
-  "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[ext=mp4]+ba[ext=m4a]/",
-  "b[vcodec^=avc1][ext=mp4]/",
-  "b[ext=mp4]/",
-  "best[ext=mp4]/",
-  "best",
-].join("");
-const YTDLP_FORMAT_SELECTOR_DATA_SAVER = [
-  "bv*[height=360][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height=360][ext=mp4]+ba[ext=m4a]/",
-  "b[height=360][vcodec^=avc1][ext=mp4]/",
-  "b[height=360][ext=mp4]/",
-  "best[height=360][ext=mp4]/",
-  "bv*[height<360][ext=mp4]+ba[ext=m4a]/",
-  "b[height<360][ext=mp4]/",
-  "best[height<360][ext=mp4]/",
-  "worstvideo[ext=mp4]+ba[ext=m4a]/",
-  "worst[ext=mp4]/",
-  "worst",
-].join("");
+const UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT = 3;
 const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ytDlp", "galleryDl", "ffmpeg", "deno"];
 const PINNED_DOWNLOADER_RELEASES = {
   "yt-dlp": {
@@ -224,26 +191,16 @@ let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let pendingAppUpdate = null;
 let electronDownloadRuntime = null;
+let extensionRequestBridge = null;
+let videoDownloadCommandBridge = null;
 let nextOpaqueSequence = 1;
-let isVideoQueuePumpScheduled = false;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
 
 const windows = new Map();
 const wsClients = new Set();
-const pendingVideoDownloads = [];
-const activeVideoDownloads = new Map();
 const pendingProtectedImageRequests = new Map();
-const pendingPastedVideoSelectionRequests = new Map();
 const pendingXiaohongshuDragRequests = new Map();
-const EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS = new Set([
-  "bilibili",
-  "douyin",
-  "youtube",
-  "twitter-x",
-  "pinterest",
-  "xiaohongshu",
-]);
 const ALLOWED_IMAGE_DOWNLOAD_REQUEST_HEADERS = new Set([
   "accept",
   "cookie",
@@ -3079,8 +3036,54 @@ function getElectronDownloadRuntime() {
         logInfo("ElectronRuntime", message);
       },
     },
+    bootstrapManagedComponents: async ({ reason }) => {
+      await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
+      return getRuntimeDependencyStatus();
+    },
   });
   return electronDownloadRuntime;
+}
+
+function getExtensionRequestBridge() {
+  if (extensionRequestBridge) {
+    return extensionRequestBridge;
+  }
+
+  extensionRequestBridge = createExtensionRequestBridge({
+    getConnectedClientCount() {
+      return wsClients.size;
+    },
+    broadcast(message) {
+      broadcastWsMessage(message);
+    },
+    nextRequestId(prefix) {
+      return nextOpaqueId(prefix);
+    },
+    log(message, details) {
+      console.log(`>>> [PastedVideo] ${message}:`, JSON.stringify(details ?? null));
+    },
+  });
+  return extensionRequestBridge;
+}
+
+function getVideoDownloadCommandBridge() {
+  if (videoDownloadCommandBridge) {
+    return videoDownloadCommandBridge;
+  }
+
+  videoDownloadCommandBridge = createVideoDownloadCommandBridge({
+    runtime: getElectronDownloadRuntime(),
+    extensionBridge: getExtensionRequestBridge(),
+    readConfigObject,
+    getRuntimeDependencyStatus,
+    getRuntimeDependencyGateState,
+    refreshRuntimeDependencyGateState,
+    startRuntimeDependencyBootstrap,
+    checkYtdlpVersion,
+    getGalleryDlInfo,
+    logInjectedDebug: logInjectedVideoSelectionDebug,
+  });
+  return videoDownloadCommandBridge;
 }
 
 function readyRuntimeEntry(entryPath, source) {
@@ -4267,7 +4270,7 @@ function emitUiLabEmptyTaskState() {
     activeCount: 0,
     pendingCount: 0,
     totalCount: 0,
-    maxConcurrent: VIDEO_QUEUE_MAX_CONCURRENT,
+    maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
   });
   emitAppEvent("video-queue-detail", { tasks: [] });
   emitAppEvent("video-transcode-queue-count", {
@@ -4353,7 +4356,7 @@ async function applyUiLabScenario(scenario) {
       activeCount: 1,
       pendingCount: 0,
       totalCount: 1,
-      maxConcurrent: VIDEO_QUEUE_MAX_CONCURRENT,
+      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
     });
     emitAppEvent("video-queue-detail", {
       tasks: [
@@ -4380,7 +4383,7 @@ async function applyUiLabScenario(scenario) {
       activeCount: 1,
       pendingCount: 2,
       totalCount: 3,
-      maxConcurrent: VIDEO_QUEUE_MAX_CONCURRENT,
+      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
     });
     emitAppEvent("video-queue-detail", {
       tasks: [
@@ -4510,7 +4513,7 @@ async function applyUiLabScenario(scenario) {
       activeCount: 1,
       pendingCount: 1,
       totalCount: 2,
-      maxConcurrent: VIDEO_QUEUE_MAX_CONCURRENT,
+      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
     });
     emitAppEvent("video-queue-detail", {
       tasks: [
@@ -4593,16 +4596,6 @@ function takePendingProtectedImageRequest(requestId) {
   return pending;
 }
 
-function takePendingPastedVideoSelectionRequest(requestId) {
-  const pending = pendingPastedVideoSelectionRequests.get(requestId);
-  if (!pending) {
-    return null;
-  }
-  pendingPastedVideoSelectionRequests.delete(requestId);
-  clearTimeout(pending.timeoutId);
-  return pending;
-}
-
 function takePendingXiaohongshuDragRequest(requestId) {
   const pending = pendingXiaohongshuDragRequests.get(requestId);
   if (!pending) {
@@ -4639,47 +4632,6 @@ async function requestProtectedImageResolution(payload) {
         pageUrl: payload.pageUrl ?? null,
         imageUrl: payload.imageUrl ?? null,
         targetDir: payload.targetDir ?? null,
-      },
-    });
-  });
-}
-
-async function requestPastedVideoSelectionResolution(payload) {
-  if (wsClients.size === 0) {
-    throw new Error("Browser extension is not connected");
-  }
-
-  const requestId = nextOpaqueId("pasted-video-selection");
-  console.log(
-    ">>> [PastedVideo] Requesting extension-assisted video selection:",
-    JSON.stringify({
-      requestId,
-      url: payload.url,
-      siteHint: payload.siteHint ?? null,
-      pageUrl: payload.pageUrl ?? null,
-      wsClientCount: wsClients.size,
-    }),
-  );
-
-  return new Promise((resolveResolution, rejectResolution) => {
-    const timeoutId = setTimeout(() => {
-      pendingPastedVideoSelectionRequests.delete(requestId);
-      rejectResolution(new Error("Pasted video selection resolution timed out"));
-    }, PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS);
-
-    pendingPastedVideoSelectionRequests.set(requestId, {
-      resolveResolution,
-      rejectResolution,
-      timeoutId,
-    });
-
-    broadcastWsMessage({
-      action: "resolve_pasted_video_selection",
-      data: {
-        requestId,
-        url: payload.url,
-        pageUrl: payload.pageUrl ?? null,
-        siteHint: payload.siteHint ?? null,
       },
     });
   });
@@ -4756,557 +4708,6 @@ function summarizeXiaohongshuResolutionForLogs(payload) {
         }))
       : [],
   };
-}
-
-function resolveYtdlpFormatProfile(quality, hasFfmpeg) {
-  if (!hasFfmpeg) {
-    switch (quality) {
-      case "balanced":
-        return {
-          selector: "best[height<=1080][ext=mp4]/best[ext=mp4]/best",
-          sort: "ext:mp4:m4a",
-          mergeOutputFormat: null,
-        };
-      case "data_saver":
-        return {
-          selector: "best[height<=360][ext=mp4]/worst[ext=mp4]/worst",
-          sort: "ext:mp4:m4a",
-          mergeOutputFormat: null,
-        };
-      case "best":
-      default:
-        return {
-          selector: "best[ext=mp4]/best",
-          sort: "res,codec:h264,acodec:aac,ext",
-          mergeOutputFormat: null,
-        };
-    }
-  }
-
-  switch (quality) {
-    case "balanced":
-      return {
-        selector: YTDLP_FORMAT_SELECTOR_BALANCED,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      };
-    case "data_saver":
-      return {
-        selector: YTDLP_FORMAT_SELECTOR_DATA_SAVER,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      };
-    case "best":
-    default:
-      return {
-        selector: YTDLP_FORMAT_SELECTOR_BEST,
-        sort: "res,codec:h264,acodec:aac,ext",
-        mergeOutputFormat: "mkv",
-      };
-  }
-}
-
-function emitVideoQueueState() {
-  const activeTasks = [...activeVideoDownloads.values()];
-  const pendingTasks = [...pendingVideoDownloads];
-  emitAppEvent("video-queue-count", {
-    activeCount: activeTasks.length,
-    pendingCount: pendingTasks.length,
-    totalCount: activeTasks.length + pendingTasks.length,
-    maxConcurrent: VIDEO_QUEUE_MAX_CONCURRENT,
-  });
-  emitAppEvent("video-queue-detail", {
-    tasks: [...activeTasks, ...pendingTasks].map((task) => ({
-      traceId: task.traceId,
-      label: task.label,
-      status: task.status,
-    })),
-  });
-}
-
-function emitVideoTaskProgress(task, payload) {
-  const safePercent = Number.isFinite(payload.percent)
-    ? Math.max(0, Math.min(100, Number(payload.percent)))
-    : task.progress.percent;
-  const nextProgress = {
-    percent: safePercent,
-    stage: payload.stage ?? task.progress.stage,
-    speed: typeof payload.speed === "string" ? payload.speed : task.progress.speed,
-    eta: typeof payload.eta === "string" ? payload.eta : task.progress.eta,
-  };
-  task.progress = nextProgress;
-  emitAppEvent("video-download-progress", {
-    traceId: task.traceId,
-    percent: nextProgress.percent,
-    stage: nextProgress.stage,
-    speed: nextProgress.speed,
-    eta: nextProgress.eta,
-  });
-}
-
-function resolveQueuedVideoSourceUrl(task) {
-  return normalizeOptionalString(task.videoUrl)
-    ?? task.videoCandidates[0]
-    ?? normalizeOptionalString(task.url)
-    ?? normalizeOptionalString(task.pageUrl);
-}
-
-function trackYtdlpOutputLine(task, line) {
-  const trimmedLine = line.trim();
-  if (!trimmedLine) {
-    return;
-  }
-
-  const filePathIndex = trimmedLine.indexOf(YTDLP_FILE_PATH_PREFIX);
-  if (filePathIndex >= 0) {
-    const candidatePath = trimmedLine
-      .slice(filePathIndex + YTDLP_FILE_PATH_PREFIX.length)
-      .trim();
-    if (candidatePath) {
-      task.filePath = candidatePath;
-    }
-    return;
-  }
-
-  const progressIndex = trimmedLine.indexOf(YTDLP_PROGRESS_PREFIX);
-  if (progressIndex >= 0) {
-    const rawPayload = trimmedLine
-      .slice(progressIndex + YTDLP_PROGRESS_PREFIX.length)
-      .trim();
-    const [percentRaw = "", speedRaw = "", etaRaw = ""] = rawPayload.split("|");
-    const percent = Number.parseFloat(percentRaw.replace(/[^0-9.]/g, ""));
-    emitVideoTaskProgress(task, {
-      percent: Number.isFinite(percent) ? percent : task.progress.percent,
-      stage: "downloading",
-      speed: speedRaw.trim() === "N/A" ? "" : speedRaw.trim(),
-      eta:
-        etaRaw.trim() === "N/A" || etaRaw.trim() === "NA" || etaRaw.trim() === "Unknown ETA"
-          ? ""
-          : etaRaw.trim(),
-    });
-    return;
-  }
-
-  void appendRuntimeLogLine("yt-dlp", `[${task.traceId}] ${trimmedLine}`);
-
-  const lowerLine = trimmedLine.toLowerCase();
-  if (trimmedLine.includes("[download] Destination:")) {
-    const destination = trimmedLine.split("[download] Destination:").slice(1).join("").trim();
-    if (destination) {
-      task.filePath = destination;
-    }
-  }
-  if (lowerLine.includes("merging formats into") || lowerLine.includes("fixing m3u8")) {
-    emitVideoTaskProgress(task, {
-      percent: Math.max(task.progress.percent, 99),
-      stage: "merging",
-      speed: "",
-      eta: "",
-    });
-    return;
-  }
-  if (
-    lowerLine.includes("post-process")
-    || lowerLine.includes("embedding metadata")
-    || lowerLine.includes("deleting original file")
-  ) {
-    emitVideoTaskProgress(task, {
-      percent: Math.max(task.progress.percent, 99),
-      stage: "post_processing",
-      speed: "",
-      eta: "",
-    });
-    return;
-  }
-
-  task.lastDiagnostic = trimmedLine;
-}
-
-function watchChildProcessLines(task, stream) {
-  let pending = "";
-  stream.on("data", (chunk) => {
-    pending += chunk.toString();
-    let lineBreakIndex = pending.indexOf("\n");
-    while (lineBreakIndex >= 0) {
-      const line = pending.slice(0, lineBreakIndex).trim();
-      pending = pending.slice(lineBreakIndex + 1);
-      if (line) {
-        trackYtdlpOutputLine(task, line);
-      }
-      lineBreakIndex = pending.indexOf("\n");
-    }
-  });
-  stream.on("end", () => {
-    const line = pending.trim();
-    if (line) {
-      trackYtdlpOutputLine(task, line);
-    }
-  });
-}
-
-async function saveTempCookiesFile(rawCookies) {
-  const cookies = normalizeOptionalString(rawCookies);
-  if (!cookies) {
-    return null;
-  }
-  const cookiesPath = join(tmpdir(), `${nextOpaqueId("ameow-cookies")}.txt`);
-  await writeFile(cookiesPath, cookies, "utf8");
-  return cookiesPath;
-}
-
-async function cleanupVideoTaskArtifacts(task) {
-  if (task.cookiesPath) {
-    await unlink(task.cookiesPath).catch(() => {});
-    task.cookiesPath = null;
-  }
-}
-
-async function settleVideoDownloadTask(task, outcome) {
-  if (task.settled) {
-    return;
-  }
-
-  task.settled = true;
-  task.child = null;
-  activeVideoDownloads.delete(task.traceId);
-
-  const pendingIndex = pendingVideoDownloads.findIndex((entry) => entry.traceId === task.traceId);
-  if (pendingIndex >= 0) {
-    pendingVideoDownloads.splice(pendingIndex, 1);
-  }
-
-  await cleanupVideoTaskArtifacts(task);
-  emitAppEvent("video-download-complete", {
-    traceId: task.traceId,
-    success: outcome.success,
-    file_path: outcome.filePath ?? task.filePath ?? undefined,
-    error: outcome.error ?? undefined,
-  });
-  emitVideoQueueState();
-  void pumpVideoDownloadQueue();
-}
-
-async function runVideoDownloadTask(task) {
-  const sourceUrl = resolveQueuedVideoSourceUrl(task);
-  if (!sourceUrl) {
-    await settleVideoDownloadTask(task, {
-      success: false,
-      error: "Missing video download URL",
-    });
-    return;
-  }
-
-  try {
-    const runtimeSnapshot = await getRuntimeDependencyStatus();
-    const missingManagedComponents = collectMissingManagedRuntimeComponents(runtimeSnapshot);
-    const ytdlpPath = await ensureManagedYtDlpRuntimeReady("ytdlp_download", missingManagedComponents);
-    if (!ytdlpPath) {
-      throw new Error("Managed yt-dlp runtime is missing");
-    }
-    const ffmpegPath = await ensureManagedFfmpegRuntimeReady(
-      "ytdlp_download",
-      missingManagedComponents,
-    );
-    const denoPath = await ensureManagedDenoRuntimeReady(
-      "ytdlp_download",
-      missingManagedComponents,
-    );
-    const outputDir = await resolveCurrentOutputFolderPath();
-    const formatProfile = resolveYtdlpFormatProfile(task.ytdlpQuality, Boolean(ffmpegPath));
-    task.cookiesPath = await saveTempCookiesFile(task.cookies);
-    const args = [
-      "--newline",
-      "--no-warnings",
-      "--ignore-config",
-      "--progress",
-      "--progress-template",
-      `download:${YTDLP_PROGRESS_PREFIX}%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s`,
-      "--print",
-      `after_move:${YTDLP_FILE_PATH_PREFIX}%(filepath)s`,
-      "--output",
-      "%(title)s.%(ext)s",
-      "-P",
-      outputDir,
-      "--format",
-      formatProfile.selector,
-      "--extractor-args",
-      "youtube:player_js_variant=tv",
-      "--remote-components",
-      "ejs:github",
-    ];
-
-    if (formatProfile.sort) {
-      args.push("--format-sort", formatProfile.sort);
-    }
-    if (formatProfile.mergeOutputFormat) {
-      args.push("--merge-output-format", formatProfile.mergeOutputFormat);
-    }
-    if (ffmpegPath) {
-      args.push("--ffmpeg-location", dirname(ffmpegPath));
-    }
-    if (process.platform === "win32") {
-      args.push("--js-runtimes", "deno", "--js-runtimes", "node");
-    } else {
-      args.push("--js-runtimes", "node", "--js-runtimes", "deno");
-    }
-    if (task.cookiesPath) {
-      args.push("--cookies", task.cookiesPath);
-    }
-    if (task.selectionScope === "current_item") {
-      args.push("--no-playlist");
-    }
-    if (task.pageUrl) {
-      args.push("--add-header", `Referer:${task.pageUrl}`);
-    }
-    args.push(sourceUrl);
-
-    task.lastDiagnostic = "";
-    emitVideoTaskProgress(task, {
-      percent: 0,
-      stage: "preparing",
-      speed: "",
-      eta: "",
-    });
-
-    const child = spawn(ytdlpPath, args, {
-      cwd: repoRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        PATH: `${dirname(denoPath)}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`,
-      },
-      windowsHide: true,
-    });
-    task.child = child;
-    watchChildProcessLines(task, child.stdout);
-    watchChildProcessLines(task, child.stderr);
-
-    await new Promise((resolveTask, rejectTask) => {
-      child.once("error", rejectTask);
-      child.once("close", (code, signal) => {
-        if (task.cancelRequested) {
-          resolveTask();
-          return;
-        }
-
-        if (code === 0) {
-          resolveTask();
-          return;
-        }
-
-        rejectTask(
-          new Error(
-            task.lastDiagnostic
-              || `yt-dlp exited with code ${code}${signal ? ` (${signal})` : ""}`,
-          ),
-        );
-      });
-    });
-
-    if (task.cancelRequested) {
-      await settleVideoDownloadTask(task, {
-        success: false,
-        error: "cancelled",
-      });
-      return;
-    }
-
-    await settleVideoDownloadTask(task, {
-      success: true,
-      filePath: task.filePath,
-    });
-  } catch (error) {
-    await settleVideoDownloadTask(task, {
-      success: false,
-      error: String(error),
-    });
-  }
-}
-
-async function pumpVideoDownloadQueue() {
-  if (isVideoQueuePumpScheduled) {
-    return;
-  }
-
-  isVideoQueuePumpScheduled = true;
-  try {
-    while (
-      activeVideoDownloads.size < VIDEO_QUEUE_MAX_CONCURRENT
-      && pendingVideoDownloads.length > 0
-    ) {
-      const task = pendingVideoDownloads.shift();
-      if (!task || task.cancelRequested) {
-        continue;
-      }
-
-      task.status = "active";
-      activeVideoDownloads.set(task.traceId, task);
-      emitVideoQueueState();
-      void runVideoDownloadTask(task);
-    }
-  } finally {
-    isVideoQueuePumpScheduled = false;
-    if (
-      activeVideoDownloads.size < VIDEO_QUEUE_MAX_CONCURRENT
-      && pendingVideoDownloads.length > 0
-    ) {
-      void pumpVideoDownloadQueue();
-    }
-  }
-}
-
-async function enqueueElectronVideoDownload(payload) {
-  const rawUrl = normalizeRequiredVideoRouteUrl(payload?.url);
-  if (!rawUrl) {
-    throw new Error("Missing or invalid url");
-  }
-
-  const config = await readConfigObject();
-  const mergedPreferences = resolveVideoDownloadPreferencesFromConfig(config);
-  const siteHint = resolveVideoSelectionSiteHint(
-    payload?.siteHint,
-    payload?.pageUrl,
-    payload?.url,
-    payload?.videoUrl,
-  );
-  const normalizedRequest = {
-    url: rawUrl,
-    pageUrl: normalizeVideoPageUrl(payload?.pageUrl),
-    videoUrl: normalizeVideoHintUrl(payload?.videoUrl, siteHint),
-    videoCandidates: normalizeVideoCandidates(payload?.videoCandidates, siteHint),
-    title: normalizeOptionalString(payload?.title) ?? undefined,
-    cookies: normalizeOptionalString(payload?.cookies) ?? undefined,
-    selectionScope:
-      payload?.selectionScope === "current_item" || payload?.selectionScope === "playlist"
-        ? payload.selectionScope
-        : undefined,
-    clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec),
-    clipEndSec: normalizeOptionalNumber(payload?.clipEndSec ?? payload?.clip_end_sec),
-    ytdlpQuality:
-      normalizeYtdlpQualityPreference(payload?.ytdlpQualityPreference)
-      ?? normalizeYtdlpQualityPreference(payload?.ytdlpQuality)
-      ?? normalizeYtdlpQualityPreference(payload?.defaultVideoDownloadQuality)
-      ?? mergedPreferences.ytdlpQuality,
-    siteHint,
-    extensionData: (() => {
-      const rawExtensionData = payload?.extensionData && typeof payload.extensionData === "object" && !Array.isArray(payload.extensionData)
-        ? payload.extensionData
-        : payload?.extension_data && typeof payload.extension_data === "object" && !Array.isArray(payload.extension_data)
-          ? payload.extension_data
-          : null;
-      const rawYouTubeExtensionData = rawExtensionData?.youtube
-        && typeof rawExtensionData.youtube === "object"
-        && !Array.isArray(rawExtensionData.youtube)
-        ? rawExtensionData.youtube
-        : null;
-      if (!rawYouTubeExtensionData) {
-        return undefined;
-      }
-
-      const youtubeSource = normalizeOptionalString(rawYouTubeExtensionData.source);
-      const normalizedYouTubeData = {
-        forceExtended: typeof rawYouTubeExtensionData.forceExtended === "boolean"
-          ? rawYouTubeExtensionData.forceExtended
-          : undefined,
-        allowCookies: typeof rawYouTubeExtensionData.allowCookies === "boolean"
-          ? rawYouTubeExtensionData.allowCookies
-          : undefined,
-        source:
-          youtubeSource === "injected"
-          || youtubeSource === "pasted"
-          || youtubeSource === "context_menu"
-            ? youtubeSource
-            : undefined,
-      };
-
-      if (
-        normalizedYouTubeData.forceExtended === undefined
-        && normalizedYouTubeData.allowCookies === undefined
-        && normalizedYouTubeData.source === undefined
-      ) {
-        return undefined;
-      }
-
-      return {
-        youtube: normalizedYouTubeData,
-      };
-    })(),
-  };
-  logInjectedVideoSelectionDebug(
-    config,
-    "Normalized injected download request",
-    summarizeInjectedVideoSelectionPayload(normalizedRequest),
-  );
-  const ack = await getElectronDownloadRuntime().queueVideoDownload(normalizedRequest);
-  logInjectedVideoSelectionDebug(config, "Queued injected download request", {
-    traceId: ack.traceId,
-    accepted: ack.accepted,
-    ...summarizeInjectedVideoSelectionPayload(normalizedRequest),
-  });
-  return ack;
-}
-
-async function enqueuePastedElectronVideoDownload(payload) {
-  const rawUrl = normalizeRequiredVideoRouteUrl(payload?.url);
-  if (!rawUrl) {
-    throw new Error("Missing or invalid url");
-  }
-
-  const siteHint = resolveVideoSelectionSiteHint(
-    payload?.siteHint,
-    payload?.pageUrl,
-    payload?.url,
-    payload?.videoUrl,
-  );
-
-  if (!siteHint || !EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS.has(siteHint)) {
-    return enqueueElectronVideoDownload(payload);
-  }
-
-  try {
-    const resolvedViaExtension = await requestPastedVideoSelectionResolution({
-      url: rawUrl,
-      pageUrl: normalizeVideoPageUrl(payload?.pageUrl) ?? rawUrl,
-      siteHint,
-    });
-
-    if (resolvedViaExtension?.success && resolvedViaExtension.url) {
-      console.log(
-        ">>> [PastedVideo] Using extension-assisted selection payload:",
-        JSON.stringify({
-          url: resolvedViaExtension.url,
-          pageUrl: resolvedViaExtension.pageUrl ?? null,
-          videoUrl: resolvedViaExtension.videoUrl ?? null,
-          siteHint: resolvedViaExtension.siteHint ?? siteHint,
-          videoCandidatesCount: resolvedViaExtension.videoCandidates?.length ?? 0,
-          cookiesPresent: Boolean(resolvedViaExtension.cookies),
-          selectionScope: resolvedViaExtension.selectionScope ?? null,
-          ytdlpQualityPreference: resolvedViaExtension.ytdlpQualityPreference ?? null,
-        }),
-      );
-      return enqueueElectronVideoDownload({
-        ...payload,
-        ...resolvedViaExtension,
-      });
-    }
-
-    console.warn(
-      ">>> [PastedVideo] Extension-assisted selection was unavailable, falling back to direct queue:",
-      {
-        siteHint,
-        code: resolvedViaExtension?.code ?? null,
-        error: resolvedViaExtension?.error ?? null,
-      },
-    );
-  } catch (error) {
-    console.warn(">>> [PastedVideo] Extension-assisted selection failed, falling back to direct queue:", error);
-  }
-
-  return enqueueElectronVideoDownload(payload);
-}
-
-async function cancelVideoDownload(traceId) {
-  return getElectronDownloadRuntime().cancelDownload(traceId);
 }
 
 async function broadcastTheme(theme) {
@@ -6205,66 +5606,11 @@ async function handleWsMessage(rawMessage) {
       };
     }
     case "pasted_video_selection_result": {
-      const correlationRequestId = normalizeOptionalString(
-        data?.correlationRequestId ?? data?.correlation_request_id,
-      );
-      if (!correlationRequestId) {
-        return {
-          success: false,
-          message: "Missing correlationRequestId",
-          data: withRequest("missing_correlation_request_id"),
-        };
-      }
-
-      const pending = takePendingPastedVideoSelectionRequest(correlationRequestId);
-      if (!pending) {
-        return {
-          success: false,
-          message: "Unknown pasted video correlation request",
-          data: withRequest("unknown_correlation_request"),
-        };
-      }
-
-      const siteHint = resolveVideoSelectionSiteHint(
-        data?.siteHint,
-        data?.pageUrl,
-        data?.url,
-        data?.videoUrl,
-      );
-
-      pending.resolveResolution({
-        success: data?.success === true,
-        url: normalizeRequiredVideoRouteUrl(data?.url),
-        pageUrl: normalizeVideoPageUrl(data?.pageUrl),
-        videoUrl: normalizeVideoHintUrl(data?.videoUrl, siteHint),
-        videoCandidates: Array.isArray(data?.videoCandidates ?? data?.video_candidates)
-          ? normalizeVideoCandidates(data?.videoCandidates ?? data?.video_candidates, siteHint)
-          : [],
-        siteHint,
-        title: normalizeOptionalString(data?.title),
-        cookies: normalizeOptionalString(data?.cookies),
-        selectionScope:
-          data?.selectionScope === "current_item" || data?.selectionScope === "playlist"
-            ? data.selectionScope
-            : undefined,
-        clipStartSec: normalizeOptionalNumber(data?.clipStartSec ?? data?.clip_start_sec),
-        clipEndSec: normalizeOptionalNumber(data?.clipEndSec ?? data?.clip_end_sec),
-        ytdlpQualityPreference:
-          normalizeYtdlpQualityPreference(data?.ytdlpQualityPreference)
-          ?? normalizeYtdlpQualityPreference(data?.ytdlpQuality),
-        extensionData:
-          data?.extensionData && typeof data.extensionData === "object" && !Array.isArray(data.extensionData)
-            ? data.extensionData
-            : data?.extension_data && typeof data.extension_data === "object" && !Array.isArray(data.extension_data)
-              ? data.extension_data
-              : undefined,
-        code: normalizeOptionalString(data?.code),
-        error: normalizeOptionalString(data?.error),
-      });
+      const result = getExtensionRequestBridge().handlePastedVideoSelectionResult(data);
       return {
-        success: true,
-        message: "pasted_video_selection_received",
-        data: withRequest(null),
+        success: result.success,
+        message: result.message,
+        data: withRequest(result.success ? null : result.code),
       };
     }
     case "xiaohongshu_drag_resolution_result": {
@@ -6363,7 +5709,7 @@ async function handleWsMessage(rawMessage) {
           summarizeInjectedVideoSelectionPayload(data),
         );
         const syncedPreferences = await syncIncomingDownloadPreferences(data);
-        const ack = await enqueueElectronVideoDownload({
+        const ack = await getVideoDownloadCommandBridge().invoke("queue_video_download", {
           url,
           pageUrl: data.pageUrl,
           videoUrl: data.videoUrl,
@@ -6402,6 +5748,11 @@ async function handleWsMessage(rawMessage) {
 }
 
 async function handleCommand(command, payload = {}) {
+  const videoDownloadCommands = getVideoDownloadCommandBridge();
+  if (videoDownloadCommands.supports(command)) {
+    return videoDownloadCommands.invoke(command, payload);
+  }
+
   switch (command) {
     case "get_config":
       return readConfigString();
@@ -6485,12 +5836,6 @@ async function handleCommand(command, payload = {}) {
       return getClipboardFilePaths();
     case "export_support_log":
       return exportSupportLog();
-    case "get_runtime_dependency_status":
-      return getRuntimeDependencyStatus();
-    case "get_runtime_dependency_gate_state":
-      return getRuntimeDependencyGateState();
-    case "refresh_runtime_dependency_gate_state":
-      return refreshRuntimeDependencyGateState();
     case "resolve_xiaohongshu_drag_media": {
       const pageUrl = typeof payload.pageUrl === "string"
         ? payload.pageUrl
@@ -6709,24 +6054,6 @@ async function handleCommand(command, payload = {}) {
 
       return preferredVideoResult;
     }
-    case "start_runtime_dependency_bootstrap":
-      return startRuntimeDependencyBootstrap(normalizeOptionalString(payload.reason) ?? undefined);
-    case "check_ytdlp_version":
-      return checkYtdlpVersion();
-    case "get_gallery_dl_info":
-      return getGalleryDlInfo();
-    case "queue_pasted_video_download":
-      return enqueuePastedElectronVideoDownload(payload);
-    case "queue_video_download":
-      return enqueueElectronVideoDownload(payload);
-    case "cancel_download":
-      return cancelVideoDownload(String(payload.traceId ?? ""));
-    case "cancel_transcode":
-      return getElectronDownloadRuntime().cancelTranscode(String(payload.traceId ?? ""));
-    case "retry_transcode":
-      return getElectronDownloadRuntime().retryTranscode(String(payload.traceId ?? ""));
-    case "remove_transcode":
-      return getElectronDownloadRuntime().removeTranscode(String(payload.traceId ?? ""));
     default:
       throw new Error(`Unsupported Electron command: ${command}`);
   }
@@ -6998,11 +6325,7 @@ async function bootstrap() {
       pending.rejectResolution(new Error("Ameow is shutting down"));
     }
     pendingProtectedImageRequests.clear();
-    for (const pending of pendingPastedVideoSelectionRequests.values()) {
-      clearTimeout(pending.timeoutId);
-      pending.rejectResolution(new Error("Ameow is shutting down"));
-    }
-    pendingPastedVideoSelectionRequests.clear();
+    getExtensionRequestBridge().rejectAllPendingRequests(new Error("Ameow is shutting down"));
     for (const pending of pendingXiaohongshuDragRequests.values()) {
       clearTimeout(pending.timeoutId);
       pending.rejectResolution(new Error("Ameow is shutting down"));
