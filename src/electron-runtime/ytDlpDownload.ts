@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { EngineExecutionContext } from "../core/index.js";
+import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 import { buildYtdlpCommandArgs, createYtdlpCommandPlan, type YouTubeMode } from "./ytDlpCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
@@ -141,7 +142,24 @@ export const runYtDlpDownload = async (
 ): Promise<DownloadResultPayload> => {
   const manifest = getCliEngineManifest("yt-dlp");
   const taskStartedAtMs = Date.now();
-  const commandPlan = createYtdlpCommandPlan(context);
+  let commandPlan: ReturnType<typeof createYtdlpCommandPlan>;
+  try {
+    commandPlan = createYtdlpCommandPlan(context);
+  } catch (error) {
+    if (!(error instanceof InvalidCommandPlanError)) {
+      throw error;
+    }
+    throw new DownloadRuntimeError(
+      "E_INVALID_ENGINE_PLAN",
+      error.message,
+      {
+        context: {
+          providerId: context.plan.providerId,
+          traceId: context.traceId,
+        },
+      },
+    );
+  }
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, commandPlan.artifactPrefixes));
   logYtDlpTiming("task start", {
     traceId: context.traceId,

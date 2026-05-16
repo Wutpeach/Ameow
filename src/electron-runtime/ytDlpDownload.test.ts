@@ -37,6 +37,7 @@ vi.mock("./sidecarCookies.js", () => ({
 }));
 
 import { runYtDlpDownload } from "./ytDlpDownload.js";
+import { DownloadRuntimeError } from "../core/index.js";
 
 describe("runYtDlpDownload", () => {
   beforeEach(() => {
@@ -466,13 +467,46 @@ describe("runYtDlpDownload", () => {
         clipStartSec: 3,
         clipEndSec: 9,
       },
+      plan: {
+        providerId: "twitter-x",
+      },
       abortSignal: new AbortController().signal,
       onProgress: vi.fn(async () => undefined),
     } as never;
 
-    await expect(runYtDlpDownload(context)).rejects.toThrow(
-      "Clip downloads are only supported for YouTube and Bilibili",
-    );
+    await expect(runYtDlpDownload(context)).rejects.toMatchObject({
+      name: "DownloadRuntimeError",
+      code: "E_INVALID_ENGINE_PLAN",
+      message: "Clip downloads are only supported for YouTube and Bilibili",
+    } satisfies Partial<DownloadRuntimeError>);
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a missing source URL to an invalid engine plan error", async () => {
+    const context = {
+      traceId: "trace-missing-source",
+      outputDir: "D:/downloads",
+      outputStem: "Missing Source",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {},
+      intent: {},
+      plan: {
+        providerId: "generic",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toMatchObject({
+      name: "DownloadRuntimeError",
+      code: "E_INVALID_ENGINE_PLAN",
+      message: "yt-dlp source URL is missing",
+    } satisfies Partial<DownloadRuntimeError>);
     expect(runStreamingCommandMock).not.toHaveBeenCalled();
   });
 
