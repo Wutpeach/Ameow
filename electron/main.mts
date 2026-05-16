@@ -13,7 +13,6 @@ import {
   shell,
   Tray,
 } from "electron";
-import { once } from "node:events";
 import { createWriteStream, existsSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -56,12 +55,8 @@ import {
   resolveRenameEnabled,
 } from "../src/electron-runtime/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
-import {
-  APP_RELEASES_API,
-  APP_STABLE_UPDATE_ENDPOINT,
-  resolveLatestPrereleaseUpdateManifestUrlFromReleases,
-  shouldReceivePrereleaseAppUpdates,
-} from "./appUpdate.mjs";
+import { createAppUpdateController } from "./appUpdateController.mjs";
+import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
 import {
   normalizeVideoCandidates,
   normalizeRequiredVideoRouteUrl,
@@ -93,7 +88,6 @@ import { openPathOrThrow } from "./openPath.mjs";
 import {
   ensureManagedYtDlpReady,
   getManagedYtDlpVersion,
-  managedYtDlpMinimumPythonVersion,
 } from "./managedYtDlpRuntime.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
@@ -162,10 +156,27 @@ const MACOS_TRAY_ICON_SIZE_PX = 18;
 let tray = null;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
-let pendingAppUpdate = null;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
+const appUpdateController = createAppUpdateController({
+  platform: process.platform,
+  isPackaged: app.isPackaged,
+  getAppVersion() {
+    return app.getVersion();
+  },
+  fetch: fetchWithDesktopSession,
+  readConfigObject,
+  compareAppVersions,
+  normalizeVersionString,
+  openPath(path) {
+    return shell.openPath(path);
+  },
+  prepareToQuit() {
+    app.isQuitting = true;
+    app.quit();
+  },
+});
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -3126,210 +3137,27 @@ async function getLocalDownloaderVersion(toolId, binaryPath) {
   });
 }
 
-async function downloadToFile(url, destinationPath, options = {}) {
-  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
-    ? options.timeoutMs
-    : null;
-  const timeoutErrorMessage = options.timeoutErrorMessage
-    ?? `Request timed out after ${Math.round((timeoutMs ?? 0) / 1000)}s`;
-  const controller = timeoutMs ? new AbortController() : null;
-  const upstreamSignal = options.signal;
-  let timeoutId = null;
-  let timedOut = false;
-  let removeAbortListener = null;
-  let writable = null;
-
-  const resetTimeout = () => {
-    if (!controller || !timeoutMs) {
-      return;
-    }
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
-  };
-
-  if (controller && upstreamSignal) {
-    const forwardAbort = () => {
-      controller.abort(upstreamSignal.reason);
-    };
-
-    if (upstreamSignal.aborted) {
-      controller.abort(upstreamSignal.reason);
-    } else {
-      upstreamSignal.addEventListener("abort", forwardAbort, { once: true });
-      removeAbortListener = () => {
-        upstreamSignal.removeEventListener("abort", forwardAbort);
-      };
-    }
-  }
-
-  try {
-    resetTimeout();
-    const response = await fetchWithDesktopSession(url, {
-      headers: options.headers,
-      signal: controller?.signal ?? upstreamSignal,
-    });
-    if (!response.ok || !response.body) {
-      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-    }
-
-    await mkdir(dirname(destinationPath), { recursive: true });
-
-    const total = Number.parseInt(response.headers.get("content-length") ?? "0", 10);
-    writable = createWriteStream(destinationPath);
-    const reader = response.body.getReader();
-    let downloaded = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      resetTimeout();
-      const chunk = Buffer.from(value);
-      downloaded += chunk.length;
-      if (!writable.write(chunk)) {
-        await once(writable, "drain");
-      }
-      options.onProgress?.({
-        downloaded,
-        total: Number.isFinite(total) ? total : 0,
-      });
-    }
-
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-
-    await new Promise((resolveWrite, rejectWrite) => {
-      writable.once("error", rejectWrite);
-      writable.end(() => {
-        resolveWrite();
-      });
-    });
-  } catch (error) {
-    writable?.destroy(error);
-    if (timedOut) {
-      throw new Error(timeoutErrorMessage);
-    }
-    throw error;
-  } finally {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-    }
-    removeAbortListener?.();
-  }
-}
-
 async function checkYtdlpVersion() {
-  const status = await getRuntimeDependencyStatus();
-  const latest = resolvePinnedDownloaderRelease("yt-dlp").version;
-
-  if (process.platform !== "darwin") {
-    const entryPath = status.ytDlp.path;
-    let current = "missing";
-    let localError = status.ytDlp.error ?? null;
-    if (entryPath) {
-      try {
-        current = await getLocalDownloaderVersion("yt-dlp", entryPath);
-        localError = null;
-      } catch (error) {
-        current = "unknown";
-        localError = String(error);
-      }
-    }
-    return {
-      current,
-      latest,
-      updateAvailable:
-        current !== "missing" && current !== "unknown" && latest
-          ? compareLooseVersions(current, latest) < 0
-          : null,
-      latestError: localError,
-      source: entryPath ? "managed" : "missing",
-      path: entryPath ?? null,
-      pythonVersion: null,
-      pythonPath: null,
-      pythonSupportsLatestStable: null,
-      updateChannel: entryPath ? "managed_release" : "unavailable",
-    };
-  }
-
-  const managed = await getManagedYtDlpVersion(getUserDataDir(), currentManagedRuntimeTarget());
-  let current = "missing";
-  let localError = status.ytDlp.error ?? null;
-  if (managed?.path) {
-    current = managed.version;
-    localError = null;
-  } else {
-    localError = localError ?? "Managed yt-dlp runtime is missing";
-  }
-  const pythonBlocksPinnedVersion = Boolean(
-    managed
-    && latest
-    && !managed.pythonSupportsLatestStable
-    && compareLooseVersions(managed.version, latest) < 0,
-  );
-  const effectiveLatestError = pythonBlocksPinnedVersion
-    ? `Latest stable yt-dlp requires Python ${managedYtDlpMinimumPythonVersion()}+, current managed runtime uses ${managed.pythonVersion ?? "an older Python"}.`
-    : localError;
-  return {
-    current,
-    latest,
-    updateAvailable:
-      current !== "missing" && current !== "unknown" && latest && !pythonBlocksPinnedVersion
-        ? compareLooseVersions(current, latest) < 0
-        : null,
-    latestError: effectiveLatestError,
-    source: managed?.path ? "managed" : "missing",
-    path: managed?.path ?? null,
-    pythonVersion: managed?.pythonVersion ?? null,
-    pythonPath: managed?.pythonPath ?? null,
-    pythonSupportsLatestStable: managed?.pythonSupportsLatestStable ?? null,
-    updateChannel: managed?.path ? "managed_python_package" : "unavailable",
-  };
+  return buildYtdlpVersionInfo({
+    platform: process.platform,
+    getRuntimeDependencyStatus,
+    getUserDataDir,
+    currentManagedRuntimeTarget,
+    getManagedYtDlpVersion,
+    getLocalDownloaderVersion,
+    resolvePinnedDownloaderRelease,
+    compareLooseVersions,
+  });
 }
 
 async function getGalleryDlInfo() {
-  const status = await getRuntimeDependencyStatus();
-  if (status.galleryDl.state !== "ready" || !status.galleryDl.path) {
-    return {
-      current: "missing",
-      latest: resolvePinnedDownloaderRelease("gallery-dl").version,
-      updateAvailable: null,
-      latestError: status.galleryDl.error,
-      source: "missing",
-      path: null,
-      updateChannel: "unavailable",
-    };
-  }
-  let current = "unknown";
-  let latestError = null;
-  try {
-    current = await getLocalDownloaderVersion("gallery-dl", status.galleryDl.path);
-  } catch (error) {
-    latestError = String(error);
-  }
-  const latest = resolvePinnedDownloaderRelease("gallery-dl").version;
-
-  return {
-    current,
-    latest,
-    updateAvailable:
-      current !== "missing" && current !== "unknown" && latest
-        ? compareLooseVersions(current, latest) < 0
-        : null,
-    latestError,
-    source: "managed",
-    path: status.galleryDl.path,
-    updateChannel: "managed_release",
-  };
+  return buildGalleryDlInfo({
+    platform: process.platform,
+    getRuntimeDependencyStatus,
+    getLocalDownloaderVersion,
+    resolvePinnedDownloaderRelease,
+    compareLooseVersions,
+  });
 }
 
 function readNativeLocaleCandidates(language) {
@@ -4507,96 +4335,11 @@ async function readClipboardImage() {
 }
 
 async function checkForAppUpdate() {
-  if (process.platform !== "win32" || !app.isPackaged) {
-    pendingAppUpdate = null;
-    return null;
-  }
-
-  try {
-    const manifestUrl = await resolveAppUpdateManifestUrl();
-    const response = await fetchWithDesktopSession(manifestUrl);
-    if (!response.ok) {
-      throw new Error(`Update manifest lookup failed: ${response.status}`);
-    }
-    const manifest = await response.json();
-    const nextVersion = normalizeVersionString(manifest?.version);
-    const currentVersion = normalizeVersionString(app.getVersion());
-    if (
-      !nextVersion
-      || !currentVersion
-      || compareAppVersions(nextVersion, currentVersion) <= 0
-    ) {
-      pendingAppUpdate = null;
-      return null;
-    }
-    pendingAppUpdate = manifest;
-    return {
-      current: currentVersion,
-      latest: nextVersion,
-      notes: typeof manifest.notes === "string" ? manifest.notes : null,
-      publishedAt: typeof manifest.pub_date === "string" ? manifest.pub_date : null,
-    };
-  } catch (error) {
-    console.error(">>> [Electron] App update check failed:", error);
-    pendingAppUpdate = null;
-    return null;
-  }
-}
-
-async function resolveAppUpdateManifestUrl() {
-  const config = await readConfigObject();
-  if (!shouldReceivePrereleaseAppUpdates(config)) {
-    return APP_STABLE_UPDATE_ENDPOINT;
-  }
-
-  const prereleaseManifestUrl = await fetchLatestPrereleaseUpdateManifestUrl();
-  if (prereleaseManifestUrl) {
-    return prereleaseManifestUrl;
-  }
-
-  console.warn(">>> [Electron] No prerelease updater manifest found; falling back to stable updates");
-  return APP_STABLE_UPDATE_ENDPOINT;
-}
-
-async function fetchLatestPrereleaseUpdateManifestUrl() {
-  const response = await fetchWithDesktopSession(APP_RELEASES_API, {
-    headers: buildGitHubHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(`GitHub prerelease lookup failed: ${response.status}`);
-  }
-
-  const releases = await response.json();
-  return resolveLatestPrereleaseUpdateManifestUrlFromReleases(releases);
+  return appUpdateController.checkForAppUpdate();
 }
 
 async function downloadAndInstallAppUpdate() {
-  if (!pendingAppUpdate) {
-    throw new Error("No pending Electron app update is available");
-  }
-
-  const platformEntry = pendingAppUpdate?.platforms?.["windows-x86_64"];
-  const installerUrl = normalizeOptionalString(platformEntry?.url);
-  if (!installerUrl) {
-    throw new Error("Update manifest does not include a Windows installer URL");
-  }
-
-  const parsedUrl = new URL(installerUrl);
-  const installerFileName = basename(parsedUrl.pathname) || "Ameow_update_installer.exe";
-  const downloadDir = await mkdtemp(join(tmpdir(), "ameow-app-update-"));
-  const installerPath = join(downloadDir, installerFileName);
-  await downloadToFile(installerUrl, installerPath, {
-    headers: buildGitHubHeaders(),
-  });
-
-  const openResult = await shell.openPath(installerPath);
-  if (openResult) {
-    throw new Error(`Failed to open installer: ${openResult}`);
-  }
-
-  app.isQuitting = true;
-  app.quit();
-  return new Promise(() => {});
+  return appUpdateController.downloadAndInstallAppUpdate();
 }
 
 function buildRequestData(requestId, code, extraData = {}) {
