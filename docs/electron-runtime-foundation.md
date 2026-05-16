@@ -11,7 +11,6 @@ This document freezes the runtime boundary for Ameow after the Electron cutover.
   - `electron/main.mts`
   - `electron/preload.mts`
 - Repo-visible desktop assets live in:
-  - `desktop-assets/binaries/`
   - `desktop-assets/icons/`
 - Browser-extension transport currently lives in:
   - `browser-extension/background.js`
@@ -134,7 +133,8 @@ Autostart remains runtime-owned OS state, not a `settings.json` key.
   - macOS users stay on the manual release-install path in Phase 1
 - Keep GitHub Releases and `release-notes/v<version>.md` as the canonical release flow.
 - Keep the browser-extension ZIP as a separate release asset.
-- Keep Electron packaging `asar = false` so the packaged app can continue resolving `dist/`, `locales/`, and `desktop-assets/binaries/` through the existing repo-root-relative runtime contract.
+- Keep Electron packaging `asar = false` so the packaged app can continue resolving `dist/` and `locales/` through the existing repo-root-relative runtime contract.
+- Downloader runtimes are not bundled into installers; the main-window runtime gate downloads the release-pinned versions into the app data runtime directory on first launch or repair.
 
 Renderer updater contract:
 
@@ -147,7 +147,7 @@ Renderer updater contract:
 - It is intentionally transport-agnostic: the package exposes queue/runtime services without importing `electron` directly, so preload/main integration can wrap it later.
 - `src/electron-runtime/commandRouter.ts` is the current compatibility adapter for stable renderer command names. It owns the runtime-backed mapping for `queue_video_download`, `cancel_download`, and runtime dependency status/bootstrap commands while tolerating both camelCase and snake_case payload keys during the migration.
 - Current package responsibilities:
-  - bundled-vs-managed runtime path resolution
+  - managed runtime path resolution
   - runtime dependency gate state
   - hidden CLI spawning via Node (`windowsHide`)
   - direct-download execution
@@ -156,4 +156,4 @@ Renderer updater contract:
   - queue concurrency and cancel semantics
 - Current decision:
   - legacy runtime proxy binaries are no longer part of the supported Electron runtime path
-  - runtime spawning, packaging, and release scripts should treat the Electron-owned bridge and `desktop-assets/` as the only desktop source of truth
+  - runtime spawning, packaging, and release scripts should treat the Electron-owned bridge and managed runtime bootstrap as the desktop source of truth

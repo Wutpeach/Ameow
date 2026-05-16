@@ -97,7 +97,6 @@ import { openPathOrThrow } from "./openPath.mjs";
 import {
   ensureManagedYtDlpReady,
   getManagedYtDlpVersion,
-  isManagedYtDlpSupported,
   managedYtDlpMinimumPythonVersion,
 } from "./managedYtDlpRuntime.mjs";
 import {
@@ -132,7 +131,6 @@ const LANGUAGE_CHANGED_EVENT = "language-changed";
 const UI_LAB_RESET_EVENT = "ui-lab-reset";
 const YTDLP_LATEST_CACHE_FILE_NAME = "ytdlp-latest.json";
 const GALLERY_DL_LATEST_CACHE_FILE_NAME = "gallery-dl-latest.json";
-const YTDLP_LATEST_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const LOG_DIR_NAME = "logs";
 const RUNTIME_LOG_FILE_NAME = "runtime-latest.log";
 const RUNTIME_LOG_BUFFER_LIMIT = 1500;
@@ -187,30 +185,40 @@ const YTDLP_FORMAT_SELECTOR_DATA_SAVER = [
   "worst[ext=mp4]/",
   "worst",
 ].join("");
-const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ytDlp", "ffmpeg", "deno"];
+const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ytDlp", "galleryDl", "ffmpeg", "deno"];
+const PINNED_DOWNLOADER_RELEASES = {
+  "yt-dlp": {
+    version: "2026.03.17",
+    latestCacheFileName: YTDLP_LATEST_CACHE_FILE_NAME,
+    releaseApi: "https://api.github.com/repos/yt-dlp/yt-dlp/releases/tags/2026.03.17",
+    assetNameByPlatform: {
+      win32: "yt-dlp.exe",
+      darwin: "yt-dlp_macos",
+    },
+    sha256ByTarget: {
+      "x86_64-pc-windows-msvc": "3db811b366b2da47337d2fcfdfe5bbd9a258dad3f350c54974f005df115a1545",
+      "aarch64-apple-darwin": "e80c47b3ce712acee51d5e3d4eace2d181b44d38f1942c3a32e3c7ff53cd9ed5",
+    },
+  },
+  "gallery-dl": {
+    version: "1.32.0-dev:2026.04.01",
+    latestCacheFileName: GALLERY_DL_LATEST_CACHE_FILE_NAME,
+    releaseApi: "https://api.github.com/repos/gdl-org/builds/releases/tags/2026.04.01",
+    assetNameByPlatform: {
+      win32: "gallery-dl_windows.exe",
+      darwin: "gallery-dl_macos",
+    },
+    sha256ByTarget: {
+      "x86_64-pc-windows-msvc": "e8ea5d324d073d9a844a4e5c57a6c203bb75137548081194888834e6a94b22ec",
+      "aarch64-apple-darwin": "e0e1c68c64ad12b0ebd2d08f32de5eee14eaa8cc2c7bae13db4c4120f03ba116",
+    },
+  },
+};
 const RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
 const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
 const STARTUP_DIAGNOSTIC_SETTINGS_OPEN_DELAY_MS = 1_500;
 const MACOS_TRAY_ICON_SIZE_PX = 18;
-const OFFICIAL_DOWNLOADER_RELEASES = {
-  "yt-dlp": {
-    latestCacheFileName: YTDLP_LATEST_CACHE_FILE_NAME,
-    releaseApi: "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
-    assetNameByPlatform: {
-      win32: "yt-dlp.exe",
-      darwin: "yt-dlp_macos",
-    },
-  },
-  "gallery-dl": {
-    latestCacheFileName: GALLERY_DL_LATEST_CACHE_FILE_NAME,
-    releaseApi: "https://api.github.com/repos/gdl-org/builds/releases/latest",
-    assetNameByPlatform: {
-      win32: "gallery-dl_windows.exe",
-      darwin: "gallery-dl_macos",
-    },
-  },
-};
 let tray = null;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
@@ -1142,10 +1150,10 @@ function getLogsDir() {
   return join(getUserDataDir(), LOG_DIR_NAME);
 }
 
-function resolveOfficialDownloaderRelease(toolId) {
-  const config = OFFICIAL_DOWNLOADER_RELEASES[toolId];
+function resolvePinnedDownloaderRelease(toolId) {
+  const config = PINNED_DOWNLOADER_RELEASES[toolId];
   if (!config) {
-    throw new Error(`Unsupported downloader tool: ${toolId}`);
+    throw new Error(`Unsupported pinned downloader tool: ${toolId}`);
   }
   return config;
 }
@@ -1153,7 +1161,7 @@ function resolveOfficialDownloaderRelease(toolId) {
 function getDownloaderLatestCachePath(toolId) {
   return join(
     getUserDataDir(),
-    resolveOfficialDownloaderRelease(toolId).latestCacheFileName,
+    resolvePinnedDownloaderRelease(toolId).latestCacheFileName,
   );
 }
 
@@ -3017,13 +3025,23 @@ function managedFfmpegPaths() {
 
 function managedYtDlpPaths() {
   const root = managedRuntimeRoot("yt-dlp");
+  const releaseBinaryName = `yt-dlp-${currentManagedRuntimeTarget()}${process.platform === "win32" ? ".exe" : ""}`;
   return {
     root,
     venvDir: join(root, "venv"),
     python: join(root, "venv", "bin", "python3"),
-    ytDlp: join(root, "venv", "bin", "yt-dlp"),
+    ytDlp: process.platform === "darwin"
+      ? join(root, "venv", "bin", "yt-dlp")
+      : join(root, "real", releaseBinaryName),
     metadata: join(root, "metadata.json"),
   };
+}
+
+function managedGalleryDlPath() {
+  const root = managedRuntimeRoot("gallery-dl");
+  const realRoot = process.platform === "win32" ? join(root, "real") : root;
+  const suffix = process.platform === "win32" ? ".exe" : "";
+  return join(realRoot, `gallery-dl-${currentManagedRuntimeTarget()}${suffix}`);
 }
 
 function buildElectronRuntimeEnvironment() {
@@ -3140,6 +3158,9 @@ function collectMissingManagedRuntimeComponents(snapshot) {
   if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource === "managed") {
     missingComponents.push("ytDlp");
   }
+  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource === "managed") {
+    missingComponents.push("galleryDl");
+  }
   if (snapshot.ffmpeg.state !== "ready") {
     missingComponents.push("ffmpeg");
   }
@@ -3191,6 +3212,19 @@ function syncRuntimeDependencyGateStateFromSnapshot(snapshot) {
       phase: "failed",
       missingComponents,
       lastError: snapshot.ytDlp.error ?? "Missing bundled yt-dlp runtime",
+      currentComponent: null,
+      currentStage: null,
+      progressPercent: null,
+      downloadedBytes: null,
+      totalBytes: null,
+      nextComponent: nextManagedRuntimeComponent(missingComponents),
+    });
+  }
+  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
+    return applyRuntimeDependencyGateState({
+      phase: "failed",
+      missingComponents,
+      lastError: snapshot.galleryDl.error ?? "Missing gallery-dl runtime",
       currentComponent: null,
       currentStage: null,
       progressPercent: null,
@@ -3582,25 +3616,74 @@ async function ensureManagedFfmpegRuntimeReady(trigger, missingComponents) {
   }
 }
 
-async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, options = {}) {
-  if (!isManagedYtDlpSupported()) {
-    const bundledPath = resolveBundledBinary("yt-dlp");
-    if (!bundledPath) {
-      throw new Error("Bundled yt-dlp binary is missing");
-    }
-    return bundledPath;
+async function ensureManagedDownloaderReleaseReady(toolId, targetPath, trigger, missingComponents) {
+  const pinned = resolvePinnedDownloaderRelease(toolId);
+  if (existsSync(targetPath)) {
+    return targetPath;
   }
 
+  const target = currentManagedRuntimeTarget();
+  const expectedSha256 = pinned.sha256ByTarget[target];
+  if (!expectedSha256) {
+    throw new Error(`Pinned ${toolId} runtime checksum is not configured for ${target}`);
+  }
+
+  const release = await fetchPinnedDownloaderRelease(toolId);
+  const asset = selectPinnedDownloaderReleaseAsset(toolId, release);
+  const componentId = toolId === "gallery-dl" ? "galleryDl" : "ytDlp";
+  const tempDir = await mkdtemp(join(tmpdir(), `ameow-${toolId.replace(/[^a-z0-9]/gi, "-")}-`));
+  const tempPath = join(tempDir, basename(targetPath));
+
+  try {
+    logInfo("Electron", `Bootstrapping managed ${toolId} runtime (${trigger})`);
+    await downloadRuntimeAssetWithFallbacks(
+      [asset.browser_download_url],
+      Number(asset.size) > 0 ? Number(asset.size) : 0,
+      expectedSha256,
+      tempPath,
+      componentId,
+      missingComponents,
+    );
+    await updateRuntimeDependencyGateDownloadActivity(
+      missingComponents,
+      componentId,
+      "installing",
+      Number(asset.size) > 0 ? Number(asset.size) : null,
+      Number(asset.size) > 0 ? Number(asset.size) : null,
+    );
+    await mkdir(dirname(targetPath), { recursive: true });
+    if (process.platform !== "win32") {
+      await chmod(tempPath, 0o755);
+    }
+    await replaceFile(targetPath, tempPath);
+    await writeDownloaderLatestCache(toolId, pinned.version);
+    return targetPath;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, options = {}) {
   const paths = managedYtDlpPaths();
   const forceReinstall = options.forceReinstall === true;
   if (!forceReinstall && existsSync(paths.ytDlp)) {
     return paths.ytDlp;
   }
 
+  if (process.platform !== "darwin") {
+    return ensureManagedDownloaderReleaseReady(
+      "yt-dlp",
+      paths.ytDlp,
+      trigger,
+      missingComponents,
+    );
+  }
+
   logInfo("Electron", `Bootstrapping managed yt-dlp runtime (${trigger})`);
   const runtime = await ensureManagedYtDlpReady({
     configDir: getUserDataDir(),
     target: currentManagedRuntimeTarget(),
+    targetVersion: resolvePinnedDownloaderRelease("yt-dlp").version,
     onStage: async (stage) => {
       await updateRuntimeDependencyGateDownloadActivity(
         missingComponents,
@@ -3612,6 +3695,21 @@ async function ensureManagedYtDlpRuntimeReady(trigger, missingComponents, option
     },
   });
   return runtime.ytDlpPath;
+}
+
+async function ensureManagedGalleryDlRuntimeReady(trigger, missingComponents, options = {}) {
+  const targetPath = managedGalleryDlPath();
+  const forceReinstall = options.forceReinstall === true;
+  if (!forceReinstall && existsSync(targetPath)) {
+    return targetPath;
+  }
+
+  return ensureManagedDownloaderReleaseReady(
+    "gallery-dl",
+    targetPath,
+    trigger,
+    missingComponents,
+  );
 }
 
 async function ensureMissingManagedRuntimesReady(trigger) {
@@ -3626,7 +3724,12 @@ async function ensureMissingManagedRuntimesReady(trigger) {
   }
 
   const afterYtDlp = await getRuntimeDependencyStatus();
-  if (afterYtDlp.ffmpeg.state !== "ready") {
+  if (afterYtDlp.galleryDl.state !== "ready" && afterYtDlp.galleryDl.expectedSource === "managed") {
+    await ensureManagedGalleryDlRuntimeReady(trigger, missingComponents);
+  }
+
+  const afterGalleryDl = await getRuntimeDependencyStatus();
+  if (afterGalleryDl.ffmpeg.state !== "ready") {
     await ensureManagedFfmpegRuntimeReady(trigger, missingComponents);
   }
 
@@ -3651,6 +3754,9 @@ async function startRuntimeDependencyBootstrap(reason = "frontend_after_visible"
   const snapshot = await getRuntimeDependencyStatus();
   const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
   if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
+    return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
+  }
+  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
     return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
   }
   if (missingComponents.length === 0) {
@@ -3721,26 +3827,6 @@ function compareLooseVersions(left, right) {
   return 0;
 }
 
-async function readDownloaderLatestCache(toolId) {
-  const cachePath = getDownloaderLatestCachePath(toolId);
-  if (!(await pathExists(cachePath))) {
-    return null;
-  }
-
-  try {
-    const raw = await readFile(cachePath, "utf8");
-    const parsed = parseJsonObject(raw);
-    const version = normalizeVersionString(parsed.version);
-    const fetchedAtMs = Number(parsed.fetchedAtMs);
-    if (!version || !Number.isFinite(fetchedAtMs)) {
-      return null;
-    }
-    return { version, fetchedAtMs };
-  } catch {
-    return null;
-  }
-}
-
 async function writeDownloaderLatestCache(toolId, version) {
   const cachePath = getDownloaderLatestCachePath(toolId);
   await writeFile(
@@ -3760,137 +3846,16 @@ function buildGitHubHeaders() {
   };
 }
 
-function comparePep440LikeVersions(left, right) {
-  const tokenize = (value) => String(value)
-    .toLowerCase()
-    .replace(/^v/, "")
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
-    .map((part) => (/^\d+$/.test(part) ? Number(part) : part));
-
-  const leftParts = tokenize(left);
-  const rightParts = tokenize(right);
-  const width = Math.max(leftParts.length, rightParts.length);
-
-  for (let index = 0; index < width; index += 1) {
-    const leftValue = leftParts[index] ?? 0;
-    const rightValue = rightParts[index] ?? 0;
-    if (typeof leftValue === "number" && typeof rightValue === "number") {
-      if (leftValue > rightValue) {
-        return 1;
-      }
-      if (leftValue < rightValue) {
-        return -1;
-      }
-      continue;
-    }
-    const leftText = String(leftValue);
-    const rightText = String(rightValue);
-    if (leftText > rightText) {
-      return 1;
-    }
-    if (leftText < rightText) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-function isPrereleaseLikeVersion(version) {
-  return /(?:^|[.\-+_])(dev|a|b|rc)\d*$/i.test(String(version).trim());
-}
-
-async function fetchLatestDownloaderRelease(toolId) {
-  const config = resolveOfficialDownloaderRelease(toolId);
+async function fetchPinnedDownloaderRelease(toolId) {
+  const config = resolvePinnedDownloaderRelease(toolId);
   const response = await fetchWithDesktopSession(config.releaseApi, {
     headers: buildGitHubHeaders(),
   });
   if (!response.ok) {
-    throw new Error(`GitHub latest lookup failed: ${response.status}`);
+    throw new Error(`GitHub pinned lookup failed: ${response.status}`);
   }
 
   return response.json();
-}
-
-async function fetchLatestPyPiPackageVersion(packageName) {
-  const response = await fetchWithDesktopSession(`https://pypi.org/simple/${packageName}/`, {
-    headers: {
-      Accept: "text/html",
-      "User-Agent": "Ameow-Electron",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`PyPI latest lookup failed: ${response.status}`);
-  }
-  const html = await response.text();
-  const versions = Array.from(
-    html.matchAll(
-      new RegExp(
-        `${packageName.replace("-", "_")}-([0-9][0-9a-z.+_-]*?)(?:-[^"'<\\s]*?)?\\.(?:whl|tar\\.gz|zip)`,
-        "gi",
-      ),
-    ),
-    (match) => normalizeVersionString(match[1]),
-  ).filter(Boolean);
-  if (versions.length === 0) {
-    throw new Error("PyPI simple index did not expose any package versions");
-  }
-  const stableVersions = versions.filter((version) => !isPrereleaseLikeVersion(version));
-  const candidates = stableVersions.length > 0 ? stableVersions : versions;
-  return candidates.sort(comparePep440LikeVersions).at(-1) ?? null;
-}
-
-async function resolveLatestDownloaderVersion(toolId, forceRefresh = false) {
-  await ensureUserDataDirs();
-  const cached = await readDownloaderLatestCache(toolId);
-  if (
-    !forceRefresh
-    && cached
-    && nowTimestampMs() - cached.fetchedAtMs <= YTDLP_LATEST_CACHE_TTL_MS
-  ) {
-    return {
-      latest: cached.version,
-      latestError: null,
-    };
-  }
-
-  try {
-    const payload = toolId === "yt-dlp" && isManagedYtDlpSupported()
-      ? await fetchLatestPyPiPackageVersion("yt-dlp")
-      : await fetchLatestDownloaderRelease(toolId);
-    const latest = normalizeVersionString(
-      toolId === "yt-dlp" && isManagedYtDlpSupported()
-        ? payload
-        : payload?.tag_name ?? payload?.name,
-    );
-    if (!latest) {
-      throw new Error(
-        toolId === "yt-dlp" && isManagedYtDlpSupported()
-          ? "PyPI latest lookup did not return a package version"
-          : "GitHub latest lookup did not return a version tag",
-      );
-    }
-
-    await writeDownloaderLatestCache(toolId, latest);
-    return {
-      latest,
-      latestError: null,
-    };
-  } catch (error) {
-    if (cached) {
-      return {
-        latest: cached.version,
-        latestError: String(error),
-      };
-    }
-    return {
-      latest: null,
-      latestError: String(error),
-    };
-  }
 }
 
 async function getLocalDownloaderVersion(toolId, binaryPath) {
@@ -3922,37 +3887,26 @@ async function getLocalDownloaderVersion(toolId, binaryPath) {
   });
 }
 
-function resolveDownloaderReleaseAssetName(toolId) {
-  const config = resolveOfficialDownloaderRelease(toolId);
+function resolvePinnedDownloaderReleaseAssetName(toolId) {
+  const config = resolvePinnedDownloaderRelease(toolId);
   const assetName = config.assetNameByPlatform[process.platform];
   if (!assetName) {
-    throw new Error(`${toolId} updater is not supported on ${process.platform}`);
+    throw new Error(`${toolId} managed runtime is not supported on ${process.platform}`);
   }
   return assetName;
 }
 
-function selectDownloaderReleaseAsset(toolId, release) {
-  const assetName = resolveDownloaderReleaseAssetName(toolId);
+function selectPinnedDownloaderReleaseAsset(toolId, release) {
+  const assetName = resolvePinnedDownloaderReleaseAssetName(toolId);
   const asset = Array.isArray(release?.assets)
     ? release.assets.find((candidate) => candidate?.name === assetName)
     : null;
   if (!asset?.browser_download_url) {
     throw new Error(
-      `Official ${toolId} release ${release?.tag_name ?? "<unknown>"} does not expose asset ${assetName}`,
+      `Pinned ${toolId} release ${release?.tag_name ?? "<unknown>"} does not expose asset ${assetName}`,
     );
   }
   return asset;
-}
-
-async function resolveDownloaderBinaryPathForUpdate(toolId) {
-  const binaries = resolveRuntimeBinaryPaths(buildElectronRuntimeEnvironment());
-  const candidate = toolId === "gallery-dl" ? binaries.galleryDl : binaries.ytDlp;
-  if (existsSync(candidate)) {
-    return candidate;
-  }
-
-  await mkdir(dirname(candidate), { recursive: true });
-  return candidate;
 }
 
 async function downloadToFile(url, destinationPath, options = {}) {
@@ -4066,75 +4020,97 @@ async function replaceFile(targetPath, temporaryPath) {
   }
 }
 
-async function updateDownloaderBinary(toolId) {
-  const binaryPath = await resolveDownloaderBinaryPathForUpdate(toolId);
-  const release = await fetchLatestDownloaderRelease(toolId);
-  const asset = selectDownloaderReleaseAsset(toolId, release);
-  const tempDir = await mkdtemp(join(tmpdir(), `ameow-${toolId.replace(/[^a-z0-9]/gi, "-")}-`));
-  const tempPath = join(tempDir, basename(binaryPath));
+async function checkYtdlpVersion() {
+  const status = await getRuntimeDependencyStatus();
+  const latest = resolvePinnedDownloaderRelease("yt-dlp").version;
 
-  await downloadToFile(asset.browser_download_url, tempPath, {
-    onProgress: ({ downloaded, total }) => {
-      if (toolId !== "yt-dlp") {
-        return;
+  if (process.platform !== "darwin") {
+    const entryPath = status.ytDlp.path;
+    let current = "missing";
+    let localError = status.ytDlp.error ?? null;
+    if (entryPath) {
+      try {
+        current = await getLocalDownloaderVersion("yt-dlp", entryPath);
+        localError = null;
+      } catch (error) {
+        current = "unknown";
+        localError = String(error);
       }
-      const percent = total > 0 ? (downloaded / total) * 100 : 0;
-      emitAppEvent("ytdlp-update-progress", {
-        percent,
-        downloaded,
-        total,
-      });
-    },
-  });
-
-  await replaceFile(binaryPath, tempPath);
-  if (process.platform !== "win32") {
-    await chmod(binaryPath, 0o755);
-  }
-
-  const currentVersion = await getLocalDownloaderVersion(toolId, binaryPath);
-  await writeDownloaderLatestCache(toolId, currentVersion);
-  return currentVersion;
-}
-
-async function updateYtdlpBinary() {
-  if (isManagedYtDlpSupported()) {
-    const runtimePath = await ensureManagedYtDlpRuntimeReady(
-      "settings_update",
-      collectMissingManagedRuntimeComponents(await getRuntimeDependencyStatus()),
-      { forceReinstall: true },
-    );
-    const currentVersion = await getLocalDownloaderVersion("yt-dlp", runtimePath);
-    await writeDownloaderLatestCache("yt-dlp", currentVersion);
-    const nextSnapshot = await getRuntimeDependencyStatus();
-    syncRuntimeDependencyGateStateFromSnapshot(nextSnapshot);
-    emitAppEvent("runtime-dependency-gate-state", { ...runtimeDependencyGateState });
-    return currentVersion;
-  }
-  return updateDownloaderBinary("yt-dlp");
-}
-
-async function updateGalleryDlBinary() {
-  return updateDownloaderBinary("gallery-dl");
-}
-
-async function checkBundledDownloaderVersion(toolId) {
-  const binaryPath = resolveBundledBinary(toolId);
-  let current = "missing";
-  let localError = null;
-
-  if (binaryPath) {
-    try {
-      current = await getLocalDownloaderVersion(toolId, binaryPath);
-    } catch (error) {
-      current = "unknown";
-      localError = String(error);
     }
-  } else {
-    localError = `Bundled ${toolId} binary is missing`;
+    return {
+      current,
+      latest,
+      updateAvailable:
+        current !== "missing" && current !== "unknown" && latest
+          ? compareLooseVersions(current, latest) < 0
+          : null,
+      latestError: localError,
+      source: entryPath ? "managed" : "missing",
+      path: entryPath ?? null,
+      pythonVersion: null,
+      pythonPath: null,
+      pythonSupportsLatestStable: null,
+      updateChannel: entryPath ? "managed_release" : "unavailable",
+    };
   }
 
-  const { latest, latestError } = await resolveLatestDownloaderVersion(toolId);
+  const managed = await getManagedYtDlpVersion(getUserDataDir(), currentManagedRuntimeTarget());
+  let current = "missing";
+  let localError = status.ytDlp.error ?? null;
+  if (managed?.path) {
+    current = managed.version;
+    localError = null;
+  } else {
+    localError = localError ?? "Managed yt-dlp runtime is missing";
+  }
+  const pythonBlocksPinnedVersion = Boolean(
+    managed
+    && latest
+    && !managed.pythonSupportsLatestStable
+    && compareLooseVersions(managed.version, latest) < 0,
+  );
+  const effectiveLatestError = pythonBlocksPinnedVersion
+    ? `Latest stable yt-dlp requires Python ${managedYtDlpMinimumPythonVersion()}+, current managed runtime uses ${managed.pythonVersion ?? "an older Python"}.`
+    : localError;
+  return {
+    current,
+    latest,
+    updateAvailable:
+      current !== "missing" && current !== "unknown" && latest && !pythonBlocksPinnedVersion
+        ? compareLooseVersions(current, latest) < 0
+        : null,
+    latestError: effectiveLatestError,
+    source: managed?.path ? "managed" : "missing",
+    path: managed?.path ?? null,
+    pythonVersion: managed?.pythonVersion ?? null,
+    pythonPath: managed?.pythonPath ?? null,
+    pythonSupportsLatestStable: managed?.pythonSupportsLatestStable ?? null,
+    updateChannel: managed?.path ? "managed_python_package" : "unavailable",
+  };
+}
+
+async function getGalleryDlInfo() {
+  const status = await getRuntimeDependencyStatus();
+  if (status.galleryDl.state !== "ready" || !status.galleryDl.path) {
+    return {
+      current: "missing",
+      latest: resolvePinnedDownloaderRelease("gallery-dl").version,
+      updateAvailable: null,
+      latestError: status.galleryDl.error,
+      source: "missing",
+      path: null,
+      updateChannel: "unavailable",
+    };
+  }
+  let current = "unknown";
+  let latestError = null;
+  try {
+    current = await getLocalDownloaderVersion("gallery-dl", status.galleryDl.path);
+  } catch (error) {
+    latestError = String(error);
+  }
+  const latest = resolvePinnedDownloaderRelease("gallery-dl").version;
+
   return {
     current,
     latest,
@@ -4142,87 +4118,10 @@ async function checkBundledDownloaderVersion(toolId) {
       current !== "missing" && current !== "unknown" && latest
         ? compareLooseVersions(current, latest) < 0
         : null,
-    latestError: latestError ?? localError,
-    localError,
-    path: binaryPath,
-  };
-}
-
-async function checkYtdlpVersion() {
-  if (isManagedYtDlpSupported()) {
-    const status = await getRuntimeDependencyStatus();
-    const managed = await getManagedYtDlpVersion(getUserDataDir(), currentManagedRuntimeTarget());
-    let current = "missing";
-    let localError = null;
-    if (managed?.path) {
-      current = managed.version;
-    } else {
-      localError = "Managed yt-dlp runtime is missing";
-    }
-    const { latest, latestError } = await resolveLatestDownloaderVersion("yt-dlp");
-    const pythonBlocksLatestStable = Boolean(
-      managed
-      && latest
-      && !managed.pythonSupportsLatestStable
-      && compareLooseVersions(managed.version, latest) < 0,
-    );
-    const effectiveLatestError = pythonBlocksLatestStable
-      ? `Latest stable yt-dlp requires Python ${managedYtDlpMinimumPythonVersion()}+, current managed runtime uses ${managed.pythonVersion ?? "an older Python"}.`
-      : latestError ?? localError;
-    return {
-      current,
-      latest,
-      updateAvailable:
-        current !== "missing" && current !== "unknown" && latest && !pythonBlocksLatestStable
-          ? compareLooseVersions(current, latest) < 0
-          : null,
-      latestError: effectiveLatestError,
-      source: managed?.path ? "managed" : status.ytDlp.fallbackPath ? "bundled" : "missing",
-      path: managed?.path ?? status.ytDlp.fallbackPath ?? null,
-      pythonVersion: managed?.pythonVersion ?? null,
-      pythonPath: managed?.pythonPath ?? null,
-      pythonSupportsLatestStable: managed?.pythonSupportsLatestStable ?? null,
-      updateChannel: managed?.path ? "managed_python_package" : "unavailable",
-    };
-  }
-  const versionInfo = await checkBundledDownloaderVersion("yt-dlp");
-  return {
-    current: versionInfo.current,
-    latest: versionInfo.latest,
-    updateAvailable: versionInfo.updateAvailable,
-    latestError: versionInfo.latestError,
-    source: versionInfo.path ? "bundled" : "missing",
-    path: versionInfo.path ?? null,
-    pythonVersion: null,
-    pythonPath: null,
-    pythonSupportsLatestStable: null,
-    updateChannel: versionInfo.path ? "bundled_release" : "unavailable",
-  };
-}
-
-async function getGalleryDlInfo() {
-  const status = await getRuntimeDependencyStatus();
-  const versionInfo = await checkBundledDownloaderVersion("gallery-dl");
-  if (status.galleryDl.state !== "ready" || !status.galleryDl.path) {
-    return {
-      current: versionInfo.current,
-      latest: versionInfo.latest,
-      updateAvailable: versionInfo.updateAvailable,
-      latestError: versionInfo.latestError,
-      source: "missing",
-      path: null,
-      updateChannel: "unavailable",
-    };
-  }
-
-  return {
-    current: versionInfo.current,
-    latest: versionInfo.latest,
-    updateAvailable: versionInfo.updateAvailable,
-    latestError: versionInfo.latestError,
-    source: status.galleryDl.source,
+    latestError,
+    source: "managed",
     path: status.galleryDl.path,
-    updateChannel: "bundled_release",
+    updateChannel: "managed_release",
   };
 }
 
@@ -5100,15 +4999,9 @@ async function runVideoDownloadTask(task) {
   try {
     const runtimeSnapshot = await getRuntimeDependencyStatus();
     const missingManagedComponents = collectMissingManagedRuntimeComponents(runtimeSnapshot);
-    const ytdlpPath = isManagedYtDlpSupported()
-      ? await ensureManagedYtDlpRuntimeReady("ytdlp_download", missingManagedComponents)
-      : resolveBundledBinary("yt-dlp");
+    const ytdlpPath = await ensureManagedYtDlpRuntimeReady("ytdlp_download", missingManagedComponents);
     if (!ytdlpPath) {
-      throw new Error(
-        isManagedYtDlpSupported()
-          ? "Managed yt-dlp runtime is missing"
-          : "Bundled yt-dlp binary is missing",
-      );
+      throw new Error("Managed yt-dlp runtime is missing");
     }
     const ffmpegPath = await ensureManagedFfmpegRuntimeReady(
       "ytdlp_download",
@@ -6834,10 +6727,6 @@ async function handleCommand(command, payload = {}) {
       return getElectronDownloadRuntime().retryTranscode(String(payload.traceId ?? ""));
     case "remove_transcode":
       return getElectronDownloadRuntime().removeTranscode(String(payload.traceId ?? ""));
-    case "update_ytdlp":
-      return updateYtdlpBinary();
-    case "update_gallery_dl":
-      return updateGalleryDlBinary();
     default:
       throw new Error(`Unsupported Electron command: ${command}`);
   }

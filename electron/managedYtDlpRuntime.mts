@@ -304,10 +304,12 @@ const getYtDlpVersion = async (ytDlpPath: string): Promise<string> => {
 export const ensureManagedYtDlpReady = async ({
   configDir,
   target,
+  targetVersion,
   onStage,
 }: {
   configDir: string;
   target: string;
+  targetVersion?: string | null;
   onStage?(stage: "checking" | "installing" | "verifying"): void | Promise<void>;
 }): Promise<{ ytDlpPath: string; version: string; pythonVersion: string }> => {
   if (!isManagedYtDlpSupported()) {
@@ -326,7 +328,7 @@ export const ensureManagedYtDlpReady = async ({
     "--index-url",
     PYPI_SIMPLE_INDEX_URL,
     "--no-cache-dir",
-    "yt-dlp",
+    targetVersion ? `yt-dlp==${targetVersion}` : "yt-dlp",
   ]);
   if (!existsSync(paths.ytDlpPath)) {
     throw new Error(`Managed yt-dlp entrypoint is missing after install: ${paths.ytDlpPath}`);

@@ -33,20 +33,11 @@ import {
   getWindowBodyStyle,
   getWindowHeaderStyle,
   getSelectableOptionStyle,
-  getStatusDotStyle,
   getWindowShellStyle,
 } from "../components/ui/shared-styles";
 import { saveOutputPath } from "../utils/outputPath";
 import { APP_VERSION } from "../constants/appVersion";
 import { MACOS_SECONDARY_WINDOW_SHADOW_GUTTER } from "../constants/windowMetrics";
-import { DownloaderDeck } from "./settings/DownloaderDeck";
-import { DownloaderCardContent } from "./settings/DownloaderCardContent";
-import type { GalleryDlInfo } from "../types/galleryDl";
-import type {
-  RuntimeDependencyGateStatePayload,
-  RuntimeDependencyStatusSnapshot,
-} from "../types/runtimeDependencies";
-import type { YtdlpVersionInfo } from "../types/ytdlp";
 import { changeDesktopLanguage } from "../i18n/desktopLanguage";
 import {
   FALLBACK_LANGUAGE,
@@ -59,15 +50,6 @@ import {
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
-import {
-  getMissingRuntimeComponentsFromStatus,
-  getRuntimeGateHeadline,
-  getRuntimeGateNextLabel,
-  getRuntimeGateProgressLabel,
-  runtimeGateIsActive,
-  runtimeGateNeedsManualAction,
-  summarizeRuntimeGateError,
-} from "../utils/runtimeDependencyGate";
 import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
@@ -235,23 +217,9 @@ function SettingsPage() {
   const [appUpdatePhase, setAppUpdatePhase] = useState<AppUpdatePhase>("idle");
   const [appUpdateError, setAppUpdateError] = useState<string | null>(null);
   const [hasCheckedForAppUpdate, setHasCheckedForAppUpdate] = useState(false);
-  const [ytdlpInfo, setYtdlpInfo] = useState<YtdlpVersionInfo | null>(null);
-  const [galleryDlInfo, setGalleryDlInfo] = useState<GalleryDlInfo | null>(null);
-  const [runtimeDependencyStatus, setRuntimeDependencyStatus] =
-    useState<RuntimeDependencyStatusSnapshot | null>(null);
-  const [runtimeDependencyGateState, setRuntimeDependencyGateState] =
-    useState<RuntimeDependencyGateStatePayload | null>(null);
-  const [isUpdatingYtdlp, setIsUpdatingYtdlp] = useState(false);
-  const [isUpdatingGalleryDl, setIsUpdatingGalleryDl] = useState(false);
-  const [ytdlpHint, setYtdlpHint] = useState("");
-  const [galleryDlHint, setGalleryDlHint] = useState("");
-  const [runtimeHint, setRuntimeHint] = useState("");
   const [hoveredThemeOption, setHoveredThemeOption] = useState<"black" | "white" | null>(null);
   const [hoveredShortcutAction, setHoveredShortcutAction] = useState<"confirm" | "cancel" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ytdlpHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const galleryDlHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runtimeHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
   const currentLanguage = normalizeAppLanguage(i18n.resolvedLanguage) ?? FALLBACK_LANGUAGE;
   const languageOptions: Array<NeonDropdownOption<AppLanguage>> = SUPPORTED_APP_LANGUAGES.map((value) => ({
@@ -272,241 +240,6 @@ function SettingsPage() {
       label: t("desktop:settings.rename.options.prefixSequence"),
     },
   ];
-
-  const showYtdlpHint = useCallback((message: string) => {
-    setYtdlpHint(message);
-    if (ytdlpHintTimerRef.current) {
-      clearTimeout(ytdlpHintTimerRef.current);
-    }
-    ytdlpHintTimerRef.current = setTimeout(() => {
-      setYtdlpHint("");
-      ytdlpHintTimerRef.current = null;
-    }, 2000);
-  }, []);
-
-  const showGalleryDlHint = useCallback((message: string) => {
-    setGalleryDlHint(message);
-    if (galleryDlHintTimerRef.current) {
-      clearTimeout(galleryDlHintTimerRef.current);
-    }
-    galleryDlHintTimerRef.current = setTimeout(() => {
-      setGalleryDlHint("");
-      galleryDlHintTimerRef.current = null;
-    }, 2200);
-  }, []);
-
-  const showRuntimeHint = useCallback((message: string) => {
-    setRuntimeHint(message);
-    if (runtimeHintTimerRef.current) {
-      clearTimeout(runtimeHintTimerRef.current);
-    }
-    runtimeHintTimerRef.current = setTimeout(() => {
-      setRuntimeHint("");
-      runtimeHintTimerRef.current = null;
-    }, 2200);
-  }, []);
-
-  const refreshRuntimeDependencyStatus = useCallback(async () => {
-    try {
-      const status = await desktopCommands.invoke<RuntimeDependencyStatusSnapshot>("get_runtime_dependency_status");
-      setRuntimeDependencyStatus(status);
-      return status;
-    } catch (err) {
-      console.error("Failed to load runtime dependency status:", err);
-      setRuntimeDependencyStatus(null);
-      return null;
-    }
-  }, []);
-
-  const refreshYtdlpVersion = useCallback(async () => {
-    try {
-      await refreshRuntimeDependencyStatus();
-      const versionInfo = await desktopCommands.invoke<YtdlpVersionInfo>("check_ytdlp_version");
-      setYtdlpInfo(versionInfo);
-      return versionInfo;
-    } catch (err) {
-      console.error("Failed to check yt-dlp version:", err);
-      setYtdlpInfo(null);
-      return null;
-    }
-  }, [refreshRuntimeDependencyStatus]);
-
-  const refreshGalleryDlInfo = useCallback(async () => {
-    try {
-      const info = await desktopCommands.invoke<GalleryDlInfo>("get_gallery_dl_info");
-      setGalleryDlInfo(info);
-    } catch (err) {
-      console.error("Failed to load gallery-dl info:", err);
-      setGalleryDlInfo(null);
-    }
-  }, []);
-
-  const refreshRuntimeDependencyGateState = useCallback(async () => {
-    try {
-      const state = await desktopCommands.invoke<RuntimeDependencyGateStatePayload>("refresh_runtime_dependency_gate_state");
-      setRuntimeDependencyGateState(state);
-      return state;
-    } catch (err) {
-      console.error("Failed to refresh runtime dependency gate state:", err);
-      setRuntimeDependencyGateState(null);
-      return null;
-    }
-  }, []);
-
-  const ytdlpCurrentVersion = ytdlpInfo?.current ?? t("desktop:settings.downloaders.unknown");
-  const ytdlpStatus = (() => {
-    const ytDlpExpectedManaged = runtimeDependencyStatus?.ytDlp.expectedSource === "managed";
-    const ytDlpMissingManaged = !!runtimeDependencyStatus
-      && runtimeDependencyStatus.ytDlp.state !== "ready"
-      && ytDlpExpectedManaged;
-    const pythonLimitedManaged = ytdlpInfo?.source === "managed"
-      && ytdlpInfo.pythonSupportsLatestStable === false;
-
-    if (!ytdlpInfo) {
-      return {
-        color: colors.textSecondary,
-        message: ytDlpMissingManaged
-          ? t("desktop:settings.downloaders.ytdlp.managedMissing")
-          : t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
-      };
-    }
-    const hasCurrentVersion = ytdlpInfo.current !== "missing" && ytdlpInfo.current !== "unknown";
-
-    if (ytdlpInfo.updateAvailable === true && ytdlpInfo.latest) {
-      return {
-        color: colors.dangerText,
-        message: t("desktop:settings.downloaders.ytdlp.updateAvailable", {
-          version: ytdlpInfo.latest,
-        }),
-      };
-    }
-
-    if (ytdlpInfo.latest && hasCurrentVersion) {
-      return {
-        color: colors.textSecondary,
-        message: pythonLimitedManaged
-          ? t("desktop:settings.downloaders.ytdlp.pythonLimitedManaged")
-          : ytDlpExpectedManaged
-          ? t("desktop:settings.downloaders.ytdlp.upToDateManaged")
-          : t("desktop:settings.downloaders.ytdlp.upToDate"),
-      };
-    }
-
-    if (!hasCurrentVersion) {
-      return {
-        color: colors.textSecondary,
-        message: ytDlpMissingManaged
-          ? t("desktop:settings.downloaders.ytdlp.managedMissing")
-          : t("desktop:settings.downloaders.ytdlp.checkUnavailable"),
-      };
-    }
-
-    return {
-      color: colors.textSecondary,
-      message: t("desktop:settings.downloaders.ytdlp.localVersionOnly"),
-    };
-  })();
-  const galleryDlCurrentVersion = galleryDlInfo?.current ?? t("desktop:settings.downloaders.unknown");
-  const galleryDlStatus = (() => {
-    if (!galleryDlInfo) {
-      return {
-        color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.galleryDl.checkUnavailable"),
-      };
-    }
-    const hasCurrentVersion = galleryDlInfo.current !== "missing" && galleryDlInfo.current !== "unknown";
-
-    if (galleryDlInfo.updateAvailable === true && galleryDlInfo.latest) {
-      return {
-        color: colors.dangerText,
-        message: t("desktop:settings.downloaders.galleryDl.updateAvailable", {
-          version: galleryDlInfo.latest,
-        }),
-      };
-    }
-
-    if (galleryDlInfo.latest && hasCurrentVersion) {
-      return {
-        color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.galleryDl.upToDate"),
-      };
-    }
-
-    if (!hasCurrentVersion) {
-      return {
-        color: colors.textSecondary,
-        message: t("desktop:settings.downloaders.galleryDl.checkUnavailable"),
-      };
-    }
-
-    return {
-      color: colors.textSecondary,
-      message: t("desktop:settings.downloaders.galleryDl.localVersionOnly"),
-    };
-  })();
-  const runtimeGatePhase = runtimeDependencyGateState?.phase ?? "idle";
-  const runtimeGatePhaseLabel = t(`desktop:settings.downloaders.runtime.phase.${runtimeGatePhase}`);
-  const runtimeGateIsBusy = runtimeGateIsActive(runtimeGatePhase);
-  const runtimeGateRequiresManualAction = runtimeGateNeedsManualAction(runtimeGatePhase)
-    || (
-      !runtimeGateIsBusy
-      && (
-        (runtimeDependencyGateState?.missingComponents.length ?? 0) > 0
-        || runtimeDependencyStatus === null
-      )
-    );
-  const runtimeGateHeadline = getRuntimeGateHeadline(t, runtimeDependencyGateState);
-  const runtimeGateProgressLabel = getRuntimeGateProgressLabel(t, runtimeDependencyGateState);
-  const runtimeGateNextLabel = getRuntimeGateNextLabel(t, runtimeDependencyGateState);
-  const runtimeGateErrorSummary = summarizeRuntimeGateError(runtimeDependencyGateState?.lastError);
-  const runtimeGateColor = (() => {
-    switch (runtimeGatePhase) {
-      case "ready":
-        return colors.textSecondary;
-      case "awaiting_confirmation":
-      case "blocked_by_user":
-      case "failed":
-        return colors.warningText;
-      case "checking":
-      case "downloading":
-        return colors.warningText;
-      default:
-        return colors.textSecondary;
-    }
-  })();
-  const runtimeMissingComponents = runtimeDependencyGateState?.missingComponents.length
-    ? runtimeDependencyGateState.missingComponents
-    : getMissingRuntimeComponentsFromStatus(runtimeDependencyStatus);
-  const runtimeSummaryMessage = (() => {
-    if (!runtimeDependencyStatus) {
-      return t("desktop:settings.downloaders.runtime.unavailable");
-    }
-    if (runtimeMissingComponents.length === 0) {
-      return t("desktop:settings.downloaders.runtime.allReady");
-    }
-    return t("desktop:settings.downloaders.runtime.missingItems", {
-      items: runtimeMissingComponents.join(", "),
-    });
-  })();
-  const runtimeDescriptionText = runtimeHint
-    || (
-      runtimeGateIsBusy
-        ? runtimeGateHeadline
-        : runtimeGateRequiresManualAction
-          ? t("desktop:settings.downloaders.runtime.mainWindowRetryHint")
-          : t("desktop:settings.downloaders.runtime.description")
-    );
-  const runtimeDetailText = (() => {
-    if (runtimeGateRequiresManualAction) {
-      return runtimeGateErrorSummary ?? runtimeSummaryMessage;
-    }
-
-    if (runtimeGateProgressLabel && runtimeGateNextLabel) {
-      return `${runtimeGateProgressLabel} · ${runtimeGateNextLabel}`;
-    }
-
-    return runtimeGateProgressLabel ?? runtimeGateNextLabel ?? runtimeSummaryMessage;
-  })();
 
   // Load config on mount
   useEffect(() => {
@@ -560,10 +293,6 @@ function SettingsPage() {
 
     loadConfig();
     loadAutostart();
-    void refreshYtdlpVersion();
-    void refreshGalleryDlInfo();
-    void refreshRuntimeDependencyStatus();
-    void refreshRuntimeDependencyGateState();
 
     const loadShortcut = async () => {
       try {
@@ -574,12 +303,7 @@ function SettingsPage() {
       }
     };
     loadShortcut();
-  }, [
-    refreshGalleryDlInfo,
-    refreshRuntimeDependencyGateState,
-    refreshRuntimeDependencyStatus,
-    refreshYtdlpVersion,
-  ]);
+  }, []);
 
   useEffect(() => {
     if (!isDevBuild) {
@@ -672,49 +396,8 @@ function SettingsPage() {
         clearTimeout(supportLogHintTimerRef.current);
         supportLogHintTimerRef.current = null;
       }
-      if (ytdlpHintTimerRef.current) {
-        clearTimeout(ytdlpHintTimerRef.current);
-        ytdlpHintTimerRef.current = null;
-      }
-      if (galleryDlHintTimerRef.current) {
-        clearTimeout(galleryDlHintTimerRef.current);
-        galleryDlHintTimerRef.current = null;
-      }
-      if (runtimeHintTimerRef.current) {
-        clearTimeout(runtimeHintTimerRef.current);
-        runtimeHintTimerRef.current = null;
-      }
     };
   }, []);
-
-  useEffect(() => {
-    const unlisten = desktopEvents.on<{ source: "main" | "settings" }>("ytdlp-version-refresh", (event) => {
-      if (event.payload.source === "settings") {
-        return;
-      }
-      void refreshYtdlpVersion();
-      if (event.payload.source === "main") {
-        showYtdlpHint(t("desktop:settings.downloaders.ytdlp.updatedFromMain"));
-      }
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [refreshYtdlpVersion, showYtdlpHint, t]);
-
-  useEffect(() => {
-    const unlisten = desktopEvents.on<RuntimeDependencyGateStatePayload>(
-      "runtime-dependency-gate-state",
-      (event) => {
-        setRuntimeDependencyGateState(event.payload);
-        void refreshRuntimeDependencyStatus();
-      },
-    );
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [refreshRuntimeDependencyStatus]);
 
   const startRecording = () => {
     setRecordedKeys("");
@@ -770,51 +453,6 @@ function SettingsPage() {
     } catch (err) {
       console.error("Failed to select folder:", err);
     }
-  };
-
-  const handleYtdlpUpdate = async () => {
-    setIsUpdatingYtdlp(true);
-    try {
-      const latestVersion = await desktopCommands.invoke<string>("update_ytdlp");
-      await desktopEvents.emit("ytdlp-version-refresh", { source: "settings" });
-      await Promise.all([
-        refreshRuntimeDependencyStatus(),
-        refreshRuntimeDependencyGateState(),
-        refreshYtdlpVersion(),
-      ]);
-      showYtdlpHint(t("desktop:settings.downloaders.ytdlp.updatedTo", { version: latestVersion }));
-    } catch (err) {
-      console.error("Failed to update yt-dlp:", err);
-      showYtdlpHint(t("desktop:settings.downloaders.ytdlp.updateFailed"));
-    } finally {
-      setIsUpdatingYtdlp(false);
-    }
-  };
-
-  const handleGalleryDlUpdate = async () => {
-    setIsUpdatingGalleryDl(true);
-    try {
-      const latestVersion = await desktopCommands.invoke<string>("update_gallery_dl");
-      await refreshGalleryDlInfo();
-      showGalleryDlHint(t("desktop:settings.downloaders.galleryDl.updatedTo", { version: latestVersion }));
-    } catch (err) {
-      console.error("Failed to update gallery-dl:", err);
-      showGalleryDlHint(t("desktop:settings.downloaders.galleryDl.updateFailed"));
-    } finally {
-      setIsUpdatingGalleryDl(false);
-    }
-  };
-
-  const handleRuntimeDependencyRecheck = async () => {
-    const [status, gate] = await Promise.all([
-      refreshRuntimeDependencyStatus(),
-      refreshRuntimeDependencyGateState(),
-    ]);
-    if (status && gate) {
-      showRuntimeHint(t("desktop:settings.downloaders.runtime.refreshed"));
-      return;
-    }
-    showRuntimeHint(t("desktop:settings.downloaders.runtime.refreshFailed"));
   };
 
   const toggleAutostart = async () => {
@@ -1055,17 +693,6 @@ function SettingsPage() {
     elevation: "none",
     includeLightBottomInset: true,
   });
-  const spinnerStyle: CSSProperties = {
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    border: `1.5px solid ${colors.accentBorder}`,
-    borderTopColor: colors.accentSolid,
-    animation: 'spin 0.75s linear infinite',
-    transformOrigin: '50% 50%',
-  };
-  const statusDotStyle: CSSProperties = getStatusDotStyle(colors.dangerSolid, colors.dangerGlow);
-  const runtimeStatusDotStyle: CSSProperties = getStatusDotStyle(colors.warningSolid, colors.warningGlow);
   const getShortcutActionStyle = (
     action: "confirm" | "cancel",
     enabled = true,
@@ -1089,144 +716,6 @@ function SettingsPage() {
     opacity: enabled ? 1 : 0.5,
     cursor: enabled ? "pointer" : "not-allowed",
   });
-  const downloaderCards = [
-    {
-      id: "ytdlp",
-      title: "yt-dlp",
-      body: (
-        <DownloaderCardContent
-          versionLabel={t("desktop:settings.downloaders.ytdlp.version", { version: ytdlpCurrentVersion })}
-          description={ytdlpHint || t("desktop:settings.downloaders.ytdlp.description")}
-          descriptionTone={ytdlpHint ? "accent" : "default"}
-          statusText={ytdlpStatus.message}
-          statusColor={ytdlpStatus.color}
-          indicator={ytdlpInfo?.updateAvailable ? <span style={statusDotStyle} /> : undefined}
-          action={(
-            <NeonButton
-              type="button"
-              variant={isUpdatingYtdlp ? "outline" : "ghost"}
-              size="sm"
-              onClick={handleYtdlpUpdate}
-              disabled={isUpdatingYtdlp}
-              style={{
-                minWidth: 78,
-                minHeight: 28,
-                fontSize: 10.5,
-                gap: 6,
-                padding: "4px 10px",
-                cursor: isUpdatingYtdlp ? "wait" : "pointer",
-              }}
-            >
-              {isUpdatingYtdlp ? (
-                <span style={spinnerStyle} />
-              ) : null}
-              {isUpdatingYtdlp
-                ? t("desktop:settings.downloaders.ytdlp.updating")
-                : t("desktop:settings.downloaders.ytdlp.button")}
-            </NeonButton>
-          )}
-        />
-      ),
-    },
-    {
-      id: "runtime",
-      title: "runtime",
-      body: (
-        <DownloaderCardContent
-          versionLabel={t("desktop:settings.downloaders.runtime.phaseLabel", { phase: runtimeGatePhaseLabel })}
-          description={runtimeDescriptionText}
-          descriptionTone={runtimeGateIsBusy ? "warning" : "default"}
-          statusText={runtimeDetailText}
-          statusColor={runtimeGateColor}
-          indicator={(
-            runtimeGatePhase === "awaiting_confirmation"
-            || runtimeGatePhase === "blocked_by_user"
-            || runtimeGatePhase === "failed"
-          ) ? <span style={runtimeStatusDotStyle} /> : undefined}
-          progressContent={runtimeGateIsBusy ? (
-            <div
-              style={{
-                width: "100%",
-                height: 5,
-                borderRadius: 999,
-                overflow: "hidden",
-                background: `linear-gradient(90deg, ${colors.bgGradientStart} 0%, ${colors.bgGradientEnd} 100%)`,
-                boxShadow: `inset 0 0 0 1px ${colors.warningBorder}`,
-              }}
-            >
-              <div
-                style={{
-                  width: runtimeDependencyGateState?.progressPercent != null
-                    ? `${Math.max(8, Math.min(100, runtimeDependencyGateState.progressPercent))}%`
-                    : "38%",
-                  height: "100%",
-                  borderRadius: 999,
-                  background: `linear-gradient(90deg, ${colors.warningSolid} 0%, ${colors.warningText} 100%)`,
-                  boxShadow: `0 0 12px ${colors.warningGlow}`,
-                  animation: runtimeDependencyGateState?.progressPercent == null
-                    ? "shimmer 1.2s ease-in-out infinite"
-                    : "none",
-                  transition: runtimeDependencyGateState?.progressPercent == null
-                    ? "none"
-                    : "width 0.22s ease",
-                }}
-              />
-            </div>
-          ) : undefined}
-          action={(
-            <NeonButton
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => void handleRuntimeDependencyRecheck()}
-              style={{ minWidth: 62, minHeight: 28, fontSize: 10.5, padding: "4px 8px" }}
-            >
-              {t("desktop:settings.downloaders.runtime.recheckButton")}
-            </NeonButton>
-          )}
-        />
-      ),
-    },
-    {
-      id: "gallery-dl",
-      title: "gallery-dl",
-      body: (
-        <DownloaderCardContent
-          versionLabel={t("desktop:settings.downloaders.galleryDl.version", { version: galleryDlCurrentVersion })}
-          description={galleryDlHint || t("desktop:settings.downloaders.galleryDl.description")}
-          descriptionTone={galleryDlHint ? "accent" : "default"}
-          statusText={galleryDlStatus.message}
-          statusColor={galleryDlStatus.color}
-          indicator={galleryDlInfo?.updateAvailable ? <span style={statusDotStyle} /> : undefined}
-          action={(
-            <NeonButton
-              type="button"
-              variant={isUpdatingGalleryDl ? "outline" : "ghost"}
-              size="sm"
-              onClick={handleGalleryDlUpdate}
-              disabled={isUpdatingGalleryDl}
-              style={{
-                minWidth: 78,
-                minHeight: 28,
-                fontSize: 10.5,
-                gap: 6,
-                padding: "4px 10px",
-                cursor: isUpdatingGalleryDl ? "wait" : "pointer",
-              }}
-            >
-              {isUpdatingGalleryDl ? (
-                <span style={spinnerStyle} />
-              ) : null}
-              {isUpdatingGalleryDl
-                ? t("desktop:settings.downloaders.galleryDl.updating")
-                : t("desktop:settings.downloaders.galleryDl.button")}
-            </NeonButton>
-          )}
-        />
-      ),
-    },
-  ];
-
   const renderRenamePresetField = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label style={getCompactLabelStyle(colors)}>
@@ -1799,10 +1288,6 @@ function SettingsPage() {
         >
           {t("desktop:settings.supportLog.button")}
         </NeonFieldButton>
-      </NeonSection>
-
-      <NeonSection title={t("desktop:settings.downloaders.title")}>
-        <DownloaderDeck cards={downloaderCards} />
       </NeonSection>
 
       {isDevBuild ? (

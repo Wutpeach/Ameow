@@ -33,7 +33,20 @@ afterEach(() => {
 describe("inspectRuntimeDependencyStatus", () => {
   it("marks bundled and managed paths as ready when files exist", () => {
     const environment = createEnvironment();
-    const binariesDir = path.join(environment.repoRoot, "desktop-assets", "binaries");
+    const ytDlpRealDir = path.join(
+      environment.configDir,
+      "runtimes",
+      "yt-dlp",
+      "x86_64-pc-windows-msvc",
+      "real",
+    );
+    const galleryDlRealDir = path.join(
+      environment.configDir,
+      "runtimes",
+      "gallery-dl",
+      "x86_64-pc-windows-msvc",
+      "real",
+    );
     const ffmpegRealDir = path.join(
       environment.configDir,
       "runtimes",
@@ -48,12 +61,13 @@ describe("inspectRuntimeDependencyStatus", () => {
       "x86_64-pc-windows-msvc",
       "real",
     );
-    mkdirSync(binariesDir, { recursive: true });
+    mkdirSync(ytDlpRealDir, { recursive: true });
+    mkdirSync(galleryDlRealDir, { recursive: true });
     mkdirSync(ffmpegRealDir, { recursive: true });
     mkdirSync(denoRealDir, { recursive: true });
 
-    writeFileSync(path.join(binariesDir, "yt-dlp-x86_64-pc-windows-msvc.exe"), "binary");
-    writeFileSync(path.join(binariesDir, "gallery-dl-x86_64-pc-windows-msvc.exe"), "binary");
+    writeFileSync(path.join(ytDlpRealDir, "yt-dlp-x86_64-pc-windows-msvc.exe"), "binary");
+    writeFileSync(path.join(galleryDlRealDir, "gallery-dl-x86_64-pc-windows-msvc.exe"), "binary");
     writeFileSync(path.join(ffmpegRealDir, "ffmpeg.exe"), "binary");
     writeFileSync(path.join(ffmpegRealDir, "ffprobe.exe"), "binary");
     writeFileSync(path.join(denoRealDir, "deno.exe"), "binary");
@@ -61,9 +75,9 @@ describe("inspectRuntimeDependencyStatus", () => {
     const snapshot = inspectRuntimeDependencyStatus(environment);
 
     expect(snapshot.ytDlp.state).toBe("ready");
-    expect(snapshot.ytDlp.source).toBe("bundled");
+    expect(snapshot.ytDlp.source).toBe("managed");
     expect(snapshot.galleryDl.state).toBe("ready");
-    expect(snapshot.galleryDl.source).toBe("bundled");
+    expect(snapshot.galleryDl.source).toBe("managed");
     expect(snapshot.ffmpeg.state).toBe("ready");
     expect(snapshot.ffmpeg.source).toBe("managed");
     expect(snapshot.deno.state).toBe("ready");
@@ -74,9 +88,9 @@ describe("inspectRuntimeDependencyStatus", () => {
     const snapshot = inspectRuntimeDependencyStatus(environment);
 
     expect(snapshot.ytDlp.state).toBe("missing");
-    expect(snapshot.ytDlp.error).toContain("Missing bundled yt-dlp runtime");
+    expect(snapshot.ytDlp.error).toContain("Missing managed yt-dlp runtime");
     expect(snapshot.galleryDl.state).toBe("missing");
-    expect(snapshot.galleryDl.error).toContain("Missing bundled gallery-dl runtime");
+    expect(snapshot.galleryDl.error).toContain("Missing managed gallery-dl runtime");
     expect(snapshot.ffmpeg.state).toBe("missing");
     expect(snapshot.deno.state).toBe("missing");
   });
@@ -87,6 +101,12 @@ describe("inspectRuntimeDependencyStatus", () => {
       arch: "arm64",
     });
     const binariesDir = path.join(environment.repoRoot, "desktop-assets", "binaries");
+    const galleryDlDir = path.join(
+      environment.configDir,
+      "runtimes",
+      "gallery-dl",
+      "aarch64-apple-darwin",
+    );
     const ffmpegDir = path.join(
       environment.configDir,
       "runtimes",
@@ -100,11 +120,12 @@ describe("inspectRuntimeDependencyStatus", () => {
       "aarch64-apple-darwin",
     );
     mkdirSync(binariesDir, { recursive: true });
+    mkdirSync(galleryDlDir, { recursive: true });
     mkdirSync(ffmpegDir, { recursive: true });
     mkdirSync(denoDir, { recursive: true });
 
     writeFileSync(path.join(binariesDir, "yt-dlp-aarch64-apple-darwin"), "binary");
-    writeFileSync(path.join(binariesDir, "gallery-dl-aarch64-apple-darwin"), "binary");
+    writeFileSync(path.join(galleryDlDir, "gallery-dl-aarch64-apple-darwin"), "binary");
     writeFileSync(path.join(ffmpegDir, "ffmpeg"), "binary");
     writeFileSync(path.join(ffmpegDir, "ffprobe"), "binary");
     writeFileSync(path.join(denoDir, "deno"), "binary");
@@ -119,7 +140,8 @@ describe("inspectRuntimeDependencyStatus", () => {
     expect(snapshot.ytDlp.fallbackPath).toContain("yt-dlp-aarch64-apple-darwin");
     expect(snapshot.ytDlp.error).toContain("Missing managed yt-dlp runtime");
     expect(snapshot.galleryDl.state).toBe("ready");
-    expect(snapshot.galleryDl.path).toContain("gallery-dl-aarch64-apple-darwin");
+    expect(snapshot.galleryDl.source).toBe("managed");
+    expect(snapshot.galleryDl.path).toContain(path.join("gallery-dl", "aarch64-apple-darwin", "gallery-dl-aarch64-apple-darwin"));
     expect(snapshot.ffmpeg.path).toContain(path.join("ffmpeg", "aarch64-apple-darwin", "ffmpeg"));
     expect(snapshot.deno.path).toContain(path.join("deno", "aarch64-apple-darwin", "deno"));
   });

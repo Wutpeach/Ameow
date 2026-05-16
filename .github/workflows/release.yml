@@ -46,52 +46,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Download yt-dlp
-        shell: pwsh
-        run: |
-          $downloadUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-          New-Item -ItemType Directory -Force -Path "desktop-assets/binaries" | Out-Null
-          Invoke-WebRequest -Uri $downloadUrl -OutFile "desktop-assets/binaries/yt-dlp-x86_64-pc-windows-msvc.exe" -MaximumRetryCount 3 -RetryIntervalSec 5
-
-      - name: Download Deno
-        shell: pwsh
-        run: |
-          $downloadUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
-          $zipPath = Join-Path $env:RUNNER_TEMP "ameow-deno.zip"
-          $extractDir = Join-Path $env:RUNNER_TEMP "ameow-deno"
-
-          if (Test-Path $extractDir) {
-            Remove-Item $extractDir -Recurse -Force
-          }
-
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -MaximumRetryCount 3 -RetryIntervalSec 5
-          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-          Copy-Item (Join-Path $extractDir "deno.exe") "desktop-assets/binaries/deno.exe" -Force
-
-      - name: Download FFmpeg
-        shell: pwsh
-        run: |
-          $downloadUrl = "https://github.com/Tyrrrz/FFmpegBin/releases/download/8.0.1/ffmpeg-windows-x64.zip"
-          $zipPath = Join-Path $env:RUNNER_TEMP "ameow-ffmpeg.zip"
-          $extractDir = Join-Path $env:RUNNER_TEMP "ameow-ffmpeg"
-
-          if (Test-Path $extractDir) {
-            Remove-Item $extractDir -Recurse -Force
-          }
-
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -MaximumRetryCount 3 -RetryIntervalSec 5
-          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-
-          $ffmpegBinary = Get-ChildItem -Path $extractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-          if (-not $ffmpegBinary) {
-            throw "ffmpeg.exe not found in extracted archive"
-          }
-
-          Copy-Item $ffmpegBinary.FullName "desktop-assets/binaries/ffmpeg.exe" -Force
-
-      - name: Ensure gallery-dl binary
-        run: npm run runtime:ensure:downloaders -- --tool gallery-dl --target x86_64-pc-windows-msvc
-
       - name: Build Windows NSIS installer
         run: npm run package:win
 
@@ -162,40 +116,6 @@ jobs:
 
       - name: Install create-dmg
         run: brew install create-dmg
-
-      - name: Download yt-dlp
-        run: |
-          mkdir -p desktop-assets/binaries
-          curl -fL --retry 3 --retry-delay 5 \
-            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos" \
-            -o "desktop-assets/binaries/yt-dlp-${{ matrix.target }}"
-          chmod +x "desktop-assets/binaries/yt-dlp-${{ matrix.target }}"
-
-      - name: Download Deno
-        run: |
-          curl -fL --retry 3 --retry-delay 5 \
-            "https://github.com/denoland/deno/releases/latest/download/${{ matrix.deno_asset }}" \
-            -o "$RUNNER_TEMP/ameow-deno.zip"
-          unzip -o "$RUNNER_TEMP/ameow-deno.zip" -d "$RUNNER_TEMP/ameow-deno"
-          cp "$RUNNER_TEMP/ameow-deno/deno" "desktop-assets/binaries/deno"
-          chmod +x "desktop-assets/binaries/deno"
-
-      - name: Download FFmpeg
-        run: |
-          curl -fL --retry 3 --retry-delay 5 \
-            "https://github.com/Tyrrrz/FFmpegBin/releases/download/8.0.1/${{ matrix.ffmpeg_asset }}" \
-            -o "$RUNNER_TEMP/ameow-ffmpeg.zip"
-          unzip -o "$RUNNER_TEMP/ameow-ffmpeg.zip" -d "$RUNNER_TEMP/ameow-ffmpeg"
-          FFMPEG_BINARY=$(find "$RUNNER_TEMP/ameow-ffmpeg" -type f -name "ffmpeg" | head -n 1)
-          if [[ -z "$FFMPEG_BINARY" ]]; then
-            echo "::error::ffmpeg binary not found in extracted archive"
-            exit 1
-          fi
-          cp "$FFMPEG_BINARY" "desktop-assets/binaries/ffmpeg"
-          chmod +x "desktop-assets/binaries/ffmpeg"
-
-      - name: Ensure gallery-dl binary
-        run: npm run runtime:ensure:downloaders -- --tool gallery-dl --target ${{ matrix.target }}
 
       - name: Package macOS ZIP and open-source DMG
         run: |

@@ -49,9 +49,6 @@ const firstCandidate = (candidates: string[]): string | null => candidates[0] ??
 const existingCandidate = (candidates: string[]): string | null =>
   candidates.find((candidate) => existsSync(candidate)) ?? null;
 
-const existingCandidateOrFirst = (candidates: string[]): string | null =>
-  existingCandidate(candidates) ?? firstCandidate(candidates);
-
 const resolveBundledCandidates = (
   environment: ElectronRuntimeEnvironment,
   fileName: string,
@@ -102,22 +99,15 @@ const managedDenoPathFor = (environment: ElectronRuntimeEnvironment): string => 
 const managedYtDlpPathFor = (environment: ElectronRuntimeEnvironment): string => {
   const root = runtimeRootFor(environment, "yt-dlp");
   if (environment.platform === "win32") {
-    return path.join(root, "venv", "Scripts", "yt-dlp.exe");
+    return path.join(root, "real", ytDlpBinaryNameFor(environment.platform, environment.arch));
   }
   return path.join(root, "venv", "bin", "yt-dlp");
 };
 
-const resolveBundledStatus = (
-  label: string,
-  candidates: string[],
-): RuntimeDependencyStatusEntry => {
-  const resolved = candidates.find((candidate) => existsSync(candidate)) ?? null;
-  if (resolved) {
-    return readyStatus(resolved, "bundled");
-  }
-  return missingStatus(
-    `Missing bundled ${label} runtime. Checked ${JSON.stringify(candidates)}`,
-  );
+const managedGalleryDlPathFor = (environment: ElectronRuntimeEnvironment): string => {
+  const root = runtimeRootFor(environment, "gallery-dl");
+  const realRoot = environment.platform === "win32" ? path.join(root, "real") : root;
+  return path.join(realRoot, galleryDlBinaryNameFor(environment.platform, environment.arch));
 };
 
 const fileExists = (entryPath: string): boolean => {
@@ -148,10 +138,6 @@ const resolveYtDlpStatus = (
     environment,
     ytDlpBinaryNameFor(environment.platform, environment.arch),
   );
-  if (environment.platform !== "darwin") {
-    return resolveBundledStatus("yt-dlp", bundledCandidates);
-  }
-
   const managedPath = managedYtDlpPathFor(environment);
   const bundledPath = existingCandidate(bundledCandidates);
 
@@ -198,14 +184,9 @@ export const resolveRuntimeBinaryPaths = (
   environment: ElectronRuntimeEnvironment,
 ): RuntimeBinaryPaths => {
   const ffmpegPaths = managedFfmpegPathsFor(environment);
-  const galleryDlBundledCandidates = resolveBundledCandidates(
-    environment,
-    galleryDlBinaryNameFor(environment.platform, environment.arch),
-  );
-  const resolvedGalleryDl = existingCandidateOrFirst(galleryDlBundledCandidates);
   return {
     ytDlp: resolveYtDlpBinaryPath(environment),
-    galleryDl: resolvedGalleryDl ?? "",
+    galleryDl: managedGalleryDlPathFor(environment),
     ffmpeg: ffmpegPaths.ffmpeg,
     ffprobe: ffmpegPaths.ffprobe,
     deno: managedDenoPathFor(environment),
@@ -215,21 +196,17 @@ export const resolveRuntimeBinaryPaths = (
 export const inspectRuntimeDependencyStatus = (
   environment: ElectronRuntimeEnvironment,
 ): RuntimeDependencyStatusSnapshot => {
-  const galleryDlBundledCandidates = resolveBundledCandidates(
-    environment,
-    galleryDlBinaryNameFor(environment.platform, environment.arch),
-  );
   const ffmpegPaths = managedFfmpegPathsFor(environment);
   const denoPath = managedDenoPathFor(environment);
-  const galleryDlPath = existingCandidate(galleryDlBundledCandidates);
+  const galleryDlPath = managedGalleryDlPathFor(environment);
 
   return {
     ytDlp: resolveYtDlpStatus(environment),
-    galleryDl: galleryDlPath
-      ? readyStatus(galleryDlPath, "bundled")
-      : missingStatus(
-          `Missing bundled gallery-dl runtime. Checked ${JSON.stringify(galleryDlBundledCandidates)}`,
-        ),
+    galleryDl: fileExists(galleryDlPath)
+      ? readyStatus(galleryDlPath, "managed", { expectedSource: "managed" })
+      : missingStatus(`Missing managed gallery-dl runtime. Expected ${JSON.stringify([galleryDlPath])}`, {
+          expectedSource: "managed",
+        }),
     ffmpeg: resolveManagedStatus("ffmpeg", [ffmpegPaths.ffmpeg, ffmpegPaths.ffprobe]),
     deno: resolveManagedStatus("deno", [denoPath]),
   };

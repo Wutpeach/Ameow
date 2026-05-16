@@ -58,7 +58,7 @@ xattr -dr com.apple.quarantine "/Applications/Ameow.app"
   - 开机启动
   - 重命名规则
   - After Effects 集成
-  - 下载运行时更新入口
+- 下载运行时会在主窗口首次需要时自动准备。
 
 ## 5. 浏览器扩展联动
 

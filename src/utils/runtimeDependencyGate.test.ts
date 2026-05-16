@@ -50,6 +50,15 @@ describe("hasMissingManagedRuntimeComponents", () => {
     }))).toBe(true);
   });
 
+  it("returns true when gallery-dl is expected to be managed and missing", () => {
+    expect(hasMissingManagedRuntimeComponents(createStatus({
+      galleryDl: {
+        ...missingEntry,
+        expectedSource: "managed",
+      },
+    }))).toBe(true);
+  });
+
   it("returns true when any managed runtime is missing", () => {
     expect(hasMissingManagedRuntimeComponents(createStatus({
       ffmpeg: missingEntry,

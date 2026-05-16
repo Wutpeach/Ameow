@@ -30,6 +30,7 @@ export type RuntimeDependencyGatePhase =
 
 export type RuntimeDependencyManagedComponent =
   | "ytDlp"
+  | "galleryDl"
   | "ffmpeg"
   | "deno";
 

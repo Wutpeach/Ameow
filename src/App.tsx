@@ -2021,8 +2021,8 @@ function App({
       ?? (await refreshRuntimeDependencyContext()).status;
     if (isPinterestDownloadRequest(payload) && runtimeStatusForRequest?.galleryDl.state !== "ready") {
       const missingGalleryDlMessage = summarizeDownloadError(
-        runtimeStatusForRequest?.galleryDl.error ?? "Missing bundled gallery-dl runtime",
-      ) ?? "Missing bundled gallery-dl runtime";
+        runtimeStatusForRequest?.galleryDl.error ?? "Missing managed gallery-dl runtime",
+      ) ?? "Missing managed gallery-dl runtime";
       console.error("Cannot queue Pinterest download because gallery-dl is unavailable:", missingGalleryDlMessage);
       setDownloadCancelled(true);
       setDownloadErrorMessage(missingGalleryDlMessage);

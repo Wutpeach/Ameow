@@ -28,20 +28,22 @@ const createStatus = (
 });
 
 describe("createRuntimeDependencyResolver", () => {
-  it("fails the gate when bundled gallery-dl is missing", () => {
+  it("treats managed gallery-dl as a missing managed component instead of a fatal bundled failure", () => {
     const resolver = createRuntimeDependencyResolver(
       createStatus({
         galleryDl: {
           ...missingEntry,
-          error: "Missing bundled gallery-dl runtime",
+          expectedSource: "managed",
+          error: "Missing managed gallery-dl runtime",
         },
       }),
       () => createStatus(),
     );
 
     expect(resolver.getGateState()).toMatchObject({
-      phase: "failed",
-      lastError: "Missing bundled gallery-dl runtime",
+      phase: "idle",
+      missingComponents: ["galleryDl"],
+      lastError: null,
     });
   });
 

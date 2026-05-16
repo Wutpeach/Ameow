@@ -8,5 +8,5 @@ export type YtdlpVersionInfo = {
   pythonVersion?: string | null;
   pythonPath?: string | null;
   pythonSupportsLatestStable?: boolean | null;
-  updateChannel?: "managed_python_package" | "bundled_release" | "unavailable";
+  updateChannel?: "managed_python_package" | "managed_release" | "bundled_release" | "unavailable";
 };

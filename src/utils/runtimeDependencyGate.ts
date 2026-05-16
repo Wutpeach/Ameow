@@ -26,8 +26,8 @@ export const hasMissingManagedRuntimeComponents = (
   !!status
   && (
     (status.ytDlp.state !== "ready" && status.ytDlp.expectedSource === "managed")
-    || 
-    status.ffmpeg.state !== "ready"
+    || (status.galleryDl.state !== "ready" && status.galleryDl.expectedSource === "managed")
+    || status.ffmpeg.state !== "ready"
     || status.deno.state !== "ready"
   )
 );

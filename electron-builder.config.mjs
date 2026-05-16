@@ -24,33 +24,10 @@ function resolveBuilderArch() {
   return process.arch;
 }
 
-function resolveDownloaderTarget(platform, arch) {
-  if (platform === "win32" && arch === "x64") {
-    return "x86_64-pc-windows-msvc";
-  }
-  if (platform === "darwin" && arch === "arm64") {
-    return "aarch64-apple-darwin";
-  }
-  if (platform === "darwin" && arch === "x64") {
-    return "x86_64-apple-darwin";
-  }
-  return null;
-}
-
 function packagedBinaryPatterns() {
-  const target = resolveDownloaderTarget(resolveBuilderPlatform(), resolveBuilderArch());
-  const patterns = [
-    "desktop-assets/binaries/.official-downloader-binaries.json",
-    "desktop-assets/binaries/deno",
-  ];
-  if (!target) {
-    return patterns;
-  }
-  return [
-    ...patterns,
-    `desktop-assets/binaries/yt-dlp-${target}*`,
-    `desktop-assets/binaries/gallery-dl-${target}*`,
-  ];
+  resolveBuilderPlatform();
+  resolveBuilderArch();
+  return [];
 }
 
 const PACKAGED_BINARY_PATTERNS = packagedBinaryPatterns();

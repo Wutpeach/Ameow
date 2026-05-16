@@ -58,7 +58,7 @@ You can send content into Ameow in several ways:
   - launch at startup
   - rename rules
   - After Effects integration
-  - downloader runtime update entry points
+- Downloader runtimes are prepared automatically from the main window when first needed.
 
 ## 5. Browser Extension Handoff
 

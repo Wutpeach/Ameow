@@ -41,9 +41,7 @@ export type AmeowRendererCommand =
   | "set_autostart"
   | "set_window_position"
   | "set_window_size"
-  | "start_runtime_dependency_bootstrap"
-  | "update_gallery_dl"
-  | "update_ytdlp";
+  | "start_runtime_dependency_bootstrap";
 
 export type AmeowAppEvent =
   | "app-update-preference-changed"
