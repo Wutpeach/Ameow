@@ -3,17 +3,12 @@ import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { getCliEngineManifest } from "./engineManifest.js";
+import { createGalleryDlCommandPlan, isGalleryDlSidecar } from "./galleryDlCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { summarizeError } from "./runtimeUtils.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 
 const manifest = getCliEngineManifest("gallery-dl");
-
-const isGallerySidecar = (entryPath: string, outputStem: string): boolean =>
-  entryPath.startsWith(outputStem)
-  && manifest.sidecarExtensions.some((extension) => (
-    entryPath.toLowerCase().endsWith(`.${extension}`)
-  ));
 
 const pushTailLine = (target: string[], line: string): void => {
   const trimmed = line.trim();
@@ -96,8 +91,10 @@ const cleanupTaskArtifacts = async (
 export const runGalleryDlDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
-  const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
-  if (!sourceUrl) {
+  let commandPlan: ReturnType<typeof createGalleryDlCommandPlan>;
+  try {
+    commandPlan = createGalleryDlCommandPlan(context);
+  } catch {
     throw new DownloadRuntimeError(
       "E_INVALID_ENGINE_PLAN",
       "gallery-dl source URL is missing",
@@ -115,22 +112,13 @@ export const runGalleryDlDownload = async (
       "E_ENGINE_UNAVAILABLE",
       "gallery-dl binary is missing",
       {
-        context: { sourceUrl },
+        context: { sourceUrl: commandPlan.sourceUrl },
       },
     );
   }
 
-  const prefix = `${context.outputStem}.`;
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, context.outputStem));
-  const args = [
-    ...manifest.configIsolationArgs,
-    ...manifest.baseArgs,
-    manifest.outputArgs.directoryFlag,
-    context.outputDir,
-    manifest.outputArgs.filenameFlag,
-    `${context.outputStem}.${manifest.outputArgs.extensionTemplate}`,
-    sourceUrl,
-  ];
+  const args = [...commandPlan.args];
 
   await context.onProgress({
     traceId: context.traceId,
@@ -186,7 +174,7 @@ export const runGalleryDlDownload = async (
         summarizeGalleryDlFailure(exitCode, stderrLines, stdoutLines),
         {
           context: {
-            sourceUrl,
+            sourceUrl: commandPlan.sourceUrl,
             stderrTail: stderrLines,
             stdoutTail: stdoutLines,
           },
@@ -196,9 +184,9 @@ export const runGalleryDlDownload = async (
 
     const afterFiles = await fs.readdir(context.outputDir).catch(() => []);
     const created = afterFiles
-      .filter((entry) => entry.startsWith(prefix))
+      .filter((entry) => entry.startsWith(commandPlan.outputFilePrefix))
       .filter((entry) => !beforeFiles.has(entry))
-      .filter((entry) => !isGallerySidecar(entry, context.outputStem));
+      .filter((entry) => !isGalleryDlSidecar(entry, context.outputStem));
 
     const finalPath = created[0] ? path.join(context.outputDir, created[0]) : null;
 
@@ -207,7 +195,7 @@ export const runGalleryDlDownload = async (
         "E_OUTPUT_NOT_FOUND",
         "gallery-dl finished without producing an output file",
         {
-          context: { sourceUrl, outputDir: context.outputDir },
+          context: { sourceUrl: commandPlan.sourceUrl, outputDir: context.outputDir },
         },
       );
     }

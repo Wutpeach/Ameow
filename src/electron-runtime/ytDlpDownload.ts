@@ -1,18 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { EngineExecutionContext, YtdlpQualityPreference } from "../core/index.js";
-import { getCliEngineManifest, resolveYtdlpFormatProfile } from "./engineManifest.js";
+import type { EngineExecutionContext } from "../core/index.js";
+import { getCliEngineManifest } from "./engineManifest.js";
+import { buildYtdlpCommandArgs, createYtdlpCommandPlan, type YouTubeMode } from "./ytDlpCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
-import { resolveRenameEnabled } from "./renameRules.js";
-
-const isYouTubeUrl = (value: string): boolean =>
-  value.includes("youtube.com/") || value.includes("youtu.be/");
-
-type YouTubeMode = "light" | "extended";
 
 const RETRY_WITH_EXTENDED_YOUTUBE_PATTERNS = [
   /\bcookies?\b/i,
@@ -130,118 +125,6 @@ const collectTaskArtifacts = async (
   entry.startsWith(`${prefix}.`) || entry.startsWith(`${prefix}[`)
 )));
 
-const resolveYtdlpQualityLabel = (
-  quality: YtdlpQualityPreference | undefined,
-): "highest" | "balanced" | "data-saver" => {
-  switch (quality) {
-    case "balanced":
-      return "balanced";
-    case "data_saver":
-      return "data-saver";
-    case "best":
-    default:
-      return "highest";
-  }
-};
-
-const YTDLP_SECTION_DOWNLOAD_SITE_IDS = new Set(["youtube", "bilibili"]);
-
-const isClipSectionDownloadSupported = (siteId: string | undefined): boolean => (
-  typeof siteId === "string" && YTDLP_SECTION_DOWNLOAD_SITE_IDS.has(siteId)
-);
-
-const formatClipTimeForYtdlp = (seconds: number): string => {
-  const totalMilliseconds = Math.max(0, Math.round(seconds * 1000));
-  const hours = Math.floor(totalMilliseconds / 3_600_000);
-  const minutes = Math.floor((totalMilliseconds % 3_600_000) / 60_000);
-  const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
-  const milliseconds = totalMilliseconds % 1000;
-  const base = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")}`;
-  return milliseconds > 0
-    ? `${base}.${String(milliseconds).padStart(3, "0")}`
-    : base;
-};
-
-const resolveClipRangeSeconds = (
-  context: EngineExecutionContext,
-): { startSec: number; endSec: number } | null => {
-  const rawIntent = context.intent as Record<string, unknown>;
-  const rawStartSec = rawIntent.clipStartSec;
-  const rawEndSec = rawIntent.clipEndSec;
-  const hasStartSec = rawStartSec !== undefined && rawStartSec !== null;
-  const hasEndSec = rawEndSec !== undefined && rawEndSec !== null;
-
-  if (!hasStartSec && !hasEndSec) {
-    return null;
-  }
-
-  if (!isClipSectionDownloadSupported(context.intent.siteId)) {
-    throw new Error("Clip downloads are only supported for YouTube and Bilibili");
-  }
-
-  if (!hasStartSec || !hasEndSec) {
-    throw new Error("Clip downloads require both clipStartSec and clipEndSec");
-  }
-
-  const startSec = Number(rawStartSec);
-  const endSec = Number(rawEndSec);
-  if (!Number.isFinite(startSec) || startSec < 0 || !Number.isFinite(endSec) || endSec < 0) {
-    throw new Error("Clip download range must use finite non-negative seconds");
-  }
-  if (endSec <= startSec) {
-    throw new Error("Clip download end time must be later than the start time");
-  }
-
-  return { startSec, endSec };
-};
-
-const buildYtdlpDownloadSectionArg = (
-  clipRange: { startSec: number; endSec: number },
-): string => `*${formatClipTimeForYtdlp(clipRange.startSec)}-${formatClipTimeForYtdlp(clipRange.endSec)}`;
-
-const resolveClipRangeStemPrefix = (
-  context: EngineExecutionContext,
-  clipRange: { startSec: number; endSec: number } | null,
-): string | null => {
-  if (!clipRange) {
-    return null;
-  }
-  const clipStartMs = Math.max(0, Math.round(clipRange.startSec * 1000));
-  const clipEndMs = Math.max(0, Math.round(clipRange.endSec * 1000));
-  return `${clipStartMs}-${clipEndMs}_${context.outputStem}`;
-};
-
-const resolveYtdlpArtifactPrefixes = (
-  context: EngineExecutionContext,
-  clipRange: { startSec: number; endSec: number } | null,
-): string[] => {
-  const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
-  return clipRangePrefix
-    ? [context.outputStem, clipRangePrefix]
-    : [context.outputStem];
-};
-
-const buildYtdlpOutputTemplate = (
-  context: EngineExecutionContext,
-  clipRange: { startSec: number; endSec: number } | null,
-): string => {
-  const runtimeConfig = context.config ?? {};
-  if (resolveRenameEnabled(runtimeConfig)) {
-    return path.join(context.outputDir, `${context.outputStem}.%(ext)s`);
-  }
-
-  const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
-  if (clipRangePrefix) {
-    return path.join(context.outputDir, `${clipRangePrefix}.%(ext)s`);
-  }
-
-  const qualityLabel = resolveYtdlpQualityLabel(context.intent.ytdlpQuality);
-  return path.join(
-    context.outputDir,
-    `${context.outputStem}[%(width|unknown)sx%(height|unknown)s][${qualityLabel}].%(ext)s`,
-  );
-};
-
 const cleanupTaskArtifacts = async (
   outputDir: string,
   beforeFiles: Set<string>,
@@ -258,29 +141,15 @@ export const runYtDlpDownload = async (
 ): Promise<DownloadResultPayload> => {
   const manifest = getCliEngineManifest("yt-dlp");
   const taskStartedAtMs = Date.now();
-  const clipRange = resolveClipRangeSeconds(context);
-  const reportPath = path.join(context.outputDir, `${context.traceId}-after-move.txt`);
-  const titleReportPath = path.join(context.outputDir, `${context.traceId}-title.txt`);
-  const outputTemplate = buildYtdlpOutputTemplate(context, clipRange);
-  const artifactPrefixes = resolveYtdlpArtifactPrefixes(context, clipRange);
-  const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, artifactPrefixes));
-  const ffmpegDir = path.dirname(context.binaries.ffmpeg);
-  const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
-  if (!sourceUrl) {
-    throw new Error("yt-dlp source URL is missing");
-  }
-  const formatProfile = resolveYtdlpFormatProfile(
-    context.intent.ytdlpQuality,
-    Boolean(context.binaries.ffmpeg),
-    { isYouTube: isYouTubeUrl(sourceUrl) },
-  );
+  const commandPlan = createYtdlpCommandPlan(context);
+  const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, commandPlan.artifactPrefixes));
   logYtDlpTiming("task start", {
     traceId: context.traceId,
     siteId: context.intent.siteId,
     quality: context.intent.ytdlpQuality ?? "best",
-    sourceUrl,
-    isYouTube: isYouTubeUrl(sourceUrl),
-    formatSelectorLength: formatProfile.selector.length,
+    sourceUrl: commandPlan.sourceUrl,
+    isYouTube: commandPlan.isYouTube,
+    formatSelectorLength: commandPlan.formatProfile.selector.length,
   });
 
   const stderrLines: string[] = [];
@@ -290,65 +159,16 @@ export const runYtDlpDownload = async (
     }
     const attemptStartedAtMs = Date.now();
 
-    const args = [
-      ...manifest.baseArgs,
-      ...manifest.configIsolationArgs,
-      ...manifest.progressArgs,
-      "-f",
-      formatProfile.selector,
-      ...manifest.encodingArgs,
-      "--print-to-file",
-      manifest.progressReport.finalPathPrint,
-      reportPath,
-      "--print-to-file",
-      manifest.progressReport.titlePrint,
-      titleReportPath,
-      "-o",
-      outputTemplate,
-    ];
-
-    if (formatProfile.sort) {
-      args.push("--format-sort", formatProfile.sort);
-    }
-    if (formatProfile.mergeOutputFormat) {
-      args.push("--merge-output-format", formatProfile.mergeOutputFormat);
-    }
-    if (context.binaries.ffmpeg) {
-      args.push("--ffmpeg-location", ffmpegDir);
-    }
-    if (context.intent.selectionScope === "current_item") {
-      args.push("--no-playlist");
-    }
-    if (context.intent.pageUrl) {
-      args.push("--add-header", `Referer:${context.intent.pageUrl}`);
-    }
-    if (clipRange) {
-      args.push("--download-sections", buildYtdlpDownloadSectionArg(clipRange));
-    }
-
     const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
-    if (cookiesPath) {
-      args.push("--cookies", cookiesPath);
-    }
-
-    if (isYouTubeUrl(sourceUrl) && mode === "extended") {
-      args.push(
-        ...manifest.youtube.extendedExtractorArgs,
-        ...manifest.youtube.remoteComponentsArgs,
-      );
-      if (context.binaries.deno) {
-        if (process.platform === "win32") {
-          args.push("--js-runtimes", "deno", "--js-runtimes", "node");
-        } else {
-          args.push("--js-runtimes", "node", "--js-runtimes", "deno");
-        }
-      }
-    } else if (isYouTubeUrl(sourceUrl)) {
-      args.push(
-        ...manifest.youtube.lightExtractorArgs,
-      );
-    }
-    args.push(sourceUrl);
+    const args = buildYtdlpCommandArgs(commandPlan, {
+      mode,
+      cookiesPath,
+      hasFfmpeg: Boolean(context.binaries.ffmpeg),
+      hasDeno: Boolean(context.binaries.deno),
+      selectionScope: context.intent.selectionScope,
+      pageUrl: context.intent.pageUrl,
+      platform: process.platform,
+    });
 
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp invocation", {
@@ -356,7 +176,7 @@ export const runYtDlpDownload = async (
         ytDlpBinaryPath: context.binaries.ytDlp,
         ffmpegBinaryPath: context.binaries.ffmpeg,
         denoBinaryPath: context.binaries.deno,
-        sourceUrl,
+        sourceUrl: commandPlan.sourceUrl,
         originalUrl: context.intent.originalUrl,
         pageUrl: context.intent.pageUrl ?? null,
         selectionScope: context.intent.selectionScope ?? null,
@@ -365,9 +185,9 @@ export const runYtDlpDownload = async (
         cookiesPresent: Boolean(context.intent.cookies?.trim()),
         cookiesPath,
         ytdlpQuality: context.intent.ytdlpQuality ?? null,
-        formatSelector: formatProfile.selector,
-        formatSort: formatProfile.sort,
-        mergeOutputFormat: formatProfile.mergeOutputFormat,
+        formatSelector: commandPlan.formatProfile.selector,
+        formatSort: commandPlan.formatProfile.sort,
+        mergeOutputFormat: commandPlan.formatProfile.mergeOutputFormat,
         youtubeMode: mode,
         args,
       });
@@ -376,7 +196,7 @@ export const runYtDlpDownload = async (
       traceId: context.traceId,
       mode,
       elapsedMs: formatElapsedMs(taskStartedAtMs),
-      selectorLength: formatProfile.selector.length,
+      selectorLength: commandPlan.formatProfile.selector.length,
       hasCookies: Boolean(cookiesPath),
       selectionScope: context.intent.selectionScope ?? null,
     });
@@ -388,8 +208,8 @@ export const runYtDlpDownload = async (
       const exitCode = await runStreamingCommand(context.binaries.ytDlp, args, {
         env: {
           ...process.env,
-          PATH: ffmpegDir
-            ? `${ffmpegDir}${path.delimiter}${process.env.PATH ?? ""}`
+          PATH: commandPlan.ffmpegDir
+            ? `${commandPlan.ffmpegDir}${path.delimiter}${process.env.PATH ?? ""}`
             : process.env.PATH,
         },
         signal: context.abortSignal,
@@ -462,8 +282,8 @@ export const runYtDlpDownload = async (
         },
       });
 
-      const reportedPath = await readReportedValue(reportPath);
-      const reportedTitle = await readReportedValue(titleReportPath);
+      const reportedPath = await readReportedValue(commandPlan.reportPath);
+      const reportedTitle = await readReportedValue(commandPlan.titleReportPath);
       logYtDlpTiming("attempt finished", {
         traceId: context.traceId,
         mode,
@@ -494,20 +314,20 @@ export const runYtDlpDownload = async (
       };
     } finally {
       await cleanupCookiesFile(cookiesPath);
-      await fs.unlink(reportPath).catch(() => undefined);
-      await fs.unlink(titleReportPath).catch(() => undefined);
+      await fs.unlink(commandPlan.reportPath).catch(() => undefined);
+      await fs.unlink(commandPlan.titleReportPath).catch(() => undefined);
     }
   };
 
   try {
-    const initialMode = isYouTubeUrl(sourceUrl)
+    const initialMode = commandPlan.isYouTube
       ? resolveInitialYouTubeMode(context)
       : "light";
     try {
       return await runAttempt(initialMode);
     } catch (error) {
       if (
-        isYouTubeUrl(sourceUrl)
+        commandPlan.isYouTube
         && initialMode === "light"
         && !context.abortSignal.aborted
         && shouldRetryWithExtendedYouTubeMode(error)
@@ -515,7 +335,7 @@ export const runYtDlpDownload = async (
         if (isInjectionDebugEnabled(context.config)) {
           logInjectedDownloadDebug("yt-dlp retrying with extended youtube mode", {
             traceId: context.traceId,
-            sourceUrl,
+            sourceUrl: commandPlan.sourceUrl,
             fallbackReason: summarizeError(error),
           });
         }
@@ -524,7 +344,7 @@ export const runYtDlpDownload = async (
           elapsedMs: formatElapsedMs(taskStartedAtMs),
           reason: summarizeError(error),
         });
-        await cleanupTaskArtifacts(context.outputDir, beforeFiles, artifactPrefixes);
+        await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
         stderrLines.length = 0;
         await context.onProgress({
           traceId: context.traceId,
@@ -541,7 +361,7 @@ export const runYtDlpDownload = async (
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {
         traceId: context.traceId,
-        sourceUrl,
+        sourceUrl: commandPlan.sourceUrl,
         error: summarizeError(error),
         stderrTail: stderrLines.slice(-5),
       });
@@ -552,7 +372,7 @@ export const runYtDlpDownload = async (
       error: summarizeError(error),
       stderrTail: stderrLines.slice(-3),
     });
-    await cleanupTaskArtifacts(context.outputDir, beforeFiles, artifactPrefixes);
+    await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
     throw new Error(summarizeError(error));
   }
 };
