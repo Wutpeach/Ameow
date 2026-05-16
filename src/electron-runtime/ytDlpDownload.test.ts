@@ -510,6 +510,44 @@ describe("runYtDlpDownload", () => {
     expect(runStreamingCommandMock).not.toHaveBeenCalled();
   });
 
+  it("preserves runtime error codes that escape the yt-dlp execution path", async () => {
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["video.mp4.part"]);
+    readFileMock.mockRejectedValue(new Error("missing report"));
+    runStreamingCommandMock.mockResolvedValue(0);
+
+    const context = {
+      traceId: "trace-runtime-error",
+      outputDir: "D:/downloads",
+      outputStem: "video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://example.com/watch?v=runtime-error",
+      },
+      intent: {
+        originalUrl: "https://example.com/watch?v=runtime-error",
+      },
+      plan: {
+        providerId: "generic",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toMatchObject({
+      name: "DownloadRuntimeError",
+      code: "E_OUTPUT_NOT_FOUND",
+      message: "yt-dlp exited successfully but produced no final output path",
+    } satisfies Partial<DownloadRuntimeError>);
+    expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "video.mp4.part"));
+  });
+
   it("keeps injected public youtube downloads on light mode when no cookies or force hint exist", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (

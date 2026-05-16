@@ -315,7 +315,16 @@ export const runYtDlpDownload = async (
         throw new Error(stderrLines[stderrLines.length - 1] ?? `yt-dlp exited with code ${exitCode}`);
       }
       if (!reportedPath) {
-        throw new Error("yt-dlp exited successfully but produced no final output path");
+        throw new DownloadRuntimeError(
+          "E_OUTPUT_NOT_FOUND",
+          "yt-dlp exited successfully but produced no final output path",
+          {
+            context: {
+              sourceUrl: commandPlan.sourceUrl,
+              traceId: context.traceId,
+            },
+          },
+        );
       }
       logYtDlpTiming("task success", {
         traceId: context.traceId,
@@ -391,6 +400,9 @@ export const runYtDlpDownload = async (
       stderrTail: stderrLines.slice(-3),
     });
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
+    if (error instanceof DownloadRuntimeError) {
+      throw error;
+    }
     throw new Error(summarizeError(error));
   }
 };
