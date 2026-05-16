@@ -35,6 +35,25 @@ type BuildYtdlpCommandArgsOptions = {
 export const isYouTubeUrl = (value: string): boolean =>
   value.includes("youtube.com/") || value.includes("youtu.be/");
 
+export const appendExtendedYouTubeYtdlpArgs = (
+  args: string[],
+  options: { hasDeno: boolean; platform: NodeJS.Platform },
+): void => {
+  const manifest = getCliEngineManifest("yt-dlp");
+  args.push(
+    ...manifest.youtube.extendedExtractorArgs,
+    ...manifest.youtube.remoteComponentsArgs,
+  );
+  if (!options.hasDeno) {
+    return;
+  }
+  if (options.platform === "win32") {
+    args.push("--js-runtimes", "deno", "--js-runtimes", "node");
+    return;
+  }
+  args.push("--js-runtimes", "node", "--js-runtimes", "deno");
+};
+
 const resolveYtdlpQualityLabel = (
   quality: YtdlpQualityPreference | undefined,
 ): "highest" | "balanced" | "data-saver" => {
@@ -220,17 +239,10 @@ export const buildYtdlpCommandArgs = (
   }
 
   if (plan.isYouTube && options.mode === "extended") {
-    args.push(
-      ...manifest.youtube.extendedExtractorArgs,
-      ...manifest.youtube.remoteComponentsArgs,
-    );
-    if (options.hasDeno) {
-      if (options.platform === "win32") {
-        args.push("--js-runtimes", "deno", "--js-runtimes", "node");
-      } else {
-        args.push("--js-runtimes", "node", "--js-runtimes", "deno");
-      }
-    }
+    appendExtendedYouTubeYtdlpArgs(args, {
+      hasDeno: options.hasDeno,
+      platform: options.platform,
+    });
   } else if (plan.isYouTube) {
     args.push(
       ...manifest.youtube.lightExtractorArgs,

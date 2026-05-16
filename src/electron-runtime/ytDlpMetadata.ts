@@ -2,6 +2,7 @@ import { runStreamingCommand } from "./processRunner.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import type { RuntimeBinaryPaths } from "./contracts.js";
 import type { DownloadSelectionScope } from "../core/index.js";
+import { appendExtendedYouTubeYtdlpArgs, isYouTubeUrl } from "./ytDlpCommandPlan.js";
 
 type YtDlpMetadataProbeOptions = {
   sourceUrl: string;
@@ -12,9 +13,6 @@ type YtDlpMetadataProbeOptions = {
   signal?: AbortSignal;
 };
 
-const isYouTubeUrl = (value: string): boolean =>
-  value.includes("youtube.com/") || value.includes("youtu.be/");
-
 const appendYtDlpSiteArgs = (
   args: string[],
   sourceUrl: string,
@@ -24,23 +22,10 @@ const appendYtDlpSiteArgs = (
     return;
   }
 
-  args.push(
-    "--extractor-args",
-    "youtube:player_js_variant=tv",
-    "--remote-components",
-    "ejs:github",
-  );
-
-  if (!binaries.deno) {
-    return;
-  }
-
-  if (process.platform === "win32") {
-    args.push("--js-runtimes", "deno", "--js-runtimes", "node");
-    return;
-  }
-
-  args.push("--js-runtimes", "node", "--js-runtimes", "deno");
+  appendExtendedYouTubeYtdlpArgs(args, {
+    hasDeno: Boolean(binaries.deno),
+    platform: process.platform,
+  });
 };
 
 const readTitleFromMetadata = (value: unknown): string | undefined => {
