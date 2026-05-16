@@ -114,6 +114,7 @@ import {
   ensureManagedYtDlpRuntimeReady,
   resolvePinnedDownloaderRelease,
 } from "./managedRuntimeBootstrap.mjs";
+import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -154,7 +155,6 @@ const XIAOHONGSHU_HIDDEN_DETAIL_INITIAL_SETTLE_MS = 900;
 const SHORT_LINK_NAVIGATION_TIMEOUT_MS = 12_000;
 const SHORT_LINK_NAVIGATION_SETTLE_MS = 1_200;
 const UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT = 3;
-const MANAGED_RUNTIME_BOOTSTRAP_ORDER = ["ytDlp", "galleryDl", "ffmpeg", "deno"];
 const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
 const STARTUP_DIAGNOSTIC_SETTINGS_OPEN_DELAY_MS = 1_500;
@@ -182,22 +182,17 @@ const ALLOWED_IMAGE_DOWNLOAD_REQUEST_HEADERS = new Set([
   "user-agent",
 ]);
 
-const runtimeDependencyGateState = {
-  phase: "idle",
-  missingComponents: [],
-  lastError: null,
-  updatedAtMs: Date.now(),
-  currentComponent: null,
-  currentStage: null,
-  progressPercent: null,
-  downloadedBytes: null,
-  totalBytes: null,
-  nextComponent: null,
-};
-let runtimeDependencyBootstrapPromise = null;
 let wsServer = null;
 let uiLabRuntimeStatusOverride = null;
-let uiLabRuntimeGateOverride = null;
+const runtimeDependencyGateController = createRuntimeDependencyGateController({
+  emitAppEvent,
+  getRuntimeDependencyStatus,
+  buildManagedRuntimeBootstrapOptions,
+  ensureManagedYtDlpRuntimeReady,
+  ensureManagedGalleryDlRuntimeReady,
+  ensureManagedFfmpegRuntimeReady,
+  ensureManagedDenoRuntimeReady,
+});
 let uiLabScenarioActive = false;
 let startupDiagnosticsWriteChain = Promise.resolve();
 let runtimeLogWriteChain = Promise.resolve();
@@ -1043,13 +1038,6 @@ async function fetchWithDesktopSessionTimeout(
     clearTimeout(timeoutId);
     removeAbortListener?.();
   }
-}
-
-function summarizeBootstrapError(error) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return String(error ?? "unknown error");
 }
 
 function parseJsonObject(raw) {
@@ -2909,7 +2897,7 @@ function buildElectronRuntimeEnvironment() {
   };
 }
 
-function buildManagedRuntimeBootstrapOptions(missingComponents = []) {
+function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity = null) {
   return {
     configDir: getUserDataDir(),
     platform: process.platform,
@@ -2918,15 +2906,7 @@ function buildManagedRuntimeBootstrapOptions(missingComponents = []) {
     log(message) {
       logInfo("Electron", message);
     },
-    onActivity(activity) {
-      return updateRuntimeDependencyGateDownloadActivity(
-        missingComponents,
-        activity.component,
-        activity.stage,
-        activity.downloadedBytes ?? null,
-        activity.totalBytes ?? null,
-      );
-    },
+    onActivity,
   };
 }
 
@@ -3054,12 +3034,14 @@ function cloneRuntimeDependencyGateState(state) {
 
 function clearUiLabRuntimeOverrides() {
   uiLabRuntimeStatusOverride = null;
-  uiLabRuntimeGateOverride = null;
+  runtimeDependencyGateController.clearUiLabRuntimeGateOverride();
 }
 
 function setUiLabRuntimeOverrides(runtimeStatus, gateState) {
   uiLabRuntimeStatusOverride = cloneRuntimeStatusSnapshot(runtimeStatus);
-  uiLabRuntimeGateOverride = cloneRuntimeDependencyGateState(gateState);
+  runtimeDependencyGateController.setUiLabRuntimeGateOverride(
+    cloneRuntimeDependencyGateState(gateState),
+  );
 }
 
 async function getRuntimeDependencyStatus() {
@@ -3070,231 +3052,20 @@ async function getRuntimeDependencyStatus() {
   return inspectRuntimeDependencyStatus(buildElectronRuntimeEnvironment());
 }
 
-function collectMissingManagedRuntimeComponents(snapshot) {
-  const missingComponents = [];
-  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource === "managed") {
-    missingComponents.push("ytDlp");
-  }
-  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource === "managed") {
-    missingComponents.push("galleryDl");
-  }
-  if (snapshot.ffmpeg.state !== "ready") {
-    missingComponents.push("ffmpeg");
-  }
-  if (snapshot.deno.state !== "ready") {
-    missingComponents.push("deno");
-  }
-  return missingComponents;
-}
-
-function nextManagedRuntimeComponent(missingComponents, currentComponent = null) {
-  const ordered = MANAGED_RUNTIME_BOOTSTRAP_ORDER.filter((componentId) =>
-    missingComponents.includes(componentId));
-  if (ordered.length === 0) {
-    return null;
-  }
-  if (!currentComponent) {
-    return ordered[0] ?? null;
-  }
-  const index = ordered.indexOf(currentComponent);
-  return ordered[index + 1] ?? null;
-}
-
-function emitRuntimeDependencyGateState() {
-  const payload = uiLabRuntimeGateOverride
-    ? cloneRuntimeDependencyGateState(uiLabRuntimeGateOverride)
-    : { ...runtimeDependencyGateState };
-  emitAppEvent("runtime-dependency-gate-state", payload);
-  return payload;
-}
-
-function applyRuntimeDependencyGateState(nextState) {
-  runtimeDependencyGateState.phase = nextState.phase;
-  runtimeDependencyGateState.missingComponents = [...(nextState.missingComponents ?? [])];
-  runtimeDependencyGateState.lastError = nextState.lastError ?? null;
-  runtimeDependencyGateState.updatedAtMs = nowTimestampMs();
-  runtimeDependencyGateState.currentComponent = nextState.currentComponent ?? null;
-  runtimeDependencyGateState.currentStage = nextState.currentStage ?? null;
-  runtimeDependencyGateState.progressPercent = nextState.progressPercent ?? null;
-  runtimeDependencyGateState.downloadedBytes = nextState.downloadedBytes ?? null;
-  runtimeDependencyGateState.totalBytes = nextState.totalBytes ?? null;
-  runtimeDependencyGateState.nextComponent = nextState.nextComponent ?? null;
-  return emitRuntimeDependencyGateState();
-}
-
-function syncRuntimeDependencyGateStateFromSnapshot(snapshot) {
-  const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
-    return applyRuntimeDependencyGateState({
-      phase: "failed",
-      missingComponents,
-      lastError: snapshot.ytDlp.error ?? "Missing bundled yt-dlp runtime",
-      currentComponent: null,
-      currentStage: null,
-      progressPercent: null,
-      downloadedBytes: null,
-      totalBytes: null,
-      nextComponent: nextManagedRuntimeComponent(missingComponents),
-    });
-  }
-  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
-    return applyRuntimeDependencyGateState({
-      phase: "failed",
-      missingComponents,
-      lastError: snapshot.galleryDl.error ?? "Missing gallery-dl runtime",
-      currentComponent: null,
-      currentStage: null,
-      progressPercent: null,
-      downloadedBytes: null,
-      totalBytes: null,
-      nextComponent: nextManagedRuntimeComponent(missingComponents),
-    });
-  }
-
-  return applyRuntimeDependencyGateState({
-    phase: missingComponents.length === 0 ? "ready" : "idle",
-    missingComponents,
-    lastError: null,
-    currentComponent: null,
-    currentStage: null,
-    progressPercent: null,
-    downloadedBytes: null,
-    totalBytes: null,
-    nextComponent: nextManagedRuntimeComponent(missingComponents),
-  });
-}
-
-function updateRuntimeDependencyGateDownloadActivity(
-  missingComponents,
-  currentComponent,
-  currentStage,
-  downloadedBytes = null,
-  totalBytes = null,
-) {
-  const expectedTotal = totalBytes && totalBytes > 0 ? totalBytes : null;
-  const expectedDownloaded = downloadedBytes && downloadedBytes >= 0 ? downloadedBytes : null;
-  const progressPercent = expectedTotal && expectedDownloaded != null
-    ? Math.max(0, Math.min(100, (expectedDownloaded / expectedTotal) * 100))
-    : currentStage === "installing" || currentStage === "verifying"
-      ? 100
-      : null;
-
-  return applyRuntimeDependencyGateState({
-    phase: "downloading",
-    missingComponents,
-    lastError: null,
-    currentComponent,
-    currentStage,
-    progressPercent,
-    downloadedBytes: expectedDownloaded,
-    totalBytes: expectedTotal,
-    nextComponent: nextManagedRuntimeComponent(missingComponents, currentComponent),
-  });
-}
-
 async function getRuntimeDependencyGateState() {
-  if (uiLabRuntimeGateOverride) {
-    return cloneRuntimeDependencyGateState(uiLabRuntimeGateOverride);
-  }
-  if (runtimeDependencyBootstrapPromise) {
-    return { ...runtimeDependencyGateState };
-  }
-  const snapshot = await getRuntimeDependencyStatus();
-  return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
+  return runtimeDependencyGateController.getState();
 }
 
 async function refreshRuntimeDependencyGateState() {
-  if (uiLabRuntimeGateOverride) {
-    emitAppEvent("runtime-dependency-gate-state", cloneRuntimeDependencyGateState(uiLabRuntimeGateOverride));
-    return cloneRuntimeDependencyGateState(uiLabRuntimeGateOverride);
-  }
-  return getRuntimeDependencyGateState();
+  return runtimeDependencyGateController.refreshState();
 }
 
 async function ensureMissingManagedRuntimesReady(trigger) {
-  const initialSnapshot = await getRuntimeDependencyStatus();
-  const missingComponents = collectMissingManagedRuntimeComponents(initialSnapshot);
-  if (missingComponents.length === 0) {
-    return initialSnapshot;
-  }
-
-  if (initialSnapshot.ytDlp.state !== "ready" && initialSnapshot.ytDlp.expectedSource === "managed") {
-    await ensureManagedYtDlpRuntimeReady(trigger, buildManagedRuntimeBootstrapOptions(missingComponents));
-  }
-
-  const afterYtDlp = await getRuntimeDependencyStatus();
-  if (afterYtDlp.galleryDl.state !== "ready" && afterYtDlp.galleryDl.expectedSource === "managed") {
-    await ensureManagedGalleryDlRuntimeReady(trigger, buildManagedRuntimeBootstrapOptions(missingComponents));
-  }
-
-  const afterGalleryDl = await getRuntimeDependencyStatus();
-  if (afterGalleryDl.ffmpeg.state !== "ready") {
-    await ensureManagedFfmpegRuntimeReady(trigger, buildManagedRuntimeBootstrapOptions(missingComponents));
-  }
-
-  const afterFfmpeg = await getRuntimeDependencyStatus();
-  if (afterFfmpeg.deno.state !== "ready") {
-    await ensureManagedDenoRuntimeReady(trigger, buildManagedRuntimeBootstrapOptions(missingComponents));
-  }
-
-  return getRuntimeDependencyStatus();
+  return runtimeDependencyGateController.ensureMissingManagedRuntimesReady(trigger);
 }
 
 async function startRuntimeDependencyBootstrap(reason = "frontend_after_visible") {
-  if (uiLabRuntimeGateOverride) {
-    const payload = cloneRuntimeDependencyGateState(uiLabRuntimeGateOverride);
-    emitAppEvent("runtime-dependency-gate-state", payload);
-    return payload;
-  }
-  if (runtimeDependencyBootstrapPromise) {
-    return { ...runtimeDependencyGateState };
-  }
-
-  const snapshot = await getRuntimeDependencyStatus();
-  const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
-    return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
-  }
-  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
-    return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
-  }
-  if (missingComponents.length === 0) {
-    return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
-  }
-
-  const initialPayload = updateRuntimeDependencyGateDownloadActivity(
-    missingComponents,
-    missingComponents[0] ?? null,
-    "checking",
-    null,
-    null,
-  );
-
-  runtimeDependencyBootstrapPromise = (async () => {
-    try {
-      const finalSnapshot = await ensureMissingManagedRuntimesReady(reason);
-      syncRuntimeDependencyGateStateFromSnapshot(finalSnapshot);
-    } catch (error) {
-      const latestSnapshot = await getRuntimeDependencyStatus().catch(() => snapshot);
-      applyRuntimeDependencyGateState({
-        phase: "failed",
-        missingComponents: collectMissingManagedRuntimeComponents(latestSnapshot),
-        lastError: summarizeBootstrapError(error),
-        currentComponent: null,
-        currentStage: null,
-        progressPercent: null,
-        downloadedBytes: null,
-        totalBytes: null,
-        nextComponent: nextManagedRuntimeComponent(
-          collectMissingManagedRuntimeComponents(latestSnapshot),
-        ),
-      });
-    } finally {
-      runtimeDependencyBootstrapPromise = null;
-    }
-  })();
-
-  return initialPayload;
+  return runtimeDependencyGateController.startBootstrap(reason);
 }
 
 function normalizeVersionString(value) {
