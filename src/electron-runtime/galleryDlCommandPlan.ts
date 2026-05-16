@@ -1,4 +1,5 @@
 import type { EngineExecutionContext } from "../core/index.js";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 
 export type GalleryDlCommandPlan = {
@@ -21,7 +22,7 @@ export const createGalleryDlCommandPlan = (
   const manifest = getCliEngineManifest("gallery-dl");
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
   if (!sourceUrl) {
-    throw new Error("gallery-dl source URL is missing");
+    throw new InvalidCommandPlanError("gallery-dl source URL is missing");
   }
 
   return {

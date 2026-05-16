@@ -1,5 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { buildYtdlpCommandArgs, createYtdlpCommandPlan } from "./ytDlpCommandPlan.js";
 
 const createContext = (overrides: Record<string, unknown> = {}) => ({
@@ -163,6 +164,6 @@ describe("yt-dlp command planning", () => {
       enginePlan: {
         sourceUrl: "https://x.com/ameow/status/1234567890",
       },
-    }))).toThrow("Clip downloads are only supported for YouTube and Bilibili");
+    }))).toThrow(InvalidCommandPlanError);
   });
 });

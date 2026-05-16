@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { createGalleryDlCommandPlan, isGalleryDlSidecar } from "./galleryDlCommandPlan.js";
 
 const createContext = (overrides: Record<string, unknown> = {}) => ({
@@ -55,6 +56,6 @@ describe("gallery-dl command planning", () => {
     expect(() => createGalleryDlCommandPlan(createContext({
       enginePlan: {},
       intent: {},
-    }))).toThrow("gallery-dl source URL is missing");
+    }))).toThrow(InvalidCommandPlanError);
   });
 });

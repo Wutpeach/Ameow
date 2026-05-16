@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { readdirMock, unlinkMock, runStreamingCommandMock } = vi.hoisted(() => ({
   readdirMock: vi.fn(),
@@ -29,6 +29,12 @@ import { DownloadRuntimeError } from "../core/index.js";
 import { runGalleryDlDownload } from "./galleryDlDownload.js";
 
 describe("runGalleryDlDownload", () => {
+  beforeEach(() => {
+    readdirMock.mockReset();
+    unlinkMock.mockClear();
+    runStreamingCommandMock.mockReset();
+  });
+
   it("switches gallery-dl tasks into downloading state before detailed output is available", async () => {
     readdirMock.mockResolvedValue([]);
     runStreamingCommandMock.mockResolvedValue(0);
@@ -185,5 +191,30 @@ describe("runGalleryDlDownload", () => {
     } satisfies Partial<DownloadRuntimeError>);
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "pin.mp4.part"));
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "pin.mp4.txt"));
+  });
+
+  it("maps a missing source URL to an invalid engine plan error", async () => {
+    const context = {
+      traceId: "trace-missing-source",
+      outputDir: "D:/downloads",
+      outputStem: "pin",
+      binaries: {
+        galleryDl: "D:/gallery-dl.exe",
+      },
+      enginePlan: {},
+      intent: {},
+      plan: {
+        providerId: "pinterest",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runGalleryDlDownload(context)).rejects.toMatchObject({
+      name: "DownloadRuntimeError",
+      code: "E_INVALID_ENGINE_PLAN",
+      message: "gallery-dl source URL is missing",
+    } satisfies Partial<DownloadRuntimeError>);
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 import { createGalleryDlCommandPlan, isGalleryDlSidecar } from "./galleryDlCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
@@ -94,10 +95,13 @@ export const runGalleryDlDownload = async (
   let commandPlan: ReturnType<typeof createGalleryDlCommandPlan>;
   try {
     commandPlan = createGalleryDlCommandPlan(context);
-  } catch {
+  } catch (error) {
+    if (!(error instanceof InvalidCommandPlanError)) {
+      throw error;
+    }
     throw new DownloadRuntimeError(
       "E_INVALID_ENGINE_PLAN",
-      "gallery-dl source URL is missing",
+      error.message,
       {
         context: {
           providerId: context.plan.providerId,

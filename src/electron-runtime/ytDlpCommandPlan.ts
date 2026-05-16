@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { EngineExecutionContext, YtdlpQualityPreference } from "../core/index.js";
+import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest, resolveYtdlpFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { resolveRenameEnabled } from "./renameRules.js";
 
@@ -100,20 +101,20 @@ const resolveClipRangeSeconds = (
   }
 
   if (!isClipSectionDownloadSupported(context.intent.siteId)) {
-    throw new Error("Clip downloads are only supported for YouTube and Bilibili");
+    throw new InvalidCommandPlanError("Clip downloads are only supported for YouTube and Bilibili");
   }
 
   if (!hasStartSec || !hasEndSec) {
-    throw new Error("Clip downloads require both clipStartSec and clipEndSec");
+    throw new InvalidCommandPlanError("Clip downloads require both clipStartSec and clipEndSec");
   }
 
   const startSec = Number(rawStartSec);
   const endSec = Number(rawEndSec);
   if (!Number.isFinite(startSec) || startSec < 0 || !Number.isFinite(endSec) || endSec < 0) {
-    throw new Error("Clip download range must use finite non-negative seconds");
+    throw new InvalidCommandPlanError("Clip download range must use finite non-negative seconds");
   }
   if (endSec <= startSec) {
-    throw new Error("Clip download end time must be later than the start time");
+    throw new InvalidCommandPlanError("Clip download end time must be later than the start time");
   }
 
   return { startSec, endSec };
@@ -172,7 +173,7 @@ export const createYtdlpCommandPlan = (
   const clipRange = resolveClipRangeSeconds(context);
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
   if (!sourceUrl) {
-    throw new Error("yt-dlp source URL is missing");
+    throw new InvalidCommandPlanError("yt-dlp source URL is missing");
   }
   const youtubeUrl = isYouTubeUrl(sourceUrl);
   const formatProfile = resolveYtdlpFormatProfile(
