@@ -109,6 +109,7 @@ import {
   resolvePinnedDownloaderRelease,
 } from "./managedRuntimeBootstrap.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
+import { createRuntimeLogController } from "./runtimeLog.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -207,44 +208,8 @@ const runtimeDependencyGateController = createRuntimeDependencyGateController({
 });
 let uiLabScenarioActive = false;
 let startupDiagnosticsWriteChain = Promise.resolve();
-let runtimeLogWriteChain = Promise.resolve();
-let runtimeLogCaptureInitialized = false;
 const pendingRendererReadySignals = new Map();
 const activeWindowBoundsAnimations = new Map();
-const runtimeLogBuffer = [];
-let originalConsoleStreamsAvailable = true;
-const originalConsole = {
-  log: console.log.bind(console),
-  info: console.info.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-};
-
-function isConsoleStreamWriteError(error) {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  return error.code === "EIO"
-    || error.code === "EPIPE"
-    || error.code === "ERR_STREAM_DESTROYED";
-}
-
-function safeWriteOriginalConsole(level, ...args) {
-  if (!originalConsoleStreamsAvailable) {
-    return;
-  }
-
-  try {
-    originalConsole[level](...args);
-  } catch (error) {
-    if (isConsoleStreamWriteError(error)) {
-      originalConsoleStreamsAvailable = false;
-      return;
-    }
-    throw error;
-  }
-}
 
 const startupDiagnosticsEnabled = shouldEnablePackagedStartupDiagnostics({
   platform: process.platform,
@@ -275,6 +240,21 @@ function getRuntimeLogPath() {
   return join(getLogsDir(), RUNTIME_LOG_FILE_NAME);
 }
 
+const runtimeLogController = createRuntimeLogController({
+  getRuntimeLogPath,
+  getAppVersion() {
+    return app.getVersion();
+  },
+  platform: process.platform,
+  arch: process.arch,
+  isPackaged: app.isPackaged,
+  bufferLimit: RUNTIME_LOG_BUFFER_LIMIT,
+  exportedLineLimit: EXPORTED_RUNTIME_LOG_LINE_LIMIT,
+});
+const appendRuntimeLogLine = runtimeLogController.appendRuntimeLogLine;
+const initializeRuntimeLogCapture = runtimeLogController.initializeRuntimeLogCapture;
+const readRecentRuntimeLogLines = runtimeLogController.readRecentRuntimeLogLines;
+
 function getStartupCapturePath(label, phase) {
   return join(getLogsDir(), `startup-capture-${label}-${phase}.png`);
 }
@@ -287,119 +267,6 @@ function serializeDiagnosticPayload(payload) {
     return JSON.stringify(payload);
   } catch {
     return String(payload);
-  }
-}
-
-function serializeRuntimeLogArgument(argument) {
-  if (argument instanceof Error) {
-    return argument.stack || argument.message;
-  }
-  if (typeof argument === "string") {
-    return argument;
-  }
-  return serializeDiagnosticPayload(argument);
-}
-
-function formatRuntimeLogLine(level, message) {
-  return `[${new Date().toISOString()}] [${level}] ${message}`;
-}
-
-function appendRuntimeLogLine(level, message) {
-  const trimmedMessage = String(message ?? "").trim();
-  if (!trimmedMessage) {
-    return Promise.resolve();
-  }
-
-  const line = formatRuntimeLogLine(level, trimmedMessage);
-  runtimeLogBuffer.push(line);
-  if (runtimeLogBuffer.length > RUNTIME_LOG_BUFFER_LIMIT) {
-    runtimeLogBuffer.splice(0, runtimeLogBuffer.length - RUNTIME_LOG_BUFFER_LIMIT);
-  }
-
-  runtimeLogWriteChain = runtimeLogWriteChain
-    .catch(() => undefined)
-    .then(async () => {
-      try {
-        await appendFile(getRuntimeLogPath(), `${line}\n`, "utf8");
-      } catch (error) {
-        safeWriteOriginalConsole("error", ">>> [RuntimeLog] Failed to append log:", error);
-      }
-    });
-  return runtimeLogWriteChain;
-}
-
-function captureConsoleRuntimeLog(level, args) {
-  const message = args
-    .map((argument) => serializeRuntimeLogArgument(argument))
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  if (!message) {
-    return;
-  }
-  void appendRuntimeLogLine(level, message);
-}
-
-async function initializeRuntimeLogCapture() {
-  if (runtimeLogCaptureInitialized) {
-    return;
-  }
-
-  runtimeLogCaptureInitialized = true;
-  runtimeLogBuffer.length = 0;
-  const sessionHeader = formatRuntimeLogLine(
-    "session",
-    [
-      "Ameow runtime log started",
-      `version=${app.getVersion()}`,
-      `platform=${process.platform}`,
-      `arch=${process.arch}`,
-      `packaged=${app.isPackaged}`,
-    ].join(" "),
-  );
-
-  try {
-    await writeFile(getRuntimeLogPath(), `${sessionHeader}\n`, "utf8");
-    runtimeLogBuffer.push(sessionHeader);
-  } catch (error) {
-    safeWriteOriginalConsole("error", ">>> [RuntimeLog] Failed to initialize runtime log:", error);
-  }
-
-  console.log = (...args) => {
-    safeWriteOriginalConsole("log", ...args);
-    captureConsoleRuntimeLog("log", args);
-  };
-  console.info = (...args) => {
-    safeWriteOriginalConsole("info", ...args);
-    captureConsoleRuntimeLog("info", args);
-  };
-  console.warn = (...args) => {
-    safeWriteOriginalConsole("warn", ...args);
-    captureConsoleRuntimeLog("warn", args);
-  };
-  console.error = (...args) => {
-    safeWriteOriginalConsole("error", ...args);
-    captureConsoleRuntimeLog("error", args);
-  };
-}
-
-async function readRecentRuntimeLogLines(limit = EXPORTED_RUNTIME_LOG_LINE_LIMIT) {
-  const fallbackLines = runtimeLogBuffer.slice(-limit);
-
-  try {
-    await runtimeLogWriteChain.catch(() => undefined);
-    if (!existsSync(getRuntimeLogPath())) {
-      return fallbackLines;
-    }
-    const raw = await readFile(getRuntimeLogPath(), "utf8");
-    const lines = raw
-      .split(/\r?\n/)
-      .map((line) => line.trimEnd())
-      .filter(Boolean);
-    return lines.slice(-limit);
-  } catch (error) {
-    safeWriteOriginalConsole("error", ">>> [RuntimeLog] Failed to read runtime log:", error);
-    return fallbackLines;
   }
 }
 
