@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { EngineExecutionContext, YtdlpQualityPreference } from "../core/index.js";
+import { getCliEngineManifest, resolveYtdlpFormatProfile } from "./engineManifest.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
@@ -52,57 +53,7 @@ const shouldRetryWithExtendedYouTubeMode = (error: unknown): boolean => {
   return RETRY_WITH_EXTENDED_YOUTUBE_PATTERNS.some((pattern) => pattern.test(message));
 };
 
-const YTDLP_FORMAT_SELECTOR_BEST = "bestvideo+bestaudio/best";
-const YTDLP_FORMAT_SELECTOR_BALANCED = [
-  "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height=1080][ext=mp4]+ba[ext=m4a]/",
-  "b[height=1080][vcodec^=avc1][ext=mp4]/",
-  "b[height=1080][ext=mp4]/",
-  "best[height=1080][ext=mp4]/",
-  "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/",
-  "b[height<=1080][vcodec^=avc1][ext=mp4]/",
-  "b[height<=1080][ext=mp4]/",
-  "best[height<=1080][ext=mp4]/",
-  "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[ext=mp4]+ba[ext=m4a]/",
-  "b[vcodec^=avc1][ext=mp4]/",
-  "b[ext=mp4]/",
-  "best[ext=mp4]/",
-  "best",
-].join("");
-const YTDLP_FORMAT_SELECTOR_DATA_SAVER = [
-  "bv*[height=360][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height=360][ext=mp4]+ba[ext=m4a]/",
-  "b[height=360][vcodec^=avc1][ext=mp4]/",
-  "b[height=360][ext=mp4]/",
-  "best[height=360][ext=mp4]/",
-  "bv*[height<360][ext=mp4]+ba[ext=m4a]/",
-  "b[height<360][ext=mp4]/",
-  "best[height<360][ext=mp4]/",
-  "worstvideo[ext=mp4]+ba[ext=m4a]/",
-  "worst[ext=mp4]/",
-  "worst",
-].join("");
-const YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED = [
-  "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
-  "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/",
-  "b[height<=1080][ext=mp4]/",
-  "best[height<=1080][ext=mp4]/",
-  "best[ext=mp4]/",
-  "best",
-].join("");
-const YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER = [
-  "best[height<=360][ext=mp4]/",
-  "b[height<=360][ext=mp4]/",
-  "worst[ext=mp4]/",
-  "worst",
-].join("");
-
 const YTDLP_ACTIVITY_FALLBACK = "Resolving media...";
-const YTDLP_ACTIVITY_RETRYING_COMPATIBLE_EXTRACTOR = "activity:youtube.retryingCompatibleExtractor";
-
-type YtdlpMergeOutputFormat = "mp4" | "mp4/mkv" | null;
 
 const isInjectionDebugEnabled = (config: Record<string, unknown>): boolean =>
   config.extensionInjectionDebugEnabled === true;
@@ -155,70 +106,6 @@ const normalizeYtDlpActivity = (line: string): string | null => {
   }
 
   return null;
-};
-
-const resolveYtdlpFormatProfile = (
-  quality: YtdlpQualityPreference | undefined,
-  hasFfmpeg: boolean,
-  options?: { isYouTube?: boolean },
-): {
-  selector: string;
-  sort: string | null;
-  mergeOutputFormat: YtdlpMergeOutputFormat;
-} => {
-  const normalized = quality ?? "best";
-  const isYouTube = options?.isYouTube === true;
-  if (!hasFfmpeg) {
-    switch (normalized) {
-      case "balanced":
-        return {
-          selector: "best[height<=1080][ext=mp4]/best[ext=mp4]/best",
-          sort: "ext:mp4:m4a",
-          mergeOutputFormat: null,
-        };
-      case "data_saver":
-        return {
-          selector: "best[height<=360][ext=mp4]/worst[ext=mp4]/worst",
-          sort: "ext:mp4:m4a",
-          mergeOutputFormat: null,
-        };
-      case "best":
-      default:
-        return {
-          selector: "best[ext=mp4]/best",
-          sort: "res,codec:h264,acodec:aac,ext",
-          mergeOutputFormat: null,
-        };
-    }
-  }
-
-  switch (normalized) {
-    case "balanced":
-      return {
-        selector: isYouTube
-          ? YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED
-          : YTDLP_FORMAT_SELECTOR_BALANCED,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      };
-    case "data_saver":
-      return {
-        selector: isYouTube
-          ? YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER
-          : YTDLP_FORMAT_SELECTOR_DATA_SAVER,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      };
-    case "best":
-    default:
-      return {
-        selector: YTDLP_FORMAT_SELECTOR_BEST,
-        sort: "res,codec:h264,acodec:aac,ext",
-        // Prefer a directly compatible MP4 when the selected streams allow it,
-        // but keep MKV as the fallback for genuinely higher-tier combinations.
-        mergeOutputFormat: "mp4/mkv",
-      };
-  }
 };
 
 const readReportedValue = async (reportPath: string): Promise<string | null> => {
@@ -369,6 +256,7 @@ const cleanupTaskArtifacts = async (
 export const runYtDlpDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
+  const manifest = getCliEngineManifest("yt-dlp");
   const taskStartedAtMs = Date.now();
   const clipRange = resolveClipRangeSeconds(context);
   const reportPath = path.join(context.outputDir, `${context.traceId}-after-move.txt`);
@@ -403,19 +291,17 @@ export const runYtDlpDownload = async (
     const attemptStartedAtMs = Date.now();
 
     const args = [
-      "--newline",
-      "--no-warnings",
-      "--ignore-config",
-      "--progress",
+      ...manifest.baseArgs,
+      ...manifest.configIsolationArgs,
+      ...manifest.progressArgs,
       "-f",
       formatProfile.selector,
-      "--encoding",
-      "utf-8",
+      ...manifest.encodingArgs,
       "--print-to-file",
-      "after_move:filepath",
+      manifest.progressReport.finalPathPrint,
       reportPath,
       "--print-to-file",
-      "after_move:title",
+      manifest.progressReport.titlePrint,
       titleReportPath,
       "-o",
       outputTemplate,
@@ -447,10 +333,8 @@ export const runYtDlpDownload = async (
 
     if (isYouTubeUrl(sourceUrl) && mode === "extended") {
       args.push(
-        "--extractor-args",
-        "youtube:player_js_variant=tv",
-        "--remote-components",
-        "ejs:github",
+        ...manifest.youtube.extendedExtractorArgs,
+        ...manifest.youtube.remoteComponentsArgs,
       );
       if (context.binaries.deno) {
         if (process.platform === "win32") {
@@ -461,8 +345,7 @@ export const runYtDlpDownload = async (
       }
     } else if (isYouTubeUrl(sourceUrl)) {
       args.push(
-        "--extractor-args",
-        "youtube:player_client=android,web",
+        ...manifest.youtube.lightExtractorArgs,
       );
     }
     args.push(sourceUrl);
@@ -647,7 +530,7 @@ export const runYtDlpDownload = async (
           traceId: context.traceId,
           percent: -1,
           stage: "preparing",
-          speed: YTDLP_ACTIVITY_RETRYING_COMPATIBLE_EXTRACTOR,
+          speed: manifest.youtube.retryingCompatibleExtractorActivity,
           eta: "",
         });
         return await runAttempt("extended");

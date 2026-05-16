@@ -2,15 +2,18 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
+import { getCliEngineManifest } from "./engineManifest.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { summarizeError } from "./runtimeUtils.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 
-const isGallerySidecar = (entryPath: string, outputStem: string): boolean =>
-  entryPath.startsWith(outputStem) && /\.(json|txt|part)$/i.test(entryPath);
+const manifest = getCliEngineManifest("gallery-dl");
 
-const GALLERY_DL_LINE_TAIL_LIMIT = 20;
-const GALLERY_DL_ACTIVITY_FALLBACK = "activity:galleryDl.resolvingMedia";
+const isGallerySidecar = (entryPath: string, outputStem: string): boolean =>
+  entryPath.startsWith(outputStem)
+  && manifest.sidecarExtensions.some((extension) => (
+    entryPath.toLowerCase().endsWith(`.${extension}`)
+  ));
 
 const pushTailLine = (target: string[], line: string): void => {
   const trimmed = line.trim();
@@ -18,7 +21,7 @@ const pushTailLine = (target: string[], line: string): void => {
     return;
   }
   target.push(trimmed);
-  if (target.length > GALLERY_DL_LINE_TAIL_LIMIT) {
+  if (target.length > manifest.progress.lineTailLimit) {
     target.shift();
   }
 };
@@ -69,7 +72,7 @@ const normalizeGalleryDlActivity = (line: string): string | null => {
     return "activity:galleryDl.savingFile";
   }
 
-  return GALLERY_DL_ACTIVITY_FALLBACK;
+  return manifest.progress.resolvingActivity;
 };
 
 const collectTaskArtifacts = async (
@@ -120,12 +123,12 @@ export const runGalleryDlDownload = async (
   const prefix = `${context.outputStem}.`;
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, context.outputStem));
   const args = [
-    "--config-ignore",
-    "--write-info-json",
-    "--directory",
+    ...manifest.configIsolationArgs,
+    ...manifest.baseArgs,
+    manifest.outputArgs.directoryFlag,
     context.outputDir,
-    "--filename",
-    `${context.outputStem}.{extension}`,
+    manifest.outputArgs.filenameFlag,
+    `${context.outputStem}.${manifest.outputArgs.extensionTemplate}`,
     sourceUrl,
   ];
 
@@ -143,7 +146,7 @@ export const runGalleryDlDownload = async (
     const stderrLines: string[] = [];
     let lastActivityLabel: string | null = null;
     const emitGalleryDlActivity = async (line?: string): Promise<void> => {
-      const activity = line ? normalizeGalleryDlActivity(line) : GALLERY_DL_ACTIVITY_FALLBACK;
+      const activity = line ? normalizeGalleryDlActivity(line) : manifest.progress.resolvingActivity;
       if (!activity || activity === lastActivityLabel) {
         return;
       }
