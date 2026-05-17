@@ -41,11 +41,7 @@ const resolveInitialYouTubeMode = (context: EngineExecutionContext): YouTubeMode
     return "extended";
   }
 
-  if (context.intent.ytdlpQuality !== "data_saver") {
-    return "extended";
-  }
-
-  return "light";
+  return "extended";
 };
 
 const shouldRetryWithExtendedYouTubeMode = (error: unknown): boolean => {

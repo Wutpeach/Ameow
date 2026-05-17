@@ -288,7 +288,7 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("keeps youtube data-saver downloads on light mode", async () => {
+  it("uses extended youtube mode for data-saver downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -296,9 +296,9 @@ describe("runYtDlpDownload", () => {
         : path.join("D:/downloads", "Data Saver Video.mp4")
     ));
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
-      expect(args).toContain("youtube:player_client=android,web");
-      expect(args).not.toContain("youtube:player_js_variant=tv");
-      expect(args).not.toContain("--remote-components");
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
       return 0;
     });
 
@@ -649,75 +649,7 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("retries youtube downloads with extended mode after a light-mode extractor failure", async () => {
-    readdirMock.mockResolvedValue([]);
-    readFileMock.mockImplementation(async (filePath: string) => (
-      filePath.endsWith("-title.txt")
-        ? "Retried Video"
-        : path.join("D:/downloads", "Retried Video.mp4")
-    ));
-    const onProgress = vi.fn(async () => undefined);
-    runStreamingCommandMock
-      .mockImplementationOnce(async (_command, args, options) => {
-        expect(args).toContain("--extractor-args");
-        expect(args).toContain("youtube:player_client=android,web");
-        expect(args).not.toContain("youtube:player_js_variant=tv");
-        await options?.onStderrLine?.("ERROR: Sign in to confirm you're not a bot");
-        return 1;
-      })
-      .mockImplementationOnce(async (_command, args) => {
-        expect(args).toContain("--extractor-args");
-        expect(args).toContain("youtube:player_js_variant=tv");
-        expect(args).toContain("--remote-components");
-        return 0;
-      });
-
-    const context = {
-      traceId: "trace-retry-youtube",
-      outputDir: "D:/downloads",
-      outputStem: "Retried Video",
-      config: {
-        extensionInjectionDebugEnabled: true,
-      },
-      binaries: {
-        ytDlp: "D:/yt-dlp.exe",
-        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
-        deno: "D:/deno/deno.exe",
-      },
-      enginePlan: {
-        sourceUrl: "https://www.youtube.com/watch?v=retry123",
-      },
-      intent: {
-        originalUrl: "https://www.youtube.com/watch?v=retry123",
-        pageUrl: "https://www.youtube.com/watch?v=retry123",
-        selectionScope: "current_item",
-        siteId: "youtube",
-        ytdlpQuality: "data_saver",
-        extensionData: {
-          youtube: {
-            source: "injected",
-            allowCookies: false,
-          },
-        },
-      },
-      abortSignal: new AbortController().signal,
-      onProgress,
-    } as never;
-
-    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
-      success: true,
-      file_path: path.join("D:/downloads", "Retried Video.mp4"),
-    });
-    expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
-    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({
-      traceId: "trace-retry-youtube",
-      percent: -1,
-      stage: "preparing",
-      speed: "activity:youtube.retryingCompatibleExtractor",
-    }));
-  });
-
-  it("does not retry youtube fallback after the download has been aborted", async () => {
+  it("does not retry youtube failures after the download has been aborted", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -727,7 +659,7 @@ describe("runYtDlpDownload", () => {
     const onProgress = vi.fn(async () => undefined);
     const abortController = new AbortController();
     runStreamingCommandMock.mockImplementationOnce(async (_command, args, options) => {
-      expect(args).toContain("youtube:player_client=android,web");
+      expect(args).toContain("youtube:player_js_variant=tv");
       abortController.abort();
       await options?.onStderrLine?.("ERROR: Sign in to confirm you're not a bot");
       return 1;

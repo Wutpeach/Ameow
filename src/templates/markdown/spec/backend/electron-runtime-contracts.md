@@ -133,7 +133,7 @@ const updateTrayMenu = trayMenuController.updateTrayMenu;
 Regression check:
 - `npm run dev` must reach normal Electron startup logs such as `>>> [WS] Server started: ws://127.0.0.1:39527` without `App threw an error during load`.
 
-## Added Lesson: YouTube Balanced Must Start In Extended Mode
+## Added Lesson: YouTube Must Start In Extended Mode
 
 Some YouTube videos expose only a 640x360 progressive MP4 when `yt-dlp` runs with the light extractor args:
 
@@ -141,12 +141,10 @@ Some YouTube videos expose only a 640x360 progressive MP4 when `yt-dlp` runs wit
 --extractor-args youtube:player_client=android,web
 ```
 
-That can make a `balanced` download succeed as `...[640x360][balanced].mp4` even though adaptive 720p/1080p formats exist. For YouTube:
+That can make a download succeed at a lower quality than the selected profile even though adaptive formats exist. For YouTube:
 
-- `best` and `balanced` must start in extended mode.
-- `data_saver` may keep light mode.
+- all quality profiles must start in extended mode.
 - cookies or `extensionData.youtube.forceExtended === true` still force extended mode.
-- light-mode failures may still retry with extended mode when not aborted.
 
 Extended mode uses:
 
