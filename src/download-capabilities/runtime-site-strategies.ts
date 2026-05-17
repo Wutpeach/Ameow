@@ -35,8 +35,8 @@ export const runtimeManualSiteStrategies = [
     siteId: "douyin",
     displayName: "Douyin",
     sourceId: "ameow-manual-sites",
-    strategyKind: "conditional_direct",
-    engineOrder: ["direct", "yt-dlp"],
+    strategyKind: "single_engine",
+    engineOrder: ["yt-dlp"],
     matchHints: {
       hosts: ["douyin.com", "douyinvod.com", "douyincdn.com"],
     },

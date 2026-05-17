@@ -21,12 +21,12 @@ const expectVideoIntent = (intent: ResolvedDownloadPlan["intent"]): VideoDownloa
 };
 
 describe("builtin site providers", () => {
-  it("routes direct Douyin asset URLs to the Douyin direct engine even without explicit hints", () => {
+  it("routes direct Douyin asset URLs through yt-dlp while the temporary strategy is enabled", () => {
     const directUrl = "https://www.douyinvod.com/obj/tos-cn-v-0000/example.mp4";
     const plan = resolvePlan({ url: directUrl });
 
     expect(plan?.providerId).toBe("douyin");
-    expect(plan?.engines.map((engine) => engine.engine)).toEqual(["direct", "yt-dlp"]);
+    expect(plan?.engines.map((engine) => engine.engine)).toEqual(["yt-dlp"]);
     expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
   });
 

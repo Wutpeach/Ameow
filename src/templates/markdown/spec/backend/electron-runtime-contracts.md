@@ -176,3 +176,15 @@ Rules:
 Regression check:
 - `npm test -- src/electron-runtime/engineManifest.test.ts src/electron-runtime/ytDlpCommandPlan.test.ts`
 - `npm run type-check`
+
+## Added Lesson: Douyin Temporary yt-dlp Strategy
+
+Douyin is temporarily routed through `yt-dlp` only so we can validate whether the sidecar path is stable enough for this site.
+
+Rules:
+- `src/download-capabilities/runtime-site-strategies.ts` uses `strategyKind: "single_engine"` and `engineOrder: ["yt-dlp"]` for `douyin`.
+- `src/assets/capabilities-manual.json` must mirror the same strategy so the capability registry stays aligned.
+- `src/sites/douyin.ts` may still detect direct media candidates, but the strategy order should prevent direct engine plans while this validation mode is active.
+
+Regression check:
+- `npm test -- src/sites/providers.test.ts src/download-capabilities/runtime-site-strategies.test.ts src/download-capabilities/provider-alignment.test.ts`
