@@ -37,7 +37,6 @@ import {
 } from "./autostart.mjs";
 import {
   normalizeAppLanguage,
-  resolveStartupLanguageFromConfig,
 } from "./startupLanguage.mjs";
 import {
   allocateRenameStem,
@@ -107,6 +106,10 @@ import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.m
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
+import {
+  createConfigStore,
+  parseJsonObject,
+} from "./configStore.mjs";
 import {
   buildUniqueTargetPath,
   downloadImage as saveDownloadedImage,
@@ -215,6 +218,44 @@ const forceOpaquePackagedWindow = shouldUsePackagedWindowsOpaqueWindow({
   argv: process.argv,
   env: process.env,
 });
+
+const configStore = createConfigStore({
+  getUserDataDir() {
+    return app.getPath("userData");
+  },
+  getDesktopDir() {
+    return app.getPath("desktop");
+  },
+  getLocale() {
+    return app.getLocale();
+  },
+  logDirName: LOG_DIR_NAME,
+  defaultOutputFolderName: DEFAULT_OUTPUT_FOLDER_NAME,
+  fallbackTheme: FALLBACK_THEME,
+  languageChangedEventName: LANGUAGE_CHANGED_EVENT,
+  emitAppEvent,
+  broadcastWsMessage,
+  refreshTrayMenu: updateTrayMenu,
+  onTrayRefreshError(error) {
+    console.error(">>> [Electron] Failed to refresh tray language:", error);
+  },
+});
+const buildStartupConfigSnapshot = configStore.buildStartupConfigSnapshot;
+const ensureUserDataDirs = configStore.ensureUserDataDirs;
+const getConfigPath = configStore.getConfigPath;
+const getLogsDir = configStore.getLogsDir;
+const getUserDataDir = configStore.getUserDataDir;
+const readConfigObject = configStore.readConfigObject;
+const readConfigString = configStore.readConfigString;
+const readCurrentLanguage = configStore.readCurrentLanguage;
+const readCurrentTheme = configStore.readCurrentTheme;
+const readStartupConfigSnapshot = configStore.readStartupConfigSnapshot;
+const resolveCurrentOutputFolderPath = configStore.resolveCurrentOutputFolderPath;
+const resolveExtensionInjectionDebugEnabledFromConfigObject =
+  configStore.resolveExtensionInjectionDebugEnabledFromConfigObject;
+const resolveLanguageFromConfigString = configStore.resolveLanguageFromConfigString;
+const resolveThemeFromConfigObject = configStore.resolveThemeFromConfigObject;
+const saveConfigString = configStore.saveConfigString;
 
 function logInfo(scope, message, details) {
   if (details) {
@@ -672,85 +713,8 @@ async function fetchWithDesktopSessionTimeout(
   }
 }
 
-function parseJsonObject(raw) {
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
 function nowTimestampMs() {
   return Date.now();
-}
-
-function getUserDataDir() {
-  return app.getPath("userData");
-}
-
-function getConfigPath() {
-  return join(getUserDataDir(), "settings.json");
-}
-
-function getLogsDir() {
-  return join(getUserDataDir(), LOG_DIR_NAME);
-}
-
-async function migrateLegacyConfigIfNeeded() {
-  return;
-}
-
-async function ensureUserDataDirs() {
-  await migrateLegacyConfigIfNeeded();
-  await mkdir(getUserDataDir(), { recursive: true });
-  await mkdir(getLogsDir(), { recursive: true });
-}
-
-async function readConfigString() {
-  await ensureUserDataDirs();
-  const configPath = getConfigPath();
-  if (!existsSync(configPath)) {
-    return "{}";
-  }
-
-  const configRaw = await readFile(configPath, "utf8");
-  const decision = resolveStartupLanguageFromConfig(configRaw, app.getLocale(), {
-    persistResolvedLanguage: true,
-  });
-  if (decision.nextConfigRaw && decision.nextConfigRaw !== configRaw) {
-    await writeFile(configPath, decision.nextConfigRaw, "utf8");
-    return decision.nextConfigRaw;
-  }
-
-  return configRaw;
-}
-
-async function readConfigObject() {
-  return parseJsonObject(await readConfigString());
-}
-
-function resolveLanguageFromConfigString(raw) {
-  return resolveStartupLanguageFromConfig(raw, app.getLocale(), {
-    persistResolvedLanguage: false,
-  }).language;
-}
-
-async function readCurrentLanguage() {
-  return resolveLanguageFromConfigString(await readConfigString());
-}
-
-function resolveThemeFromConfigObject(config) {
-  return config.theme === "white" || config.theme === "black"
-    ? config.theme
-    : FALLBACK_THEME;
-}
-
-function resolveExtensionInjectionDebugEnabledFromConfigObject(config) {
-  return config.extensionInjectionDebugEnabled === true;
 }
 
 function summarizeInjectedVideoSelectionPayload(payload) {
@@ -828,60 +792,6 @@ function logInjectedVideoSelectionDebug(config, message, payload) {
   }
 
   logInfo("InjectedVideoSelection", message, serializeDiagnosticPayload(payload));
-}
-
-async function readCurrentTheme() {
-  return resolveThemeFromConfigObject(await readConfigObject());
-}
-
-function buildStartupConfigSnapshot(configRaw) {
-  const config = parseJsonObject(configRaw);
-  return {
-    raw: configRaw,
-    config,
-    language: resolveLanguageFromConfigString(configRaw),
-    theme: resolveThemeFromConfigObject(config),
-    shortcut: typeof config.shortcut === "string" ? config.shortcut.trim() : "",
-  };
-}
-
-async function readStartupConfigSnapshot() {
-  return buildStartupConfigSnapshot(await readConfigString());
-}
-
-async function saveConfigString(raw) {
-  await ensureUserDataDirs();
-  const previousLanguage = await readCurrentLanguage();
-  const previousConfig = await readConfigObject();
-  const previousExtensionInjectionDebugEnabled =
-    resolveExtensionInjectionDebugEnabledFromConfigObject(previousConfig);
-  await writeFile(getConfigPath(), raw, "utf8");
-
-  const nextConfig = parseJsonObject(raw);
-  const nextLanguage = normalizeAppLanguage(nextConfig.language);
-  if (nextLanguage && nextLanguage !== previousLanguage) {
-    emitAppEvent(LANGUAGE_CHANGED_EVENT, { language: nextLanguage });
-    broadcastWsMessage({
-      action: "language_changed",
-      data: {
-        language: nextLanguage,
-      },
-    });
-    updateTrayMenu().catch((error) => {
-      console.error(">>> [Electron] Failed to refresh tray language:", error);
-    });
-  }
-
-  const nextExtensionInjectionDebugEnabled =
-    resolveExtensionInjectionDebugEnabledFromConfigObject(nextConfig);
-  if (nextExtensionInjectionDebugEnabled !== previousExtensionInjectionDebugEnabled) {
-    broadcastWsMessage({
-      action: "extension_debug_config_changed",
-      data: {
-        enabled: nextExtensionInjectionDebugEnabled,
-      },
-    });
-  }
 }
 
 function normalizeOptionalString(value) {
@@ -1946,14 +1856,6 @@ async function buildRenamedTargetPath(targetDir, extension, config) {
     stem,
     filePath: join(targetDir, `${stem}.${safeExtension}`),
   };
-}
-
-async function resolveCurrentOutputFolderPath() {
-  const config = await readConfigObject();
-  if (typeof config.outputPath === "string" && config.outputPath.trim()) {
-    return config.outputPath.trim();
-  }
-  return join(app.getPath("desktop"), DEFAULT_OUTPUT_FOLDER_NAME);
 }
 
 const imageDownloadDependencies = {
