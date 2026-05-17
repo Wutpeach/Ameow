@@ -15,18 +15,15 @@ import {
 } from "electron";
 import { existsSync } from "node:fs";
 import {
-  copyFile,
-  cp,
   mkdir,
   mkdtemp,
   readFile,
   rm,
-  stat,
   unlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join, parse, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { WebSocketServer } from "ws";
@@ -118,11 +115,14 @@ import {
 } from "./windowRouting.mjs";
 import { createUiLabScenariosController } from "./uiLabScenarios.mjs";
 import {
-  buildUniqueTargetPath,
   downloadImage as saveDownloadedImage,
   ensureExtension,
   saveDataUrl as saveImageDataUrl,
 } from "./imageDownload.mjs";
+import {
+  getClipboardFilePaths as readClipboardFilePaths,
+  processFiles as processIncomingFiles,
+} from "./fileIntake.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -1910,81 +1910,16 @@ const imageDownloadDependencies = {
   logInfo,
 };
 
-async function processFiles(paths, targetDir) {
-  const finalTargetDir = targetDir || (await resolveCurrentOutputFolderPath());
-  await mkdir(finalTargetDir, { recursive: true });
-  const config = await readConfigObject();
-  const renameEnabled = resolveRenameEnabled(config);
-
-  let copiedCount = 0;
-  for (const sourcePath of paths) {
-    if (typeof sourcePath !== "string" || !sourcePath.trim()) {
-      continue;
-    }
-
-    let sourceStats;
-    try {
-      sourceStats = await stat(sourcePath);
-    } catch {
-      continue;
-    }
-
-    const sourceName = basename(sourcePath);
-    const stem = parse(sourceName).name;
-    const extension = ensureExtension(extname(sourceName), "bin");
-
-    if (sourceStats.isDirectory()) {
-      const destinationPath = await buildUniqueTargetPath(finalTargetDir, stem, extension);
-      await cp(sourcePath, destinationPath.replace(/\.[^.]+$/, ""), { recursive: true });
-    } else {
-      let renamedStem = null;
-      try {
-        if (renameEnabled) {
-          const renamedTarget = await buildRenamedTargetPath(finalTargetDir, extension, config);
-          renamedStem = renamedTarget.stem;
-          await copyFile(sourcePath, renamedTarget.filePath);
-        } else {
-          const destinationPath = await buildUniqueTargetPath(finalTargetDir, stem, extension);
-          await copyFile(sourcePath, destinationPath);
-        }
-      } finally {
-        if (renamedStem) {
-          releaseRenameStem(finalTargetDir, renamedStem);
-        }
-      }
-    }
-    copiedCount += 1;
-  }
-
-  return `Copied ${copiedCount} files to ${finalTargetDir}`;
-}
-
-function parseClipboardFileNameBuffer(buffer) {
-  if (!buffer || buffer.length === 0) {
-    return [];
-  }
-
-  const decoded = buffer.toString("utf16le");
-  return decoded
-    .split("\u0000")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
+const fileIntakeDependencies = {
+  readConfigObject,
+  resolveCurrentOutputFolderPath,
+  resolveRenameEnabled,
+  buildRenamedTargetPath,
+  releaseRenameStem,
+};
 
 async function getClipboardFilePaths() {
-  const availableFormats = clipboard.availableFormats();
-  if (availableFormats.includes("FileNameW")) {
-    return parseClipboardFileNameBuffer(clipboard.readBuffer("FileNameW"));
-  }
-  if (availableFormats.includes("FileName")) {
-    return clipboard
-      .readBuffer("FileName")
-      .toString("utf8")
-      .split("\u0000")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-  return [];
+  return readClipboardFilePaths(clipboard);
 }
 
 async function exportSupportLog() {
@@ -3357,7 +3292,11 @@ async function handleCommand(command, payload = {}) {
       resetRenameSequenceState();
       return true;
     case "process_files":
-      return processFiles(Array.isArray(payload.paths) ? payload.paths : [], payload.targetDir ?? null);
+      return processIncomingFiles(
+        Array.isArray(payload.paths) ? payload.paths : [],
+        payload.targetDir ?? null,
+        fileIntakeDependencies,
+      );
     case "download_image":
       return saveDownloadedImage(
         String(payload.url ?? ""),
