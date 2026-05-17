@@ -184,7 +184,7 @@ describe("runYtDlpDownload", () => {
     }));
   });
 
-  it("skips heavy youtube extractor args for plain url downloads without page context", async () => {
+  it("uses extended youtube mode for high quality plain url downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -193,10 +193,10 @@ describe("runYtDlpDownload", () => {
     ));
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
       expect(args).toContain("--extractor-args");
-      expect(args).toContain("youtube:player_client=android,web");
-      expect(args).not.toContain("youtube:player_js_variant=tv");
-      expect(args).not.toContain("--remote-components");
-      expect(args).not.toContain("--js-runtimes");
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
+      expect(args).toContain("--js-runtimes");
       expect(args.at(-1)).toBe("https://www.youtube.com/watch?v=plain123");
       return 0;
     });
@@ -246,6 +246,9 @@ describe("runYtDlpDownload", () => {
         + "best[ext=mp4]/"
         + "best",
       );
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
       return 0;
     });
 
@@ -282,6 +285,50 @@ describe("runYtDlpDownload", () => {
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
       file_path: path.join("D:/downloads", "Balanced Video.mp4"),
+    });
+  });
+
+  it("keeps youtube data-saver downloads on light mode", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Data Saver Video"
+        : path.join("D:/downloads", "Data Saver Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("youtube:player_client=android,web");
+      expect(args).not.toContain("youtube:player_js_variant=tv");
+      expect(args).not.toContain("--remote-components");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-data-saver",
+      outputDir: "D:/downloads",
+      outputStem: "Data Saver Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=datasaver123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=datasaver123",
+        pageUrl: "https://www.youtube.com/watch?v=datasaver123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        ytdlpQuality: "data_saver",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Data Saver Video.mp4"),
     });
   });
 
@@ -548,7 +595,7 @@ describe("runYtDlpDownload", () => {
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "video.mp4.part"));
   });
 
-  it("keeps injected public youtube downloads on light mode when no cookies or force hint exist", async () => {
+  it("uses extended youtube mode for injected public high quality downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -558,11 +605,11 @@ describe("runYtDlpDownload", () => {
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
       expect(args).toContain("--no-playlist");
       expect(args).toContain("--extractor-args");
-      expect(args).toContain("youtube:player_client=android,web");
+      expect(args).toContain("youtube:player_js_variant=tv");
       expect(args).not.toContain("--cookies");
-      expect(args).not.toContain("youtube:player_js_variant=tv");
-      expect(args).not.toContain("--remote-components");
-      expect(args).not.toContain("--js-runtimes");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
+      expect(args).toContain("--js-runtimes");
       return 0;
     });
 
@@ -645,7 +692,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=retry123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        ytdlpQuality: "data_saver",
         extensionData: {
           youtube: {
             source: "injected",
@@ -704,7 +751,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=cancel123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        ytdlpQuality: "data_saver",
         extensionData: {
           youtube: {
             source: "injected",
