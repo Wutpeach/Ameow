@@ -36,9 +36,6 @@ import {
   isWindowsAutostartEnabled,
 } from "./autostart.mjs";
 import {
-  normalizeAppLanguage,
-} from "./startupLanguage.mjs";
-import {
   allocateRenameStem,
   createElectronDownloadRuntime,
   inspectRuntimeDependencyStatus,
@@ -111,6 +108,10 @@ import {
   parseJsonObject,
 } from "./configStore.mjs";
 import {
+  createTrayMenuController,
+  resolveTrayIconPath,
+} from "./trayMenu.mjs";
+import {
   buildUniqueTargetPath,
   downloadImage as saveDownloadedImage,
   ensureExtension,
@@ -160,7 +161,6 @@ const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
 const STARTUP_DIAGNOSTIC_SETTINGS_OPEN_DELAY_MS = 1_500;
 const MACOS_TRAY_ICON_SIZE_PX = 18;
-let tray = null;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
@@ -256,6 +256,41 @@ const resolveExtensionInjectionDebugEnabledFromConfigObject =
 const resolveLanguageFromConfigString = configStore.resolveLanguageFromConfigString;
 const resolveThemeFromConfigObject = configStore.resolveThemeFromConfigObject;
 const saveConfigString = configStore.saveConfigString;
+
+const trayMenuController = createTrayMenuController({
+  repoRoot,
+  resourcesPath: process.resourcesPath,
+  platform: process.platform,
+  fallbackLanguage: FALLBACK_LANGUAGE,
+  macosTrayIconSizePx: MACOS_TRAY_ICON_SIZE_PX,
+  settingsWindow: {
+    width: SETTINGS_WINDOW_WIDTH,
+    height: SETTINGS_WINDOW_HEIGHT,
+  },
+  windowLabels: {
+    settings: WINDOW_LABELS.settings,
+  },
+  readCurrentLanguage,
+  showMainWindow,
+  openSettingsWindow(options) {
+    return openSecondaryWindow(WINDOW_LABELS.settings, options);
+  },
+  quitApp() {
+    app.isQuitting = true;
+    app.quit();
+  },
+  logLocaleReadError(error) {
+    console.error(">>> [Electron] Failed to read native locale:", error);
+  },
+  nativeImage,
+  Menu,
+  Tray,
+});
+const updateTrayMenu = trayMenuController.updateTrayMenu;
+
+function getIconPath() {
+  return resolveTrayIconPath(process.platform, repoRoot);
+}
 
 function logInfo(scope, message, details) {
   if (details) {
@@ -2235,90 +2270,6 @@ async function getGalleryDlInfo() {
   });
 }
 
-function readNativeLocaleCandidates(language) {
-  const candidates = [
-    join(repoRoot, "locales", language, "native.json"),
-    join(process.resourcesPath, "locales", language, "native.json"),
-  ];
-  return candidates.filter((candidate) => !candidate.includes("app.asar"));
-}
-
-async function loadNativeLocaleDocument(language) {
-  for (const candidate of readNativeLocaleCandidates(language)) {
-    if (!existsSync(candidate)) {
-      continue;
-    }
-    try {
-      const raw = await readFile(candidate, "utf8");
-      return JSON.parse(raw);
-    } catch (error) {
-      console.error(">>> [Electron] Failed to read native locale:", error);
-    }
-  }
-  return null;
-}
-
-async function loadTrayLabels(language) {
-  const normalizedLanguage = normalizeAppLanguage(language) ?? FALLBACK_LANGUAGE;
-  const primary = await loadNativeLocaleDocument(normalizedLanguage);
-  const fallback = normalizedLanguage === FALLBACK_LANGUAGE
-    ? null
-    : await loadNativeLocaleDocument(FALLBACK_LANGUAGE);
-  const fromDocument = (document, path) => {
-    let current = document;
-    for (const key of path) {
-      current = current?.[key];
-    }
-    return typeof current === "string" ? current : null;
-  };
-  return {
-    show: fromDocument(primary, ["tray", "show"])
-      || fromDocument(fallback, ["tray", "show"])
-      || "Show Window",
-    settings: fromDocument(primary, ["tray", "settings"])
-      || fromDocument(fallback, ["tray", "settings"])
-      || "Settings",
-    quit: fromDocument(primary, ["tray", "quit"])
-      || fromDocument(fallback, ["tray", "quit"])
-      || "Quit Ameow",
-  };
-}
-
-function getIconPath() {
-  const candidates = process.platform === "win32"
-    ? [
-        join(repoRoot, "desktop-assets", "icons", "icon.ico"),
-        join(repoRoot, "app-icon.png"),
-        join(repoRoot, "public", "favicon.ico"),
-      ]
-    : [
-        join(repoRoot, "app-icon.png"),
-        join(repoRoot, "public", "favicon.ico"),
-      ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
-}
-
-function createTrayImage() {
-  const iconPath = getIconPath();
-  if (!iconPath) {
-    return nativeImage.createEmpty();
-  }
-
-  const image = nativeImage.createFromPath(iconPath);
-  if (image.isEmpty()) {
-    return nativeImage.createEmpty();
-  }
-
-  if (process.platform !== "darwin") {
-    return image;
-  }
-
-  return image.resize({
-    height: MACOS_TRAY_ICON_SIZE_PX,
-    width: MACOS_TRAY_ICON_SIZE_PX,
-  });
-}
-
 function emitAppEvent(event, payload) {
   for (const win of windows.values()) {
     if (!win.isDestroyed()) {
@@ -2824,51 +2775,6 @@ async function broadcastTheme(theme) {
       theme,
     },
   });
-}
-
-async function updateTrayMenu(startupConfigSnapshot = null) {
-  const language = startupConfigSnapshot?.language ?? await readCurrentLanguage();
-  const labels = await loadTrayLabels(language);
-  const menu = Menu.buildFromTemplate([
-    {
-      id: "show",
-      label: labels.show,
-      click: () => {
-        showMainWindow();
-      },
-    },
-    {
-      id: "settings",
-      label: labels.settings,
-      click: () => {
-        void openSecondaryWindow(WINDOW_LABELS.settings, {
-          title: labels.settings,
-          width: SETTINGS_WINDOW_WIDTH,
-          height: SETTINGS_WINDOW_HEIGHT,
-          alwaysOnTop: true,
-          focus: true,
-        });
-      },
-    },
-    {
-      id: "quit",
-      label: labels.quit,
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-
-  if (!tray) {
-    tray = new Tray(createTrayImage());
-    tray.on("click", () => {
-      showMainWindow();
-    });
-  }
-
-  tray.setToolTip("Ameow");
-  tray.setContextMenu(menu);
 }
 
 function getBaseRendererUrl() {
