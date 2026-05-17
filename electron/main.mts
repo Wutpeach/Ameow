@@ -23,7 +23,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { WebSocketServer } from "ws";
@@ -172,24 +172,6 @@ let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
-const appUpdateController = createAppUpdateController({
-  platform: process.platform,
-  isPackaged: app.isPackaged,
-  getAppVersion() {
-    return app.getVersion();
-  },
-  fetch: fetchWithDesktopSession,
-  readConfigObject,
-  compareAppVersions,
-  normalizeVersionString,
-  openPath(path) {
-    return shell.openPath(path);
-  },
-  prepareToQuit() {
-    app.isQuitting = true;
-    app.quit();
-  },
-});
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -241,7 +223,9 @@ const configStore = createConfigStore({
   languageChangedEventName: LANGUAGE_CHANGED_EVENT,
   emitAppEvent,
   broadcastWsMessage,
-  refreshTrayMenu: updateTrayMenu,
+  refreshTrayMenu(startupConfigSnapshot) {
+    return updateTrayMenu(startupConfigSnapshot);
+  },
   onTrayRefreshError(error) {
     console.error(">>> [Electron] Failed to refresh tray language:", error);
   },
@@ -262,6 +246,25 @@ const resolveExtensionInjectionDebugEnabledFromConfigObject =
 const resolveLanguageFromConfigString = configStore.resolveLanguageFromConfigString;
 const resolveThemeFromConfigObject = configStore.resolveThemeFromConfigObject;
 const saveConfigString = configStore.saveConfigString;
+
+const appUpdateController = createAppUpdateController({
+  platform: process.platform,
+  isPackaged: app.isPackaged,
+  getAppVersion() {
+    return app.getVersion();
+  },
+  fetch: fetchWithDesktopSession,
+  readConfigObject,
+  compareAppVersions,
+  normalizeVersionString,
+  openPath(path) {
+    return shell.openPath(path);
+  },
+  prepareToQuit() {
+    app.isQuitting = true;
+    app.quit();
+  },
+});
 
 const trayMenuController = createTrayMenuController({
   repoRoot,
