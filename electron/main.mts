@@ -116,6 +116,7 @@ import {
   resolveSecondaryWindowOpenOptions as resolveAnchoredSecondaryWindowOpenOptions,
   secondaryWindowRoute as resolveSecondaryWindowRoute,
 } from "./windowRouting.mjs";
+import { createUiLabScenariosController } from "./uiLabScenarios.mjs";
 import {
   buildUniqueTargetPath,
   downloadImage as saveDownloadedImage,
@@ -2170,6 +2171,20 @@ function setUiLabRuntimeOverrides(runtimeStatus, gateState) {
   );
 }
 
+const uiLabScenariosController = createUiLabScenariosController({
+  emitAppEvent,
+  setRuntimeOverrides: setUiLabRuntimeOverrides,
+  clearRuntimeOverrides: clearUiLabRuntimeOverrides,
+  getRuntimeMaxConcurrent() {
+    return getElectronDownloadRuntime().maxConcurrent;
+  },
+  emitLiveVideoQueueState,
+  getRuntimeDependencyGateState,
+  nowTimestampMs,
+  uiLabResetEvent: UI_LAB_RESET_EVENT,
+  fallbackVideoQueueMaxConcurrent: UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
+});
+
 async function getRuntimeDependencyStatus() {
   if (uiLabRuntimeStatusOverride) {
     return cloneRuntimeStatusSnapshot(uiLabRuntimeStatusOverride);
@@ -2283,69 +2298,6 @@ function emitAppEvent(event, payload) {
   }
 }
 
-function createUiLabReadyRuntimeStatus() {
-  return {
-    ytDlp: readyRuntimeEntry("D:/ui-lab/yt-dlp.exe", "bundled"),
-    galleryDl: readyRuntimeEntry("D:/ui-lab/gallery-dl.exe", "bundled"),
-    ffmpeg: readyRuntimeEntry("D:/ui-lab/ffmpeg.exe", "managed"),
-    deno: readyRuntimeEntry("D:/ui-lab/deno.exe", "managed"),
-  };
-}
-
-function createUiLabMissingRuntimeStatus() {
-  const readyStatus = createUiLabReadyRuntimeStatus();
-  return {
-    ...readyStatus,
-    ffmpeg: missingRuntimeEntry("Missing managed ffmpeg runtime. UI Lab preview."),
-    deno: missingRuntimeEntry("Missing managed deno runtime. UI Lab preview."),
-  };
-}
-
-function createUiLabReadyRuntimeGateState() {
-  return {
-    phase: "ready",
-    missingComponents: [],
-    lastError: null,
-    updatedAtMs: nowTimestampMs(),
-    currentComponent: null,
-    currentStage: null,
-    progressPercent: null,
-    downloadedBytes: null,
-    totalBytes: null,
-    nextComponent: null,
-  };
-}
-
-function applyUiLabRuntimePreview(runtimeStatus, gateState) {
-  setUiLabRuntimeOverrides(runtimeStatus, gateState);
-  emitAppEvent("runtime-dependency-gate-state", gateState);
-}
-
-function applyUiLabReadyRuntimePreview() {
-  applyUiLabRuntimePreview(
-    createUiLabReadyRuntimeStatus(),
-    createUiLabReadyRuntimeGateState(),
-  );
-}
-
-function emitUiLabEmptyTaskState() {
-  emitAppEvent("video-queue-count", {
-    activeCount: 0,
-    pendingCount: 0,
-    totalCount: 0,
-    maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
-  });
-  emitAppEvent("video-queue-detail", { tasks: [] });
-  emitAppEvent("video-transcode-queue-count", {
-    activeCount: 0,
-    pendingCount: 0,
-    failedCount: 0,
-    totalCount: 0,
-    maxConcurrent: 1,
-  });
-  emitAppEvent("video-transcode-queue-detail", { tasks: [] });
-}
-
 function emitLiveVideoQueueState() {
   const runtime = getElectronDownloadRuntime();
   emitAppEvent("video-queue-count", runtime.getQueueState());
@@ -2354,11 +2306,7 @@ function emitLiveVideoQueueState() {
 
 async function restoreUiLabLiveState() {
   uiLabScenarioActive = false;
-  clearUiLabRuntimeOverrides();
-  emitAppEvent(UI_LAB_RESET_EVENT, { restoreLive: true });
-  emitLiveVideoQueueState();
-  const gateState = await getRuntimeDependencyGateState();
-  emitAppEvent("runtime-dependency-gate-state", gateState);
+  await uiLabScenariosController.restoreLiveState();
 }
 
 async function applyUiLabScenario(scenario) {
@@ -2371,273 +2319,7 @@ async function applyUiLabScenario(scenario) {
   }
 
   uiLabScenarioActive = true;
-  emitAppEvent(UI_LAB_RESET_EVENT, { restoreLive: false });
-  emitUiLabEmptyTaskState();
-  clearUiLabRuntimeOverrides();
-
-  if (scenario === "runtime-auto-config") {
-    const runtimeStatus = createUiLabMissingRuntimeStatus();
-    const gateState = {
-      phase: "downloading",
-      missingComponents: ["ffmpeg", "deno"],
-      lastError: null,
-      updatedAtMs: nowTimestampMs(),
-      currentComponent: "ffmpeg",
-      currentStage: "downloading",
-      progressPercent: 42,
-      downloadedBytes: 42 * 1024 * 1024,
-      totalBytes: 100 * 1024 * 1024,
-      nextComponent: "deno",
-    };
-    applyUiLabRuntimePreview(runtimeStatus, gateState);
-    return;
-  }
-
-  if (scenario === "runtime-failed") {
-    const runtimeStatus = createUiLabMissingRuntimeStatus();
-    const gateState = {
-      phase: "failed",
-      missingComponents: ["ffmpeg", "deno"],
-      lastError: "Failed to download FFmpeg runtime: request timed out after 30s",
-      updatedAtMs: nowTimestampMs(),
-      currentComponent: null,
-      currentStage: null,
-      progressPercent: null,
-      downloadedBytes: null,
-      totalBytes: null,
-      nextComponent: "ffmpeg",
-    };
-    applyUiLabRuntimePreview(runtimeStatus, gateState);
-    return;
-  }
-
-  applyUiLabReadyRuntimePreview();
-
-  if (scenario === "download-active") {
-    const traceId = "ui-lab-download-active";
-    emitAppEvent("video-queue-count", {
-      activeCount: 1,
-      pendingCount: 0,
-      totalCount: 1,
-      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
-    });
-    emitAppEvent("video-queue-detail", {
-      tasks: [
-        {
-          traceId,
-          label: "Pinterest seasonal campaign cut.mp4",
-          status: "active",
-        },
-      ],
-    });
-    emitAppEvent("video-download-progress", {
-      traceId,
-      percent: 46,
-      stage: "downloading",
-      speed: "8.2 MB/s",
-      eta: "00:12",
-    });
-    return;
-  }
-
-  if (scenario === "download-queued") {
-    const activeTraceId = "ui-lab-download-queued-active";
-    emitAppEvent("video-queue-count", {
-      activeCount: 1,
-      pendingCount: 2,
-      totalCount: 3,
-      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
-    });
-    emitAppEvent("video-queue-detail", {
-      tasks: [
-        {
-          traceId: activeTraceId,
-          label: "Long-form interview master.mp4",
-          status: "active",
-        },
-        {
-          traceId: "ui-lab-download-queued-2",
-          label: "Episode teaser vertical.mp4",
-          status: "pending",
-        },
-        {
-          traceId: "ui-lab-download-queued-3",
-          label: "Creator archive backup.mp4",
-          status: "pending",
-        },
-      ],
-    });
-    emitAppEvent("video-download-progress", {
-      traceId: activeTraceId,
-      percent: 12,
-      stage: "preparing",
-      speed: "Preparing...",
-      eta: "",
-    });
-    return;
-  }
-
-  if (scenario === "transcode-active") {
-    const traceId = "ui-lab-transcode-active";
-    emitAppEvent("video-transcode-queue-count", {
-      activeCount: 1,
-      pendingCount: 1,
-      failedCount: 0,
-      totalCount: 2,
-      maxConcurrent: 1,
-    });
-    emitAppEvent("video-transcode-queue-detail", {
-      tasks: [
-        {
-          traceId,
-          label: "Client delivery master.mov",
-          status: "active",
-          stage: "transcoding",
-          progressPercent: 68,
-          etaSeconds: 24,
-          sourcePath: "D:/ui-lab/client-delivery-master.mov",
-          sourceFormat: "mov",
-          targetFormat: "mp4",
-          error: null,
-        },
-        {
-          traceId: "ui-lab-transcode-pending",
-          label: "Reel export source.mov",
-          status: "pending",
-          stage: "analyzing",
-          progressPercent: null,
-          etaSeconds: null,
-          sourcePath: "D:/ui-lab/reel-export-source.mov",
-          sourceFormat: "mov",
-          targetFormat: "mp4",
-          error: null,
-        },
-      ],
-    });
-    emitAppEvent("video-transcode-progress", {
-      traceId,
-      label: "Client delivery master.mov",
-      status: "active",
-      stage: "transcoding",
-      progressPercent: 68,
-      etaSeconds: 24,
-      sourcePath: "D:/ui-lab/client-delivery-master.mov",
-      sourceFormat: "mov",
-      targetFormat: "mp4",
-      error: null,
-    });
-    return;
-  }
-
-  if (scenario === "transcode-failed") {
-    const traceId = "ui-lab-transcode-failed";
-    emitAppEvent("video-transcode-queue-count", {
-      activeCount: 0,
-      pendingCount: 0,
-      failedCount: 1,
-      totalCount: 1,
-      maxConcurrent: 1,
-    });
-    emitAppEvent("video-transcode-queue-detail", {
-      tasks: [
-        {
-          traceId,
-          label: "Broadcast package master.mkv",
-          status: "failed",
-          stage: "failed",
-          progressPercent: null,
-          etaSeconds: null,
-          sourcePath: "D:/ui-lab/broadcast-package-master.mkv",
-          sourceFormat: "mkv",
-          targetFormat: "mp4",
-          error: "FFmpeg exited with code 1 while finalizing the MP4 output.",
-        },
-      ],
-    });
-    emitAppEvent("video-transcode-failed", {
-      traceId,
-      label: "Broadcast package master.mkv",
-      status: "failed",
-      stage: "failed",
-      progressPercent: null,
-      etaSeconds: null,
-      sourcePath: "D:/ui-lab/broadcast-package-master.mkv",
-      sourceFormat: "mkv",
-      targetFormat: "mp4",
-      error: "FFmpeg exited with code 1 while finalizing the MP4 output.",
-    });
-    return;
-  }
-
-  if (scenario === "mixed-busy") {
-    const downloadTraceId = "ui-lab-mixed-download";
-    const transcodeTraceId = "ui-lab-mixed-transcode";
-    emitAppEvent("video-queue-count", {
-      activeCount: 1,
-      pendingCount: 1,
-      totalCount: 2,
-      maxConcurrent: getElectronDownloadRuntime().maxConcurrent ?? UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT,
-    });
-    emitAppEvent("video-queue-detail", {
-      tasks: [
-        {
-          traceId: downloadTraceId,
-          label: "Compilation trailer capture.mp4",
-          status: "active",
-        },
-        {
-          traceId: "ui-lab-mixed-download-pending",
-          label: "Livestream archive pull.mp4",
-          status: "pending",
-        },
-      ],
-    });
-    emitAppEvent("video-download-progress", {
-      traceId: downloadTraceId,
-      percent: 74,
-      stage: "merging",
-      speed: "Merging...",
-      eta: "",
-    });
-    emitAppEvent("video-transcode-queue-count", {
-      activeCount: 1,
-      pendingCount: 0,
-      failedCount: 0,
-      totalCount: 1,
-      maxConcurrent: 1,
-    });
-    emitAppEvent("video-transcode-queue-detail", {
-      tasks: [
-        {
-          traceId: transcodeTraceId,
-          label: "Editorial proxy source.mov",
-          status: "active",
-          stage: "finalizing_mp4",
-          progressPercent: 91,
-          etaSeconds: 8,
-          sourcePath: "D:/ui-lab/editorial-proxy-source.mov",
-          sourceFormat: "mov",
-          targetFormat: "mp4",
-          error: null,
-        },
-      ],
-    });
-    emitAppEvent("video-transcode-progress", {
-      traceId: transcodeTraceId,
-      label: "Editorial proxy source.mov",
-      status: "active",
-      stage: "finalizing_mp4",
-      progressPercent: 91,
-      etaSeconds: 8,
-      sourcePath: "D:/ui-lab/editorial-proxy-source.mov",
-      sourceFormat: "mov",
-      targetFormat: "mp4",
-      error: null,
-    });
-    return;
-  }
-
-  throw new Error(`Unsupported UI Lab scenario: ${scenario}`);
+  uiLabScenariosController.applyScenarioPreview(scenario);
 }
 
 function broadcastWsMessage(message) {
