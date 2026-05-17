@@ -27,7 +27,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, parse, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { WebSocketServer } from "ws";
 import {
@@ -111,6 +111,11 @@ import {
   createTrayMenuController,
   resolveTrayIconPath,
 } from "./trayMenu.mjs";
+import {
+  buildRendererRoute as buildRendererRouteUrl,
+  resolveSecondaryWindowOpenOptions as resolveAnchoredSecondaryWindowOpenOptions,
+  secondaryWindowRoute as resolveSecondaryWindowRoute,
+} from "./windowRouting.mjs";
 import {
   buildUniqueTargetPath,
   downloadImage as saveDownloadedImage,
@@ -2777,34 +2782,16 @@ async function broadcastTheme(theme) {
   });
 }
 
-function getBaseRendererUrl() {
-  const envUrl = process.env.AMEOW_FRONTEND_URL ?? process.env.AMEOW_ELECTRON_DEV_SERVER_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
-  }
-  return "http://127.0.0.1:1420";
-}
-
 function buildRendererRoute(routePath) {
-  const normalizedRoute = routePath.startsWith("/") ? routePath : `/${routePath}`;
-  if (!app.isPackaged) {
-    return `${getBaseRendererUrl()}#${normalizedRoute}`;
-  }
-
-  return `${pathToFileURL(join(repoRoot, "dist", "index.html")).toString()}#${normalizedRoute}`;
+  return buildRendererRouteUrl(routePath, {
+    isPackaged: app.isPackaged,
+    repoRoot,
+    env: process.env,
+  });
 }
 
 function secondaryWindowRoute(label) {
-  if (label === WINDOW_LABELS.settings) {
-    return "/settings";
-  }
-  if (label === WINDOW_LABELS.contextMenu) {
-    return "/context-menu";
-  }
-  if (label === WINDOW_LABELS.uiLab) {
-    return "/ui-lab";
-  }
-  throw new Error(`Unsupported secondary window label: ${label}`);
+  return resolveSecondaryWindowRoute(label, WINDOW_LABELS);
 }
 
 function getWindow(label) {
@@ -3082,67 +3069,17 @@ async function openSecondaryWindow(label, options) {
   return browserWindow;
 }
 
-function resolveSecondaryWindowAnchorLabel(label) {
-  if (label === WINDOW_LABELS.settings) {
-    return WINDOW_LABELS.main;
-  }
-  if (label === WINDOW_LABELS.uiLab) {
-    const settingsWindow = getWindow(WINDOW_LABELS.settings);
-    if (settingsWindow && !settingsWindow.isDestroyed()) {
-      return WINDOW_LABELS.settings;
-    }
-    return WINDOW_LABELS.main;
-  }
-  return null;
-}
-
-function resolveSecondaryWindowGap(label) {
-  if (label === WINDOW_LABELS.uiLab) {
-    return UI_LAB_WINDOW_GAP;
-  }
-  return SETTINGS_WINDOW_GAP;
-}
-
 function resolveSecondaryWindowOpenOptions(label, options) {
-  if (
-    typeof options?.x === "number"
-    || typeof options?.y === "number"
-    || options?.center === true
-  ) {
-    return options;
-  }
-
-  const anchorLabel = resolveSecondaryWindowAnchorLabel(label);
-  if (!anchorLabel) {
-    return options;
-  }
-
-  const anchorWindow = getWindow(anchorLabel);
-  if (!anchorWindow || anchorWindow.isDestroyed()) {
-    return options;
-  }
-
-  const anchorBounds = anchorWindow.getBounds();
-  const workArea = screen.getDisplayMatching(anchorBounds).workArea;
-  const gap = resolveSecondaryWindowGap(label);
-  const minX = workArea.x + WINDOW_EDGE_PADDING;
-  const minY = workArea.y + WINDOW_EDGE_PADDING;
-  const maxX = workArea.x + workArea.width - options.width - WINDOW_EDGE_PADDING;
-  const maxY = workArea.y + workArea.height - options.height - WINDOW_EDGE_PADDING;
-
-  let x = anchorBounds.x + anchorBounds.width + gap;
-  let y = anchorBounds.y;
-
-  if (x > maxX) {
-    x = anchorBounds.x - options.width - gap;
-  }
-
-  return {
-    ...options,
-    center: false,
-    x: Math.min(Math.max(x, minX), Math.max(minX, maxX)),
-    y: Math.min(Math.max(y, minY), Math.max(minY, maxY)),
-  };
+  return resolveAnchoredSecondaryWindowOpenOptions(label, options, {
+    labels: WINDOW_LABELS,
+    getWindow,
+    getDisplayWorkArea(anchorBounds) {
+      return screen.getDisplayMatching(anchorBounds).workArea;
+    },
+    settingsGap: SETTINGS_WINDOW_GAP,
+    uiLabGap: UI_LAB_WINDOW_GAP,
+    edgePadding: WINDOW_EDGE_PADDING,
+  });
 }
 
 async function getAutostart() {
