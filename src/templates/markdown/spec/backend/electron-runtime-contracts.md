@@ -75,3 +75,106 @@ Why:
 Debug rule:
 - If a transparent-window compact flash appears at the end of the animation, temporarily disable the native interaction settle first.
 - Re-enable native calls one by one (`ignoreMouseEvents` -> `setFocusable` -> `blur`) to isolate the real trigger before changing renderer motion.
+
+## Added Lesson: Electron ESM Main Initialization Order
+
+`electron/main.mts` is an ESM entrypoint. Top-level controller construction must not read `const` or `let` bindings declared later in the file, because the emitted main file can compile successfully and still fail during Electron load with `ReferenceError: Cannot access '<name>' before initialization`.
+
+Rules:
+- Import every Node helper used directly at top level. `// @ts-nocheck` means missing imports such as `dirname` are not caught by `npm run type-check`.
+- Create controllers after immediately-read dependencies are initialized.
+- Function declarations are safe to pass before their declaration, but later `const`/`let` bindings are not.
+- If a controller needs a later `const`/`let` binding, pass a lazy callback and ensure the callback is not invoked during construction.
+
+Wrong:
+
+```ts
+const appUpdateController = createAppUpdateController({
+  readConfigObject,
+});
+
+const configStore = createConfigStore(...);
+const readConfigObject = configStore.readConfigObject;
+```
+
+Correct:
+
+```ts
+const configStore = createConfigStore(...);
+const readConfigObject = configStore.readConfigObject;
+
+const appUpdateController = createAppUpdateController({
+  readConfigObject,
+});
+```
+
+Wrong:
+
+```ts
+const configStore = createConfigStore({
+  refreshTrayMenu: updateTrayMenu,
+});
+
+const updateTrayMenu = trayMenuController.updateTrayMenu;
+```
+
+Correct:
+
+```ts
+const configStore = createConfigStore({
+  refreshTrayMenu(startupConfigSnapshot) {
+    return updateTrayMenu(startupConfigSnapshot);
+  },
+});
+
+const updateTrayMenu = trayMenuController.updateTrayMenu;
+```
+
+Regression check:
+- `npm run dev` must reach normal Electron startup logs such as `>>> [WS] Server started: ws://127.0.0.1:39527` without `App threw an error during load`.
+
+## Added Lesson: YouTube Balanced Must Start In Extended Mode
+
+Some YouTube videos expose only a 640x360 progressive MP4 when `yt-dlp` runs with the light extractor args:
+
+```txt
+--extractor-args youtube:player_client=android,web
+```
+
+That can make a `balanced` download succeed as `...[640x360][balanced].mp4` even though adaptive 720p/1080p formats exist. For YouTube:
+
+- `best` and `balanced` must start in extended mode.
+- `data_saver` may keep light mode.
+- cookies or `extensionData.youtube.forceExtended === true` still force extended mode.
+- light-mode failures may still retry with extended mode when not aborted.
+
+Extended mode uses:
+
+```txt
+--extractor-args youtube:player_js_variant=tv --remote-components ejs:github
+```
+
+Regression check:
+- `npm test -- src/electron-runtime/ytDlpDownload.test.ts`
+- `yt-dlp --simulate` for `https://www.youtube.com/watch?v=UBqh6ud5LqY` with the balanced selector and extended args should select an adaptive 1080p format such as `299+140`, not `18`.
+
+## Added Lesson: yt-dlp Quality Profiles Are Site-Scoped
+
+The UI-level quality values stay simple:
+
+- `best`
+- `balanced`
+- `data_saver`
+
+The implementation maps those values through `YTDLP_SITE_FORMAT_PROFILES` in `src/electron-runtime/engineManifest.ts`.
+
+Rules:
+- `default` must define all three quality profiles.
+- Each site override, such as `youtube`, must define all three quality profiles.
+- Unknown site ids fall back to `default`.
+- URL-level YouTube detection may force the `youtube` profile even if `siteId` is missing or generic.
+- Add new site-specific balanced/data-saver behavior by adding a profile table entry, not by adding switch branches to command planning.
+
+Regression check:
+- `npm test -- src/electron-runtime/engineManifest.test.ts src/electron-runtime/ytDlpCommandPlan.test.ts`
+- `npm run type-check`

@@ -179,7 +179,7 @@ export const createYtdlpCommandPlan = (
   const formatProfile = resolveYtdlpFormatProfile(
     context.intent.ytdlpQuality,
     Boolean(context.binaries.ffmpeg),
-    { isYouTube: youtubeUrl },
+    { isYouTube: youtubeUrl, siteId: context.intent.siteId },
   );
 
   return {

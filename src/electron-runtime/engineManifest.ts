@@ -10,6 +10,8 @@ export type YtdlpFormatProfile = {
   mergeOutputFormat: YtdlpMergeOutputFormat;
 };
 
+type YtdlpFormatProfileSet = Record<YtdlpQualityPreference, YtdlpFormatProfile>;
+
 type YtdlpManifest = {
   id: "yt-dlp";
   binaryKey: "ytDlp";
@@ -27,15 +29,7 @@ type YtdlpManifest = {
     remoteComponentsArgs: readonly string[];
     retryingCompatibleExtractorActivity: string;
   };
-  formatProfiles: {
-    best: YtdlpFormatProfile;
-    balanced: YtdlpFormatProfile;
-    data_saver: YtdlpFormatProfile;
-  };
-  youtubeFormatProfiles: {
-    balanced: YtdlpFormatProfile;
-    data_saver: YtdlpFormatProfile;
-  };
+  siteFormatProfiles: Record<string, YtdlpFormatProfileSet>;
 };
 
 type GalleryDlManifest = {
@@ -56,6 +50,7 @@ type GalleryDlManifest = {
 };
 
 type CliEngineManifest = YtdlpManifest | GalleryDlManifest;
+type YtdlpSiteFormatProfiles = Record<string, YtdlpFormatProfileSet>;
 
 const YTDLP_FORMAT_SELECTOR_BEST = "bestvideo+bestaudio/best";
 const YTDLP_FORMAT_SELECTOR_BALANCED = [
@@ -104,6 +99,43 @@ const YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER = [
   "worst",
 ].join("");
 
+const YTDLP_SITE_FORMAT_PROFILES: YtdlpSiteFormatProfiles = {
+  default: {
+    best: {
+      selector: YTDLP_FORMAT_SELECTOR_BEST,
+      sort: "res,codec:h264,acodec:aac,ext",
+      mergeOutputFormat: "mp4/mkv",
+    },
+    balanced: {
+      selector: YTDLP_FORMAT_SELECTOR_BALANCED,
+      sort: "ext:mp4:m4a",
+      mergeOutputFormat: "mp4",
+    },
+    data_saver: {
+      selector: YTDLP_FORMAT_SELECTOR_DATA_SAVER,
+      sort: "ext:mp4:m4a",
+      mergeOutputFormat: "mp4",
+    },
+  },
+  youtube: {
+    best: {
+      selector: YTDLP_FORMAT_SELECTOR_BEST,
+      sort: "res,codec:h264,acodec:aac,ext",
+      mergeOutputFormat: "mp4/mkv",
+    },
+    balanced: {
+      selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED,
+      sort: "ext:mp4:m4a",
+      mergeOutputFormat: "mp4",
+    },
+    data_saver: {
+      selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER,
+      sort: "ext:mp4:m4a",
+      mergeOutputFormat: "mp4",
+    },
+  },
+};
+
 export const CLI_ENGINE_MANIFESTS = {
   "yt-dlp": {
     id: "yt-dlp",
@@ -134,35 +166,7 @@ export const CLI_ENGINE_MANIFESTS = {
       ],
       retryingCompatibleExtractorActivity: "activity:youtube.retryingCompatibleExtractor",
     },
-    formatProfiles: {
-      best: {
-        selector: YTDLP_FORMAT_SELECTOR_BEST,
-        sort: "res,codec:h264,acodec:aac,ext",
-        mergeOutputFormat: "mp4/mkv",
-      },
-      balanced: {
-        selector: YTDLP_FORMAT_SELECTOR_BALANCED,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      },
-      data_saver: {
-        selector: YTDLP_FORMAT_SELECTOR_DATA_SAVER,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      },
-    },
-    youtubeFormatProfiles: {
-      balanced: {
-        selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      },
-      data_saver: {
-        selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER,
-        sort: "ext:mp4:m4a",
-        mergeOutputFormat: "mp4",
-      },
-    },
+    siteFormatProfiles: YTDLP_SITE_FORMAT_PROFILES,
   },
   "gallery-dl": {
     id: "gallery-dl",
@@ -186,14 +190,23 @@ export const getCliEngineManifest = <TId extends CliEngineId>(
   engineId: TId,
 ): (typeof CLI_ENGINE_MANIFESTS)[TId] => CLI_ENGINE_MANIFESTS[engineId];
 
+const resolveYtdlpSiteProfileKey = (
+  siteId: string | undefined,
+  options?: { isYouTube?: boolean },
+): string => {
+  if (options?.isYouTube === true) {
+    return "youtube";
+  }
+  return siteId ?? "default";
+};
+
 export const resolveYtdlpFormatProfile = (
   quality: YtdlpQualityPreference | undefined,
   hasFfmpeg: boolean,
-  options?: { isYouTube?: boolean },
+  options?: { isYouTube?: boolean; siteId?: string },
 ): YtdlpFormatProfile => {
   const manifest = getCliEngineManifest("yt-dlp");
   const normalized = quality ?? "best";
-  const isYouTube = options?.isYouTube === true;
   if (!hasFfmpeg) {
     switch (normalized) {
       case "balanced":
@@ -218,17 +231,8 @@ export const resolveYtdlpFormatProfile = (
     }
   }
 
-  switch (normalized) {
-    case "balanced":
-      return isYouTube
-        ? manifest.youtubeFormatProfiles.balanced
-        : manifest.formatProfiles.balanced;
-    case "data_saver":
-      return isYouTube
-        ? manifest.youtubeFormatProfiles.data_saver
-        : manifest.formatProfiles.data_saver;
-    case "best":
-    default:
-      return manifest.formatProfiles.best;
-  }
+  const siteProfileKey = resolveYtdlpSiteProfileKey(options?.siteId, options);
+  const siteProfiles = manifest.siteFormatProfiles[siteProfileKey]
+    ?? manifest.siteFormatProfiles.default;
+  return siteProfiles[normalized];
 };
