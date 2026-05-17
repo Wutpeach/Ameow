@@ -1923,15 +1923,18 @@ async function getCookiesForUrl(url) {
     const parts = hostname.split('.');
     const baseDomain = parts.length > 2 ? parts.slice(-2).join('.') : hostname;
 
-    // Get cookies from both hostname and base domain
-    const [hostCookies, baseCookies] = await Promise.all([
+    // Get cookies from the exact URL plus hostname/base-domain lookups.
+    // Exact URL matching catches host-only/path-scoped cookies that domain-only
+    // lookup can miss in Chromium.
+    const [urlCookies, hostCookies, baseCookies] = await Promise.all([
+      chrome.cookies.getAll({ url: urlObj.href }),
       chrome.cookies.getAll({ domain: hostname }),
       chrome.cookies.getAll({ domain: baseDomain })
     ]);
 
     // Merge and deduplicate cookies
     const cookieMap = new Map();
-    [...hostCookies, ...baseCookies].forEach(cookie => {
+    [...urlCookies, ...hostCookies, ...baseCookies].forEach(cookie => {
       const key = `${cookie.domain}|${cookie.path}|${cookie.name}`;
       cookieMap.set(key, cookie);
     });
