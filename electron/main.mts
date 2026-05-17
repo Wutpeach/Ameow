@@ -13,11 +13,8 @@ import {
   shell,
   Tray,
 } from "electron";
-import { createWriteStream, existsSync } from "node:fs";
-import http from "node:http";
-import https from "node:https";
+import { existsSync } from "node:fs";
 import {
-  access,
   copyFile,
   cp,
   mkdir,
@@ -29,9 +26,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, extname, join, parse, resolve } from "node:path";
+import { basename, extname, join, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { WebSocketServer } from "ws";
 import {
@@ -111,6 +107,12 @@ import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.m
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
+import {
+  buildUniqueTargetPath,
+  downloadImage as saveDownloadedImage,
+  ensureExtension,
+  saveDataUrl as saveImageDataUrl,
+} from "./imageDownload.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -187,14 +189,6 @@ const windows = new Map();
 const wsClients = new Set();
 const pendingProtectedImageRequests = new Map();
 const pendingXiaohongshuDragRequests = new Map();
-const ALLOWED_IMAGE_DOWNLOAD_REQUEST_HEADERS = new Set([
-  "accept",
-  "cookie",
-  "origin",
-  "referer",
-  "user-agent",
-]);
-
 let wsServer = null;
 let uiLabRuntimeStatusOverride = null;
 const runtimeDependencyGateController = createRuntimeDependencyGateController({
@@ -907,262 +901,6 @@ function normalizeHttpUrl(value) {
       : null;
   } catch {
     return null;
-  }
-}
-
-function normalizeImageDownloadRequestHeaders(rawHeaders) {
-  if (!rawHeaders || typeof rawHeaders !== "object" || Array.isArray(rawHeaders)) {
-    return undefined;
-  }
-
-  const headers = {};
-  for (const [rawName, rawValue] of Object.entries(rawHeaders)) {
-    const name = typeof rawName === "string" ? rawName.trim() : "";
-    const value = typeof rawValue === "string" ? rawValue.trim() : "";
-    if (!name || !value) {
-      continue;
-    }
-
-    if (!ALLOWED_IMAGE_DOWNLOAD_REQUEST_HEADERS.has(name.toLowerCase())) {
-      continue;
-    }
-
-    headers[name] = value;
-  }
-
-  return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function deriveImageDownloadHeaders(requestOptions = {}) {
-  const normalizedImageUrl = normalizeHttpUrl(requestOptions?.url);
-  const headers = {
-    ...(normalizeImageDownloadRequestHeaders(
-      requestOptions?.requestHeaders ?? requestOptions?.headers,
-    ) ?? {}),
-  };
-  const normalizedReferrer = normalizeVideoPageUrl(
-    requestOptions?.referrer ?? requestOptions?.pageUrl,
-  ) ?? normalizeHttpUrl(requestOptions?.referrer ?? requestOptions?.pageUrl) ?? undefined;
-  const isTwitterXPublicImageRequest = (() => {
-    if (!normalizedImageUrl || !normalizedReferrer) {
-      return false;
-    }
-
-    try {
-      const imageHost = new URL(normalizedImageUrl).hostname.toLowerCase();
-      const referrerHost = new URL(normalizedReferrer).hostname.toLowerCase();
-      return /(?:^|\.)pbs\.twimg\.com$/i.test(imageHost)
-        && (/(?:^|\.)x\.com$/i.test(referrerHost) || /(?:^|\.)twitter\.com$/i.test(referrerHost));
-    } catch {
-      return false;
-    }
-  })();
-  const isXiaohongshuProtectedImageRequest = (() => {
-    if (!normalizedImageUrl || !normalizedReferrer) {
-      return false;
-    }
-
-    try {
-      const imageHost = new URL(normalizedImageUrl).hostname.toLowerCase();
-      const referrerHost = new URL(normalizedReferrer).hostname.toLowerCase();
-      return /(?:^|\.)xhscdn\.com$/i.test(imageHost)
-        && (/(?:^|\.)xiaohongshu\.com$/i.test(referrerHost) || /(?:^|\.)xhslink\.com$/i.test(referrerHost));
-    } catch {
-      return false;
-    }
-  })();
-
-  if (isTwitterXPublicImageRequest) {
-    delete headers.Referer;
-    delete headers.referer;
-    delete headers.Origin;
-    delete headers.origin;
-    return Object.keys(headers).length > 0 ? headers : undefined;
-  }
-
-  if (normalizedReferrer && !isXiaohongshuProtectedImageRequest && !headers.Referer && !headers.referer) {
-    headers.Referer = normalizedReferrer;
-  }
-
-  if (!headers.Origin && !headers.origin && normalizedReferrer) {
-    try {
-      headers.Origin = isXiaohongshuProtectedImageRequest
-        ? "https://www.xiaohongshu.com"
-        : new URL(normalizedReferrer).origin;
-    } catch {
-      // Ignore invalid referrer values after normalization failure.
-    }
-  }
-
-  return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function createHeaderBagFromNodeResponseHeaders(headers = {}) {
-  const normalized = new Map();
-  for (const [key, value] of Object.entries(headers)) {
-    if (typeof key !== "string") {
-      continue;
-    }
-    const normalizedKey = key.toLowerCase();
-    const normalizedValue = Array.isArray(value)
-      ? value.join(", ")
-      : typeof value === "string"
-        ? value
-        : typeof value === "number"
-          ? String(value)
-          : "";
-    normalized.set(normalizedKey, normalizedValue);
-  }
-
-  return {
-    get(name) {
-      if (typeof name !== "string") {
-        return null;
-      }
-      return normalized.get(name.toLowerCase()) ?? null;
-    },
-  };
-}
-
-async function fetchImageWithNodeRequest(url, headers, redirectCount = 0) {
-  if (redirectCount > 5) {
-    throw new Error("Too many redirects while downloading image");
-  }
-
-  const parsed = new URL(url);
-  const transport = parsed.protocol === "https:" ? https : http;
-
-  return await new Promise((resolve, reject) => {
-    const request = transport.request(parsed, {
-      method: "GET",
-      headers,
-    }, (response) => {
-      const statusCode = response.statusCode ?? 0;
-      const locationHeader = typeof response.headers.location === "string"
-        ? response.headers.location
-        : Array.isArray(response.headers.location)
-          ? response.headers.location[0]
-          : undefined;
-
-      if (
-        locationHeader
-        && [301, 302, 303, 307, 308].includes(statusCode)
-      ) {
-        response.resume();
-        const nextUrl = new URL(locationHeader, parsed).toString();
-        void fetchImageWithNodeRequest(nextUrl, headers, redirectCount + 1)
-          .then(resolve)
-          .catch(reject);
-        return;
-      }
-
-      resolve({
-        ok: statusCode >= 200 && statusCode < 300,
-        status: statusCode,
-        statusText: response.statusMessage ?? "",
-        url: parsed.toString(),
-        headers: createHeaderBagFromNodeResponseHeaders(response.headers),
-        body: response,
-      });
-    });
-
-    request.on("error", reject);
-    request.end();
-  });
-}
-
-async function fetchImageForDownload(url, requestOptions = {}) {
-  const headers = deriveImageDownloadHeaders({
-    ...requestOptions,
-    url,
-  });
-  const hasExplicitHeaders = Boolean(headers && Object.keys(headers).length > 0);
-  const normalizedReferrer =
-    normalizeVideoPageUrl(requestOptions?.referrer ?? requestOptions?.pageUrl)
-    ?? normalizeHttpUrl(requestOptions?.referrer ?? requestOptions?.pageUrl)
-    ?? undefined;
-  const isTwitterXPublicImageRequest = (() => {
-    if (!normalizedReferrer) {
-      return false;
-    }
-
-    try {
-      const imageHost = new URL(url).hostname.toLowerCase();
-      const referrerHost = new URL(normalizedReferrer).hostname.toLowerCase();
-      return /(?:^|\.)pbs\.twimg\.com$/i.test(imageHost)
-        && (/(?:^|\.)x\.com$/i.test(referrerHost) || /(?:^|\.)twitter\.com$/i.test(referrerHost));
-    } catch {
-      return false;
-    }
-  })();
-  const useOriginOnlyXiaohongshuReferrer = (() => {
-    if (!normalizedReferrer) {
-      return false;
-    }
-
-    try {
-      const imageHost = new URL(url).hostname.toLowerCase();
-      const referrerHost = new URL(normalizedReferrer).hostname.toLowerCase();
-      return /(?:^|\.)xhscdn\.com$/i.test(imageHost)
-        && (/(?:^|\.)xiaohongshu\.com$/i.test(referrerHost) || /(?:^|\.)xhslink\.com$/i.test(referrerHost));
-    } catch {
-      return false;
-    }
-  })();
-
-  if (hasExplicitHeaders && typeof globalThis.fetch === "function") {
-    try {
-      logInfo(
-        "ProtectedImage",
-        "Trying global fetch with explicit request headers",
-        JSON.stringify({
-          url,
-          headerNames: Object.keys(headers),
-        }),
-      );
-      const response = await globalThis.fetch(url, {
-        headers,
-        redirect: "follow",
-      });
-      if (response.ok && response.body) {
-        return response;
-      }
-      logInfo(
-        "ProtectedImage",
-        "Global fetch did not return a usable image response; falling back to Electron session fetch",
-        JSON.stringify({
-          url,
-          status: response.status,
-          statusText: response.statusText,
-        }),
-      );
-    } catch (error) {
-      logInfo(
-        "ProtectedImage",
-        "Global fetch with explicit request headers failed; falling back to Electron session fetch",
-        String(error),
-      );
-    }
-  }
-
-  try {
-    return await fetchWithDesktopSession(url, {
-      credentials: "include",
-      headers,
-      referrer: (useOriginOnlyXiaohongshuReferrer || isTwitterXPublicImageRequest) ? "" : normalizedReferrer,
-      referrerPolicy: useOriginOnlyXiaohongshuReferrer
-        ? "no-referrer"
-        : isTwitterXPublicImageRequest
-          ? "no-referrer"
-          : "strict-origin-when-cross-origin",
-    });
-  } catch (error) {
-    logInfo(
-      "ProtectedImage",
-      "Electron session fetch failed; falling back to Node HTTP request",
-      String(error),
-    );
-    return await fetchImageWithNodeRequest(url, headers);
   }
 }
 
@@ -2199,48 +1937,6 @@ function buildVideoTaskLabel(task) {
     ?? task.traceId;
 }
 
-function sanitizeFileNameSegment(value) {
-  return String(value ?? "")
-    .trim()
-    .replace(/[\\/:*?"<>|]/g, "_")
-    .replace(/[\r\n\t]/g, " ")
-    .replace(/^[.\s]+|[.\s]+$/g, "")
-    .slice(0, 160);
-}
-
-function ensureExtension(extension, fallback = "bin") {
-  const normalized = extension.replace(/^\./, "").trim();
-  return normalized || fallback;
-}
-
-async function pathExists(targetPath) {
-  try {
-    await access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function buildUniqueTargetPath(targetDir, preferredName, extension) {
-  await mkdir(targetDir, { recursive: true });
-  const safeBaseName = sanitizeFileNameSegment(preferredName) || "ameow";
-  const safeExtension = ensureExtension(extension);
-  const directPath = join(targetDir, `${safeBaseName}.${safeExtension}`);
-  if (!(await pathExists(directPath))) {
-    return directPath;
-  }
-
-  for (let index = 2; index < 10_000; index += 1) {
-    const candidate = join(targetDir, `${safeBaseName}_${index}.${safeExtension}`);
-    if (!(await pathExists(candidate))) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`Failed to resolve a unique file path for ${safeBaseName}.${safeExtension}`);
-}
-
 async function buildRenamedTargetPath(targetDir, extension, config) {
   await mkdir(targetDir, { recursive: true });
   const safeExtension = ensureExtension(extension);
@@ -2252,45 +1948,6 @@ async function buildRenamedTargetPath(targetDir, extension, config) {
   };
 }
 
-function inferExtensionFromUrl(url) {
-  try {
-    const parsed = new URL(url);
-    const extension = extname(parsed.pathname);
-    return ensureExtension(extension, "png");
-  } catch {
-    return "png";
-  }
-}
-
-function inferNameFromUrl(url) {
-  try {
-    const parsed = new URL(url);
-    const fileName = basename(parsed.pathname);
-    const stem = parse(fileName).name;
-    return sanitizeFileNameSegment(stem) || "ameow";
-  } catch {
-    return "ameow";
-  }
-}
-
-function inferExtensionFromMime(mimeType) {
-  switch (mimeType) {
-    case "image/jpeg":
-      return "jpg";
-    case "image/webp":
-      return "webp";
-    case "image/gif":
-      return "gif";
-    case "image/bmp":
-      return "bmp";
-    case "image/svg+xml":
-      return "svg";
-    case "image/png":
-    default:
-      return "png";
-  }
-}
-
 async function resolveCurrentOutputFolderPath() {
   const config = await readConfigObject();
   if (typeof config.outputPath === "string" && config.outputPath.trim()) {
@@ -2298,6 +1955,17 @@ async function resolveCurrentOutputFolderPath() {
   }
   return join(app.getPath("desktop"), DEFAULT_OUTPUT_FOLDER_NAME);
 }
+
+const imageDownloadDependencies = {
+  readConfigObject,
+  resolveCurrentOutputFolderPath,
+  resolveRenameEnabled,
+  buildRenamedTargetPath,
+  releaseRenameStem,
+  requestProtectedImageResolution,
+  fetchWithDesktopSession,
+  logInfo,
+};
 
 async function processFiles(paths, targetDir) {
   const finalTargetDir = targetDir || (await resolveCurrentOutputFolderPath());
@@ -2346,115 +2014,6 @@ async function processFiles(paths, targetDir) {
   }
 
   return `Copied ${copiedCount} files to ${finalTargetDir}`;
-}
-
-async function downloadImage(
-  url,
-  targetDir,
-  originalFilename,
-  protectedImageFallback = null,
-  requestOptions = {},
-) {
-  try {
-    const response = await fetchImageForDownload(url, requestOptions);
-    if (!response.ok || !response.body) {
-      throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
-    }
-
-    const config = await readConfigObject();
-    const renameEnabled = resolveRenameEnabled(config);
-    const finalTargetDir = targetDir || (await resolveCurrentOutputFolderPath());
-    const mimeType = response.headers.get("content-type")?.split(";")[0].trim() || "image/png";
-    const extension = originalFilename
-      ? ensureExtension(extname(originalFilename), inferExtensionFromMime(mimeType))
-      : inferExtensionFromUrl(url) || inferExtensionFromMime(mimeType);
-    const preferredName = originalFilename
-      ? parse(originalFilename).name
-      : inferNameFromUrl(url);
-    let renamedStem = null;
-
-    try {
-      if (renameEnabled) {
-        const renamedTarget = await buildRenamedTargetPath(finalTargetDir, extension, config);
-        renamedStem = renamedTarget.stem;
-        await pipeline(response.body, createWriteStream(renamedTarget.filePath));
-        return renamedTarget.filePath;
-      }
-
-      const destinationPath = await buildUniqueTargetPath(finalTargetDir, preferredName, extension);
-      await pipeline(response.body, createWriteStream(destinationPath));
-      return destinationPath;
-    } finally {
-      if (renamedStem) {
-        releaseRenameStem(finalTargetDir, renamedStem);
-      }
-    }
-  } catch (error) {
-    if (!protectedImageFallback?.token) {
-      throw error;
-    }
-
-    const resolution = await requestProtectedImageResolution({
-      ...protectedImageFallback,
-      imageUrl: protectedImageFallback.imageUrl ?? url,
-      targetDir,
-    });
-    if (resolution.success && resolution.filePath) {
-      return resolution.filePath;
-    }
-
-    throw new Error(
-      resolution.error
-        ?? resolution.code
-        ?? String(error),
-    );
-  }
-}
-
-async function saveDataUrl(dataUrl, targetDir, originalFilename, options = {}) {
-  const config = await readConfigObject();
-  if (options.requireRenameEnabled) {
-    if (!resolveRenameEnabled(config)) {
-      throw new Error("rename_disabled");
-    }
-  }
-
-  const match = /^data:([^;,]+)?(?:;base64)?,(.*)$/s.exec(dataUrl);
-  if (!match) {
-    throw new Error("Invalid data URL");
-  }
-
-  const mimeType = match[1] || "image/png";
-  const payload = match[2] || "";
-  const buffer = Buffer.from(payload, "base64");
-  const extension = originalFilename
-    ? ensureExtension(extname(originalFilename), inferExtensionFromMime(mimeType))
-    : inferExtensionFromMime(mimeType);
-  const preferredName = originalFilename
-    ? parse(originalFilename).name
-    : "ameow";
-  const finalTargetDir = targetDir || (await resolveCurrentOutputFolderPath());
-  const renameEnabled = resolveRenameEnabled(config);
-  let renamedStem = null;
-
-  try {
-    if (renameEnabled) {
-      const renamedTarget = await buildRenamedTargetPath(finalTargetDir, extension, config);
-      renamedStem = renamedTarget.stem;
-      await mkdir(dirname(renamedTarget.filePath), { recursive: true });
-      await writeFile(renamedTarget.filePath, buffer);
-      return renamedTarget.filePath;
-    }
-
-    const destinationPath = await buildUniqueTargetPath(finalTargetDir, preferredName, extension);
-    await mkdir(dirname(destinationPath), { recursive: true });
-    await writeFile(destinationPath, buffer);
-    return destinationPath;
-  } finally {
-    if (renamedStem) {
-      releaseRenameStem(finalTargetDir, renamedStem);
-    }
-  }
 }
 
 function parseClipboardFileNameBuffer(buffer) {
@@ -4065,7 +3624,7 @@ async function handleWsMessage(rawMessage) {
         };
       }
       try {
-        const filePath = await downloadImage(
+        const filePath = await saveDownloadedImage(
           data.url,
           typeof data.targetDir === "string" ? data.targetDir : null,
           typeof data.originalFilename === "string" ? data.originalFilename : null,
@@ -4074,6 +3633,7 @@ async function handleWsMessage(rawMessage) {
             requestHeaders: data.requestHeaders ?? data.request_headers,
             referrer: data.referrer ?? data.pageUrl ?? data.page_url,
           },
+          imageDownloadDependencies,
         );
         return {
           success: true,
@@ -4097,7 +3657,7 @@ async function handleWsMessage(rawMessage) {
         };
       }
       try {
-        const filePath = await saveDataUrl(
+        const filePath = await saveImageDataUrl(
           data.dataUrl ?? data.data_url,
           typeof data.targetDir === "string"
             ? data.targetDir
@@ -4114,6 +3674,7 @@ async function handleWsMessage(rawMessage) {
               data.requireRenameEnabled === true
               || data.require_rename_enabled === true,
           },
+          imageDownloadDependencies,
         );
         return {
           success: true,
@@ -4371,7 +3932,7 @@ async function handleCommand(command, payload = {}) {
     case "process_files":
       return processFiles(Array.isArray(payload.paths) ? payload.paths : [], payload.targetDir ?? null);
     case "download_image":
-      return downloadImage(
+      return saveDownloadedImage(
         String(payload.url ?? ""),
         payload.targetDir ?? null,
         payload.originalFilename ?? null,
@@ -4380,18 +3941,20 @@ async function handleCommand(command, payload = {}) {
           requestHeaders: payload.requestHeaders ?? payload.request_headers,
           referrer: payload.referrer ?? payload.pageUrl ?? payload.page_url,
         },
+        imageDownloadDependencies,
       );
     case "dev_ui_lab_apply_scenario":
       await applyUiLabScenario(String(payload.scenario ?? ""));
       return;
     case "save_data_url":
-      return saveDataUrl(
+      return saveImageDataUrl(
         String(payload.dataUrl ?? ""),
         payload.targetDir ?? null,
         payload.originalFilename ?? null,
         {
           requireRenameEnabled: payload.requireRenameEnabled === true,
         },
+        imageDownloadDependencies,
       );
     case "get_clipboard_files":
       return getClipboardFilePaths();
