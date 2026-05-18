@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 150
+- **Total Sessions**: 151
 - **Last Active**: 2026-05-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~442 | Active |
+| `journal-4.md` | ~475 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 151 | 2026-05-18 | Douyin managed downloader and session flow | `1018479` | `main` |
 | 150 | 2026-05-18 | Investigate Windows bootstart pinned lookup 403 | `465e82f` | `main` |
 | 149 | 2026-05-18 | Repair Windows dev environment and add global proxy setting | `7d7cbec` | `main` |
 | 148 | 2026-04-09 | 推送 X 图片下载修复到远程 | `46c756268f4e2f2257da18f932f6776767f2a9ef` | `main` |

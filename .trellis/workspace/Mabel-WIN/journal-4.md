@@ -440,3 +440,36 @@ Replaced GitHub release metadata lookup with pinned direct download URLs for yt-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 151: Douyin managed downloader and session flow
+
+**Date**: 2026-05-18
+**Task**: Douyin managed downloader and session flow
+**Branch**: `main`
+
+### Summary
+
+Integrated douyin-downloader as a managed runtime, routed Douyin downloads to the dedicated backend, and added app-owned Playwright session capture plus settings management.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1018479` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
