@@ -53,7 +53,7 @@ type PinnedDownloaderToolId = "yt-dlp" | "gallery-dl";
 type PinnedDownloaderRelease = {
   version: string;
   latestCacheFileName: string;
-  releaseApi: string;
+  releaseDownloadBaseUrl: string;
   assetNameByPlatform: Partial<Record<NodeJS.Platform, string>>;
   sha256ByTarget: Record<string, string>;
 };
@@ -70,7 +70,7 @@ const PINNED_DOWNLOADER_RELEASES: Record<PinnedDownloaderToolId, PinnedDownloade
   "yt-dlp": {
     version: "2026.03.17",
     latestCacheFileName: "ytdlp-latest.json",
-    releaseApi: "https://api.github.com/repos/yt-dlp/yt-dlp/releases/tags/2026.03.17",
+    releaseDownloadBaseUrl: "https://github.com/yt-dlp/yt-dlp/releases/download/2026.03.17",
     assetNameByPlatform: {
       win32: "yt-dlp.exe",
       darwin: "yt-dlp_macos",
@@ -81,9 +81,9 @@ const PINNED_DOWNLOADER_RELEASES: Record<PinnedDownloaderToolId, PinnedDownloade
     },
   },
   "gallery-dl": {
-    version: "1.32.0-dev:2026.04.01",
+    version: "1.32.0-dev:2026.03.30",
     latestCacheFileName: "gallery-dl-latest.json",
-    releaseApi: "https://api.github.com/repos/gdl-org/builds/releases/tags/2026.04.01",
+    releaseDownloadBaseUrl: "https://github.com/gdl-org/builds/releases/download/2026.03.30",
     assetNameByPlatform: {
       win32: "gallery-dl_windows.exe",
       darwin: "gallery-dl_macos",
@@ -513,26 +513,6 @@ export const selectFfmpegRuntimeArtifactSpec = (
   throw new Error(`Unsupported managed ffmpeg runtime target: ${target}`);
 };
 
-const buildGitHubHeaders = (): Record<string, string> => ({
-  Accept: "application/vnd.github+json",
-  "User-Agent": "Ameow-Electron",
-});
-
-const fetchPinnedDownloaderRelease = async (
-  toolId: PinnedDownloaderToolId,
-  options: ManagedRuntimeBootstrapOptions,
-): Promise<Record<string, unknown>> => {
-  const config = resolvePinnedDownloaderRelease(toolId);
-  const response = await options.fetch(config.releaseApi, {
-    headers: buildGitHubHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(`GitHub pinned lookup failed: ${response.status}`);
-  }
-
-  return await response.json() as Record<string, unknown>;
-};
-
 const resolvePinnedDownloaderReleaseAssetName = (
   toolId: PinnedDownloaderToolId,
   options: ManagedRuntimeBootstrapOptions,
@@ -547,24 +527,14 @@ const resolvePinnedDownloaderReleaseAssetName = (
 
 export const selectPinnedDownloaderReleaseAsset = (
   toolId: PinnedDownloaderToolId,
-  release: Record<string, unknown>,
   options: ManagedRuntimeBootstrapOptions,
-): Record<string, unknown> => {
+): { assetName: string; downloadUrl: string } => {
   const assetName = resolvePinnedDownloaderReleaseAssetName(toolId, options);
-  const asset = Array.isArray(release.assets)
-    ? release.assets.find((candidate) => (
-        candidate
-        && typeof candidate === "object"
-        && (candidate as Record<string, unknown>).name === assetName
-      ))
-    : null;
-  const browserDownloadUrl = (asset as Record<string, unknown> | null)?.browser_download_url;
-  if (!asset || typeof browserDownloadUrl !== "string") {
-    throw new Error(
-      `Pinned ${toolId} release ${String(release.tag_name ?? "<unknown>")} does not expose asset ${assetName}`,
-    );
-  }
-  return asset as Record<string, unknown>;
+  const config = resolvePinnedDownloaderRelease(toolId);
+  return {
+    assetName,
+    downloadUrl: `${config.releaseDownloadBaseUrl}/${assetName}`,
+  };
 };
 
 export const writeDownloaderLatestCache = async (
@@ -603,10 +573,8 @@ const ensureManagedDownloaderReleaseReady = async (
     throw new Error(`Pinned ${toolId} runtime checksum is not configured for ${target}`);
   }
 
-  const release = await fetchPinnedDownloaderRelease(toolId, options);
-  const asset = selectPinnedDownloaderReleaseAsset(toolId, release, options);
-  const browserDownloadUrl = String(asset.browser_download_url);
-  const assetSize = Number(asset.size);
+  const asset = selectPinnedDownloaderReleaseAsset(toolId, options);
+  const browserDownloadUrl = asset.downloadUrl;
   const componentId: RuntimeDependencyManagedComponent = toolId === "gallery-dl" ? "galleryDl" : "ytDlp";
   const tempDir = await mkdtemp(join(tmpdir(), `ameow-${toolId.replace(/[^a-z0-9]/gi, "-")}-`));
   const tempPath = join(tempDir, basename(targetPath));
@@ -615,7 +583,7 @@ const ensureManagedDownloaderReleaseReady = async (
     options.log?.(`Bootstrapping managed ${toolId} runtime (${trigger})`);
     await downloadRuntimeAssetWithFallbacks(
       [browserDownloadUrl],
-      assetSize > 0 ? assetSize : 0,
+      0,
       expectedSha256,
       tempPath,
       componentId,
@@ -624,8 +592,8 @@ const ensureManagedDownloaderReleaseReady = async (
     await options.onActivity?.({
       component: componentId,
       stage: "installing",
-      downloadedBytes: assetSize > 0 ? assetSize : null,
-      totalBytes: assetSize > 0 ? assetSize : null,
+      downloadedBytes: null,
+      totalBytes: null,
     });
     await mkdir(dirname(targetPath), { recursive: true });
     if (options.platform !== "win32") {

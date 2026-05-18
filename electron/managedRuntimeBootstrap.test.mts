@@ -30,17 +30,17 @@ describe("managed runtime bootstrap helpers", () => {
 
     expect(currentManagedRuntimeTarget("win32", "x64")).toBe("x86_64-pc-windows-msvc");
     expect(managedDenoPath(options)).toBe(
-      "/tmp/ameow-config/runtimes/deno/x86_64-pc-windows-msvc/real/deno.exe",
+      join("/tmp/ameow-config", "runtimes", "deno", "x86_64-pc-windows-msvc", "real", "deno.exe"),
     );
     expect(managedFfmpegPaths(options)).toEqual({
-      ffmpeg: "/tmp/ameow-config/runtimes/ffmpeg/x86_64-pc-windows-msvc/real/ffmpeg.exe",
-      ffprobe: "/tmp/ameow-config/runtimes/ffmpeg/x86_64-pc-windows-msvc/real/ffprobe.exe",
+      ffmpeg: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffmpeg.exe"),
+      ffprobe: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffprobe.exe"),
     });
     expect(managedYtDlpPaths(options).ytDlp).toBe(
-      "/tmp/ameow-config/runtimes/yt-dlp/x86_64-pc-windows-msvc/real/yt-dlp-x86_64-pc-windows-msvc.exe",
+      join("/tmp/ameow-config", "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "real", "yt-dlp-x86_64-pc-windows-msvc.exe"),
     );
     expect(managedGalleryDlPath(options)).toBe(
-      "/tmp/ameow-config/runtimes/gallery-dl/x86_64-pc-windows-msvc/real/gallery-dl-x86_64-pc-windows-msvc.exe",
+      join("/tmp/ameow-config", "runtimes", "gallery-dl", "x86_64-pc-windows-msvc", "real", "gallery-dl-x86_64-pc-windows-msvc.exe"),
     );
   });
 
@@ -50,7 +50,7 @@ describe("managed runtime bootstrap helpers", () => {
       latestCacheFileName: "ytdlp-latest.json",
     });
     expect(resolvePinnedDownloaderRelease("gallery-dl")).toMatchObject({
-      version: "1.32.0-dev:2026.04.01",
+      version: "1.32.0-dev:2026.03.30",
       latestCacheFileName: "gallery-dl-latest.json",
     });
     expect(() => resolvePinnedDownloaderRelease("unknown" as never)).toThrow(
@@ -59,17 +59,13 @@ describe("managed runtime bootstrap helpers", () => {
   });
 
   it("selects pinned release assets by platform-specific name", () => {
-    const release = {
-      tag_name: "2026.03.17",
-      assets: [
-        { name: "yt-dlp_macos", browser_download_url: "https://example.invalid/mac" },
-        { name: "yt-dlp.exe", browser_download_url: "https://example.invalid/windows" },
-      ],
-    };
-
-    expect(selectPinnedDownloaderReleaseAsset("yt-dlp", release, createOptions())).toMatchObject({
-      name: "yt-dlp.exe",
-      browser_download_url: "https://example.invalid/windows",
+    expect(selectPinnedDownloaderReleaseAsset("yt-dlp", createOptions())).toEqual({
+      assetName: "yt-dlp.exe",
+      downloadUrl: "https://github.com/yt-dlp/yt-dlp/releases/download/2026.03.17/yt-dlp.exe",
+    });
+    expect(selectPinnedDownloaderReleaseAsset("gallery-dl", createOptions())).toEqual({
+      assetName: "gallery-dl_windows.exe",
+      downloadUrl: "https://github.com/gdl-org/builds/releases/download/2026.03.30/gallery-dl_windows.exe",
     });
   });
 
