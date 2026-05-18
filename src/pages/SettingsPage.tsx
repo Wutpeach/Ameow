@@ -65,6 +65,19 @@ import type {
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsTab = "general" | "downloads" | "plugins" | "advanced";
+type SiteLoginBadgeTone = "ready" | "warning" | "danger" | "muted";
+
+type SiteLoginBadgeModel = {
+  id: "douyin";
+  label: string;
+  statusLabel: string;
+  detail: string;
+  tone: SiteLoginBadgeTone;
+  actionLabel: string;
+  disabled: boolean;
+  title: string;
+  onClick: () => void;
+};
 
 const DEFAULT_RENAME_RULE_PRESET: RenameRulePreset = "desc_number";
 const ILLEGAL_FILENAME_CHARS = /[/\\:*?"<>|]/g;
@@ -1012,12 +1025,90 @@ function SettingsPage() {
     whiteSpace: "nowrap",
   });
 
-  const getDouyinSessionStatusPillStyle = (
-    tone: "active" | "muted",
-  ): CSSProperties => ({
-    ...getPluginStatusPillStyle(tone),
-    minWidth: 72,
-  });
+  const getSiteLoginToneColors = (tone: SiteLoginBadgeTone) => {
+    if (tone === "ready") {
+      return {
+        border: colors.accentBorder,
+        surfaceStart: colors.accentSurfaceStrong,
+        surfaceEnd: colors.accentSurface,
+        dot: colors.accentSolid,
+        text: colors.textPrimary,
+        glow: colors.accentGlow,
+      };
+    }
+    if (tone === "warning") {
+      return {
+        border: colors.warningBorder,
+        surfaceStart: colors.warningSurface,
+        surfaceEnd: colors.fieldBg,
+        dot: colors.warningSolid,
+        text: colors.textPrimary,
+        glow: colors.warningGlow,
+      };
+    }
+    if (tone === "danger") {
+      return {
+        border: colors.dangerBorder,
+        surfaceStart: colors.dangerSurface,
+        surfaceEnd: colors.fieldBg,
+        dot: colors.dangerSolid,
+        text: colors.textPrimary,
+        glow: colors.dangerGlow,
+      };
+    }
+    return {
+      border: colors.fieldBorder,
+      surfaceStart: colors.fieldBg,
+      surfaceEnd: colors.bgSecondary,
+      dot: colors.controlMuted,
+      text: colors.textSecondary,
+      glow: "transparent",
+    };
+  };
+
+  const getSiteLoginBadgeStyle = (
+    tone: SiteLoginBadgeTone,
+    disabled: boolean,
+  ): CSSProperties => {
+    const toneColors = getSiteLoginToneColors(tone);
+    return {
+      width: "100%",
+      minHeight: 42,
+      padding: "8px 10px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      ...getContinuousCornerStyle(13),
+      border: `1px solid ${toneColors.border}`,
+      background: `linear-gradient(180deg, ${toneColors.surfaceStart} 0%, ${toneColors.surfaceEnd} 100%)`,
+      boxShadow: tone === "muted"
+        ? `inset 0 1px 0 ${colors.fieldInset}`
+        : `inset 0 1px 0 ${colors.fieldInset}, 0 10px 20px -14px ${toneColors.glow}`,
+      color: toneColors.text,
+      cursor: disabled ? "not-allowed" : "pointer",
+      opacity: disabled ? 0.62 : 1,
+      textAlign: "left",
+      transition: [
+        `background 0.18s ${COMPACT_EASE}`,
+        `border-color 0.18s ${COMPACT_EASE}`,
+        `box-shadow 0.18s ${COMPACT_EASE}`,
+        `opacity 0.18s ${COMPACT_EASE}`,
+      ].join(", "),
+    };
+  };
+
+  const getSiteLoginStatusDotStyle = (tone: SiteLoginBadgeTone): CSSProperties => {
+    const toneColors = getSiteLoginToneColors(tone);
+    return {
+      width: 7,
+      height: 7,
+      flexShrink: 0,
+      ...getContinuousCornerStyle(999),
+      background: toneColors.dot,
+      boxShadow: tone === "muted" ? "none" : `0 0 12px ${toneColors.glow}`,
+    };
+  };
 
   const douyinSessionAvailability = douyinSessionState?.availability ?? "missing";
   const douyinSessionCapturePhase = douyinSessionState?.capturePhase ?? "idle";
@@ -1027,11 +1118,6 @@ function SettingsPage() {
   const douyinRuntimeGatePhase = runtimeDependencyGateState?.phase ?? "idle";
   const isDouyinRuntimeBusy = runtimeDependencyGateState?.currentComponent === "douyinDl"
     && (douyinRuntimeGatePhase === "checking" || douyinRuntimeGatePhase === "downloading");
-  const douyinRuntimeDetailText = isDouyinRuntimeBusy
-    ? t("desktop:settings.douyinSession.runtimePreparing")
-    : douyinRuntimeReady
-      ? t("desktop:settings.douyinSession.runtimeReady")
-      : t("desktop:settings.douyinSession.runtimeMissing");
   const douyinSessionDetailText = douyinSessionCapturePhase === "preparing"
     ? t("desktop:settings.douyinSession.capturePreparing")
     : douyinSessionCapturePhase === "awaiting_confirmation"
@@ -1049,6 +1135,50 @@ function SettingsPage() {
     ? formatLocalizedDateTime(douyinSessionState.updatedAtMs, i18n.resolvedLanguage)
     : null;
   const canClearDouyinSession = douyinSessionHasStoredCookies || Boolean(douyinSessionLastUpdatedLabel);
+  const douyinSessionStatusLabel = douyinSessionError
+    ? t("desktop:settings.douyinSession.state.error")
+    : douyinSessionCapturePhase === "preparing"
+      ? t("desktop:settings.douyinSession.state.preparing")
+      : douyinSessionCapturePhase === "awaiting_confirmation"
+        ? t("desktop:settings.douyinSession.state.pending")
+        : douyinSessionAvailability === "ready"
+          ? t("desktop:settings.douyinSession.state.ready")
+          : douyinSessionAvailability === "partial"
+            ? t("desktop:settings.douyinSession.state.partial")
+            : t("desktop:settings.douyinSession.state.missing");
+  const douyinSessionBadgeTone: SiteLoginBadgeTone = douyinSessionError
+    ? "danger"
+    : douyinSessionCapturePhase === "preparing" || douyinSessionCapturePhase === "awaiting_confirmation"
+      ? "warning"
+      : douyinSessionAvailability === "ready"
+        ? "ready"
+        : douyinSessionAvailability === "partial"
+          ? "warning"
+          : "muted";
+  const douyinSessionBadgeDisabled = isDouyinSessionActionBusy
+    || douyinSessionCapturePhase === "preparing"
+    || douyinSessionCapturePhase === "awaiting_confirmation";
+  const douyinSessionBadgeActionLabel = isStartingDouyinSession
+    ? t("desktop:settings.douyinSession.startingButton")
+    : douyinSessionCapturePhase === "awaiting_confirmation"
+      ? t("desktop:settings.douyinSession.confirmPrompt")
+      : douyinSessionAvailability === "ready"
+        ? t("desktop:settings.douyinSession.refreshButton")
+        : t("desktop:settings.douyinSession.loginButton");
+  const douyinSiteLoginBadge: SiteLoginBadgeModel = {
+    id: "douyin",
+    label: t("desktop:settings.douyinSession.siteLabel"),
+    statusLabel: douyinSessionStatusLabel,
+    detail: douyinSessionDetailText,
+    tone: douyinSessionBadgeTone,
+    actionLabel: douyinSessionBadgeActionLabel,
+    disabled: douyinSessionBadgeDisabled,
+    title: douyinSessionBadgeDisabled
+      ? douyinSessionDetailText
+      : t("desktop:settings.douyinSession.badgeActionHint"),
+    onClick: handleDouyinSessionStartCapture,
+  };
+  const siteLoginBadges: SiteLoginBadgeModel[] = [douyinSiteLoginBadge];
 
   const settingsTabChromeStyle: CSSProperties = {
     display: "flex",
@@ -1364,92 +1494,116 @@ function SettingsPage() {
       </NeonSection>
 
       <NeonSection
-        title={t("desktop:settings.douyinSession.title")}
-        hint={t("desktop:settings.douyinSession.hint")}
+        title={t("desktop:settings.siteSessions.title")}
+        hint={t("desktop:settings.siteSessions.hint")}
       >
         <NeonCard
-          glow={douyinSessionAvailability === "ready"}
+          glow={siteLoginBadges.some((site) => site.tone === "ready")}
           style={{
-            padding: "12px",
+            padding: "10px",
             display: "grid",
-            gap: 10,
+            gap: 8,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
-                {t("desktop:settings.douyinSession.runtimeTitle")}
-              </span>
-              <div
+          <div style={{ display: "grid", gap: 7 }}>
+            {siteLoginBadges.map((site) => (
+              <button
+                key={site.id}
+                type="button"
+                onClick={() => {
+                  if (!site.disabled) {
+                    void site.onClick();
+                  }
+                }}
+                disabled={site.disabled}
+                title={site.title}
                 style={{
-                  fontSize: 10.5,
-                  lineHeight: 1.45,
-                  color: colors.textSecondary,
-                  opacity: 0.82,
+                  ...getSiteLoginBadgeStyle(site.tone, site.disabled),
+                  ...WINDOW_NO_DRAG_REGION_STYLE,
                 }}
               >
-                {douyinRuntimeDetailText}
-              </div>
-            </div>
-            <span style={getDouyinSessionStatusPillStyle(douyinRuntimeReady ? "active" : "muted")}>
+                <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={getSiteLoginStatusDotStyle(site.tone)} aria-hidden="true" />
+                  <span style={{ minWidth: 0, display: "grid", gap: 3 }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 650,
+                        lineHeight: 1,
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {site.label}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        lineHeight: 1.25,
+                        color: colors.textSecondary,
+                        opacity: 0.86,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {site.detail}
+                    </span>
+                  </span>
+                </span>
+                <span
+                  style={{
+                    flexShrink: 0,
+                    display: "grid",
+                    justifyItems: "end",
+                    gap: 3,
+                    fontSize: 10,
+                    lineHeight: 1,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: colors.textPrimary,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {site.statusLabel}
+                  </span>
+                  <span
+                    style={{
+                      color: colors.textSecondary,
+                      opacity: 0.78,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {site.actionLabel}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gap: 5 }}>
+            <NeonHint size="sm">
               {douyinRuntimeReady
-                ? t("desktop:settings.douyinSession.runtimeState.ready")
+                ? t("desktop:settings.douyinSession.runtimeInlineReady")
                 : isDouyinRuntimeBusy
-                  ? t("desktop:settings.douyinSession.runtimeState.preparing")
-                  : t("desktop:settings.douyinSession.runtimeState.missing")}
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
-                {t("desktop:settings.douyinSession.cardTitle")}
-              </span>
-              <div
-                style={{
-                  fontSize: 10.5,
-                  lineHeight: 1.45,
-                  color: colors.textSecondary,
-                  opacity: 0.82,
-                }}
-              >
-                {douyinSessionDetailText}
-              </div>
-            </div>
-            <span style={getDouyinSessionStatusPillStyle(douyinSessionAvailability === "ready" ? "active" : "muted")}>
-              {douyinSessionAvailability === "ready"
-                ? t("desktop:settings.douyinSession.state.ready")
-                : douyinSessionCapturePhase === "awaiting_confirmation"
-                  ? t("desktop:settings.douyinSession.state.pending")
-                  : t("desktop:settings.douyinSession.state.missing")}
-            </span>
-          </div>
-
-          {douyinSessionLastUpdatedLabel ? (
-            <NeonHint size="sm">
-              {t("desktop:settings.douyinSession.lastUpdated", {
-                time: douyinSessionLastUpdatedLabel,
-              })}
+                  ? t("desktop:settings.douyinSession.runtimePreparing")
+                  : t("desktop:settings.douyinSession.runtimeMissing")}
             </NeonHint>
-          ) : (
-            <NeonHint size="sm">
-              {t("desktop:settings.douyinSession.manualHint")}
-            </NeonHint>
-          )}
+
+            {douyinSessionLastUpdatedLabel ? (
+              <NeonHint size="sm">
+                {t("desktop:settings.douyinSession.lastUpdated", {
+                  time: douyinSessionLastUpdatedLabel,
+                })}
+              </NeonHint>
+            ) : (
+              <NeonHint size="sm">
+                {t("desktop:settings.douyinSession.manualHint")}
+              </NeonHint>
+            )}
+          </div>
 
           {douyinSessionError ? (
             <NeonHint tone="danger" size="sm">
@@ -1499,22 +1653,7 @@ function SettingsPage() {
                     : t("desktop:settings.douyinSession.cancelButton")}
                 </NeonButton>
               </>
-            ) : (
-              <NeonButton
-                type="button"
-                variant={douyinSessionAvailability === "ready" ? "outline" : "default"}
-                size="sm"
-                onClick={() => void handleDouyinSessionStartCapture()}
-                disabled={isDouyinSessionActionBusy}
-                style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
-              >
-                {isStartingDouyinSession
-                  ? t("desktop:settings.douyinSession.startingButton")
-                  : douyinSessionAvailability === "ready"
-                    ? t("desktop:settings.douyinSession.refreshButton")
-                    : t("desktop:settings.douyinSession.loginButton")}
-              </NeonButton>
-            )}
+            ) : null}
             <NeonButton
               type="button"
               variant="ghost"
