@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron main owns tray behavior and mac app presentation rules."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "This is a mac-only Electron startup behavior change."}

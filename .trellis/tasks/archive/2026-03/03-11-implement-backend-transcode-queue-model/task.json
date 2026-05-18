@@ -1,0 +1,44 @@
+{
+  "id": "implement-backend-transcode-queue-model",
+  "name": "implement-backend-transcode-queue-model",
+  "title": "implement backend transcode queue model",
+  "description": "",
+  "status": "completed",
+  "dev_type": "backend",
+  "scope": "backend",
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-11",
+  "completedAt": "2026-03-11",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src-tauri/src/lib.rs",
+    ".trellis/spec/backend/type-safety.md"
+  ],
+  "notes": "Implemented backend download/transcode queue split, added transcode retry/remove commands, and documented the new event contract."
+}

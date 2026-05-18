@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Trigger folder open after support-log export succeeds"}
+{"file": "src-tauri/src/lib.rs", "reason": "Reuse existing open_folder command contract"}

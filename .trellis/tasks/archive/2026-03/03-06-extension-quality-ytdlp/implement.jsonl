@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Descriptive error propagation for yt-dlp runtime changes"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Maintain backend logging conventions while adjusting yt-dlp flow"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Avoid unsafe patterns in Rust downloader changes"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "yt-dlp sidecar runtime and merge assumptions"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Current yt-dlp quality tier contract and fallback behavior"}

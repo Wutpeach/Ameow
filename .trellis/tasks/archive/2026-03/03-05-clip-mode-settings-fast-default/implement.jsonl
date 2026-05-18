@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Expose clip mode option in settings"}
+{"file": "src-tauri/src/lib.rs", "reason": "Read persisted clip mode and apply per new task"}

@@ -1,0 +1,47 @@
+{
+  "id": "i18n-desktop-react",
+  "name": "i18n-desktop-react",
+  "title": "implement: localize desktop React windows",
+  "description": "Desktop React localization for main window, settings, and context menu using the shared i18n foundation.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": "task/i18n-desktop-react",
+  "base_branch": "main",
+  "worktree_path": "../trellis-worktrees/03-10-i18n-desktop-react",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/pages/SettingsPage.tsx",
+    "src/pages/ContextMenuPage.tsx",
+    "src/i18n/"
+  ],
+  "notes": "Recommended branch: task/i18n-desktop-react. Recommended worktree: ../trellis-worktrees/03-10-i18n-desktop-react. Do not edit browser-extension or Rust files. Rebase on top of i18n-foundation. See parent worktree guide for create/start/merge commands."
+}

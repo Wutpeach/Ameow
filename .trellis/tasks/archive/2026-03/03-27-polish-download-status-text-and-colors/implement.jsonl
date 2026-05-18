@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Follow existing compact component styling patterns in App.tsx"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Avoid hardcoded theme colors while adjusting status copy and text tones"}
+{"file": "src/App.tsx", "reason": "Main window status card rendering for download and transcode states"}

@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "UI button structure and style consistency for injected controls"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend JS/CSS quality guardrails"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Current XHS control-bar injection logic and selectors"}
+{"file": "browser-extension/xiaohongshu-button.css", "reason": "Control button style hooks for cat icon"}

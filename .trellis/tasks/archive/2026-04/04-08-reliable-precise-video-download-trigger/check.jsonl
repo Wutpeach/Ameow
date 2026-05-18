@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify no low-trust browser hint silently overrides the canonical route without validation."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify generic trigger path replaces download-only injection and locale edits land in source-of-truth files."}

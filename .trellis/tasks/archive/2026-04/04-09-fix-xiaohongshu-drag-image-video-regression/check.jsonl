@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check pass must verify image/video hints do not override each other incorrectly across layers."}
+{"file": "src/utils/xiaohongshu.ts", "reason": "Verify image-direct helper and video-signal logic remain coherent."}

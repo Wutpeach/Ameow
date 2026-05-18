@@ -1,0 +1,9 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend bugfix quality rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend command-event contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error propagation rules"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend bugfix quality rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer bug analysis"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Backend cross-layer contracts"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse before adding helpers"}

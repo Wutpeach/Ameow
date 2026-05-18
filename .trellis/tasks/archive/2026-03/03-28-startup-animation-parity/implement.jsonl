@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Maintain preload-owned Electron bridge and stable currentWindow contract."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer startup contract across Electron main, preload, and renderer."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Keep React startup state initialization and effect cleanup aligned with hook conventions."}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Preserve main window transition ownership and avoid duplicated first-paint motion."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep Electron renderer bootstrap file-safe and typed without DOM hacks."}

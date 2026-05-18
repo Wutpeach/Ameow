@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron WS action and runtime queue contract for injected downloads"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Shared extension payload and background bridge contract for video_selected_v2"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer payload authority and validation across detector, background, and runtime"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Current YouTube injected payload assembly for current_item downloads"}
+{"file": "browser-extension/background.js", "reason": "Background bridge adds cookies, siteHint, quality preference, and queues video_selected_v2"}
+{"file": "browser-extension/injection-debug-config.js", "reason": "Persistent extension injection debug toggle that can gate investigation logs"}
+{"file": "browser-extension/weibo-detector.js", "reason": "Existing content-script pattern for reacting to extension injection debug enablement"}
+{"file": "electron/main.mts", "reason": "Packaged runtime websocket action handling, request normalization, and yt-dlp arg assembly"}
+{"file": "src/electron-runtime/commandRouter.ts", "reason": "Normalization parity for queue_video_download payloads in electron runtime service path"}
+{"file": "src/electron-runtime/ytDlpDownload.ts", "reason": "Current shared yt-dlp argument shaping including Referer, cookies, and no-playlist handling"}

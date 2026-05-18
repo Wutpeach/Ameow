@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Third-party content-script injection rules and SPA cleanup expectations"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify extension payload stays aligned with existing desktop download contract"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing detector/message patterns instead of inventing a new bridge"}

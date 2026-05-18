@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify Tauri runtime gate generics and payload shapes stay aligned"}
+{"file": "src/App.tsx", "reason": "Ownership file for main window queue/progress behavior"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify main window runtime hint matches queue/task state correctly"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Compare main window runtime controls with settings behavior"}

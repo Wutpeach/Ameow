@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Startup animation changes must preserve compact-surface motion behavior."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Startup work crosses renderer, preload, and Electron main process."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Startup orchestration lives in React effects and must clean up timers/listeners."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Renderer startup changes must preserve typed desktop bridge and hot-path motion rules."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Startup delay constants should stay centralized instead of ad hoc timers."}

@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Compact main-window interaction state ownership, hover reconciliation, and timer rules."}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Compact main-window expand/collapse handoff rules for minimized/full transitions."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Frontend completion-event listener patterns and async callback cleanup."}
+{"file": "src/App.tsx", "reason": "Main window state machine, foreground task preparation, and completion outcome rendering."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify the bug remains renderer-side state handoff rather than a download/transcode event-contract gap."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Extend shared main-window mode guard logic instead of scattering one-off collapse checks."}
+{"file": "src/utils/mainWindowMode.ts", "reason": "Shared collapse guard logic for pointer-leave transitions."}

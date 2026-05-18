@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Review runtime port against sidecar and downloader contracts"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review process logging and progress output handling"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows/macOS runtime parity"}

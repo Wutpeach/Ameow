@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Main/icon mode transition rules and compact surface animation contract"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Idle timer, hover refs, and event-listener cleanup patterns in App.tsx"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Local state and ref-based timer/state coordination"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Window visibility behavior spans renderer state and Electron window sizing"}

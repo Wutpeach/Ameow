@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review final error messages"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review final logs"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review Rust changes for forbidden patterns"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Validate the final quality-tier contract"}

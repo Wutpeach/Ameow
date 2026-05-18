@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality guardrails"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Target injection logic for XHS control bar"}
+{"file": "browser-extension/xiaohongshu-button.css", "reason": "Target XHS control button styling and order"}
+{"file": "browser-extension/douyin-detector.js", "reason": "Reference control button injection pattern"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Reference control button injection pattern"}

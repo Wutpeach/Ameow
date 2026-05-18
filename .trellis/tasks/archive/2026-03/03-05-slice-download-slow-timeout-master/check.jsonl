@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": "src-tauri/src/lib.rs", "reason": "validate watchdog and cleanup semantics"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "validate clip mode UX and defaults"}
+{"file": "src/App.tsx", "reason": "validate progress display behavior"}

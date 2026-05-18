@@ -1,0 +1,14 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "New Pinterest runtime wrapper/binary packaging must follow bundled binaries contract"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Pinterest video download spans extension, frontend, backend, and runtime binary layers"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "New commands/events and extension-triggered flows must keep TS invoke/listen contracts aligned"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Pinterest extension injection and backend routing should mirror direct platform onboarding patterns"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust command/event payloads for Pinterest downloads need explicit cross-layer contracts"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Pinterest runtime path and metadata parsing need consistent trace logging"}
+{"file": "browser-extension/douyin-detector.js", "reason": "Existing detector/button injection pattern for video pages and cards"}
+{"file": "src/App.tsx", "reason": "Pinterest image special handling and current paste/drop video routing behavior"}
+{"file": "browser-extension/background.js", "reason": "Shared video_selected bridge, cookies capture, and candidate normalization"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Bundled binaries resources contract for runtime executables"}
+{"file": "src-tauri/src/lib.rs", "reason": "Current WS video queue, yt-dlp runtime resolution, and smart routing implementation"}

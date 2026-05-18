@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Background connection state and retry timing"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep async extension logic concise and guarded"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Extension websocket request path touches desktop app queueing"}

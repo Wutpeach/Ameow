@@ -1,0 +1,29 @@
+{
+  "id": "download-architecture-refactor",
+  "name": "download-architecture-refactor",
+  "title": "brainstorm: download architecture refactor",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-MAC",
+  "assignee": "Mabel-MAC",
+  "createdAt": "2026-05-16",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-16-runtime-dependency-gate-refactor",
+    "05-17-05-17-retire-legacy-queued-ytdlp-risk"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

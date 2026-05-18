@@ -1,0 +1,14 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/api-module.md", "reason": "API module conventions"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Code quality requirements"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Idle timer and listener cleanup patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed listen/invoke when touching shortcut-show behavior"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust frontend contract stability for emitted events"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "No unwrap and safe backend changes"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Mac tray/backend event to frontend idle behavior"}
+{"file": "src/App.tsx", "reason": "Current minimize/hover state machine"}
+{"file": "src-tauri/src/lib.rs", "reason": "Tray click and window show/focus behavior"}

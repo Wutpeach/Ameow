@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check that local build, CI packaging, and release files stay in sync."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Validate packaging commands and artifact layout across local and CI flows."}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Check release asset additions do not violate the repo release-prep contract."}

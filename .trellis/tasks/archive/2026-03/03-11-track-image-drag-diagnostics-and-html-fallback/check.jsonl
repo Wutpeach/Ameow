@@ -1,0 +1,13 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify App drag-drop changes still follow component patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify invoke<string> image command contracts remain aligned"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review runtime evidence and image command behavior"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify image/data-url failures remain descriptive"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify support-log runtime evidence keeps useful image breadcrumbs"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify new HTML parsing does not duplicate existing reusable logic unnecessarily"}
+{"file": "src/utils/pinterest.ts", "reason": "Reference HTML extraction approach during review"}
+{"file": "src/App.tsx", "reason": "Review drag-drop routing regressions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify frontend drag extraction and backend diagnostics still line up"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify no Tauri command contract drift"}

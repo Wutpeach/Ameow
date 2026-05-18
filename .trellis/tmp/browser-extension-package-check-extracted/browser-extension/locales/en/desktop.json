@@ -1,0 +1,290 @@
+{
+  "_meta": {
+    "surface": "desktop"
+  },
+  "app": {
+    "sequenceOverflowMessage": "Sequence number is exhausted. Please clean up the folder and try again.",
+    "downloadStage": {
+      "preparing": "Preparing...",
+      "downloading": "Downloading...",
+      "merging": "Merging...",
+      "postProcessing": "Post-processing..."
+    },
+    "downloadActivity": {
+      "galleryDl": {
+        "resolvingMedia": "Resolving media...",
+        "collectingMetadata": "Collecting metadata...",
+        "extractingMedia": "Extracting media...",
+        "downloadingMedia": "Downloading media...",
+        "checkingExistingFile": "Checking existing file...",
+        "savingFile": "Saving file..."
+      }
+    },
+    "downloadStatus": {
+      "eta": "ETA {{eta}}"
+    },
+    "transcodeStage": {
+      "analyzing": "Analyzing format",
+      "transcoding": "Transcoding",
+      "finalizingMp4": "Generating compatible MP4",
+      "failed": "Transcode failed"
+    },
+    "drop": {
+      "directoryDialogTitle": "Confirm media export folder",
+      "errors": {
+        "unresolved": "Couldn't read a local folder from that drop.",
+        "preloadFailed": "FlowSelect couldn't inspect that dropped folder.",
+        "notDirectory": "Dropped item is not a folder.",
+        "notFound": "Dropped folder could not be found.",
+        "statFailed": "FlowSelect couldn't access the dropped folder.",
+        "saveFailed": "Failed to set the export folder."
+      }
+    },
+    "queue": {
+      "label": "Queue",
+      "title": "Task queue",
+      "meta": "{{downloadCount}} downloads · {{transcodeCount}} transcodes",
+      "downloadCountSummary": "{{count}} downloads",
+      "transcodeCountSummary": "{{count}} transcodes",
+      "downloadSection": "Download queue",
+      "transcodeSection": "Transcode queue",
+      "percentStatus": "{{percent}}% · {{status}}",
+      "cancelling": "Cancelling...",
+      "waiting": "Waiting...",
+      "cancellingCurrent": "Cancelling current download...",
+      "remainingSummary": "{{downloadCount}} downloads · {{transcodeCount}} transcodes remaining",
+      "sourceQueuedForTranscode": "Source media ready, added to transcode queue",
+      "transcodeCompleted": "Compatible MP4 ready",
+      "transcodeFailedNotice": "Transcode failed",
+      "currentTasksAria": "Current tasks: {{count}}",
+      "closeList": "Close task list",
+      "showList": "Show current tasks",
+      "cancelTask": "Cancel download",
+      "cancellingTask": "Cancelling download",
+      "retryTranscode": "Retry",
+      "removeTranscode": "Remove",
+      "removeTranscodeHint": "Remove from queue only"
+    },
+    "runtime": {
+      "phaseTitle": {
+        "checking": "Checking runtime",
+        "awaiting_confirmation": "Runtime approval needed",
+        "downloading": "Preparing runtime",
+        "blocked_by_user": "Runtime download skipped",
+        "failed": "Runtime prep failed",
+        "missing": "Runtime attention needed",
+        "ready": "Runtime ready"
+      },
+      "component": {
+        "ffmpeg": "FFmpeg",
+        "deno": "Deno"
+      },
+      "stage": {
+        "checking": "Checking",
+        "downloading": "Downloading",
+        "verifying": "Verifying",
+        "installing": "Installing"
+      },
+      "progressSummary": "{{percent}}% · {{stage}}",
+      "nextSummary": "Next: {{item}}",
+      "manualHint": "Click to retry. You can also review runtime recovery in Settings.",
+      "taskCountSingle": "1 task",
+      "taskCountPlural": "{{count}} tasks"
+    },
+    "actions": {
+      "hideWindow": "Hide window",
+      "cancelCurrentTask": "Cancel current task",
+      "updateYtdlp": "Update yt-dlp: {{current}} → {{latest}}",
+      "updating": "Updating...",
+      "resetRenameCounter": "Reset rename counter",
+      "settings": "Settings"
+    },
+    "windows": {
+      "settingsTitle": "Settings",
+      "contextMenuTitle": "Context Menu"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": {
+      "title": "Theme",
+      "black": "Black",
+      "white": "White"
+    },
+    "language": {
+      "title": "Language",
+      "hint": "Apply to the main window, settings, and context menu immediately."
+    },
+    "outputFolder": {
+      "title": "Output Folder",
+      "choose": "Choose a folder...",
+      "dialogTitle": "Select Output Folder"
+    },
+    "shortcut": {
+      "title": "Global Shortcut",
+      "hint": "Use one shortcut to open FlowSelect from anywhere.",
+      "press": "Press your shortcut",
+      "clickToRecord": "Click to record shortcut",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "launchAtStartup": {
+      "title": "Launch at startup"
+    },
+    "rename": {
+      "title": "Rename downloaded media",
+      "hint": "Apply a naming rule to new downloads instead of keeping the source name.",
+      "preset": "Rename Preset",
+      "prefix": "Prefix",
+      "prefixPlaceholder": "Flow",
+      "suffix": "Suffix",
+      "suffixPlaceholder": "done",
+      "preview": "Preview",
+      "options": {
+        "descending": "Descending",
+        "ascending": "Ascending",
+        "prefixSequence": "Prefix + Sequence"
+      }
+    },
+    "aePortal": {
+      "title": "After Effects auto-import",
+      "hint": "Open finished media in After Effects after download.",
+      "chooseExe": "Choose AfterFX.exe...",
+      "dialogTitle": "Select AfterFX.exe",
+      "executableFilter": "Executable"
+    },
+    "downloaders": {
+      "title": "External downloaders",
+      "unknown": "Unknown",
+      "ytdlp": {
+        "version": "Version {{version}}",
+        "description": "General-purpose video downloader.",
+        "checkUnavailable": "Check unavailable.",
+        "updateAvailable": "Update: {{version}}",
+        "upToDate": "Up to date.",
+        "localVersionOnly": "Local version only.",
+        "updatedFromMain": "yt-dlp updated from main window",
+        "updatedTo": "yt-dlp updated to {{version}}",
+        "updateFailed": "Failed to update yt-dlp",
+        "button": "Update",
+        "updating": "Updating..."
+      },
+      "galleryDl": {
+        "version": "Version {{version}}",
+        "description": "Image and gallery downloader used for Pinterest-first flows.",
+        "checkUnavailable": "Check unavailable.",
+        "updateAvailable": "Update: {{version}}",
+        "upToDate": "Up to date.",
+        "localVersionOnly": "Local version only.",
+        "updatedTo": "gallery-dl updated to {{version}}",
+        "updateFailed": "Failed to update gallery-dl",
+        "button": "Update",
+        "updating": "Updating..."
+      },
+      "runtime": {
+        "description": "Managed runtime readiness for downloads.",
+        "mainWindowRetryHint": "The main-window runtime indicator can also retry failed setup.",
+        "unavailable": "Runtime status unavailable.",
+        "allReady": "All runtime dependencies are ready.",
+        "missingItems": "Missing: {{items}}",
+        "phaseLabel": "Phase: {{phase}}",
+        "refreshed": "Runtime status refreshed",
+        "refreshFailed": "Failed to refresh runtime status",
+        "markedForDownload": "Marked runtime dependencies for download",
+        "markedBlockedByUser": "Marked as blocked by user choice",
+        "markDecisionFailed": "Failed to update runtime decision",
+        "recheckButton": "Check",
+        "allowButton": "Allow",
+        "skipButton": "Skip",
+        "phase": {
+          "idle": "Idle",
+          "checking": "Checking",
+          "awaiting_confirmation": "Awaiting confirm",
+          "downloading": "Downloading",
+          "ready": "Ready",
+          "blocked_by_user": "Blocked by user",
+          "failed": "Failed"
+        }
+      }
+    },
+    "supportLog": {
+      "exportReady": "Tap once more to export a diagnostic log",
+      "exportedAndOpened": "Diagnostic log ready. Opened folder: {{fileName}}",
+      "exported": "Diagnostic log ready: {{fileName}}",
+      "failed": "Failed to export diagnostic log"
+    },
+    "uiLab": {
+      "windowTitle": "UI Lab",
+      "developerSectionTitle": "Developer",
+      "developerSectionHint": "Open UI Lab to preview runtime, download, and transcode states without real workflows.",
+      "injectionDebug": {
+        "title": "Extension Injection Debug",
+        "hint": "Enable control-bar injection outlines and layout diagnostics inside supported site detectors."
+      },
+      "developerButton": "Open UI Lab",
+      "title": "UI Lab",
+      "subtitle": "Dev-only state presets for reviewing the real main-window UI without running actual downloads or transcodes.",
+      "actions": {
+        "revealMainWindow": "Reveal Main Window",
+        "resetToLiveState": "Reset To Live State",
+        "closeWindow": "Close UI Lab"
+      },
+      "status": {
+        "activePreset": "Active preset:",
+        "liveAppState": "live app state"
+      },
+      "groups": {
+        "runtime": {
+          "title": "Runtime",
+          "hint": "Preview automatic dependency bootstrap states and failure recovery."
+        },
+        "download": {
+          "title": "Download",
+          "hint": "Drive the main window's active download and queue surfaces without a real network transfer."
+        },
+        "transcode": {
+          "title": "Transcode",
+          "hint": "Preview transcode progress and failure handling without invoking FFmpeg."
+        },
+        "mixed": {
+          "title": "Mixed",
+          "hint": "Stress the compact shell with concurrent download and transcode activity."
+        }
+      },
+      "scenarios": {
+        "runtimeAutoConfig": {
+          "label": "Auto Config",
+          "description": "Shows the runtime indicator in automatic download mode with hoverable progress."
+        },
+        "runtimeFailed": {
+          "label": "Failed",
+          "description": "Shows the retryable failure state for the runtime reminder."
+        },
+        "downloadActive": {
+          "label": "Active",
+          "description": "Single active download with live progress, speed, and ETA."
+        },
+        "downloadQueued": {
+          "label": "Queued",
+          "description": "One active download plus two pending tasks for queue review."
+        },
+        "transcodeActive": {
+          "label": "Active",
+          "description": "Active transcode with a pending follow-up task."
+        },
+        "transcodeFailed": {
+          "label": "Failed",
+          "description": "Failure card, error text, and transcode failure notice state."
+        },
+        "mixedBusy": {
+          "label": "Mixed Busy",
+          "description": "Download merging plus transcode finalization at the same time."
+        }
+      }
+    }
+  },
+  "contextMenu": {
+    "openFolder": "Open Folder",
+    "setOutputFolder": "Set Output Folder"
+  }
+}

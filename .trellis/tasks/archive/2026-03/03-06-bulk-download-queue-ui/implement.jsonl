@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Batch download overlay, badge popover, and task-row UI patterns"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Tauri listen cleanup and download queue event handling"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed invoke/listen contracts for queue state and per-task cancellation"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Local React state for queue details and popover visibility"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Map queue detail flow across Rust, Tauri events, and React UI"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust command/event contracts for queue detail payloads and cancel-by-trace"}

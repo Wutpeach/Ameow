@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Check packaged extension artifacts for platform-safe manifest output."}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Check version bump and extension packaging still follow release contract."}

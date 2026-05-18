@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron runtime download progress contract for parser fixes"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Cross-layer event payload contract for download progress"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend listener expectations for download progress stages"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Parser output feeds renderer progress state across the runtime boundary"}

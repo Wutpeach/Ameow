@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend validation still applies because dependency updates must keep renderer lint/type-check green."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend validation still applies because Electron/main-process type-check must remain green."}

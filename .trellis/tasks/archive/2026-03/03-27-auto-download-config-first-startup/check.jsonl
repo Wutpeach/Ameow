@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend review checklist for config/runtime changes"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend review checklist for indicator/state changes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Descriptive error propagation for bootstrap/config paths"}

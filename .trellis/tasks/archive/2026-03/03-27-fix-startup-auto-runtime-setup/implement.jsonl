@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Renderer-to-Electron command and event contracts for runtime gate behavior."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Stable runtime dependency command names and gate-state payload expectations."}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Managed runtime bootstrap locations, ordering, and download rules."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This fix spans React startup effects and Electron runtime bootstrap state."}

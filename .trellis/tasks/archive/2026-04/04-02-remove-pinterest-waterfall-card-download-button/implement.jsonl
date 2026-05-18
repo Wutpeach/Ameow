@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Preserve existing component and control patterns while removing only the card action path."}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Keep Pinterest detail action styling aligned with existing action emphasis while removing redundant card chrome."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Avoid dead UI code and keep the browser-extension change scoped and safe."}

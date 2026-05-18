@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "dev-only integration and styling conventions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "event listener lifecycle for keydown capture and observer cleanup"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "typed DOM event handling without any"}
+{"file": "src/main.tsx", "reason": "existing Agentation dev-only mount point"}
+{"file": "src/App.tsx", "reason": "context-menu clipping constraints in fixed 200x200 window"}

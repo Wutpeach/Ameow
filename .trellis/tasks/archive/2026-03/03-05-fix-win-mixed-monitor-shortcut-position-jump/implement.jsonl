@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Define Windows multi-monitor coordinate contract and fallback behavior"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Coordinate flow across Rust and frontend position APIs"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep command boundary stable when adjusting window position semantics"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Shortcut event listener behavior and side effects"}
+{"file": ".trellis/tasks/archive/2026-02/02-28-fix-win-main-window-glow-shortcut-devtools/prd.md", "reason": "Reuse existing shortcut anchor contract"}

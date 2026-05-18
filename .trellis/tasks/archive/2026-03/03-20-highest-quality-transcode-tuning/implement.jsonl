@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Descriptive Result<String, String> propagation for backend transcode/runtime tuning changes."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Preserve >>> Rust log patterns when instrumenting encoder selection and fallback behavior."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Transcode queue payloads and command/event contracts must remain stable while tuning encoder args."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Download-complete, transcode-queued, and compatible-MP4 semantics span backend runtime and frontend listeners."}
+{"file": "src-tauri/src/lib.rs", "reason": "Current yt-dlp quality selection, transcode queue planning, and FFmpeg argument construction live here."}

@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Review preload/main renderer contract after folder-drop changes"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review typed folder-drop command/result contract"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review typed desktop bridge usage in renderer"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review renderer preload main config propagation"}

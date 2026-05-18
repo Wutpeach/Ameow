@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Verify single-source runtime binary contract"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify descriptive runtime/path errors"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify no unwrap panic regressions"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify >>> logging consistency"}

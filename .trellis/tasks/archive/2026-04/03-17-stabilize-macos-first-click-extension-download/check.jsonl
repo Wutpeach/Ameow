@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify the request path remains consistent across extension and desktop layers"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Confirm the fix does not drift the existing websocket video_selected contract"}

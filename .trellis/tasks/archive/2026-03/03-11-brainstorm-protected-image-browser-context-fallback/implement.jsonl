@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Main-window drop flow must keep synchronous state transitions"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend Tauri contract typing for new drag/fallback payloads"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Protected-image fallback needs runtime breadcrumbs"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer ownership and validation for extension tokens"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Fallback orchestration returns actionable errors"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Define WS action and response fields across Rust and extension"}
+{"file": "browser-extension/background.js", "reason": "Existing extension WS request/response plumbing"}
+{"file": "src/App.tsx", "reason": "Existing drop routing and image download flow"}
+{"file": "browser-extension/pinterest-detector.js", "reason": "Pattern for drag payload enrichment"}
+{"file": "src-tauri/src/lib.rs", "reason": "Existing WS server, image download, and runtime logging patterns"}

@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Native integration port must preserve cross-layer command and event shapes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Electron main services should surface descriptive failures like current Rust commands"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Process and transport logs should keep the current observability style"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This task touches renderer, main process, and extension transport boundaries"}
+{"file": "browser-extension/background.js", "reason": "Extension request/response and reconnect behavior must stay compatible"}
+{"file": "src-tauri/src/lib.rs", "reason": "Current native integration behavior lives in Rust/Tauri"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Settings UI owns shortcut, autostart, updater, and dialog entrypoints"}

@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify user cancellation is not surfaced as a backend failure path."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify cancel command and transcode queue events remain contract-compatible."}

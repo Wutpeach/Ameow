@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify event payload and command contract stability after post-processing"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review ffprobe/ffmpeg failure messages and fallback paths"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check blocking process usage and no-panic guarantees"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Validate updated yt-dlp to AE-safe output contract and regression cases"}
+{"file": "src-tauri/src/lib.rs", "reason": "Primary implementation touchpoints: download_video_internal, smart routing, hardware encoder probe, completion emission"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review probe/transcode logs for supportability"}

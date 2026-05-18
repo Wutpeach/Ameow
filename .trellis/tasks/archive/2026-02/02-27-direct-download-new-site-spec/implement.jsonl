@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": "src-tauri/src/lib.rs", "reason": "smart router/direct candidate path reference"}
+{"file": "browser-extension/background.js", "reason": "video_selected payload normalization contract"}
+{"file": "browser-extension/manifest.json", "reason": "content script registration contract"}

@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Download naming crosses config and runtime contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Naming logic spans extension, runtime, and main-process save flows"}

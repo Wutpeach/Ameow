@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": "src/App.tsx", "reason": "Verify main-window behavior described in README"}
+{"file": "README.md", "reason": "Validate rewritten README against current documented behavior"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Verify settings/features described in README"}
+{"file": "src-tauri/src/lib.rs", "reason": "Verify backend/download/extension behavior described in README"}

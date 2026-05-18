@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review inline overlay structure after fix."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review listener and invoke typing after fix."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Review effect cleanup and event handling after fix."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Review local state/ref usage for menu visibility."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows-specific assumptions introduced by menu changes."}

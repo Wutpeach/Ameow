@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review UI refactors against component guidance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review theme/token consistency"}

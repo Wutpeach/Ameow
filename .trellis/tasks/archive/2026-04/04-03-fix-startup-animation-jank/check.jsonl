@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Verify startup motion stays compact and single-owned after defer changes."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review React effect cleanup and startup-state changes."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Validate startup bridge usage and hot-path IPC constraints remain intact."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify deferred startup timing still preserves renderer-main contracts."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Confirm startup timing constants remain centralized."}

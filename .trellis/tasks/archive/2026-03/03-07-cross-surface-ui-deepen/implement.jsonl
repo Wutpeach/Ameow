@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Cross-surface design tokens and UI state patterns"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared component patterns and theming rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Avoid hardcoded values and DOM-style mutation"}

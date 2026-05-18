@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify packaged Electron main resolves helper modules from dist-electron"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Verify macOS packaging/runtime path safety after fix"}

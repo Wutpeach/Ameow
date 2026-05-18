@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Verify detector registration and shared payload behavior stay intact"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify site-specific injection remains separate from global context-menu flow"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review for missed registration/update sites after manifest edits"}

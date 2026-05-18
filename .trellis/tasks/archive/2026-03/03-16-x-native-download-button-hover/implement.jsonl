@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Browser-injected control states should stay site-aware and lightweight without inventing a new visual direction"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep the CSS change scoped and avoid introducing ad-hoc styling drift"}
+{"file": "browser-extension/twitter-detector.js", "reason": "Injection point and class name for the X download button"}
+{"file": "browser-extension/twitter-button.css", "reason": "Primary ownership file for the X download button base and hover styles"}
+{"file": "browser-extension/manifest.json", "reason": "Confirms shared CSS loads before twitter-button.css for the X content script"}

@@ -1,0 +1,14 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows/macOS proxy and certificate assumptions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer contract coverage for advanced mode"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review Rust command/event payload stability"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review new backend logs for consistent >>> prefix usage"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review TS command/event payload alignment"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Review listener cleanup and typed invoke usage in UI additions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review backend implementation against quality guardrails"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review UI changes against existing React/Tauri quality rules"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review new backend work against current command/event patterns"}
+{"file": "src/App.tsx", "reason": "Review main-window state/event integration for advanced mode"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Review settings UI against current persistence patterns"}

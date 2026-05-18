@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Extension popup/background async status patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Connection status crosses extension UI and desktop WS bridge"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Preserve extension <-> Rust WS contract while fixing status handling"}

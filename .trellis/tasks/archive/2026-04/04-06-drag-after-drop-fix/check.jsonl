@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Compact window interaction state and timer/drag guard contracts"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Electron current-window bridge and main panel interaction contract"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend cleanup and interaction safety rules"}

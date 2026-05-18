@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Portable artifact naming and release asset contract"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Bundled runtime binary layout for portable packaging"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows portable ZIP packaging fallback and artifact contents"}

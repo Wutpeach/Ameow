@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Compact main window hover/expand/collapse handoff for icon mode transitions."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Timer and ref patterns for window hover, drag, and event cleanup."}

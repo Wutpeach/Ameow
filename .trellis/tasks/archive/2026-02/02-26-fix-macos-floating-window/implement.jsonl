@@ -1,0 +1,14 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/api-module.md", "reason": "API module conventions"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Code quality requirements"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "minimize and window-state hooks"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "frontend event/invoke quality constraints"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "rust command error style"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "backend log convention"}
+{"file": "src/App.tsx", "reason": "current icon-mode and hide behavior"}
+{"file": "src-tauri/src/lib.rs", "reason": "window show/hide and tray integration"}
+{"file": "src-tauri/tauri.conf.json", "reason": "main window baseline config"}

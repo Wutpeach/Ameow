@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify investigation logging stays scoped and avoids noisy permanent logs"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify payload fields survive detector to background to runtime without unintended drift"}
+{"file": "browser-extension/background.js", "reason": "Check the exact forwarded payload for injected video selection requests"}
+{"file": "electron/main.mts", "reason": "Check packaged runtime normalization and yt-dlp args used for websocket-originated downloads"}
+{"file": "src/electron-runtime/ytDlpDownload.ts", "reason": "Check shared yt-dlp arg shaping parity and any future regression coverage points"}
+{"file": "src/electron-runtime/ytDlpDownload.test.ts", "reason": "Existing test file for asserting yt-dlp argument composition when adding investigation-safe verification"}

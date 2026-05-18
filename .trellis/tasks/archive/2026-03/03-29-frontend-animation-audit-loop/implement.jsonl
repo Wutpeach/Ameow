@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and required React patterns"}
+{"file": "src/contexts/ThemeContext.tsx", "reason": "Theme parsing and ThemeProvider initialTheme contract"}

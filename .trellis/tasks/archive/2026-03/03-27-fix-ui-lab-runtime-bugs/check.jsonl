@@ -1,0 +1,7 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Validate React/Tauri/Electron UI changes and cleanup"}
+{"file": "src/App.tsx", "reason": "Main window drag and runtime indicator pattern"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Ensure runtime bootstrap failures surface explicit errors"}
+{"file": "src/pages/UiLabPage.tsx", "reason": "UI Lab scenario page pattern"}
+{"file": "electron/main.mts", "reason": "Electron runtime bootstrap and UI Lab overrides"}

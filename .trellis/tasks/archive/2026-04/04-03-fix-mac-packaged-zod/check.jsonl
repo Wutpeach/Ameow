@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Ensure dependency declaration remains single-source and non-duplicated."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify packaged app still matches runtime packaging contract."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review runtime-facing packaging fix scope and quality."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Verify macOS packaged artifact behavior after rebuild."}

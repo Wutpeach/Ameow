@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Tauri config bootstrap and event listener patterns for React i18n init"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Config-backed runtime state and initial hydration for language fallback"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer language contract spans desktop, extension, and Tauri resources"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed command/event contracts for language event names and config reads"}

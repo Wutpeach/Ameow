@@ -1,0 +1,52 @@
+{
+  "id": "download-architecture-brainstorm",
+  "name": "download-architecture-brainstorm",
+  "title": "brainstorm: 规整下载站点架构与扩展流程",
+  "description": "",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "download-architecture",
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-30",
+  "completedAt": "2026-03-30",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 2,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": "2fb72d8",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "browser-extension/background.js",
+    "electron/main.mts",
+    "electron/videoHintNormalization.mts",
+    "src/core/site-hints.ts",
+    "src/electron-runtime/commandRouter.ts",
+    "src/sites/index.ts"
+  ],
+  "notes": "2026-03-30: The architecture foundation landed in commit eae2f48. Follow-up provider migration landed in 45f7b23 for Bilibili, Twitter/X, and Xiaohongshu. Cross-layer payload slimming and runtime-owned site-hint normalization landed in 2fb72d8 with backward-compatible video_selected_v2 support. Candidate ordering authority now lives in runtime normalization, so background no longer reorders platform candidates before queueing. Remaining work focuses on long-term video_selected_v2 consolidation, broader provider fixtures/e2e coverage, and deferred cleanup of historical Pinterest sidecar assets/docs.",
+  "meta": {}
+}

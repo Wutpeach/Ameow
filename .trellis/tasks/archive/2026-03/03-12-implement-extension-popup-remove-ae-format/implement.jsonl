@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis\\tasks\\03-11-implement-desktop-transcode-queue-ui\\prd.md", "reason": "Phase 2 desktop queue behavior the popup hint should now align with"}
+{"file": ".trellis\\tasks\\03-11-brainstorm-redesign-extension-ae-format-option\\prd.md", "reason": "Original product decisions for removing AE Format and adding Highest hint"}
+{"file": "browser-extension\\popup.css", "reason": "Current popup layout constraints and styles"}
+{"file": "browser-extension\\popup.html", "reason": "Current popup structure including the AE Format card"}
+{"file": "browser-extension\\popup.js", "reason": "Current popup quality rendering and AE toggle behavior"}
+{"file": "browser-extension\\direct-download-quality.js", "reason": "Current quality preference and AE preference storage helpers"}
+{"file": "browser-extension\\background.js", "reason": "Current extension request/sync payloads still sending aeFriendlyConversionEnabled"}
+{"file": "locales\\en\\extension.json", "reason": "Current English popup copy including AE Format text"}
+{"file": "locales\\zh-CN\\extension.json", "reason": "Current Simplified Chinese popup copy including AE Format text"}

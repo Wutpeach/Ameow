@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep frontend changes typed and add tests for placement logic"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "UI Lab launch position should follow shared placement math"}
+{"file": "src/App.tsx", "reason": "Existing settings window placement logic to be reused"}

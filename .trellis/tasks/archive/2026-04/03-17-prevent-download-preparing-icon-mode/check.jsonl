@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify frontend behavior remains correct under queue event ordering differences"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Re-check busy-state derivation and no stale closure regressions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Re-check idle timer cleanup and listener behavior after the fix"}

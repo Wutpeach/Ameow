@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review failure propagation and retry/remove command behavior"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify command and event payload stability after split queue changes"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review download/transcode scheduler interactions and cleanup behavior"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality pass for large lib.rs changes"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review event and command boundary consistency"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review queue/transcode lifecycle logs"}

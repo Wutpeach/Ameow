@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis\\tasks\\03-11-brainstorm-redesign-extension-ae-format-option\\prd.md", "reason": "Original product decisions behind the AE Format removal and transcode queue redesign"}
+{"file": ".trellis\\tasks\\03-11-implement-desktop-transcode-queue-ui\\prd.md", "reason": "Phase 2 desktop queue behavior impacted by false-positive transcode enqueueing"}
+{"file": "browser-extension\\popup.js", "reason": "Current popup hint rendering for Highest quality"}
+{"file": "browser-extension\\direct-download-quality.js", "reason": "Current quality storage helpers and normalization"}
+{"file": "browser-extension\\youtube-detector.js", "reason": "Current YouTube message payload and canonical watch URL builder"}
+{"file": "browser-extension\\background.js", "reason": "Current extension request path sending ytdlpQualityPreference"}
+{"file": "src-tauri\\src\\lib.rs", "reason": "Current yt-dlp invocation, quality sort rules, and ffprobe-based AE-safe detection"}
+{"file": ".trellis\\spec\\backend\\type-safety.md", "reason": "Backend event contract for download completion and transcode queue behavior"}

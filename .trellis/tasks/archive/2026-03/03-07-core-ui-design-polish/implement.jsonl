@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "UI component patterns and theming guidance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Avoid hardcoded theme values and preserve frontend quality rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Keep typed frontend contracts intact while refactoring UI"}

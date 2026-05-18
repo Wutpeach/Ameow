@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Backend logging format for any WebSocket lifecycle instrumentation"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error propagation for WebSocket lifecycle changes"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Cross-layer WebSocket payload and lifecycle contract references"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Extension-to-desktop reconnect bug spans browser worker and Rust backend boundary"}
+{"file": "src-tauri/src/lib.rs", "reason": "Desktop WebSocket server startup and message handling lifecycle"}
+{"file": "browser-extension/background.js", "reason": "Existing extension WebSocket connection and reconnect state machine"}

@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Runtime binary contract expectations and target naming"}
+{"file": ".github/workflows/release.yml", "reason": "Existing release workflow pattern and artifact publishing steps"}
+{"file": ".trellis/spec/backend/pinterest-sidecar-maintenance-contracts.md", "reason": "Pinned sidecar build and release maintenance contracts"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Release process constraints and required artifacts"}
+{"file": "scripts/smoke-pinterest-sidecar.mjs", "reason": "Current sidecar smoke verification contract"}
+{"file": "scripts/build-pinterest-sidecar.mjs", "reason": "Current sidecar build command and target output naming"}
+{"file": "src-tauri/pinterest-sidecar/lock.json", "reason": "Source of truth for sidecar and upstream versions"}

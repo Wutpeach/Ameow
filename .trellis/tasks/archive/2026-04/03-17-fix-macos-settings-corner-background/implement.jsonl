@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend styling fix must keep theme tokens and avoid hardcoded colors"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Settings window shell should preserve FlowSelect style while avoiding transparent corner leakage on macOS"}

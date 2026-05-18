@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Rust command/config updates must preserve descriptive Result<String, String> errors"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "New backend preference sync should use existing >>> [Rust] logging style"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Preference sync changes cross-layer WS/config contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Bug spans extension storage, websocket bridge, config, and download queue"}
+{"file": "src-tauri/src/lib.rs", "reason": "Examples: ws action handling, config persistence, queued video defaults"}
+{"file": "browser-extension/background.js", "reason": "Example: extension websocket actions and connection lifecycle"}
+{"file": "browser-extension/direct-download-quality.js", "reason": "Source of truth for preference keys/defaults"}

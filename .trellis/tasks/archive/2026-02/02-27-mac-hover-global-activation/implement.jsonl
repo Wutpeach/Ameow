@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Handle listener failures without crashing"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Use >>> logging for permission/listener status"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep Rust/Tauri contracts stable"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "macOS-only code must be cfg-guarded"}
+{"file": "src-tauri/src/lib.rs", "reason": "Follow existing show_main_window and setup patterns"}

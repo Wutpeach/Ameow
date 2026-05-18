@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Generator and loader paths must surface descriptive validation and fetch errors"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Typed seed/schema/runtime loader contracts for the new capability registry foundation"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Centralize capability constants, parsing helpers, and status enums for later probe/telemetry reuse"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Keep new backend/runtime support code aligned with project quality rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Define the doc-source to seed to runtime contract before provider migration starts"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "The seed generator must stay cross-platform and outside the Electron runtime path"}

@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis\\tasks\\03-11-brainstorm-redesign-extension-ae-format-option\\prd.md", "reason": "Product decisions for queue split and desktop UX"}
+{"file": ".trellis\\tasks\\03-11-implement-backend-transcode-queue-model\\prd.md", "reason": "Phase 1 backend scope and queue semantics"}
+{"file": ".trellis\\spec\\backend\\type-safety.md", "reason": "Backend event and command contract for video-transcode queue"}
+{"file": "src\\contexts\\ThemeContext.tsx", "reason": "Current theme tokens for queue badge and progress colors"}
+{"file": "src\\App.tsx", "reason": "Current desktop queue badge, queue panel, and center progress implementation"}
+{"file": "locales\\zh-CN\\desktop.json", "reason": "Current Simplified Chinese queue and progress copy"}
+{"file": "locales\\en\\desktop.json", "reason": "Current English queue and progress copy"}

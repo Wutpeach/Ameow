@@ -1,0 +1,33 @@
+{
+  "id": "phase-out-videodl-direct-ytdlp",
+  "name": "phase-out-videodl-direct-ytdlp",
+  "title": "Phase out videodl with strengthened direct scripts and yt-dlp fallback",
+  "description": "",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "video-download-routing",
+  "priority": "P2",
+  "creator": "Mabel",
+  "assignee": "Mabel",
+  "createdAt": "2026-02-26",
+  "completedAt": "2026-02-26",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 4,
+  "next_action": [
+    {
+      "phase": 4,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [],
+  "notes": "Phase 0 observability landed with DownloadTrace taxonomy and baseline template. Hotfixes completed for yt-dlp/videodl sidecar wrappers, YouTube runtime stability, default videodl-off testing gate, and direct-download cancellation UX correctness. Phase 1 direct candidate contract hardening landed: extension now sends optional videoCandidates, backend selects safe direct candidate for Douyin/XHS, and non-direct candidate cases fallback to smart router by pageUrl. Phase 2 core hardening landed in backend: candidate policy (cache -> videoUrl -> videoCandidates), one-step direct retry, smart fallback by pageUrl, and stage-oriented trace/error reporting. Phase 3 routing migration landed with yt-dlp-first policy and hidden canary videodl fallback switch. Phase 4 readiness tooling added via .trellis/scripts/download_trace_report.py for 3-day baseline and 7-day deletion-gate report generation from DownloadTrace logs."
+}

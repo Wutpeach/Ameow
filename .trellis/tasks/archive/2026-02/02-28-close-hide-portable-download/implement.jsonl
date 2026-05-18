@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "UI close button behavior and component interaction"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Frontend event listener and state transition patterns"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Return descriptive errors across command boundaries"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Consistent backend diagnostic logging for download path"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "yt-dlp sidecar runtime and path contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Frontend/extension/backend download flow boundary checks"}
+{"file": "src/App.tsx", "reason": "Existing close button, download completion UI and event handling patterns"}
+{"file": "src-tauri/src/lib.rs", "reason": "Window close interception and video download sidecar execution path"}
+{"file": ".github/workflows/release.yml", "reason": "Windows portable packaging layout for runtime binaries"}

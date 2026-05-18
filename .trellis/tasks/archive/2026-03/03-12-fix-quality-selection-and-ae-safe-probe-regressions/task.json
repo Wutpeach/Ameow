@@ -1,0 +1,49 @@
+{
+  "id": "fix-quality-selection-and-ae-safe-probe-regressions",
+  "name": "fix-quality-selection-and-ae-safe-probe-regressions",
+  "title": "fix quality selection and ae-safe probe regressions",
+  "description": "Cross-layer bugfix for two post-redesign regressions: quality selection/runtime consistency in the extension popup and false-positive transcode queueing caused by ffprobe path assumptions.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "extension-and-backend",
+  "priority": "P1",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-12",
+  "completedAt": "2026-03-12",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "browser-extension/popup.html",
+    "browser-extension/popup.js",
+    "browser-extension/direct-download-quality.js",
+    "browser-extension/background.js",
+    "browser-extension/youtube-detector.js",
+    "src-tauri/src/lib.rs",
+    ".trellis/spec/backend/type-safety.md"
+  ],
+  "notes": ""
+}

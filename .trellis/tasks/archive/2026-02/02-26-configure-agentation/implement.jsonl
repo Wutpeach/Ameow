@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "React component integration standards"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality constraints"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript type safety rules"}
+{"file": "src/main.tsx", "reason": "App root composition pattern"}

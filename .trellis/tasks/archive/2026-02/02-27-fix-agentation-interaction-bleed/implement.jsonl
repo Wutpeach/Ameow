@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Global event listener setup and cleanup pattern"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Keep DOM/Tauri boundary typing strict"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Error-safe event handling and cleanup requirements"}
+{"file": "src/components/AgentationDevTools.tsx", "reason": "Existing agentation integration point"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Affected interaction example (rename preset select)"}

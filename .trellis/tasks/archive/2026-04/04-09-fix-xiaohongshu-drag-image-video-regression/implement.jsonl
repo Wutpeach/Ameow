@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Xiaohongshu drag flows cross renderer, extension background, and desktop runtime."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Renderer drag logic and extension DOM contracts must stay scoped and safe."}
+pply."}

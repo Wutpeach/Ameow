@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Validate updated frontend type contracts"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Ensure index references new backend type-safety spec"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Validate new backend type-safety contracts"}

@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": "scripts/update-version.mjs", "reason": "Check touched files against the current version-set script behavior"}
+{"file": "README.md", "reason": "Check release-note expectations against repo docs"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Check the bump follows the repo release-prep contract"}

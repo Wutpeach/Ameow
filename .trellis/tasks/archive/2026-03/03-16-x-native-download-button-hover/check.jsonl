@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review browser-injected control states against FlowSelect's site-aware lightweight pattern"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review that the fix stays small and avoids style regressions"}
+{"file": "browser-extension/twitter-button.css", "reason": "Review the final X button shape, idle background, and hover state"}

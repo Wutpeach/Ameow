@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "release-notes/README.md", "reason": "Release note file naming and authoring rules"}
+{"file": ".trellis/tasks/archive/2026-03/03-12-bump-version-0-2-6-and-build-portable/prd.md", "reason": "Version target and packaging context for 0.2.6"}
+{"file": "release-notes/v0.2.5.md", "reason": "Existing stable release note tone and compare-link caveat pattern"}

@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/index.md", "reason": "verify release flow remains aligned with backend architecture"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "check windows/macos workflow parity"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "verify sidecar contract after removing videodl packaging"}
+{"file": ".github/workflows/release.yml", "reason": "ensure no stale videodl references remain"}

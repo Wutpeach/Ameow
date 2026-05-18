@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review injected control state and copy consistency"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review duplicated clip-clear logic across detectors"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review interaction change quality"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Validate Bilibili clip clear behavior against existing state flow"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Validate YouTube clip clear behavior against existing state flow"}

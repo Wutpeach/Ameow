@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify quality constraints"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify component integration"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify typing"}
+{"file": "src/main.tsx", "reason": "Verify root integration"}

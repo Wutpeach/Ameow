@@ -1,0 +1,9 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Verify macOS-specific behavior did not regress other platforms"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify command boundary stays unchanged"}
+{"file": "src-tauri/src/lib.rs", "reason": "Confirm folder-open contract and no backend regression"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify event cleanup and invoke usage"}
+{"file": "src/App.tsx", "reason": "Review main panel interaction changes"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify double-click to folder-open flow across layers"}

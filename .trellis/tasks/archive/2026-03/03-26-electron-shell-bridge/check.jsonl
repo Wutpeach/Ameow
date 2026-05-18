@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Review renderer lifecycle migration away from Tauri listeners and commands"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review typed bridge usage in renderer code"}

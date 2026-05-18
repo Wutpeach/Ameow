@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Language dropdown uses local component state while preserving existing persisted language change flow."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep the component change within frontend quality constraints and reuse existing theme tokens."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Dropdown open/close behavior will use local state, refs, outside-click and Escape dismissal patterns."}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Owner file for the language selector and the existing compact dropdown/menu pattern to follow."}
+{"file": "src/components/ui/neon-field-button.tsx", "reason": "Reusable field-action trigger pattern for the dropdown control."}

@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Need source-of-truth precedence between pageUrl, active video, and context-menu signals across extension/background/runtime boundaries."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Browser extension popup/content-script changes must avoid brittle injection patterns, edit locale source files, and keep third-party DOM work scoped."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Need to reuse and extend existing video_selection routing and helper patterns instead of duplicating detection logic."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Cross-layer payloads for runtime messages and desktop queueing must stay typed and guarded."}

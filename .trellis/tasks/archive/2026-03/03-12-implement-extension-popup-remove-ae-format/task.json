@@ -1,0 +1,49 @@
+{
+  "id": "implement-extension-popup-remove-ae-format",
+  "name": "implement-extension-popup-remove-ae-format",
+  "title": "implement extension popup remove ae format",
+  "description": "Phase 3 browser extension work: remove the popup AE Format toggle, add the Highest transcode hint, and retire popup-side AE preference wiring.",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": "browser-extension",
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-12",
+  "completedAt": "2026-03-12",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "browser-extension/popup.html",
+    "browser-extension/popup.js",
+    "browser-extension/popup.css",
+    "browser-extension/direct-download-quality.js",
+    "browser-extension/background.js",
+    "locales/en/extension.json",
+    "locales/zh-CN/extension.json"
+  ],
+  "notes": ""
+}

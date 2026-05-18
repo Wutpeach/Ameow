@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Panel elevation should come from semantic theme tokens."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared UI surfaces should prefer shared style helpers and token-driven inline styles."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Search-first and shared-token reuse are required for this style update."}
+{"file": "src/contexts/ThemeContext.tsx", "reason": "ThemeContext owns the reusable panel elevation tokens."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep theme styling token-driven and avoid duplicated hardcoded shadow values."}
+{"file": "src/components/ui/shared-styles.ts", "reason": "Shared panel/window helpers consume panel shadow tokens."}

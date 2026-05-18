@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "App drag-drop flow lives in a component and should follow existing component patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Keep invoke<string> image command contracts aligned while touching App drag handlers"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Image/data-url commands must keep descriptive Result<String, String> failures"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Image drag fallback and support-log evidence cross frontend drag parsing and backend runtime export"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Add diagnosable image runtime breadcrumbs using established logging conventions"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep Tauri image command signatures stable while extending backend behavior"}
+{"file": "src/App.tsx", "reason": "Existing drag-drop routing and image handling entry point"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing Pinterest HTML parsing patterns instead of duplicating ad hoc logic"}
+{"file": "src/utils/pinterest.ts", "reason": "Reference HTML parsing patterns for extracting media hints from dropped markup"}
+{"file": "src-tauri/src/lib.rs", "reason": "Image download, data-url save, runtime logging, and support-log export pipeline live here"}

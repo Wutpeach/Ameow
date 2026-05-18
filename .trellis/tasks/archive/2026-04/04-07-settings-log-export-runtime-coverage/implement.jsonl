@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Settings version interaction UI pattern"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Timer/ref cleanup for Settings interaction"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Typed renderer invoke error handling"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime log capture and export behavior"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Settings gesture to desktop log export cross-layer contract"}
+{"file": "electron/main.mts", "reason": "Existing support log export and yt-dlp output handling"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Existing version tap/export implementation"}

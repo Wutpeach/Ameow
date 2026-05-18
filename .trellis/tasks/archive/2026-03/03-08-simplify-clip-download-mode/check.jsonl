@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review extension->backend->AE-safe flow after changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify settings/extension contract consistency"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify backend config and download routing remain aligned"}

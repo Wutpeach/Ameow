@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "UI and interaction quality checks"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend error handling/logging checks"}
+{"file": "src/App.tsx", "reason": "Verify button visibility and click flow"}
+{"file": "src-tauri/src/lib.rs", "reason": "Verify counter reset logic"}

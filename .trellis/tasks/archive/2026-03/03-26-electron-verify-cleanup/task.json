@@ -1,0 +1,53 @@
+{
+  "id": "electron-verify-cleanup",
+  "name": "electron-verify-cleanup",
+  "title": "Electron verification and Tauri removal",
+  "description": "Run parity verification, finalize release acceptance, and remove obsolete Tauri dependencies and source once Electron has reached feature parity.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "verification-and-cleanup",
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-26",
+  "completedAt": "2026-03-27",
+  "branch": "task/03-26-electron-verify-cleanup",
+  "base_branch": "main",
+  "worktree_path": "D:\\trellis-worktrees\\task\\03-26-electron-verify-cleanup",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/",
+    "browser-extension/",
+    "scripts/",
+    "package.json",
+    "src-tauri/",
+    "README.md",
+    "README.en.md"
+  ],
+  "notes": "This task owns the final parity gate, regression matrix, and removal of dead Tauri codepaths. Do not delete `src-tauri/` or Tauri dependencies before the Electron release pipeline and acceptance checks are green.",
+  "meta": {}
+}

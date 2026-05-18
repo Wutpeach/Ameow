@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review injected control structure after icon swap"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Verify icon constants are used only by YouTube clip buttons"}
+{"file": "browser-extension/youtube-button.css", "reason": "Verify CSS still matches updated SVG structure"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review visual consistency of injected controls after icon swap"}

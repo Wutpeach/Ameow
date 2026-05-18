@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "validate typed keyboard event guards"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "validate listener cleanup and effect dependencies"}
+{"file": "src/index.css", "reason": "verify compact mode selector scope"}
+{"file": "src/main.tsx", "reason": "verify dev-only wrapper behavior"}

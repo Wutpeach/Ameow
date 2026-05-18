@@ -1,0 +1,8 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify reveal path and bridge contract stay intact after startup changes"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Review startup animation ownership and first-paint flicker risks"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify startup readiness and reveal boundaries across layers"}
+{"file": "electron/main.mts", "reason": "Review startup reveal path for regressions between startup and interactive show"}
+{"file": "electron/windowVisibility.mts", "reason": "Review bounds policy for compact startup vs full reveal"}
+{"file": "src/App.tsx", "reason": "Review first-paint motion and minimized native-shell state"}

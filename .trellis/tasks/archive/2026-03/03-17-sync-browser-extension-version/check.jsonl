@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Verify script changes do not break cross-platform packaging assumptions."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Confirm there is still a single source of truth for version updates."}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Verify version:set remains the single version bump entrypoint and release asset contract still holds."}

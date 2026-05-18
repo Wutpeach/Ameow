@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Tauri invoke patterns and focused paste event handling"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "New command/plugin boundary must stay cross-layer safe"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Clipboard image paste spans frontend event, Tauri plugin, and save pipeline"}

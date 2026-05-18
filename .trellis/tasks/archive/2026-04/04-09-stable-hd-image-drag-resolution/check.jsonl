@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify typed invoke usage and no any in new image upgrade helpers"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Review helper extraction and avoid copy-paste logic across drag paths"}

@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Review release/version process continuity"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review packaging parity and artifact assumptions"}

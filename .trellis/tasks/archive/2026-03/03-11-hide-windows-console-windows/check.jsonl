@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Check Windows runtime child-process behavior"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Check Windows-specific process-launch assumptions"}

@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify connection retry and queue handoff across extension and desktop app"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Ensure all video_selected call sites stay on one shared retry mechanism"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Compact window interaction state machine, shared timers, and DOM hover reconciliation."}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Single-shell compact/full morph timing, hover handoff, and stale-transition guards."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Compact/full BrowserWindow bounds, interaction-mode bridge, and no overlay-window contract."}

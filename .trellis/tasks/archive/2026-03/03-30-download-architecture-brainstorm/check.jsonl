@@ -1,0 +1,7 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Validate shared video_selected payload and direct-route contract"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Validate Electron runtime provider-orchestrator and queue contracts"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Validate command and event payload type contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Validate descriptive runtime errors and propagation"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Validate cross-layer authority and validation rules"}

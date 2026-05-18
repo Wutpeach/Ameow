@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend review for state, cleanup, and error handling"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify cancel semantics and queue cleanup errors"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review queue cancellation and state broadcast logs"}
+{"file": "src/App.tsx", "reason": "Existing queue badge, progress ring, and cancel interaction pattern"}
+{"file": "src-tauri/src/lib.rs", "reason": "Existing queued task lifecycle and global cancel implementation"}

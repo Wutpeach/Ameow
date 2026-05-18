@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Validate the new capability data contracts during the quality pass"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify the seed/runtime contract stays aligned during the check pass"}

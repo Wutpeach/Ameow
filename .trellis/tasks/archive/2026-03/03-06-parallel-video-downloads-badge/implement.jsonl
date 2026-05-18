@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed listeners and UI behavior for queue badge / progress state"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Current queue semantics to update from serialized to parallel"}
+{"file": "src-tauri/src/lib.rs", "reason": "Existing serialized video queue and download process state"}
+{"file": "src/App.tsx", "reason": "Main window queue/progress aggregation and badge UI"}
+{"file": "src/contexts/ThemeContext.tsx", "reason": "Queue badge/status theme tokens"}

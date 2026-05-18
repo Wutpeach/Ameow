@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/api-module.md", "reason": "API module conventions"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Code quality requirements"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Avoid blocking in async command for image download"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve Result<String, String> and descriptive map_err"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep >>> [Rust] logging continuity for diagnostics"}
+{"file": "src-tauri/src/lib.rs", "reason": "Follow existing async reqwest and URL normalization patterns"}

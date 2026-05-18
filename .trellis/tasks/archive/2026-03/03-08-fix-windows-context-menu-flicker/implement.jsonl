@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Context menu is a React window surface and must keep component patterns consistent."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Fix likely involves window focus/blur listeners and cleanup timing."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Tauri window APIs and listeners should remain explicitly typed and safe."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Bug is Windows-specific and tied to native focus behavior."}

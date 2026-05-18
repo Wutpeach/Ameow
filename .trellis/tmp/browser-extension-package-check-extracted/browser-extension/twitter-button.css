@@ -1,0 +1,68 @@
+/* FlowSelect Browser Extension - Twitter Download Button Styles */
+
+:root {
+  --flowselect-site-accent: rgb(29, 155, 240);
+  --flowselect-site-accent-soft: rgba(29, 155, 240, 0.14);
+}
+
+.flowselect-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  flex: 0 0 36px;
+  align-self: stretch;
+  position: relative;
+  color: rgb(113, 118, 123);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  line-height: 0;
+  font-size: 0;
+  transition: color 0.18s ease;
+}
+
+.flowselect-download-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  background-color: transparent;
+  transform: translate(-50%, -50%);
+  transition: background-color 0.18s ease;
+}
+
+.flowselect-download-btn:hover {
+  color: var(--flowselect-site-accent);
+}
+
+.flowselect-download-btn:hover::before {
+  background-color: var(--flowselect-site-accent-soft);
+}
+
+.flowselect-download-btn:active::before {
+  background-color: rgba(29, 155, 240, 0.2);
+}
+
+.flowselect-download-btn svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 20px;
+  height: 20px;
+  color: currentColor;
+  fill: currentColor;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.flowselect-download-btn svg * {
+  fill: currentColor;
+}

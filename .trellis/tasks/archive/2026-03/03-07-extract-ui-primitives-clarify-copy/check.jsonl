@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify extracted components follow component patterns"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review design-system consistency after extraction"}

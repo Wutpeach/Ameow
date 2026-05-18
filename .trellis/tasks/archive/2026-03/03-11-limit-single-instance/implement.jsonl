@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve descriptive Rust errors in startup callback and builder setup."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Log duplicate-launch handling with the existing >>> backend log format."}
+{"file": "src-tauri/src/lib.rs", "reason": "Reuse the existing show_main_window helper and plugin registration patterns in run()."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Keep the startup-path change aligned with backend quality rules."}

@@ -1,0 +1,13 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Validate direct/fallback behavior against pattern guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer message contracts"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Check command and payload type safety"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check explicit error emission and completion events"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check observability and log prefixes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check no unwrap/blocking anti-patterns"}
+{"file": "src-tauri/src/lib.rs", "reason": "Check download router and fallback code paths"}
+{"file": "browser-extension/background.js", "reason": "Check extension->backend payload integrity"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Check direct URL extraction quality and m3u8 handling"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Check UX state and migration toggles"}

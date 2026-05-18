@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Injected browser control composition and DOM button patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality constraints for extension-side UI changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Existing video_selected clip payload contract remains unchanged"}
+{"file": "browser-extension/flowselect-shared.css", "reason": "Shared control hover and active state coverage"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Reference implementation for clip point state and button behavior"}
+{"file": "browser-extension/bilibili-button.css", "reason": "Current Bilibili control visual rules"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Current Bilibili control injection and screenshot behavior"}

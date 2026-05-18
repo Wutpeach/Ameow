@@ -1,0 +1,45 @@
+{
+  "id": "fix-mac-panel-interactions-and-slow-video-prepare",
+  "name": "fix-mac-panel-interactions-and-slow-video-prepare",
+  "title": "Fix mac panel interactions and slow video prepare",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-MAC",
+  "assignee": "Mabel-MAC",
+  "createdAt": "2026-04-04",
+  "completedAt": "2026-04-04",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

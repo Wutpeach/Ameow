@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "BrowserWindow reveal, preload bridge, and tray-first window behavior contract for startup changes"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Compact floating surface first-paint motion rules for startup icon mode"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Startup path crosses renderer, preload, and Electron main"}
+{"file": "electron/main.mts", "reason": "Primary startup reveal path and main-window show logic"}
+{"file": "electron/windowVisibility.mts", "reason": "Startup bounds policy and reveal sizing helper"}
+{"file": "src/App.tsx", "reason": "Compact icon-mode renderer state and native-shell resize behavior"}

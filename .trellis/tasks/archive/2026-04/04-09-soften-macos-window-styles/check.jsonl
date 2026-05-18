@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Verify shadow/icon styling stays aligned with FlowSelect visual language."}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Review minimized shell transitions and macOS plate behavior."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Confirm token-driven styling and frontend quality rules."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Validate platform-specific scope and no regressions in other platforms."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify Electron main-process startup remains resilient when console streams are unavailable."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review Electron logging fix for error-handling quality."}

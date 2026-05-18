@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review extension URL resolution changes against third-party DOM and URL handling guidance."}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Verify payload/fallback behavior remains compatible after adding URL expansion."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check canonical URL precedence and fallback behavior across extension -> runtime boundaries."}

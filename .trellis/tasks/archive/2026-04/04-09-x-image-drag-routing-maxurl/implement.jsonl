@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "typed drag/drop invoke contracts in App.tsx"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "third-party drag DOM contract and frontend error handling"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "extract reusable X drag routing helper instead of growing App.tsx inline"}

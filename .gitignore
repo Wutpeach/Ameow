@@ -36,18 +36,11 @@ gcm-diagnose.log
 *.sw?
 
 # Private maintainer workflow and AI tooling
-.trellis
-.trellis/
-.agents
-.agents/
 .claude/
 .cursor/
-.codex/
 **/.claude/
 **/.cursor/
-**/.codex/
 .mcp.json
-AGENTS.md
 CLAUDE.md
 
 # Desktop runtime binaries (downloaded or built in CI)

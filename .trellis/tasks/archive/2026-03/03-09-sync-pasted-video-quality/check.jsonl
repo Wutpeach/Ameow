@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify errors remain descriptive after config-sync changes"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify preference fields stay aligned across extension and Rust"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify no layer drops quality preference on paste/download path"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review queue/download default preference usage and websocket persistence"}
+{"file": "browser-extension/background.js", "reason": "Review sync points on connect and preference change"}

@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Config contract and yt-dlp selection logic change across backend/frontend boundary"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Task spans extension UI, frontend settings, config contract, and backend runtime routing"}

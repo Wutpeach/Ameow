@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "The transcode progress event payload will gain ETA/status fields and must stay aligned with frontend listeners."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "FFmpeg progress and ETA diagnostics must use backend logging conventions."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend transcode payload types must match any new backend ETA/progress fields."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "The main window listens to transcode events via Tauri listeners and must cleanly merge live progress updates."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This change spans Rust FFmpeg progress parsing, event payloads, and React queue/floating-window rendering."}
+{"file": "src-tauri/src/lib.rs", "reason": "FFmpeg transcode execution, queue state, and transcode event payloads are owned here."}
+{"file": "src/App.tsx", "reason": "The floating window and queue list consume live transcode payloads and render progress/ETA state."}
+{"file": "src-tauri/resources/locales/zh-CN/desktop.json", "reason": "Desktop UI copy will need ETA wording for transcode surfaces."}
+{"file": "src-tauri/resources/locales/en/desktop.json", "reason": "Desktop UI copy will need ETA wording for transcode surfaces."}

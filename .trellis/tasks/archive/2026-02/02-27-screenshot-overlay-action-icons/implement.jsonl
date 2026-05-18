@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "overlay action button structure and styling patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "keep changes minimal and consistent"}
+{"file": "browser-extension/youtube-detector.js", "reason": "overlay action button creation pattern"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "overlay action button creation pattern"}
+{"file": "browser-extension/youtube-button.css", "reason": "overlay button hover styles"}
+{"file": "browser-extension/bilibili-button.css", "reason": "overlay button hover styles"}

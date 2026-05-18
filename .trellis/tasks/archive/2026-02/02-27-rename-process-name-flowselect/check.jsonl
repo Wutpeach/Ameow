@@ -1,0 +1,9 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/backend/index.md", "reason": "verify backend naming/architecture alignment"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "final quality pass for rust changes"}
+{"file": "src-tauri/Cargo.toml", "reason": "ensure renamed package/lib is consistent"}
+{"file": "src-tauri/src/main.rs", "reason": "ensure main entry references new lib crate name"}
+{"file": "package.json", "reason": "ensure package naming consistency"}

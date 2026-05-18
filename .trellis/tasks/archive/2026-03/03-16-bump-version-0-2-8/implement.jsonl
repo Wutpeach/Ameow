@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Version bump and release-note workflow for app releases"}
+{"file": "scripts/update-version.mjs", "reason": "Canonical entrypoint for updating version files and scaffolding release notes"}
+{"file": "README.md", "reason": "Repo-level version bump and release-note convention"}

@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "package.json", "reason": "Update app version"}
+{"file": "src-tauri/Cargo.toml", "reason": "Update Rust package version"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Update Tauri bundle version"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Update version display text"}

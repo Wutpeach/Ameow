@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Check that only the detail-page action button remains and drag behavior stays intact."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review for unused card-button code and scoped extension edits."}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Verify the remaining Pinterest detail button still matches the intended visual emphasis."}

@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed renderer/window bridge contracts for settings and monitor placement paths"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Managed runtime bootstrap and cross-platform desktop runtime contracts"}

@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review for theme literals and packaged file-safe regressions"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review semantic token usage and shared surface consistency"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify repeated window shell and field patterns were actually shared"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Protect packaged desktop renderer behavior across build forms"}

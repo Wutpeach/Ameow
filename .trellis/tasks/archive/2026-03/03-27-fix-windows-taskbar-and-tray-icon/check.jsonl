@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Review tray and BrowserWindow behavior against runtime contract"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Validate Windows-only behavior changes"}
+{"file": "electron/main.mts", "reason": "Verify main window skipTaskbar and tray icon behavior"}
+{"file": "electron-builder.config.mjs", "reason": "Verify packaged icon path remains correct"}

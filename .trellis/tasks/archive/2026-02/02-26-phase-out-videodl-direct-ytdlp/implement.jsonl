@@ -1,0 +1,15 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Current direct+fallback patterns and contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer payload and boundary validation"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust/Tauri command type contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Result-based error propagation rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Consistent logging for download diagnostics"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend forbidden patterns and checklist"}
+{"file": "src-tauri/src/lib.rs", "reason": "Current smart routing and direct download implementation"}
+{"file": "browser-extension/background.js", "reason": "Current cookies and message contract"}
+{"file": "browser-extension/douyin-detector.js", "reason": "Current Douyin extraction strategy"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Current XHS extraction strategy"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Current videodl/ytdlp user settings and health UI"}
+{"file": "src/utils/videoUrl.ts", "reason": "Platform URL routing helpers"}

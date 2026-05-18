@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify compact-window state and completion locks remain coherent"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify progress/complete payloads still match listeners after any fix"}

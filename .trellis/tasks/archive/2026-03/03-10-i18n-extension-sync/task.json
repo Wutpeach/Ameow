@@ -1,0 +1,47 @@
+{
+  "id": "i18n-extension-sync",
+  "name": "i18n-extension-sync",
+  "title": "implement: localize browser extension popup and locale sync",
+  "description": "Browser extension popup localization and locale sync over the existing desktop WebSocket bridge.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": "task/i18n-extension-sync",
+  "base_branch": "main",
+  "worktree_path": "../trellis-worktrees/03-10-i18n-extension-sync",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "browser-extension/background.js",
+    "browser-extension/popup.html",
+    "browser-extension/popup.js",
+    "browser-extension/direct-download-quality.js",
+    "browser-extension/locales/"
+  ],
+  "notes": "Recommended branch: task/i18n-extension-sync. Recommended worktree: ../trellis-worktrees/03-10-i18n-extension-sync. Do not edit Rust or desktop React files. Rebase on top of i18n-foundation and use the agreed language WebSocket contract. See parent worktree guide for create/start/merge commands."
+}

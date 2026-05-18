@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Renderer-to-native animateBounds transition contract and compact/full restore ownership"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared panel surface and motion ownership patterns for App.tsx shell rendering"}

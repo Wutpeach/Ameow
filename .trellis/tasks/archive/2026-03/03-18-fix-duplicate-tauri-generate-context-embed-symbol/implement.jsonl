@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Keep startup-path errors descriptive"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Tauri startup context and builder contract"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "macOS build/dev startup contract"}
+{"file": "src-tauri/src/lib.rs", "reason": "Duplicate generate_context investigation and fix"}

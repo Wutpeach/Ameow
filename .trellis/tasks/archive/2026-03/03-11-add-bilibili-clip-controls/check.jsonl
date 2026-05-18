@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review injected control structure"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify no new cross-layer payload drift"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Verify Bilibili clip controls mirror YouTube behavior"}
+{"file": "browser-extension/flowselect-shared.css", "reason": "Verify shared hover/active coverage includes new classes"}
+{"file": "browser-extension/bilibili-button.css", "reason": "Verify selected and clip-ready styles for new buttons"}

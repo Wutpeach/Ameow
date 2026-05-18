@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend command-event contracts"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend bugfix quality rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend bugfix quality rules"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Backend cross-layer contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error propagation rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer bug analysis"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse before adding helpers"}

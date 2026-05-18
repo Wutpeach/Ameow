@@ -1,0 +1,7 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/pinterest-sidecar-maintenance-contracts.md", "reason": "Validate release changes against sidecar maintenance contracts"}
+{"file": ".github/workflows/release.yml", "reason": "Ensure release workflow keeps compatibility after introducing sidecar pipeline"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer CI manifest contract completeness"}
+{"file": "scripts/build-pinterest-sidecar.mjs", "reason": "Check target artifact naming consistency with manifest entries"}
+{"file": "src-tauri/pinterest-sidecar/lock.json", "reason": "Check manifest version source remains lock.json"}

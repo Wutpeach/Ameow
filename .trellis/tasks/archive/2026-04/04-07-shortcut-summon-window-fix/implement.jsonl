@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Shortcut-show remains a typed renderer event contract and current-window behavior must stay consistent."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Keep shortcut event names and main-window behavior stable while restoring desktop shortcut positioning."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Avoid noisy high-frequency window-position logs while debugging shortcut placement."}

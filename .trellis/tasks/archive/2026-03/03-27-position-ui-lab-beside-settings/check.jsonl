@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review typed utility extraction and tests"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Verify UI Lab now opens beside settings"}
+{"file": "src/App.tsx", "reason": "Verify settings placement still works after extraction"}

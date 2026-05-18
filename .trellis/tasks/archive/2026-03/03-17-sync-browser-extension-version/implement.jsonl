@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Version bumps must flow through npm run version:set and keep release packaging contracts aligned."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "The change touches cross-platform release/tooling scripts and packaging behavior."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Browser extension version should share the existing version:set entrypoint instead of diverging."}

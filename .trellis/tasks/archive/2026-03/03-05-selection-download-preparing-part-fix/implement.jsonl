@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "src-tauri/src/lib.rs", "reason": "yt-dlp progress parse, timeout, and part cleanup"}
+{"file": "src/App.tsx", "reason": "Progress status rendering improvements"}

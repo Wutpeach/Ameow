@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component style and border radius consistency"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality constraints for style fixes"}
+{"file": "src/App.tsx", "reason": "Existing main panel shadow and download UI logic"}

@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Video selection crosses content script, extension background, websocket, and desktop queueing"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "The extension request/response payload with requestId rides the websocket contract into Rust"}
+{"file": "browser-extension/background.js", "reason": "Shared extension websocket request timing and reconnect behavior for all video_selected requests"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Bilibili already guards control-bar readiness before injecting similar download buttons"}

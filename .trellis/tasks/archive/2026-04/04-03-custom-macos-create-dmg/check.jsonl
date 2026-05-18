@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Verify macOS-only packaging assumptions and artifact output remain valid"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify DMG packaging contract and artifact naming remain aligned with release workflow"}

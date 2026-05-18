@@ -1,0 +1,9 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "frontend compliance check"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "backend compliance check"}
+{"file": "src/App.tsx", "reason": "verify minimize UX"}
+{"file": "src-tauri/src/lib.rs", "reason": "verify mac show behavior"}
+{"file": "src-tauri/tauri.conf.json", "reason": "verify window flags"}

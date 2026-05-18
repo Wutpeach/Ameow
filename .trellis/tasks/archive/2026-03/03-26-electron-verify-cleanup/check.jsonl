@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review renderer state after Tauri removal"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review final runtime contract integrity"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows/macOS parity before cleanup"}

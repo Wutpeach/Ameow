@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Compact main-window UI composition and styling rules"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Typed Tauri listen/invoke patterns and listener cleanup"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Cross-layer runtime gate command/event payload contract"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Existing runtime gate UI pattern and actions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Main window consumes backend gate state while staying aligned with queue flow"}
+{"file": "src/types/runtimeDependencies.ts", "reason": "Shared runtime gate/status types"}

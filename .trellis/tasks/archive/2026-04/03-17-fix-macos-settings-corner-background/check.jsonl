@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review token usage and avoid page-local hardcoded styling regressions"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review settings shell against transparent window and shared visual language"}

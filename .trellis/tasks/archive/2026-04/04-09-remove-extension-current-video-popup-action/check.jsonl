@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check pass must confirm locale source edits and no dangling popup references remain."}
+{"file": "browser-extension/popup.js", "reason": "Verify popup action logic removal leaves no dangling DOM or message references."}
+{"file": "browser-extension/popup.html", "reason": "Verify popup layout no longer renders the removed action block."}

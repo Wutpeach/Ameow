@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Inline context menu overlay lives in App.tsx and must follow component patterns."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Context menu open/close behavior depends on React effects and event listener cleanup."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Menu visibility and hover state are local UI state and refs in App.tsx."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Regression is Windows-specific and may come from platform-specific focus event behavior."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Touched Tauri listeners and handlers should remain explicitly typed."}

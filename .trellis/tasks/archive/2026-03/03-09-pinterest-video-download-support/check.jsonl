@@ -1,0 +1,14 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review that data flow and boundary contracts remain explicit"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Review extension injection and direct-route fallback behavior"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Review runtime binary packaging and lookup behavior"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review frontend Tauri typing and event handling"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review Rust command/event payload shape and serde naming"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review that Pinterest download logging follows project conventions"}
+{"file": "browser-extension/douyin-detector.js", "reason": "Compare Pinterest detector behavior against existing platform injection patterns"}
+{"file": "browser-extension/background.js", "reason": "Review shared WS bridge compatibility"}
+{"file": "src/App.tsx", "reason": "Review image-vs-video Pinterest URL handling regressions"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review queue/event completion semantics and runtime integration"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Review runtime binary resources coverage"}

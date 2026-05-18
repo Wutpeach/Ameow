@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Command/event contracts for download completion and failure behavior"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Existing yt-dlp quality-tier and mkv contract to extend with AE-safe normalization"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Consistent logs for probe, transcode, and fallback stages"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error propagation for ffprobe/ffmpeg post-processing"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Keep backend completion events stable while adding post-processing"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Process-spawning and async safety expectations"}

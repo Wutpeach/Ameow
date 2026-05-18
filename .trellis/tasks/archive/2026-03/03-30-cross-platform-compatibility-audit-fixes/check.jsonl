@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron runtime platform contracts"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Cross-platform audit and fixes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Renderer bridge contracts"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality rules"}

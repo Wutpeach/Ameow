@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Compact shell and icon/main window transition contract"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Search all compact-size uses before changing constants"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and magic-number guardrails"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Renderer compact shell must stay aligned with Electron startup bounds"}

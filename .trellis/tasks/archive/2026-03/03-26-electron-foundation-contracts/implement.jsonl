@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Map renderer command and event contracts into preload API replacements"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Inventory current Rust command and event contracts"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Capture downloader and sidecar runtime assumptions before Node porting"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Freeze cross-layer contracts before implementation splits begin"}
+{"file": "src/App.tsx", "reason": "Inventory direct renderer Tauri usage"}
+{"file": "browser-extension/background.js", "reason": "Freeze extension transport contract"}
+{"file": "src-tauri/src/lib.rs", "reason": "Inventory native runtime contract surface"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Capture window, resource, and updater defaults"}

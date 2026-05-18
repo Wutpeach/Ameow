@@ -1,0 +1,37 @@
+{
+  "title": "Migrate to v0.3.0",
+  "description": "Breaking change migration from v0.3.0-rc.5 to v0.3.0",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "migration",
+  "priority": "P1",
+  "creator": "trellis-update",
+  "assignee": "unknown",
+  "createdAt": "2026-02-28",
+  "completedAt": "2026-02-28",
+  "branch": null,
+  "base_branch": null,
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "review-guide"
+    },
+    {
+      "phase": 2,
+      "action": "update-files"
+    },
+    {
+      "phase": 3,
+      "action": "run-migrate"
+    },
+    {
+      "phase": 4,
+      "action": "test"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": []
+}

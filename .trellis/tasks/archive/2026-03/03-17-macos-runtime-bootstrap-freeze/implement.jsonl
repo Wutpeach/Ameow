@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Map frontend idle state, runtime gate events, and Rust bootstrap boundaries before editing."}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Keep compact floating window minimize and restore behavior stable during runtime bootstrap."}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Preserve the contract that managed runtime bootstrap starts after first paint and status refresh stays inspection-only."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Coordinate local state and refs for isMinimized, idle timers, and runtime gate UI."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep runtime dependency command/event contracts unchanged while fixing behavior."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Follow Tauri event listener cleanup and ref-based idle timer patterns in App.tsx."}
+{"file": "src/App.tsx", "reason": "Primary frontend ownership for idle minimize, runtime gate listeners, and startup bootstrap timing."}
+{"file": "src-tauri/src/lib.rs", "reason": "Rust ownership for runtime dependency status probes, gate events, and macOS hover activation monitor."}

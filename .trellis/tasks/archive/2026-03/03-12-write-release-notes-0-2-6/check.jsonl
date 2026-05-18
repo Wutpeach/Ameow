@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/tasks/archive/2026-03/03-12-fix-quality-selection-and-ae-safe-probe-regressions/prd.md", "reason": "Ensure fixes mentioned are user-facing and accurate"}
+{"file": "release-notes/README.md", "reason": "Validate release note structure and compare link requirements"}
+{"file": "release-notes/v0.2.5.md", "reason": "Match prior release note style and tone"}

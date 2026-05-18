@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify Electron runtime download progress contract"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify emitted download progress payload semantics"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify frontend-facing stage coverage remains intact"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify download text-to-event transformation across runtime boundary"}

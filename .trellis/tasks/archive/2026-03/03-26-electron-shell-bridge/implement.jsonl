@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Renderer migration must replace invoke/listen lifecycles safely"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed bridge surface should match existing renderer contract expectations"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Existing shared config/theme flows inform bridge ownership and state hydration"}
+{"file": "src/main.tsx", "reason": "Renderer bootstrap entrypoint will need Electron startup wiring"}
+{"file": "src/App.tsx", "reason": "Main window is the largest direct Tauri consumer in the renderer"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Settings surface uses several Tauri plugins and commands"}
+{"file": "src/pages/ContextMenuPage.tsx", "reason": "Dedicated child-window interaction model must be preserved in Electron"}
+{"file": "vite.config.ts", "reason": "Vite dev assumptions currently reflect Tauri integration"}

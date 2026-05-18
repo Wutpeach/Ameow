@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify release process requirements and touched files"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Verify version bump and release-notes completeness"}

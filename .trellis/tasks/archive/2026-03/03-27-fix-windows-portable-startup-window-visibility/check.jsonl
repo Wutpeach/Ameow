@@ -1,0 +1,8 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify startup visibility fix preserves Electron window/tray contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review errors surfaced by startup flow changes"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review any new diagnostics for logging consistency"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify main-process fix follows backend quality rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check startup flow from Electron main to renderer visible state"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows-specific startup behavior after the fix"}

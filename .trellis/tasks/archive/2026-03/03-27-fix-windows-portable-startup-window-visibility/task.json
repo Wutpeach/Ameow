@@ -1,0 +1,52 @@
+{
+  "id": "fix-windows-portable-startup-window-visibility",
+  "name": "fix-windows-portable-startup-window-visibility",
+  "title": "Fix Windows portable startup window visibility",
+  "description": "Restore discoverable packaged-Windows startup while keeping the portable main window and settings UI visually aligned with the development build.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-27",
+  "completedAt": "2026-03-28",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 1,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "electron/main.mts",
+    "electron/windowVisibility.mts",
+    "scripts/package-portable.ps1",
+    "src/App.tsx",
+    "src/utils/startupWindowState.ts",
+    "src/pages/SettingsPage.tsx"
+  ],
+  "notes": "As of 2026-03-28, the long-running blank-window regression has a confirmed packaged-renderer root cause: Vite production output was still emitting root-relative /assets/... URLs while Electron packaged BrowserWindows load dist/index.html over file://. That caused main and settings to show only their native host backgrounds with no React JS/CSS loaded, which was repeatedly misread as a transparent-window/compositor failure. The build base has now been corrected to emit ./assets/... for packaged output. Remaining work is narrowed back to true packaged-Windows shell parity and styling, not renderer non-loading.",
+  "meta": {}
+}

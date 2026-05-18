@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Download queue and progress events must stay compatible during porting"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Downloader/runtime failures should remain descriptive and actionable"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "High-frequency process output and downloader logging need continuity"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Current sidecar/runtime invariants are the main migration constraint for Node process services"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows/macOS runtime behavior must be planned together"}
+{"file": "src-tauri/src/lib.rs", "reason": "Current downloader, queue, and ffmpeg orchestration lives in Rust"}
+{"file": "src-tauri/runtime-proxy/src/main.rs", "reason": "Runtime proxy behavior may need replacement or deletion"}
+{"file": "scripts/build-runtime-proxies.mjs", "reason": "Proxy build flow may become obsolete or need Electron replacement"}
+{"file": "scripts/build-pinterest-sidecar.mjs", "reason": "Sidecar packaging/build flow informs Node-side ownership"}
+{"file": "scripts/package-portable.ps1", "reason": "Portable packaging reveals current runtime artifact expectations"}

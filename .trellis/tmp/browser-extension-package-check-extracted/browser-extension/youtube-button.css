@@ -1,0 +1,96 @@
+/* FlowSelect Browser Extension - YouTube Download Button Styles */
+
+:root {
+  --flowselect-site-accent: #ff4d57;
+  --flowselect-site-accent-soft: rgba(255, 77, 87, 0.18);
+}
+
+.flowselect-youtube-btn,
+.flowselect-youtube-set-in-btn,
+.flowselect-youtube-set-out-btn,
+.flowselect-youtube-screenshot-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 48px !important;
+  min-width: 48px !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent;
+  cursor: pointer;
+  vertical-align: top;
+  align-self: stretch;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  position: relative;
+  overflow: hidden;
+  opacity: 1;
+}
+
+.flowselect-youtube-btn:hover,
+.flowselect-youtube-set-in-btn:hover,
+.flowselect-youtube-set-out-btn:hover,
+.flowselect-youtube-screenshot-btn:hover {
+  color: var(--flowselect-site-accent);
+}
+
+.flowselect-youtube-btn:active,
+.flowselect-youtube-set-in-btn:active,
+.flowselect-youtube-set-out-btn:active,
+.flowselect-youtube-screenshot-btn:active {
+  opacity: 0.85;
+}
+
+.flowselect-youtube-btn svg,
+.flowselect-youtube-screenshot-btn svg {
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.flowselect-youtube-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.flowselect-youtube-icon svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.flowselect-youtube-set-in-btn svg,
+.flowselect-youtube-set-out-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block;
+}
+
+.flowselect-youtube-set-in-btn svg *,
+.flowselect-youtube-set-out-btn svg * {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.flowselect-youtube-set-in-btn svg {
+  transform: translateX(4px);
+}
+
+.flowselect-youtube-set-out-btn svg {
+  transform: translateX(-4px) scaleX(-1);
+}
+
+.flowselect-youtube-set-in-btn[data-selected="true"],
+.flowselect-youtube-set-out-btn[data-selected="true"] {
+  color: #8fc0ff;
+}
+
+.flowselect-youtube-btn[data-clip-ready="true"] {
+  color: #7dd3fc;
+}

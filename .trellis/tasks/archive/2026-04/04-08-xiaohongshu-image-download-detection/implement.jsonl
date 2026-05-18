@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron websocket image/video action contracts and authenticated image save path"}
+}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep injected-download logging consistent and avoid noisy regressions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Extension -> background -> desktop runtime media routing crosses layers and must preserve source-of-truth semantics"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "videoUrl and videoCandidates are hints only; same-site images must not become video candidates"}

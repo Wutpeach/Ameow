@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify idle timer and event listener changes do not introduce stale-closure or cleanup regressions."}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Verify runtime status refresh still remains inspection-only and bootstrap timing stays post-visible."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review command/event boundary compatibility after the runtime gate fix."}

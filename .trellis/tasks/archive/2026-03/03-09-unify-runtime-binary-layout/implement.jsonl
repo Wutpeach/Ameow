@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Runtime binary path and packaging contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Result/String propagation for runtime resolution failures"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Preserve runtime path diagnostics and log style"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Avoid panics and keep async/runtime code safe"}

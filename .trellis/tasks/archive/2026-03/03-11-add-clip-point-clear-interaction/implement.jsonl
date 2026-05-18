@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Browser-injected control state and copy consistency"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Existing YouTube clip button state pattern"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Keep YouTube and Bilibili clip clear logic aligned"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality guardrails for interaction changes"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Popup UI additions in extension popup"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Popup JS changes and error handling expectations"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Extension preference changes affect background-to-desktop message flow"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Preserve video_selected payload compatibility while changing candidate ordering"}

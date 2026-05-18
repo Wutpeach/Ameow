@@ -1,0 +1,52 @@
+{
+  "id": "electron-shell-bridge",
+  "name": "electron-shell-bridge",
+  "title": "Electron app shell and renderer bridge",
+  "description": "Introduce the Electron app shell, preload bridge, and renderer migration layer that replaces direct `@tauri-apps/*` imports.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "renderer-shell-bridge",
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-26",
+  "completedAt": "2026-03-27",
+  "branch": "task/03-26-electron-shell-bridge",
+  "base_branch": "main",
+  "worktree_path": "D:\\trellis-worktrees\\task\\03-26-electron-shell-bridge",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "package.json",
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/pages/SettingsPage.tsx",
+    "src/pages/ContextMenuPage.tsx",
+    "vite.config.ts"
+  ],
+  "notes": "This task should not change browser-extension or download-runtime behavior beyond what is required to keep the renderer running on Electron.",
+  "meta": {}
+}

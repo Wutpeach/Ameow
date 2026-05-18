@@ -1,0 +1,41 @@
+{
+  "id": "backend-download-shortcut-fix",
+  "name": "backend-download-shortcut-fix",
+  "title": "Backend: Download and Shortcut Fix",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Wutpeach",
+  "assignee": "Wutpeach",
+  "createdAt": "2026-02-06",
+  "completedAt": "2026-02-06",
+  "branch": "fix/backend-download-shortcut",
+  "base_branch": "main",
+  "worktree_path": "D:\\trellis-worktrees\\fix\\backend-download-shortcut",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [],
+  "notes": ""
+}

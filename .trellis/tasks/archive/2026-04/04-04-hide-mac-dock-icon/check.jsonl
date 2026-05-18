@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Check tray-first mac behavior without Dock regressions."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Check that only mac startup behavior changed."}

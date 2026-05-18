@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Tauri event listen/cleanup patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Config state sync between windows"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed invoke/listen contracts"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Command contract stability for save_config/reset_rename_counter"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer outputPath flow validation"}

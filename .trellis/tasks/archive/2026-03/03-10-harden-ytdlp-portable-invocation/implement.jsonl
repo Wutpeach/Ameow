@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve descriptive error propagation in yt-dlp retry paths"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep retry logging aligned with >>> runtime logging patterns"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Keep async Rust changes idiomatic and panic-free"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Portable bundled yt-dlp behavior must not depend on host machine state"}

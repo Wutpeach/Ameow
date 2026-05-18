@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review timer/state changes and avoid magic-number drift"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Preserve main-window animateBounds behavior while changing trigger logic only"}

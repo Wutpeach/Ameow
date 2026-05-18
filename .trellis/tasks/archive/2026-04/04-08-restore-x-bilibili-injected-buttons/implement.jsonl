@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Site-specific detector injection and shared video_selection payload contract"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Detector/background/runtime boundary and source-of-truth validation"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid reintroducing divergent site-specific registration patterns"}

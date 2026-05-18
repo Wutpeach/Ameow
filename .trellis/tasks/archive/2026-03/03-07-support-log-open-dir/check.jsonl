@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Verify version-tap export flow and UI hint behavior"}
+{"file": "src-tauri/src/lib.rs", "reason": "Verify folder open command contract remains stable"}

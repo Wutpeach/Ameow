@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Shared component and theming patterns for UI primitive updates"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Use motion/react and compact motion rules for restrained UI refinement"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Desktop shared design language and token rules for main window/settings refinement"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality guardrails for the UI refinement pass"}

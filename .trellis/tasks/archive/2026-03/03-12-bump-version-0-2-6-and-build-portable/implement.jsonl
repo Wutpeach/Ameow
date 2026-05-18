@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "AGENTS.md", "reason": "Project conventions: version bump and release notes requirements"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Validate Windows packaging assumptions and paths"}
+{"file": "scripts/update-version.mjs", "reason": "Single source of truth for coordinated version bump"}
+{"file": "scripts/package-portable.ps1", "reason": "Portable packaging artifact layout and command flow"}

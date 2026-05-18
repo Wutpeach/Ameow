@@ -1,0 +1,9 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check renderer-facing bridge compatibility against existing command/event contracts"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Check replacement runtime against current command/event transport expectations"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Check runtime migration against downloader and sidecar behavior contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check for missed renderer-runtime-extension boundaries"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Check Windows/macOS packaging and runtime parity assumptions"}
+{"file": "browser-extension/background.js", "reason": "Validate extension transport compatibility during review"}
+{"file": "src-tauri/src/lib.rs", "reason": "Validate old runtime contracts are fully accounted for"}

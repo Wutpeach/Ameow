@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Verify the reduced footer still fits the settings page's compact design system."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review for frontend quality issues after the layout adjustment."}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Review the final footer layout and the unchanged version tap behavior in the owner file."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify the component change keeps FlowSelect React component patterns."}

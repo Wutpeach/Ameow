@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Short-link expansion changes the extension-to-runtime video_selection payload contract and fallback expectations."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Browser extension background/content logic should stay scoped and follow third-party DOM/URL resolution contracts."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Need one canonical URL handoff from extension background into desktop runtime after short-link expansion."}

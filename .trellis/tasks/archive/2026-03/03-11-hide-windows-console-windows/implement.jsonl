@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Runtime child-process contracts for ffmpeg/yt-dlp on Windows"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows-specific child process behavior and runtime checks"}

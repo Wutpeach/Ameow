@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Drag/drop and completion UI rely on hook-owned listeners and cleanup"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Main window expand/collapse and completion shell handoff must follow compact-window motion contract"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Compact-window expand/collapse and completion feedback are coordinated UI state"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Drag payload bridge and runtime download stages cross renderer/native boundaries"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Download progress and completion events must stay aligned across backend and frontend"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "These issues span drag bridge, native window state, and renderer outcome state"}

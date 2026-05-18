@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify startup sequencing still respects Electron bridge and window contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify no cross-layer startup contract drift"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify renderer bootstrap remains async-safe and packaged-safe"}

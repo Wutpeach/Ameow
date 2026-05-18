@@ -1,0 +1,9 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review Rust event payload changes for frontend compatibility"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review typed listener updates and badge behavior"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "Verify download queue docs match implementation"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review runner concurrency, cancellation, and emit paths"}
+{"file": "src/App.tsx", "reason": "Review active-task badge, progress aggregation, and listener cleanup"}
+{"file": "src/contexts/ThemeContext.tsx", "reason": "Review badge token consistency with current UI design"}

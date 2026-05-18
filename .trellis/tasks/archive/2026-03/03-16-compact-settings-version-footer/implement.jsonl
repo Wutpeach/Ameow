@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Keep the UI adjustment within existing frontend quality constraints and avoid hardcoded theme regressions."}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Owner file for the settings footer and version tap interaction."}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Footer spacing and density should preserve FlowSelect's compact settings-window design language."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "SettingsPage footer is a React component change; follow component structure and styling patterns."}
+{"file": "src/components/ui/neon-section.tsx", "reason": "Reference for existing compact section spacing and small secondary text patterns in settings UI."}

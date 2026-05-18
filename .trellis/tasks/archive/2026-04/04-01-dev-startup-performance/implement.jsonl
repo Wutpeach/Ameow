@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Startup sequencing crosses Electron main, preload, and renderer contracts"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Startup diagnostics and any new logs must follow existing conventions"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Renderer startup changes must preserve async bootstrap and desktop file:// safety rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Startup optimization spans dev runner, Electron, preload, and renderer boundaries"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Deferred startup work in React must follow existing async effect cleanup patterns"}

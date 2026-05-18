@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify listener cleanup and event usage"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify no any in tauri boundary"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify command behavior compatibility"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Validate folder-change propagation"}

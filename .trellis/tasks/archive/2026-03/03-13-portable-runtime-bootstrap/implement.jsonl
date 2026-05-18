@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Runtime binary layout, probing, and packaged resource contract"}
+{"file": "scripts/package-portable.ps1", "reason": "Current portable packaging still bundles runtime binaries"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend/runtime gate command-event payload contracts"}
+{"file": "docs/runtime-sidecars/publish-and-rollback.md", "reason": "Published manifest and rollback contract for pinterest sidecar assets"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer runtime bootstrap flow and gating"}
+{"file": "src-tauri/src/lib.rs", "reason": "Runtime gate skeleton and runtime path resolution ownership"}

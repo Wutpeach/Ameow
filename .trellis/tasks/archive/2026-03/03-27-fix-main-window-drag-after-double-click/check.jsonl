@@ -1,0 +1,8 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify ref and event cleanup patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify drag/double-click contract compliance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend quality requirements"}
+{"file": "src/utils/mainPanelInteractions.ts", "reason": "Review shared interaction helper changes"}
+{"file": "src/App.tsx", "reason": "Review App drag state cleanup changes"}
+{"file": "src/utils/mainPanelInteractions.test.ts", "reason": "Review regression test coverage"}

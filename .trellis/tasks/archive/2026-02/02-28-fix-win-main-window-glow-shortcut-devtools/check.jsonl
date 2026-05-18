@@ -1,0 +1,12 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer event/command consistency"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Validate platform-specific logic"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review border/glow rendering compliance"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Check stale-state issues in tap toggle behavior"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify typed payload/command usage"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify command behavior and parameter handling"}
+{"file": "src/App.tsx", "reason": "Verify visual/interaction parity after fix"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Verify 5-tap toggle open/close behavior"}
+{"file": "src-tauri/src/lib.rs", "reason": "Validate cross-platform coordinate and devtools behavior"}

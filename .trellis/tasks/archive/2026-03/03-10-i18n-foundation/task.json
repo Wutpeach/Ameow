@@ -1,0 +1,48 @@
+{
+  "id": "i18n-foundation",
+  "name": "i18n-foundation",
+  "title": "implement: i18n foundation and locale asset pipeline",
+  "description": "Shared i18n contracts, locale asset pipeline, config language rules, and generated runtime locale layout.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": "task/i18n-foundation",
+  "base_branch": "main",
+  "worktree_path": "D:/FlowSelect",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "package.json",
+    "package-lock.json",
+    "locales/",
+    "scripts/",
+    "src/main.tsx",
+    "src-tauri/tauri.conf.json"
+  ],
+  "notes": "Recommended branch: task/i18n-foundation. Recommended working tree: D:/FlowSelect (current main working tree is acceptable for Window A). Must land before other i18n workstreams. Owns contract names and generated locale layout. See parent worktree guide for merge order."
+}

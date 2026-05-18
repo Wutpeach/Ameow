@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing packaging helpers and artifact naming instead of duplicating logic"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "macOS packaging workflow contract owns open-source DMG behavior and release boundary"}

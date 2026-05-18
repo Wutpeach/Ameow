@@ -1,0 +1,11 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify Electron runtime/window/task-state contracts after changes"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Verify downloader binary/runtime contract after migration"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify listener cleanup and renderer state handling"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review platform-specific binary/script assumptions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer script/runtime/renderer drift"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend effect/state quality"}
+{"file": "src/electron-runtime/runtimePaths.test.ts", "reason": "Bundled runtime path coverage"}
+{"file": "src/electron-runtime/service.test.ts", "reason": "Queue/cancel regression coverage"}
+{"file": "src/electron-runtime/galleryDlDownload.test.ts", "reason": "gallery-dl downloader regression coverage"}

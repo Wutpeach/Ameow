@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Desktop window startup, tray behavior, and Windows skipTaskbar contract"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve descriptive error handling while adjusting startup flow"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Use consistent logging if startup diagnostics are added"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend Electron main-process quality rules for the fix"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Startup bug crosses native window show path and renderer-visible assumptions"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows portable packaging behavior needs platform-aware verification"}

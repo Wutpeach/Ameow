@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Validate minimal, scoped React state changes and no hardcoded regressions"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Validate compact collapse motion ownership and no transparent shell flicker"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify bounds transition token ownership still holds after collapse path changes"}

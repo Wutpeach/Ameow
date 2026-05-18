@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep site-provider and engine-plan contracts stable while changing routing behavior."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Follow backend code quality rules for runtime routing changes."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Centralize host matching and Weibo normalization instead of duplicating regex logic."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Validate how normalized URLs move from queue request to engine execution."}

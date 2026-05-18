@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Final cleanup must leave renderer contracts coherent after Tauri removal"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Final cleanup must validate the Electron-owned runtime contract surface"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Parity verification must cover renderer-runtime-extension boundaries"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Cleanup must not regress Windows/macOS packaging/runtime coverage"}
+{"file": "package.json", "reason": "Final runtime dependencies and scripts are verified here"}
+{"file": "README.md", "reason": "Final docs should no longer instruct Tauri workflows"}
+{"file": "README.en.md", "reason": "English docs should no longer instruct Tauri workflows"}

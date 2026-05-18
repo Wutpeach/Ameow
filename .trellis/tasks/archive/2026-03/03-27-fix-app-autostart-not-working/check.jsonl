@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron main owns autostart and stable command contracts"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Settings autostart invoke contract must stay typed and stable"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Autostart crosses renderer preload main and Windows runtime state"}

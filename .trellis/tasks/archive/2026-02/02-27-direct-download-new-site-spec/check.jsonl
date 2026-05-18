@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "verify new spec indexed"}
+{"file": ".trellis/spec/guides/video-download-patterns.md", "reason": "ensure guide references stay consistent with new onboarding contract"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "validate required contract sections and templates"}

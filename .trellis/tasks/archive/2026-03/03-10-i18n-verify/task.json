@@ -1,0 +1,46 @@
+{
+  "id": "i18n-verify",
+  "name": "i18n-verify",
+  "title": "implement: i18n integration verification and hardening",
+  "description": "Final integration verification, fallback hardening, and test cleanup for the complete i18n MVP.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": "task/i18n-verify",
+  "base_branch": "main",
+  "worktree_path": "../trellis-worktrees/03-10-i18n-verify",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src/",
+    "browser-extension/",
+    "src-tauri/src/lib.rs",
+    "locales/"
+  ],
+  "notes": "Recommended branch: task/i18n-verify. Recommended worktree: ../trellis-worktrees/03-10-i18n-verify. Runs after foundation, desktop-react, extension-sync, and rust-tray. Focus on validation and hardening, not architecture churn. See parent worktree guide for create/start/merge commands."
+}

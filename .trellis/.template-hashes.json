@@ -1,0 +1,25 @@
+{
+  "__version": 2,
+  "hashes": {
+    ".trellis/scripts/common/active_task.py": "6c88ed40ef7289bca0f6d2ecba0f8b8aef46cd58788080fbeeea88de138a431f",
+    ".trellis/scripts/common/workflow_phase.py": "5a7f7d6a4a8b0f3ab261b03c4d311240aed9719631ee54225c1f8ee4bb6ccc82",
+    ".trellis/scripts/common/__init__.py": "3d5e9347141f0296319a5beb29d69ae714c5a474b9078caeb3edd7c5f6562e22",
+    ".trellis/scripts/common/paths.py": "05898ef136cc7c4d861b05fbf2b16d53ddd3e6f311a231d4fcfcb81bde7c45ee",
+    ".trellis/scripts/common/git_context.py": "fa30ced454f1a91ffc9f8b2abeb32225e3447cbdc90bad783797374eba07265d",
+    ".trellis/scripts/common/task_utils.py": "f5ef4af87ba3e11d8b19630c0c96d009de1811fc9be56c2027a9c96e21ed103e",
+    ".trellis/scripts/common/cli_adapter.py": "cd844d1e84b1a09b373b3a7609e4d5606ee9d4825154c002cc9bb3f54c8e2fb9",
+    ".trellis/scripts/common/config.py": "671a3591f97b75ec19f25814d2ee3f7e9b38e048f6f67442519fe0715c454eeb",
+    ".trellis/scripts/common/types.py": "9962081cc2608fb9d1deb32c6880e336f62cdca6b338e7ae813304701e155ee9",
+    ".trellis/scripts/common/tasks.py": "4436a8b0b53c270a35989e26d9dbd92669408c6562d88c02083a404562da85fe",
+    ".trellis/scripts/common/task_context.py": "1c16a7fa82d363010d0d0ebdc038296ae1552bf6e90214787d707f49567bc159",
+    ".trellis/scripts/common/task_store.py": "e3802a822dcd0a8005bac6ffe50af196944c2a42d56d70e68c622aaf9b1156e2",
+    ".trellis/scripts/common/session_context.py": "02e8d8209c2b88efeb83c9f1a3edf20d6344ceda5fcb9da53a3eb24fbfb47b17",
+    ".trellis/scripts/task.py": "40abdd46f5c2b6837610429a38eef50f1fc783fb1852dc4f52a891205e42ab04",
+    ".trellis/scripts/add_session.py": "a97a6c88ff7def8045a5dffa5c698a823392d7f73c1641e8a0c08db0168bd913",
+    ".trellis/config.yaml": "bdf2f641f9627f96bf430baae92145fe85cb215431e7d91742c7118a7bdfa7e3",
+    ".trellis/.gitignore": "3bc42434cbe61c937a1c26ea3c880b496bfad4e7d683750169e27ade509aa798",
+    ".trellis/workflow.md": "9a1bd84c99946483b51da4588cac3296e25b8676af4f3099925ba8ed358f9f64",
+    "AGENTS.md": "6c7c014e65641ce15dd4286ee94b2ad28c94ffe81875fd7d79eb7c2706444dc1",
+    ".trellis/scripts/common/trellis_config.py": "0839dcf90ebbd77712c276930a89335b3313927051650c91d220fb51ca2a6a3c"
+  }
+}

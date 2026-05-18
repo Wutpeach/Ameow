@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify no blocking remains in async image flow"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Validate error propagation and message quality"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Ensure new logs follow project prefix"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review image download behavior and panic root-cause fix"}

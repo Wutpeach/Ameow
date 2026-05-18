@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Renderer-preload desktop bridge contract for drop classification"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer renderer-preload drop flow and validation ownership"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Renderer drop handler expectations and async flow patterns"}

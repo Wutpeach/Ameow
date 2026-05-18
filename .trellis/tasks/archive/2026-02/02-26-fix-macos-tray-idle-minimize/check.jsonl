@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify idle timer behavior"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify rust safety patterns"}
+{"file": "src/App.tsx", "reason": "Final behavior validation"}
+{"file": "src-tauri/src/lib.rs", "reason": "Final tray and dock behavior validation"}

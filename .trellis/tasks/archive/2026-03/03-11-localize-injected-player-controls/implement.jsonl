@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality guardrails for extension script changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Keep extension message payload boundaries aligned"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Avoid duplicating locale loader logic across extension surfaces"}
+{"file": "browser-extension/locales/contract.json", "reason": "Extension locale contract and supported languages/namespaces"}
+{"file": "browser-extension/popup.js", "reason": "Existing locale bundle loading and translate helper pattern"}
+{"file": "browser-extension/background.js", "reason": "Current extension language resolution and update broadcast flow"}

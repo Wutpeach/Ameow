@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Resource/runtime contract for bundled download tools"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep runtime probe logs consistent"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Descriptive runtime errors for missing ffmpeg"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Packaging and runtime binary behavior across portable installs"}

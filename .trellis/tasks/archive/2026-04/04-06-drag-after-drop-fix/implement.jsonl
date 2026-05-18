@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Compact window interaction state and timer/drag guard contracts"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Electron current-window bridge and main panel interaction contract"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend cleanup and interaction safety rules"}

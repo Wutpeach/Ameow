@@ -1,0 +1,107 @@
+{
+  "id": "migrate-tauri-to-electron",
+  "name": "migrate-tauri-to-electron",
+  "title": "brainstorm: migrate desktop runtime from tauri to electron",
+  "description": "Parent task for replacing the current Tauri/Rust desktop runtime with an Electron + Node runtime while preserving FlowSelect feature parity on Windows and macOS.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "desktop-runtime-migration",
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-26",
+  "completedAt": "2026-03-27",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [
+    {
+      "task": "03-26-electron-foundation-contracts",
+      "depends_on": [],
+      "parallel_group": "phase-1"
+    },
+    {
+      "task": "03-26-electron-shell-bridge",
+      "depends_on": [
+        "03-26-electron-foundation-contracts"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-26-electron-native-integrations",
+      "depends_on": [
+        "03-26-electron-foundation-contracts"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-26-electron-download-runtime",
+      "depends_on": [
+        "03-26-electron-foundation-contracts"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-26-electron-release-cutover",
+      "depends_on": [
+        "03-26-electron-foundation-contracts",
+        "03-26-electron-shell-bridge",
+        "03-26-electron-native-integrations",
+        "03-26-electron-download-runtime"
+      ],
+      "parallel_group": "phase-3"
+    },
+    {
+      "task": "03-26-electron-verify-cleanup",
+      "depends_on": [
+        "03-26-electron-shell-bridge",
+        "03-26-electron-native-integrations",
+        "03-26-electron-download-runtime",
+        "03-26-electron-release-cutover"
+      ],
+      "parallel_group": "phase-4"
+    }
+  ],
+  "children": [
+    "03-26-electron-foundation-contracts",
+    "03-26-electron-shell-bridge",
+    "03-26-electron-native-integrations",
+    "03-26-electron-download-runtime",
+    "03-26-electron-release-cutover",
+    "03-26-electron-verify-cleanup"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "package.json",
+    "src/",
+    "src-tauri/",
+    "browser-extension/",
+    "scripts/",
+    "README.md",
+    "README.en.md"
+  ],
+  "notes": "Execution order: foundation first; shell-bridge, native-integrations, and download-runtime may proceed in parallel after the contract is frozen; release-cutover depends on the runtime replacement tasks; verify-cleanup runs last and owns Tauri removal. Important: browser-extension WebSocket contract and user config schema should remain stable unless a later ADR explicitly changes them. Trellis current-task state is repo-global, so parallel execution should use separate worktrees or clones before calling task.py start on child tasks.",
+  "meta": {}
+}

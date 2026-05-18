@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron preload/main renderer contract for new folder-drop bridge"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Typed command and event contracts for cross-layer folder-drop flow"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Effect/listener cleanup and main-window interaction patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Persisted outputPath state and UI sync rules"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Frontend typed desktop bridge usage for folder-drop results"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Renderer preload main config flow for folder-drop output path"}

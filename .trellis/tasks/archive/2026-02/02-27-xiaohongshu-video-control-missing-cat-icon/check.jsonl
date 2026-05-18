@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Final review checklist for extension frontend code"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Verify icon appears on /explore/ video controls"}
+{"file": "browser-extension/xiaohongshu-button.css", "reason": "Verify icon size/hover and control bar compatibility"}

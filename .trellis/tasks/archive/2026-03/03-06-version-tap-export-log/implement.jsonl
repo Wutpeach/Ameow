@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Settings page interaction changes"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "New frontend invoke contract for version tap diagnostic export"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend command must return actionable errors"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Diagnostic log content and log-writing conventions"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "New Tauri command contract"}

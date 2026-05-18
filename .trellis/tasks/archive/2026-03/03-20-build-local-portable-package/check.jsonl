@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Portable artifact naming and release asset contract"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Bundled runtime binary layout for portable packaging"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows portable ZIP packaging fallback and artifact contents"}

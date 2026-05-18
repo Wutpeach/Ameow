@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Review websocket image/video routing contract"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Verify invalid image hints cannot route into video selection"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review detector/background/runtime boundary assumptions"}

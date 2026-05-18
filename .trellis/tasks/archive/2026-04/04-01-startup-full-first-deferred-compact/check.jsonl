@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron runtime contract verification"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend effect cleanup and Motion/state standards"}

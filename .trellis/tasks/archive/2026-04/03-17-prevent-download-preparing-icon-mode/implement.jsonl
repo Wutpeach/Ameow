@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Idle timer and Tauri event listener patterns for the floating window"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Queue count/detail and download progress events can arrive out of order across frontend/backend"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Derived busy state and local UI state ownership for the floating window"}

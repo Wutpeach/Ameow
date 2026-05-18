@@ -1,0 +1,9 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Keep DOM/button composition and class usage consistent"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Follow cleanup-safe observer/event lifecycle patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Avoid brittle DOM assumptions and keep code focused"}
+{"file": "browser-extension/xiaohongshu-detector.js", "reason": "Reuse renderable control-bar readiness checks"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Primary target file for Bilibili control injection"}

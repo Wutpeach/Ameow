@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "src/utils/mainPanelInteractions.ts", "reason": "Shared panel interaction helpers and thresholds"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Main panel drag and double-click contract lives here"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Ref and async event handler patterns for App.tsx"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend code quality guardrails for the fix"}
+{"file": "src/App.tsx", "reason": "Main floating window pointer and double-click handlers"}
+{"file": "src/utils/mainPanelInteractions.test.ts", "reason": "Regression tests for panel interaction rules"}

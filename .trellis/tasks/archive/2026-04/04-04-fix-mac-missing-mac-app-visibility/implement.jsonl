@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron packaged runtime import and file layout contract for main process modules"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "macOS packaging and cross-platform resource/path validation"}

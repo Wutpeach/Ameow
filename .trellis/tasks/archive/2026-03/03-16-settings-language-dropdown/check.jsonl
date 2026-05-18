@@ -1,0 +1,8 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify the language dropdown keeps FlowSelect component composition and prop patterns."}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Review outside-click and Escape dismissal cleanup for the inline dropdown."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review the final change for frontend quality issues."}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Verify the dropdown matches compact settings field/menu patterns and scales for additional languages."}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Review the final language dropdown implementation in the owner file."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Review local UI state transitions for the language dropdown."}

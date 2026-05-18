@@ -1,0 +1,12 @@
+{
+  "title": "videodl Integration",
+  "slug": "videodl-integration",
+  "status": "completed",
+  "phase": "phase2",
+  "owner": "Wutpeach",
+  "created": "2026-02-06",
+  "updated": "2026-02-06",
+  "description": "Integrate videodl as supplementary downloader for Chinese video platforms",
+  "notes": "Phase 1 & 2 completed. videodl packaged as sidecar exe.",
+  "completedAt": "2026-02-06"
+}

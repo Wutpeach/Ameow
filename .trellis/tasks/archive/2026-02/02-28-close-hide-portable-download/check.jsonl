@@ -1,0 +1,9 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Validate UI state and button behavior remain consistent"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Validate listener cleanup and async flow"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Ensure new fallback branches return actionable errors"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Ensure logs follow >>> format and avoid noise"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Validate sidecar fallback and runtime contracts"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify extension->Rust->UI error path is observable"}

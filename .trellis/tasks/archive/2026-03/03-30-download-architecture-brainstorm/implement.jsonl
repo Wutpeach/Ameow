@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Shared video_selected payload and direct-route contract"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Electron runtime provider-orchestrator and queue contracts"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Command and event payload type contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Descriptive runtime errors and propagation"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer authority and validation rules"}

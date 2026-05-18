@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/api-module.md", "reason": "API module conventions"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Code quality requirements"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Source of rename toggle state"}
+{"file": "src/App.tsx", "reason": "Main window UI placement for reset button"}
+{"file": "src-tauri/src/lib.rs", "reason": "Rename sequence and reset command backend behavior"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed invoke contract for reset command"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust command return shape contract"}

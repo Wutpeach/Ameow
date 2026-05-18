@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Popup UI cleanup should follow frontend component conventions."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Locale source-of-truth and browser extension UI cleanup rules apply."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Removing one entry point requires checking for shared or reused popup logic first."}

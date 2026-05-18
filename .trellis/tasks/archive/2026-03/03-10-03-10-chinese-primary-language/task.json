@@ -1,0 +1,84 @@
+{
+  "id": "03-10-chinese-primary-language",
+  "name": "03-10-chinese-primary-language",
+  "title": "brainstorm: add Chinese primary language option",
+  "description": "Parent task for Chinese-first runtime localization across desktop React windows, browser extension popup/preferences copy, and Rust tray/native menu strings.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [
+    {
+      "task": "03-10-i18n-foundation",
+      "depends_on": [],
+      "parallel_group": "phase-1"
+    },
+    {
+      "task": "03-10-i18n-desktop-react",
+      "depends_on": [
+        "03-10-i18n-foundation"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-10-i18n-extension-sync",
+      "depends_on": [
+        "03-10-i18n-foundation"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-10-i18n-rust-tray",
+      "depends_on": [
+        "03-10-i18n-foundation"
+      ],
+      "parallel_group": "phase-2"
+    },
+    {
+      "task": "03-10-i18n-verify",
+      "depends_on": [
+        "03-10-i18n-foundation",
+        "03-10-i18n-desktop-react",
+        "03-10-i18n-extension-sync",
+        "03-10-i18n-rust-tray"
+      ],
+      "parallel_group": "phase-3"
+    }
+  ],
+  "relatedFiles": [
+    "locales/",
+    "src/",
+    "browser-extension/",
+    "src-tauri/src/lib.rs",
+    "src-tauri/tauri.conf.json"
+  ],
+  "notes": "Execution order: foundation first; desktop-react, extension-sync, and rust-tray may proceed in parallel after foundation; verify runs last. Important: Trellis current-task state is repo-global, so parallel Codex windows should use separate worktrees/clones before calling task.py start."
+}

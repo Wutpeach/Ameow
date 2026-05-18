@@ -1,0 +1,13 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/api-module.md", "reason": "API module conventions"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Code quality requirements"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/components.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Config state persistence pattern in settings"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed invoke contracts for config reads/writes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Rust Result and map_err handling"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Maintain existing backend log conventions"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Existing settings toggle/config update pattern"}
+{"file": "src-tauri/src/lib.rs", "reason": "Download naming logic for video and image paths"}

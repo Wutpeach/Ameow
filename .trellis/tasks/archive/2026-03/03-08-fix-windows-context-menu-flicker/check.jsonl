@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify focus/blur listener cleanup and timer handling."}
+e patterns."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Ensure no untyped Tauri boundary regressions."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Review Windows-specific behavior assumptions."}

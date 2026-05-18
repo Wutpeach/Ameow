@@ -1,0 +1,8 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify payload keys and invoke/listen typing remain aligned"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review popup toggle UI against component conventions"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify websocket contract and config-gated normalization path"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review the full storage->WS->Rust flow"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review logs for new branch handling"}

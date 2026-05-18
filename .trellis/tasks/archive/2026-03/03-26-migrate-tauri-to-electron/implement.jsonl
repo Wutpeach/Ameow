@@ -1,0 +1,20 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Current renderer lifecycle uses invoke/listen patterns that must be replaced by Electron bridge equivalents"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Current frontend command and event contracts define renderer-facing compatibility boundaries"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Current Rust command and event contracts are the source material for preload API design"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Electron runtime should preserve descriptive backend-facing failure behavior"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Node process orchestration should keep the existing runtime logging discipline"}
+{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Downloader and sidecar runtime behavior must be preserved or intentionally replaced"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Migration spans renderer bridge, extension transport, runtime services, and release infrastructure"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows and macOS parity is a first-order migration constraint"}
+{"file": "package.json", "reason": "Current dev/build/runtime dependency surface is Tauri-centric and must be replaced"}
+{"file": "src/App.tsx", "reason": "Main renderer surface currently depends heavily on direct Tauri APIs"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Settings surface covers autostart, shortcut, updater, dialog, and config flows"}
+{"file": "src/contexts/ThemeContext.tsx", "reason": "Existing cross-window state sync pattern informs Electron bridge design"}
+{"file": "browser-extension/background.js", "reason": "Extension reconnect and desktop request protocol must remain compatible"}
+{"file": "src-tauri/src/lib.rs", "reason": "Current native runtime owns most migration-critical contracts and behavior"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Current window, bundle, and updater settings define the behavior being replaced"}
+{"file": "scripts/run-tauri.mjs", "reason": "Current build wrapper documents packaging defaults that Electron must replace"}
+{"file": "scripts/dev-all.mjs", "reason": "Current dev orchestration around Tauri must be replaced with Electron tooling"}

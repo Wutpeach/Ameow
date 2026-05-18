@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Release notes and version flow should remain aligned with repo policy"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Packaging replacement must preserve Windows/macOS release viability"}
+{"file": "package.json", "reason": "Current Tauri scripts and dependencies must be replaced"}
+{"file": "scripts/run-tauri.mjs", "reason": "Current packaging wrapper is Tauri-specific"}
+{"file": "scripts/dev-all.mjs", "reason": "Current dev startup wrapper assumes Tauri"}
+{"file": "src-tauri/tauri.conf.json", "reason": "Current bundle/updater/resource contract defines replacement scope"}
+{"file": "README.md", "reason": "User-facing build/install docs will need runtime and packaging updates"}
+{"file": "README.en.md", "reason": "English docs must reflect the runtime cutover too"}

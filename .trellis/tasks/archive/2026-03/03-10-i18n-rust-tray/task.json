@@ -1,0 +1,45 @@
+{
+  "id": "i18n-rust-tray",
+  "name": "i18n-rust-tray",
+  "title": "implement: localize Rust tray and native menu strings",
+  "description": "Rust locale resource loading, tray/native menu localization, and language WebSocket support for extension sync.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-10",
+  "completedAt": "2026-03-10",
+  "branch": "task/i18n-rust-tray",
+  "base_branch": "main",
+  "worktree_path": "../trellis-worktrees/03-10-i18n-rust-tray",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src-tauri/src/lib.rs",
+    "src-tauri/src/",
+    "src-tauri/resources/locales/"
+  ],
+  "notes": "Recommended branch: task/i18n-rust-tray. Recommended worktree: ../trellis-worktrees/03-10-i18n-rust-tray. Owns Rust-side locale loading and tray refresh behavior. Avoid changing frontend or extension files. See parent worktree guide for create/start/merge commands."
+}

@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Packaging scripts and release artifacts must remain cross-platform and explicit."}
+{"file": ".trellis/spec/guides/release-prep-guide.md", "reason": "Release asset generation and naming must stay aligned with the repo release process."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This change spans npm scripts, packaging scripts, CI workflow, and release assets."}

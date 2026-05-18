@@ -1,0 +1,9 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Backend logging format for any WebSocket lifecycle instrumentation"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error propagation for WebSocket lifecycle changes"}
+{"file": "browser-extension/background.js", "reason": "Existing extension WebSocket connection and reconnect state machine"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Extension-to-desktop reconnect bug spans browser worker and Rust backend boundary"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Cross-layer WebSocket payload and lifecycle contract references"}
+{"file": "src-tauri/src/lib.rs", "reason": "Desktop WebSocket server startup and message handling lifecycle"}

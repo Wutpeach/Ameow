@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Follow existing config and provider patterns for locale state"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Use project-standard async config and event listener patterns"}

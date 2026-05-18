@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Keep runtime payload contracts stable while adjusting yt-dlp container selection"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve descriptive runtime errors in yt-dlp/transcode follow-up"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Follow backend quality rules when updating download format selection"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Quality intent and actual container selection cross the download and transcode boundary"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Avoid noisy logs and preserve existing runtime logging style"}

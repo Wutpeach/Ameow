@@ -1,0 +1,50 @@
+{
+  "id": "app-self-update",
+  "name": "app-self-update",
+  "title": "app self-update via public GitHub Releases",
+  "description": "MVP application self-update integration using public GitHub Releases and the Tauri updater pipeline.",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "updater",
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 2,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src/App.tsx",
+    "src/types/appUpdate.ts",
+    "src-tauri/src/lib.rs",
+    "src-tauri/tauri.conf.json",
+    "src-tauri/capabilities/default.json",
+    ".github/workflows/release.yml",
+    "scripts/generate-updater-manifest.mjs",
+    "release-notes/v0.2.7-rc2.md"
+  ],
+  "notes": "2026-03-16: MVP updater integration and public GitHub Release publishing flow are implemented and validated with prerelease `v0.2.7-rc2`, including signed updater artifacts and `latest.json`. Remaining acceptance gap is a real packaged-app in-app upgrade smoke test; defer that until `0.2.8` development is complete so a stable target newer than `0.2.7` exists."
+}

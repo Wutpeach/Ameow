@@ -1,0 +1,3 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": "src-tauri/src/lib.rs", "reason": "Verify runtime logging overhead stays bounded and export includes recent lines"}

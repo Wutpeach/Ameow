@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer field ownership and validation after implementation"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review payload compatibility and Rust parsing after implementation"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review backend logging consistency after implementation"}

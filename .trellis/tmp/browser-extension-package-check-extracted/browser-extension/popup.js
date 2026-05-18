@@ -1,0 +1,232 @@
+// FlowSelect Browser Extension - Popup Script
+
+const directDownloadQuality = window.FlowSelectDirectDownloadQuality;
+const localeUtils = window.FlowSelectLocaleUtils;
+const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || "en";
+const STATUS_STATE_CONNECTED = "connected";
+const STATUS_STATE_CONNECTING = "connecting";
+const STATUS_STATE_OFFLINE = "offline";
+
+function applyTheme(theme) {
+  document.body.classList.toggle("flowselect-theme-white", theme === "white");
+  document.body.classList.toggle("flowselect-theme-black", theme !== "white");
+}
+
+function sendRuntimeMessage(message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime?.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response ?? null);
+      });
+    } catch (error) {
+      console.error("[FlowSelect] Failed to send runtime message:", error);
+      resolve(null);
+    }
+  });
+}
+
+function normalizeConnectionState(response) {
+  if (!response || typeof response !== "object") {
+    return STATUS_STATE_OFFLINE;
+  }
+
+  if (
+    response.state === STATUS_STATE_CONNECTED ||
+    response.state === STATUS_STATE_CONNECTING ||
+    response.state === STATUS_STATE_OFFLINE
+  ) {
+    return response.state;
+  }
+
+  if (response.connected === true) {
+    return STATUS_STATE_CONNECTED;
+  }
+
+  if (response.statusText === "Connecting" || response.connecting === true) {
+    return STATUS_STATE_CONNECTING;
+  }
+
+  return STATUS_STATE_OFFLINE;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const statusText = document.getElementById("statusText");
+  const statusCard = document.getElementById("statusCard");
+  const statusHint = document.getElementById("statusHint");
+  const qualityGrid = document.getElementById("qualityGrid");
+  const highestQualityHint = document.getElementById("highestQualityHint");
+  const highestQualityHintText = document.getElementById("highestQualityHintText");
+  const popupTitle = document.getElementById("popupTitle");
+  const popupSubtitle = document.getElementById("popupSubtitle");
+  const qualitySectionTitle = document.getElementById("qualitySectionTitle");
+  let statusTimer = null;
+  let currentBundle = {
+    language: FALLBACK_LANGUAGE,
+    common: {},
+    extension: {},
+  };
+  let currentStatusState = STATUS_STATE_OFFLINE;
+  let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
+
+  function t(key, fallback) {
+    return localeUtils?.translate(currentBundle, key, fallback) || fallback || key;
+  }
+
+  function renderStaticCopy() {
+    popupTitle.textContent = t("app.name", "FlowSelect");
+    popupSubtitle.textContent = t("popup.subtitle", "Extension");
+    qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
+    document.title = t("app.name", "FlowSelect");
+  }
+
+  function getStatusCopy(state) {
+    if (state === STATUS_STATE_CONNECTED) {
+      return {
+        label: t("popup.status.connected.label", "Connected"),
+        hint: t("popup.status.connected.hint", "Desktop app ready."),
+      };
+    }
+
+    if (state === STATUS_STATE_CONNECTING) {
+      return {
+        label: t("popup.status.connecting.label", "Connecting"),
+        hint: t("popup.status.connecting.hint", "Trying desktop app..."),
+      };
+    }
+
+    return {
+      label: t("popup.status.offline.label", "Offline"),
+      hint: t("popup.status.offline.hint", "Open desktop app to connect."),
+    };
+  }
+
+  function updateStatus(nextState) {
+    currentStatusState = nextState;
+    const copy = getStatusCopy(nextState);
+    statusCard.dataset.connected = nextState === STATUS_STATE_CONNECTED ? "true" : "false";
+    statusCard.dataset.state = nextState;
+    statusText.textContent = copy.label;
+    statusHint.textContent = copy.hint;
+  }
+
+  async function checkStatus() {
+    const response = await sendRuntimeMessage({ type: "get_status" });
+    updateStatus(normalizeConnectionState(response));
+  }
+
+  function renderQualityOptions(selectedValue) {
+    const normalizedSelectedValue = directDownloadQuality.normalizeQualityPreference(selectedValue);
+    currentQualityPreference = normalizedSelectedValue;
+    qualityGrid.innerHTML = "";
+
+    directDownloadQuality.QUALITY_PREFERENCE_OPTIONS.forEach((option) => {
+      const button = document.createElement("button");
+      const label = document.createElement("span");
+
+      button.type = "button";
+      button.className = "flowselect-quality-btn";
+      button.dataset.quality = option.value;
+      if (option.value === normalizedSelectedValue) {
+        button.classList.add("active");
+      }
+
+      label.className = "flowselect-quality-value";
+      label.textContent = t(option.labelKey, option.value);
+      button.title = t(option.descriptionKey, "");
+      button.appendChild(label);
+
+      button.addEventListener("click", async () => {
+        try {
+          const savedValue = await directDownloadQuality.setQualityPreference(option.value);
+          renderQualityOptions(savedValue);
+        } catch (error) {
+          console.error("[FlowSelect] Failed to save quality preference:", error);
+        }
+      });
+
+      qualityGrid.appendChild(button);
+    });
+
+    renderHighestQualityHint(normalizedSelectedValue);
+  }
+
+  function renderHighestQualityHint(selectedValue) {
+    const normalizedSelectedValue = directDownloadQuality.normalizeQualityPreference(selectedValue);
+    const hintVisible = normalizedSelectedValue === "best";
+    highestQualityHintText.textContent = t(
+      "popup.preferences.highest.hint",
+      "Some high-quality videos may enter the transcode queue after download."
+    );
+    highestQualityHint.dataset.visible = hintVisible ? "true" : "false";
+    highestQualityHint.hidden = !hintVisible;
+    highestQualityHint.setAttribute("aria-hidden", hintVisible ? "false" : "true");
+    highestQualityHint.style.display = hintVisible ? "flex" : "none";
+  }
+
+  async function applyLanguage(nextLanguage) {
+    currentBundle = await localeUtils.loadLocaleBundle(nextLanguage);
+    document.documentElement.lang = currentBundle.language;
+    renderStaticCopy();
+    renderQualityOptions(currentQualityPreference);
+    updateStatus(currentStatusState);
+  }
+
+  async function resolveInitialLanguage() {
+    return localeUtils.resolveCurrentLanguage(navigator.language);
+  }
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === "theme_update") {
+      applyTheme(message.theme);
+      return;
+    }
+
+    if (message.type === "connection_update") {
+      updateStatus(normalizeConnectionState(message));
+      return;
+    }
+
+    if (message.type === "language_update") {
+      const nextLanguage = localeUtils.normalizeAppLanguage(message.language);
+      if (nextLanguage) {
+        void applyLanguage(nextLanguage);
+      }
+    }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (statusTimer !== null) {
+      clearInterval(statusTimer);
+      statusTimer = null;
+    }
+  });
+
+  void (async () => {
+    await applyLanguage(await resolveInitialLanguage());
+
+    try {
+      currentQualityPreference = await directDownloadQuality.getQualityPreference();
+      renderQualityOptions(currentQualityPreference);
+    } catch (error) {
+      console.error("[FlowSelect] Failed to load quality preference:", error);
+    }
+
+    chrome.runtime.sendMessage({ type: "connect" }, () => {
+      if (chrome.runtime?.lastError) {
+        return;
+      }
+    });
+    void checkStatus();
+
+    const themeResponse = await sendRuntimeMessage({ type: "get_theme" });
+    applyTheme(themeResponse?.theme || "black");
+
+    statusTimer = window.setInterval(() => {
+      void checkStatus();
+    }, 1200);
+  })();
+});

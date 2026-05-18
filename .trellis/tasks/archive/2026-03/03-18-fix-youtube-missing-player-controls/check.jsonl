@@ -1,0 +1,4 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review injected-controls consistency after the YouTube fix"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review extension script quality and locale/source-of-truth rules"}

@@ -1,0 +1,9 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Typed renderer invoke error handling"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Settings version interaction UI pattern"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Timer/ref cleanup for Settings interaction"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Settings gesture to desktop log export cross-layer contract"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime log capture and export behavior"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Existing version tap/export implementation"}
+{"file": "electron/main.mts", "reason": "Existing support log export and yt-dlp output handling"}

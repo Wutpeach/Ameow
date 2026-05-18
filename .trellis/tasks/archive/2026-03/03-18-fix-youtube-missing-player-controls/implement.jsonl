@@ -1,0 +1,4 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Extension UI changes should preserve source-of-truth file rules and concise frontend code"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Extension injected controls should stay lightweight and reuse cross-surface patterns"}

@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".trellis/spec/shared/index.md", "reason": "Shared coding standards"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify no forbidden patterns and stable DOM logic"}
+{"file": "browser-extension/bilibili-detector.js", "reason": "Validate ready-gate behavior and idempotent injection"}
+{"file": "browser-extension/bilibili-button.css", "reason": "Ensure style assumptions still hold after gating"}

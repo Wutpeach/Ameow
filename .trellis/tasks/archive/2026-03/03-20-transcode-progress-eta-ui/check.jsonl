@@ -1,0 +1,7 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
+{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Review frontend listener payloads and state merge logic after ETA/progress expansion."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review the new transcode progress payload fields against backend/frontend contracts."}
+{"file": "src/App.tsx", "reason": "Review queue list and floating window rendering for real transcode progress and ETA display."}
+{"file": "src-tauri/src/lib.rs", "reason": "Review FFmpeg progress parsing, queue updates, and event emission semantics in the backend owner file."}

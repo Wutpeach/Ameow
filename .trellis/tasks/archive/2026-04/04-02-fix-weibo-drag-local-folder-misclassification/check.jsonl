@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Verify preload bridge contract remains stable after drag fix"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify source-side validation ownership and renderer fallback behavior"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Verify renderer drop flow remains compatible with preload-side change"}

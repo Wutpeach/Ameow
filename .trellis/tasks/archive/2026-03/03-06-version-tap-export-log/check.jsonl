@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify invoke generic and returned payload usage"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify command errors remain readable"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify cross-layer command payload stays aligned"}

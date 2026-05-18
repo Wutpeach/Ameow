@@ -1,0 +1,13 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify frontend command and event types stay aligned"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Verify new WS contract fields and payloads"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review fallback failure paths and messages"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review runtime breadcrumbs and log hygiene"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review source-of-truth and validation boundaries"}
+{"file": "src/App.tsx", "reason": "Review drop path fallback integration"}
+{"file": "browser-extension/background.js", "reason": "Review extension orchestration and timeout handling"}
+{"file": "browser-extension/pinterest-detector.js", "reason": "Review drag payload enrichment parity"}
+{"file": "browser-extension/manifest.json", "reason": "Review generic content-script coverage"}
+{"file": "src-tauri/src/lib.rs", "reason": "Review WS server, logging, and image fallback backend"}

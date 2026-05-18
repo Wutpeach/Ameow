@@ -1,0 +1,55 @@
+{
+  "id": "style-system-consolidation",
+  "name": "style-system-consolidation",
+  "title": "style system consolidation",
+  "description": "",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-28",
+  "completedAt": "2026-03-28",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/contexts/ThemeContext.tsx",
+    "src/index.css",
+    "src/components/ui/shared-styles.ts",
+    "src/pages/ContextMenuPage.tsx",
+    "src/pages/SettingsPage.tsx",
+    "src/pages/UiLabPage.tsx",
+    "src/pages/settings/DownloaderCardContent.tsx",
+    ".trellis/spec/frontend/design-system.md",
+    ".trellis/spec/frontend/component-guidelines.md"
+  ],
+  "notes": "Completed the first style-system consolidation pass for desktop renderer surfaces. Theme tokens now sync to CSS variables, window shell styles are shared across settings/context-menu/ui-lab, downloader card content layout is extracted, and renderer verification passed via typecheck, lint, build:renderer, and relative asset-path inspection.",
+  "meta": {}
+}

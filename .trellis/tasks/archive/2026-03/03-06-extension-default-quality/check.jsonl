@@ -1,0 +1,6 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review popup UI structure"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review popup/background JS quality"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review preference propagation across extension layers"}
+{"file": ".trellis/spec/backend/direct-download-onboarding-contracts.md", "reason": "Verify video_selected payload remains backward compatible"}

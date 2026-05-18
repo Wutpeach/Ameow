@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Cross-platform audit and fixes"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron runtime platform contracts"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Renderer bridge contracts"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality rules"}

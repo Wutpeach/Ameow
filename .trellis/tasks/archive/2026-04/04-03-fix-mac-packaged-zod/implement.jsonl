@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron packaged runtime and release packaging contract for macOS artifacts."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Keep runtime-facing packaging fix scoped and reviewable."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Config/dependency change should update the single source of truth only."}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Packaging change affects macOS desktop artifact behavior."}

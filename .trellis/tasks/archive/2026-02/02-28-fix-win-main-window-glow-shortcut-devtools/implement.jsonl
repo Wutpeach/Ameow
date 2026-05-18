@@ -1,0 +1,12 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans frontend + tauri command behavior"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows/macOS behavior parity and coordinate assumptions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Edge glow rendering and visual layer rules"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Timer and click-threshold logic in version tap flow"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Tauri invoke/listen typing for shortcut/devtools flows"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust command contracts for positioning/devtools"}
+{"file": "src/App.tsx", "reason": "Main window edge-glow and shortcut-show listener patterns"}
+{"file": "src/pages/SettingsPage.tsx", "reason": "Version tap devtools toggle flow"}
+{"file": "src-tauri/src/lib.rs", "reason": "Shortcut positioning and devtools command implementation"}

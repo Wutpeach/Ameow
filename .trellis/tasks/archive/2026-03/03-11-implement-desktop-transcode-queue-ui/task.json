@@ -1,0 +1,47 @@
+{
+  "id": "implement-desktop-transcode-queue-ui",
+  "name": "implement-desktop-transcode-queue-ui",
+  "title": "implement desktop transcode queue ui",
+  "description": "Phase 2 desktop UI: consume the new backend transcode queue contract and split the main-window queue into download + transcode surfaces.",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": "desktop-ui",
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-11",
+  "completedAt": "2026-03-13",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "relatedFiles": [
+    "src/App.tsx",
+    "src/contexts/ThemeContext.tsx",
+    "locales/en/desktop.json",
+    "locales/zh-CN/desktop.json",
+    ".trellis/spec/backend/type-safety.md"
+  ],
+  "notes": ""
+}

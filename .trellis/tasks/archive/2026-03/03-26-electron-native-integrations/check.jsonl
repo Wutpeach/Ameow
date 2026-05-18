@@ -1,0 +1,5 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Review native integration command and event compatibility"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review native-service failure behavior"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review renderer-main-extension boundaries"}

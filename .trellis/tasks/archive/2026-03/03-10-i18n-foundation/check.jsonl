@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Validate minimal bootstrap changes keep Tauri calls typed and guarded"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify language contracts and generated assets remain aligned across layers"}

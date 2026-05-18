@@ -1,0 +1,7 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": "AGENTS.md", "reason": "Verify version bump command and packaging conventions are followed"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Check packaging outputs and path assumptions"}
+{"file": "scripts/update-version.mjs", "reason": "Verify all declared version targets were updated together"}
+{"file": "scripts/package-portable.ps1", "reason": "Verify portable artifact output location and naming"}

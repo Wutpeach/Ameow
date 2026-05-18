@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Electron main owns tray and BrowserWindow behavior"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Windows-specific runtime and packaging behavior"}
+{"file": "electron/main.mts", "reason": "Owns BrowserWindow creation and tray icon setup"}
+{"file": "electron-builder.config.mjs", "reason": "Windows packaged icon asset configuration"}

@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Button composition and SVG injection patterns for browser controls"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Keep injected browser controls aligned with existing FlowSelect visual language"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality constraints for small UI changes"}
+{"file": "browser-extension/youtube-detector.js", "reason": "Existing YouTube injected control icon constants and button assembly pattern"}
+{"file": "browser-extension/youtube-button.css", "reason": "Existing YouTube control icon sizing and selected state styling"}

@@ -1,0 +1,6 @@
+{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
+{"file": ".agents/skills/check/SKILL.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review theme and component patterns"}
+{"file": ".trellis/spec/frontend/design-system.md", "reason": "Review visual consistency and token usage"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review for token use and cleanliness"}
+{"file": ".trellis/spec/frontend/motion-guidelines.md", "reason": "Review compact motion behavior"}

@@ -1,0 +1,53 @@
+{
+  "id": "electron-foundation-contracts",
+  "name": "electron-foundation-contracts",
+  "title": "Electron foundation: runtime contract capture",
+  "description": "Capture the current Tauri/Rust contracts and define the Electron preload, IPC, config, and extension-transport boundaries that all later implementation tasks must follow.",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": "migration-foundation",
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-03-26",
+  "completedAt": "2026-03-27",
+  "branch": "task/03-26-electron-foundation-contracts",
+  "base_branch": "main",
+  "worktree_path": "D:\\trellis-worktrees\\task\\03-26-electron-foundation-contracts",
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/App.tsx",
+    "src/pages/SettingsPage.tsx",
+    "src/contexts/ThemeContext.tsx",
+    "browser-extension/background.js",
+    "src-tauri/src/lib.rs",
+    "src-tauri/tauri.conf.json",
+    "package.json"
+  ],
+  "notes": "This task freezes the compatibility contract for renderer APIs, browser-extension transport, config schema, and packaging assumptions before any Electron implementation work proceeds.",
+  "meta": {}
+}
