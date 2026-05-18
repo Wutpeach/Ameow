@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 152
+- **Total Sessions**: 153
 - **Last Active**: 2026-05-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~514 | Active |
+| `journal-4.md` | ~547 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 153 | 2026-05-18 | Site session badges and cookie routing | `33e0b68` | `main` |
 | 152 | 2026-05-18 | Settings site login session badges | `8302620` | `main` |
 | 151 | 2026-05-18 | Douyin managed downloader and session flow | `1018479` | `main` |
 | 150 | 2026-05-18 | Investigate Windows bootstart pinned lookup 403 | `465e82f` | `main` |

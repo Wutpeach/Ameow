@@ -512,3 +512,36 @@ Compact settings login-state UI into a future multi-site badge pattern.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 153: Site session badges and cookie routing
+
+**Date**: 2026-05-18
+**Task**: Site session badges and cookie routing
+**Branch**: `main`
+
+### Summary
+
+Added unified site-level login badges for Douyin, Bilibili, Xiaohongshu, and YouTube; added app-owned site cookie capture/storage and downloader cookie injection; documented the cross-layer site session contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `33e0b68` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
