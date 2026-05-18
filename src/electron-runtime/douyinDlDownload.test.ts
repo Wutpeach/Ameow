@@ -159,7 +159,7 @@ describe("runDouyinDlDownload", () => {
     expect(writtenConfig).toContain("sid_guard: \"netscape-sid\"");
   });
 
-  it("prefers the app-owned Douyin session cookies when userDataDir is available", async () => {
+  it("uses only the download context cookies and ignores the retired legacy Douyin session path", async () => {
     readFileMock.mockImplementation(async (filePath: string) => {
       const normalizedPath = String(filePath).replace(/\\/g, "/");
       if (normalizedPath.endsWith("/sessions/douyin/cookies.json")) {
@@ -201,9 +201,11 @@ describe("runDouyinDlDownload", () => {
 
     const firstWriteCall = writeFileMock.mock.calls[0] as unknown[] | undefined;
     const writtenConfig = String(firstWriteCall?.[1] ?? "");
-    expect(writtenConfig).toContain("ttwid: \"session-ttwid\"");
-    expect(writtenConfig).toContain("sessionid: \"session-id\"");
+    expect(writtenConfig).toContain("ttwid: \"request-ttwid\"");
     expect(writtenConfig).toContain("msToken: \"request-ms\"");
+    expect(writtenConfig).not.toContain("session-ttwid");
+    expect(writtenConfig).not.toContain("sessionid: \"session-id\"");
+    expect(readFileMock).not.toHaveBeenCalledWith(expect.stringContaining("sessions/douyin/cookies.json"), "utf8");
   });
 
   it("reuses an existing aweme artifact when douyin-dl exits cleanly without creating a new file", async () => {

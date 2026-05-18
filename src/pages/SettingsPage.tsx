@@ -167,14 +167,6 @@ const formatShortcutForDisplay = (shortcut: string, isMacOS: boolean): string =>
   return tokens.map((token) => windowsLabels[token] ?? token).join("+");
 };
 
-const formatLocalizedDateTime = (
-  value: number,
-  locale: string | undefined,
-): string => new Intl.DateTimeFormat(locale, {
-  dateStyle: "medium",
-  timeStyle: "short",
-}).format(new Date(value));
-
 const isModifierKey = (key: string): boolean => {
   const normalized = normalizeShortcutToken(key);
   return ["Ctrl", "Alt", "Shift", "Meta", "CommandOrControl"].includes(normalized);
@@ -1051,11 +1043,7 @@ function SettingsPage() {
   }) ?? null;
   const activeCaptureSiteId = activeCaptureSite?.id ?? null;
   const activeCaptureState = activeCaptureSiteId ? siteSessionStates[activeCaptureSiteId] ?? null : null;
-  const activeCaptureLabel = activeCaptureSite ? t(activeCaptureSite.labelKey) : "";
   const activeCapturePhase = activeCaptureState?.capturePhase ?? "idle";
-  const activeCaptureLastUpdatedLabel = activeCaptureState?.updatedAtMs
-    ? formatLocalizedDateTime(activeCaptureState.updatedAtMs, i18n.resolvedLanguage)
-    : null;
   const canClearActiveCaptureSession = Boolean(
     activeCaptureSiteId
     && (
@@ -1063,16 +1051,6 @@ function SettingsPage() {
       || activeCaptureState?.updatedAtMs
     ),
   );
-  const siteSessionSummary = activeCapturePhase === "preparing"
-    ? t("desktop:settings.siteSessions.capturePreparing", { site: activeCaptureLabel })
-    : activeCapturePhase === "awaiting_confirmation"
-      ? t("desktop:settings.siteSessions.captureAwaiting", { site: activeCaptureLabel })
-      : activeCaptureLastUpdatedLabel
-        ? t("desktop:settings.siteSessions.lastUpdated", {
-            site: activeCaptureLabel,
-            time: activeCaptureLastUpdatedLabel,
-          })
-        : t("desktop:settings.siteSessions.manualHint");
   const siteSessionError = SITE_SESSION_CONFIGS
     .map((site) => siteSessionErrors[site.id])
     .find((error): error is string => Boolean(error));
@@ -1475,25 +1453,6 @@ function SettingsPage() {
                 </span>
               </button>
             ))}
-          </div>
-
-          <div style={{ display: "grid", gap: 5 }}>
-            <NeonHint size="sm">
-              {siteSessionSummary}
-            </NeonHint>
-
-            {activeCaptureLastUpdatedLabel ? (
-              <NeonHint size="sm">
-                {t("desktop:settings.siteSessions.lastUpdated", {
-                  site: activeCaptureLabel,
-                  time: activeCaptureLastUpdatedLabel,
-                })}
-              </NeonHint>
-            ) : (
-              <NeonHint size="sm">
-                {t("desktop:settings.siteSessions.manualHint")}
-              </NeonHint>
-            )}
           </div>
 
           {siteSessionError ? (

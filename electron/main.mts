@@ -803,7 +803,6 @@ function nowTimestampMs() {
 
 function summarizeInjectedVideoSelectionPayload(payload) {
   const normalizedTitle = normalizeOptionalString(payload?.title);
-  const normalizedCookies = normalizeOptionalString(payload?.cookies);
   const normalizedSiteHint = resolveVideoSelectionSiteHint(
     payload?.siteHint,
     payload?.pageUrl,
@@ -857,7 +856,6 @@ function summarizeInjectedVideoSelectionPayload(payload) {
         : null,
     siteHint: normalizedSiteHint ?? null,
     titlePresent: Boolean(normalizedTitle),
-    cookiesPresent: Boolean(normalizedCookies),
     extensionData: normalizedExtensionData,
     videoCandidateCount: normalizedVideoCandidates.length,
     clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec) ?? null,
@@ -2132,10 +2130,6 @@ function getSiteSessionManager(siteId) {
   return manager;
 }
 
-function getDouyinSessionManager() {
-  return getSiteSessionManager("douyin");
-}
-
 function requireSiteSessionManager(siteId) {
   const manager = getSiteSessionManager(siteId);
   if (!manager) {
@@ -3353,7 +3347,6 @@ async function handleWsMessage(rawMessage) {
           videoCandidates: data.videoCandidates,
           siteHint: data.siteHint,
           title: data.title,
-          cookies: data.cookies,
           selectionScope: data.selectionScope,
           ytdlpQualityPreference:
             syncedPreferences?.quality

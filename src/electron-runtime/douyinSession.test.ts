@@ -1,13 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { describe, expect, it } from "vitest";
 
 import {
   buildDouyinCookieYamlLines,
+  mergeDouyinCookies,
   parseDouyinCookies,
-  readDouyinSessionStatus,
-  resolveDouyinSessionPaths,
 } from "./douyinSession.js";
 
 describe("parseDouyinCookies", () => {
@@ -28,62 +24,21 @@ describe("parseDouyinCookies", () => {
   });
 });
 
-describe("readDouyinSessionStatus", () => {
-  let configDir = "";
-
-  afterEach(async () => {
-    if (configDir) {
-      await rm(configDir, { recursive: true, force: true });
-      configDir = "";
-    }
-  });
-
-  it("marks a complete app-owned login cookie set as ready", async () => {
-    configDir = await mkdtemp(path.join(tmpdir(), "ameow-douyin-session-"));
-    const { rootDir, cookiesPath } = resolveDouyinSessionPaths(configDir);
-    await mkdir(rootDir, { recursive: true });
-    await writeFile(
-      cookiesPath,
-      JSON.stringify({
-        ttwid: "ttwid-value",
-        odin_tt: "odin-value",
-        passport_csrf_token: "csrf-value",
-        sessionid: "session-value",
-        msToken: "ms-value",
-      }),
-      "utf8",
-    );
-
-    const status = await readDouyinSessionStatus(configDir);
-    expect(status.state).toBe("ready");
-    expect(status.cookieCount).toBe(5);
-    expect(status.hasLoginCookie).toBe(true);
-    expect(status.missingKeys).toEqual([]);
-    expect(status.lastUpdatedAtMs).not.toBeNull();
-  });
-
-  it("marks partial cookies as missing and exposes missing keys", async () => {
-    configDir = await mkdtemp(path.join(tmpdir(), "ameow-douyin-session-"));
-    const { rootDir, cookiesPath } = resolveDouyinSessionPaths(configDir);
-    await mkdir(rootDir, { recursive: true });
-    await writeFile(
-      cookiesPath,
-      JSON.stringify({
-        ttwid: "ttwid-value",
-        sessionid: "session-value",
-      }),
-      "utf8",
-    );
-
-    const status = await readDouyinSessionStatus(configDir);
-    expect(status.state).toBe("missing");
-    expect(status.hasLoginCookie).toBe(true);
-    expect(status.missingKeys).toEqual(["odin_tt", "passport_csrf_token"]);
-  });
-});
-
 describe("buildDouyinCookieYamlLines", () => {
   it("renders an explicit empty map when no cookies are present", () => {
     expect(buildDouyinCookieYamlLines({})).toEqual(["cookies: {}"]);
+  });
+});
+
+describe("mergeDouyinCookies", () => {
+  it("keeps later non-empty values when merging cookie records", () => {
+    expect(mergeDouyinCookies(
+      { ttwid: "first", sessionid: "session" },
+      { ttwid: "second", msToken: "token" },
+    )).toEqual({
+      ttwid: "second",
+      sessionid: "session",
+      msToken: "token",
+    });
   });
 });

@@ -34,7 +34,6 @@ describe("createExtensionRequestBridge", () => {
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       title: "Example",
-      cookies: "cookie text",
       ytdlpQualityPreference: "balanced",
     })).toEqual({
       success: true,
@@ -46,7 +45,6 @@ describe("createExtensionRequestBridge", () => {
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       title: "Example",
-      cookies: "cookie text",
       ytdlpQualityPreference: "balanced",
     });
   });

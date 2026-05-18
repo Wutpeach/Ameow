@@ -26,7 +26,6 @@ export type PastedVideoSelectionResolution = {
   }>;
   siteHint?: string;
   title?: string;
-  cookies?: string;
   selectionScope?: "current_item" | "playlist";
   clipStartSec?: number;
   clipEndSec?: number;
@@ -201,7 +200,6 @@ export const createExtensionRequestBridge = (
           : [],
         siteHint,
         title: normalizeOptionalString(payload?.title),
-        cookies: normalizeOptionalString(payload?.cookies),
         selectionScope: normalizeSelectionScope(payload?.selectionScope),
         clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec),
         clipEndSec: normalizeOptionalNumber(payload?.clipEndSec ?? payload?.clip_end_sec),

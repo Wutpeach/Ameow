@@ -5,9 +5,7 @@ import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import {
   buildDouyinCookieYamlLines,
-  mergeDouyinCookies,
   parseDouyinCookies,
-  readDouyinSessionCookies,
 } from "./douyinSession.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { summarizeError } from "./runtimeUtils.js";
@@ -241,19 +239,9 @@ const buildConfigYaml = (
   ].join("\n");
 };
 
-const resolveEffectiveDouyinCookies = async (
+const resolveEffectiveDouyinCookies = (
   context: EngineExecutionContext,
-): Promise<Record<string, string>> => {
-  const requestCookies = parseDouyinCookies(context.intent.cookies);
-  if (!context.userDataDir?.trim()) {
-    return requestCookies;
-  }
-  const appOwnedCookies = await readDouyinSessionCookies(context.userDataDir);
-  if (Object.keys(appOwnedCookies).length === 0) {
-    return requestCookies;
-  }
-  return mergeDouyinCookies(requestCookies, appOwnedCookies);
-};
+): Record<string, string> => parseDouyinCookies(context.intent.cookies);
 
 const collectTaskArtifacts = async (
   rootDir: string,
@@ -423,7 +411,7 @@ export const runDouyinDlDownload = async (
 
   await fs.mkdir(context.outputDir, { recursive: true });
   const configPath = path.join(context.outputDir, `${context.traceId}-douyin-dl-config.yml`);
-  const effectiveCookies = await resolveEffectiveDouyinCookies(context);
+  const effectiveCookies = resolveEffectiveDouyinCookies(context);
   await fs.writeFile(
     configPath,
     buildConfigYaml(context.outputDir, effectiveCookies),

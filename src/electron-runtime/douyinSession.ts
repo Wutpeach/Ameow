@@ -1,40 +1,8 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
-
-import type { DouyinSessionSummary } from "../types/douyinSession.js";
-
-const REQUIRED_COOKIE_KEYS = [
-  "ttwid",
-  "odin_tt",
-  "passport_csrf_token",
-] as const;
-
-const LOGIN_COOKIE_KEYS = [
-  "sessionid",
-  "sid_tt",
-  "sid_guard",
-] as const;
-
 const COOKIE_HEADER_SEPARATORS = /[;\r\n]/;
-
-export type DouyinSessionPaths = {
-  rootDir: string;
-  configPath: string;
-  cookiesPath: string;
-};
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === "object" && !Array.isArray(value)
 );
-
-export const resolveDouyinSessionPaths = (configDir: string): DouyinSessionPaths => {
-  const rootDir = path.join(configDir, "sessions", "douyin");
-  return {
-    rootDir,
-    configPath: path.join(rootDir, "config.yml"),
-    cookiesPath: path.join(rootDir, "cookies.json"),
-  };
-};
 
 export const sanitizeDouyinCookieRecord = (
   value: Record<string, unknown>,
@@ -134,40 +102,6 @@ export const mergeDouyinCookies = (
   return merged;
 };
 
-export const readDouyinSessionCookies = async (
-  configDir: string,
-): Promise<Record<string, string>> => {
-  const { cookiesPath } = resolveDouyinSessionPaths(configDir);
-  try {
-    const raw = await readFile(cookiesPath, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isPlainObject(parsed)) {
-      return {};
-    }
-    return sanitizeDouyinCookieRecord(parsed);
-  } catch {
-    return {};
-  }
-};
-
-export const writeDouyinSessionCookies = async (
-  configDir: string,
-  cookies: Record<string, string>,
-): Promise<void> => {
-  const { rootDir, cookiesPath } = resolveDouyinSessionPaths(configDir);
-  await mkdir(rootDir, { recursive: true });
-  await writeFile(
-    cookiesPath,
-    `${JSON.stringify(mergeDouyinCookies(cookies), null, 2)}\n`,
-    "utf8",
-  );
-};
-
-export const clearDouyinSessionArtifacts = async (configDir: string): Promise<void> => {
-  const { rootDir } = resolveDouyinSessionPaths(configDir);
-  await rm(rootDir, { recursive: true, force: true }).catch(() => undefined);
-};
-
 export const buildDouyinCookieYamlLines = (
   cookies: Record<string, string>,
 ): string[] => {
@@ -179,25 +113,4 @@ export const buildDouyinCookieYamlLines = (
     "cookies:",
     ...entries.map(([key, value]) => `  ${key}: ${JSON.stringify(value)}`),
   ];
-};
-
-export const readDouyinSessionStatus = async (
-  configDir: string,
-): Promise<DouyinSessionSummary> => {
-  const cookies = await readDouyinSessionCookies(configDir);
-  const { cookiesPath } = resolveDouyinSessionPaths(configDir);
-  const cookieCount = Object.keys(cookies).length;
-  const missingKeys = REQUIRED_COOKIE_KEYS.filter((key) => !cookies[key]);
-  const hasLoginCookie = LOGIN_COOKIE_KEYS.some((key) => Boolean(cookies[key]));
-  const lastUpdatedAtMs = await stat(cookiesPath)
-    .then((result) => (Number.isFinite(result.mtimeMs) ? Math.round(result.mtimeMs) : null))
-    .catch(() => null);
-
-  return {
-    state: cookieCount > 0 && missingKeys.length === 0 && hasLoginCookie ? "ready" : "missing",
-    lastUpdatedAtMs,
-    cookieCount,
-    missingKeys,
-    hasLoginCookie,
-  };
 };

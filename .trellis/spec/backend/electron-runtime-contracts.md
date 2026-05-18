@@ -348,7 +348,7 @@ Pasted-video extension result:
 
 ### 5. Good / Base / Bad Cases
 
-- Good: YouTube pasted URL asks the extension for page context/cookies, receives a resolved payload, and enqueues through `src/electron-runtime`.
+- Good: YouTube pasted URL asks the extension for page context, receives a resolved URL/metadata payload without cookies, and enqueues through `src/electron-runtime`.
 - Base: Generic pasted URL has no extension-assisted site hint and enqueues directly through `src/electron-runtime`.
 - Bad: Reintroducing `activeVideoDownloads`, `pendingVideoDownloads`, `child_process.spawn("yt-dlp", ...)`, or `--progress-template` handling in `electron/main.mts`.
 
@@ -2090,7 +2090,7 @@ type SiteSessionConfig = {
 - Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
 - Settings badges are site-level pills whose primary visible content is icon, localized site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
 - Badge click behavior is unified for every site: start a manual capture/refresh flow. The app may label ready-state clicks as refresh, but they still open the same confirmation-based capture path.
-- `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Existing extension-provided cookies remain the fallback when no app-owned site session exists.
+- `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Browser-extension video download payloads must not provide cookies as a fallback; users should capture site login state from Settings for managed downloader cookies.
 - Legacy Douyin IPC commands must remain backward-compatible aliases to the site-session manager for `douyin`.
 
 ### 4. Validation & Error Matrix
@@ -2104,7 +2104,7 @@ type SiteSessionConfig = {
 | Confirm capture finds no cookies for allowed domains | Keep prior session cache, set `lastError`, close and destroy the capture partition |
 | User cancels/closes capture window | Return to `capturePhase: "idle"` and destroy the capture partition |
 | Downloader context has `siteId` with saved session | Inject saved Netscape cookies into `intent.cookies` |
-| Downloader context has no saved site session | Preserve incoming `intent.cookies` unchanged |
+| Downloader context has no saved site session | Queue without app-owned cookies; extension video download payloads must not synthesize cookies |
 
 ### 5. Good/Base/Bad Cases
 

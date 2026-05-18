@@ -184,7 +184,6 @@ export const createVideoDownloadCommandBridge = (
             videoUrl: resolvedViaExtension.videoUrl ?? null,
             siteHint: resolvedViaExtension.siteHint ?? siteHint,
             videoCandidatesCount: resolvedViaExtension.videoCandidates?.length ?? 0,
-            cookiesPresent: Boolean(resolvedViaExtension.cookies),
             selectionScope: resolvedViaExtension.selectionScope ?? null,
             ytdlpQualityPreference: resolvedViaExtension.ytdlpQualityPreference ?? null,
           }),

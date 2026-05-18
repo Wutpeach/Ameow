@@ -69,17 +69,17 @@ URL → other platforms → yt-dlp first
 
 ### Cookies Flow (High Quality Video)
 
-Browser extension captures user cookies and passes them through the chain:
+Downloader cookies should come from Settings > Site login state. The browser extension must not attach cookies to generic video download payloads.
 
 ```
-Browser Extension (bilibili-detector.js)
-    ↓ getCookiesForUrl() → Netscape format
-background.js → WebSocket → video_selected_v2 action
-    ↓ cookies field in data
-lib.rs → save_extension_cookies() → temp file
-    ↓ cookies_path parameter
-download_video_internal() / direct downloader → HTTP request headers or yt-dlp `--cookies`
+Settings site login capture
+    ↓ <userDataDir>/site-sessions/<siteId>.json
+Electron buildExecutionContext()
+    ↓ intent.cookies = stored Netscape cookie string
+yt-dlp / gallery-dl / douyin-dl cookie-file or config path
 ```
+
+Browser-extension cookie reads are reserved for request-level page/media resolution flows such as Xiaohongshu drag resolution and protected-image fetching.
 
 **Tauri Event Emission**:
 
