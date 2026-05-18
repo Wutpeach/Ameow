@@ -129,6 +129,14 @@
       "title": "接收测试版更新",
       "hint": "开启后会接收 beta / rc 等预发布版本；关闭时只接收正式稳定版。"
     },
+    "globalProxy": {
+      "title": "全局代理",
+      "hint": "为运行时自举、更新检查以及其他 Electron 侧网络请求统一指定一个代理 URL。",
+      "enableTitle": "使用自定义代理",
+      "enableHint": "启用后会覆盖桌面侧请求对系统 / 环境代理的自动探测。",
+      "urlLabel": "代理 URL",
+      "urlPlaceholder": "http://127.0.0.1:7897"
+    },
     "outputFolder": {
       "title": "输出文件夹",
       "choose": "选择文件夹...",

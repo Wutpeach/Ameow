@@ -209,4 +209,22 @@ describe("createConfigStore", () => {
       join("/desktop", "Ameow_Received"),
     );
   });
+
+  it("preserves arbitrary config keys such as global proxy settings", async () => {
+    const configPath = join("/user-data", "settings.json");
+    const { store } = createStore({
+      initialFiles: {
+        [configPath]: JSON.stringify({
+          globalProxyEnabled: true,
+          globalProxyUrl: "http://127.0.0.1:7897",
+        }),
+      },
+    });
+
+    await expect(store.readConfigObject()).resolves.toEqual({
+      globalProxyEnabled: true,
+      globalProxyUrl: "http://127.0.0.1:7897",
+      language: "en",
+    });
+  });
 });

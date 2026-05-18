@@ -476,6 +476,110 @@ function buildManagedRuntimeBootstrapOptions(
 - Bad: importing `app.getPath(...)` or `updateRuntimeDependencyGateDownloadActivity(...)` inside `managedRuntimeBootstrap.mts`, which would couple installer logic back to Electron main state.
 - Bad: changing `managedYtDlpPaths(...)` without updating `runtimePaths.ts`, causing status inspection to report missing while installer wrote a different path.
 
+## Scenario: Electron Global Proxy URL Contract
+
+### 1. Scope / Trigger
+
+- Trigger: Any task that changes desktop-side proxy behavior for bootstrap, update checks, or Electron-owned fetch requests.
+- Why this needs code-spec depth: Proxy handling crosses persisted config, Electron session wiring, managed runtime bootstrap, update checks, and desktop-side downloads.
+
+### 2. Signatures
+
+Persisted config keys:
+
+```ts
+type DesktopProxyConfigKeys =
+  | "globalProxyEnabled"
+  | "globalProxyUrl";
+```
+
+Validation helper boundary:
+
+```ts
+type GlobalProxyValidationErrorCode =
+  | "missing_url"
+  | "invalid_url"
+  | "unsupported_protocol"
+  | "auth_unsupported"
+  | "path_unsupported";
+```
+
+Electron main ownership:
+
+```ts
+async function applyConfiguredDesktopProxy(
+  config?: Record<string, unknown> | null,
+): Promise<void>
+```
+
+### 3. Contracts
+
+- The first shipped proxy setting is global-only. It applies one proxy URL to the desktop network session used by Electron-owned fetch paths.
+- Supported proxy URL schemes are:
+  - `http://`
+  - `https://`
+  - `socks4://`
+  - `socks5://`
+- The first version must reject:
+  - embedded username/password auth
+  - PAC URLs / PAC mode
+  - path/query/hash fragments on the proxy URL
+  - per-feature proxy routing
+- `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches.
+- Proxy configuration is applied through `session.defaultSession.setProxy(...)`, not by rewriting each fetch call individually.
+- When custom proxy is disabled, Electron must return to `mode: "system"` proxy behavior.
+- When custom proxy is enabled and valid, Electron must use `mode: "fixed_servers"` with the normalized proxy URL and keep local bypass rules for `localhost`, `127.0.0.1`, and `::1`.
+- Saving config through `save_config` must re-apply proxy settings immediately so users do not need manual JSON edits or app restarts just to switch ports.
+
+### 4. Validation & Error Matrix
+
+| Condition | Validation Point | Expected Behavior | Action |
+|-----------|------------------|-------------------|--------|
+| `globalProxyEnabled !== true` | config validation | Proxy is treated as disabled | Apply `mode: "system"` |
+| Enabled but empty URL | config validation | Reject save/apply | Surface `missing_url` |
+| URL missing scheme or malformed | config validation | Reject save/apply | Surface `invalid_url` |
+| URL uses unsupported protocol | config validation | Reject save/apply | Surface `unsupported_protocol` |
+| URL embeds auth credentials | config validation | Reject save/apply | Surface `auth_unsupported` |
+| URL includes path/query/hash | config validation | Reject save/apply | Surface `path_unsupported` |
+| Valid proxy URL | Electron session apply | Desktop session uses fixed proxy servers | Continue shared session-backed fetch flow |
+
+### 5. Good / Base / Bad Cases
+
+- Good: user enables custom proxy with `http://127.0.0.1:7897`, saves settings, and managed runtime bootstrap / update checks use the configured proxy immediately.
+- Base: user leaves custom proxy disabled, so Electron continues using ambient system/environment proxy behavior.
+- Bad: one feature uses the configured proxy while another still bypasses it with direct `globalThis.fetch`.
+- Bad: a settings save accepts `http://user:pass@127.0.0.1:7897` even though auth is not supported in this first version.
+
+### 6. Tests Required
+
+- `src/config/globalProxy.test.ts`
+  - valid URL normalization
+  - invalid/missing/unsupported URL rejection
+  - auth/path rejection
+- `electron/configStore.test.mts`
+  - arbitrary proxy config keys persist through config store reads
+- `npm run type-check`
+  - main-process and settings-page wiring compile
+- `npm run lint`
+  - settings page remains lint-clean
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await fetch(url, init);
+```
+
+#### Correct
+
+```ts
+await fetchWithDesktopSession(url, init);
+```
+
+Why wrong:
+- A direct fetch path can silently bypass the configured Electron desktop proxy and reintroduce environment-specific network failures.
+
 ### 6. Tests Required
 
 - `electron/managedRuntimeBootstrap.test.mts`: target/path resolution, pinned metadata, unsupported tool guard, asset selection, Deno/FFmpeg artifact specs, cache writing, and file replacement behavior when touched.

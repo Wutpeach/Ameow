@@ -70,6 +70,10 @@ import {
   buildStartupWindowModeArgument,
   resolveMainWindowStartupMode,
 } from "./startupWindowMode.mjs";
+import {
+  describeGlobalProxyValidationError,
+  validateGlobalProxySettings,
+} from "../src/config/globalProxy.js";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -691,6 +695,35 @@ function getDesktopNetworkSession() {
     return null;
   }
   return session.defaultSession ?? null;
+}
+
+async function applyConfiguredDesktopProxy(config = null) {
+  const activeSession = getDesktopNetworkSession();
+  if (!activeSession?.setProxy) {
+    return;
+  }
+
+  const resolvedConfig = config ?? await readConfigObject();
+  const validation = validateGlobalProxySettings(resolvedConfig);
+
+  if (!validation.enabled) {
+    await activeSession.setProxy({ mode: "system" });
+    logInfo("Network", "Using system proxy settings");
+    return;
+  }
+
+  if (validation.errorCode || !validation.normalizedUrl) {
+    throw new Error(describeGlobalProxyValidationError(
+      validation.errorCode ?? "invalid_url",
+    ));
+  }
+
+  await activeSession.setProxy({
+    mode: "fixed_servers",
+    proxyRules: validation.normalizedUrl,
+    proxyBypassRules: "<local>;localhost;127.0.0.1;::1",
+  });
+  logInfo("Network", "Applied configured global proxy", validation.normalizedUrl);
 }
 
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
@@ -3243,9 +3276,12 @@ async function handleCommand(command, payload = {}) {
   switch (command) {
     case "get_config":
       return readConfigString();
-    case "save_config":
-      await saveConfigString(String(payload.json ?? "{}"));
+    case "save_config": {
+      const rawConfig = String(payload.json ?? "{}");
+      await saveConfigString(rawConfig);
+      await applyConfiguredDesktopProxy(parseJsonObject(rawConfig));
       return;
+    }
     case "broadcast_theme":
       await broadcastTheme(String(payload.theme ?? FALLBACK_THEME));
       return;
@@ -3830,6 +3866,9 @@ async function bootstrap() {
   });
 
   await app.whenReady();
+  await applyConfiguredDesktopProxy().catch((error) => {
+    console.error(">>> [Electron] Failed to apply configured proxy:", error);
+  });
   applyMacTrayAppMode(app);
   registerIpcHandlers();
   registerWsServer();

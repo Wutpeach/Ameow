@@ -39,6 +39,18 @@
 - [ ] Main app can still start (`npm run tauri dev`) without hard failure.
 - [ ] If a packaged desktop renderer boots from `file://.../dist/index.html`, the built HTML references relative assets (`./assets/...`) instead of root-relative `/assets/...`.
 - [ ] Renderer code that accepts dropped/pasted `file://` URLs parses them as URIs instead of stripping `file:///` as a plain string, so macOS paths keep their leading `/` and Windows paths still normalize to drive-letter/UNC forms.
+- [ ] On Windows, any cleanup of dev/runtime processes targets exact executables or exact command-line signatures; never kill by broad working-directory/path substring matches that can also match `WindowsTerminal.exe` or the current `pwsh.exe`.
+
+### Windows Process Cleanup Gotcha
+
+> **Warning**: On Windows, process cleanup filters that match only on a repo path like `D:\Ameow` can also match the terminal process itself, for example `WindowsTerminal.exe -d "D:\Ameow"` or the currently running `pwsh.exe`.
+>
+> For local dev cleanup, do not use broad predicates such as "command line contains repo path". Prefer exact targets like:
+> - `electron.exe` under the repo's `node_modules/electron/dist/`
+> - `node.exe` commands that explicitly include `npm-cli.js run dev`
+> - `node.exe` commands that explicitly include the project's dev harness path such as `scripts/run-electron-dev.mjs`
+>
+> Bad cleanup filters can terminate the active terminal window and kill the current AI/user session mid-debug.
 
 ---
 
