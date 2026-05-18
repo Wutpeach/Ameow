@@ -473,3 +473,42 @@ Integrated douyin-downloader as a managed runtime, routed Douyin downloads to th
 ### Next Steps
 
 - None - task complete
+
+
+## Session 152: Settings site login session badges
+
+**Date**: 2026-05-18
+**Task**: Settings site login session badges
+**Branch**: `main`
+
+### Summary
+
+Compact settings login-state UI into a future multi-site badge pattern.
+
+### Main Changes
+
+- Reworked the Settings downloads login section into a compact future-facing site login states area.
+- Added a Douyin badge model with semantic ready, warning, danger, and muted status dots.
+- Made the Douyin badge the primary login/refresh trigger while preserving runtime retry, confirmation, cancellation, and clear-session auxiliary actions.
+- Added missing Douyin session locale keys and synced generated browser-extension locale resources.
+- Consulted Claude Code for a second-opinion review and kept partial / awaiting-confirmation states explicit instead of hiding them behind the badge.
+- Validation: npm run locales:sync, npm run type-check, npm run lint.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8302620` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
