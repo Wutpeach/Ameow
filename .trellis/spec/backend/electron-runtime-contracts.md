@@ -2020,3 +2020,128 @@ const configStore = createConfigStore({
 
 const updateTrayMenu = trayMenuController.updateTrayMenu;
 ```
+
+## Scenario: Site Session Badge Cookie Capture Contract
+
+### 1. Scope / Trigger
+
+- Trigger: Any task that adds a login badge site, changes site session IPC, changes app-owned cookie storage, or routes stored cookies into downloader execution.
+- Why this needs code-spec depth: The flow crosses Settings UI, typed preload commands, Electron `BrowserWindow` login capture, persisted app data, and `yt-dlp` / `gallery-dl` cookie-file execution.
+
+### 2. Signatures
+
+Renderer command names:
+
+```ts
+type SiteSessionCommand =
+  | "get_site_session_state"
+  | "start_site_session_capture"
+  | "complete_site_session_capture"
+  | "cancel_site_session_capture"
+  | "clear_site_session";
+```
+
+Payload and state:
+
+```ts
+type SupportedSiteSessionId =
+  | "douyin"
+  | "bilibili"
+  | "xiaohongshu"
+  | "youtube";
+
+type SiteSessionAvailability = "missing" | "partial" | "ready";
+type SiteSessionCapturePhase = "idle" | "preparing" | "awaiting_confirmation";
+
+type SiteSessionState = {
+  siteId: SupportedSiteSessionId | string;
+  availability: SiteSessionAvailability;
+  updatedAtMs: number | null;
+  cookieCount: number;
+  requiredKeys: string[];
+  missingRequiredKeys: string[];
+  lastError: string | null;
+  sessionFilePath: string | null;
+  capturePhase: SiteSessionCapturePhase;
+  captureStartedAtMs: number | null;
+  capturePid: number | null;
+};
+```
+
+Site config source of truth:
+
+```ts
+type SiteSessionConfig = {
+  id: SupportedSiteSessionId;
+  displayName: string;
+  labelKey: string;
+  loginUrl: string;
+  cookieDomains: string[];
+  requiredCookieKeys: string[];
+  loginCookieKeys: string[];
+};
+```
+
+### 3. Contracts
+
+- `src/site-sessions.ts` owns the supported site list, login URL, allowed cookie domains, and required/login cookie keys.
+- `electron/siteSessionManager.mts` owns persisted session files under `<userDataDir>/site-sessions/<siteId>.json`.
+- Stored sessions must include a Netscape cookie string because downloader execution consumes cookie files, not Electron cookie jars.
+- Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
+- Settings badges are site-level pills whose primary visible content is icon, localized site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
+- Badge click behavior is unified for every site: start a manual capture/refresh flow. The app may label ready-state clicks as refresh, but they still open the same confirmation-based capture path.
+- `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Existing extension-provided cookies remain the fallback when no app-owned site session exists.
+- Legacy Douyin IPC commands must remain backward-compatible aliases to the site-session manager for `douyin`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| Unsupported `siteId` in a site-session command | Reject with `Unsupported site session: <siteId>` |
+| No stored file or invalid stored JSON | Return `availability: "missing"` and `sessionFilePath: null` |
+| Stored cookies miss required keys or login marker keys | Return `availability: "partial"` |
+| Stored cookies satisfy required keys and at least one login marker key when configured | Return `availability: "ready"` |
+| Confirm capture finds no cookies for allowed domains | Keep prior session cache, set `lastError`, close and destroy the capture partition |
+| User cancels/closes capture window | Return to `capturePhase: "idle"` and destroy the capture partition |
+| Downloader context has `siteId` with saved session | Inject saved Netscape cookies into `intent.cookies` |
+| Downloader context has no saved site session | Preserve incoming `intent.cookies` unchanged |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Adding another supported site means adding one `SITE_SESSION_CONFIGS` entry, one localized label, and one local icon mapping while reusing the same IPC commands and badge component behavior.
+- Base: YouTube has no strict `requiredCookieKeys`; login marker cookies determine whether captured cookies are complete enough.
+- Bad: Adding `get_bilibili_session_state` or a Bilibili-only manager duplicates the Douyin migration surface instead of extending the site-scoped contract.
+- Bad: Storing only a `Cookie:` header breaks `yt-dlp` / `gallery-dl` cookie-file execution.
+
+### 6. Tests Required
+
+- `npm run type-check`: `SupportedSiteSessionId`, bridge command names, and Settings command payloads compile.
+- `npm run lint`: Settings badge rendering and icon mappings remain lint-clean.
+- `npm test`: existing Electron runtime downloader cookie-file behavior remains green.
+- Manual Electron assertion: start capture for each supported site, confirm after logging in, and verify the badge moves to ready or partial based on configured cookie keys.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await desktopCommands.invoke("start_bilibili_session_capture");
+```
+
+#### Correct
+
+```ts
+await desktopCommands.invoke("start_site_session_capture", { siteId: "bilibili" });
+```
+
+#### Wrong
+
+```ts
+intent.cookies = "SESSDATA=...";
+```
+
+#### Correct
+
+```ts
+intent.cookies = storedSession.cookiesNetscape;
+```

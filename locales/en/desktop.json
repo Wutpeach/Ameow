@@ -145,7 +145,33 @@
     },
     "siteSessions": {
       "title": "Site login states",
-      "hint": "Sites that need login cookies appear here. Click a site badge to log in or refresh its session."
+      "hint": "Sites that need login cookies appear here. Click a site badge to start, confirm, or cancel session capture.",
+      "capturePreparing": "Opening the official login window for {{site}}.",
+      "captureAwaiting": "{{site}} login window is open. Confirm after logging in to save the session.",
+      "lastUpdated": "{{site}} last refreshed: {{time}}",
+      "manualHint": "Click any site badge to start or refresh session capture.",
+      "busyHint": "That site session is already being handled.",
+      "badgeActionHint": "Click to log in or refresh the {{site}} session",
+      "status": {
+        "ready": "Logged in",
+        "expired": "Expired",
+        "missing": "Not logged in"
+      },
+      "confirmButton": "Save session",
+      "cancelButton": "Cancel",
+      "clearButton": "Clear",
+      "sites": {
+        "douyin": "Douyin",
+        "bilibili": "Bilibili",
+        "xiaohongshu": "Xiaohongshu",
+        "youtube": "YouTube"
+      },
+      "errors": {
+        "start": "Failed to start the site login flow",
+        "confirm": "Failed to save the site session",
+        "cancel": "Failed to cancel the site login flow",
+        "clear": "Failed to clear the site session"
+      }
     },
     "douyinSession": {
       "title": "Douyin session",

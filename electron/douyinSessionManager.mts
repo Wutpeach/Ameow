@@ -146,6 +146,7 @@ const deriveDouyinSessionState = ({
   const cookieCount = Object.keys(cookies).length;
 
   return {
+    siteId: "douyin",
     availability:
       cookieCount === 0
         ? "missing"

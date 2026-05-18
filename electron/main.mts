@@ -103,7 +103,8 @@ import {
   managedDouyinDlRuntimePaths,
   resolvePinnedDownloaderRelease,
 } from "./managedRuntimeBootstrap.mjs";
-import { createDouyinSessionManager } from "./douyinSessionManager.mjs";
+import { createSiteSessionManager } from "./siteSessionManager.mjs";
+import { getSiteSessionConfig, isSupportedSiteSessionId } from "../src/site-sessions.js";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
@@ -180,7 +181,7 @@ let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
-let douyinSessionManager = null;
+const siteSessionManagers = new Map();
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -2040,15 +2041,13 @@ function getElectronDownloadRuntime() {
       return getRuntimeDependencyStatus();
     },
     buildExecutionContext(context) {
-      const appOwnedDouyinCookies = context.intent.siteId === "douyin"
-        ? getDouyinSessionManager().getDownloadCookies()
-        : null;
+      const appOwnedCookies = getSiteSessionManager(context.intent.siteId)?.getDownloadCookies() ?? null;
       return {
         ...context,
-        intent: appOwnedDouyinCookies
+        intent: appOwnedCookies
           ? {
               ...context.intent,
-              cookies: appOwnedDouyinCookies,
+              cookies: appOwnedCookies,
             }
           : context.intent,
         userDataDir: getUserDataDir(),
@@ -2058,24 +2057,99 @@ function getElectronDownloadRuntime() {
   return electronDownloadRuntime;
 }
 
-function getDouyinSessionManager() {
-  if (douyinSessionManager) {
-    return douyinSessionManager;
+function getSiteSessionManager(siteId) {
+  if (!isSupportedSiteSessionId(siteId)) {
+    return null;
   }
 
-  douyinSessionManager = createDouyinSessionManager({
-    getUserDataDir,
-    buildManagedRuntimeBootstrapOptions() {
-      return buildManagedRuntimeBootstrapOptions();
+  const cachedManager = siteSessionManagers.get(siteId);
+  if (cachedManager) {
+    return cachedManager;
+  }
+
+  const config = getSiteSessionConfig(siteId);
+  const manager = createSiteSessionManager({
+    site: {
+      id: config.id,
+      displayName: config.displayName,
+      loginUrl: config.loginUrl,
+      cookieDomains: [...config.cookieDomains],
+      requiredCookieKeys: [...config.requiredCookieKeys],
+      loginCookieKeys: [...config.loginCookieKeys],
     },
-    managedDouyinDlRuntimePaths,
-    ensureManagedDouyinDlRuntimeReady,
-    ensureManagedDouyinDlBrowserSupportReady,
+    getUserDataDir,
+    async createCaptureWindow({ site, partition, onClosed }) {
+      const captureWindow = new BrowserWindow({
+        width: 1180,
+        height: 860,
+        title: `${site.displayName} Login`,
+        show: true,
+        autoHideMenuBar: true,
+        webPreferences: {
+          partition,
+          contextIsolation: true,
+          sandbox: false,
+          nodeIntegration: false,
+        },
+      });
+
+      captureWindow.setMenuBarVisibility(false);
+      captureWindow.webContents.setWindowOpenHandler(({ url }) => {
+        captureWindow.loadURL(url).catch((error) => {
+          logInfo("SiteSession", "Failed to load popup URL", JSON.stringify({
+            siteId: site.id,
+            url,
+            error: String(error),
+          }));
+        });
+        return { action: "deny" };
+      });
+      captureWindow.on("closed", () => {
+        logInfo("SiteSession", "Site capture window closed", JSON.stringify({ siteId: site.id, partition }));
+        onClosed();
+      });
+      await captureWindow.loadURL(site.loginUrl);
+      return {
+        id: captureWindow.id,
+        close() {
+          if (!captureWindow.isDestroyed()) {
+            captureWindow.close();
+          }
+        },
+      };
+    },
+    async readCookies(partition) {
+      return session.fromPartition(partition).cookies.get({});
+    },
+    async destroyPartition(partition) {
+      await session.fromPartition(partition).clearStorageData();
+    },
     log(message, details) {
-      logInfo("DouyinSession", message, details ? JSON.stringify(details) : undefined);
+      logInfo("SiteSession", message, details ? JSON.stringify(details) : undefined);
     },
   });
-  return douyinSessionManager;
+  siteSessionManagers.set(siteId, manager);
+  return manager;
+}
+
+function getDouyinSessionManager() {
+  return getSiteSessionManager("douyin");
+}
+
+function requireSiteSessionManager(siteId) {
+  const manager = getSiteSessionManager(siteId);
+  if (!manager) {
+    throw new Error(`Unsupported site session: ${siteId ?? ""}`);
+  }
+  return manager;
+}
+
+function resolveSiteSessionIdFromPayload(payload, fallback = "douyin") {
+  const siteId = typeof payload?.siteId === "string" ? payload.siteId : fallback;
+  if (!isSupportedSiteSessionId(siteId)) {
+    throw new Error(`Unsupported site session: ${siteId}`);
+  }
+  return siteId;
 }
 
 function getExtensionRequestBridge() {
@@ -3319,16 +3393,26 @@ async function handleCommand(command, payload = {}) {
   switch (command) {
     case "get_config":
       return readConfigString();
+    case "get_site_session_state":
+      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).getState();
+    case "start_site_session_capture":
+      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).startCapture();
+    case "complete_site_session_capture":
+      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).confirmCapture();
+    case "cancel_site_session_capture":
+      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).cancelCapture();
+    case "clear_site_session":
+      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).clearSession();
     case "get_douyin_session_state":
-      return getDouyinSessionManager().getState();
+      return requireSiteSessionManager("douyin").getState();
     case "start_douyin_session_capture":
-      return getDouyinSessionManager().startCapture();
+      return requireSiteSessionManager("douyin").startCapture();
     case "complete_douyin_session_capture":
-      return getDouyinSessionManager().confirmCapture();
+      return requireSiteSessionManager("douyin").confirmCapture();
     case "cancel_douyin_session_capture":
-      return getDouyinSessionManager().cancelCapture();
+      return requireSiteSessionManager("douyin").cancelCapture();
     case "clear_douyin_session":
-      return getDouyinSessionManager().clearSession();
+      return requireSiteSessionManager("douyin").clearSession();
     case "save_config": {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
@@ -3907,7 +3991,9 @@ async function bootstrap() {
     }
     pendingProtectedImageRequests.clear();
     getExtensionRequestBridge().rejectAllPendingRequests(new Error("Ameow is shutting down"));
-    void getDouyinSessionManager().shutdown();
+    for (const manager of siteSessionManagers.values()) {
+      void manager.shutdown();
+    }
     for (const pending of pendingXiaohongshuDragRequests.values()) {
       clearTimeout(pending.timeoutId);
       pending.rejectResolution(new Error("Ameow is shutting down"));

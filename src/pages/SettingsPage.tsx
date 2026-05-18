@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CloseIcon, FolderOpenIcon, KeyboardIcon } from "../components/icons/AppIcons";
 import { NeonButton } from "../components/ui/neon-button";
@@ -57,23 +57,29 @@ import {
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
 import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
-import type { DouyinSessionState } from "../types/douyinSession";
+import { SITE_SESSION_CONFIGS } from "../site-sessions";
+import {
+  BilibiliLogo,
+  DouyinLogo,
+  XiaohongshuLogo,
+  YouTubeLogo,
+} from "../site-session-icons";
 import type {
-  RuntimeDependencyGateStatePayload,
-  RuntimeDependencyStatusSnapshot,
-} from "../types/runtimeDependencies";
+  SiteSessionState,
+  SupportedSiteSessionId,
+} from "../types/siteSession";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsTab = "general" | "downloads" | "plugins" | "advanced";
-type SiteLoginBadgeTone = "ready" | "warning" | "danger" | "muted";
+type SiteLoginBadgeTone = "ready" | "danger" | "muted";
+type SiteSessionAction = "start" | "confirm" | "cancel" | "clear";
 
 type SiteLoginBadgeModel = {
-  id: "douyin";
+  id: SupportedSiteSessionId;
+  icon: ReactNode;
   label: string;
   statusLabel: string;
-  detail: string;
   tone: SiteLoginBadgeTone;
-  actionLabel: string;
   disabled: boolean;
   title: string;
   onClick: () => void;
@@ -89,6 +95,12 @@ const COMPACT_SHORTCUT_ACTION_MIN_WIDTH = 74;
 const COMPACT_SHORTCUT_ACTION_PADDING = "6px 12px";
 const UI_LAB_WINDOW_WIDTH = 420;
 const UI_LAB_WINDOW_HEIGHT = 560;
+const SITE_SESSION_LOGOS: Record<SupportedSiteSessionId, ComponentType<{ size?: number }>> = {
+  douyin: DouyinLogo,
+  bilibili: BilibiliLogo,
+  xiaohongshu: XiaohongshuLogo,
+  youtube: YouTubeLogo,
+};
 const SHORTCUT_KEY_ALIASES: Record<string, string> = {
   CONTROL: "Ctrl",
   CTRL: "Ctrl",
@@ -245,15 +257,12 @@ function SettingsPage() {
   const [globalProxyEnabled, setGlobalProxyEnabled] = useState(false);
   const [globalProxyUrl, setGlobalProxyUrl] = useState("");
   const [globalProxyError, setGlobalProxyError] = useState<string | null>(null);
-  const [douyinSessionState, setDouyinSessionState] = useState<DouyinSessionState | null>(null);
-  const [runtimeDependencyStatus, setRuntimeDependencyStatus] = useState<RuntimeDependencyStatusSnapshot | null>(null);
-  const [runtimeDependencyGateState, setRuntimeDependencyGateState] =
-    useState<RuntimeDependencyGateStatePayload | null>(null);
-  const [douyinSessionError, setDouyinSessionError] = useState<string | null>(null);
-  const [isStartingDouyinSession, setIsStartingDouyinSession] = useState(false);
-  const [isConfirmingDouyinSession, setIsConfirmingDouyinSession] = useState(false);
-  const [isCancellingDouyinSession, setIsCancellingDouyinSession] = useState(false);
-  const [isClearingDouyinSession, setIsClearingDouyinSession] = useState(false);
+  const [siteSessionStates, setSiteSessionStates] =
+    useState<Partial<Record<SupportedSiteSessionId, SiteSessionState>>>({});
+  const [siteSessionErrors, setSiteSessionErrors] =
+    useState<Partial<Record<SupportedSiteSessionId, string | null>>>({});
+  const [busySiteSessionAction, setBusySiteSessionAction] =
+    useState<{ siteId: SupportedSiteSessionId; action: SiteSessionAction } | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null);
   const [supportLogHint, setSupportLogHint] = useState("");
@@ -698,153 +707,89 @@ function SettingsPage() {
     }
   };
 
-  const loadDouyinSessionPanelState = useCallback(async () => {
-    try {
-      const [sessionState, status, gateState] = await Promise.all([
-        desktopCommands.invoke<DouyinSessionState>("get_douyin_session_state"),
-        desktopCommands.invoke<RuntimeDependencyStatusSnapshot>("get_runtime_dependency_status"),
-        desktopCommands.invoke<RuntimeDependencyGateStatePayload>("get_runtime_dependency_gate_state"),
-      ]);
-      setDouyinSessionState(sessionState);
-      setRuntimeDependencyStatus(status);
-      setRuntimeDependencyGateState(gateState);
-      setDouyinSessionError(null);
-    } catch (err) {
-      console.error("Failed to load Douyin session status:", err);
-      setDouyinSessionError(summarizeAppUpdateError(err));
-    }
+  const setSiteSessionError = useCallback((siteId: SupportedSiteSessionId, error: string | null) => {
+    setSiteSessionErrors((current) => ({
+      ...current,
+      [siteId]: error,
+    }));
   }, []);
 
-  useEffect(() => {
-    void loadDouyinSessionPanelState();
-  }, [loadDouyinSessionPanelState]);
+  const loadSiteSessionPanelState = useCallback(async () => {
+    try {
+      const sessionStates = await Promise.all(
+        SITE_SESSION_CONFIGS.map(async (site) => [
+          site.id,
+          await desktopCommands.invoke<SiteSessionState>("get_site_session_state", { siteId: site.id }),
+        ] as const),
+      );
+      const sessionStateMap = Object.fromEntries(sessionStates);
+      setSiteSessionStates(sessionStateMap);
+      setSiteSessionErrors({});
+    } catch (err) {
+      console.error("Failed to load site session status:", err);
+      setSiteSessionError("douyin", summarizeAppUpdateError(err));
+    }
+  }, [setSiteSessionError]);
 
   useEffect(() => {
-    const capturePhase = douyinSessionState?.capturePhase ?? "idle";
-    const gatePhase = runtimeDependencyGateState?.phase ?? "idle";
-    const shouldPoll = capturePhase !== "idle" || gatePhase === "checking" || gatePhase === "downloading";
+    void loadSiteSessionPanelState();
+  }, [loadSiteSessionPanelState]);
+
+  useEffect(() => {
+    const hasActiveCapture = SITE_SESSION_CONFIGS.some((site) => (
+      (siteSessionStates[site.id]?.capturePhase ?? "idle") !== "idle"
+    ));
+    const shouldPoll = hasActiveCapture;
     if (!shouldPoll) {
       return undefined;
     }
 
     const timer = window.setInterval(() => {
-      void loadDouyinSessionPanelState();
+      void loadSiteSessionPanelState();
     }, 1500);
     return () => {
       window.clearInterval(timer);
     };
-  }, [douyinSessionState?.capturePhase, loadDouyinSessionPanelState, runtimeDependencyGateState?.phase]);
+  }, [loadSiteSessionPanelState, siteSessionStates]);
 
-  const isDouyinSessionActionBusy = isStartingDouyinSession
-    || isConfirmingDouyinSession
-    || isCancellingDouyinSession
-    || isClearingDouyinSession;
+  const isSiteSessionActionBusy = Boolean(busySiteSessionAction);
 
-  const handleDouyinSessionStartCapture = useCallback(async () => {
-    if (isDouyinSessionActionBusy) {
+  const invokeSiteSessionCommand = useCallback(async (
+    siteId: SupportedSiteSessionId,
+    action: SiteSessionAction,
+  ) => {
+    if (busySiteSessionAction) {
       return;
     }
 
-    setDouyinSessionError(null);
-    setIsStartingDouyinSession(true);
+    const command = action === "start"
+      ? "start_site_session_capture"
+      : action === "confirm"
+        ? "complete_site_session_capture"
+        : action === "cancel"
+          ? "cancel_site_session_capture"
+          : "clear_site_session";
+
+    setSiteSessionError(siteId, null);
+    setBusySiteSessionAction({ siteId, action });
     try {
-      const sessionState = await desktopCommands.invoke<DouyinSessionState>("start_douyin_session_capture");
-      setDouyinSessionState(sessionState);
-      setDouyinSessionError(null);
+      const sessionState = await desktopCommands.invoke<SiteSessionState>(command, { siteId });
+      setSiteSessionStates((current) => ({
+        ...current,
+        [siteId]: sessionState,
+      }));
+      setSiteSessionError(siteId, null);
     } catch (err) {
-      console.error("Failed to start Douyin session capture:", err);
-      setDouyinSessionError(
-        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.startFailed"),
+      console.error(`Failed to ${action} site session capture:`, err);
+      setSiteSessionError(
+        siteId,
+        summarizeAppUpdateError(err) ?? t(`desktop:settings.siteSessions.errors.${action}`),
       );
-      await loadDouyinSessionPanelState();
+      await loadSiteSessionPanelState();
     } finally {
-      setIsStartingDouyinSession(false);
+      setBusySiteSessionAction(null);
     }
-  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
-
-  const handleDouyinSessionConfirmCapture = useCallback(async () => {
-    if (isDouyinSessionActionBusy) {
-      return;
-    }
-
-    setDouyinSessionError(null);
-    setIsConfirmingDouyinSession(true);
-    try {
-      const sessionState = await desktopCommands.invoke<DouyinSessionState>("complete_douyin_session_capture");
-      setDouyinSessionState(sessionState);
-      setDouyinSessionError(null);
-    } catch (err) {
-      console.error("Failed to confirm Douyin session capture:", err);
-      setDouyinSessionError(
-        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.confirmFailed"),
-      );
-      await loadDouyinSessionPanelState();
-    } finally {
-      setIsConfirmingDouyinSession(false);
-    }
-  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
-
-  const handleDouyinSessionCancelCapture = useCallback(async () => {
-    if (isDouyinSessionActionBusy) {
-      return;
-    }
-
-    setDouyinSessionError(null);
-    setIsCancellingDouyinSession(true);
-    try {
-      const sessionState = await desktopCommands.invoke<DouyinSessionState>("cancel_douyin_session_capture");
-      setDouyinSessionState(sessionState);
-      setDouyinSessionError(null);
-    } catch (err) {
-      console.error("Failed to cancel Douyin session capture:", err);
-      setDouyinSessionError(
-        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.cancelFailed"),
-      );
-      await loadDouyinSessionPanelState();
-    } finally {
-      setIsCancellingDouyinSession(false);
-    }
-  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
-
-  const handleDouyinSessionClear = useCallback(async () => {
-    if (isDouyinSessionActionBusy) {
-      return;
-    }
-
-    setDouyinSessionError(null);
-    setIsClearingDouyinSession(true);
-    try {
-      const sessionState = await desktopCommands.invoke<DouyinSessionState>("clear_douyin_session");
-      setDouyinSessionState(sessionState);
-      setDouyinSessionError(null);
-    } catch (err) {
-      console.error("Failed to clear Douyin session:", err);
-      setDouyinSessionError(
-        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.clearFailed"),
-      );
-      await loadDouyinSessionPanelState();
-    } finally {
-      setIsClearingDouyinSession(false);
-    }
-  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
-
-  const handleDouyinRuntimeRetry = useCallback(async () => {
-    setDouyinSessionError(null);
-    try {
-      const gateState = await desktopCommands.invoke<RuntimeDependencyGateStatePayload>(
-        "start_runtime_dependency_bootstrap",
-        { reason: "settings_douyin_session" },
-      );
-      setRuntimeDependencyGateState(gateState);
-      await loadDouyinSessionPanelState();
-    } catch (err) {
-      console.error("Failed to retry Douyin runtime bootstrap:", err);
-      setDouyinSessionError(
-        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.runtimeRetryFailed"),
-      );
-      await loadDouyinSessionPanelState();
-    }
-  }, [loadDouyinSessionPanelState, t]);
+  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionError, t]);
 
   const handleAppUpdateCheck = useCallback(async () => {
     if (appUpdatePhase === "checking" || appUpdatePhase === "downloading" || appUpdatePhase === "installing") {
@@ -1036,16 +981,6 @@ function SettingsPage() {
         glow: colors.accentGlow,
       };
     }
-    if (tone === "warning") {
-      return {
-        border: colors.warningBorder,
-        surfaceStart: colors.warningSurface,
-        surfaceEnd: colors.fieldBg,
-        dot: colors.warningSolid,
-        text: colors.textPrimary,
-        glow: colors.warningGlow,
-      };
-    }
     if (tone === "danger") {
       return {
         border: colors.dangerBorder,
@@ -1110,75 +1045,58 @@ function SettingsPage() {
     };
   };
 
-  const douyinSessionAvailability = douyinSessionState?.availability ?? "missing";
-  const douyinSessionCapturePhase = douyinSessionState?.capturePhase ?? "idle";
-  const douyinSessionHasStoredCookies = (douyinSessionState?.cookieCount ?? 0) > 0;
-  const douyinRuntimeStatus = runtimeDependencyStatus?.douyinDl ?? null;
-  const douyinRuntimeReady = douyinRuntimeStatus?.state === "ready";
-  const douyinRuntimeGatePhase = runtimeDependencyGateState?.phase ?? "idle";
-  const isDouyinRuntimeBusy = runtimeDependencyGateState?.currentComponent === "douyinDl"
-    && (douyinRuntimeGatePhase === "checking" || douyinRuntimeGatePhase === "downloading");
-  const douyinSessionDetailText = douyinSessionCapturePhase === "preparing"
-    ? t("desktop:settings.douyinSession.capturePreparing")
-    : douyinSessionCapturePhase === "awaiting_confirmation"
-      ? t("desktop:settings.douyinSession.captureAwaiting")
-      : douyinSessionAvailability === "ready"
-        ? t("desktop:settings.douyinSession.readyHint", {
-            count: douyinSessionState?.cookieCount ?? 0,
-          })
-        : douyinSessionHasStoredCookies && (douyinSessionState?.missingRequiredKeys.length ?? 0) > 0
-          ? t("desktop:settings.douyinSession.incompleteHint", {
-              keys: douyinSessionState?.missingRequiredKeys.join(", "),
-            })
-          : t("desktop:settings.douyinSession.missingHint");
-  const douyinSessionLastUpdatedLabel = douyinSessionState?.updatedAtMs
-    ? formatLocalizedDateTime(douyinSessionState.updatedAtMs, i18n.resolvedLanguage)
+  const activeCaptureSite = SITE_SESSION_CONFIGS.find((site) => {
+    const phase = siteSessionStates[site.id]?.capturePhase ?? "idle";
+    return phase === "preparing" || phase === "awaiting_confirmation";
+  }) ?? null;
+  const activeCaptureSiteId = activeCaptureSite?.id ?? null;
+  const activeCaptureState = activeCaptureSiteId ? siteSessionStates[activeCaptureSiteId] ?? null : null;
+  const activeCaptureLabel = activeCaptureSite ? t(activeCaptureSite.labelKey) : "";
+  const activeCapturePhase = activeCaptureState?.capturePhase ?? "idle";
+  const activeCaptureLastUpdatedLabel = activeCaptureState?.updatedAtMs
+    ? formatLocalizedDateTime(activeCaptureState.updatedAtMs, i18n.resolvedLanguage)
     : null;
-  const canClearDouyinSession = douyinSessionHasStoredCookies || Boolean(douyinSessionLastUpdatedLabel);
-  const douyinSessionStatusLabel = douyinSessionError
-    ? t("desktop:settings.douyinSession.state.error")
-    : douyinSessionCapturePhase === "preparing"
-      ? t("desktop:settings.douyinSession.state.preparing")
-      : douyinSessionCapturePhase === "awaiting_confirmation"
-        ? t("desktop:settings.douyinSession.state.pending")
-        : douyinSessionAvailability === "ready"
-          ? t("desktop:settings.douyinSession.state.ready")
-          : douyinSessionAvailability === "partial"
-            ? t("desktop:settings.douyinSession.state.partial")
-            : t("desktop:settings.douyinSession.state.missing");
-  const douyinSessionBadgeTone: SiteLoginBadgeTone = douyinSessionError
-    ? "danger"
-    : douyinSessionCapturePhase === "preparing" || douyinSessionCapturePhase === "awaiting_confirmation"
-      ? "warning"
-      : douyinSessionAvailability === "ready"
-        ? "ready"
-        : douyinSessionAvailability === "partial"
-          ? "warning"
-          : "muted";
-  const douyinSessionBadgeDisabled = isDouyinSessionActionBusy
-    || douyinSessionCapturePhase === "preparing"
-    || douyinSessionCapturePhase === "awaiting_confirmation";
-  const douyinSessionBadgeActionLabel = isStartingDouyinSession
-    ? t("desktop:settings.douyinSession.startingButton")
-    : douyinSessionCapturePhase === "awaiting_confirmation"
-      ? t("desktop:settings.douyinSession.confirmPrompt")
-      : douyinSessionAvailability === "ready"
-        ? t("desktop:settings.douyinSession.refreshButton")
-        : t("desktop:settings.douyinSession.loginButton");
-  const douyinSiteLoginBadge: SiteLoginBadgeModel = {
-    id: "douyin",
-    label: t("desktop:settings.douyinSession.siteLabel"),
-    statusLabel: douyinSessionStatusLabel,
-    detail: douyinSessionDetailText,
-    tone: douyinSessionBadgeTone,
-    actionLabel: douyinSessionBadgeActionLabel,
-    disabled: douyinSessionBadgeDisabled,
-    title: douyinSessionBadgeDisabled
-      ? douyinSessionDetailText
-      : t("desktop:settings.douyinSession.badgeActionHint"),
-    onClick: handleDouyinSessionStartCapture,
-  };
-  const siteLoginBadges: SiteLoginBadgeModel[] = [douyinSiteLoginBadge];
+  const canClearActiveCaptureSession = Boolean(
+    activeCaptureSiteId
+    && (
+      (activeCaptureState?.cookieCount ?? 0) > 0
+      || activeCaptureState?.updatedAtMs
+    ),
+  );
+  const siteSessionSummary = activeCapturePhase === "preparing"
+    ? t("desktop:settings.siteSessions.capturePreparing", { site: activeCaptureLabel })
+    : activeCapturePhase === "awaiting_confirmation"
+      ? t("desktop:settings.siteSessions.captureAwaiting", { site: activeCaptureLabel })
+      : activeCaptureLastUpdatedLabel
+        ? t("desktop:settings.siteSessions.lastUpdated", {
+            site: activeCaptureLabel,
+            time: activeCaptureLastUpdatedLabel,
+          })
+        : t("desktop:settings.siteSessions.manualHint");
+  const siteSessionError = SITE_SESSION_CONFIGS
+    .map((site) => siteSessionErrors[site.id])
+    .find((error): error is string => Boolean(error));
+  const siteLoginBadges: SiteLoginBadgeModel[] = SITE_SESSION_CONFIGS.map((site) => {
+    const state = siteSessionStates[site.id];
+    const error = siteSessionErrors[site.id];
+    const availability = state?.availability ?? "missing";
+    const phase = state?.capturePhase ?? "idle";
+    const Logo = SITE_SESSION_LOGOS[site.id];
+    const statusKey = error ? "expired" : availability === "ready" ? "ready" : "missing";
+    const disabled = isSiteSessionActionBusy || phase === "preparing" || phase === "awaiting_confirmation";
+    return {
+      id: site.id,
+      icon: <Logo size={15} />,
+      label: t(site.labelKey),
+      statusLabel: t(`desktop:settings.siteSessions.status.${statusKey}`),
+      tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
+      disabled,
+      title: disabled
+        ? t("desktop:settings.siteSessions.busyHint")
+        : t("desktop:settings.siteSessions.badgeActionHint", { site: t(site.labelKey) }),
+      onClick: () => void invokeSiteSessionCommand(site.id, "start"),
+    };
+  });
 
   const settingsTabChromeStyle: CSSProperties = {
     display: "flex",
@@ -1523,60 +1441,36 @@ function SettingsPage() {
                 }}
               >
                 <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ flexShrink: 0, color: colors.textPrimary }}>{site.icon}</span>
                   <span style={getSiteLoginStatusDotStyle(site.tone)} aria-hidden="true" />
-                  <span style={{ minWidth: 0, display: "grid", gap: 3 }}>
+                  <span
+                    style={{
+                      minWidth: 0,
+                      display: "grid",
+                      gap: 1,
+                    }}
+                  >
                     <span
                       style={{
                         fontSize: 12,
                         fontWeight: 650,
-                        lineHeight: 1,
+                        lineHeight: 1.1,
                         color: colors.textPrimary,
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {site.label}
                     </span>
                     <span
                       style={{
-                        fontSize: 10.5,
-                        lineHeight: 1.25,
-                        color: colors.textSecondary,
-                        opacity: 0.86,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        fontSize: 10,
+                        lineHeight: 1.1,
+                        color: site.tone === "ready" ? colors.accentText : site.tone === "danger" ? colors.dangerText : colors.textSecondary,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {site.detail}
+                      {site.statusLabel}
                     </span>
-                  </span>
-                </span>
-                <span
-                  style={{
-                    flexShrink: 0,
-                    display: "grid",
-                    justifyItems: "end",
-                    gap: 3,
-                    fontSize: 10,
-                    lineHeight: 1,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: colors.textPrimary,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {site.statusLabel}
-                  </span>
-                  <span
-                    style={{
-                      color: colors.textSecondary,
-                      opacity: 0.78,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {site.actionLabel}
                   </span>
                 </span>
               </button>
@@ -1585,86 +1479,61 @@ function SettingsPage() {
 
           <div style={{ display: "grid", gap: 5 }}>
             <NeonHint size="sm">
-              {douyinRuntimeReady
-                ? t("desktop:settings.douyinSession.runtimeInlineReady")
-                : isDouyinRuntimeBusy
-                  ? t("desktop:settings.douyinSession.runtimePreparing")
-                  : t("desktop:settings.douyinSession.runtimeMissing")}
+              {siteSessionSummary}
             </NeonHint>
 
-            {douyinSessionLastUpdatedLabel ? (
+            {activeCaptureLastUpdatedLabel ? (
               <NeonHint size="sm">
-                {t("desktop:settings.douyinSession.lastUpdated", {
-                  time: douyinSessionLastUpdatedLabel,
+                {t("desktop:settings.siteSessions.lastUpdated", {
+                  site: activeCaptureLabel,
+                  time: activeCaptureLastUpdatedLabel,
                 })}
               </NeonHint>
             ) : (
               <NeonHint size="sm">
-                {t("desktop:settings.douyinSession.manualHint")}
+                {t("desktop:settings.siteSessions.manualHint")}
               </NeonHint>
             )}
           </div>
 
-          {douyinSessionError ? (
+          {siteSessionError ? (
             <NeonHint tone="danger" size="sm">
-              {douyinSessionError}
+              {siteSessionError}
             </NeonHint>
           ) : null}
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            {!douyinRuntimeReady && douyinSessionCapturePhase === "idle" ? (
+            {activeCapturePhase === "awaiting_confirmation" ? (
               <NeonButton
                 type="button"
-                variant="outline"
+                variant="default"
                 size="sm"
-                onClick={() => void handleDouyinRuntimeRetry()}
-                disabled={isDouyinRuntimeBusy}
+                onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "confirm")}
+                disabled={isSiteSessionActionBusy}
                 style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
               >
-                {isDouyinRuntimeBusy
-                  ? t("desktop:settings.douyinSession.runtimePreparingButton")
-                  : t("desktop:settings.douyinSession.runtimeRetryButton")}
+                {t("desktop:settings.siteSessions.confirmButton")}
               </NeonButton>
-            ) : null}
-            {douyinSessionCapturePhase === "awaiting_confirmation" ? (
-              <>
-                <NeonButton
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={() => void handleDouyinSessionConfirmCapture()}
-                  disabled={isDouyinSessionActionBusy}
-                  style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
-                >
-                  {isConfirmingDouyinSession
-                    ? t("desktop:settings.douyinSession.confirmingButton")
-                    : t("desktop:settings.douyinSession.confirmButton")}
-                </NeonButton>
-                <NeonButton
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleDouyinSessionCancelCapture()}
-                  disabled={isDouyinSessionActionBusy}
-                  style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
-                >
-                  {isCancellingDouyinSession
-                    ? t("desktop:settings.douyinSession.cancellingButton")
-                    : t("desktop:settings.douyinSession.cancelButton")}
-                </NeonButton>
-              </>
             ) : null}
             <NeonButton
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => void handleDouyinSessionClear()}
-              disabled={isDouyinSessionActionBusy || !canClearDouyinSession}
+              onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "cancel")}
+              disabled={isSiteSessionActionBusy || activeCapturePhase !== "awaiting_confirmation"}
               style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
             >
-              {isClearingDouyinSession
-                ? t("desktop:settings.douyinSession.clearingButton")
-                : t("desktop:settings.douyinSession.clearButton")}
+              {t("desktop:settings.siteSessions.cancelButton")}
+            </NeonButton>
+            <NeonButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "clear")}
+              disabled={isSiteSessionActionBusy || !canClearActiveCaptureSession}
+              style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
+            >
+              {t("desktop:settings.siteSessions.clearButton")}
             </NeonButton>
           </div>
         </NeonCard>

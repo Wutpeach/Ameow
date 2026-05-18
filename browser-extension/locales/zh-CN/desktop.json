@@ -145,7 +145,33 @@
     },
     "siteSessions": {
       "title": "站点登录态",
-      "hint": "需要登录 Cookies 的站点会显示在这里。点击站点徽章即可登录或刷新会话。"
+      "hint": "需要登录 Cookies 的站点会显示在这里。点击站点徽章即可开始、确认或取消会话捕获。",
+      "capturePreparing": "正在打开 {{site}} 的官方登录窗口。",
+      "captureAwaiting": "{{site}} 登录窗口已打开，完成登录后可确认保存。",
+      "lastUpdated": "{{site}} 最近一次刷新：{{time}}",
+      "manualHint": "点击任一站点徽章即可开始或刷新会话捕获。",
+      "busyHint": "当前站点会话正在处理中。",
+      "badgeActionHint": "点击登录或刷新 {{site}} 会话",
+      "status": {
+        "ready": "已登录",
+        "expired": "失效",
+        "missing": "未登录"
+      },
+      "confirmButton": "确认保存",
+      "cancelButton": "取消",
+      "clearButton": "清除",
+      "sites": {
+        "douyin": "抖音",
+        "bilibili": "哔哩哔哩",
+        "xiaohongshu": "小红书",
+        "youtube": "YouTube"
+      },
+      "errors": {
+        "start": "站点登录流程启动失败",
+        "confirm": "站点会话保存失败",
+        "cancel": "站点登录流程取消失败",
+        "clear": "站点会话清除失败"
+      }
     },
     "douyinSession": {
       "title": "抖音登录会话",
