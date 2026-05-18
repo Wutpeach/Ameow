@@ -374,3 +374,36 @@ Implemented a conservative image-quality upgrade pipeline for generic image drag
 ### Next Steps
 
 - None - task complete
+
+
+## Session 149: Repair Windows dev environment and add global proxy setting
+
+**Date**: 2026-05-18
+**Task**: Repair Windows dev environment and add global proxy setting
+**Branch**: `main`
+
+### Summary
+
+Restored npm run dev on the Windows machine by completing the broken Electron install, documented the Windows process-cleanup gotcha, and added a global desktop proxy URL setting that applies through Electron's default session for bootstrap and other desktop fetches.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7d7cbec` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
