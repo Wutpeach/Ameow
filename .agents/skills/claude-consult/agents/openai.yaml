@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Consult"
+  short_description: "Consult Claude Code for complex or risky development decisions."
+  default_prompt: "Use Claude Consult when complex implementation work would benefit from a second opinion on architecture, risks, or tests."

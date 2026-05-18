@@ -1,11 +1,11 @@
 ---
-name: update-spec
-description: "Captures executable contracts and coding knowledge into .trellis/spec/ documents after implementation, debugging, or design decisions. Enforces code-spec depth for infra and cross-layer changes with mandatory sections for signatures, contracts, validation matrices, and test points. Use when a feature is implemented, a bug is fixed, a design decision is made, a new pattern is discovered, or cross-layer contracts change."
+name: trellis-update-spec
+description: "Captures executable contracts and coding conventions into .trellis/spec/ documents. Use when learning something valuable from debugging, implementing, or discussion that should be preserved for future sessions."
 ---
 
 # Update Code-Spec - Capture Executable Contracts
 
-When you learn something valuable (from debugging, implementing, or discussion), use this skill to update the relevant code-spec documents.
+When you learn something valuable (from debugging, implementing, or discussion), use this to update the relevant code-spec documents.
 
 **Timing**: After completing a task, fixing a bug, or discovering a new pattern
 
@@ -20,7 +20,17 @@ In this project, "spec" for implementation work means **code-spec**:
 
 If the change touches infra or cross-layer contracts, code-spec depth is mandatory.
 
-Required sections for infra/cross-layer specs:
+### Mandatory Triggers
+
+Apply code-spec depth when the change includes any of:
+- New/changed command or API signature
+- Cross-layer request/response contract change
+- Database schema/migration change
+- Infra integration (storage, queue, cache, secrets, env wiring)
+
+### Mandatory Output (7 Sections)
+
+For triggered tasks, include all sections below:
 1. Scope / Trigger
 2. Signatures (command/API/DB)
 3. Contracts (request/response/env)
@@ -35,13 +45,13 @@ Required sections for infra/cross-layer specs:
 
 | Trigger | Example | Target Spec |
 |---------|---------|-------------|
-| **Implemented a feature** | Added template download with giget | Relevant `backend/` or `frontend/` file |
-| **Made a design decision** | Used type field + mapping table for extensibility | Relevant code-spec + "Design Decisions" section |
-| **Fixed a bug** | Found a subtle issue with error handling | `backend/error-handling.md` |
-| **Discovered a pattern** | Found a better way to structure code | Relevant `backend/` or `frontend/` file |
-| **Hit a gotcha** | Learned that X must be done before Y | Relevant code-spec + "Common Mistakes" section |
-| **Established a convention** | Team agreed on naming pattern | `quality-guidelines.md` |
-| **New thinking trigger** | "Don't forget to check X before doing Y" | `guides/*.md` (as a checklist item, not detailed rules) |
+| **Implemented a feature** | Added a new integration or module | Relevant spec file |
+| **Made a design decision** | Chose extensibility pattern over simplicity | Relevant spec + "Design Decisions" section |
+| **Fixed a bug** | Found a subtle issue with error handling | Relevant spec (e.g., error-handling docs) |
+| **Discovered a pattern** | Found a better way to structure code | Relevant spec file |
+| **Hit a gotcha** | Learned that X must be done before Y | Relevant spec + "Common Mistakes" section |
+| **Established a convention** | Team agreed on naming pattern | Quality guidelines |
+| **New thinking trigger** | "Don't forget to check X before doing Y" | `guides/*.md` (as a checklist item) |
 
 **Key Insight**: Code-spec updates are NOT just for problems. Every feature implementation contains design decisions and contracts that future AI/developers need to execute safely.
 
@@ -51,10 +61,7 @@ Required sections for infra/cross-layer specs:
 
 ```
 .trellis/spec/
-├── backend/           # Backend coding standards
-│   ├── index.md       # Overview and links
-│   └── *.md           # Topic-specific guidelines
-├── frontend/          # Frontend coding standards
+├── <layer>/           # Per-layer coding standards (e.g., backend/, frontend/, api/)
 │   ├── index.md       # Overview and links
 │   └── *.md           # Topic-specific guidelines
 └── guides/            # Thinking checklists (NOT coding specs!)
@@ -66,20 +73,20 @@ Required sections for infra/cross-layer specs:
 
 | Type | Location | Purpose | Content Style |
 |------|----------|---------|---------------|
-| **Code-Spec** | `backend/*.md`, `frontend/*.md` | Tell AI "how to implement safely" | Signatures, contracts, matrices, cases, test points |
+| **Code-Spec** | `<layer>/*.md` | Tell AI "how to implement safely" | Signatures, contracts, matrices, cases, test points |
 | **Guide** | `guides/*.md` | Help AI "what to think about" | Checklists, questions, pointers to specs |
 
 **Decision Rule**: Ask yourself:
 
-- "This is **how to write** the code" → Put in `backend/` or `frontend/`
+- "This is **how to write** the code" → Put in a spec layer directory
 - "This is **what to consider** before writing" → Put in `guides/`
 
 **Example**:
 
 | Learning | Wrong Location | Correct Location |
 |----------|----------------|------------------|
-| "Use `reconfigure()` not `TextIOWrapper` for Windows stdout" | ❌ `guides/cross-platform-thinking-guide.md` | ✅ `backend/script-conventions.md` |
-| "Remember to check encoding when writing cross-platform code" | ❌ `backend/script-conventions.md` | ✅ `guides/cross-platform-thinking-guide.md` |
+| "Use API X not API Y for this task" | ❌ `guides/` (too specific for a thinking guide) | ✅ Relevant spec file (concrete convention) |
+| "Remember to check X when doing Y" | ❌ Spec file (too abstract for a spec) | ✅ `guides/` (thinking checklist) |
 
 **Guides should be short checklists that point to specs**, not duplicate the detailed rules.
 
@@ -145,10 +152,24 @@ If you added a new section or the code-spec status changed, update the category'
 - Trigger: <why this requires code-spec depth>
 
 ### 2. Signatures
+- Backend command/API/DB signature(s)
+
 ### 3. Contracts
+- Request fields (name, type, constraints)
+- Response fields (name, type, constraints)
+- Environment keys (required/optional)
+
 ### 4. Validation & Error Matrix
+- <condition> -> <error>
+
 ### 5. Good/Base/Bad Cases
+- Good: ...
+- Base: ...
+- Bad: ...
+
 ### 6. Tests Required
+- Unit/Integration/E2E with assertion points
+
 ### 7. Wrong vs Correct
 #### Wrong
 ...
@@ -313,15 +334,15 @@ Before finishing your code-spec update:
 
 ```
 Development Flow:
-  Learn something → $update-spec → Knowledge captured
+  Learn something → `update-spec` (Trellis command) → Knowledge captured
        ↑                                  ↓
-  $break-loop ←──────────────────── Future sessions benefit
+  `break-loop` (Trellis command) ←──────────────────── Future sessions benefit
   (deep bug analysis)
 ```
 
-- `$break-loop` - Analyzes bugs deeply, often reveals spec updates needed
-- `$update-spec` - Actually makes the updates (this skill)
-- `$finish-work` - Reminds you to check if specs need updates
+- ``break-loop` (Trellis command)` - Analyzes bugs deeply, often reveals spec updates needed
+- ``update-spec` (Trellis command)` - Actually makes the updates
+- ``finish-work` (Trellis command)` - Reminds you to check if specs need updates
 
 ---
 

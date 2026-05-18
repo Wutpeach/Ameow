@@ -80,6 +80,7 @@
       },
       "component": {
         "ytDlp": "yt-dlp",
+        "douyinDl": "Douyin Downloader",
         "ffmpeg": "FFmpeg",
         "deno": "Deno"
       },
@@ -141,6 +142,27 @@
       "title": "Output Folder",
       "choose": "Choose a folder...",
       "dialogTitle": "Select Output Folder"
+    },
+    "douyinSession": {
+      "title": "Douyin session",
+      "hint": "Use Playwright to open the official login flow, save Douyin cookies, and refresh them manually when needed.",
+      "cardTitle": "Douyin Downloader session",
+      "state": {
+        "ready": "Ready",
+        "missing": "Not logged in"
+      },
+      "missingHint": "No usable Douyin session is stored yet. After login, Douyin downloads will prefer the app-owned cookie set.",
+      "readyHint": "Stored {{count}} session cookies. Douyin website downloads now prefer this app-owned session.",
+      "incompleteHint": "A session file exists but required cookies are still missing: {{keys}}. Please log in again.",
+      "manualHint": "If Douyin downloads fail or the session expires, come back here to refresh it manually.",
+      "lastUpdated": "Last refreshed: {{time}}",
+      "loginButton": "Log in",
+      "refreshButton": "Refresh",
+      "refreshingButton": "Working...",
+      "clearButton": "Clear",
+      "clearingButton": "Clearing...",
+      "refreshFailed": "Failed to refresh the Douyin session",
+      "clearFailed": "Failed to clear the Douyin session"
     },
     "shortcut": {
       "title": "Global Shortcut",
