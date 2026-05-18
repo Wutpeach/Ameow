@@ -407,3 +407,36 @@ Restored npm run dev on the Windows machine by completing the broken Electron in
 ### Next Steps
 
 - None - task complete
+
+
+## Session 150: Investigate Windows bootstart pinned lookup 403
+
+**Date**: 2026-05-18
+**Task**: Investigate Windows bootstart pinned lookup 403
+**Branch**: `main`
+
+### Summary
+
+Replaced GitHub release metadata lookup with pinned direct download URLs for yt-dlp and gallery-dl, fixed the gallery-dl tag to the official 2026.03.30 asset, and verified tests/lint/type-check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `465e82f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
