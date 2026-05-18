@@ -30,7 +30,7 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
   });
 
-  it("routes Xiaohongshu direct assets through the Xiaohongshu provider", () => {
+  it("routes Xiaohongshu direct hints through yt-dlp with the canonical note URL", () => {
     const directUrl = "https://sns-video-bd.xhscdn.com/stream/example.mp4";
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
     const plan = resolvePlan({
@@ -39,8 +39,36 @@ describe("builtin site providers", () => {
     });
 
     expect(plan?.providerId).toBe("xiaohongshu");
-    expect(plan?.engines.map((engine) => engine.engine)).toEqual(["direct"]);
-    expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
+    expect(plan?.engines.map((engine) => engine.engine)).toEqual(["yt-dlp"]);
+    expect(plan?.engines[0]?.sourceUrl).toBe(pageUrl);
+  });
+
+  it("preserves Xiaohongshu direct candidates as metadata while using yt-dlp", () => {
+    const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
+    const directCandidate = {
+      url: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
+      type: "direct_mp4",
+      source: "extension_resolution",
+      confidence: "high" as const,
+      mediaType: "video" as const,
+    };
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "xiaohongshu",
+      cookies: "# Netscape HTTP Cookie File\n.example\tTRUE\t/\tTRUE\t0\ta\tb",
+      videoCandidates: [directCandidate],
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("xiaohongshu");
+    expect(plan.engines).toHaveLength(1);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: pageUrl,
+    });
+    expect(intent.cookies).toContain("Netscape HTTP Cookie File");
+    expect(intent.candidates).toEqual([directCandidate]);
   });
 
   it("does not treat Xiaohongshu image-tagged candidates as direct video hints", () => {

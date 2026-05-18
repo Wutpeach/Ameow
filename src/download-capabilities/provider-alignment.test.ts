@@ -61,7 +61,7 @@ describe("manual capability overlay stays aligned with current provider routing"
     });
   });
 
-  it("keeps xiaohongshu direct-hint routing aligned with the manual engine order", () => {
+  it("keeps xiaohongshu yt-dlp routing aligned with the manual engine order", () => {
     expectPlanAlignedWithStrategy("xiaohongshu", {
       url: "https://www.xiaohongshu.com/explore/66112233445566778899",
       pageUrl: "https://www.xiaohongshu.com/explore/66112233445566778899",

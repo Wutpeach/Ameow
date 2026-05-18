@@ -59,29 +59,30 @@
     {
       "siteId": "douyin",
       "displayName": "Douyin",
-      "engine": "direct",
+      "engine": "yt-dlp",
       "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
-      "authRequirement": "optional",
+      "authRequirement": "required",
       "upstreamState": "reported_supported",
       "matchHints": {
         "hosts": ["douyin.com", "douyinvod.com", "douyincdn.com"]
       },
-      "notes": ["Direct candidates can short-circuit into yt-dlp fallback when needed."]
+      "notes": ["Project-maintained yt-dlp routing; fresh browser cookies are required for stable extraction."]
     },
     {
       "siteId": "xiaohongshu",
       "displayName": "Xiaohongshu",
-      "engine": "direct",
+      "engine": "yt-dlp",
       "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
-      "authRequirement": "optional",
+      "authRequirement": "required",
       "upstreamState": "reported_supported",
       "matchHints": {
         "hosts": ["xiaohongshu.com", "xhslink.com", "xhscdn.com"]
-      }
+      },
+      "notes": ["Project-maintained yt-dlp routing; prefer note/page URLs over transient xhscdn media URLs."]
     },
     {
       "siteId": "pinterest",
@@ -216,8 +217,8 @@
       "siteId": "xiaohongshu",
       "displayName": "Xiaohongshu",
       "sourceId": "ameow-manual-sites",
-      "strategyKind": "conditional_direct",
-      "engineOrder": ["direct", "yt-dlp"],
+      "strategyKind": "single_engine",
+      "engineOrder": ["yt-dlp"],
       "matchHints": {
         "hosts": ["xiaohongshu.com", "xhslink.com", "xhscdn.com"]
       }

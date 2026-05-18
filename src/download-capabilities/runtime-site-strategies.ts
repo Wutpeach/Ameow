@@ -45,8 +45,8 @@ export const runtimeManualSiteStrategies = [
     siteId: "xiaohongshu",
     displayName: "Xiaohongshu",
     sourceId: "ameow-manual-sites",
-    strategyKind: "conditional_direct",
-    engineOrder: ["direct", "yt-dlp"],
+    strategyKind: "single_engine",
+    engineOrder: ["yt-dlp"],
     matchHints: {
       hosts: ["xiaohongshu.com", "xhslink.com", "xhscdn.com"],
     },

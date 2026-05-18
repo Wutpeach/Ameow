@@ -39,8 +39,8 @@ export const providerMigrationTargets = [
     sourceUrlOwner: "provider",
     candidateSelectionOwner: "provider",
     notes: [
-      "Provider must continue direct-media detection before registry engine ordering is applied.",
-      "Registry can own the direct -> yt-dlp chain once the provider resolves the correct source URL.",
+      "Provider may keep direct-media metadata, but registry ordering keeps Douyin on yt-dlp only.",
+      "yt-dlp receives the route URL so upstream extraction and cookie handling stay authoritative.",
     ],
   },
   {
@@ -53,7 +53,7 @@ export const providerMigrationTargets = [
     candidateSelectionOwner: "provider",
     notes: [
       "Provider must keep note URL canonicalization and candidate filtering.",
-      "Registry should only take over engine ordering after provider-owned normalization chooses the source URL.",
+      "Registry owns yt-dlp-only ordering after provider-owned normalization chooses the canonical note URL.",
     ],
   },
   {

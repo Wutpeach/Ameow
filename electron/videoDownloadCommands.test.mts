@@ -137,6 +137,32 @@ describe("createVideoDownloadCommandBridge", () => {
     }));
   });
 
+  it("queues pasted extension cookie-only payloads without requiring a media selection", async () => {
+    const runtime = createRuntimeStub();
+    const extensionBridge = createExtensionBridgeStub({
+      url: "https://v.douyin.com/5qqlazbdEoU/",
+      pageUrl: "https://v.douyin.com/5qqlazbdEoU/",
+      siteHint: "douyin",
+      cookies: "# Netscape HTTP Cookie File\n.douyin.com\tTRUE\t/\tTRUE\t0\ta\tb",
+      ytdlpQualityPreference: "balanced",
+      selectionScope: "current_item",
+    });
+    const bridge = createBridge(runtime, extensionBridge);
+
+    await bridge.invoke("queue_pasted_video_download", {
+      url: "https://v.douyin.com/5qqlazbdEoU/",
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://v.douyin.com/5qqlazbdEoU/",
+      pageUrl: "https://v.douyin.com/5qqlazbdEoU/",
+      siteHint: "douyin",
+      cookies: expect.stringContaining("Netscape HTTP Cookie File"),
+      ytdlpQuality: "balanced",
+      selectionScope: "current_item",
+    }));
+  });
+
   it("falls back to the original pasted URL when extension assistance fails", async () => {
     const runtime = createRuntimeStub();
     const bridge = createBridge(runtime, createExtensionBridgeStub(null));

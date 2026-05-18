@@ -53,25 +53,6 @@ const isXiaohongshuHintCandidate = (candidate: MediaCandidate): boolean => (
   && /\.(mp4|mov|m4v|m3u8)(?:$|\?)/i.test(candidate.url)
 );
 
-const isDirectVideoCandidate = (candidate: MediaCandidate): boolean => (
-  candidate.mediaType !== "image"
-  && XIAOHONGSHU_HOST_PATTERN.test(candidate.url)
-  && isDirectXiaohongshuAsset(candidate.url)
-);
-
-const pickDirectSource = (input: RawDownloadInput): string | undefined => {
-  if (isDirectXiaohongshuAsset(input.videoUrl)) {
-    return input.videoUrl;
-  }
-  const candidateSource = input.videoCandidates?.find(
-    isDirectVideoCandidate,
-  )?.url;
-  if (candidateSource) {
-    return candidateSource;
-  }
-  return isDirectXiaohongshuAsset(input.url) ? input.url : undefined;
-};
-
 const xiaohongshuCandidates = (input: RawDownloadInput): MediaCandidate[] =>
   (input.videoCandidates ?? []).filter(isXiaohongshuHintCandidate);
 
@@ -81,12 +62,13 @@ export const xiaohongshuProvider: SiteProvider = {
     return input.siteHint === "xiaohongshu"
       || isXiaohongshuUrl(input.pageUrl)
       || isXiaohongshuUrl(input.url)
-      || Boolean(pickDirectSource(input));
+      || isDirectXiaohongshuAsset(input.videoUrl)
+      || Boolean(input.videoCandidates?.some(isXiaohongshuHintCandidate));
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
-    const directSource = pickDirectSource(input);
     const canonicalPageUrl = canonicalizeXiaohongshuNoteUrl(input.pageUrl ?? input.url);
     const strategy = getRuntimeManualSiteStrategy("xiaohongshu");
+    const ytdlpSource = canonicalPageUrl ?? input.pageUrl ?? input.url;
     const intent: VideoDownloadIntent = {
       type: "video",
       siteId: "xiaohongshu",
@@ -109,18 +91,10 @@ export const xiaohongshuProvider: SiteProvider = {
       label: input.title?.trim() || input.pageUrl || input.url,
       intent,
       engines: buildEnginePlansFromStrategySources(strategy, {
-        direct: directSource
-          ? {
-              sourceUrl: directSource,
-              reason: "Verified Xiaohongshu direct media asset is already available",
-            }
-          : undefined,
-        "yt-dlp": !directSource
-          ? {
-              sourceUrl: canonicalPageUrl ?? input.pageUrl ?? input.url,
-              reason: "No verified direct Xiaohongshu media asset is available",
-            }
-          : undefined,
+        "yt-dlp": {
+          sourceUrl: ytdlpSource,
+          reason: "Xiaohongshu downloads use yt-dlp with the canonical note URL",
+        },
       }),
     };
   },

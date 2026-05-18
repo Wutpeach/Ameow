@@ -30,7 +30,7 @@ describe("download capability seed", () => {
     expect(registry.supportsInteractionMode("xiaohongshu", "page_bridge")).toBe(true);
     expect(registry.findSiteStrategyForUrl("https://www.xiaohongshu.com/explore/123")).toMatchObject({
       siteId: "xiaohongshu",
-      engineOrder: ["direct", "yt-dlp"],
+      engineOrder: ["yt-dlp"],
     });
     expect(registry.findDownloadCapabilitiesForUrl("https://www.pinterest.com/pin/123/")).toEqual(
       expect.arrayContaining([

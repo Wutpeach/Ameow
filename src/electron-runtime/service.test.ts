@@ -589,7 +589,7 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(receivedFetch).toBe(sessionFetch);
   });
 
-  it("hydrates Xiaohongshu page requests and prefers the direct engine when page html exposes a direct asset", async () => {
+  it("hydrates Xiaohongshu page requests but still routes through yt-dlp", async () => {
     const routes: string[] = [];
     const runtime = createRuntime({
       providers: [xiaohongshuProvider, genericProvider],
@@ -619,6 +619,18 @@ describe("AmeowElectronDownloadRuntime", () => {
       engines: [
         createEngineStub("yt-dlp", async (context) => {
           routes.push(`yt:${context.traceId}`);
+          expect(context.enginePlan.sourceUrl).toBe(
+            "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
+          );
+          expect(context.intent.candidates).toEqual([
+            {
+              url: "https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4",
+              type: "direct_cdn",
+              source: "page_html",
+              confidence: "high",
+              mediaType: "video",
+            },
+          ]);
           return {
             traceId: context.traceId,
             success: true,
@@ -647,7 +659,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     await waitFor(() => routes.length > 0);
     expect(routes).toHaveLength(1);
-    expect(routes[0]?.startsWith("direct:")).toBe(true);
+    expect(routes[0]?.startsWith("yt:")).toBe(true);
   });
 
   it("expands short-link queue requests before resolving the provider plan", async () => {
@@ -758,7 +770,7 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(routes).toHaveLength(1);
   });
 
-  it("does not fall back to yt-dlp when Xiaohongshu already has a verified direct asset", async () => {
+  it("uses yt-dlp for Xiaohongshu even when a verified direct asset is present", async () => {
     const routes: string[] = [];
     const completions: Array<{ traceId: string; success: boolean; error?: string }> = [];
     const runtime = createRuntime({
@@ -774,6 +786,9 @@ describe("AmeowElectronDownloadRuntime", () => {
         }),
         createEngineStub("yt-dlp", async (context) => {
           routes.push(`yt:${context.traceId}`);
+          expect(context.enginePlan.sourceUrl).toBe(
+            "https://www.xiaohongshu.com/explore/69d0a92600000000230110ab",
+          );
           return {
             traceId: context.traceId,
             success: true,
@@ -805,19 +820,28 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     await waitFor(() => completions.length > 0);
-    expect(routes).toEqual([expect.stringMatching(/^direct:/)]);
+    expect(routes).toEqual([expect.stringMatching(/^yt:/)]);
     expect(completions[0]).toMatchObject({
-      success: false,
-      error: "direct failed",
+      success: true,
     });
   });
 
-  it("skips downstream transcode for Xiaohongshu direct downloads", async () => {
+  it("queues downstream transcode for Xiaohongshu yt-dlp downloads", async () => {
     const events: RuntimeEmitterEvent[] = [];
+    prepareVideoTranscodeTaskFromDownloadMock.mockResolvedValue({
+      traceId: "transcode-trace",
+      label: "Xiaohongshu",
+      sourcePath: "source.mp4",
+      sourceFormat: "mp4",
+      targetFormat: "mp4",
+      plan: "remux_only",
+      durationSeconds: null,
+      finalPath: "/tmp/source.mp4",
+    });
     const runtime = createRuntime({
       providers: [xiaohongshuProvider, genericProvider],
       engines: [
-        createEngineStub("direct", async (context) => ({
+        createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
           file_path: `${context.outputDir}/${context.outputStem}.mp4`,
@@ -845,8 +869,8 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     await waitFor(() => events.includes("video-download-complete"));
-    expect(prepareVideoTranscodeTaskFromDownloadMock).not.toHaveBeenCalled();
-    expect(events).not.toContain("video-transcode-queued");
+    expect(prepareVideoTranscodeTaskFromDownloadMock).toHaveBeenCalled();
+    expect(events).toContain("video-transcode-queued");
   });
 
   it("surfaces a Pinterest gallery-dl failure without falling back to yt-dlp", async () => {
