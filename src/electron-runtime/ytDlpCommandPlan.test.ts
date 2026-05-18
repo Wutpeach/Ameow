@@ -11,6 +11,7 @@ const createContext = (overrides: Record<string, unknown> = {}) => ({
   binaries: {
     ytDlp: "D:/yt-dlp.exe",
     galleryDl: "D:/gallery-dl.exe",
+    douyinDl: "D:/douyin-dl.exe",
     ffmpeg: "D:/tools/ffmpeg/bin/ffmpeg.exe",
     ffprobe: "D:/tools/ffmpeg/bin/ffprobe.exe",
     deno: "D:/deno/deno.exe",
@@ -44,7 +45,7 @@ describe("yt-dlp command planning", () => {
       "Sample Video[%(width|unknown)sx%(height|unknown)s][highest].%(ext)s",
     ));
     expect(plan.artifactPrefixes).toEqual(["Sample Video"]);
-    expect(plan.ffmpegDir).toBe(path.join("D:/tools/ffmpeg/bin"));
+    expect(plan.ffmpegDir).toBe(path.dirname("D:/tools/ffmpeg/bin/ffmpeg.exe"));
   });
 
   it("builds light youtube args in the expected command order", () => {

@@ -1,6 +1,6 @@
 export type CapabilitySeedSchemaVersion = 1;
 
-export type CapabilityEngineId = "yt-dlp" | "gallery-dl" | "direct";
+export type CapabilityEngineId = "yt-dlp" | "gallery-dl" | "douyin-dl" | "direct";
 
 export type CapabilitySourceType = "official_supported_sites" | "manual";
 

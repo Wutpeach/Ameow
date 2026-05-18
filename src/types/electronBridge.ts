@@ -13,11 +13,14 @@ export type AmeowRendererCommand =
   | "begin_pick_output_folder_from_context_menu"
   | "broadcast_theme"
   | "cancel_download"
+  | "cancel_douyin_session_capture"
   | "cancel_transcode"
   | "check_ytdlp_version"
   | "download_image"
   | "dev_ui_lab_apply_scenario"
+  | "complete_douyin_session_capture"
   | "export_support_log"
+  | "get_douyin_session_state"
   | "get_autostart"
   | "get_clipboard_files"
   | "get_config"
@@ -33,6 +36,7 @@ export type AmeowRendererCommand =
   | "refresh_runtime_dependency_gate_state"
   | "resolve_xiaohongshu_drag_media"
   | "register_shortcut"
+  | "clear_douyin_session"
   | "remove_transcode"
   | "reset_rename_counter"
   | "retry_transcode"
@@ -41,6 +45,7 @@ export type AmeowRendererCommand =
   | "set_autostart"
   | "set_window_position"
   | "set_window_size"
+  | "start_douyin_session_capture"
   | "start_runtime_dependency_bootstrap";
 
 export type AmeowAppEvent =

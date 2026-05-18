@@ -402,6 +402,8 @@ export const runCapabilityProbe = async (
         throw new Error("Direct probe requires a fetch() implementation");
       }
       return runDirectProbe(input, options.fetch);
+    case "douyin-dl":
+      throw new Error("douyin-dl probe is not implemented");
     default:
       throw new Error(`Unsupported probe engine: ${engine satisfies never}`);
   }

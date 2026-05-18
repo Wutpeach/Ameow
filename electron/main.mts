@@ -95,11 +95,15 @@ import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
 import {
   currentManagedRuntimeTarget,
   ensureManagedDenoRuntimeReady,
+  ensureManagedDouyinDlBrowserSupportReady,
   ensureManagedFfmpegRuntimeReady,
+  ensureManagedDouyinDlRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
   ensureManagedYtDlpRuntimeReady,
+  managedDouyinDlRuntimePaths,
   resolvePinnedDownloaderRelease,
 } from "./managedRuntimeBootstrap.mjs";
+import { createDouyinSessionManager } from "./douyinSessionManager.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
@@ -176,6 +180,7 @@ let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
+let douyinSessionManager = null;
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -192,6 +197,7 @@ const runtimeDependencyGateController = createRuntimeDependencyGateController({
   buildManagedRuntimeBootstrapOptions,
   ensureManagedYtDlpRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
+  ensureManagedDouyinDlRuntimeReady,
   ensureManagedFfmpegRuntimeReady,
   ensureManagedDenoRuntimeReady,
 });
@@ -2001,6 +2007,7 @@ function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity
     platform: process.platform,
     arch: process.arch,
     fetch: fetchWithDesktopSession,
+    missingComponents: _missingComponents,
     log(message) {
       logInfo("Electron", message);
     },
@@ -2032,8 +2039,43 @@ function getElectronDownloadRuntime() {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
       return getRuntimeDependencyStatus();
     },
+    buildExecutionContext(context) {
+      const appOwnedDouyinCookies = context.intent.siteId === "douyin"
+        ? getDouyinSessionManager().getDownloadCookies()
+        : null;
+      return {
+        ...context,
+        intent: appOwnedDouyinCookies
+          ? {
+              ...context.intent,
+              cookies: appOwnedDouyinCookies,
+            }
+          : context.intent,
+        userDataDir: getUserDataDir(),
+      };
+    },
   });
   return electronDownloadRuntime;
+}
+
+function getDouyinSessionManager() {
+  if (douyinSessionManager) {
+    return douyinSessionManager;
+  }
+
+  douyinSessionManager = createDouyinSessionManager({
+    getUserDataDir,
+    buildManagedRuntimeBootstrapOptions() {
+      return buildManagedRuntimeBootstrapOptions();
+    },
+    managedDouyinDlRuntimePaths,
+    ensureManagedDouyinDlRuntimeReady,
+    ensureManagedDouyinDlBrowserSupportReady,
+    log(message, details) {
+      logInfo("DouyinSession", message, details ? JSON.stringify(details) : undefined);
+    },
+  });
+  return douyinSessionManager;
 }
 
 function getExtensionRequestBridge() {
@@ -2110,6 +2152,7 @@ function cloneRuntimeStatusSnapshot(snapshot) {
   return {
     ytDlp: { ...snapshot.ytDlp },
     galleryDl: { ...snapshot.galleryDl },
+    douyinDl: { ...snapshot.douyinDl },
     ffmpeg: { ...snapshot.ffmpeg },
     deno: { ...snapshot.deno },
   };
@@ -3276,6 +3319,16 @@ async function handleCommand(command, payload = {}) {
   switch (command) {
     case "get_config":
       return readConfigString();
+    case "get_douyin_session_state":
+      return getDouyinSessionManager().getState();
+    case "start_douyin_session_capture":
+      return getDouyinSessionManager().startCapture();
+    case "complete_douyin_session_capture":
+      return getDouyinSessionManager().confirmCapture();
+    case "cancel_douyin_session_capture":
+      return getDouyinSessionManager().cancelCapture();
+    case "clear_douyin_session":
+      return getDouyinSessionManager().clearSession();
     case "save_config": {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
@@ -3854,6 +3907,7 @@ async function bootstrap() {
     }
     pendingProtectedImageRequests.clear();
     getExtensionRequestBridge().rejectAllPendingRequests(new Error("Ameow is shutting down"));
+    void getDouyinSessionManager().shutdown();
     for (const pending of pendingXiaohongshuDragRequests.values()) {
       clearTimeout(pending.timeoutId);
       pending.rejectResolution(new Error("Ameow is shutting down"));

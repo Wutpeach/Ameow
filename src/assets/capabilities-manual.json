@@ -59,7 +59,7 @@
     {
       "siteId": "douyin",
       "displayName": "Douyin",
-      "engine": "yt-dlp",
+      "engine": "douyin-dl",
       "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
@@ -68,7 +68,7 @@
       "matchHints": {
         "hosts": ["douyin.com", "douyinvod.com", "douyincdn.com"]
       },
-      "notes": ["Project-maintained yt-dlp routing; fresh browser cookies are required for stable extraction."]
+      "notes": ["Project-maintained douyin-downloader routing; fresh browser cookies are required for stable extraction."]
     },
     {
       "siteId": "xiaohongshu",
@@ -208,7 +208,7 @@
       "displayName": "Douyin",
       "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
-      "engineOrder": ["yt-dlp"],
+      "engineOrder": ["douyin-dl"],
       "matchHints": {
         "hosts": ["douyin.com", "douyinvod.com", "douyincdn.com"]
       }

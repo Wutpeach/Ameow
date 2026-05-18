@@ -40,6 +40,7 @@ describe("probeYtDlpMetadataTitle", () => {
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
         galleryDl: "D:/gallery-dl.exe",
+        douyinDl: "D:/douyin-dl.exe",
         ffmpeg: "D:/ffmpeg.exe",
         ffprobe: "D:/ffprobe.exe",
         deno: "D:/deno.exe",
@@ -70,6 +71,7 @@ describe("probeYtDlpMetadataTitle", () => {
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
         galleryDl: "D:/gallery-dl.exe",
+        douyinDl: "D:/douyin-dl.exe",
         ffmpeg: "D:/ffmpeg.exe",
         ffprobe: "D:/ffprobe.exe",
         deno: "D:/deno.exe",

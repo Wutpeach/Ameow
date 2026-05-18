@@ -80,6 +80,7 @@
       },
       "component": {
         "ytDlp": "yt-dlp",
+        "douyinDl": "抖音下载器",
         "ffmpeg": "FFmpeg",
         "deno": "Deno"
       },
@@ -141,6 +142,27 @@
       "title": "输出文件夹",
       "choose": "选择文件夹...",
       "dialogTitle": "选择输出文件夹"
+    },
+    "douyinSession": {
+      "title": "抖音登录会话",
+      "hint": "使用 Playwright 打开官方登录流程，保存并手动刷新抖音下载所需的 Cookies。",
+      "cardTitle": "Douyin Downloader 登录状态",
+      "state": {
+        "ready": "已就绪",
+        "missing": "未登录"
+      },
+      "missingHint": "还没有可用的抖音登录会话。登录后，Douyin 下载会优先使用应用托管的 Cookies。",
+      "readyHint": "已保存 {{count}} 个会话 Cookie。Douyin 网站下载将优先使用这组应用托管会话。",
+      "incompleteHint": "检测到会话文件，但还缺少关键 Cookie：{{keys}}。请重新登录刷新。",
+      "manualHint": "如果抖音下载失败或提示会话失效，可在这里手动重新登录并刷新。",
+      "lastUpdated": "上次刷新：{{time}}",
+      "loginButton": "登录",
+      "refreshButton": "刷新",
+      "refreshingButton": "处理中...",
+      "clearButton": "清除",
+      "clearingButton": "清除中...",
+      "refreshFailed": "抖音登录会话刷新失败",
+      "clearFailed": "抖音登录会话清除失败"
     },
     "shortcut": {
       "title": "全局快捷键",

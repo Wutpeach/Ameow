@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const capabilityEngineIdSchema = z.enum(["yt-dlp", "gallery-dl", "direct"]);
+export const capabilityEngineIdSchema = z.enum(["yt-dlp", "gallery-dl", "douyin-dl", "direct"]);
 export const capabilitySourceTypeSchema = z.enum(["official_supported_sites", "manual"]);
 export const capabilityClaimStatusSchema = z.enum([
   "claimed_supported",

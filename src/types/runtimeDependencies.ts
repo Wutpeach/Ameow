@@ -15,6 +15,7 @@ export type RuntimeDependencyStatusEntry = {
 export type RuntimeDependencyStatusSnapshot = {
   ytDlp: RuntimeDependencyStatusEntry;
   galleryDl: RuntimeDependencyStatusEntry;
+  douyinDl: RuntimeDependencyStatusEntry;
   ffmpeg: RuntimeDependencyStatusEntry;
   deno: RuntimeDependencyStatusEntry;
 };
@@ -31,6 +32,7 @@ export type RuntimeDependencyGatePhase =
 export type RuntimeDependencyManagedComponent =
   | "ytDlp"
   | "galleryDl"
+  | "douyinDl"
   | "ffmpeg"
   | "deno";
 

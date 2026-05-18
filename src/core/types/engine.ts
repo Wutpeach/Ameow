@@ -11,6 +11,7 @@ export type EngineExecutionContext = {
   outputDir: string;
   outputStem: string;
   config: Record<string, unknown>;
+  userDataDir?: string;
   binaries: import("../../electron-runtime/contracts.js").RuntimeBinaryPaths;
   abortSignal: AbortSignal;
   fetch?: typeof fetch;

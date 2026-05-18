@@ -40,7 +40,6 @@ export type VideoDownloadCommandBridgeOptions = {
 
 const EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS = new Set([
   "bilibili",
-  "douyin",
   "youtube",
   "twitter-x",
   "pinterest",

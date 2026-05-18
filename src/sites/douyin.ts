@@ -1,6 +1,5 @@
 import type {
   DownloadIntent,
-  MediaCandidate,
   RawDownloadInput,
   ResolvedDownloadPlan,
   SiteProvider,
@@ -16,19 +15,6 @@ const isDouyinUrl = (value: string | undefined): boolean => Boolean(value && DOU
 const isDirectVideoUrl = (value: string | undefined): boolean => (
   Boolean(value && DOUYIN_HOST_PATTERN.test(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
 );
-
-const isDirectVideoCandidate = (candidate: MediaCandidate): boolean => isDirectVideoUrl(candidate.url);
-
-const pickDirectSource = (input: RawDownloadInput): string | undefined => {
-  if (isDirectVideoUrl(input.videoUrl)) {
-    return input.videoUrl;
-  }
-  const candidateSource = input.videoCandidates?.find(isDirectVideoCandidate)?.url;
-  if (candidateSource) {
-    return candidateSource;
-  }
-  return isDirectVideoUrl(input.url) ? input.url : undefined;
-};
 
 const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   type: "video",
@@ -51,10 +37,9 @@ export const douyinProvider: SiteProvider = {
     return input.siteHint === "douyin"
       || isDouyinUrl(input.pageUrl)
       || isDouyinUrl(input.url)
-      || Boolean(pickDirectSource(input));
+      || isDirectVideoUrl(input.videoUrl);
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
-    const directSource = pickDirectSource(input);
     const intent = buildIntent(input) as VideoDownloadIntent;
     const strategy = getRuntimeManualSiteStrategy("douyin");
     const pageSourceUrl = input.pageUrl ?? input.url;
@@ -64,17 +49,9 @@ export const douyinProvider: SiteProvider = {
       label: input.title?.trim() || input.pageUrl || input.url,
       intent,
       engines: buildEnginePlansFromStrategySources(strategy, {
-        direct: directSource
-          ? {
-              sourceUrl: directSource,
-              reason: "Verified Douyin direct media candidate is available",
-            }
-          : undefined,
-        "yt-dlp": {
+        "douyin-dl": {
           sourceUrl: pageSourceUrl,
-          reason: directSource
-            ? "Use yt-dlp page extraction when direct media fails"
-            : "No direct media candidate is available",
+          reason: "Use douyin-downloader as the only Douyin website extractor",
         },
       }),
     };

@@ -46,6 +46,7 @@ const createContext = (
   binaries: {
     ytDlp: "",
     galleryDl: "",
+    douyinDl: "",
     deno: "",
     ffmpeg: "",
     ffprobe: "",

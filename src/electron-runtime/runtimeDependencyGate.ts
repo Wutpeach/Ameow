@@ -8,6 +8,7 @@ import type { RuntimeDependencyResolver } from "./contracts.js";
 const managedComponents: RuntimeDependencyManagedComponent[] = [
   "ytDlp",
   "galleryDl",
+  "douyinDl",
   "ffmpeg",
   "deno",
 ];
@@ -41,6 +42,9 @@ const missingComponentsFrom = (
   if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource === "managed") {
     missing.push("galleryDl");
   }
+  if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource === "managed") {
+    missing.push("douyinDl");
+  }
   if (snapshot.ffmpeg.state !== "ready") {
     missing.push("ffmpeg");
   }
@@ -61,6 +65,12 @@ const bundledFailureErrorFrom = (
       return null;
     }
     return snapshot.galleryDl.error ?? "Missing bundled gallery-dl runtime";
+  }
+  if (snapshot.douyinDl.state !== "ready") {
+    if (snapshot.douyinDl.expectedSource === "managed") {
+      return null;
+    }
+    return snapshot.douyinDl.error ?? "Missing bundled douyin-dl runtime";
   }
   return null;
 };
@@ -138,6 +148,8 @@ export const createRuntimeDependencyResolver = (
         currentSnapshot = { ...currentSnapshot, ytDlp: status };
       } else if (component === "galleryDl") {
         currentSnapshot = { ...currentSnapshot, galleryDl: status };
+      } else if (component === "douyinDl") {
+        currentSnapshot = { ...currentSnapshot, douyinDl: status };
       } else
       if (component === "ffmpeg") {
         currentSnapshot = { ...currentSnapshot, ffmpeg: status };

@@ -47,6 +47,14 @@ describe("inspectRuntimeDependencyStatus", () => {
       "x86_64-pc-windows-msvc",
       "real",
     );
+    const douyinDlScriptsDir = path.join(
+      environment.configDir,
+      "runtimes",
+      "douyin-dl",
+      "x86_64-pc-windows-msvc",
+      "venv",
+      "Scripts",
+    );
     const ffmpegRealDir = path.join(
       environment.configDir,
       "runtimes",
@@ -63,11 +71,13 @@ describe("inspectRuntimeDependencyStatus", () => {
     );
     mkdirSync(ytDlpRealDir, { recursive: true });
     mkdirSync(galleryDlRealDir, { recursive: true });
+    mkdirSync(douyinDlScriptsDir, { recursive: true });
     mkdirSync(ffmpegRealDir, { recursive: true });
     mkdirSync(denoRealDir, { recursive: true });
 
     writeFileSync(path.join(ytDlpRealDir, "yt-dlp-x86_64-pc-windows-msvc.exe"), "binary");
     writeFileSync(path.join(galleryDlRealDir, "gallery-dl-x86_64-pc-windows-msvc.exe"), "binary");
+    writeFileSync(path.join(douyinDlScriptsDir, "douyin-dl.exe"), "binary");
     writeFileSync(path.join(ffmpegRealDir, "ffmpeg.exe"), "binary");
     writeFileSync(path.join(ffmpegRealDir, "ffprobe.exe"), "binary");
     writeFileSync(path.join(denoRealDir, "deno.exe"), "binary");
@@ -78,6 +88,9 @@ describe("inspectRuntimeDependencyStatus", () => {
     expect(snapshot.ytDlp.source).toBe("managed");
     expect(snapshot.galleryDl.state).toBe("ready");
     expect(snapshot.galleryDl.source).toBe("managed");
+    expect(snapshot.douyinDl.state).toBe("ready");
+    expect(snapshot.douyinDl.source).toBe("managed");
+    expect(snapshot.douyinDl.path).toContain(path.join("douyin-dl", "x86_64-pc-windows-msvc", "venv", "Scripts", "douyin-dl.exe"));
     expect(snapshot.ffmpeg.state).toBe("ready");
     expect(snapshot.ffmpeg.source).toBe("managed");
     expect(snapshot.deno.state).toBe("ready");
@@ -91,6 +104,8 @@ describe("inspectRuntimeDependencyStatus", () => {
     expect(snapshot.ytDlp.error).toContain("Missing managed yt-dlp runtime");
     expect(snapshot.galleryDl.state).toBe("missing");
     expect(snapshot.galleryDl.error).toContain("Missing managed gallery-dl runtime");
+    expect(snapshot.douyinDl.state).toBe("missing");
+    expect(snapshot.douyinDl.error).toContain("Missing managed douyin-dl runtime");
     expect(snapshot.ffmpeg.state).toBe("missing");
     expect(snapshot.deno.state).toBe("missing");
   });

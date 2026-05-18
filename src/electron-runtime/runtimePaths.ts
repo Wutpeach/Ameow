@@ -110,6 +110,32 @@ const managedGalleryDlPathFor = (environment: ElectronRuntimeEnvironment): strin
   return path.join(realRoot, galleryDlBinaryNameFor(environment.platform, environment.arch));
 };
 
+const managedDouyinDlPathFor = (environment: ElectronRuntimeEnvironment): string => {
+  return resolveManagedDouyinRuntimePaths(environment).entrypoint;
+};
+
+export const resolveManagedDouyinRuntimePaths = (
+  environment: ElectronRuntimeEnvironment,
+): {
+  root: string;
+  venvDir: string;
+  python: string;
+  entrypoint: string;
+} => {
+  const root = runtimeRootFor(environment, "douyin-dl");
+  const executableDir = path.join(
+    root,
+    "venv",
+    environment.platform === "win32" ? "Scripts" : "bin",
+  );
+  return {
+    root,
+    venvDir: path.join(root, "venv"),
+    python: path.join(executableDir, environment.platform === "win32" ? "python.exe" : "python"),
+    entrypoint: path.join(executableDir, environment.platform === "win32" ? "douyin-dl.exe" : "douyin-dl"),
+  };
+};
+
 const fileExists = (entryPath: string): boolean => {
   try {
     return existsSync(entryPath);
@@ -187,6 +213,7 @@ export const resolveRuntimeBinaryPaths = (
   return {
     ytDlp: resolveYtDlpBinaryPath(environment),
     galleryDl: managedGalleryDlPathFor(environment),
+    douyinDl: managedDouyinDlPathFor(environment),
     ffmpeg: ffmpegPaths.ffmpeg,
     ffprobe: ffmpegPaths.ffprobe,
     deno: managedDenoPathFor(environment),
@@ -199,12 +226,18 @@ export const inspectRuntimeDependencyStatus = (
   const ffmpegPaths = managedFfmpegPathsFor(environment);
   const denoPath = managedDenoPathFor(environment);
   const galleryDlPath = managedGalleryDlPathFor(environment);
+  const douyinDlPath = managedDouyinDlPathFor(environment);
 
   return {
     ytDlp: resolveYtDlpStatus(environment),
     galleryDl: fileExists(galleryDlPath)
       ? readyStatus(galleryDlPath, "managed", { expectedSource: "managed" })
       : missingStatus(`Missing managed gallery-dl runtime. Expected ${JSON.stringify([galleryDlPath])}`, {
+          expectedSource: "managed",
+        }),
+    douyinDl: fileExists(douyinDlPath)
+      ? readyStatus(douyinDlPath, "managed", { expectedSource: "managed" })
+      : missingStatus(`Missing managed douyin-dl runtime. Expected ${JSON.stringify([douyinDlPath])}`, {
           expectedSource: "managed",
         }),
     ffmpeg: resolveManagedStatus("ffmpeg", [ffmpegPaths.ffmpeg, ffmpegPaths.ffprobe]),

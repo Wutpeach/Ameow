@@ -26,6 +26,10 @@ type RuntimeDependencyGateControllerOptions = {
     trigger: string,
     options: ManagedRuntimeBootstrapOptions,
   ): Promise<unknown>;
+  ensureManagedDouyinDlRuntimeReady(
+    trigger: string,
+    options: ManagedRuntimeBootstrapOptions,
+  ): Promise<unknown>;
   ensureManagedFfmpegRuntimeReady(
     trigger: string,
     options: ManagedRuntimeBootstrapOptions,
@@ -57,6 +61,7 @@ export type RuntimeDependencyGateController = {
 const MANAGED_RUNTIME_BOOTSTRAP_ORDER: RuntimeDependencyManagedComponent[] = [
   "ytDlp",
   "galleryDl",
+  "douyinDl",
   "ffmpeg",
   "deno",
 ];
@@ -95,6 +100,9 @@ export const collectMissingManagedRuntimeComponents = (
   }
   if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource === "managed") {
     missingComponents.push("galleryDl");
+  }
+  if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource === "managed") {
+    missingComponents.push("douyinDl");
   }
   if (snapshot.ffmpeg.state !== "ready") {
     missingComponents.push("ffmpeg");
@@ -181,19 +189,32 @@ export const createRuntimeDependencyGateController = (
         nextComponent: nextManagedRuntimeComponent(missingComponents),
       });
     }
-    if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
-      return applyRuntimeDependencyGateState({
-        phase: "failed",
-        missingComponents,
-        lastError: snapshot.galleryDl.error ?? "Missing gallery-dl runtime",
+  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
+    return applyRuntimeDependencyGateState({
+      phase: "failed",
+      missingComponents,
+      lastError: snapshot.galleryDl.error ?? "Missing gallery-dl runtime",
         currentComponent: null,
         currentStage: null,
         progressPercent: null,
         downloadedBytes: null,
         totalBytes: null,
-        nextComponent: nextManagedRuntimeComponent(missingComponents),
-      });
-    }
+      nextComponent: nextManagedRuntimeComponent(missingComponents),
+    });
+  }
+  if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource !== "managed") {
+    return applyRuntimeDependencyGateState({
+      phase: "failed",
+      missingComponents,
+      lastError: snapshot.douyinDl.error ?? "Missing douyin-dl runtime",
+      currentComponent: null,
+      currentStage: null,
+      progressPercent: null,
+      downloadedBytes: null,
+      totalBytes: null,
+      nextComponent: nextManagedRuntimeComponent(missingComponents),
+    });
+  }
 
     return applyRuntimeDependencyGateState({
       phase: missingComponents.length === 0 ? "ready" : "idle",
@@ -270,7 +291,12 @@ export const createRuntimeDependencyGateController = (
     }
 
     const afterGalleryDl = await options.getRuntimeDependencyStatus();
-    if (afterGalleryDl.ffmpeg.state !== "ready") {
+    if (afterGalleryDl.douyinDl.state !== "ready" && afterGalleryDl.douyinDl.expectedSource === "managed") {
+      await options.ensureManagedDouyinDlRuntimeReady(trigger, buildBootstrapOptions(missingComponents));
+    }
+
+    const afterDouyinDl = await options.getRuntimeDependencyStatus();
+    if (afterDouyinDl.ffmpeg.state !== "ready") {
       await options.ensureManagedFfmpegRuntimeReady(trigger, buildBootstrapOptions(missingComponents));
     }
 
@@ -332,6 +358,9 @@ export const createRuntimeDependencyGateController = (
         return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
       }
       if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
+        return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
+      }
+      if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource !== "managed") {
         return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
       }
       if (missingComponents.length === 0) {

@@ -10,7 +10,7 @@ const downloadFailureClassificationSchema = z.enum([
 ]);
 
 export const enginePlanSchema = z.object({
-  engine: z.enum(["yt-dlp", "gallery-dl", "direct"]),
+  engine: z.enum(["yt-dlp", "gallery-dl", "douyin-dl", "direct"]),
   priority: z.number().int(),
   when: z.enum(["primary", "fallback"]),
   reason: z.string().trim().min(1),

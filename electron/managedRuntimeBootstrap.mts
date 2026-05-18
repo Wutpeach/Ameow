@@ -27,7 +27,7 @@ import {
   ytDlpBinaryNameFor,
 } from "../src/electron-runtime/platform.js";
 import type { RuntimeDependencyManagedComponent } from "../src/types/runtimeDependencies.js";
-import { ensureManagedYtDlpReady } from "./managedYtDlpRuntime.mjs";
+import { detectSystemPython3, ensureManagedYtDlpReady } from "./managedYtDlpRuntime.mjs";
 
 export type ManagedRuntimeStage = "checking" | "downloading" | "installing" | "verifying";
 
@@ -66,6 +66,30 @@ type RuntimeArtifactSpec = {
   size: number;
 };
 
+type ManagedPythonPackageToolId = "douyin-dl";
+
+type ManagedPythonPackageSpec = {
+  component: Extract<RuntimeDependencyManagedComponent, "douyinDl">;
+  installSource: string;
+  minPython: [number, number, number];
+};
+
+type ManagedPythonRuntimePaths = {
+  root: string;
+  venvDir: string;
+  python: string;
+  entrypoint: string;
+  metadata: string;
+};
+
+type ManagedSystemPythonInfo = {
+  command: string;
+  argsPrefix: string[];
+  resolvedPath: string;
+  version: string;
+  versionTuple: [number, number, number];
+};
+
 const PINNED_DOWNLOADER_RELEASES: Record<PinnedDownloaderToolId, PinnedDownloaderRelease> = {
   "yt-dlp": {
     version: "2026.03.17",
@@ -92,6 +116,19 @@ const PINNED_DOWNLOADER_RELEASES: Record<PinnedDownloaderToolId, PinnedDownloade
       "x86_64-pc-windows-msvc": "e8ea5d324d073d9a844a4e5c57a6c203bb75137548081194888834e6a94b22ec",
       "aarch64-apple-darwin": "e0e1c68c64ad12b0ebd2d08f32de5eee14eaa8cc2c7bae13db4c4120f03ba116",
     },
+  },
+};
+
+const DOUYIN_DOWNLOADER_VERSION = "2.0.0";
+const DOUYIN_DOWNLOADER_GIT_REF = "5144bd3dec91cd2711cfdccbf36c10af17eb93fc";
+const DOUYIN_DOWNLOADER_PACKAGE_SOURCE =
+  `https://github.com/jiji262/douyin-downloader/archive/${DOUYIN_DOWNLOADER_GIT_REF}.zip`;
+
+const PINNED_PYTHON_PACKAGES: Record<ManagedPythonPackageToolId, ManagedPythonPackageSpec> = {
+  "douyin-dl": {
+    component: "douyinDl",
+    installSource: DOUYIN_DOWNLOADER_PACKAGE_SOURCE,
+    minPython: [3, 8, 0],
   },
 };
 
@@ -166,6 +203,26 @@ export const managedGalleryDlPath = (options: ManagedRuntimeBootstrapOptions): s
   return join(realRoot, galleryDlBinaryNameFor(options.platform, options.arch));
 };
 
+const managedDouyinDlPaths = (options: ManagedRuntimeBootstrapOptions): ManagedPythonRuntimePaths => {
+  const root = runtimeRoot(options, "douyin-dl");
+  const venvDir = join(root, "venv");
+  const venvRoot = options.platform === "win32" ? join(venvDir, "Scripts") : join(venvDir, "bin");
+  return {
+    root,
+    venvDir,
+    python: join(venvRoot, options.platform === "win32" ? "python.exe" : "python"),
+    entrypoint: join(venvRoot, options.platform === "win32" ? "douyin-dl.exe" : "douyin-dl"),
+    metadata: join(root, "metadata.json"),
+  };
+};
+
+export const managedDouyinDlPath = (options: ManagedRuntimeBootstrapOptions): string =>
+  managedDouyinDlPaths(options).entrypoint;
+
+export const managedDouyinDlRuntimePaths = (
+  options: ManagedRuntimeBootstrapOptions,
+): ManagedPythonRuntimePaths => managedDouyinDlPaths(options);
+
 const summarizeBootstrapError = (error: unknown): string => (
   error instanceof Error && error.message ? error.message : String(error ?? "unknown error")
 );
@@ -200,10 +257,11 @@ const escapePowerShellLiteral = (value: string): string => value.replace(/'/g, "
 const runUtilityCommand = async (
   command: string,
   args: string[],
-  options: { cwd?: string } = {},
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<void> => {
   const child = spawn(command, args, {
     cwd: options.cwd,
+    env: options.env,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -228,6 +286,201 @@ const runUtilityCommand = async (
     });
   });
 };
+
+const runCapturedUtilityCommand = async (
+  command: string,
+  args: string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<{ stdout: string; stderr: string }> => {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  await new Promise<void>((resolveProcess, rejectProcess) => {
+    child.once("error", rejectProcess);
+    child.once("close", (code) => {
+      if (code === 0) {
+        resolveProcess();
+        return;
+      }
+      rejectProcess(new Error(stderr.trim() || stdout.trim() || `${command} exited with code ${code}`));
+    });
+  });
+
+  return { stdout, stderr };
+};
+
+const parseVersionTuple = (value: string): [number, number, number] | null => {
+  const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+};
+
+const compareVersionTuples = (
+  left: [number, number, number],
+  right: [number, number, number],
+): number => {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] > right[index]) {
+      return 1;
+    }
+    if (left[index] < right[index]) {
+      return -1;
+    }
+  }
+  return 0;
+};
+
+const formatVersionTuple = (value: [number, number, number]): string =>
+  `${value[0]}.${value[1]}.${value[2]}`;
+
+const inspectSystemPython = async (
+  command: string,
+  argsPrefix: string[],
+): Promise<ManagedSystemPythonInfo | null> => {
+  try {
+    const { stdout } = await runCapturedUtilityCommand(command, [
+      ...argsPrefix,
+      "-c",
+      "import sys; print(sys.executable); print('.'.join(str(part) for part in sys.version_info[:3]))",
+    ]);
+    const [resolvedPathRaw, versionRaw] = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const versionTuple = versionRaw ? parseVersionTuple(versionRaw) : null;
+    if (!resolvedPathRaw || !versionRaw || !versionTuple) {
+      return null;
+    }
+    return {
+      command,
+      argsPrefix,
+      resolvedPath: resolvedPathRaw,
+      version: versionRaw,
+      versionTuple,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const detectManagedPythonForPackage = async (
+  options: ManagedRuntimeBootstrapOptions,
+  minimumVersion: [number, number, number],
+): Promise<ManagedSystemPythonInfo> => {
+  if (options.platform === "darwin") {
+    const macPython = await detectSystemPython3();
+    if (compareVersionTuples(macPython.versionTuple, minimumVersion) < 0) {
+      throw new Error(
+        `Python ${formatVersionTuple(minimumVersion)}+ is required for managed douyin-dl, found ${macPython.version}`,
+      );
+    }
+    return {
+      command: macPython.command,
+      argsPrefix: [],
+      resolvedPath: macPython.resolvedPath,
+      version: macPython.version,
+      versionTuple: macPython.versionTuple,
+    };
+  }
+
+  const candidates = [
+    process.env.AMEOW_PYTHON3_PATH?.trim()
+      ? { command: process.env.AMEOW_PYTHON3_PATH.trim(), argsPrefix: [] as string[] }
+      : null,
+    { command: "py", argsPrefix: ["-3"] },
+    { command: "python", argsPrefix: [] as string[] },
+    { command: "python3", argsPrefix: [] as string[] },
+  ].filter((candidate): candidate is { command: string; argsPrefix: string[] } => Boolean(candidate));
+
+  const seenResolvedPaths = new Set<string>();
+  const inspected: ManagedSystemPythonInfo[] = [];
+  for (const candidate of candidates) {
+    const info = await inspectSystemPython(candidate.command, candidate.argsPrefix);
+    if (!info || seenResolvedPaths.has(info.resolvedPath)) {
+      continue;
+    }
+    seenResolvedPaths.add(info.resolvedPath);
+    inspected.push(info);
+  }
+
+  if (inspected.length === 0) {
+    throw new Error(
+      `Python ${formatVersionTuple(minimumVersion)}+ is required to bootstrap managed douyin-dl, but no working Python 3 interpreter was found.`,
+    );
+  }
+
+  const compatibleCandidates = inspected
+    .filter((candidate) => compareVersionTuples(candidate.versionTuple, minimumVersion) >= 0)
+    .sort((left, right) => compareVersionTuples(right.versionTuple, left.versionTuple));
+
+  if (compatibleCandidates.length === 0) {
+    throw new Error(
+      `Python ${formatVersionTuple(minimumVersion)}+ is required to bootstrap managed douyin-dl. Found ${inspected[0]?.version ?? "unknown"}.`,
+    );
+  }
+
+  return compatibleCandidates[0];
+};
+
+const ensureManagedPythonVirtualenvReady = async (
+  systemPython: ManagedSystemPythonInfo,
+  paths: ManagedPythonRuntimePaths,
+): Promise<void> => {
+  if (existsSync(paths.python)) {
+    return;
+  }
+  await rm(paths.venvDir, { recursive: true, force: true }).catch(() => {});
+  await mkdir(paths.root, { recursive: true });
+  await runUtilityCommand(systemPython.resolvedPath, ["-m", "venv", paths.venvDir]);
+};
+
+const readCommandVersion = async (command: string): Promise<string> => {
+  const { stdout, stderr } = await runCapturedUtilityCommand(command, ["--version"]);
+  const firstLine = (stdout || stderr)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return firstLine ?? "unknown";
+};
+
+const writeManagedPythonRuntimeMetadata = async (
+  metadataPath: string,
+  payload: Record<string, unknown>,
+): Promise<void> => {
+  const tempDir = await mkdtemp(join(tmpdir(), "ameow-managed-python-metadata-"));
+  const tempPath = join(tempDir, basename(metadataPath));
+  try {
+    await writeFile(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await mkdir(dirname(metadataPath), { recursive: true });
+    await replaceFile(metadataPath, tempPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+};
+
+const buildManagedPythonEnv = (
+  paths: ManagedPythonRuntimePaths,
+): NodeJS.ProcessEnv => ({
+  ...process.env,
+  PLAYWRIGHT_BROWSERS_PATH: join(paths.root, "playwright-browsers"),
+  PYTHONIOENCODING: "utf-8",
+  PYTHONUTF8: "1",
+});
 
 const extractZipArchive = async (
   archivePath: string,
@@ -607,6 +860,74 @@ const ensureManagedDownloaderReleaseReady = async (
   }
 };
 
+const ensureManagedPythonPackageReady = async (
+  toolId: ManagedPythonPackageToolId,
+  targetPath: string,
+  trigger: string,
+  options: ManagedRuntimeBootstrapOptions,
+): Promise<string> => {
+  const spec = PINNED_PYTHON_PACKAGES[toolId];
+  if (existsSync(targetPath)) {
+    return targetPath;
+  }
+
+  options.log?.(`Bootstrapping managed ${toolId} runtime (${trigger})`);
+  await options.onActivity?.({
+    component: spec.component,
+    stage: "checking",
+    downloadedBytes: null,
+    totalBytes: null,
+  });
+  const systemPython = await detectManagedPythonForPackage(options, spec.minPython);
+  const paths = managedDouyinDlPaths(options);
+  await ensureManagedPythonVirtualenvReady(systemPython, paths);
+  await options.onActivity?.({
+    component: spec.component,
+    stage: "installing",
+    downloadedBytes: 1,
+    totalBytes: 1,
+  });
+  await runUtilityCommand(paths.python, [
+    "-m",
+    "pip",
+    "install",
+    "--upgrade",
+    "--disable-pip-version-check",
+    "--no-cache-dir",
+    spec.installSource,
+  ]);
+  if (!existsSync(targetPath)) {
+    throw new Error(`Managed ${toolId} entrypoint is missing after install: ${targetPath}`);
+  }
+  if (options.platform !== "win32") {
+    await chmod(targetPath, 0o755).catch(() => {});
+    await chmod(paths.python, 0o755).catch(() => {});
+  }
+  await options.onActivity?.({
+    component: spec.component,
+    stage: "verifying",
+    downloadedBytes: 1,
+    totalBytes: 1,
+  });
+  const [version, pythonVersion] = await Promise.all([
+    readCommandVersion(targetPath),
+    readCommandVersion(paths.python),
+  ]);
+  await writeManagedPythonRuntimeMetadata(paths.metadata, {
+    source: "managed-python-package",
+    packageVersion: DOUYIN_DOWNLOADER_VERSION,
+    packageSource: spec.installSource,
+    entrypoint: targetPath,
+    pythonVersion,
+    pythonPath: systemPython.resolvedPath,
+    runtimeTarget: currentManagedRuntimeTarget(options.platform, options.arch),
+    installedAtMs: options.now?.() ?? Date.now(),
+    updatedAtMs: options.now?.() ?? Date.now(),
+    version,
+  });
+  return targetPath;
+};
+
 export const ensureManagedDenoRuntimeReady = async (
   trigger: string,
   options: ManagedRuntimeBootstrapOptions,
@@ -759,5 +1080,60 @@ export const ensureManagedGalleryDlRuntimeReady = async (
     targetPath,
     trigger,
     options,
+  );
+};
+
+export const ensureManagedDouyinDlRuntimeReady = async (
+  trigger: string,
+  options: ManagedRuntimeBootstrapOptions & { forceReinstall?: boolean },
+): Promise<string> => {
+  const targetPath = managedDouyinDlPath(options);
+  if (!options.forceReinstall && existsSync(targetPath)) {
+    return targetPath;
+  }
+
+  return await ensureManagedPythonPackageReady(
+    "douyin-dl",
+    targetPath,
+    trigger,
+    options,
+  );
+};
+
+export const ensureManagedDouyinDlBrowserSupportReady = async (
+  trigger: string,
+  options: ManagedRuntimeBootstrapOptions,
+): Promise<void> => {
+  const paths = managedDouyinDlPaths(options);
+  await ensureManagedDouyinDlRuntimeReady(trigger, options);
+  const env = buildManagedPythonEnv(paths);
+
+  try {
+    await runUtilityCommand(paths.python, ["-c", "import playwright"], { env });
+  } catch {
+    await runUtilityCommand(
+      paths.python,
+      [
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "--disable-pip-version-check",
+        "--no-cache-dir",
+        "playwright>=1.40.0",
+      ],
+      { env },
+    );
+  }
+
+  const browsersRoot = env.PLAYWRIGHT_BROWSERS_PATH;
+  if (browsersRoot && existsSync(browsersRoot)) {
+    return;
+  }
+
+  await runUtilityCommand(
+    paths.python,
+    ["-m", "playwright", "install", "chromium"],
+    { env },
   );
 };

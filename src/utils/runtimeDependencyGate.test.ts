@@ -27,6 +27,7 @@ const createStatus = (
 ): RuntimeDependencyStatusSnapshot => ({
   ytDlp: readyEntry,
   galleryDl: readyEntry,
+  douyinDl: readyEntry,
   ffmpeg: readyEntry,
   deno: readyEntry,
   ...overrides,
@@ -74,9 +75,10 @@ describe("getMissingRuntimeComponentsFromStatus", () => {
     expect(getMissingRuntimeComponentsFromStatus(createStatus({
       ytDlp: missingEntry,
       galleryDl: missingEntry,
+      douyinDl: missingEntry,
       ffmpeg: missingEntry,
       deno: missingEntry,
-    }))).toEqual(["yt-dlp", "gallery-dl", "ffmpeg", "deno"]);
+    }))).toEqual(["yt-dlp", "gallery-dl", "douyin-dl", "ffmpeg", "deno"]);
   });
 
   it("returns an empty list when status is unavailable or all runtimes are ready", () => {

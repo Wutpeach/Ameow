@@ -57,6 +57,11 @@ import {
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
 import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
+import type { DouyinSessionState } from "../types/douyinSession";
+import type {
+  RuntimeDependencyGateStatePayload,
+  RuntimeDependencyStatusSnapshot,
+} from "../types/runtimeDependencies";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsTab = "general" | "downloads" | "plugins" | "advanced";
@@ -136,6 +141,14 @@ const formatShortcutForDisplay = (shortcut: string, isMacOS: boolean): string =>
   };
   return tokens.map((token) => windowsLabels[token] ?? token).join("+");
 };
+
+const formatLocalizedDateTime = (
+  value: number,
+  locale: string | undefined,
+): string => new Intl.DateTimeFormat(locale, {
+  dateStyle: "medium",
+  timeStyle: "short",
+}).format(new Date(value));
 
 const isModifierKey = (key: string): boolean => {
   const normalized = normalizeShortcutToken(key);
@@ -219,6 +232,15 @@ function SettingsPage() {
   const [globalProxyEnabled, setGlobalProxyEnabled] = useState(false);
   const [globalProxyUrl, setGlobalProxyUrl] = useState("");
   const [globalProxyError, setGlobalProxyError] = useState<string | null>(null);
+  const [douyinSessionState, setDouyinSessionState] = useState<DouyinSessionState | null>(null);
+  const [runtimeDependencyStatus, setRuntimeDependencyStatus] = useState<RuntimeDependencyStatusSnapshot | null>(null);
+  const [runtimeDependencyGateState, setRuntimeDependencyGateState] =
+    useState<RuntimeDependencyGateStatePayload | null>(null);
+  const [douyinSessionError, setDouyinSessionError] = useState<string | null>(null);
+  const [isStartingDouyinSession, setIsStartingDouyinSession] = useState(false);
+  const [isConfirmingDouyinSession, setIsConfirmingDouyinSession] = useState(false);
+  const [isCancellingDouyinSession, setIsCancellingDouyinSession] = useState(false);
+  const [isClearingDouyinSession, setIsClearingDouyinSession] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null);
   const [supportLogHint, setSupportLogHint] = useState("");
@@ -663,6 +685,154 @@ function SettingsPage() {
     }
   };
 
+  const loadDouyinSessionPanelState = useCallback(async () => {
+    try {
+      const [sessionState, status, gateState] = await Promise.all([
+        desktopCommands.invoke<DouyinSessionState>("get_douyin_session_state"),
+        desktopCommands.invoke<RuntimeDependencyStatusSnapshot>("get_runtime_dependency_status"),
+        desktopCommands.invoke<RuntimeDependencyGateStatePayload>("get_runtime_dependency_gate_state"),
+      ]);
+      setDouyinSessionState(sessionState);
+      setRuntimeDependencyStatus(status);
+      setRuntimeDependencyGateState(gateState);
+      setDouyinSessionError(null);
+    } catch (err) {
+      console.error("Failed to load Douyin session status:", err);
+      setDouyinSessionError(summarizeAppUpdateError(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDouyinSessionPanelState();
+  }, [loadDouyinSessionPanelState]);
+
+  useEffect(() => {
+    const capturePhase = douyinSessionState?.capturePhase ?? "idle";
+    const gatePhase = runtimeDependencyGateState?.phase ?? "idle";
+    const shouldPoll = capturePhase !== "idle" || gatePhase === "checking" || gatePhase === "downloading";
+    if (!shouldPoll) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      void loadDouyinSessionPanelState();
+    }, 1500);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [douyinSessionState?.capturePhase, loadDouyinSessionPanelState, runtimeDependencyGateState?.phase]);
+
+  const isDouyinSessionActionBusy = isStartingDouyinSession
+    || isConfirmingDouyinSession
+    || isCancellingDouyinSession
+    || isClearingDouyinSession;
+
+  const handleDouyinSessionStartCapture = useCallback(async () => {
+    if (isDouyinSessionActionBusy) {
+      return;
+    }
+
+    setDouyinSessionError(null);
+    setIsStartingDouyinSession(true);
+    try {
+      const sessionState = await desktopCommands.invoke<DouyinSessionState>("start_douyin_session_capture");
+      setDouyinSessionState(sessionState);
+      setDouyinSessionError(null);
+    } catch (err) {
+      console.error("Failed to start Douyin session capture:", err);
+      setDouyinSessionError(
+        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.startFailed"),
+      );
+      await loadDouyinSessionPanelState();
+    } finally {
+      setIsStartingDouyinSession(false);
+    }
+  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
+
+  const handleDouyinSessionConfirmCapture = useCallback(async () => {
+    if (isDouyinSessionActionBusy) {
+      return;
+    }
+
+    setDouyinSessionError(null);
+    setIsConfirmingDouyinSession(true);
+    try {
+      const sessionState = await desktopCommands.invoke<DouyinSessionState>("complete_douyin_session_capture");
+      setDouyinSessionState(sessionState);
+      setDouyinSessionError(null);
+    } catch (err) {
+      console.error("Failed to confirm Douyin session capture:", err);
+      setDouyinSessionError(
+        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.confirmFailed"),
+      );
+      await loadDouyinSessionPanelState();
+    } finally {
+      setIsConfirmingDouyinSession(false);
+    }
+  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
+
+  const handleDouyinSessionCancelCapture = useCallback(async () => {
+    if (isDouyinSessionActionBusy) {
+      return;
+    }
+
+    setDouyinSessionError(null);
+    setIsCancellingDouyinSession(true);
+    try {
+      const sessionState = await desktopCommands.invoke<DouyinSessionState>("cancel_douyin_session_capture");
+      setDouyinSessionState(sessionState);
+      setDouyinSessionError(null);
+    } catch (err) {
+      console.error("Failed to cancel Douyin session capture:", err);
+      setDouyinSessionError(
+        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.cancelFailed"),
+      );
+      await loadDouyinSessionPanelState();
+    } finally {
+      setIsCancellingDouyinSession(false);
+    }
+  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
+
+  const handleDouyinSessionClear = useCallback(async () => {
+    if (isDouyinSessionActionBusy) {
+      return;
+    }
+
+    setDouyinSessionError(null);
+    setIsClearingDouyinSession(true);
+    try {
+      const sessionState = await desktopCommands.invoke<DouyinSessionState>("clear_douyin_session");
+      setDouyinSessionState(sessionState);
+      setDouyinSessionError(null);
+    } catch (err) {
+      console.error("Failed to clear Douyin session:", err);
+      setDouyinSessionError(
+        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.clearFailed"),
+      );
+      await loadDouyinSessionPanelState();
+    } finally {
+      setIsClearingDouyinSession(false);
+    }
+  }, [isDouyinSessionActionBusy, loadDouyinSessionPanelState, t]);
+
+  const handleDouyinRuntimeRetry = useCallback(async () => {
+    setDouyinSessionError(null);
+    try {
+      const gateState = await desktopCommands.invoke<RuntimeDependencyGateStatePayload>(
+        "start_runtime_dependency_bootstrap",
+        { reason: "settings_douyin_session" },
+      );
+      setRuntimeDependencyGateState(gateState);
+      await loadDouyinSessionPanelState();
+    } catch (err) {
+      console.error("Failed to retry Douyin runtime bootstrap:", err);
+      setDouyinSessionError(
+        summarizeAppUpdateError(err) ?? t("desktop:settings.douyinSession.runtimeRetryFailed"),
+      );
+      await loadDouyinSessionPanelState();
+    }
+  }, [loadDouyinSessionPanelState, t]);
+
   const handleAppUpdateCheck = useCallback(async () => {
     if (appUpdatePhase === "checking" || appUpdatePhase === "downloading" || appUpdatePhase === "installing") {
       return;
@@ -841,6 +1011,44 @@ function SettingsPage() {
     lineHeight: 1,
     whiteSpace: "nowrap",
   });
+
+  const getDouyinSessionStatusPillStyle = (
+    tone: "active" | "muted",
+  ): CSSProperties => ({
+    ...getPluginStatusPillStyle(tone),
+    minWidth: 72,
+  });
+
+  const douyinSessionAvailability = douyinSessionState?.availability ?? "missing";
+  const douyinSessionCapturePhase = douyinSessionState?.capturePhase ?? "idle";
+  const douyinSessionHasStoredCookies = (douyinSessionState?.cookieCount ?? 0) > 0;
+  const douyinRuntimeStatus = runtimeDependencyStatus?.douyinDl ?? null;
+  const douyinRuntimeReady = douyinRuntimeStatus?.state === "ready";
+  const douyinRuntimeGatePhase = runtimeDependencyGateState?.phase ?? "idle";
+  const isDouyinRuntimeBusy = runtimeDependencyGateState?.currentComponent === "douyinDl"
+    && (douyinRuntimeGatePhase === "checking" || douyinRuntimeGatePhase === "downloading");
+  const douyinRuntimeDetailText = isDouyinRuntimeBusy
+    ? t("desktop:settings.douyinSession.runtimePreparing")
+    : douyinRuntimeReady
+      ? t("desktop:settings.douyinSession.runtimeReady")
+      : t("desktop:settings.douyinSession.runtimeMissing");
+  const douyinSessionDetailText = douyinSessionCapturePhase === "preparing"
+    ? t("desktop:settings.douyinSession.capturePreparing")
+    : douyinSessionCapturePhase === "awaiting_confirmation"
+      ? t("desktop:settings.douyinSession.captureAwaiting")
+      : douyinSessionAvailability === "ready"
+        ? t("desktop:settings.douyinSession.readyHint", {
+            count: douyinSessionState?.cookieCount ?? 0,
+          })
+        : douyinSessionHasStoredCookies && (douyinSessionState?.missingRequiredKeys.length ?? 0) > 0
+          ? t("desktop:settings.douyinSession.incompleteHint", {
+              keys: douyinSessionState?.missingRequiredKeys.join(", "),
+            })
+          : t("desktop:settings.douyinSession.missingHint");
+  const douyinSessionLastUpdatedLabel = douyinSessionState?.updatedAtMs
+    ? formatLocalizedDateTime(douyinSessionState.updatedAtMs, i18n.resolvedLanguage)
+    : null;
+  const canClearDouyinSession = douyinSessionHasStoredCookies || Boolean(douyinSessionLastUpdatedLabel);
 
   const settingsTabChromeStyle: CSSProperties = {
     display: "flex",
@@ -1153,6 +1361,174 @@ function SettingsPage() {
             </div>
           </div>
         ) : null}
+      </NeonSection>
+
+      <NeonSection
+        title={t("desktop:settings.douyinSession.title")}
+        hint={t("desktop:settings.douyinSession.hint")}
+      >
+        <NeonCard
+          glow={douyinSessionAvailability === "ready"}
+          style={{
+            padding: "12px",
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+                {t("desktop:settings.douyinSession.runtimeTitle")}
+              </span>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  lineHeight: 1.45,
+                  color: colors.textSecondary,
+                  opacity: 0.82,
+                }}
+              >
+                {douyinRuntimeDetailText}
+              </div>
+            </div>
+            <span style={getDouyinSessionStatusPillStyle(douyinRuntimeReady ? "active" : "muted")}>
+              {douyinRuntimeReady
+                ? t("desktop:settings.douyinSession.runtimeState.ready")
+                : isDouyinRuntimeBusy
+                  ? t("desktop:settings.douyinSession.runtimeState.preparing")
+                  : t("desktop:settings.douyinSession.runtimeState.missing")}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+                {t("desktop:settings.douyinSession.cardTitle")}
+              </span>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  lineHeight: 1.45,
+                  color: colors.textSecondary,
+                  opacity: 0.82,
+                }}
+              >
+                {douyinSessionDetailText}
+              </div>
+            </div>
+            <span style={getDouyinSessionStatusPillStyle(douyinSessionAvailability === "ready" ? "active" : "muted")}>
+              {douyinSessionAvailability === "ready"
+                ? t("desktop:settings.douyinSession.state.ready")
+                : douyinSessionCapturePhase === "awaiting_confirmation"
+                  ? t("desktop:settings.douyinSession.state.pending")
+                  : t("desktop:settings.douyinSession.state.missing")}
+            </span>
+          </div>
+
+          {douyinSessionLastUpdatedLabel ? (
+            <NeonHint size="sm">
+              {t("desktop:settings.douyinSession.lastUpdated", {
+                time: douyinSessionLastUpdatedLabel,
+              })}
+            </NeonHint>
+          ) : (
+            <NeonHint size="sm">
+              {t("desktop:settings.douyinSession.manualHint")}
+            </NeonHint>
+          )}
+
+          {douyinSessionError ? (
+            <NeonHint tone="danger" size="sm">
+              {douyinSessionError}
+            </NeonHint>
+          ) : null}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {!douyinRuntimeReady && douyinSessionCapturePhase === "idle" ? (
+              <NeonButton
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleDouyinRuntimeRetry()}
+                disabled={isDouyinRuntimeBusy}
+                style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
+              >
+                {isDouyinRuntimeBusy
+                  ? t("desktop:settings.douyinSession.runtimePreparingButton")
+                  : t("desktop:settings.douyinSession.runtimeRetryButton")}
+              </NeonButton>
+            ) : null}
+            {douyinSessionCapturePhase === "awaiting_confirmation" ? (
+              <>
+                <NeonButton
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => void handleDouyinSessionConfirmCapture()}
+                  disabled={isDouyinSessionActionBusy}
+                  style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
+                >
+                  {isConfirmingDouyinSession
+                    ? t("desktop:settings.douyinSession.confirmingButton")
+                    : t("desktop:settings.douyinSession.confirmButton")}
+                </NeonButton>
+                <NeonButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDouyinSessionCancelCapture()}
+                  disabled={isDouyinSessionActionBusy}
+                  style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
+                >
+                  {isCancellingDouyinSession
+                    ? t("desktop:settings.douyinSession.cancellingButton")
+                    : t("desktop:settings.douyinSession.cancelButton")}
+                </NeonButton>
+              </>
+            ) : (
+              <NeonButton
+                type="button"
+                variant={douyinSessionAvailability === "ready" ? "outline" : "default"}
+                size="sm"
+                onClick={() => void handleDouyinSessionStartCapture()}
+                disabled={isDouyinSessionActionBusy}
+                style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
+              >
+                {isStartingDouyinSession
+                  ? t("desktop:settings.douyinSession.startingButton")
+                  : douyinSessionAvailability === "ready"
+                    ? t("desktop:settings.douyinSession.refreshButton")
+                    : t("desktop:settings.douyinSession.loginButton")}
+              </NeonButton>
+            )}
+            <NeonButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleDouyinSessionClear()}
+              disabled={isDouyinSessionActionBusy || !canClearDouyinSession}
+              style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
+            >
+              {isClearingDouyinSession
+                ? t("desktop:settings.douyinSession.clearingButton")
+                : t("desktop:settings.douyinSession.clearButton")}
+            </NeonButton>
+          </div>
+        </NeonCard>
       </NeonSection>
     </>
   );

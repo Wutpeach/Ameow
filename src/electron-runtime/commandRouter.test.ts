@@ -16,6 +16,7 @@ const readyStatus = {
 const runtimeStatus: RuntimeDependencyStatusSnapshot = {
   ytDlp: readyStatus,
   galleryDl: { ...readyStatus, source: "bundled" },
+  douyinDl: { ...readyStatus, source: "managed" },
   ffmpeg: { ...readyStatus, source: "managed" },
   deno: { ...readyStatus, source: "managed" },
 };

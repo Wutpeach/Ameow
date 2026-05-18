@@ -48,6 +48,7 @@ const createStatus = (
 ): RuntimeDependencyStatusSnapshot => ({
   ytDlp: readyBundledEntry,
   galleryDl: readyBundledEntry,
+  douyinDl: readyManagedEntry,
   ffmpeg: readyManagedEntry,
   deno: readyManagedEntry,
   ...overrides,
@@ -92,6 +93,7 @@ const createControllerHarness = (
   });
   const ensureManagedYtDlpRuntimeReady = createBootstrap("ytDlp");
   const ensureManagedGalleryDlRuntimeReady = createBootstrap("galleryDl");
+  const ensureManagedDouyinDlRuntimeReady = createBootstrap("douyinDl");
   const ensureManagedFfmpegRuntimeReady = createBootstrap("ffmpeg");
   const ensureManagedDenoRuntimeReady = createBootstrap("deno");
 
@@ -103,6 +105,7 @@ const createControllerHarness = (
     buildManagedRuntimeBootstrapOptions,
     ensureManagedYtDlpRuntimeReady,
     ensureManagedGalleryDlRuntimeReady,
+    ensureManagedDouyinDlRuntimeReady,
     ensureManagedFfmpegRuntimeReady,
     ensureManagedDenoRuntimeReady,
     now: () => 1000 + events.length,
@@ -117,6 +120,7 @@ const createControllerHarness = (
     buildManagedRuntimeBootstrapOptions,
     ensureManagedYtDlpRuntimeReady,
     ensureManagedGalleryDlRuntimeReady,
+    ensureManagedDouyinDlRuntimeReady,
     ensureManagedFfmpegRuntimeReady,
     ensureManagedDenoRuntimeReady,
   };
@@ -221,6 +225,10 @@ describe("runtime dependency gate controller", () => {
         deno: missingManagedEntry(),
       }),
       createStatus({
+        ffmpeg: missingManagedEntry(),
+        deno: missingManagedEntry(),
+      }),
+      createStatus({
         deno: missingManagedEntry(),
       }),
       createStatus(),
@@ -241,6 +249,7 @@ describe("runtime dependency gate controller", () => {
     let releaseBootstrap = () => {};
     const firstStatus = createStatus({ ffmpeg: missingManagedEntry() });
     const { controller, ensureManagedFfmpegRuntimeReady } = createControllerHarness([
+      firstStatus,
       firstStatus,
       firstStatus,
       firstStatus,

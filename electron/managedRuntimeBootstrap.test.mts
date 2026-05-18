@@ -4,6 +4,7 @@ import {
   currentManagedRuntimeTarget,
   managedDenoPath,
   managedFfmpegPaths,
+  managedDouyinDlPath,
   managedGalleryDlPath,
   managedYtDlpPaths,
   resolvePinnedDownloaderRelease,
@@ -36,6 +37,9 @@ describe("managed runtime bootstrap helpers", () => {
       ffmpeg: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffmpeg.exe"),
       ffprobe: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffprobe.exe"),
     });
+    expect(managedDouyinDlPath(options)).toBe(
+      join("/tmp/ameow-config", "runtimes", "douyin-dl", "x86_64-pc-windows-msvc", "venv", "Scripts", "douyin-dl.exe"),
+    );
     expect(managedYtDlpPaths(options).ytDlp).toBe(
       join("/tmp/ameow-config", "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "real", "yt-dlp-x86_64-pc-windows-msvc.exe"),
     );

@@ -703,6 +703,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
           executedProviderId = plan.providerId;
           executedEngineId = enginePlan.engine;
+          this.logger.log(`>>> [ElectronRuntime] engine dispatch: ${JSON.stringify({
+            traceId,
+            providerId: plan.providerId,
+            engine: enginePlan.engine,
+            sourceUrl: enginePlan.sourceUrl ?? null,
+            reason: enginePlan.reason,
+            when: enginePlan.when,
+          })}`);
           const context: EngineExecutionContext = {
             traceId,
             plan,

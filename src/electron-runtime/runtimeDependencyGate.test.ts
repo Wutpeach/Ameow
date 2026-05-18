@@ -22,6 +22,7 @@ const createStatus = (
 ): RuntimeDependencyStatusSnapshot => ({
   ytDlp: readyEntry,
   galleryDl: readyEntry,
+  douyinDl: readyEntry,
   ffmpeg: { ...readyEntry, source: "managed" as const },
   deno: { ...readyEntry, source: "managed" as const },
   ...overrides,
@@ -62,6 +63,25 @@ describe("createRuntimeDependencyResolver", () => {
     expect(resolver.getGateState()).toMatchObject({
       phase: "idle",
       missingComponents: ["ytDlp"],
+      lastError: null,
+    });
+  });
+
+  it("treats managed douyin-dl as a missing managed component instead of a fatal bundled failure", () => {
+    const resolver = createRuntimeDependencyResolver(
+      createStatus({
+        douyinDl: {
+          ...missingEntry,
+          expectedSource: "managed",
+          error: "Missing managed douyin-dl runtime",
+        },
+      }),
+      () => createStatus(),
+    );
+
+    expect(resolver.getGateState()).toMatchObject({
+      phase: "idle",
+      missingComponents: ["douyinDl"],
       lastError: null,
     });
   });
