@@ -545,3 +545,36 @@ Added unified site-level login badges for Douyin, Bilibili, Xiaohongshu, and You
 ### Next Steps
 
 - None - task complete
+
+
+## Session 154: Xiaohongshu yt-dlp routing cleanup
+
+**Date**: 2026-05-19
+**Task**: Xiaohongshu yt-dlp routing cleanup
+**Branch**: `main`
+
+### Summary
+
+Removed Xiaohongshu direct video candidate routing and hidden-detail fallback, routed Xiaohongshu video downloads through yt-dlp-compatible note URLs, preserved image drag/save behavior, and updated related specs/tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03a4638` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
