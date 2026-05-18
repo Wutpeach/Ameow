@@ -85,7 +85,6 @@ export const detectSiteHintFromUrl = (
   if (
     lower.includes("xiaohongshu.com/")
     || lower.includes("xhslink.com/")
-    || lower.includes("xhscdn.com/")
   ) {
     return "xiaohongshu";
   }

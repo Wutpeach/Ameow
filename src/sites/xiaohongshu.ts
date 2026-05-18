@@ -1,5 +1,4 @@
 import type {
-  MediaCandidate,
   RawDownloadInput,
   ResolvedDownloadPlan,
   SiteProvider,
@@ -8,7 +7,7 @@ import type {
 import { buildEnginePlansFromStrategySources } from "../download-capabilities/strategy-plans.js";
 import { getRuntimeManualSiteStrategy } from "../download-capabilities/runtime-site-strategies.js";
 
-const XIAOHONGSHU_HOST_PATTERN = /(xiaohongshu\.com|xhslink\.com|xhscdn\.com)/i;
+const XIAOHONGSHU_HOST_PATTERN = /(xiaohongshu\.com|xhslink\.com)/i;
 
 const isXiaohongshuUrl = (value: string | undefined): boolean => (
   Boolean(value && XIAOHONGSHU_HOST_PATTERN.test(value))
@@ -22,7 +21,7 @@ const extractXiaohongshuNoteId = (value: string | undefined): string | null => {
   try {
     const parsed = new URL(value);
     const match = parsed.pathname.match(
-      /\/(?:explore|discovery\/item)\/([a-zA-Z0-9]+)|^\/user\/profile\/[^/?#]+\/([a-zA-Z0-9]+)(?:[/?#]|$)/i,
+      /\/(?:explore|discovery\/item)\/([a-f0-9]+)|^\/user\/profile\/[^/?#]+\/([a-f0-9]+)(?:[/?#]|$)/i,
     );
     return match?.[1] ?? match?.[2] ?? null;
   } catch {
@@ -30,55 +29,70 @@ const extractXiaohongshuNoteId = (value: string | undefined): string | null => {
   }
 };
 
-const canonicalizeXiaohongshuNoteUrl = (value: string | undefined): string | undefined => {
+const canonicalizeXiaohongshuYtdlpUrl = (value: string | undefined): string | undefined => {
   if (!value) {
     return undefined;
   }
 
-  const noteId = extractXiaohongshuNoteId(value);
-  if (!noteId) {
-    return value;
+  try {
+    const parsed = new URL(value);
+    if (!/(^|\.)xiaohongshu\.com$/i.test(parsed.hostname)) {
+      return undefined;
+    }
+
+    const noteId = extractXiaohongshuNoteId(value);
+    if (!noteId) {
+      return undefined;
+    }
+
+    const detailPath = parsed.pathname.match(/^\/discovery\/item\/[a-f0-9]+(?:[/?#]|$)/i);
+    if (detailPath) {
+      parsed.protocol = "https:";
+      parsed.hostname = "www.xiaohongshu.com";
+      parsed.hash = "";
+      return parsed.toString();
+    }
+  } catch {
+    return undefined;
   }
 
-  return `https://www.xiaohongshu.com/explore/${noteId}`;
+  const noteId = extractXiaohongshuNoteId(value);
+  return noteId ? `https://www.xiaohongshu.com/explore/${noteId}` : undefined;
 };
 
-const isDirectXiaohongshuAsset = (value: string | undefined): boolean => (
-  Boolean(value && /xhscdn\.com/i.test(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
-);
-
-const isXiaohongshuHintCandidate = (candidate: MediaCandidate): boolean => (
-  candidate.mediaType !== "image"
-  && XIAOHONGSHU_HOST_PATTERN.test(candidate.url)
-  && /\.(mp4|mov|m4v|m3u8)(?:$|\?)/i.test(candidate.url)
-);
-
-const xiaohongshuCandidates = (input: RawDownloadInput): MediaCandidate[] =>
-  (input.videoCandidates ?? []).filter(isXiaohongshuHintCandidate);
+const resolveXiaohongshuYtdlpSource = (input: RawDownloadInput): string | undefined => {
+  const candidates = [input.url, input.pageUrl].filter((value): value is string => Boolean(value));
+  const tokenizedDetailUrl = candidates
+    .map(canonicalizeXiaohongshuYtdlpUrl)
+    .find((value) => Boolean(value && /\/discovery\/item\/[a-f0-9]+/i.test(value) && /[?&]xsec_token=/i.test(value)));
+  return tokenizedDetailUrl
+    ?? canonicalizeXiaohongshuYtdlpUrl(input.pageUrl)
+    ?? canonicalizeXiaohongshuYtdlpUrl(input.url);
+};
 
 export const xiaohongshuProvider: SiteProvider = {
   id: "xiaohongshu",
   matches(input: RawDownloadInput): boolean {
-    return input.siteHint === "xiaohongshu"
-      || isXiaohongshuUrl(input.pageUrl)
-      || isXiaohongshuUrl(input.url)
-      || isDirectXiaohongshuAsset(input.videoUrl)
-      || Boolean(input.videoCandidates?.some(isXiaohongshuHintCandidate));
+    return Boolean(resolveXiaohongshuYtdlpSource(input))
+      && (
+        input.siteHint === "xiaohongshu"
+        || isXiaohongshuUrl(input.pageUrl)
+        || isXiaohongshuUrl(input.url)
+      );
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
-    const canonicalPageUrl = canonicalizeXiaohongshuNoteUrl(input.pageUrl ?? input.url);
+    const ytdlpSource = resolveXiaohongshuYtdlpSource(input) ?? input.pageUrl ?? input.url;
     const strategy = getRuntimeManualSiteStrategy("xiaohongshu");
-    const ytdlpSource = canonicalPageUrl ?? input.pageUrl ?? input.url;
     const intent: VideoDownloadIntent = {
       type: "video",
       siteId: "xiaohongshu",
       originalUrl: input.url,
-      pageUrl: input.pageUrl,
+      pageUrl: input.pageUrl ?? ytdlpSource,
       title: input.title,
       cookies: input.cookies,
-      referer: input.pageUrl,
+      referer: input.pageUrl ?? ytdlpSource,
       priority: 88,
-      candidates: xiaohongshuCandidates(input),
+      candidates: [],
       selectionScope: input.selectionScope,
       ytdlpQuality: input.ytdlpQuality,
       preferredFormat: "mp4",

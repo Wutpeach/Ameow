@@ -21,11 +21,6 @@ const buildDirectDownloadHeaders = (context: EngineExecutionContext): Headers =>
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
   );
 
-  if (context.intent.siteId === "xiaohongshu") {
-    headers.set("Origin", "https://www.xiaohongshu.com");
-    return headers;
-  }
-
   if (context.intent.pageUrl) {
     headers.set("Referer", context.intent.pageUrl);
   }
@@ -38,15 +33,6 @@ const buildDirectDownloadRequestInit = (
   signal: AbortSignal,
 ): RequestInit => {
   const headers = buildDirectDownloadHeaders(context);
-
-  if (context.intent.siteId === "xiaohongshu") {
-    return {
-      headers,
-      signal,
-      referrer: "",
-      referrerPolicy: "no-referrer",
-    };
-  }
 
   return {
     headers,

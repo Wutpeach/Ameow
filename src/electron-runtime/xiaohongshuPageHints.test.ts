@@ -2,21 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveXiaohongshuDragMedia,
-  resolveXiaohongshuPageHints,
   resolveXiaohongshuPageMedia,
 } from "./xiaohongshuPageHints";
 
-describe("resolveXiaohongshuPageHints", () => {
-  it("hydrates Xiaohongshu page requests with direct video candidates from fetched html", async () => {
+describe("resolveXiaohongshuPageMedia", () => {
+  it("detects Xiaohongshu video intent from fetched html without direct candidates", async () => {
     const fetchImpl: typeof fetch = async () => new Response(
       `
         <html>
           <script>
             window.__INITIAL_STATE__ = {
               note: {
-                video: {
-                  url: "https:\\/\\/sns-video-bd.xhscdn.com\\/stream\\/example-1080p.mp4"
-                }
+                type: "video"
               }
             };
           </script>
@@ -30,49 +27,24 @@ describe("resolveXiaohongshuPageHints", () => {
       },
     );
 
-    const resolved = await resolveXiaohongshuPageHints(
+    const resolved = await resolveXiaohongshuPageMedia(
       {
         url: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
         pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
-        siteHint: "xiaohongshu",
       },
       fetchImpl,
     );
 
-    expect(resolved.videoUrl).toBe("https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4");
-    expect(resolved.videoCandidates).toEqual([
-      {
-        url: "https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4",
-        type: "direct_cdn",
-        source: "page_html",
-        confidence: "high",
-        mediaType: "video",
-      },
-    ]);
+    expect(resolved).toEqual({
+      kind: "video",
+      pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
+      imageUrl: null,
+      videoUrl: null,
+      videoCandidates: [],
+    });
   });
 
-  it("preserves existing direct hints without refetching", async () => {
-    let called = false;
-    const fetchImpl: typeof fetch = async () => {
-      called = true;
-      return new Response("", { status: 200 });
-    };
-
-    const resolved = await resolveXiaohongshuPageHints(
-      {
-        url: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
-        pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
-        videoUrl: "https://sns-video-bd.xhscdn.com/stream/existing.mp4",
-        siteHint: "xiaohongshu",
-      },
-      fetchImpl,
-    );
-
-    expect(called).toBe(false);
-    expect(resolved.videoUrl).toBe("https://sns-video-bd.xhscdn.com/stream/existing.mp4");
-  });
-
-  it("returns the original request when no xhscdn media is present", async () => {
+  it("returns unknown when no Xiaohongshu media is present", async () => {
     const fetchImpl: typeof fetch = async () => new Response(
       `<html><body><h1>plain note page</h1></body></html>`,
       {
@@ -83,13 +55,21 @@ describe("resolveXiaohongshuPageHints", () => {
       },
     );
 
-    const original = {
-      url: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
+    await expect(
+      resolveXiaohongshuPageMedia(
+        {
+          url: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
+          pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
+        },
+        fetchImpl,
+      ),
+    ).resolves.toEqual({
+      kind: "unknown",
       pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
-      siteHint: "xiaohongshu" as const,
-    };
-
-    await expect(resolveXiaohongshuPageHints(original, fetchImpl)).resolves.toEqual(original);
+      imageUrl: null,
+      videoUrl: null,
+      videoCandidates: [],
+    });
   });
 
   it("resolves image notes to a canonical page image", async () => {
@@ -162,7 +142,7 @@ describe("resolveXiaohongshuPageHints", () => {
 });
 
 describe("resolveXiaohongshuDragMedia", () => {
-  it("uses note-detail api fallback for video notes when drag payload lacks a direct video url", async () => {
+  it("uses note-detail api fallback for video notes without returning direct video urls", async () => {
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/api/sns/web/v1/feed")) {
@@ -231,16 +211,8 @@ describe("resolveXiaohongshuDragMedia", () => {
       kind: "video",
       pageUrl: "https://www.xiaohongshu.com/explore/69d4720e000000001d01a7d7",
       imageUrl: null,
-      videoUrl: "https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4",
-      videoCandidates: [
-        {
-          url: "https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4",
-          type: "direct_cdn",
-          source: "detail_api",
-          confidence: "high",
-          mediaType: "video",
-        },
-      ],
+      videoUrl: null,
+      videoCandidates: [],
     });
   });
 

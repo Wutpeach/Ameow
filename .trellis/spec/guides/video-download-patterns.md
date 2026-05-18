@@ -7,7 +7,7 @@
 ## Overview
 
 FlowSelect uses a three-path architecture:
-- Direct downloader for high-confidence Douyin/Xiaohongshu CDN URLs
+- Direct downloader for high-confidence Douyin CDN URLs and selected provider-owned direct candidates
 - `gallery-dl` for supported extractor-first sites that are routed through the site-provider layer
 - `yt-dlp` as the generic fallback and the primary route for dedicated `yt-dlp` providers such as YouTube/Twitter/Bilibili
 
@@ -53,11 +53,10 @@ Browser Extension / UI URL
 
 ---
 
-## Pattern 3: Direct Download (Douyin + Xiaohongshu)
+## Pattern 3: Direct Download (Douyin)
 
 **Used for**:
 - Douyin direct CDN links (`douyinvod.com`, `douyincdn.com`)
-- Xiaohongshu direct CDN links (`xhscdn.com`)
 
 **Why**:
 - Signed CDN links are often short-lived.
@@ -101,7 +100,7 @@ For onboarding a new direct-download platform (button injection + parser contrac
 
 - Trigger: browser extension popup quality selector changes, then `background.js` forwards the preference through `video_selected_v2`.
 - Scope: this field affects only `yt-dlp` downloads and direct-download fallback-to-yt-dlp paths.
-- Direct downloads for Douyin/Xiaohongshu still prioritize the highest-quality direct candidate and ignore this field for the direct attempt itself.
+- Direct downloads for Douyin still prioritize the highest-quality direct candidate and ignore this field for the direct attempt itself. Xiaohongshu video downloads now use yt-dlp with canonical note URLs instead of direct CDN candidates.
 
 Popup labels:
 - `best` is shown as `Highest`
@@ -223,13 +222,13 @@ When extension sends both `clipStartSec` and `clipEndSec` for `youtube` or `bili
 
 ```rust
 if is_douyin_cdn_url(&url) { /* direct downloader */ }
-if is_xiaohongshu_cdn_url(&url) { /* direct downloader */ }
+if is_xiaohongshu_note_url(&url) { /* yt-dlp */ }
 // otherwise: yt-dlp only
 ```
 
 ### Phase 2 Direct Candidate Policy (Backend)
 
-Candidate order for Douyin/Xiaohongshu direct path:
+Candidate order for Douyin direct path:
 1. short-TTL cache hit by `platform + normalized pageUrl`
 2. `videoUrl` (legacy field)
 3. `videoCandidates[]` (filtered, platform-matched)
@@ -248,7 +247,7 @@ Observability contract:
 | Condition | Expected Behavior | Fallback |
 |---|---|---|
 | `videoUrl` is direct CDN URL and headers valid | direct download success | no fallback needed |
-| Xiaohongshu homepage drag token says `mediaType=image` | preserve image path; do not upgrade to video from document-global hints | no video fallback |
+| Xiaohongshu homepage drag token says `mediaType=image` | preserve image path unless note-aware resolution reports video intent | no direct-video fallback |
 | `videoUrl` missing/`null` | use smart router by page/url | yt-dlp |
 | `ytdlpQualityPreference=balanced` | direct attempt unchanged; yt-dlp paths prefer 1080p | standard yt-dlp fallback chain |
 | `ytdlpQualityPreference=data_saver` | direct attempt unchanged; yt-dlp paths prefer 360p or lower | lowest available tier if platform min is above 360p |
@@ -263,14 +262,15 @@ Observability contract:
 
 - Good:
   - Extension sends `videoUrl` + `pageUrl` + `cookies`; backend chooses direct downloader.
-  - Xiaohongshu homepage image-card drag keeps downloading the dragged image even after the user previously opened a different video detail page in the same tab.
+  - Xiaohongshu homepage image-card drag keeps downloading the dragged image unless the note itself resolves as video.
+  - Xiaohongshu video notes enqueue canonical note URLs for yt-dlp instead of xhscdn direct candidates.
   - Extension sends `ytdlpQualityPreference=balanced`; Bilibili/YouTube yt-dlp path prefers 1080p when available.
   - A `best` high-resolution yt-dlp download can resolve to the highest visible tier, including `1440p/2160p`, with internal `mkv` merge when required by the stream mix, while the final returned file is normalized to AE-safe `mp4` when needed.
   - A `best` Bilibili preview-limited request that only resolves to `1080p` with MP4-compatible streams should land directly as `mp4` and skip the transcode queue.
   - First direct candidate fails, second succeeds; trace contains `attempt_failed` then terminal success.
 - Base:
   - Extension cannot extract direct URL; sends page URL only; backend uses yt-dlp path.
-  - Xiaohongshu detail-page cat button resolves a direct MP4 and the runtime returns that file directly without entering the shared transcode queue.
+  - Xiaohongshu detail-page cat button queues a canonical note URL and yt-dlp owns extraction.
   - Extension omits `ytdlpQualityPreference`; backend defaults to `best`.
 - Bad:
   - Extension sends `blob:` as direct URL.
@@ -285,8 +285,8 @@ Observability contract:
 ### Required Tests
 
 - Douyin direct URL path: confirm direct downloader logs + success.
-- Xiaohongshu direct URL path: confirm control-bar button path + success.
-- Xiaohongshu direct URL path: confirm the saved file does not enqueue `video-transcode-queued`.
+- Xiaohongshu control-bar button path: confirm it queues a canonical note URL for yt-dlp.
+- Xiaohongshu direct CDN URL path: confirm the Xiaohongshu provider does not claim a bare `xhscdn` URL without note context.
 - Missing direct URL path: send only page URL and confirm yt-dlp fallback works.
 - Xiaohongshu homepage drag image path: drag an image card after downloading a different detail-page video in the same tab and confirm the image card still resolves to image, not the previous video URL.
 - Error path: force invalid direct URL and verify `video-download-complete` emits error payload.
@@ -325,7 +325,7 @@ python3 ./.trellis/scripts/download_trace_report.py \
 Expected report sections:
 - Platform success/failure/cancelled summary
 - Outcome taxonomy ratio (`direct_success`, `direct_failed_then_ytdlp_success`, etc.)
-- Route timing percentiles (`direct_douyin`, `direct_xiaohongshu`, `yt_dlp`, historical `videodl` if present in old logs)
+- Route timing percentiles (`direct_douyin`, `yt_dlp`, historical `direct_xiaohongshu` / `videodl` if present in old logs)
 - Gate status summary
 
 ---
@@ -334,7 +334,7 @@ Expected report sections:
 
 1. SPA pages: RENDER_DATA may be null on initial load; extract from DOM/resources/scripts.
 2. Blob URLs: `blob:` can play in page but cannot be used as downloader input.
-3. URL detection: include CDN domains (`douyinvod.com`, `douyincdn.com`, `xhscdn.com`) in direct route checks.
+3. URL detection: include Douyin CDN domains (`douyinvod.com`, `douyincdn.com`) in direct route checks; Xiaohongshu video routing uses canonical note URLs for yt-dlp.
 4. Cross-layer payload: keep `video_selected_v2.data.videoUrl` optional.
 5. Cross-layer payload: `video_selected_v2.data.ytdlpQualityPreference` must stay optional and normalize unknown values to `best`.
 5. Completion event: always emit `video-download-complete` on all terminal paths.

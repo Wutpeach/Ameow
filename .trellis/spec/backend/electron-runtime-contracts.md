@@ -1142,16 +1142,14 @@ Required tests:
   - `browser-extension/xiaohongshu-page-bridge.js` is a page-world bridge that must stay listed in MV3 `web_accessible_resources`.
   - `browser-extension/xiaohongshu-contextmenu-guard.js` must inject that bridge at `document_start`, listen for `AMEOW_XIAOHONGSHU_NOTE_LINKS`, and persist the latest `noteId -> { detailUrl, xsecToken, xsecSource }` cache for later content-script reads.
   - `browser-extension/xiaohongshu-detector.js` drag/context payloads must prefer a cached tokenized `detailUrl` over bare `/explore/<noteId>` links or profile-note URLs.
-  - `electron/main.mts` must forward `detailUrl` end-to-end when requesting extension-side drag resolution and when deciding hidden-detail fallback targets.
+  - `electron/main.mts` must forward `detailUrl` end-to-end when requesting extension-side drag resolution.
   - Tokenized `detailUrl` is a higher-trust canonical hint than drag-time cover image hints. If `detailUrl` contains `xsec_token`, desktop fallback must continue note-aware resolution before finalizing an image download.
-- Xiaohongshu hidden-detail fallback contract:
-  - Hidden detail fallback is allowed when no usable direct video URL/candidate was found yet and any of these are true:
-    - request `mediaType === "video"`
-    - resolved media `kind === "video"`
-    - `videoIntentConfidence >= 0.7`
-    - resolved media `videoIntentConfidence >= 0.7`
-    - tokenized `detailUrl` exists and either request or resolved media confidence is at least `0.5`
-  - A tokenized `detailUrl` plus medium video intent is sufficient to keep probing the hidden detail page; it must not be short-circuited into a final cover-image download.
+- Xiaohongshu video routing contract:
+  - Video downloads must enqueue a yt-dlp-compatible note URL, not a direct `xhscdn` URL or extracted m3u8/mp4 candidate.
+  - Valid yt-dlp sources are `https://www.xiaohongshu.com/explore/<hexId>` and `https://www.xiaohongshu.com/discovery/item/<hexId>` with optional query parameters.
+  - Tokenized `discovery/item/<hexId>?xsec_token=...` detail URLs are preferred when already available.
+  - Profile-note URLs must normalize to `/explore/<hexId>` before provider execution.
+  - The generic runtime queue must not fetch Xiaohongshu pages/API responses only to discover direct video candidates before provider resolution.
 - `requestHeaders` for `save_image` are an Electron-owned allowlist contract:
   - allowed keys: `Accept`, `Cookie`, `Origin`, `Referer`, `User-Agent`
   - all other extension-supplied header keys must be ignored before main-process fetch
@@ -1184,14 +1182,14 @@ Validation and error matrix:
 | Browser right-click hits an image resource or an image-only note | `browser-extension/background.js` context-menu path | Extension routes to `save_image` instead of forcing the selection through `video_selected_v2` | Reuse `save_image_from_page` / `save_image`; do not invoke video runtimes for image-only targets |
 | Xiaohongshu homepage/feed right-click starts on one note card while the nearest large parent contains multiple cards | `browser-extension/xiaohongshu-detector.js` scope resolution | Resolved image/video belongs to the clicked card only | Stop scope expansion before the first multi-note parent |
 | Xiaohongshu feed/profile page has no scoped card title | `browser-extension/xiaohongshu-detector.js` -> `background.js` -> `src/electron-runtime/service.ts` | Request omits `title`, so runtime naming falls back to canonical URL/id instead of page title pollution | Never fallback to feed/profile `document.title` for right-click naming |
-| Xiaohongshu drag payload initially says `mediaType: "image"` but bridge cache later exposes a tokenized `detailUrl` plus medium/high video intent | `browser-extension/xiaohongshu-detector.js` -> `background.js` -> `electron/main.mts` -> hidden detail fallback | Desktop still treats the note as video-eligible and continues note-aware fallback instead of finalizing the cover image immediately | Let tokenized `detailUrl` + confidence override the earlier weak image guess |
+| Xiaohongshu drag payload initially says `mediaType: "image"` but bridge cache later exposes a tokenized `detailUrl` plus medium/high video intent | `browser-extension/xiaohongshu-detector.js` -> `background.js` -> `electron/main.mts` | Desktop still treats the note as video-eligible and queues the canonical note URL instead of finalizing the cover image immediately | Let tokenized `detailUrl` + confidence override the earlier weak image guess |
 | Dragged Xiaohongshu card payload exposes only a note page URL plus an ambiguous cover image | renderer `resolve_xiaohongshu_drag_media` -> Electron main -> runtime page fetch | Desktop resolves the note page to canonical media before deciding image vs video | Prefer canonical page media over card-cover heuristics; tokenized `detailUrl` is the preferred canonical page hint |
 | Xiaohongshu image drag resolves to a bare `xhscdn` host root or Chromium rejects the note page as an invalid referrer | renderer `download_image` -> `electron/main.mts` protected-image fetch | Desktop must reject the bare root as invalid and, for real Xiaohongshu CDN image requests, avoid a note-page referrer that Chromium blocks | Filter CDN roots before image selection; use origin-only Xiaohongshu headers plus `no-referrer` session fetch fallback |
 | X image drag comes from an overlay page like `/status/<id>/photo/1` | renderer image drop parsing -> `download_image` | Desktop image download receives the canonical status permalink instead of the overlay URL | Canonicalize X overlay URLs before forwarding `pageUrl` |
 | `pbs.twimg.com` request is valid but Chromium rejects the X status referrer as invalid | `electron/main.mts` image download fetch | Desktop still attempts the image download without forcing a referrer contract that Chromium blocks | Drop `Referer`/`Origin` for public X image requests and keep a non-session HTTP fallback |
 | X dragged image URL is a low-resolution `name=small` / `name=medium` variant | renderer `upgradeImageUrl` | Download path upgrades to `name=orig` before fetch | Prefer deterministic `pbs.twimg.com` variant rewriting ahead of generic `maxurl` |
 | Xiaohongshu page bridge asset is omitted from MV3 resources or not injected at `document_start` | `browser-extension/manifest.json` + `xiaohongshu-contextmenu-guard.js` | Feed/profile API responses are missed, so `detailUrl` stays bare or null and video drag fallback regresses | Keep `xiaohongshu-page-bridge.js` in `web_accessible_resources` and inject it before page feed requests fire |
-| Xiaohongshu direct MP4 succeeds through the Electron direct engine | `src/sites/xiaohongshu.ts` -> `src/electron-runtime/directDownload.ts` -> `src/electron-runtime/service.ts` | Runtime emits download success and keeps the downloaded MP4 as the final file; no downstream transcode/remux queue should start | Skip `handleCompletedVideoSource(...)` follow-up for `providerId === "xiaohongshu"` and `engine === "direct"` |
+| Bare Xiaohongshu CDN MP4 enters the generic video queue without a note URL | `src/sites/xiaohongshu.ts` provider routing | The Xiaohongshu provider must not claim it solely from the CDN host; generic fallback may handle it as an ordinary URL | Require a canonical note URL or explicit Xiaohongshu note context before using the Xiaohongshu provider |
 | Extension sends unexpected request header names | `electron/main.mts` `save_image` path | Main process drops unapproved headers before fetch | Restrict to the allowlist |
 | Authenticated desktop download succeeds after browser-context failure | `protected_image_resolution_result` correlation | Original `download_image` call resolves with the saved path instead of timing out | Resolve the pending protected-image request once |
 
@@ -1204,7 +1202,7 @@ Good / Base / Bad cases:
   - Public image download still uses the normal `download_image` path with no `save_image` metadata.
   - An image-only site button may reuse `save_image` as long as the extension still preserves the existing payload fields and request correlation semantics.
   - Generic context-menu and popup triggers may stay extension-internal as long as they eventually normalize into either `video_selected_v2` or `save_image`.
-  - Ambiguous Xiaohongshu drag payloads may defer final classification to `resolve_xiaohongshu_drag_media`, which may escalate from cover-image hints into hidden detail probing when a tokenized `detailUrl` and video intent are present.
+  - Ambiguous Xiaohongshu drag payloads may defer final classification to `resolve_xiaohongshu_drag_media`, which may upgrade cover-image hints into a video queue decision when a tokenized `detailUrl` and video intent are present.
   - Xiaohongshu homepage card drag may remain image-only only when no scoped video signal, no tokenized `detailUrl`, and no medium/high video intent were recovered.
 - Bad:
   - Extension forwards arbitrary header names to Electron main.
@@ -1214,7 +1212,7 @@ Good / Base / Bad cases:
   - A generic right-click/current-media trigger falls back to `document.title` from a feed/profile page and pollutes output naming for an otherwise precise card-scoped request.
   - Xiaohongshu right-click scoping expands into a multi-card parent and resolves media from an adjacent note instead of the clicked card.
   - Renderer trusts the dragged cover image as the source of truth for Xiaohongshu cards without first checking whether the note page actually resolves to video.
-  - Renderer or Electron downloads a Xiaohongshu cover image while a tokenized `detailUrl` and medium/high video intent are still available for hidden-detail fallback.
+  - Renderer or Electron downloads a Xiaohongshu cover image while a tokenized `detailUrl` and medium/high video intent are still available for yt-dlp note routing.
   - A previous Xiaohongshu detail-view video pollutes a later homepage card drag because re-resolution trusted document-wide `performance` or script signals without card-local scope or note-linked `detailUrl`.
   - Electron main changes the protected-image action names or payload keys without updating this contract in the same task.
 
@@ -1230,7 +1228,7 @@ Required tests and assertion points:
   - Add/keep checks proving that Xiaohongshu protected-image desktop fetch uses the origin-only / no-referrer fallback instead of a note-page referrer on the Chromium session path.
   - Add/keep checks proving that `normalizeVideoPageUrl(...)` canonicalizes X `/photo/<n>` overlay URLs back to the status permalink.
   - Add/keep checks proving that X `pbs.twimg.com` image URLs upgrade to `name=orig` before generic `maxurl` probing.
-  - Manually verify a Xiaohongshu waterfall video drag still enters hidden-detail fallback when the extension result returns only `kind: "image"` plus a tokenized `detailUrl` and medium video intent.
+  - Manually verify a Xiaohongshu waterfall video drag still queues the canonical note URL when the extension result returns only `kind: "image"` plus a tokenized `detailUrl` and medium video intent.
   - Manually drag a real X image and verify the app shows a loading indicator during transfer, then settles into a short success state only after the file is written.
   - Reload the extension after manifest/background changes and assert the generic context-menu entry still appears for supported `video`, `image`, `link`, `page`, and `frame` contexts.
 

@@ -76,6 +76,50 @@
     }
   }
 
+  function normalizeYtdlpNoteUrl(url) {
+    const normalized = normalizeUrl(url);
+    if (!normalized) return null;
+
+    try {
+      const parsed = new URL(normalized);
+      if (!/\.?(xiaohongshu\.com)$/i.test(parsed.hostname)) {
+        return null;
+      }
+
+      const noteMatch = parsed.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]+)(?:[/?#]|$)/i);
+      if (noteMatch) {
+        parsed.protocol = 'https:';
+        parsed.hostname = 'www.xiaohongshu.com';
+        parsed.hash = '';
+        return parsed.toString();
+      }
+
+      const profileNoteMatch = parsed.pathname.match(/^\/user\/profile\/[^/?#]+\/([a-f0-9]+)(?:[/?#]|$)/i);
+      if (profileNoteMatch) {
+        return `https://www.xiaohongshu.com/explore/${profileNoteMatch[1]}`;
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  function resolvePreferredYtdlpNoteUrl({ pageUrl, detailUrl, noteId }) {
+    const detailNoteUrl = normalizeYtdlpNoteUrl(detailUrl);
+    if (detailNoteUrl && /[?&]xsec_token=/i.test(detailNoteUrl)) {
+      return detailNoteUrl;
+    }
+
+    return normalizeYtdlpNoteUrl(pageUrl)
+      || (
+        normalizeNoteId(noteId)
+          ? `https://www.xiaohongshu.com/explore/${normalizeNoteId(noteId)}`
+          : null
+      )
+      || detailNoteUrl;
+  }
+
   function encodeUtf8Base64(value) {
     try {
       return btoa(
@@ -356,10 +400,6 @@
     return null;
   }
 
-  function isM3u8Url(url) {
-    return /\.m3u8(\?|$)/i.test(url);
-  }
-
   function isDirectCdnVideoUrl(url) {
     if (/\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp|css|js|json|txt|woff2?|ttf)(?:[?#]|$)/i.test(url)) {
       return false;
@@ -371,125 +411,6 @@
         || /:\/\/[^/]*video[^/]*\.xhscdn\.com\//i.test(url)
       )
     );
-  }
-
-  function classifyCandidateType(url) {
-    const lower = url.toLowerCase();
-    if (isM3u8Url(lower)) return 'manifest_m3u8';
-    if (isDirectCdnVideoUrl(lower)) return 'direct_cdn';
-    if (/\.mp4(\?|$)/.test(lower)) return 'direct_mp4';
-    return 'indirect_media';
-  }
-
-  function candidateTypeScore(type) {
-    switch (type) {
-      case 'direct_cdn':
-        return 100;
-      case 'direct_mp4':
-        return 90;
-      case 'indirect_media':
-        return 45;
-      case 'manifest_m3u8':
-        return 10;
-      default:
-        return 0;
-    }
-  }
-
-  function sourceScore(source) {
-    switch (source) {
-      case 'video_element':
-        return 20;
-      case 'video_source':
-        return 18;
-      case 'json_ld':
-        return 14;
-      case 'performance_resource':
-        return 10;
-      case 'script_scan':
-        return 6;
-      default:
-        return 0;
-    }
-  }
-
-  function confidenceForScore(score) {
-    if (score >= 110) return 'high';
-    if (score >= 70) return 'medium';
-    return 'low';
-  }
-
-  function extractVideoCandidates(root = document, options = {}) {
-    const seen = new Set();
-    const candidates = [];
-    const scope = root instanceof Document ? root : root instanceof Element ? root : document;
-    const includeDocumentWideSignals = options.includeDocumentWideSignals === true;
-
-    const collectCandidate = (raw, source) => {
-      const candidateUrl = normalizeUrl(raw);
-      if (!candidateUrl || seen.has(candidateUrl)) return;
-      seen.add(candidateUrl);
-      if (!isLikelyVideoUrl(candidateUrl)) return;
-
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore(source);
-      candidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source,
-        mediaType: 'video',
-        score,
-      });
-    };
-
-    // Method 1: direct video element
-    const videos = Array.from(scope.querySelectorAll('video'));
-    for (const video of videos) {
-      collectCandidate(video.currentSrc, 'video_element');
-      collectCandidate(video.src, 'video_element');
-      collectCandidate(video.getAttribute('src'), 'video_element');
-      const source = video.querySelector('source');
-      collectCandidate(source?.src, 'video_source');
-      collectCandidate(source?.getAttribute('src'), 'video_source');
-    }
-
-    // Method 2: JSON-LD block
-    const ldScripts = Array.from(scope.querySelectorAll('script[type="application/ld+json"]'));
-    for (const script of ldScripts) {
-      try {
-        const payload = JSON.parse(script.textContent || '{}');
-        collectCandidate(payload?.contentUrl || payload?.video?.contentUrl, 'json_ld');
-      } catch (_) {
-        // Ignore malformed json-ld.
-      }
-    }
-
-    // Method 3: Performance resources (blob-backed players usually still fetch real media URLs)
-    if (includeDocumentWideSignals) {
-      const resources = performance.getEntriesByType('resource') || [];
-      for (let i = resources.length - 1; i >= 0; i -= 1) {
-        collectCandidate(resources[i]?.name, 'performance_resource');
-      }
-    }
-
-    // Method 4: Script text scan for encoded/embedded media URLs
-    const scriptTags = Array.from(scope.querySelectorAll('script'));
-    const urlRegex = /https?:\/\/[^\s"'\\]+/g;
-    for (const script of scriptTags) {
-      const rawText = script.textContent || '';
-      if (!rawText) continue;
-      const text = rawText.replace(/\\u002F/g, '/');
-      const matches = text.match(urlRegex) || [];
-      for (const match of matches) {
-        collectCandidate(match, 'script_scan');
-      }
-    }
-
-    return candidates
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 12)
-      .map(({ score, ...candidate }) => candidate);
   }
 
   function scoreImageElement(image) {
@@ -698,32 +619,6 @@
       return 1;
     }
     return Math.round(value * 1000) / 1000;
-  }
-
-  function mergeVideoCandidateLists(...candidateLists) {
-    const merged = [];
-    const seen = new Set();
-
-    for (const candidateList of candidateLists) {
-      if (!Array.isArray(candidateList)) {
-        continue;
-      }
-
-      for (const candidate of candidateList) {
-        const candidateUrl = normalizeUrl(candidate?.url);
-        if (!candidateUrl || seen.has(candidateUrl)) {
-          continue;
-        }
-
-        seen.add(candidateUrl);
-        merged.push({
-          ...candidate,
-          url: candidateUrl,
-        });
-      }
-    }
-
-    return merged;
   }
 
   function unwrapInitialStateValue(value) {
@@ -940,55 +835,6 @@
     }
   }
 
-  function extractStateNoteVideoCandidates(entry) {
-    const candidates = [];
-    const seen = new Set();
-
-    const addVideoCandidate = (rawUrl, source) => {
-      if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
-        return;
-      }
-
-      const normalizedSourceUrl = rawUrl.startsWith('http')
-        ? rawUrl
-        : `https://sns-video-bd.xhscdn.com/${rawUrl.replace(/^\/+/, '')}`;
-      const candidateUrl = normalizeUrl(normalizedSourceUrl);
-      if (!candidateUrl || seen.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-        return;
-      }
-
-      seen.add(candidateUrl);
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore('script_scan') + 14;
-      candidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source,
-        mediaType: 'video',
-      });
-    };
-
-    const videoObjects = [
-      entry?.noteCard?.video,
-      entry?.noteCard?.note?.video,
-      entry?.note?.video,
-      entry?.video,
-    ].filter((value) => value && typeof value === 'object');
-
-    for (const video of videoObjects) {
-      addVideoCandidate(video?.consumer?.originVideoKey, 'initial_state_origin_video_key');
-      addVideoCandidate(video?.media?.stream?.h265?.[0]?.masterUrl, 'initial_state_h265_master');
-      addVideoCandidate(video?.media?.stream?.h265?.[0]?.master_url, 'initial_state_h265_master');
-      addVideoCandidate(video?.media?.stream?.h264?.[0]?.masterUrl, 'initial_state_h264_master');
-      addVideoCandidate(video?.media?.stream?.h264?.[0]?.master_url, 'initial_state_h264_master');
-      addVideoCandidate(video?.masterUrl, 'initial_state_master');
-      addVideoCandidate(video?.master_url, 'initial_state_master');
-    }
-
-    return candidates;
-  }
-
   function collectStateNoteGroups(state) {
     const groups = [];
 
@@ -1143,28 +989,8 @@
       scope.querySelector('.play-icon, [class*="play-icon"], [class*="video-play"], [class*="video-mask"]'),
     );
     const stateNote = resolveScopeStateNote({ scope, noteId, preferredImageUrl });
-    const stateVideoCandidates = [];
     const stateImageCandidates = [];
-    const seenVideoUrls = new Set();
     const seenImageUrls = new Set();
-
-    const addStateVideoCandidate = (rawUrl, source) => {
-      const candidateUrl = normalizeUrl(rawUrl);
-      if (!candidateUrl || seenVideoUrls.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-        return;
-      }
-
-      seenVideoUrls.add(candidateUrl);
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore('script_scan') + 10;
-      stateVideoCandidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source,
-        mediaType: 'video',
-      });
-    };
 
     const addStateImageCandidate = (rawUrl, source) => {
       const candidateUrl = resolveImageUrlCandidate(rawUrl);
@@ -1180,10 +1006,7 @@
     };
 
     if (stateNote?.raw && typeof stateNote.raw === 'object') {
-      collectMediaFromValue(stateNote.raw, addStateVideoCandidate, addStateImageCandidate);
-      extractStateNoteVideoCandidates(stateNote.raw).forEach((candidate) => {
-        addStateVideoCandidate(candidate.url, candidate.source);
-      });
+      collectMediaFromValue(stateNote.raw, addStateImageCandidate);
       const stateType = extractStateNoteType(stateNote.raw);
       if (stateType === 'video') {
         confidence = 1;
@@ -1198,11 +1021,6 @@
       ) {
         confidence = 1;
         sources.push(`${stateNote.source}.video`);
-      }
-
-      if (stateVideoCandidates.length > 0) {
-        confidence = Math.max(confidence, 1);
-        sources.push(`${stateNote.source}.media`);
       }
     }
 
@@ -1221,8 +1039,8 @@
       hasScopedPlayIcon,
       videoIntentConfidence: clampVideoIntentConfidence(confidence),
       videoIntentSources: Array.from(new Set(sources)),
-      videoCandidates: stateVideoCandidates,
-      videoUrl: extractVideoUrl(stateVideoCandidates),
+      videoCandidates: [],
+      videoUrl: null,
       imageUrl: pickPreferredResolvedImage(preferredImageUrl, stateImageCandidates)
         || extractStateNoteCoverImage(stateNote?.raw)
         || null,
@@ -1457,67 +1275,6 @@
     });
   }
 
-  function collectVideoCandidatesFromSnippets(snippets) {
-    const candidates = [];
-    const seen = new Set();
-
-    const addVideoCandidate = (rawUrl, source) => {
-      const candidateUrl = normalizeUrl(rawUrl);
-      if (!candidateUrl || seen.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-        return;
-      }
-      seen.add(candidateUrl);
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore('script_scan') + 12;
-      candidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source,
-        mediaType: 'video',
-        score,
-      });
-    };
-
-    for (const snippet of snippets) {
-      collectUrlsFromString(snippet, addVideoCandidate, () => {});
-    }
-
-    return candidates
-      .sort((a, b) => b.score - a.score)
-      .map(({ score, ...candidate }) => candidate)
-      .slice(0, 12);
-  }
-
-  function collectPerformanceVideoCandidates() {
-    const seen = new Set();
-    const candidates = [];
-    const resources = performance.getEntriesByType('resource') || [];
-
-    for (let i = resources.length - 1; i >= 0; i -= 1) {
-      const candidateUrl = normalizeUrl(resources[i]?.name);
-      if (!candidateUrl || seen.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-        continue;
-      }
-      seen.add(candidateUrl);
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore('performance_resource') + 6;
-      candidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source: 'performance_resource',
-        mediaType: 'video',
-        score,
-      });
-    }
-
-    return candidates
-      .sort((a, b) => b.score - a.score)
-      .map(({ score, ...candidate }) => candidate)
-      .slice(0, 12);
-  }
-
   function resolveCurrentDocumentMedia({ noteId, pageUrl, preferredImageUrl, expectedMediaType }) {
     const scope = findScopeForNote(noteId, pageUrl, preferredImageUrl);
     const normalizedCurrentPageUrl = normalizeNoteUrl(window.location.href);
@@ -1533,93 +1290,7 @@
       || videoIntent.hasScopedPlayIcon
       || videoIntent.videoIntentConfidence >= 0.7;
 
-    const scopeCandidates = mergeVideoCandidateLists(
-      videoIntent.videoCandidates,
-      extractVideoCandidates(scope, {
-        includeDocumentWideSignals: allowDocumentWideVideoSignals,
-      }),
-    );
-    if (scopeCandidates.length > 0) {
-      logXhsDragResolution('resolveCurrentDocumentMedia -> scopeCandidates', {
-        pageUrl,
-        noteId,
-        expectedMediaType: expectedMediaType || null,
-        hasScopedVideoElement,
-        allowDocumentWideVideoSignals,
-        videoIntentConfidence: videoIntent.videoIntentConfidence,
-        videoIntentSources: videoIntent.videoIntentSources,
-        scopeVideoCandidatesCount: scopeCandidates.length,
-        scopeVideoCandidates: previewCandidates(scopeCandidates),
-      });
-      return {
-        kind: 'video',
-        pageUrl,
-        imageUrl: preferredImageUrl || videoIntent.imageUrl || extractPrimaryImageUrl(scope),
-        videoUrl: videoIntent.videoUrl || extractVideoUrl(scopeCandidates),
-        videoCandidates: scopeCandidates,
-        videoIntentConfidence: videoIntent.videoIntentConfidence,
-        videoIntentSources: videoIntent.videoIntentSources,
-      };
-    }
-
     const snippets = collectNoteSpecificScriptSnippets(noteId, pageUrl);
-    const snippetCandidates = collectVideoCandidatesFromSnippets(snippets);
-    if (snippetCandidates.length > 0) {
-      logXhsDragResolution('resolveCurrentDocumentMedia -> snippetCandidates', {
-        pageUrl,
-        noteId,
-        expectedMediaType: expectedMediaType || null,
-        videoIntentConfidence: videoIntent.videoIntentConfidence,
-        videoIntentSources: videoIntent.videoIntentSources,
-        snippetCount: snippets.length,
-        snippetCandidatesCount: snippetCandidates.length,
-        snippetCandidates: previewCandidates(snippetCandidates),
-      });
-      return {
-        kind: 'video',
-        pageUrl,
-        imageUrl: preferredImageUrl || videoIntent.imageUrl || extractPrimaryImageUrl(scope),
-        videoUrl: extractVideoUrl(snippetCandidates),
-        videoCandidates: snippetCandidates,
-        videoIntentConfidence: Math.max(videoIntent.videoIntentConfidence, 0.8),
-        videoIntentSources: Array.from(new Set([
-          ...videoIntent.videoIntentSources,
-          'snippet-video-candidates',
-        ])),
-      };
-    }
-
-    const performanceCandidates = allowDocumentWideVideoSignals
-      ? collectPerformanceVideoCandidates()
-      : [];
-    if (performanceCandidates.length > 0 && (
-      snippetSuggestsVideo(snippets)
-      || videoIntent.videoIntentConfidence >= 0.7
-    )) {
-      logXhsDragResolution('resolveCurrentDocumentMedia -> performanceCandidates', {
-        pageUrl,
-        noteId,
-        expectedMediaType: expectedMediaType || null,
-        allowDocumentWideVideoSignals,
-        videoIntentConfidence: videoIntent.videoIntentConfidence,
-        videoIntentSources: videoIntent.videoIntentSources,
-        performanceCandidatesCount: performanceCandidates.length,
-        performanceCandidates: previewCandidates(performanceCandidates),
-      });
-      return {
-        kind: 'video',
-        pageUrl,
-        imageUrl: preferredImageUrl || videoIntent.imageUrl || extractPrimaryImageUrl(scope),
-        videoUrl: extractVideoUrl(performanceCandidates),
-        videoCandidates: performanceCandidates,
-        videoIntentConfidence: Math.max(videoIntent.videoIntentConfidence, 0.75),
-        videoIntentSources: Array.from(new Set([
-          ...videoIntent.videoIntentSources,
-          'performance-video-candidates',
-        ])),
-      };
-    }
-
     if (
       videoIntent.videoIntentConfidence >= 0.7
       || (allowDocumentWideVideoSignals && snippetSuggestsVideo(snippets))
@@ -1767,21 +1438,8 @@
       preferredImageUrl: baseImageUrl,
     });
     const hasScopedVideoElement = videoIntent.hasScopedVideoElement;
-    const videoCandidates = mergeVideoCandidateLists(
-      videoIntent.videoCandidates,
-      extractVideoCandidates(scope, {
-        includeDocumentWideSignals:
-          normalizeNoteUrl(window.location.href) === pageUrl
-          || hasScopedVideoElement
-          || videoIntent.hasScopedPlayIcon
-          || videoIntent.videoIntentConfidence >= 0.7,
-      }),
-    );
-    const videoUrl = videoIntent.videoUrl || extractVideoUrl(videoCandidates);
     const imageUrl = exactImageUrl || videoIntent.imageUrl || extractPrimaryImageUrl(scope);
-    const mediaType = videoUrl
-      || videoCandidates.length > 0
-      || hasScopedVideoElement
+    const mediaType = hasScopedVideoElement
       || videoIntent.videoIntentConfidence >= 0.7
       ? 'video'
       : imageUrl
@@ -1796,8 +1454,8 @@
       noteId,
       exactImageUrl,
       imageUrl,
-      videoUrl,
-      videoCandidates,
+      videoUrl: null,
+      videoCandidates: [],
       hasScopedVideoElement,
       videoIntentConfidence: videoIntent.videoIntentConfidence || null,
       videoIntentSources: videoIntent.videoIntentSources,
@@ -1873,7 +1531,7 @@
     }
   }
 
-  function collectUrlsFromString(raw, addVideoCandidate, addImageCandidate) {
+  function collectUrlsFromString(raw, addImageCandidate) {
     if (typeof raw !== 'string' || !raw) {
       return;
     }
@@ -1884,11 +1542,6 @@
       .replace(/&amp;/gi, '&');
     const matches = normalized.match(/https?:\/\/[^\s"'\\<>]+/g) || [];
     for (const match of matches) {
-      if (isLikelyVideoUrl(match)) {
-        addVideoCandidate(match, 'detail_api');
-        continue;
-      }
-
       const imageUrl = resolveImageUrlCandidate(match);
       if (imageUrl) {
         addImageCandidate(imageUrl, 'detail_api');
@@ -1896,19 +1549,19 @@
     }
   }
 
-  function collectMediaFromValue(value, addVideoCandidate, addImageCandidate, seen = new WeakSet(), depth = 0) {
+  function collectMediaFromValue(value, addImageCandidate, seen = new WeakSet(), depth = 0) {
     if (value == null || depth > 12) {
       return;
     }
 
-    if (typeof value === 'string') {
-      collectUrlsFromString(value, addVideoCandidate, addImageCandidate);
+  if (typeof value === 'string') {
+      collectUrlsFromString(value, addImageCandidate);
       return;
     }
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        collectMediaFromValue(item, addVideoCandidate, addImageCandidate, seen, depth + 1);
+        collectMediaFromValue(item, addImageCandidate, seen, depth + 1);
       }
       return;
     }
@@ -1922,12 +1575,9 @@
     }
     seen.add(value);
 
-    for (const [key, entry] of Object.entries(value)) {
+  for (const [key, entry] of Object.entries(value)) {
       if (typeof entry === 'string') {
-        if (/video|stream|master|play(?:_?url)?|h26[45]/i.test(key)) {
-          addVideoCandidate(entry, 'detail_api');
-        }
-        collectUrlsFromString(entry, addVideoCandidate, addImageCandidate);
+        collectUrlsFromString(entry, addImageCandidate);
         if (/image|cover|poster|thumbnail/i.test(key)) {
           const imageUrl = resolveImageUrlCandidate(entry);
           if (imageUrl) {
@@ -1935,7 +1585,7 @@
           }
         }
       } else {
-        collectMediaFromValue(entry, addVideoCandidate, addImageCandidate, seen, depth + 1);
+        collectMediaFromValue(entry, addImageCandidate, seen, depth + 1);
       }
     }
   }
@@ -1964,30 +1614,9 @@
       `${XIAOHONGSHU_NOTE_DETAIL_PATH}/${noteId}/detail`,
       pageUrl,
     ).toString();
-    const videoCandidates = [];
     const imageCandidates = [];
-    const seenVideoUrls = new Set();
     const seenImageUrls = new Set();
     let detectedVideoIntent = false;
-
-    const addVideoCandidate = (rawUrl, source) => {
-      const candidateUrl = normalizeUrl(rawUrl);
-      if (!candidateUrl || seenVideoUrls.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-        return;
-      }
-
-      seenVideoUrls.add(candidateUrl);
-      const type = classifyCandidateType(candidateUrl);
-      const score = candidateTypeScore(type) + sourceScore('script_scan') + 8;
-      videoCandidates.push({
-        url: candidateUrl,
-        type,
-        confidence: confidenceForScore(score),
-        source,
-        mediaType: 'video',
-        score,
-      });
-    };
 
     const addImageCandidate = (rawUrl, source) => {
       const imageUrl = resolveImageUrlCandidate(rawUrl);
@@ -2035,17 +1664,15 @@
         }
 
         detectedVideoIntent = detectedVideoIntent || valueSuggestsVideoNote(data);
-        collectMediaFromValue(data, addVideoCandidate, addImageCandidate);
+        collectMediaFromValue(data, addImageCandidate);
         logXhsDragResolution('fetchXiaohongshuApiMedia -> response', {
           pageUrl,
           noteId,
           detectedVideoIntent,
-          apiVideoCandidatesCount: videoCandidates.length,
           apiImageCandidatesCount: imageCandidates.length,
-          apiVideoCandidates: previewCandidates(videoCandidates),
           apiImagePreview: imageCandidates.slice(0, 2).map((candidate) => candidate.url),
         });
-        if (videoCandidates.length > 0 || imageCandidates.length > 0) {
+        if (detectedVideoIntent || imageCandidates.length > 0) {
           break;
         }
       } catch (_) {
@@ -2053,34 +1680,11 @@
       }
     }
 
-    if (videoCandidates.length === 0 && imageCandidates.length === 0) {
+    if (!detectedVideoIntent && imageCandidates.length === 0) {
       return null;
     }
 
-    const orderedCandidates = videoCandidates
-      .sort((a, b) => b.score - a.score)
-      .map(({ score, ...candidate }) => candidate)
-      .slice(0, 12);
-    const videoUrl = extractVideoUrl(orderedCandidates);
     const imageUrl = pickPreferredResolvedImage(preferredImageUrl, imageCandidates);
-
-    if (videoUrl || orderedCandidates.length > 0) {
-      logXhsDragResolution('fetchXiaohongshuApiMedia -> resolvedVideo', {
-        pageUrl,
-        noteId,
-        detectedVideoIntent,
-        videoUrl: videoUrl || null,
-        orderedCandidatesCount: orderedCandidates.length,
-        orderedCandidates: previewCandidates(orderedCandidates),
-      });
-      return {
-        kind: 'video',
-        pageUrl,
-        videoUrl: videoUrl || null,
-        videoCandidates: orderedCandidates,
-        imageUrl,
-      };
-    }
 
     if (detectedVideoIntent) {
       logXhsDragResolution('fetchXiaohongshuApiMedia -> resolvedVideoIntentWithoutUrl', {
@@ -2139,30 +1743,9 @@
       }
 
       const html = await response.text();
-      const videoCandidates = [];
       const imageCandidates = [];
-      const seenVideoUrls = new Set();
       const seenImageUrls = new Set();
       const detectedVideoIntent = valueSuggestsVideoNote(html);
-
-      const addVideoCandidate = (rawUrl, source) => {
-        const candidateUrl = normalizeUrl(rawUrl);
-        if (!candidateUrl || seenVideoUrls.has(candidateUrl) || !isLikelyVideoUrl(candidateUrl)) {
-          return;
-        }
-
-        seenVideoUrls.add(candidateUrl);
-        const type = classifyCandidateType(candidateUrl);
-        const score = candidateTypeScore(type) + sourceScore('script_scan');
-        videoCandidates.push({
-          url: candidateUrl,
-          type,
-          confidence: confidenceForScore(score),
-          source,
-          mediaType: 'video',
-          score,
-        });
-      };
 
       const addImageCandidate = (rawUrl, source) => {
         const imageUrl = resolveImageUrlCandidate(rawUrl);
@@ -2176,39 +1759,15 @@
         });
       };
 
-      collectUrlsFromString(html, addVideoCandidate, addImageCandidate);
+      collectUrlsFromString(html, addImageCandidate);
       const ogImage = html.match(
         /<meta\b[^>]*(?:property|name)=(?:"(?:og:image|twitter:image)"|'(?:og:image|twitter:image)'|(?:og:image|twitter:image))[^>]*\bcontent=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i,
       );
       addImageCandidate(ogImage?.[1] || ogImage?.[2] || ogImage?.[3], 'meta_image');
 
-      const orderedCandidates = videoCandidates
-        .sort((a, b) => b.score - a.score)
-        .map(({ score, ...candidate }) => candidate)
-        .slice(0, 12);
-      const videoUrl = extractVideoUrl(orderedCandidates);
       const imageUrl = pickPreferredResolvedImage(preferredImageUrl, imageCandidates);
 
-        if (videoUrl || orderedCandidates.length > 0) {
-          logXhsDragResolution('fetchXiaohongshuHtmlMedia -> resolvedVideo', {
-            pageUrl,
-            requestUrl,
-            videoUrl: videoUrl || null,
-            htmlVideoCandidatesCount: orderedCandidates.length,
-            detectedVideoIntent,
-            htmlVideoCandidates: previewCandidates(orderedCandidates),
-          });
-        return {
-          kind: 'video',
-          pageUrl,
-          videoUrl: videoUrl || null,
-          videoCandidates: orderedCandidates,
-          imageUrl,
-        };
-      }
-
       if (detectedVideoIntent) {
-        const imageUrl = pickPreferredResolvedImage(preferredImageUrl, imageCandidates);
         logXhsDragResolution('fetchXiaohongshuHtmlMedia -> resolvedVideoIntentWithoutUrl', {
           pageUrl,
           requestUrl,
@@ -2478,13 +2037,6 @@
     return lastContextPayload;
   }
 
-  function extractVideoUrl(candidates = extractVideoCandidates()) {
-    const bestDirect = candidates.find(
-      (candidate) => candidate.type === 'direct_cdn' || candidate.type === 'direct_mp4'
-    );
-    return bestDirect?.url || null;
-  }
-
   function extractTitle() {
     const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
     if (ogTitle && ogTitle.trim()) {
@@ -2495,33 +2047,32 @@
 
   async function buildCurrentVideoSelectionPayload() {
     const pageUrl = window.location.href;
-    const videoCandidates = extractVideoCandidates();
-    const videoUrl = extractVideoUrl(videoCandidates);
     const noteId = extractNoteIdFromUrl(pageUrl);
-    const imageUrl = !videoUrl && videoCandidates.length === 0 ? extractPrimaryImageUrl() : null;
+    const imageUrl = extractPrimaryImageUrl();
     const title = extractTitle();
+    const detailUrl = resolvePreferredYtdlpNoteUrl({
+      pageUrl,
+      detailUrl: normalizeUrl(window.location.href),
+      noteId,
+    });
+    const resolvedMedia = await resolveXiaohongshuMedia({
+      pageUrl,
+      detailUrl,
+      noteId,
+      preferredImageUrl: imageUrl,
+    });
+    const ytdlpNoteUrl = resolvePreferredYtdlpNoteUrl({
+      pageUrl,
+      detailUrl,
+      noteId,
+    });
 
-    let resolvedMedia = null;
-    if (!videoUrl && videoCandidates.length === 0) {
-      resolvedMedia = await resolveXiaohongshuMedia({
-        pageUrl,
-        detailUrl: normalizeUrl(window.location.href),
-        noteId,
-        preferredImageUrl: imageUrl,
-      });
-    }
-
-    if (
-      videoUrl
-      || videoCandidates.length > 0
-      || (resolvedMedia?.kind === 'video' && (resolvedMedia.videoUrl || resolvedMedia.videoCandidates.length > 0))
-    ) {
+    if (resolvedMedia?.kind === 'video' && ytdlpNoteUrl) {
       return {
         type: 'video_selection',
-        url: videoUrl || resolvedMedia?.videoUrl || pageUrl,
-        pageUrl,
-        videoUrl: videoUrl || resolvedMedia?.videoUrl || null,
-        videoCandidates: videoCandidates.length > 0 ? videoCandidates : (resolvedMedia?.videoCandidates || []),
+        url: ytdlpNoteUrl,
+        pageUrl: ytdlpNoteUrl,
+        siteHint: 'xiaohongshu',
         title,
         selectionScope: 'current_item',
       };
@@ -2532,18 +2083,14 @@
 
   async function handleDownload() {
     const pageUrl = window.location.href;
-    const videoCandidates = extractVideoCandidates();
-    const videoUrl = extractVideoUrl(videoCandidates);
     const noteId = extractNoteIdFromUrl(pageUrl);
-    const imageUrl = !videoUrl && videoCandidates.length === 0 ? extractPrimaryImageUrl() : null;
+    const imageUrl = extractPrimaryImageUrl();
     const title = extractTitle();
 
     console.info('[Ameow XHS] Download clicked', {
       pageUrl,
       noteId,
-      videoUrl,
       imageUrl,
-      videoCandidatesCount: videoCandidates.length,
       title,
     });
 
@@ -2553,15 +2100,12 @@
       return;
     }
 
-    let resolvedMedia = null;
-    if (!videoUrl && videoCandidates.length === 0) {
-      resolvedMedia = await resolveXiaohongshuMedia({
-        pageUrl,
-        detailUrl: normalizeUrl(window.location.href),
-        noteId,
-        preferredImageUrl: imageUrl,
-      });
-    }
+    const resolvedMedia = await resolveXiaohongshuMedia({
+      pageUrl,
+      detailUrl: normalizeUrl(window.location.href),
+      noteId,
+      preferredImageUrl: imageUrl,
+    });
 
     const resolvedImageUrl = resolvedMedia?.kind === 'image'
       ? resolvedMedia.imageUrl

@@ -3676,30 +3676,6 @@ function App({
       return;
     }
 
-    if (
-      embeddedXiaohongshuDragPayload?.pageUrl
-      && (
-        Boolean(embeddedXiaohongshuDragPayload.videoUrl)
-        || embeddedXiaohongshuDragPayload.videoCandidates.length > 0
-      )
-    ) {
-      console.log("[Xiaohongshu drag debug] queued video payload:", {
-        pageUrl: embeddedXiaohongshuDragPayload.pageUrl,
-        mediaType: embeddedXiaohongshuDragPayload.mediaType,
-        hasVideoUrl: Boolean(embeddedXiaohongshuDragPayload.videoUrl),
-        videoCandidatesCount: embeddedXiaohongshuDragPayload.videoCandidates.length,
-      });
-      resetDownloadOutcome();
-      await enqueueVideoDownload({
-        url: embeddedXiaohongshuDragPayload.pageUrl,
-        pageUrl: embeddedXiaohongshuDragPayload.pageUrl,
-        videoUrl: embeddedXiaohongshuDragPayload.videoUrl ?? undefined,
-        videoCandidates: embeddedXiaohongshuDragPayload.videoCandidates,
-        siteHint: "xiaohongshu",
-      });
-      return;
-    }
-
     const xiaohongshuPageUrl =
       embeddedXiaohongshuDragPayload?.pageUrl
       ?? (url && isXiaohongshuPageUrl(url) ? url : null);
@@ -3746,10 +3722,6 @@ function App({
         resolvedVideoIntentSources: resolvedXiaohongshuMedia?.videoIntentSources ?? [],
       });
 
-      const resolvedXiaohongshuVideoCandidates = mergeVideoCandidatesByUrl(
-        embeddedXiaohongshuDragPayload?.videoCandidates ?? [],
-        resolvedXiaohongshuMedia?.videoCandidates ?? [],
-      );
       const shouldQueueResolvedXiaohongshuVideo =
         Boolean(xiaohongshuPageUrl)
         && (
@@ -3778,16 +3750,12 @@ function App({
         resolvedVideoCandidatesCount: resolvedXiaohongshuMedia?.videoCandidates.length ?? 0,
         resolvedVideoIntentConfidence: resolvedXiaohongshuMedia?.videoIntentConfidence ?? null,
         resolvedVideoIntentSources: resolvedXiaohongshuMedia?.videoIntentSources ?? [],
-        mergedVideoCandidatesCount: resolvedXiaohongshuVideoCandidates.length,
         shouldQueueResolvedXiaohongshuVideo,
       });
 
       if (shouldQueueResolvedXiaohongshuVideo) {
-        const resolvedVideoUrl = resolvedXiaohongshuMedia?.videoUrl ?? embeddedXiaohongshuDragPayload?.videoUrl ?? undefined;
         console.log("[Xiaohongshu drag debug] queueing resolved video media:", {
           pageUrl: resolvedXiaohongshuMedia?.pageUrl ?? xiaohongshuPageUrl,
-          videoUrl: resolvedVideoUrl ?? null,
-          videoCandidatesCount: resolvedXiaohongshuVideoCandidates.length,
           resolvedKind: resolvedXiaohongshuMedia?.kind ?? "null",
           embeddedMediaType: embeddedXiaohongshuDragPayload?.mediaType ?? null,
           embeddedVideoIntentConfidence: embeddedXiaohongshuDragPayload?.videoIntentConfidence ?? null,
@@ -3797,8 +3765,6 @@ function App({
         await enqueueVideoDownload({
           url: resolvedXiaohongshuMedia?.pageUrl ?? xiaohongshuPageUrl,
           pageUrl: resolvedXiaohongshuMedia?.pageUrl ?? xiaohongshuPageUrl,
-          videoUrl: resolvedVideoUrl,
-          videoCandidates: resolvedXiaohongshuVideoCandidates,
           siteHint: "xiaohongshu",
         });
         return;

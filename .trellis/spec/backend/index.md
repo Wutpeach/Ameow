@@ -56,14 +56,14 @@ FlowSelect backend is built with Rust and Tauri v2. It handles file operations, 
 
 | Downloader | Target Platforms | Implementation |
 |------------|------------------|----------------|
-| direct downloader | Xiaohongshu CDN URLs | Rust HTTP download |
+| direct downloader | selected site CDN URLs such as Douyin | Rust HTTP download |
 | yt-dlp | YouTube, Twitter/X, Bilibili, and generic page URLs | Sidecar binary |
 
 ### Smart Routing
 
 ```
 URL → Douyin → yt-dlp only (temporary validation strategy)
-URL → Xiaohongshu direct candidate → direct download first → yt-dlp fallback
+URL → Xiaohongshu canonical note URL → yt-dlp only
 URL → other platforms → yt-dlp first
 ```
 

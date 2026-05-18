@@ -53,7 +53,6 @@ import {
   type PreparedVideoTranscodeTask,
 } from "./transcode.js";
 import { resolveShortLinkDownloadInput } from "./shortLinkResolution.js";
-import { resolveXiaohongshuPageHints } from "./xiaohongshuPageHints.js";
 import {
   createDownloadTelemetryEvent,
   createDownloadTelemetrySink,
@@ -674,10 +673,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           `>>> [ElectronRuntime] expanded short link for ${traceId}: ${preShortLinkRequest.url} -> ${activeTask.request.url}`,
         );
       }
-      activeTask.request = await resolveXiaohongshuPageHints(
-        activeTask.request,
-        this.options.environment.fetch ?? globalThis.fetch,
-      );
       telemetryPlan = this.siteRegistry.resolve(activeTask.request);
       this.logger.log(`>>> [ElectronRuntimeTiming] task pre-engine complete: ${JSON.stringify({
         traceId,

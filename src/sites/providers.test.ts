@@ -30,7 +30,7 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
   });
 
-  it("routes Xiaohongshu direct hints through yt-dlp with the canonical note URL", () => {
+  it("routes Xiaohongshu page URLs through yt-dlp with the canonical note URL", () => {
     const directUrl = "https://sns-video-bd.xhscdn.com/stream/example.mp4";
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
     const plan = resolvePlan({
@@ -43,7 +43,7 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(pageUrl);
   });
 
-  it("preserves Xiaohongshu direct candidates as metadata while using yt-dlp", () => {
+  it("does not depend on Xiaohongshu direct candidates while using yt-dlp", () => {
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
     const directCandidate = {
       url: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
@@ -68,7 +68,36 @@ describe("builtin site providers", () => {
       sourceUrl: pageUrl,
     });
     expect(intent.cookies).toContain("Netscape HTTP Cookie File");
-    expect(intent.candidates).toEqual([directCandidate]);
+    expect(intent.candidates).toEqual([]);
+  });
+
+  it("does not route bare Xiaohongshu CDN assets through the Xiaohongshu provider", () => {
+    const directUrl = "https://sns-video-bd.xhscdn.com/stream/example.mp4";
+    const plan = resolvePlan({ url: directUrl });
+
+    expect(plan.providerId).toBe("generic");
+    expect(plan.engines).toMatchObject([
+      {
+        engine: "yt-dlp",
+        sourceUrl: directUrl,
+      },
+    ]);
+  });
+
+  it("prefers tokenized Xiaohongshu discovery detail URLs for yt-dlp", () => {
+    const detailUrl = "https://www.xiaohongshu.com/discovery/item/674051740000000007027a15?xsec_token=CBgeL8Dxd1ZWBhwqRd568gAZ_iwG-9JIf9tnApNmteU2E%3D";
+    const plan = resolvePlan({
+      url: detailUrl,
+      pageUrl: "https://www.xiaohongshu.com/explore/674051740000000007027a15",
+      siteHint: "xiaohongshu",
+    });
+
+    expect(plan.providerId).toBe("xiaohongshu");
+    expect(plan.engines).toHaveLength(1);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: detailUrl,
+    });
   });
 
   it("does not treat Xiaohongshu image-tagged candidates as direct video hints", () => {

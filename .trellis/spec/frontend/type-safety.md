@@ -314,6 +314,7 @@ Behavior contract in frontend:
 - `pickXiaohongshuImageForDownload(...)` must return `null` whenever resolved media already says `kind === "video"`; renderer must not download the cover image after a positive video classification.
 - Xiaohongshu image hints must reject bare CDN-host roots such as `https://sns-webpic-qc.xhscdn.com/`; only note-specific image URLs are allowed to survive payload parsing or final image selection.
 - Renderer may still queue a Xiaohongshu video when direct candidates are empty if `videoIntentConfidence >= 0.7` or the resolved media says `kind === "video"`.
+- Xiaohongshu video queue payloads must use the canonical note URL as `url`/`pageUrl` and must not forward `videoUrl` or `videoCandidates` as downloader inputs.
 
 Validation and error matrix:
 
