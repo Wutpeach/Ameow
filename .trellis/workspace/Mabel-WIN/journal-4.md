@@ -578,3 +578,36 @@ Removed Xiaohongshu direct video candidate routing and hidden-detail fallback, r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 155: Downloader-owned URL extraction
+
+**Date**: 2026-05-19
+**Task**: Downloader-owned URL extraction
+**Branch**: `main`
+
+### Summary
+
+Removed Electron runtime short-link expansion and X overlay URL rewriting; preserved Xiaohongshu tokenized note URLs and updated downloader-owned URL extraction contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d8523ff` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
