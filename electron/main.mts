@@ -91,7 +91,10 @@ import {
   getSecondaryWindowOuterSize,
 } from "../src/constants/windowMetrics.js";
 import { createExtensionRequestBridge } from "./extensionRequestBridge.mjs";
-import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
+import {
+  buildVideoSelectedV2QueuePayload,
+  createVideoDownloadCommandBridge,
+} from "./videoDownloadCommands.mjs";
 import {
   currentManagedRuntimeTarget,
   ensureManagedDenoRuntimeReady,
@@ -2469,19 +2472,12 @@ async function handleWsMessage(rawMessage) {
           summarizeInjectedVideoSelectionPayload(data),
         );
         const syncedPreferences = await syncIncomingDownloadPreferences(data);
-        const ack = await getVideoDownloadCommandBridge().invoke("queue_video_download", {
-          url,
-          pageUrl: data.pageUrl,
-          videoUrl: data.videoUrl,
-          videoCandidates: data.videoCandidates,
-          siteHint: data.siteHint,
-          title: data.title,
-          selectionScope: data.selectionScope,
-          ytdlpQualityPreference:
-            syncedPreferences?.quality
-            ?? data.ytdlpQualityPreference
-            ?? data.defaultVideoDownloadQuality,
-        });
+        const ack = await getVideoDownloadCommandBridge().invoke(
+          "queue_video_download",
+          buildVideoSelectedV2QueuePayload(data, {
+            ytdlpQualityPreference: syncedPreferences?.quality,
+          }),
+        );
         return {
           success: true,
           message: "Download queued",

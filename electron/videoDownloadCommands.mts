@@ -38,6 +38,25 @@ export type VideoDownloadCommandBridgeOptions = {
   ): void;
 };
 
+export const buildVideoSelectedV2QueuePayload = (
+  data: Record<string, unknown>,
+  options: { ytdlpQualityPreference?: unknown } = {},
+): Record<string, unknown> => ({
+  url: data.url,
+  pageUrl: data.pageUrl,
+  videoUrl: data.videoUrl,
+  videoCandidates: data.videoCandidates,
+  siteHint: data.siteHint,
+  title: data.title,
+  selectionScope: data.selectionScope,
+  clipStartSec: data.clipStartSec,
+  clipEndSec: data.clipEndSec,
+  ytdlpQualityPreference:
+    options.ytdlpQualityPreference
+    ?? data.ytdlpQualityPreference
+    ?? data.defaultVideoDownloadQuality,
+});
+
 const EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS = new Set([
   "bilibili",
   "youtube",
@@ -122,6 +141,8 @@ const summarizeQueuePayload = (payload: Record<string, unknown>) => ({
     ?? payload.ytdlpQuality
     ?? payload.defaultVideoDownloadQuality
     ?? null,
+  clipStartSec: Number.isFinite(payload.clipStartSec) ? payload.clipStartSec : null,
+  clipEndSec: Number.isFinite(payload.clipEndSec) ? payload.clipEndSec : null,
 });
 
 export const createVideoDownloadCommandBridge = (

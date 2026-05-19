@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
+import {
+  buildVideoSelectedV2QueuePayload,
+  createVideoDownloadCommandBridge,
+} from "./videoDownloadCommands.mjs";
 import type { ElectronDownloadRuntime } from "../src/electron-runtime/index.js";
 import type { ExtensionRequestBridge } from "./extensionRequestBridge.mjs";
 
@@ -113,6 +116,30 @@ describe("createVideoDownloadCommandBridge", () => {
     }));
   });
 
+  it("preserves injected clip ranges when queueing video downloads", async () => {
+    const runtime = createRuntimeStub();
+    const bridge = createBridge(runtime);
+
+    await bridge.invoke("queue_video_download", {
+      url: "https://www.youtube.com/watch?v=clip123",
+      pageUrl: "https://www.youtube.com/watch?v=clip123",
+      siteHint: "youtube",
+      selectionScope: "current_item",
+      clipStartSec: 35.25,
+      clipEndSec: 48.75,
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://www.youtube.com/watch?v=clip123",
+      pageUrl: "https://www.youtube.com/watch?v=clip123",
+      siteHint: "youtube",
+      selectionScope: "current_item",
+      clipStartSec: 35.25,
+      clipEndSec: 48.75,
+      ytdlpQuality: "balanced",
+    }));
+  });
+
   it("uses extension-assisted pasted payloads before queueing", async () => {
     const runtime = createRuntimeStub();
     const extensionBridge = createExtensionBridgeStub({
@@ -175,5 +202,42 @@ describe("createVideoDownloadCommandBridge", () => {
     await expect(bridge.invoke("cancel_download", { traceId: "trace-1" })).resolves.toBe(true);
 
     expect(runtime.cancelDownload).toHaveBeenCalledWith("trace-1");
+  });
+});
+
+describe("buildVideoSelectedV2QueuePayload", () => {
+  it("preserves injected clip range fields when building the queue payload", () => {
+    expect(buildVideoSelectedV2QueuePayload({
+      url: "https://www.youtube.com/watch?v=clip123",
+      pageUrl: "https://www.youtube.com/watch?v=clip123&t=35s",
+      siteHint: "youtube",
+      title: "Clip candidate",
+      selectionScope: "current_item",
+      clipStartSec: 35.25,
+      clipEndSec: 48.75,
+      ytdlpQualityPreference: "best",
+    })).toMatchObject({
+      url: "https://www.youtube.com/watch?v=clip123",
+      pageUrl: "https://www.youtube.com/watch?v=clip123&t=35s",
+      siteHint: "youtube",
+      title: "Clip candidate",
+      selectionScope: "current_item",
+      clipStartSec: 35.25,
+      clipEndSec: 48.75,
+      ytdlpQualityPreference: "best",
+    });
+  });
+
+  it("lets synced quality override incoming video selection quality", () => {
+    expect(buildVideoSelectedV2QueuePayload(
+      {
+        url: "https://www.bilibili.com/video/BV1xx411c7mD",
+        ytdlpQualityPreference: "best",
+      },
+      { ytdlpQualityPreference: "balanced" },
+    )).toMatchObject({
+      url: "https://www.bilibili.com/video/BV1xx411c7mD",
+      ytdlpQualityPreference: "balanced",
+    });
   });
 });
