@@ -182,6 +182,26 @@ describe("createVideoDownloadCommandBridge", () => {
     }));
   });
 
+  it("queues pasted Xiaohongshu URLs directly without requesting extension assistance", async () => {
+    const runtime = createRuntimeStub();
+    const extensionBridge = createExtensionBridgeStub({
+      url: "https://www.xiaohongshu.com/explore/resolved",
+      siteHint: "xiaohongshu",
+    });
+    const bridge = createBridge(runtime, extensionBridge);
+
+    await bridge.invoke("queue_pasted_video_download", {
+      url: "https://www.xiaohongshu.com/explore/abc123",
+    });
+
+    expect(extensionBridge.requestPastedVideoSelectionResolution).not.toHaveBeenCalled();
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://www.xiaohongshu.com/explore/abc123",
+      siteHint: "xiaohongshu",
+      ytdlpQuality: "balanced",
+    }));
+  });
+
   it("falls back to the original pasted URL when extension assistance fails", async () => {
     const runtime = createRuntimeStub();
     const bridge = createBridge(runtime, createExtensionBridgeStub(null));

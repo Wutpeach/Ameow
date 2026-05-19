@@ -62,7 +62,6 @@ const EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS = new Set([
   "youtube",
   "twitter-x",
   "pinterest",
-  "xiaohongshu",
 ]);
 
 const supportedCommands = new Set<AmeowRendererCommand>([

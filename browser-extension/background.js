@@ -5,7 +5,6 @@ importScripts(
   "direct-download-quality.js",
   "generic-video-selection-utils.js",
   "injection-debug-config.js",
-  "short-link-resolution.js",
   "video-selection-routing.js",
   "xiaohongshu-drag-resolution-utils.js",
 );
@@ -55,7 +54,6 @@ let currentLanguage = resolvePreferredLanguage(undefined, self.navigator?.langua
 const directDownloadQuality = self.AmeowDirectDownloadQuality;
 const genericVideoSelectionUtils = self.AmeowGenericVideoSelectionUtils;
 const injectionDebugConfig = self.AmeowInjectionDebugConfig;
-const shortLinkResolution = self.AmeowShortLinkResolution;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
@@ -1949,106 +1947,6 @@ async function getCookiesForUrl(url) {
   return '';
 }
 
-async function resolveVideoSelectionShortLinks(options = {}) {
-  const requestedUrl = normalizeHttpUrl(options.requestedUrl);
-  const pageUrl = normalizeHttpUrl(options.pageUrl);
-  const senderTabUrl = normalizeHttpUrl(options.senderTabUrl);
-  const videoUrl = normalizeHttpUrl(options.videoUrl);
-  const fallbackSiteHint = deriveSiteHint([
-    options.siteHint,
-    pageUrl,
-    requestedUrl,
-    videoUrl,
-    senderTabUrl,
-  ]);
-
-  if (
-    !shortLinkResolution?.resolveShortLinkUrl
-    || !shortLinkResolution?.isLikelyShortLinkUrl
-  ) {
-    return {
-      requestedUrl,
-      pageUrl,
-      siteHint: fallbackSiteHint,
-      shortLinkExpansions: [],
-    };
-  }
-
-  const urlsToExpand = Array.from(
-    new Set(
-      [requestedUrl, pageUrl].filter((value) => (
-        typeof value === 'string' && shortLinkResolution.isLikelyShortLinkUrl(value)
-      )),
-    ),
-  );
-
-  if (urlsToExpand.length === 0) {
-    return {
-      requestedUrl,
-      pageUrl,
-      siteHint: fallbackSiteHint,
-      shortLinkExpansions: [],
-    };
-  }
-
-  const fetchImpl = typeof self.fetch === 'function' ? self.fetch.bind(self) : null;
-  const settledResolutions = await Promise.all(
-    urlsToExpand.map(async (url) => {
-      try {
-        const resolution = await shortLinkResolution.resolveShortLinkUrl(url, {
-          fetchImpl,
-          createTab,
-          getTab,
-          removeTabQuietly,
-          waitForTabComplete,
-          sleep,
-        });
-        return resolution?.resolvedUrl
-          ? { url, resolution }
-          : null;
-      } catch (error) {
-        console.warn('[Ameow] Failed to expand short link before forwarding video selection:', {
-          url,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
-      }
-    }),
-  );
-
-  const resolutionByUrl = new Map(
-    settledResolutions
-      .filter((entry) => entry?.resolution?.resolvedUrl)
-      .map((entry) => [entry.url, entry.resolution]),
-  );
-
-  const resolvedRequestedUrl = requestedUrl
-    ? resolutionByUrl.get(requestedUrl)?.resolvedUrl || requestedUrl
-    : null;
-  let resolvedPageUrl = pageUrl
-    ? resolutionByUrl.get(pageUrl)?.resolvedUrl || pageUrl
-    : null;
-
-  if (!resolvedPageUrl && resolvedRequestedUrl && resolvedRequestedUrl !== requestedUrl) {
-    resolvedPageUrl = resolvedRequestedUrl;
-  }
-
-  return {
-    requestedUrl: resolvedRequestedUrl,
-    pageUrl: resolvedPageUrl,
-    siteHint: deriveSiteHint([
-      options.siteHint,
-      resolvedPageUrl,
-      resolvedRequestedUrl,
-      videoUrl,
-      senderTabUrl,
-    ]),
-    shortLinkExpansions: settledResolutions
-      .filter((entry) => entry?.resolution)
-      .map((entry) => entry.resolution),
-  };
-}
-
 async function buildForwardedVideoSelectionPayload(message, senderContext = {}) {
   const normalized = normalizeMediaSelectionPayload(message);
   const originalRequestedUrl = normalized.requestedUrl;
@@ -2063,16 +1961,9 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
     senderContext.tabUrl,
   ]);
 
-  const resolvedSelectionUrls = await resolveVideoSelectionShortLinks({
-    requestedUrl: originalRequestedUrl,
-    pageUrl: originalPageUrl,
-    videoUrl: normalized.videoUrl,
-    siteHint: originalSiteHint,
-    senderTabUrl: senderContext.tabUrl,
-  });
-  const requestedUrl = resolvedSelectionUrls.requestedUrl || originalRequestedUrl;
-  const pageUrl = resolvedSelectionUrls.pageUrl || originalPageUrl;
-  const siteHint = resolvedSelectionUrls.siteHint || originalSiteHint;
+  const requestedUrl = originalRequestedUrl;
+  const pageUrl = originalPageUrl;
+  const siteHint = originalSiteHint;
   const [qualityPreference, injectionDebugEnabled] = await Promise.all([
     directDownloadQuality.getQualityPreference(),
     injectionDebugConfig?.getEnabled ? injectionDebugConfig.getEnabled() : Promise.resolve(false),
@@ -2110,7 +2001,6 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
     originalPageUrl,
     originalRequestedUrl,
     originalSiteHint,
-    resolvedSelectionUrls,
     selectionScope,
   };
 }
@@ -2133,7 +2023,6 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
             clipEndSec: prepared.normalized.clipEndSec,
           }),
           senderTabUrl: normalizeHttpUrl(senderContext.tabUrl) || null,
-          shortLinkExpansions: prepared.resolvedSelectionUrls.shortLinkExpansions,
         },
       );
       logInjectedVideoSelectionDebug(
