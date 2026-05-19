@@ -611,3 +611,36 @@ Removed Electron runtime short-link expansion and X overlay URL rewriting; prese
 ### Next Steps
 
 - None - task complete
+
+
+## Session 156: Surface yt-dlp clip progress
+
+**Date**: 2026-05-19
+**Task**: Surface yt-dlp clip progress
+**Branch**: `main`
+
+### Summary
+
+Diagnosed clip downloads staying in resolving state because yt-dlp section/ffmpeg progress was not parsed; added CR-delimited progress handling, clip progress parsing, regression tests, and backend spec notes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a97438f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

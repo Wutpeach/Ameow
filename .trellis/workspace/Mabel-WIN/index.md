@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 155
+- **Total Sessions**: 156
 - **Last Active**: 2026-05-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~613 | Active |
+| `journal-4.md` | ~646 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 156 | 2026-05-19 | Surface yt-dlp clip progress | `a97438f` | `main` |
 | 155 | 2026-05-19 | Downloader-owned URL extraction | `d8523ff` | `main` |
 | 154 | 2026-05-19 | Xiaohongshu yt-dlp routing cleanup | `03a4638` | `main` |
 | 153 | 2026-05-18 | Site session badges and cookie routing | `33e0b68` | `main` |
