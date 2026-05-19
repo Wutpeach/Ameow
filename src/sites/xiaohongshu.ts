@@ -45,8 +45,8 @@ const canonicalizeXiaohongshuYtdlpUrl = (value: string | undefined): string | un
       return undefined;
     }
 
-    const detailPath = parsed.pathname.match(/^\/discovery\/item\/[a-f0-9]+(?:[/?#]|$)/i);
-    if (detailPath) {
+    const canonicalNotePath = parsed.pathname.match(/^\/(?:explore|discovery\/item)\/[a-f0-9]+(?:[/?#]|$)/i);
+    if (canonicalNotePath) {
       parsed.protocol = "https:";
       parsed.hostname = "www.xiaohongshu.com";
       parsed.hash = "";

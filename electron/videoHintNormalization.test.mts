@@ -60,10 +60,10 @@ describe("normalizeVideoPageUrl", () => {
     ).toBe("https://www.pinterest.com/pin/1234567890/");
   });
 
-  it("canonicalizes X photo overlay urls back to the status permalink", () => {
+  it("keeps X photo overlay page urls for downloader-owned extraction", () => {
     expect(
       normalizeVideoPageUrl("https://x.com/Jackywine/status/2042131360048128059/photo/1"),
-    ).toBe("https://x.com/Jackywine/status/2042131360048128059");
+    ).toBe("https://x.com/Jackywine/status/2042131360048128059/photo/1");
   });
 
   it("rejects invalid page urls", () => {

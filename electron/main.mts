@@ -166,8 +166,6 @@ const UI_LAB_WINDOW_GAP = 16;
 const WINDOW_EDGE_PADDING = 8;
 const PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS = 15_000;
 const XIAOHONGSHU_DRAG_RESOLUTION_TIMEOUT_MS = 30_000;
-const SHORT_LINK_NAVIGATION_TIMEOUT_MS = 12_000;
-const SHORT_LINK_NAVIGATION_SETTLE_MS = 1_200;
 const UI_LAB_VIDEO_QUEUE_MAX_CONCURRENT = 3;
 const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
@@ -994,142 +992,6 @@ async function seedSessionCookiesFromNetscape(targetSession, rawCookies) {
   return cookies.length;
 }
 
-async function resolveUrlViaHiddenNavigation(targetUrl) {
-  const normalizedTargetUrl = normalizeVideoPageUrl(targetUrl);
-  if (!normalizedTargetUrl) {
-    return undefined;
-  }
-
-  const partition = `ameow-short-link-${nextOpaqueId("partition")}`;
-  const hiddenWindow = new BrowserWindow({
-    show: false,
-    width: 1280,
-    height: 960,
-    frame: false,
-    skipTaskbar: true,
-    transparent: false,
-    backgroundColor: "#ffffff",
-    webPreferences: {
-      partition,
-      contextIsolation: true,
-      sandbox: false,
-      nodeIntegration: false,
-    },
-  });
-
-  hiddenWindow.setMenuBarVisibility(false);
-  hiddenWindow.webContents.setAudioMuted(true);
-  hiddenWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-
-  let lastNavigatedUrl = normalizedTargetUrl;
-  let settledTimer = null;
-  let timeoutTimer = null;
-
-  try {
-    const resolutionPromise = new Promise((resolveFinal) => {
-      let finished = false;
-
-      const resolveOnce = (value) => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        if (settledTimer) {
-          clearTimeout(settledTimer);
-          settledTimer = null;
-        }
-        if (timeoutTimer) {
-          clearTimeout(timeoutTimer);
-          timeoutTimer = null;
-        }
-        resolveFinal(value);
-      };
-
-      const scheduleResolve = () => {
-        if (settledTimer) {
-          clearTimeout(settledTimer);
-        }
-        settledTimer = setTimeout(async () => {
-          try {
-            const liveUrl = hiddenWindow.isDestroyed()
-              ? lastNavigatedUrl
-              : hiddenWindow.webContents.getURL() || lastNavigatedUrl;
-            resolveOnce(liveUrl);
-          } catch {
-            resolveOnce(lastNavigatedUrl);
-          }
-        }, SHORT_LINK_NAVIGATION_SETTLE_MS);
-      };
-
-      const handleNavigation = (_event, url) => {
-        if (typeof url === "string" && url.trim()) {
-          lastNavigatedUrl = url.trim();
-        }
-        scheduleResolve();
-      };
-
-      hiddenWindow.webContents.on("did-redirect-navigation", handleNavigation);
-      hiddenWindow.webContents.on("did-navigate", handleNavigation);
-      hiddenWindow.webContents.on("did-frame-navigate", handleNavigation);
-      hiddenWindow.webContents.on("did-stop-loading", scheduleResolve);
-      hiddenWindow.webContents.once("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-        console.warn(">>> [ShortLink] Hidden navigation failed:", JSON.stringify({
-          targetUrl: normalizedTargetUrl,
-          errorCode,
-          errorDescription,
-          validatedURL,
-          lastNavigatedUrl,
-        }));
-        resolveOnce(lastNavigatedUrl);
-      });
-
-      timeoutTimer = setTimeout(() => {
-        console.warn(">>> [ShortLink] Hidden navigation timed out:", JSON.stringify({
-          targetUrl: normalizedTargetUrl,
-          lastNavigatedUrl,
-        }));
-        resolveOnce(lastNavigatedUrl);
-      }, SHORT_LINK_NAVIGATION_TIMEOUT_MS);
-    });
-
-    await hiddenWindow.loadURL(normalizedTargetUrl, {
-      userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    }).catch((error) => {
-      console.warn(">>> [ShortLink] Hidden navigation loadURL failed:", JSON.stringify({
-        targetUrl: normalizedTargetUrl,
-        error: error instanceof Error ? error.message : String(error),
-      }));
-    });
-    const finalUrl = await resolutionPromise;
-
-    logInfo("ShortLink", "Hidden navigation resolved", JSON.stringify({
-      targetUrl: normalizedTargetUrl,
-      finalUrl,
-    }));
-    return normalizeVideoPageUrl(finalUrl) ?? finalUrl;
-  } catch (error) {
-    console.warn(">>> [ShortLink] Hidden navigation resolver threw:", error);
-    return undefined;
-  } finally {
-    if (settledTimer) {
-      clearTimeout(settledTimer);
-    }
-    if (timeoutTimer) {
-      clearTimeout(timeoutTimer);
-    }
-    if (!hiddenWindow.isDestroyed()) {
-      hiddenWindow.destroy();
-    }
-    try {
-      const hiddenSession = session.fromPartition(partition);
-      await hiddenSession.clearStorageData();
-    } catch {
-      // Ignore cleanup failures for ephemeral hidden sessions.
-    }
-  }
-}
-
 function normalizeSelectionScope(value) {
   return value === "current_item" || value === "playlist" ? value : "auto";
 }
@@ -1264,7 +1126,6 @@ function buildElectronRuntimeEnvironment() {
     platform: process.platform,
     arch: process.arch,
     fetch: fetchWithDesktopSession,
-    resolveUrlViaNavigation: resolveUrlViaHiddenNavigation,
   };
 }
 

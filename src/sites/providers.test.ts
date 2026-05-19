@@ -100,6 +100,22 @@ describe("builtin site providers", () => {
     });
   });
 
+  it("preserves tokenized Xiaohongshu explore note URLs for yt-dlp", () => {
+    const tokenizedExploreUrl = "https://www.xiaohongshu.com/explore/6a01fd150000000035027660?xsec_token=ABiXw-buReZ18demcjA7FtPWnHVcxXkkXA-EowqI8MsT8=&xsec_source=pc_feed";
+    const plan = resolvePlan({
+      url: tokenizedExploreUrl,
+      pageUrl: tokenizedExploreUrl,
+      siteHint: "xiaohongshu",
+    });
+
+    expect(plan.providerId).toBe("xiaohongshu");
+    expect(plan.engines).toHaveLength(1);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: tokenizedExploreUrl,
+    });
+  });
+
   it("does not treat Xiaohongshu image-tagged candidates as direct video hints", () => {
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
     const plan = resolvePlan({
@@ -324,7 +340,7 @@ describe("builtin site providers", () => {
     });
   });
 
-  it("unwraps Weibo visitor wrappers and keeps tv/show pages on yt-dlp", () => {
+  it("keeps Weibo visitor wrappers for downloader-owned extraction", () => {
     const wrapperUrl = "https://passport.weibo.com/visitor/visitor?entry=krvideo&a=enter&url=https%3A%2F%2Fweibo.com%2Ftv%2Fshow%2F1034%3A5284550214090773%3Ffrom%3Dold_pc_videoshow&domain=.weibo.com";
     const plan = resolvePlan({
       url: wrapperUrl,
@@ -332,12 +348,8 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("weibo");
-    expect(plan.engines).toEqual([
-      expect.objectContaining({
-        engine: "yt-dlp",
-        sourceUrl: "https://weibo.com/tv/show/1034:5284550214090773?from=old_pc_videoshow",
-      }),
-    ]);
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines.every((engine) => engine.sourceUrl === wrapperUrl)).toBe(true);
   });
 
   it("falls back to the generic provider for unknown sites while preserving normalized metadata", () => {

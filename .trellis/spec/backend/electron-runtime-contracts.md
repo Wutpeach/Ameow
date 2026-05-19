@@ -1147,6 +1147,7 @@ Required tests:
 - Xiaohongshu video routing contract:
   - Video downloads must enqueue a yt-dlp-compatible note URL, not a direct `xhscdn` URL or extracted m3u8/mp4 candidate.
   - Valid yt-dlp sources are `https://www.xiaohongshu.com/explore/<hexId>` and `https://www.xiaohongshu.com/discovery/item/<hexId>` with optional query parameters.
+  - If a canonical note URL already carries `xsec_token` query parameters, provider-side canonicalization must preserve them instead of stripping the URL back to a bare `/explore/<hexId>`.
   - Tokenized `discovery/item/<hexId>?xsec_token=...` detail URLs are preferred when already available.
   - Profile-note URLs must normalize to `/explore/<hexId>` before provider execution.
   - The generic runtime queue must not fetch Xiaohongshu pages/API responses only to discover direct video candidates before provider resolution.
@@ -1226,7 +1227,7 @@ Required tests and assertion points:
   - Add/keep checks proving that a cached tokenized `detailUrl` survives drag payload parsing and reaches Electron `resolve_xiaohongshu_drag_media`.
   - Add/keep checks proving that bare `xhscdn` host roots are rejected as image hints in renderer/runtime parsing.
   - Add/keep checks proving that Xiaohongshu protected-image desktop fetch uses the origin-only / no-referrer fallback instead of a note-page referrer on the Chromium session path.
-  - Add/keep checks proving that `normalizeVideoPageUrl(...)` canonicalizes X `/photo/<n>` overlay URLs back to the status permalink.
+  - Add/keep checks proving that video queue URL normalization preserves valid downloader-owned page URL variants such as X `/photo/<n>` overlays.
   - Add/keep checks proving that X `pbs.twimg.com` image URLs upgrade to `name=orig` before generic `maxurl` probing.
   - Manually verify a Xiaohongshu waterfall video drag still queues the canonical note URL when the extension result returns only `kind: "image"` plus a tokenized `detailUrl` and medium video intent.
   - Manually drag a real X image and verify the app shows a loading indicator during transfer, then settles into a short success state only after the file is written.
@@ -1623,111 +1624,92 @@ Why wrong:
 - The source tree looks valid, but the packaged runtime executes `dist-electron/electron/main.mjs`, where the imported helper does not exist.
 - GitHub Actions and local packaging both reproduce the same broken artifact because they package `dist-electron/**/*`, not arbitrary source helpers.
 
-## Scenario: Short-Link Expansion Contract For Electron Downloads
+## Scenario: Downloader-Owned URL Extraction Contract
 
 ### 1. Scope / Trigger
 
-- Trigger: Any task that changes short-link expansion, wrapper URL handling, or pre-download URL normalization for Electron-owned video downloads.
-- Why this needs code-spec depth: This flow crosses renderer paste/drop input, Electron main networking/navigation, runtime provider routing, and downloader engine selection. Silent drift at any stage can surface as downloader `Unsupported URL` failures even when the visible input looked correct.
+- Trigger: Any task that changes pasted/drop video URL normalization, provider routing, or engine `sourceUrl` selection for Electron-owned video downloads.
+- Why this needs code-spec depth: URL handling crosses renderer paste/drop input, Electron command normalization, runtime provider routing, and sidecar downloader execution. App-side URL rewrites can silently remove extractor-required query parameters or mask downloader behavior.
 
 ### 2. Signatures
 
-Electron runtime environment extension:
+Queue normalization boundary:
 
 ```ts
-interface ElectronRuntimeEnvironment {
-  fetch?: typeof fetch;
-  resolveUrlViaNavigation?(url: string): Promise<string | undefined>;
-}
+normalizeQueueVideoDownloadRequest(payload: CommandPayload): QueuedVideoDownloadRequest
 ```
 
-Runtime short-link entrypoint:
+Provider routing boundary:
 
 ```ts
-resolveShortLinkDownloadInput(
-  input: RawDownloadInput,
-  fetchImpl?: typeof fetch,
-  resolveViaNavigation?: (url: string) => Promise<string | undefined>,
-): Promise<RawDownloadInput>
-```
-
-Electron main hidden-navigation resolver:
-
-```ts
-async function resolveUrlViaHiddenNavigation(targetUrl: string): Promise<string | undefined>
+SiteRegistry.resolve(input: RawDownloadInput): ResolvedDownloadPlan | null
 ```
 
 Key files:
 
 ```txt
-src/electron-runtime/shortLinkResolution.ts
+src/electron-runtime/commandRouter.ts
 src/electron-runtime/service.ts
-src/electron-runtime/contracts.ts
-electron/main.mts
+electron/videoHintNormalization.mts
 src/sites/weibo.ts
 src/sites/gallery-dl-support.ts
+src/sites/xiaohongshu.ts
 ```
 
 ### 3. Contracts
 
-- Runtime-owned video downloads must normalize wrapper/short URLs before provider resolution in `src/electron-runtime/service.ts`.
-- Resolution order is:
-  1. unwrap known wrapper query targets locally (`passport.weibo.com/...url=...` and similar)
-  2. try lightweight redirect-following fetch (`HEAD`, then `GET`)
-  3. if fetch still cannot reveal a stable final URL, call `environment.resolveUrlViaNavigation(...)`
-- `resolveUrlViaNavigation(...)` is optional at the runtime-core boundary so `src/electron-runtime/` stays free of direct `electron` imports.
-- Electron main owns the navigation fallback implementation:
-  - create a hidden `BrowserWindow`
-  - use an isolated ephemeral `partition`
-  - `show: false`, `skipTaskbar: true`, `nodeIntegration: false`, `contextIsolation: true`, `sandbox: false`
-  - observe navigation events and settle on the latest navigated URL after a bounded idle delay
-  - always destroy the hidden window and clear the temporary session storage afterward
-- Fetch-only resolution is insufficient for some sites. If a short-link host or wrapper page requires full browser navigation/JS/meta refresh/cookie handoff, the Electron main fallback is the source of truth.
+- Electron video downloads must not perform runtime-owned short-link expansion before provider resolution. No HEAD/GET redirect probes, hidden-window navigation, or wrapper-query unwrapping may run in `src/electron-runtime/service.ts`.
+- Queue normalization may trim and validate HTTP(S) URLs, reject unsafe schemes, normalize optional metadata, and infer `siteHint` from the provided values.
+- Provider routing may inspect host/path enough to choose a downloader engine, but downloader sidecars own redirects, wrapper pages, and extractor-specific page interpretation.
+- `normalizeVideoPageUrl(...)` must preserve valid URL path/query variants such as X `/status/<id>/photo/<n>` instead of rewriting them to a different page shape.
+- Xiaohongshu remains the explicit compatibility exception: video downloads must pass a yt-dlp-compatible canonical note URL and preserve `xsec_token` query parameters when already present.
 - Weibo-specific routing contract:
   - `weibo.com/detail/...`, `status/...`, and `layerid`-style URLs stay `gallery-dl`-first
   - `weibo.com/tv/show/...` must not be routed to `gallery-dl` primary, because `gallery-dl` rejects those URLs as unsupported
-  - `passport.weibo.com/visitor/...` must be unwrapped before engine selection; neither `gallery-dl` nor `yt-dlp` should receive the wrapper URL as the final source URL
+  - wrapper URLs such as `passport.weibo.com/visitor?...url=...` may route by explicit `siteHint`, but the wrapper URL should be passed through to the downloader rather than unwrapped by the app
 - Renderer drag/drop image downloads should pass `pageUrl` when the dragged image URL came from a host page context, so Electron main can derive `Referer` for hotlink-sensitive image hosts such as `sinaimg.cn`.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| Wrapper URL already contains a usable `url=` target | `resolveShortLinkDownloadInput(...)` | Runtime returns the unwrapped target without navigation fallback | OK |
-| `HEAD` reveals final URL directly | fetch redirect attempt | Runtime uses the final URL and skips GET/navigation fallback | OK |
-| `HEAD`/`GET` keep returning the short host or middle wrapper | runtime short-link resolution | Runtime calls `resolveUrlViaNavigation(...)` before provider resolution | Use hidden navigation fallback |
-| Hidden navigation reaches a stable `tv/show` URL | Electron main fallback | Runtime hands `weibo.com/tv/show/...` to the Weibo provider, which routes it to `yt-dlp` | OK |
-| Downloader still receives `passport.weibo.com/visitor/...` | engine execution context | Short-link normalization contract failed before provider routing | Debug short-link resolution; do not “force yt-dlp” on the wrapper URL |
+| Pasted URL is `blob:`, `data:`, `file:`, `javascript:`, or non-HTTP(S) | command normalization | Reject before queueing | Keep safety validation |
+| Pasted URL is a short-link host such as `t.cn`, `b23.tv`, `pin.it`, or `xhslink.com` | runtime execution context | Runtime passes the URL to the selected/provider-generic downloader without pre-expanding it | Let downloader follow redirects |
+| Wrapper URL contains a usable `url=` target | provider/engine execution context | App keeps the wrapper URL unless a provider has a documented downloader-compatibility exception | Let downloader parse or fail with its native error |
+| Valid X `/status/<id>/photo/<n>` page URL enters video queue | `normalizeVideoPageUrl(...)` | Preserve the full URL | Let yt-dlp interpret the variant |
+| Xiaohongshu note URL carries `xsec_token` | `src/sites/xiaohongshu.ts` | Preserve query parameters in the yt-dlp source URL | Keep compatibility canonicalization |
 | Dragged Sina image URL is valid but host requires referer | `download_image` flow | Renderer passes `pageUrl`, Electron derives `Referer`/`Origin`, image download succeeds | Preserve page context on image drags |
 
 ### 5. Good / Base / Bad Cases
 
 - Good:
-  - Pasting `http://t.cn/...` logs a resolved `weibo.com/tv/show/...` URL and queues a Weibo `yt-dlp` plan.
-  - Pasting a direct `passport.weibo.com/visitor?...url=...` wrapper resolves to the inner `tv/show` URL before provider routing.
+  - Pasting `http://t.cn/...` queues the short URL directly through generic `yt-dlp` when no provider can identify the destination from the visible URL.
+  - Pasting a direct `passport.weibo.com/visitor?...url=...` wrapper with `siteHint: "weibo"` keeps the wrapper URL as the engine source.
   - Dragging a `wx*.sinaimg.cn/...jpg` image from a page sends the image URL plus source page URL so Electron main can fetch it with a valid referer.
 - Base:
-  - Fetch-only resolution works for ordinary short-link hosts, while the hidden-navigation fallback is reserved for fetch-resistant sites.
-  - Runtime core remains Electron-agnostic by depending on an injected `resolveUrlViaNavigation(...)` callback.
+  - Provider matching still chooses Douyin, Xiaohongshu, Bilibili, Twitter/X, Weibo, gallery-dl-supported, or generic based on available host hints.
+  - Queue normalization still rejects unsafe schemes before a subprocess can receive them.
 - Bad:
-  - Runtime silently leaves `passport.weibo.com/visitor/...` unchanged and sends it into downloader engines.
+  - Runtime opens a hidden window or sends HEAD/GET probes to expand a pasted video URL before provider resolution.
+  - App canonicalizes X `/photo/<n>` overlays to status URLs before handing them to yt-dlp.
+  - App strips `xsec_token` from a Xiaohongshu canonical note URL.
   - `weibo.com/tv/show/...` is still routed to `gallery-dl` primary.
   - Dragged hotlink-sensitive image URLs lose their `pageUrl`, so `download_image` runs without the expected referer context.
 
 ### 6. Tests Required (with assertion points)
 
 - `npm run type-check`
-  - `ElectronRuntimeEnvironment.resolveUrlViaNavigation` compiles through Electron main and runtime-core boundaries.
-- `npm run test -- src/electron-runtime/shortLinkResolution.test.ts`
-  - wrapper URLs unwrap correctly
-  - navigation fallback resolves when fetch stalls on the short host
 - `npm run test -- src/electron-runtime/service.test.ts`
-  - runtime uses navigation fallback to reach a final Weibo `tv/show` URL before provider routing
+  - runtime passes short links through without calling environment fetch for pre-resolution
+  - runtime passes Weibo visitor wrappers through to downloader engines when routed by `siteHint`
 - `npm run test -- src/sites/providers.test.ts`
   - `weibo.com/tv/show/...` plans resolve to `yt-dlp`
-  - direct visitor wrappers unwrap to the inner `tv/show` URL
-- Manual assertion (Electron dev):
-  - paste a real `t.cn` Weibo short link and confirm downloader no longer receives `passport.weibo.com/visitor/...`
+  - direct visitor wrappers are preserved as downloader source URLs
+  - Xiaohongshu tokenized note URLs preserve `xsec_token`
+- `npm run test -- electron/videoHintNormalization.test.mts`
+  - valid X `/photo/<n>` URLs are preserved
+- Manual assertions (Electron dev):
+  - paste a real short link and confirm Electron runtime no longer logs pre-engine expansion
   - drag a real `wx*.sinaimg.cn/...jpg` image and confirm image save succeeds
 
 ### 7. Wrong vs Correct
@@ -1735,24 +1717,18 @@ src/sites/gallery-dl-support.ts
 #### Wrong
 
 ```ts
-const resolved = await resolveShortLinkDownloadInput(input, fetchImpl);
-// fetch failed to move past visitor wrapper, but runtime still executes the wrapper URL
+activeTask.request = await expandShortLinkBeforeProviderResolution(activeTask.request);
 ```
 
 #### Correct
 
 ```ts
-const resolved = await resolveShortLinkDownloadInput(
-  input,
-  fetchImpl,
-  environment.resolveUrlViaNavigation,
-);
-// wrapper/short host is upgraded to a stable final URL before provider routing
+const resolvedPlan = this.siteRegistry.resolve(activeTask.request);
 ```
 
 Why wrong:
-- `fetch` can succeed while still returning only the middle wrapper URL.
-- Once the wrapper URL reaches engine execution, both `gallery-dl` and `yt-dlp` can fail with `Unsupported URL`.
+- Runtime-side pre-resolution duplicates downloader extraction, adds latency, and can remove extractor-required query parameters.
+- It hides the actual URL received by sidecar engines, making downloader failures harder to reproduce with direct CLI commands.
 
 ## Scenario: Electron ESM Main Initialization-Order Contract
 

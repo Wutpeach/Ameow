@@ -1,7 +1,6 @@
-import {
-  unwrapRedirectTargetUrl,
-  type RawDownloadInput,
-  type VideoDownloadIntent,
+import type {
+  RawDownloadInput,
+  VideoDownloadIntent,
 } from "../core/index.js";
 
 const GALLERY_DL_SUPPORTED_EXAMPLE_HOSTS = `
@@ -384,10 +383,6 @@ export const isWeiboUrl = (value: string | undefined): boolean => {
 };
 
 export const resolveWeiboSourceUrl = (value: string | undefined): string | undefined => {
-  const unwrappedUrl = unwrapRedirectTargetUrl(value);
-  if (isWeiboUrl(unwrappedUrl)) {
-    return unwrappedUrl;
-  }
   return isWeiboUrl(value) ? value?.trim() : undefined;
 };
 
