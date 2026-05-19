@@ -49,6 +49,43 @@ describe("parseYtDlpProgressLine", () => {
     expect(payload?.percent).toBe(100);
   });
 
+  it("maps section download start lines into downloading stage without a percent", () => {
+    const payload = parseYtDlpProgressLine(
+      "trace-section",
+      "[download] Downloading section 1 of 1",
+    );
+
+    expect(payload).not.toBeNull();
+    expect(payload?.traceId).toBe("trace-section");
+    expect(payload?.stage).toBe("downloading");
+    expect(payload?.percent).toBe(-1);
+    expect(payload?.speed).toBe("Downloading media...");
+  });
+
+  it("derives clip progress from ffmpeg time output when clip duration is known", () => {
+    const payload = parseYtDlpProgressLine(
+      "trace-ffmpeg",
+      "size=   2048kB time=00:00:05.00 bitrate=3355.4kbits/s speed=2.5x",
+      { clipDurationSec: 20 },
+    );
+
+    expect(payload).not.toBeNull();
+    expect(payload?.traceId).toBe("trace-ffmpeg");
+    expect(payload?.stage).toBe("downloading");
+    expect(payload?.percent).toBe(25);
+    expect(payload?.speed).toBe("2.5x");
+  });
+
+  it("caps ffmpeg clip progress below complete until yt-dlp reports completion", () => {
+    const payload = parseYtDlpProgressLine(
+      "trace-ffmpeg-cap",
+      "size=   8192kB time=00:01:30.00 bitrate=3355.4kbits/s speed=3x",
+      { clipDurationSec: 20 },
+    );
+
+    expect(payload?.percent).toBe(99);
+  });
+
   it("ignores non-progress noise", () => {
     expect(parseYtDlpProgressLine("trace-5", "WARNING: extractor failed")).toBeNull();
   });

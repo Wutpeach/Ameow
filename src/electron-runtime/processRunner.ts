@@ -43,7 +43,7 @@ const attachLineStream = (
 
     childStream.on("data", (chunk: string) => {
       buffer += chunk;
-      const lines = buffer.split(/\r?\n/);
+      const lines = buffer.split(/\r\n|\n|\r/);
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         enqueueLine(line);

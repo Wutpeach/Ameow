@@ -56,6 +56,14 @@ const isInjectionDebugEnabled = (config: Record<string, unknown>): boolean =>
 
 const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - startedAtMs}ms`;
 
+const resolveClipDurationSec = (clipRange: { startSec: number; endSec: number } | null): number | null => {
+  if (!clipRange) {
+    return null;
+  }
+  const duration = clipRange.endSec - clipRange.startSec;
+  return Number.isFinite(duration) && duration > 0 ? duration : null;
+};
+
 const toSafeLogDetails = (payload: unknown): string => {
   try {
     return JSON.stringify(payload);
@@ -169,6 +177,7 @@ export const runYtDlpDownload = async (
     isYouTube: commandPlan.isYouTube,
     formatSelectorLength: commandPlan.formatProfile.selector.length,
   });
+  const clipDurationSec = resolveClipDurationSec(commandPlan.clipRange);
 
   const stderrLines: string[] = [];
   const runAttempt = async (mode: YouTubeMode): Promise<DownloadResultPayload> => {
@@ -232,7 +241,7 @@ export const runYtDlpDownload = async (
         },
         signal: context.abortSignal,
         onStdoutLine: async (line: string) => {
-          const progress = parseYtDlpProgressLine(context.traceId, line);
+          const progress = parseYtDlpProgressLine(context.traceId, line, { clipDurationSec });
           if (progress) {
             emittedActivity = true;
             if (!loggedFirstProgress) {
@@ -273,6 +282,24 @@ export const runYtDlpDownload = async (
           }
         },
         onStderrLine: async (line: string) => {
+          const progress = parseYtDlpProgressLine(context.traceId, line, { clipDurationSec });
+          if (progress) {
+            emittedActivity = true;
+            if (!loggedFirstProgress) {
+              loggedFirstProgress = true;
+              logYtDlpTiming("first download progress", {
+                traceId: context.traceId,
+                mode,
+                elapsedMs: formatElapsedMs(taskStartedAtMs),
+                attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
+                percent: progress.percent,
+                stage: progress.stage,
+                speed: progress.speed,
+              });
+            }
+            await context.onProgress(progress);
+            return;
+          }
           if (line.trim()) {
             stderrLines.push(line.trim());
           }

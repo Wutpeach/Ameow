@@ -64,4 +64,23 @@ describe("runStreamingCommand", () => {
       "resolved",
     ]);
   });
+
+  it("treats carriage-return progress updates as stream lines", async () => {
+    const lines: string[] = [];
+
+    await runStreamingCommand(
+      process.execPath,
+      ["-e", "process.stderr.write('time=00:00:01.00\\rtime=00:00:02.00\\r')"],
+      {
+        onStderrLine: async (line) => {
+          lines.push(line);
+        },
+      },
+    );
+
+    expect(lines).toEqual([
+      "time=00:00:01.00",
+      "time=00:00:02.00",
+    ]);
+  });
 });

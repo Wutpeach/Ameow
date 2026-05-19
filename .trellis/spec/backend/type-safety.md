@@ -208,7 +208,10 @@ Contract rules:
 - `src/electron-runtime/ytDlpProgress.ts` must treat yt-dlp post-download finalization lines with no explicit percent as valid progress:
   - `[Metadata] Embedding metadata ...` -> `stage="post_processing"`, `percent=100`
   - `Deleting original file ...` -> `stage="post_processing"`, `percent=100`
+  - `[download] Downloading section ...` / `[download] Destination: ...` -> `stage="downloading"`, `percent=-1`
+  - ffmpeg section output such as `time=00:00:05.00 ... speed=2.5x` -> `stage="downloading"` and percent derived from `(time / clipDurationSec) * 100`, capped below `100` until yt-dlp reports completion
   - unrelated noise without a recognized stage marker must still return `null`
+- `src/electron-runtime/processRunner.ts` must split child-process output on `\r\n`, `\n`, and bare `\r` because ffmpeg progress embedded under `yt-dlp --download-sections` often refreshes one terminal line with carriage returns instead of newline-delimited records.
 - `video-download-complete` now means the source media finished downloading. It must be emitted before any downstream transcode work begins.
 - `cancel_download` targets exactly one queued/running task identified by `traceId`.
 - `video-queue-count.activeCount` represents the number of actively running video downloads across frontend-triggered and WS-triggered tasks.
@@ -320,6 +323,8 @@ Contract rules:
 | `queue_video_download.videoUrl` or `videoCandidates[*].url` is HTTP(S) but not a real Pinterest video asset | Queue normalization | Request still queues, but untrusted hints are ignored | Drop page/image/other non-video hints and preserve only validated Pinterest video assets |
 | Mixed direct MP4 + manifest Pinterest hints arrive together | Queue normalization / source selection | Higher-trust direct MP4 is tried first | Sort surviving candidates so direct MP4 precedes manifest-like entries |
 | yt-dlp emits `Embedding metadata` or `Deleting original file` with no percent | `src/electron-runtime/ytDlpProgress.ts` parser | UI still receives a terminal `post_processing` progress update | Emit `video-download-progress` with `stage="post_processing"` and `percent=100` instead of returning `null` |
+| yt-dlp section download emits `[download] Downloading section ...` without percent | `src/electron-runtime/ytDlpProgress.ts` parser | UI leaves the resolving/preparing state as soon as section download starts | Emit `video-download-progress` with `stage="downloading"` and `percent=-1` |
+| ffmpeg section download emits carriage-return `time=` progress under yt-dlp | `src/electron-runtime/processRunner.ts` + `ytDlpProgress.ts` | UI receives incremental clip progress during the long section download | Split bare `\r` records and derive percent from the selected clip duration |
 
 ### 5. Good / Base / Bad Cases
 
@@ -329,6 +334,7 @@ Contract rules:
   - `video-download-complete` payload always includes `success`, with `file_path`/`error` optional.
   - A Pinterest drag payload with a valid primary `url`, canonical `pageUrl`, and both MP4 + manifest hints keeps only validated video assets and orders the direct MP4 first.
   - A yt-dlp finalization line such as `Embedding metadata` or `Deleting original file` advances the UI into `post_processing` instead of disappearing as parser noise.
+  - A YouTube/Bilibili clip download advances from resolving to downloading on the section-start line, then updates percent from ffmpeg `time=` progress while the clip is being fetched.
   - Missing rename key still yields deterministic behavior: keep source name when available.
   - Rename-disabled yt-dlp full-video output uses `<title>[<width>x<height>][<quality>]` so `highest`, `balanced`, and `data-saver` can coexist for the same source title.
   - Reset command clears `renameSequenceCounters` and returns `Ok(true)`.

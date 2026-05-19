@@ -442,6 +442,65 @@ describe("runYtDlpDownload", () => {
     });
   });
 
+  it("emits clip download progress from yt-dlp stderr section and ffmpeg time lines", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Clip Video"
+        : path.join("D:/downloads", "5000-25000_Clip Video.mp4")
+    ));
+    const onProgress = vi.fn(async () => undefined);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options?.onStderrLine?.("[download] Downloading section 1 of 1");
+      await options?.onStderrLine?.("size=   2048kB time=00:00:05.00 bitrate=3355.4kbits/s speed=2.5x");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-clip-progress",
+      outputDir: "D:/downloads",
+      outputStem: "Clip Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=clip123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=clip123",
+        pageUrl: "https://www.youtube.com/watch?v=clip123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        ytdlpQuality: "best",
+        clipStartSec: 5,
+        clipEndSec: 25,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress,
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "5000-25000_Clip Video.mp4"),
+    });
+
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({
+      traceId: "trace-youtube-clip-progress",
+      percent: -1,
+      stage: "downloading",
+      speed: "Downloading media...",
+    }));
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({
+      traceId: "trace-youtube-clip-progress",
+      percent: 25,
+      stage: "downloading",
+      speed: "2.5x",
+    }));
+  });
+
   it("adds yt-dlp download sections for Bilibili clip downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
