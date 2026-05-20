@@ -679,3 +679,36 @@ Refactored the main floating window compact/full flow into a reducer-owned shell
 ### Next Steps
 
 - None - task complete
+
+
+## Session 158: Browser extension boundary refactor
+
+**Date**: 2026-05-20
+**Task**: Browser extension boundary refactor
+**Branch**: `main`
+
+### Summary
+
+Shrank the browser extension boundary by removing extension-side short-link expansion, keeping browser-only capture paths, and routing pasted Xiaohongshu video through the backend-first queue path.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1ed773f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
