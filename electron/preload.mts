@@ -122,6 +122,15 @@ contextBridge.exposeInMainWorld("ameow", {
         ipcRenderer.removeListener("ameow:current-window:blur", wrapped);
       };
     },
+    async onPointerBoundaryChanged(listener) {
+      const wrapped = (_ipcEvent, payload) => {
+        listener({ payload: { inside: Boolean(payload?.inside) } });
+      };
+      ipcRenderer.on("ameow:current-window:pointer-boundary", wrapped);
+      return () => {
+        ipcRenderer.removeListener("ameow:current-window:pointer-boundary", wrapped);
+      };
+    },
   },
   system: {
     currentMonitor() {

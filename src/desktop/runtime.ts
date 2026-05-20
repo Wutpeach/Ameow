@@ -90,6 +90,9 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   async onBlur(listener) {
     return resolveElectronBridge().currentWindow.onBlur(listener);
   },
+  async onPointerBoundaryChanged(listener) {
+    return resolveElectronBridge().currentWindow.onPointerBoundaryChanged(listener);
+  },
 };
 
 export const desktopSystem = {

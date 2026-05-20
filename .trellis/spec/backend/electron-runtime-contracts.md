@@ -864,6 +864,34 @@ Required tests:
   - `npm run test -- compactPointerHotspot mainWindowTransitionToken mainWindowMode startupWindowState`
   - Unit test the “ensure directory first” path used by `open_current_output_folder`.
   - Manual macOS check: double-clicking the main panel opens the configured/default output folder even when it has not been created before.
+
+#### Main Window Pointer Boundary Contract
+
+- Renderer entry point:
+  - `src/App.tsx`
+  - subscribes to `desktopCurrentWindow.onPointerBoundaryChanged(...)`
+- Main-process source:
+  - `electron/mainWindowPointerBoundary.mts`
+  - channel: `ameow:current-window:pointer-boundary`
+- Allowed native facts:
+  - `screen.getCursorScreenPoint()`
+  - `BrowserWindow.getBounds()`
+  - `BrowserWindow.isVisible()`
+- Ownership rule:
+  - Electron main may only emit `{ inside: boolean }` when the OS cursor crosses the main BrowserWindow bounds.
+  - Renderer state machine remains the owner of compact/full decisions.
+- Lifecycle:
+  - start polling when the main window enters `"interactive"` mode
+  - stop polling when the main window enters `"compact-passthrough"` mode
+  - dispose polling on main-window close
+
+Why:
+- DOM `mouseenter` / `mouseleave` can be missed after transparent-window compact/full morphs on Windows.
+- Native boundary polling makes pointer leave an explicit renderer input without moving shell state ownership into Electron main.
+
+Required tests:
+- Unit test inside/outside edge emission and interval cleanup in `electron/mainWindowPointerBoundary.test.mts`.
+- Manual Windows check: compact icon -> full panel -> move cursor outside the panel without changing app focus; the panel must collapse to icon through the reducer's short leave path.
 | `getCurrentWindow()` / `currentMonitor()` / `PhysicalPosition` | Renderer | `window.ameow.currentWindow.*` + `window.ameow.system.currentMonitor()` | Keep logical-coordinate contract at renderer boundary. |
 | `plugin-dialog.open(...)` | Renderer plugin call | `window.ameow.system.openDialog(...)` | Dialogs stay main-owned. |
 | `plugin-opener.openUrl(...)` | Renderer plugin call | `window.ameow.system.openExternal(...)` | External opens stay main-owned. |

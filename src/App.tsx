@@ -1407,6 +1407,13 @@ function App({
     dispatchShellEvent({ type: "pointerLeave" });
   }, [dispatchShellEvent]);
 
+  const scheduleMainWindowPointerEnterExpand = useCallback(() => {
+    isPointerInsidePanelRef.current = true;
+    isPanelHoveredRef.current = true;
+    setIsPanelHovered(true);
+    dispatchShellEvent({ type: "pointerEnter" });
+  }, [dispatchShellEvent]);
+
   const closeContextMenuWindow = useCallback(async () => {
     if (await desktopWindows.has("context-menu")) {
       await desktopWindows.close("context-menu").catch(() => undefined);
@@ -2704,14 +2711,11 @@ function App({
     }
 
     compactHotspotInsideRef.current = true;
-    isPointerInsidePanelRef.current = true;
-    isPanelHoveredRef.current = true;
-    setIsPanelHovered(true);
-    dispatchShellEvent({ type: "pointerEnter" });
+    scheduleMainWindowPointerEnterExpand();
   }, [
     COMPACT_HOTSPOT_FRAME_SIZE,
     ICON_SIZE,
-    dispatchShellEvent,
+    scheduleMainWindowPointerEnterExpand,
     supportsCompactPassthroughHotspot,
   ]);
 
@@ -2808,6 +2812,33 @@ function App({
       window.removeEventListener("mouseout", handleWindowMouseOut);
     };
   }, [scheduleMainWindowPointerLeaveCollapse, visualIsMinimized]);
+
+  useEffect(() => {
+    if (visualIsMinimized) {
+      return;
+    }
+
+    let cancelled = false;
+    const unlisten = desktopCurrentWindow.onPointerBoundaryChanged(({ payload }) => {
+      if (cancelled) {
+        return;
+      }
+      if (payload.inside) {
+        scheduleMainWindowPointerEnterExpand();
+        return;
+      }
+      scheduleMainWindowPointerLeaveCollapse();
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten.then((fn) => fn());
+    };
+  }, [
+    scheduleMainWindowPointerEnterExpand,
+    scheduleMainWindowPointerLeaveCollapse,
+    visualIsMinimized,
+  ]);
 
   useEffect(() => {
     if (startupAutoMinimizeGraceMs <= 0) {
@@ -4353,10 +4384,7 @@ function App({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       });
-      isPointerInsidePanelRef.current = true;
-      isPanelHoveredRef.current = true;
-      setIsPanelHovered(true);
-      dispatchShellEvent({ type: "pointerEnter" });
+      scheduleMainWindowPointerEnterExpand();
       syncMainWindowInteraction({ expandIfMinimized: false });
       containerRef.current?.focus();
     }}

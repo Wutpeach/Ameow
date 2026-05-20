@@ -78,6 +78,9 @@ import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
 import {
+  createMainWindowPointerBoundaryController,
+} from "./mainWindowPointerBoundary.mjs";
+import {
   ensureManagedYtDlpReady,
   getManagedYtDlpVersion,
 } from "./managedYtDlpRuntime.mjs";
@@ -183,6 +186,7 @@ const siteSessionManagers = new Map();
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
+let mainWindowPointerBoundaryController = null;
 
 const windows = new Map();
 const wsClients = new Set();
@@ -1712,6 +1716,10 @@ function registerWindow(label, win) {
     win.webContents.send("ameow:current-window:blur");
   });
   win.on("closed", () => {
+    if (label === WINDOW_LABELS.main) {
+      mainWindowPointerBoundaryController?.dispose();
+      mainWindowPointerBoundaryController = null;
+    }
     windows.delete(label);
     if (label === WINDOW_LABELS.contextMenu) {
       emitAppEvent(CONTEXT_MENU_CLOSED_EVENT, undefined);
@@ -1768,6 +1776,10 @@ async function createMainWindow(startupConfigSnapshot = null) {
       applyMainWindowVisibleZOrder(mainWindow, "focus");
     });
   }
+  mainWindowPointerBoundaryController = createMainWindowPointerBoundaryController({
+    win: mainWindow,
+    screenRef: screen,
+  });
 
   const revealReadyPromise = waitForWindowReadyToReveal(
     mainWindow,
@@ -2923,6 +2935,7 @@ function registerIpcHandlers() {
 
     const mode = payload?.mode;
     if (mode === "compact-passthrough") {
+      mainWindowPointerBoundaryController?.stop();
       win.setIgnoreMouseEvents(true, { forward: true });
       win.setFocusable(false);
       return;
@@ -2931,6 +2944,9 @@ function registerIpcHandlers() {
     win.setIgnoreMouseEvents(false);
     win.setFocusable(true);
     keepMainWindowOffWindowsTaskbar(win);
+    if (win === getWindow(WINDOW_LABELS.main)) {
+      mainWindowPointerBoundaryController?.start();
+    }
   });
 
   ipcMain.handle("ameow:current-window:animate-bounds", async (event, request) => {

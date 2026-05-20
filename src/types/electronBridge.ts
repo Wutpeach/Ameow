@@ -175,6 +175,10 @@ export type AmeowAnimateBoundsResult = {
 
 export type AmeowCurrentWindowInteractionMode = "interactive" | "compact-passthrough";
 
+export type AmeowCurrentWindowPointerBoundary = {
+  inside: boolean;
+};
+
 export interface AmeowCurrentWindowApi {
   outerPosition(): Promise<AmeowPoint>;
   outerSize(): Promise<AmeowSize>;
@@ -194,6 +198,9 @@ export interface AmeowCurrentWindowApi {
     listener: (event: AmeowEventPayload<boolean>) => void,
   ): Promise<() => void>;
   onBlur(listener: () => void): Promise<() => void>;
+  onPointerBoundaryChanged(
+    listener: (event: AmeowEventPayload<AmeowCurrentWindowPointerBoundary>) => void,
+  ): Promise<() => void>;
 }
 
 export interface AmeowSystemApi {

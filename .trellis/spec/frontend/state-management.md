@@ -143,12 +143,13 @@ Preferred ownership:
 | Visual shell mode | `useState` | React needs to render icon/full/morph states |
 | High-frequency interaction guards | `useRef` | Pointer-down / drag pending / drag active must update synchronously without waiting for render |
 | Cancelable timers | `useRef` + shared clear helper | Leave-delay timers must be cancelable from multiple paths |
-| Hover truth after transforms | DOM query + state sync | `:hover` can be more authoritative than stale React enter/leave events after morphs |
+| Hover truth after transforms | Native boundary event + state sync | DOM enter/leave can be lost after transparent-window morphs |
 
 Contracts:
 - Do not let `onMouseLeave` directly own collapse decisions for the compact window. Leave is only one signal; morph completion, drag lifecycle, and task-outcome unlocks may need a second truth check.
 - Compact/full switching must be owned by a single reducer/controller. Handlers dispatch explicit events such as pointer enter/leave, drop enter/leave, lock changes, startup settle, and animation completion; they must not make independent compact/full decisions.
 - Do not use DOM `:hover` as a compact/full decision source. During compact-to-full morphs, transparent-window changes can leave `:hover` stale after an explicit leave. The reducer's explicit pointer/drop events are the source of truth.
+- Native pointer-boundary events from Electron main are allowed as input facts for the reducer. Electron may report whether the OS cursor is inside the main BrowserWindow bounds, but it must not decide compact/full shell state.
 - Collapse timers belong to the reducer effect layer and must use reducer-issued tokens. Components may execute the timer effect, but they must not create independent leave timers or clear timers outside reducer effects and teardown.
 - Keep one shared clear helper per timer family. If a leave-delay timer exists, it must be canceled by re-enter, teardown, and any flow that forces full mode.
 - Pointer-down, drag-threshold pending, and active drag are distinct interaction states. Leave handling must respect all three.

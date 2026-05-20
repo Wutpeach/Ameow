@@ -18,13 +18,13 @@
 
 ## Current Handoff
 
-- Status: in progress, full reducer/controller refactor implemented; needs dev runtime verification on the live main window before commit/archive.
-- Last committed checkpoint: `78f30edd` (`refactor: simplify main window interaction state`).
-- Completed checkpoint scope: removed the normal 3-second idle collapse path, simplified shared collapse predicates, and documented the compact hover contract in frontend specs.
-- Current follow-up scope: replaced scattered compact/full decisions with `src/utils/mainWindowShellMachine.ts`, a pure reducer that owns pointer enter/leave, drop enter/leave, lock changes, startup settle, animation completion, collapse timer tokens, and native mode effects. `src/App.tsx` now dispatches shell events and executes reducer effects instead of independently deciding expand/collapse from hover refs, DOM `:hover`, animation callbacks, and timers.
-- Root cause after live repro: compact/full ownership was split across handlers and callbacks. Fixing individual guards just moved the failure to another owner. The refactor removes DOM `:hover` from compact/full decisions and makes the reducer-issued collapse timer / transition effects the single path.
-- Validation run: `npm test`, `npm run type-check`, and `npm run lint` all passed on Windows.
-- Next step: verify manually in dev runtime that startup settles to compact when unhovered, repeated icon -> full -> leave cycles collapse consistently, and hover/drag/drop/context-menu guards still hold the full shell.
+- Status: in progress, reducer/controller refactor committed; latest fix adds native pointer-boundary input because live repro showed DOM leave was still missing after focus stayed inside the app.
+- Last committed checkpoint: `b30cede` (`refactor: centralize main window shell state`).
+- Completed checkpoint scope: removed the normal 3-second idle collapse path, simplified shared collapse predicates, documented the compact hover contract, and centralized compact/full decisions in `src/utils/mainWindowShellMachine.ts`.
+- Current follow-up scope: added `electron/mainWindowPointerBoundary.mts`, `ameow:current-window:pointer-boundary`, preload/runtime/type wiring, and an `App.tsx` subscription that maps native inside/outside facts to the existing reducer `pointerEnter` / `pointerLeave` path.
+- Root cause after latest live repro: the reducer was not receiving a normal leave input. Windows transparent/layered Electron windows can miss Chromium DOM `mouseleave` / `mouseout` after the compact-to-full morph; clicking another app produced collapse only because focus/blur became an indirect cleanup signal.
+- Validation run after latest fix: `npm test -- mainWindowPointerBoundary mainWindowShellMachine`, `npm test`, `npm run type-check`, and `npm run lint` all passed on Windows.
+- Next step: verify manually in dev runtime that compact icon -> full -> move cursor outside collapses without clicking/focusing another app. Re-enter during the short grace should keep full, and drag/drop/context-menu/task locks should still hold full. Dev runtime is running at `http://127.0.0.1:1420/`.
 
 ## Rollback Points
 
