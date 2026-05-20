@@ -51,6 +51,7 @@ export const buildVideoSelectedV2QueuePayload = (
   selectionScope: data.selectionScope,
   clipStartSec: data.clipStartSec,
   clipEndSec: data.clipEndSec,
+  extensionData: data.extensionData ?? data.extension_data,
   ytdlpQualityPreference:
     options.ytdlpQualityPreference
     ?? data.ytdlpQualityPreference

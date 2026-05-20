@@ -235,6 +235,13 @@ describe("buildVideoSelectedV2QueuePayload", () => {
       selectionScope: "current_item",
       clipStartSec: 35.25,
       clipEndSec: 48.75,
+      extensionData: {
+        youtube: {
+          forceExtended: true,
+          allowCookies: false,
+          source: "injected",
+        },
+      },
       ytdlpQualityPreference: "best",
     })).toMatchObject({
       url: "https://www.youtube.com/watch?v=clip123",
@@ -244,7 +251,32 @@ describe("buildVideoSelectedV2QueuePayload", () => {
       selectionScope: "current_item",
       clipStartSec: 35.25,
       clipEndSec: 48.75,
+      extensionData: {
+        youtube: {
+          forceExtended: true,
+          allowCookies: false,
+          source: "injected",
+        },
+      },
       ytdlpQualityPreference: "best",
+    });
+  });
+
+  it("preserves snake_case extension metadata when building the queue payload", () => {
+    expect(buildVideoSelectedV2QueuePayload({
+      url: "https://www.youtube.com/watch?v=pasted123",
+      extension_data: {
+        youtube: {
+          source: "pasted",
+        },
+      },
+    })).toMatchObject({
+      url: "https://www.youtube.com/watch?v=pasted123",
+      extensionData: {
+        youtube: {
+          source: "pasted",
+        },
+      },
     });
   });
 
