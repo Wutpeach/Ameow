@@ -130,6 +130,8 @@ const isResolvableVideoInputUrl = (value: string): boolean => (
   isVideoUrl(value) || isLikelyShortLinkUrl(value)
 );
 
+const MAX_IN_MEMORY_DROPPED_FILE_BYTES = 25 * 1024 * 1024;
+
 // Helper function to check and show sequence overflow error
 const checkSequenceOverflow = (error: unknown): boolean => {
   const errorStr = String(error);
@@ -205,14 +207,18 @@ const readClipboardImageDataUrl = async (): Promise<string | null> => {
   return canvas.toDataURL("image/png");
 };
 
-const fileToDataUrl = async (file: Blob): Promise<string> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const base64 = btoa(
-    new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ""),
-  );
-  const mimeType = file.type || "application/octet-stream";
-  return `data:${mimeType};base64,${base64}`;
-};
+const fileToDataUrl = async (file: Blob): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === "string") {
+      resolve(reader.result);
+      return;
+    }
+    reject(new Error("Failed to read file as data URL"));
+  };
+  reader.onerror = () => reject(reader.error ?? new Error("Failed to read file as data URL"));
+  reader.readAsDataURL(file);
+});
 
 const filterDroppedFilesByMimePrefix = (
   dataTransfer: DataTransfer | null,
@@ -245,6 +251,12 @@ const saveDroppedFilesToOutput = async (
           "Dropped browser file path did not resolve on disk, falling back to in-memory blob:",
           file.name || "<unnamed>",
           filePath,
+        );
+      }
+
+      if (file.size > MAX_IN_MEMORY_DROPPED_FILE_BYTES) {
+        throw new Error(
+          `Dropped file is too large to copy without a local path: ${file.name || "<unnamed>"}`,
         );
       }
 
@@ -3778,28 +3790,9 @@ function App({
           // If copy failed (0 files), try reading from dataTransfer.files
           if (copyResult.includes("Copied 0 files") && e.dataTransfer.files.length > 0) {
             console.log("Local file not found, trying dataTransfer.files...");
-            for (const file of Array.from(e.dataTransfer.files)) {
-              if (!file.type.startsWith("image/")) {
-                console.log("Skipping non-image file:", file.name);
-                continue;
-              }
-              try {
-                const arrayBuffer = await file.arrayBuffer();
-                const base64 = btoa(
-                  new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-                );
-                const dataUrl = `data:${file.type};base64,${base64}`;
-                const saveResult = await desktopCommands.invoke<string>("save_data_url", {
-                  dataUrl,
-                  targetDir: outputPath || null,
-                  originalFilename: file.name,
-                });
-                console.log("Save from dataTransfer.files result:", saveResult);
-              } catch (fileErr) {
-                console.error("Failed to process file:", file.name, fileErr);
-                checkSequenceOverflow(fileErr);
-              }
-            }
+            const droppedImageFiles = filterDroppedFilesByMimePrefix(e.dataTransfer, "image/");
+            const savedCount = await saveDroppedFilesToOutput(droppedImageFiles, outputPath || null);
+            console.log("Saved image files from dataTransfer.files fallback:", savedCount);
           }
         } else {
           try {
@@ -3879,24 +3872,11 @@ function App({
         }
       } else {
         // 无本地路径，尝试读取文件内容并保存
-        for (const file of Array.from(e.dataTransfer.files)) {
-          try {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-            );
-            const mimeType = file.type || "application/octet-stream";
-            const dataUrl = `data:${mimeType};base64,${base64}`;
-            await desktopCommands.invoke<string>("save_data_url", {
-              dataUrl,
-              targetDir: outputPath || null,
-              originalFilename: file.name,
-            });
-          } catch (fileErr) {
-            console.error("Failed to process file:", file.name, fileErr);
-            checkSequenceOverflow(fileErr);
-          }
-        }
+        const savedCount = await saveDroppedFilesToOutput(
+          Array.from(e.dataTransfer.files),
+          outputPath || null,
+        );
+        console.log("Saved files from dataTransfer.files fallback:", savedCount);
       }
 
       setTimeout(() => setIsProcessing(false), 1000);
