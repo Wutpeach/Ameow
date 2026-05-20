@@ -1398,6 +1398,7 @@ Required tests and assertion points:
 | WebSocket host/port changes from `127.0.0.1:39527` | Browser extension connect path | Extension reconnect logic keeps working | Keep fixed loopback endpoint |
 | Request correlation omits echoed `requestId` | Extension pending-request map | Background promise resolution breaks | Echo `data.requestId` on correlated responses |
 | Failure response omits `data.code` for request/response actions | Extension error handling | Background cannot classify failure reliably | Include stable `data.code` values |
+| `chrome.runtime.onMessage` handles a request with async `sendResponse` but does not return `true` | Extension content-script to background messaging | Chrome may close the message port before the response arrives, surfacing `runtime.lastError` to injected controls | Return `true` from every branch that resolves `sendResponse` asynchronously |
 | `get_config` stops returning raw JSON string | Renderer bootstrap | Theme/language/config bootstrap breaks | Keep string contract |
 | Legacy rename or quality keys stop being read | Existing user config | Old installs silently change behavior | Continue reading legacy keys during migration |
 | Pinterest video naming reuses repeated UI titles such as `Pin 图卡片` | Electron runtime output path selection | Distinct Pinterest downloads settle to unique final files instead of failing after the first same-title save | Derive `pinterest_<shortId>` from the Pinterest URL and reserve stems before engine execution |

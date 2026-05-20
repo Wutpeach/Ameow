@@ -167,6 +167,7 @@
         "youtube": "YouTube"
       },
       "errors": {
+        "load": "Failed to load site session status",
         "start": "Failed to start the site login flow",
         "confirm": "Failed to save the site session",
         "cancel": "Failed to cancel the site login flow",

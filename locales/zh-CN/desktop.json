@@ -167,6 +167,7 @@
         "youtube": "YouTube"
       },
       "errors": {
+        "load": "站点会话状态加载失败",
         "start": "站点登录流程启动失败",
         "confirm": "站点会话保存失败",
         "cancel": "站点登录流程取消失败",

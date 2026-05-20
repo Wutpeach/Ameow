@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Validate renderer findings against frontend standards."}
+{"file":".trellis/spec/backend/index.md","reason":"Validate Electron/runtime findings against backend standards."}
+{"file":".trellis/spec/guides/index.md","reason":"Check cross-layer and code-reuse concerns against shared review heuristics."}

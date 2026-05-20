@@ -299,6 +299,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
   - Electron-managed CLI processes must use Node `spawn(..., { windowsHide: true })` through the shared helper in `processRunner.ts`.
   - Once the Electron shell is wired to this runtime package, `flowselect-cli-proxy` is no longer the steady-state hidden-process strategy.
   - Do not reintroduce per-tool spawn styles; yt-dlp and gallery-dl launches should share the same hidden-window process path.
+  - When `runStreamingCommand(...)` attaches an `AbortSignal` listener, it must remove the listener after child-process settlement so completed tasks do not retain task abort controllers or stream handlers.
 - Runtime path resolution:
   - `yt-dlp` remains a bundled runtime resolved from `src-tauri/binaries/` in dev and `binaries/` in packaged layouts.
   - `gallery-dl` remains a bundled runtime resolved from `desktop-assets/binaries/` in dev and `binaries/` in packaged layouts.
@@ -331,6 +332,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
 | managed ffmpeg status marks ready when only one of `ffmpeg` / `ffprobe` exists | runtime dependency status | media-tool readiness is overstated | require all expected files for the component before returning `state="ready"` |
 | pending cancel path only removes the queue row | queue cancel command | renderer can get stuck waiting for terminal settlement | emit `video-download-complete` with a cancelled failure payload when a pending task is removed |
 | active cancel path kills the child but leaves queue counts stale | active task cancel | queue badge/progress state lingers | remove active task on settlement and emit refreshed queue count/detail payloads |
+| child process completes normally after an abort listener was attached | long-running desktop session | completed tasks retain abort listener closures and can accumulate memory/listener references | remove the exact abort listener in a `finally` path after `close` handling |
 | `gallery-dl` emits little or no machine-readable progress detail for a task | renderer progress state | main window can look stuck on `Preparing...` until the task suddenly completes | emit an early indeterminate `downloading` event and map recognized tool lines to short activity labels |
 
 ### 5. Good / Base / Bad Cases
@@ -358,6 +360,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
   - `src/electron-runtime/runtimePaths.test.ts` validates bundled and managed runtime status resolution.
   - `src/electron-runtime/ytDlpProgress.test.ts` validates yt-dlp progress normalization.
   - `src/electron-runtime/galleryDlDownload.test.ts` validates early indeterminate `downloading` events and tokenized `gallery-dl` activity labels.
+  - `src/electron-runtime/processRunner.test.ts` validates stream line handling, pre-aborted signals, and abort-listener cleanup after child exit.
   - `src/electron-runtime/service.test.ts` validates queue concurrency and pending cancellation semantics.
 
 ### 7. Wrong vs Correct

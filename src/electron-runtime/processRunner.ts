@@ -118,27 +118,35 @@ export const runStreamingCommand = async (
 
   const stdoutHandled = attachLineStream(child.stdout, options.onStdoutLine);
   const stderrHandled = attachLineStream(child.stderr, options.onStderrLine);
+  let abortHandler: (() => void) | null = null;
 
   if (options.signal) {
     if (options.signal.aborted) {
       await killChild(child);
     } else {
+      abortHandler = () => {
+        void killChild(child);
+      };
       options.signal.addEventListener(
         "abort",
-        () => {
-          void killChild(child);
-        },
+        abortHandler,
         { once: true },
       );
     }
   }
 
-  const [code] = await once(child, "close");
-  await Promise.all([stdoutHandled, stderrHandled]);
-  if (typeof code === "number") {
-    return code;
+  try {
+    const [code] = await once(child, "close");
+    await Promise.all([stdoutHandled, stderrHandled]);
+    if (typeof code === "number") {
+      return code;
+    }
+    throw new Error(`Command exited without status: ${command} ${args.join(" ")}`);
+  } finally {
+    if (abortHandler) {
+      options.signal?.removeEventListener("abort", abortHandler);
+    }
   }
-  throw new Error(`Command exited without status: ${command} ${args.join(" ")}`);
 };
 
 export const runCapturedCommand = async (

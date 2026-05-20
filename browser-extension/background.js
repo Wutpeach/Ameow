@@ -2514,6 +2514,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleVideoSelectionRequest(message, {
       tabUrl: sender.tab?.url,
     }).then(sendResponse);
+    return true;
   } else if (message.type === INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE) {
     handlePageImageSelectionRequest(message, {
       tabUrl: sender.tab?.url,

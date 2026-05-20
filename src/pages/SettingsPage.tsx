@@ -707,21 +707,42 @@ function SettingsPage() {
   }, []);
 
   const loadSiteSessionPanelState = useCallback(async () => {
-    try {
-      const sessionStates = await Promise.all(
-        SITE_SESSION_CONFIGS.map(async (site) => [
-          site.id,
-          await desktopCommands.invoke<SiteSessionState>("get_site_session_state", { siteId: site.id }),
-        ] as const),
-      );
-      const sessionStateMap = Object.fromEntries(sessionStates);
-      setSiteSessionStates(sessionStateMap);
-      setSiteSessionErrors({});
-    } catch (err) {
-      console.error("Failed to load site session status:", err);
-      setSiteSessionError("douyin", summarizeAppUpdateError(err));
-    }
-  }, [setSiteSessionError]);
+    const sessionResults = await Promise.all(
+      SITE_SESSION_CONFIGS.map(async (site) => {
+        try {
+          const state = await desktopCommands.invoke<SiteSessionState>(
+            "get_site_session_state",
+            { siteId: site.id },
+          );
+          return { siteId: site.id, state, error: null };
+        } catch (err) {
+          console.error(`Failed to load ${site.id} site session status:`, err);
+          return {
+            siteId: site.id,
+            state: null,
+            error: summarizeAppUpdateError(err) ?? t("desktop:settings.siteSessions.errors.load"),
+          };
+        }
+      }),
+    );
+
+    setSiteSessionStates((current) => {
+      const next = { ...current };
+      for (const result of sessionResults) {
+        if (result.state) {
+          next[result.siteId] = result.state;
+        }
+      }
+      return next;
+    });
+    setSiteSessionErrors((current) => {
+      const next = { ...current };
+      for (const result of sessionResults) {
+        next[result.siteId] = result.error;
+      }
+      return next;
+    });
+  }, [t]);
 
   useEffect(() => {
     void loadSiteSessionPanelState();
@@ -824,12 +845,18 @@ function SettingsPage() {
   }, [appUpdateInfo, appUpdatePhase]);
 
   const toggleAePortal = async () => {
-    const newValue = !aePortalEnabled;
-    setAePortalEnabled(newValue);
-    const configStr = await desktopCommands.invoke<string>("get_config");
-    const config = parseDesktopAppConfig(configStr);
-    config.aePortalEnabled = newValue;
-    await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+    const previousValue = aePortalEnabled;
+    const newValue = !previousValue;
+    try {
+      setAePortalEnabled(newValue);
+      const configStr = await desktopCommands.invoke<string>("get_config");
+      const config = parseDesktopAppConfig(configStr);
+      config.aePortalEnabled = newValue;
+      await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+    } catch (err) {
+      setAePortalEnabled(previousValue);
+      console.error("Failed to toggle AE Portal:", err);
+    }
   };
 
   const toggleExtensionInjectionDebug = async () => {

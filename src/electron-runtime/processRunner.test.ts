@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { runStreamingCommand } from "./processRunner";
 
@@ -82,5 +82,28 @@ describe("runStreamingCommand", () => {
       "time=00:00:01.00",
       "time=00:00:02.00",
     ]);
+  });
+
+  it("removes the abort listener after the child exits", async () => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const addEventListener = vi.spyOn(signal, "addEventListener");
+    const removeEventListener = vi.spyOn(signal, "removeEventListener");
+
+    await runStreamingCommand(
+      process.execPath,
+      ["-e", ""],
+      { signal },
+    );
+
+    expect(addEventListener).toHaveBeenCalledWith(
+      "abort",
+      expect.any(Function),
+      { once: true },
+    );
+    expect(removeEventListener).toHaveBeenCalledWith(
+      "abort",
+      addEventListener.mock.calls[0]?.[1],
+    );
   });
 });
