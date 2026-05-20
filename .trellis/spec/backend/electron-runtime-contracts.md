@@ -895,6 +895,8 @@ Required tests:
 - On Windows, Ameow desktop windows are tray-first utility surfaces:
   - `main` must set `skipTaskbar: true`
   - secondary utility windows should default to `skipTaskbar: true` unless a product requirement explicitly opts one into taskbar visibility
+- Interaction-mode switches for `main` must preserve the Windows tray-first invariant; if a handler toggles focusability or mouse passthrough, it must keep `skipTaskbar: true` on the main BrowserWindow.
+- On Windows, `main` must reassert `setSkipTaskbar(true)` after `show()`, after `focus()`, and after any `setFocusable(true)` transition because those shell-affecting calls can cause the OS to reevaluate taskbar ownership.
 - Single-instance behavior stays:
   - if a second instance launches, Electron must focus/show `main`
 - Tray behavior stays:

@@ -565,6 +565,14 @@ function applyMainWindowVisibleZOrder(win: BrowserWindow, reason: string) {
   win.setAlwaysOnTop(true);
 }
 
+function keepMainWindowOffWindowsTaskbar(win: BrowserWindow) {
+  if (process.platform !== "win32" || win.isDestroyed()) {
+    return;
+  }
+
+  win.setSkipTaskbar(true);
+}
+
 function clampWindowBoundsValue(value: unknown, fallback: number) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -1751,8 +1759,12 @@ async function createMainWindow(startupConfigSnapshot = null) {
       mainWindow.hide();
     }
   });
+  mainWindow.on("show", () => {
+    keepMainWindowOffWindowsTaskbar(mainWindow);
+  });
   if (process.platform === "win32" && app.isPackaged && transparentWindow) {
     mainWindow.on("focus", () => {
+      keepMainWindowOffWindowsTaskbar(mainWindow);
       applyMainWindowVisibleZOrder(mainWindow, "focus");
     });
   }
@@ -1816,7 +1828,9 @@ async function showMainWindow({
     step: "before-show",
     snapshot: getWindowSnapshot(mainWindow),
   });
+  keepMainWindowOffWindowsTaskbar(mainWindow);
   mainWindow.show();
+  keepMainWindowOffWindowsTaskbar(mainWindow);
   void queueStartupDiagnostic("WindowDiag", "main:show-step", {
     step: "after-show",
     snapshot: getWindowSnapshot(mainWindow),
@@ -1837,6 +1851,7 @@ async function showMainWindow({
     snapshot: getWindowSnapshot(mainWindow),
   });
   mainWindow.focus();
+  keepMainWindowOffWindowsTaskbar(mainWindow);
   applyMainWindowVisibleZOrder(mainWindow, "show");
   void queueStartupDiagnostic("WindowDiag", "main:show-step", {
     step: "after-z-order",
@@ -2915,6 +2930,7 @@ function registerIpcHandlers() {
 
     win.setIgnoreMouseEvents(false);
     win.setFocusable(true);
+    keepMainWindowOffWindowsTaskbar(win);
   });
 
   ipcMain.handle("ameow:current-window:animate-bounds", async (event, request) => {

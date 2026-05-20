@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAIN_WINDOW_IDLE_MINIMIZE_MS,
+  shouldArmMainWindowIdleTimer,
+  shouldBlockMainWindowCollapse,
   resolveMainWindowModeLock,
   shouldCollapseMainWindowOnPointerLeave,
 } from "./mainWindowMode";
@@ -151,6 +153,69 @@ describe("shouldCollapseMainWindowOnPointerLeave", () => {
       isContextMenuOpen: false,
       isMainWindowModeLocked: false,
       isForegroundTaskOutcomeVisible: false,
+    })).toBe(false);
+  });
+});
+
+describe("shouldBlockMainWindowCollapse", () => {
+  it("lets idle collapse ignore hover but keeps interaction collapse guarded", () => {
+    expect(shouldBlockMainWindowCollapse({
+      source: "idle",
+      isUiLabPreviewActive: false,
+      isMainWindowModeLocked: false,
+      isForegroundTaskOutcomeVisible: false,
+      isDragging: false,
+      isDropHovering: false,
+      isPanelHovered: true,
+      isContextMenuOpen: false,
+      startupAutoMinimizeUnlocked: true,
+    })).toBe(false);
+
+    expect(shouldBlockMainWindowCollapse({
+      source: "interaction",
+      isUiLabPreviewActive: false,
+      isMainWindowModeLocked: false,
+      isForegroundTaskOutcomeVisible: false,
+      isDragging: false,
+      isDropHovering: false,
+      isPanelHovered: true,
+      isContextMenuOpen: false,
+      startupAutoMinimizeUnlocked: true,
+    })).toBe(true);
+  });
+
+  it("collapses on first pointer leave without waiting for idle compaction", () => {
+    expect(shouldCollapseMainWindowOnPointerLeave({
+      isMinimized: false,
+      startupAutoMinimizeUnlocked: true,
+      isDragging: false,
+      isContextMenuOpen: false,
+      isMainWindowModeLocked: false,
+      isForegroundTaskOutcomeVisible: false,
+    })).toBe(true);
+  });
+});
+
+describe("shouldArmMainWindowIdleTimer", () => {
+  it("only arms when the shell is otherwise idle", () => {
+    expect(shouldArmMainWindowIdleTimer({
+      isUiLabPreviewActive: false,
+      isMainWindowModeLocked: false,
+      isForegroundTaskOutcomeVisible: false,
+      isDragging: false,
+      isDropHovering: false,
+      isContextMenuOpen: false,
+      startupAutoMinimizeUnlocked: true,
+    })).toBe(true);
+
+    expect(shouldArmMainWindowIdleTimer({
+      isUiLabPreviewActive: false,
+      isMainWindowModeLocked: false,
+      isForegroundTaskOutcomeVisible: false,
+      isDragging: false,
+      isDropHovering: false,
+      isContextMenuOpen: false,
+      startupAutoMinimizeUnlocked: false,
     })).toBe(false);
   });
 });

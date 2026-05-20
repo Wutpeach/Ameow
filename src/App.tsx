@@ -85,6 +85,8 @@ import {
 import {
   MAIN_WINDOW_IDLE_MINIMIZE_MS,
   resolveMainWindowModeLock,
+  shouldArmMainWindowIdleTimer,
+  shouldBlockMainWindowCollapse,
   shouldCollapseMainWindowOnPointerLeave,
 } from "./utils/mainWindowMode";
 import {
@@ -943,7 +945,6 @@ function App({
   const isInitialMountRef = useRef(isInitialMount);
   const isUiLabPreviewActiveRef = useRef(isUiLabPreviewActive);
   const shouldReturnToCompactAfterForegroundTaskRef = useRef(false);
-  const hasCompactedSinceLaunchRef = useRef(!startsExpandedOnLaunch);
   const previousTaskCountRef = useRef(0);
   const previousRuntimeGatePhaseRef = useRef<RuntimeDependencyGatePhase>("idle");
   const hasTriggeredStartupRuntimeBootstrapRef = useRef(false);
@@ -1311,24 +1312,17 @@ function App({
   }: {
     source?: "interaction" | "idle";
   } = {}) => {
-    if (
-      isUiLabPreviewActiveRef.current
-      || isMainWindowModeLockedRef.current
-      || isForegroundTaskOutcomeVisibleRef.current
-      || isDraggingRef.current
-      || isDropHoveringRef.current
-      || isPanelHoveredRef.current
-      || isContextMenuOpenRef.current
-      || !startupAutoMinimizeUnlockedRef.current
-    ) {
-      return false;
-    }
-
-    if (
-      source !== "idle"
-      && startsExpandedOnLaunch
-      && !hasCompactedSinceLaunchRef.current
-    ) {
+    if (shouldBlockMainWindowCollapse({
+      source,
+      isUiLabPreviewActive: isUiLabPreviewActiveRef.current,
+      isMainWindowModeLocked: isMainWindowModeLockedRef.current,
+      isForegroundTaskOutcomeVisible: isForegroundTaskOutcomeVisibleRef.current,
+      isDragging: isDraggingRef.current,
+      isDropHovering: isDropHoveringRef.current,
+      isPanelHovered: isPanelHoveredRef.current,
+      isContextMenuOpen: isContextMenuOpenRef.current,
+      startupAutoMinimizeUnlocked: startupAutoMinimizeUnlockedRef.current,
+    })) {
       return false;
     }
 
@@ -1341,16 +1335,12 @@ function App({
     updateShellPhase("collapsing");
     setIsMinimized(true);
     setShowEdgeGlow(false);
-    if (source === "idle") {
-      hasCompactedSinceLaunchRef.current = true;
-    }
     return true;
   }, [
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
     cancelCompactNativeSettle,
     clearWindowIdleTimers,
-    startsExpandedOnLaunch,
     updateShellPhase,
   ]);
 
@@ -1427,7 +1417,15 @@ function App({
   }, [collapseMainWindowToIcon, syncPanelHoverStateWithDom]);
 
   const armIdleTimer = useCallback(() => {
-    if (!startupAutoMinimizeUnlockedRef.current) {
+    if (!shouldArmMainWindowIdleTimer({
+      isUiLabPreviewActive: isUiLabPreviewActiveRef.current,
+      isMainWindowModeLocked: isMainWindowModeLockedRef.current,
+      isForegroundTaskOutcomeVisible: isForegroundTaskOutcomeVisibleRef.current,
+      isDragging: isDraggingRef.current,
+      isDropHovering: isDropHoveringRef.current,
+      isContextMenuOpen: isContextMenuOpenRef.current,
+      startupAutoMinimizeUnlocked: startupAutoMinimizeUnlockedRef.current,
+    })) {
       return;
     }
 
@@ -1504,13 +1502,7 @@ function App({
     setShowEdgeGlow(false);
     setTimeout(() => setShowEdgeGlow(true), 500);
 
-    if (
-      armIdleAfter
-      && !isMainWindowModeLockedRef.current
-      && !isDraggingRef.current
-      && !isPanelHoveredRef.current
-      && !isContextMenuOpenRef.current
-    ) {
+    if (armIdleAfter) {
       armIdleTimer();
     }
 
@@ -1716,14 +1708,7 @@ function App({
       updateShellPhase("full");
       setShowEdgeGlow(false);
       setTimeout(() => setShowEdgeGlow(true), 500);
-      if (
-        !isMainWindowModeLockedRef.current
-        && !isDraggingRef.current
-        && !isPanelHoveredRef.current
-        && !isContextMenuOpenRef.current
-      ) {
-        armIdleTimer();
-      }
+      armIdleTimer();
       scheduleContainerFocus();
     }
   };
@@ -2783,7 +2768,7 @@ function App({
       clearTimeout(idleTimerRef.current);
       idleTimerRef.current = null;
     }
-    const wasMinimized = isMinimized;
+    const wasMinimized = isMinimizedRef.current;
 
     // Use async expandWindow instead of direct setIsMinimized
     if (expandIfMinimized && wasMinimized) {
@@ -2797,17 +2782,17 @@ function App({
       }, 100);
     }
 
-    // 主窗口被前景状态锁定、拖拽中或鼠标仍停留在面板内时不启动 idle timer
+    // Foreground locks and active drag/drop interactions pause idle collapse.
     if (
       isMainWindowModeLockedRef.current
       || isForegroundTaskOutcomeVisibleRef.current
       || isDraggingRef.current
-      || isPanelHoveredRef.current
+      || isDropHoveringRef.current
       || isContextMenuOpenRef.current
     ) return;
 
     armIdleTimer();
-  }, [armIdleTimer, clearPointerLeaveCollapseTimer, expandWindow, isMinimized]);
+  }, [armIdleTimer, clearPointerLeaveCollapseTimer, expandWindow]);
 
   const evaluateCompactHotspot = useCallback((clientX: number, clientY: number) => {
     if (!supportsCompactPassthroughHotspot) {
@@ -3284,6 +3269,9 @@ function App({
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     });
+    if (!visualIsMinimized) {
+      resetIdleTimer({ expandIfMinimized: false });
+    }
 
     const pendingDragStart = pendingDragStartRef.current;
     if (
