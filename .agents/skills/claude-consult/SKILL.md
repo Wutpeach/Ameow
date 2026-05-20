@@ -25,20 +25,20 @@ Skip the consultation if the question can be answered quickly by local search, d
 Use the local Claude Code binary when available:
 
 ```bash
-/Users/mabel/.local/bin/claude -p --verbose --output-format=stream-json --include-partial-messages '<prompt>'
+/Users/mabel/.local/bin/claude -p '<prompt>'
 ```
 
 If that path is unavailable, fall back to:
 
 ```bash
-claude -p --verbose --output-format=stream-json --include-partial-messages '<prompt>'
+claude -p '<prompt>'
 ```
 
 Run Claude non-interactively with `-p/--print`. Do not start an interactive Claude session for this skill.
 
-Prefer streaming JSON with partial messages so Codex can see progress when Claude emits it. Quiet periods can still happen while Claude is reasoning, waiting on tools, or preparing the final response. Do not treat temporary silence as failure by itself; judge failures by process exit, explicit errors, or a clear timeout that is long enough for the consultation's complexity.
+Prefer a quiet, non-streaming run with a generous timeout. Quiet periods can still happen while Claude is reasoning, waiting on tools, or preparing the final response. Do not treat temporary silence as failure by itself; judge failures by process exit, explicit errors, or a clear timeout that is long enough for the consultation's complexity.
 
-Use `--verbose` with `--output-format=stream-json`; some Claude Code CLI versions require it for stream-json output, and it improves visibility into long-running consultations.
+Only add streaming or verbose flags when you explicitly need incremental output for debugging the consultation itself.
 
 Use a generous command timeout. In Codex `shell_command`, set `timeout_ms` to at least `1800000` for ordinary consultations and up to `3600000` for complex architecture, debugging, or broad review questions. If the user has said long Claude Code thinking time is acceptable, prefer extending the timeout over killing the first run and compressing the prompt. Only retry with a smaller prompt after the process exits with an error or reaches the generous timeout.
 

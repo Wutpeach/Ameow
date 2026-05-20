@@ -147,7 +147,9 @@ Preferred ownership:
 
 Contracts:
 - Do not let `onMouseLeave` directly own collapse decisions for the compact window. Leave is only one signal; morph completion, drag lifecycle, and task-outcome unlocks may need a second truth check.
-- If hover can drift during transforms, pointer capture, or drag setup, reconcile from the DOM before collapsing, for example with `container.matches(":hover")`.
+- Compact/full switching must be owned by a single reducer/controller. Handlers dispatch explicit events such as pointer enter/leave, drop enter/leave, lock changes, startup settle, and animation completion; they must not make independent compact/full decisions.
+- Do not use DOM `:hover` as a compact/full decision source. During compact-to-full morphs, transparent-window changes can leave `:hover` stale after an explicit leave. The reducer's explicit pointer/drop events are the source of truth.
+- Collapse timers belong to the reducer effect layer and must use reducer-issued tokens. Components may execute the timer effect, but they must not create independent leave timers or clear timers outside reducer effects and teardown.
 - Keep one shared clear helper per timer family. If a leave-delay timer exists, it must be canceled by re-enter, teardown, and any flow that forces full mode.
 - Pointer-down, drag-threshold pending, and active drag are distinct interaction states. Leave handling must respect all three.
 - When multiple transitions can hand off between each other, decide the next shell state at the handoff point instead of letting one effect finish and a second effect immediately undo it.
