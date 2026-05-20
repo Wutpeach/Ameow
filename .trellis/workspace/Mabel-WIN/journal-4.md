@@ -644,3 +644,38 @@ Diagnosed clip downloads staying in resolving state because yt-dlp section/ffmpe
 ### Next Steps
 
 - None - task complete
+
+
+## Session 157: Main window state machine refactor
+
+**Date**: 2026-05-20
+**Task**: Main window state machine refactor
+**Branch**: `main`
+
+### Summary
+
+Refactored the main floating window compact/full flow into a reducer-owned shell state machine, removed the normal idle-collapse dependency, and added native Electron pointer-boundary input so full mode collapses on mouse leave without requiring focus changes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `78f30ed` | (see git log) |
+| `b30cede` | (see git log) |
+| `039ea03` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
