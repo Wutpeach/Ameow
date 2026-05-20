@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 158
+- **Total Sessions**: 159
 - **Last Active**: 2026-05-20
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~714 | Active |
+| `journal-4.md` | ~749 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 159 | 2026-05-20 | Finish professional project review fixes | `7853f03`, `a807142`, `009cf65` | `main` |
 | 158 | 2026-05-20 | Browser extension boundary refactor | `1ed773f` | `main` |
 | 157 | 2026-05-20 | Main window state machine refactor | `78f30ed`, `b30cede`, `039ea03` | `main` |
 | 156 | 2026-05-19 | Surface yt-dlp clip progress | `a97438f` | `main` |

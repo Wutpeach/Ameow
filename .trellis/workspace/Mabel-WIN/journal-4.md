@@ -712,3 +712,38 @@ Shrank the browser extension boundary by removing extension-side short-link expa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 159: Finish professional project review fixes
+
+**Date**: 2026-05-20
+**Task**: Finish professional project review fixes
+**Branch**: `main`
+
+### Summary
+
+Reviewed Ameow code hotspots, fixed video selection metadata preservation, bounded dropped-file data URL fallback, updated Electron bridge contract specs, and validated with focused tests plus type-check and lint.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7853f03` | (see git log) |
+| `a807142` | (see git log) |
+| `009cf65` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
