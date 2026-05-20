@@ -747,3 +747,36 @@ Reviewed Ameow code hotspots, fixed video selection metadata preservation, bound
 ### Next Steps
 
 - None - task complete
+
+
+## Session 160: Fix code review findings
+
+**Date**: 2026-05-21
+**Task**: Fix code review findings
+**Branch**: `main`
+
+### Summary
+
+Reviewed Ameow codebase, fixed high-confidence async extension response, settings state consistency, and process runner abort-listener cleanup issues; updated specs and verified tests/type-check/lint.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `30f0094` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
