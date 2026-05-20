@@ -83,9 +83,7 @@ import {
   shouldStartExpandedOnLaunch,
 } from "./utils/startupWindowState";
 import {
-  MAIN_WINDOW_IDLE_MINIMIZE_MS,
   resolveMainWindowModeLock,
-  shouldArmMainWindowIdleTimer,
   shouldBlockMainWindowCollapse,
   shouldCollapseMainWindowOnPointerLeave,
 } from "./utils/mainWindowMode";
@@ -899,7 +897,6 @@ function App({
   const [isResetCounterActive, setIsResetCounterActive] = useState(false);
   const [isProgressCancelHovered, setIsProgressCancelHovered] = useState(false);
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-  const idleTimerRef = useRef<number | null>(null);
   const pointerLeaveCollapseTimerRef = useRef<number | null>(null);
   const resetCounterFeedbackTimerRef = useRef<number | null>(null);
   const queueNoticeTimerRef = useRef<number | null>(null);
@@ -1235,12 +1232,8 @@ function App({
     }
   }, []);
 
-  const clearWindowIdleTimers = useCallback(() => {
+  const clearMainWindowInteractionTimer = useCallback(() => {
     clearPointerLeaveCollapseTimer();
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
   }, [clearPointerLeaveCollapseTimer]);
 
   const getCurrentWindowPosition = useCallback(async () => {
@@ -1307,13 +1300,8 @@ function App({
     return result.transitionToken;
   }, [getCurrentWindowPosition]);
 
-  const collapseMainWindowToIcon = useCallback(({
-    source = "interaction",
-  }: {
-    source?: "interaction" | "idle";
-  } = {}) => {
+  const collapseMainWindowToIcon = useCallback(() => {
     if (shouldBlockMainWindowCollapse({
-      source,
       isUiLabPreviewActive: isUiLabPreviewActiveRef.current,
       isMainWindowModeLocked: isMainWindowModeLockedRef.current,
       isForegroundTaskOutcomeVisible: isForegroundTaskOutcomeVisibleRef.current,
@@ -1326,7 +1314,6 @@ function App({
       return false;
     }
 
-    clearWindowIdleTimers();
     compactHotspotInsideRef.current = false;
     cancelCompactNativeSettle();
     compactNativeSettledRef.current = false;
@@ -1340,7 +1327,6 @@ function App({
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
     cancelCompactNativeSettle,
-    clearWindowIdleTimers,
     updateShellPhase,
   ]);
 
@@ -1416,23 +1402,32 @@ function App({
     return collapseMainWindowToIcon();
   }, [collapseMainWindowToIcon, syncPanelHoverStateWithDom]);
 
-  const armIdleTimer = useCallback(() => {
-    if (!shouldArmMainWindowIdleTimer({
-      isUiLabPreviewActive: isUiLabPreviewActiveRef.current,
-      isMainWindowModeLocked: isMainWindowModeLockedRef.current,
-      isForegroundTaskOutcomeVisible: isForegroundTaskOutcomeVisibleRef.current,
-      isDragging: isDraggingRef.current,
-      isDropHovering: isDropHoveringRef.current,
-      isContextMenuOpen: isContextMenuOpenRef.current,
-      startupAutoMinimizeUnlocked: startupAutoMinimizeUnlockedRef.current,
-    })) {
-      return;
-    }
+  const scheduleMainWindowPointerLeaveCollapse = useCallback(() => {
+    isPanelHoveredRef.current = false;
+    setIsPanelHovered(false);
+    clearPointerLeaveCollapseTimer();
+    pointerLeaveCollapseTimerRef.current = window.setTimeout(() => {
+      pointerLeaveCollapseTimerRef.current = null;
+      if (
+        isWindowPointerDownRef.current
+        || pendingDragStartRef.current !== null
+        || activeWindowDragRef.current !== null
+      ) {
+        clearMainWindowInteractionTimer();
+        return;
+      }
+      if (shellPhaseRef.current === "expanding") {
+        clearMainWindowInteractionTimer();
+        return;
+      }
 
-    idleTimerRef.current = window.setTimeout(() => {
-      collapseMainWindowToIcon({ source: "idle" });
-    }, MAIN_WINDOW_IDLE_MINIMIZE_MS);
-  }, [collapseMainWindowToIcon]);
+      collapseMainWindowIfPointerOutside();
+    }, 140);
+  }, [
+    clearMainWindowInteractionTimer,
+    clearPointerLeaveCollapseTimer,
+    collapseMainWindowIfPointerOutside,
+  ]);
 
   const closeContextMenuWindow = useCallback(async () => {
     if (await desktopWindows.has("context-menu")) {
@@ -1458,7 +1453,7 @@ function App({
     }
     cancelCompactNativeSettle();
     compactNativeSettledRef.current = false;
-    clearWindowIdleTimers();
+    clearMainWindowInteractionTimer();
     compactHotspotInsideRef.current = false;
     applyCurrentWindowInteractionMode("interactive");
     const transitionToken = beginMainWindowBoundsTransition("full");
@@ -1472,21 +1467,19 @@ function App({
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
     cancelCompactNativeSettle,
-    clearWindowIdleTimers,
+    clearMainWindowInteractionTimer,
     isMainWindowBoundsTransitionStillCurrent,
     updateShellPhase,
   ]);
 
   const ensureMainWindowFullMode = useCallback(async ({
-    armIdleAfter = true,
     focusContainer = true,
   }: {
-    armIdleAfter?: boolean;
     focusContainer?: boolean;
   } = {}) => {
     cancelCompactNativeSettle();
     compactNativeSettledRef.current = false;
-    clearWindowIdleTimers();
+    clearMainWindowInteractionTimer();
     compactHotspotInsideRef.current = false;
     applyCurrentWindowInteractionMode("interactive");
     const transitionToken = beginMainWindowBoundsTransition("full");
@@ -1502,19 +1495,14 @@ function App({
     setShowEdgeGlow(false);
     setTimeout(() => setShowEdgeGlow(true), 500);
 
-    if (armIdleAfter) {
-      armIdleTimer();
-    }
-
     if (focusContainer) {
       scheduleContainerFocus();
     }
   }, [
     applyCurrentWindowInteractionMode,
-    armIdleTimer,
     beginMainWindowBoundsTransition,
     cancelCompactNativeSettle,
-    clearWindowIdleTimers,
+    clearMainWindowInteractionTimer,
     isMainWindowBoundsTransitionStillCurrent,
     restoreAnimatedPanelTransitions,
     scheduleContainerFocus,
@@ -1522,7 +1510,7 @@ function App({
   ]);
 
   const prepareMainWindowForForegroundTask = useCallback(async () => {
-    clearWindowIdleTimers();
+    clearMainWindowInteractionTimer();
 
     if (!isMinimizedRef.current) {
       return;
@@ -1530,10 +1518,9 @@ function App({
 
     shouldReturnToCompactAfterForegroundTaskRef.current = true;
     await ensureMainWindowFullMode({
-      armIdleAfter: false,
       focusContainer: false,
     });
-  }, [clearWindowIdleTimers, ensureMainWindowFullMode]);
+  }, [clearMainWindowInteractionTimer, ensureMainWindowFullMode]);
 
   const showForegroundTaskOutcome = useCallback(({
     cancelled,
@@ -1694,7 +1681,7 @@ function App({
         });
 
       if (shouldCollapseAfterExpand) {
-        clearWindowIdleTimers();
+        clearMainWindowInteractionTimer();
         compactHotspotInsideRef.current = false;
         cancelCompactNativeSettle();
         compactNativeSettledRef.current = false;
@@ -1708,7 +1695,6 @@ function App({
       updateShellPhase("full");
       setShowEdgeGlow(false);
       setTimeout(() => setShowEdgeGlow(true), 500);
-      armIdleTimer();
       scheduleContainerFocus();
     }
   };
@@ -2422,7 +2408,6 @@ function App({
       setIsUiLabPreviewActive(!restoreLive);
       if (!restoreLive) {
         void ensureMainWindowFullMode({
-          armIdleAfter: false,
           focusContainer: false,
         });
       }
@@ -2761,38 +2746,24 @@ function App({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [devMode]);
 
-  // Idle auto-minimize: reset timer helper
-  const resetIdleTimer = useCallback(({ expandIfMinimized = true }: { expandIfMinimized?: boolean } = {}) => {
+  const syncMainWindowInteraction = useCallback(({
+    expandIfMinimized = true,
+  }: {
+    expandIfMinimized?: boolean;
+  } = {}) => {
     clearPointerLeaveCollapseTimer();
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
     const wasMinimized = isMinimizedRef.current;
 
-    // Use async expandWindow instead of direct setIsMinimized
     if (expandIfMinimized && wasMinimized) {
-      expandWindow();
+      void expandWindow();
       setShowEdgeGlow(false);
       setTimeout(() => setShowEdgeGlow(true), 500);
-      // 恢复后自动聚焦，确保能接收粘贴事件
       setTimeout(() => {
         const container = document.querySelector('[tabIndex="0"]') as HTMLElement;
         if (container) container.focus();
       }, 100);
     }
-
-    // Foreground locks and active drag/drop interactions pause idle collapse.
-    if (
-      isMainWindowModeLockedRef.current
-      || isForegroundTaskOutcomeVisibleRef.current
-      || isDraggingRef.current
-      || isDropHoveringRef.current
-      || isContextMenuOpenRef.current
-    ) return;
-
-    armIdleTimer();
-  }, [armIdleTimer, clearPointerLeaveCollapseTimer, expandWindow]);
+  }, [clearPointerLeaveCollapseTimer, expandWindow]);
 
   const evaluateCompactHotspot = useCallback((clientX: number, clientY: number) => {
     if (!supportsCompactPassthroughHotspot) {
@@ -2879,14 +2850,29 @@ function App({
     if (collapsed) {
       return;
     }
-
-    resetIdleTimer({ expandIfMinimized: false });
   }, [
     collapseMainWindowIfPointerOutside,
     hasOngoingTask,
     isProcessing,
-    resetIdleTimer,
   ]);
+
+  useEffect(() => {
+    if (visualIsMinimized) {
+      return;
+    }
+
+    const handleWindowMouseOut = (event: MouseEvent) => {
+      if (event.relatedTarget !== null) {
+        return;
+      }
+      scheduleMainWindowPointerLeaveCollapse();
+    };
+
+    window.addEventListener("mouseout", handleWindowMouseOut);
+    return () => {
+      window.removeEventListener("mouseout", handleWindowMouseOut);
+    };
+  }, [scheduleMainWindowPointerLeaveCollapse, visualIsMinimized]);
 
   useEffect(() => {
     if (startupAutoMinimizeGraceMs <= 0) {
@@ -2898,7 +2884,6 @@ function App({
     startupAutoMinimizeReleaseTimerRef.current = window.setTimeout(() => {
       startupAutoMinimizeReleaseTimerRef.current = null;
       startupAutoMinimizeUnlockedRef.current = true;
-      resetIdleTimer({ expandIfMinimized: false });
     }, startupAutoMinimizeGraceMs);
 
     return () => {
@@ -2908,14 +2893,14 @@ function App({
       }
       startupAutoMinimizeUnlockedRef.current = startupAutoMinimizeGraceMs === 0;
     };
-  }, [resetIdleTimer, startupAutoMinimizeGraceMs]);
+  }, [startupAutoMinimizeGraceMs]);
 
   useEffect(() => {
     if (!runtimeGateIsBusy) {
       return;
     }
 
-    clearWindowIdleTimers();
+    clearMainWindowInteractionTimer();
     if (isMinimized) {
       void expandWindow();
       return;
@@ -2927,7 +2912,7 @@ function App({
   }, [
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
-    clearWindowIdleTimers,
+    clearMainWindowInteractionTimer,
     expandWindow,
     isMinimized,
     runtimeGateIsBusy,
@@ -2935,47 +2920,20 @@ function App({
   ]);
 
   useEffect(() => {
-    const wasLocked = previousMainWindowModeLockedRef.current;
     previousMainWindowModeLockedRef.current = isMainWindowModeLocked;
 
     if (isMainWindowModeLocked) {
-      clearWindowIdleTimers();
+      clearMainWindowInteractionTimer();
       return;
-    }
-
-    if (wasLocked) {
-      resetIdleTimer({ expandIfMinimized: false });
     }
   }, [
-    clearWindowIdleTimers,
+    clearMainWindowInteractionTimer,
     isMainWindowModeLocked,
-    resetIdleTimer,
   ]);
 
-  // Start idle timer on mount
-  useEffect(() => {
-    resetIdleTimer({ expandIfMinimized: false });
-    return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    };
-    // resetIdleTimer should run once on mount to bootstrap idle behavior
-    // without forcing a compact startup window back into full-window mode.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (isContextMenuOpen) {
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
-      return;
-    }
-
-    resetIdleTimer({ expandIfMinimized: false });
-    // resetIdleTimer is intentionally omitted to avoid re-arming on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isContextMenuOpen]);
+  useEffect(() => () => {
+    clearMainWindowInteractionTimer();
+  }, [clearMainWindowInteractionTimer]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3067,7 +3025,6 @@ function App({
 
   const resetWindowDragState = useCallback((options?: {
     eventPointerId?: number | null;
-    resetIdleTimer?: boolean;
   }) => {
     const pointerId = resolvePanelPointerCaptureId({
       eventPointerId: options?.eventPointerId ?? null,
@@ -3086,15 +3043,14 @@ function App({
 
     const wasDragging = isDraggingRef.current;
     isDraggingRef.current = false;
-    if (wasDragging || options?.resetIdleTimer) {
-      resetIdleTimer();
+    if (wasDragging) {
+      syncMainWindowInteraction();
     }
-  }, [releasePanelPointerCapture, resetIdleTimer]);
+  }, [releasePanelPointerCapture, syncMainWindowInteraction]);
 
   const finishWindowDrag = useCallback((eventPointerId?: number | null) => {
     resetWindowDragState({
       eventPointerId: eventPointerId ?? null,
-      resetIdleTimer: true,
     });
   }, [resetWindowDragState]);
 
@@ -3151,17 +3107,14 @@ function App({
 
     pendingDragStartRef.current = null;
     isDraggingRef.current = true;
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
+    clearMainWindowInteractionTimer();
 
     try {
       const windowPosition = await pendingDragStart.windowPositionPromise;
       lastKnownWindowPositionRef.current = windowPosition;
       if (!isWindowPointerDownRef.current) {
         isDraggingRef.current = false;
-        resetIdleTimer();
+        syncMainWindowInteraction();
         return;
       }
 
@@ -3181,9 +3134,9 @@ function App({
     } catch (err) {
       console.error("Failed to start manual window drag:", err);
       isDraggingRef.current = false;
-      resetIdleTimer();
+      syncMainWindowInteraction();
     }
-  }, [resetIdleTimer, updateManualWindowDrag]);
+  }, [clearMainWindowInteractionTimer, syncMainWindowInteraction, updateManualWindowDrag]);
 
   const canDoubleClickOpenOutputFolder =
     !visualIsMinimized &&
@@ -3205,7 +3158,7 @@ function App({
     resetWindowDragState();
     e.preventDefault();
     e.stopPropagation();
-    resetIdleTimer();
+    syncMainWindowInteraction();
     await openCurrentOutputFolder();
   };
 
@@ -3216,7 +3169,7 @@ function App({
       return;
     }
     if (visualIsMinimized) {
-      resetIdleTimer();
+      syncMainWindowInteraction();
       return;
     }
     const targetIgnored = shouldIgnorePanelDoubleClickTarget(e.target);
@@ -3270,7 +3223,7 @@ function App({
       y: e.clientY - rect.top,
     });
     if (!visualIsMinimized) {
-      resetIdleTimer({ expandIfMinimized: false });
+      clearMainWindowInteractionTimer();
     }
 
     const pendingDragStart = pendingDragStartRef.current;
@@ -3302,7 +3255,6 @@ function App({
 
     resetWindowDragState({
       eventPointerId: e.pointerId,
-      resetIdleTimer: true,
     });
   };
 
@@ -3314,7 +3266,6 @@ function App({
 
     resetWindowDragState({
       eventPointerId: e.pointerId,
-      resetIdleTimer: true,
     });
   };
 
@@ -3332,7 +3283,7 @@ function App({
 
   // Handle paste event - check for video URL first, then image URL, then clipboard images/files.
   const handlePaste = async (clipboardData: DataTransfer | null) => {
-    resetIdleTimer();
+    syncMainWindowInteraction({ expandIfMinimized: false });
 
     const text = clipboardData?.getData("text/plain") ?? "";
 
@@ -4052,7 +4003,7 @@ function App({
   };
 
   const handleRuntimeDependencyRecheck = async () => {
-    resetIdleTimer({ expandIfMinimized: false });
+    syncMainWindowInteraction({ expandIfMinimized: false });
     setIsRuntimeRetryInFlight(true);
     setIsRuntimeRetryFeedbackVisible(true);
     if (runtimeRetryFeedbackTimerRef.current !== null) {
@@ -4078,7 +4029,7 @@ function App({
     e.preventDefault();
     e.stopPropagation();
     resetWindowDragState();
-    resetIdleTimer();
+    syncMainWindowInteraction({ expandIfMinimized: false });
 
     try {
       await closeContextMenuWindow();
@@ -4452,7 +4403,7 @@ function App({
         e.dataTransfer.dropEffect = "copy";
         console.log("DragEnter types:", e.dataTransfer.types);
         updateDropHoverState(true);
-        resetIdleTimer();
+        syncMainWindowInteraction({ expandIfMinimized: false });
         if (isMinimized) {
           void expandWindow();
         }
@@ -4462,7 +4413,7 @@ function App({
         e.dataTransfer.dropEffect = "copy";
         console.log("DragOver types:", e.dataTransfer.types);
         updateDropHoverState(true);
-        resetIdleTimer();
+        syncMainWindowInteraction({ expandIfMinimized: false });
         const hasFiles = e.dataTransfer.files.length > 0 || e.dataTransfer.types.includes("Files");
         const hasUrl = e.dataTransfer.types.includes("text/uri-list")
           || e.dataTransfer.types.includes("text/plain");
@@ -4480,50 +4431,19 @@ function App({
         clearPanelDropInteractionState();
       }}
       onMouseEnter={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setMousePos({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        });
-        clearPointerLeaveCollapseTimer();
-        isPanelHoveredRef.current = true;
-        setIsPanelHovered(true);
-        resetIdleTimer();
-        containerRef.current?.focus();
-      }}
-      onMouseLeave={() => {
-        isPanelHoveredRef.current = false;
-        setIsPanelHovered(false);
-        clearPointerLeaveCollapseTimer();
-        pointerLeaveCollapseTimerRef.current = window.setTimeout(() => {
-          pointerLeaveCollapseTimerRef.current = null;
-          if (
-            isWindowPointerDownRef.current
-            || pendingDragStartRef.current !== null
-            || activeWindowDragRef.current !== null
-          ) {
-            clearWindowIdleTimers();
-            return;
-          }
-          if (shellPhaseRef.current === "expanding") {
-            clearWindowIdleTimers();
-            return;
-          }
-          if (shouldCollapseMainWindowOnPointerLeave({
-            isMinimized: visualIsMinimized,
-            startupAutoMinimizeUnlocked: startupAutoMinimizeUnlockedRef.current,
-            isDragging: isDraggingRef.current,
-            isContextMenuOpen,
-            isMainWindowModeLocked,
-            isForegroundTaskOutcomeVisible: isForegroundTaskOutcomeVisibleRef.current,
-          })) {
-            const collapsed = collapseMainWindowToIcon();
-            if (collapsed) {
-              return;
-            }
-          }
-          resetIdleTimer({ expandIfMinimized: false });
-        }, 140);
+      const rect = e.currentTarget.getBoundingClientRect();
+      setMousePos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+      clearPointerLeaveCollapseTimer();
+      isPanelHoveredRef.current = true;
+      setIsPanelHovered(true);
+      syncMainWindowInteraction({ expandIfMinimized: false });
+      containerRef.current?.focus();
+    }}
+    onMouseLeave={() => {
+      scheduleMainWindowPointerLeaveCollapse();
       }}
       onPointerDown={handlePanelPointerDown}
       onPointerUp={handlePanelPointerUp}

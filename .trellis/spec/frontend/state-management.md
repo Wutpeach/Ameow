@@ -134,7 +134,7 @@ This is required for dev-only toggles such as `extensionInjectionDebugEnabled`, 
 
 ## Compact Window Interaction State
 
-The main floating window combines hover, drag, minimize, expand-morph, idle timers, and short-lived status locks. Treat this as one coordinated interaction state machine, not as unrelated booleans.
+The main floating window combines hover, drag, minimize, expand-morph, short leave grace, and short-lived status locks. Treat this as one coordinated interaction state machine, not as unrelated booleans.
 
 Preferred ownership:
 
@@ -142,16 +142,16 @@ Preferred ownership:
 |---------|-----------------|-----|
 | Visual shell mode | `useState` | React needs to render icon/full/morph states |
 | High-frequency interaction guards | `useRef` | Pointer-down / drag pending / drag active must update synchronously without waiting for render |
-| Cancelable timers | `useRef` + shared clear helper | Leave-delay and idle timers must be cancelable from multiple paths |
+| Cancelable timers | `useRef` + shared clear helper | Leave-delay timers must be cancelable from multiple paths |
 | Hover truth after transforms | DOM query + state sync | `:hover` can be more authoritative than stale React enter/leave events after morphs |
 
 Contracts:
 - Do not let `onMouseLeave` directly own collapse decisions for the compact window. Leave is only one signal; morph completion, drag lifecycle, and task-outcome unlocks may need a second truth check.
 - If hover can drift during transforms, pointer capture, or drag setup, reconcile from the DOM before collapsing, for example with `container.matches(":hover")`.
-- Keep one shared clear helper per timer family. If a leave-delay timer exists, it must be canceled by re-enter, idle reset, teardown, and any flow that forces full mode.
+- Keep one shared clear helper per timer family. If a leave-delay timer exists, it must be canceled by re-enter, teardown, and any flow that forces full mode.
 - Pointer-down, drag-threshold pending, and active drag are distinct interaction states. Leave handling must respect all three.
 - When multiple transitions can hand off between each other, decide the next shell state at the handoff point instead of letting one effect finish and a second effect immediately undo it.
-- If a foreground success/error outcome is rendered briefly in the main panel, treat that outcome visibility as its own synchronous guard, typically via a ref that collapse/idle callbacks can read immediately. Do not rely on React state alone to lock compact-mode collapse for the completion checkmark/error state, because async completion callbacks can race pointer-leave or post-task collapse handoff by one frame.
+- If a foreground success/error outcome is rendered briefly in the main panel, treat that outcome visibility as its own synchronous guard, typically via a ref that collapse callbacks can read immediately. Do not rely on React state alone to lock compact-mode collapse for the completion checkmark/error state, because async completion callbacks can race pointer-leave or post-task collapse handoff by one frame.
 - When showing a foreground task outcome after download/transcode completion, request full-mode ownership before or alongside flipping the visible outcome state. The completion glyph/message must not first appear inside the compact icon shell and then recover back to the full panel.
 
 Common compact-window mistakes:

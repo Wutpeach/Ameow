@@ -45,7 +45,7 @@ FlowSelect is a Tauri v2 desktop application with a React frontend. The UI is a 
 - **Window Size**: Fixed 200x200px, non-resizable
 - **Always-on-top**: Window stays above other applications
 - **Drag Region**: Use `data-tauri-drag-region` attribute for draggable areas
-- **Idle Minimize**: Auto-minimize to 30% scale after 3 seconds of inactivity
+- **Compact Hover Contract**: Entering the compact icon expands immediately; leaving an unlocked full shell collapses through a short grace path, not a 3-second idle timer
 
 ---
 

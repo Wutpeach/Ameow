@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MAIN_WINDOW_IDLE_MINIMIZE_MS,
-  shouldArmMainWindowIdleTimer,
   shouldBlockMainWindowCollapse,
   resolveMainWindowModeLock,
   shouldCollapseMainWindowOnPointerLeave,
@@ -158,21 +156,8 @@ describe("shouldCollapseMainWindowOnPointerLeave", () => {
 });
 
 describe("shouldBlockMainWindowCollapse", () => {
-  it("lets idle collapse ignore hover but keeps interaction collapse guarded", () => {
+  it("blocks interaction collapse whenever the panel is still hovered", () => {
     expect(shouldBlockMainWindowCollapse({
-      source: "idle",
-      isUiLabPreviewActive: false,
-      isMainWindowModeLocked: false,
-      isForegroundTaskOutcomeVisible: false,
-      isDragging: false,
-      isDropHovering: false,
-      isPanelHovered: true,
-      isContextMenuOpen: false,
-      startupAutoMinimizeUnlocked: true,
-    })).toBe(false);
-
-    expect(shouldBlockMainWindowCollapse({
-      source: "interaction",
       isUiLabPreviewActive: false,
       isMainWindowModeLocked: false,
       isForegroundTaskOutcomeVisible: false,
@@ -184,44 +169,29 @@ describe("shouldBlockMainWindowCollapse", () => {
     })).toBe(true);
   });
 
-  it("collapses on first pointer leave without waiting for idle compaction", () => {
-    expect(shouldCollapseMainWindowOnPointerLeave({
-      isMinimized: false,
-      startupAutoMinimizeUnlocked: true,
-      isDragging: false,
-      isContextMenuOpen: false,
+  it("blocks collapse while a drop hover still owns the shell", () => {
+    expect(shouldBlockMainWindowCollapse({
+      isUiLabPreviewActive: false,
       isMainWindowModeLocked: false,
       isForegroundTaskOutcomeVisible: false,
+      isDragging: false,
+      isDropHovering: true,
+      isPanelHovered: false,
+      isContextMenuOpen: false,
+      startupAutoMinimizeUnlocked: true,
     })).toBe(true);
   });
-});
 
-describe("shouldArmMainWindowIdleTimer", () => {
-  it("only arms when the shell is otherwise idle", () => {
-    expect(shouldArmMainWindowIdleTimer({
+  it("allows collapse when nothing still owns the shell", () => {
+    expect(shouldBlockMainWindowCollapse({
       isUiLabPreviewActive: false,
       isMainWindowModeLocked: false,
       isForegroundTaskOutcomeVisible: false,
       isDragging: false,
       isDropHovering: false,
+      isPanelHovered: false,
       isContextMenuOpen: false,
       startupAutoMinimizeUnlocked: true,
-    })).toBe(true);
-
-    expect(shouldArmMainWindowIdleTimer({
-      isUiLabPreviewActive: false,
-      isMainWindowModeLocked: false,
-      isForegroundTaskOutcomeVisible: false,
-      isDragging: false,
-      isDropHovering: false,
-      isContextMenuOpen: false,
-      startupAutoMinimizeUnlocked: false,
     })).toBe(false);
-  });
-});
-
-describe("MAIN_WINDOW_IDLE_MINIMIZE_MS", () => {
-  it("keeps the normal idle minimize delay at three seconds", () => {
-    expect(MAIN_WINDOW_IDLE_MINIMIZE_MS).toBe(3000);
   });
 });

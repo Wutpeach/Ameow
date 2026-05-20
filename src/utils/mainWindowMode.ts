@@ -1,9 +1,5 @@
 import type { AppUpdatePhase } from "../types/appUpdate";
 
-export const MAIN_WINDOW_IDLE_MINIMIZE_MS = 3000;
-
-export type MainWindowCollapseSource = "interaction" | "idle";
-
 type ResolveMainWindowModeLockInput = {
   hasOngoingTask: boolean;
   runtimeGateIsBusy: boolean;
@@ -56,7 +52,6 @@ export const shouldCollapseMainWindowOnPointerLeave = ({
 );
 
 type ShouldBlockMainWindowCollapseInput = {
-  source: MainWindowCollapseSource;
   isUiLabPreviewActive: boolean;
   isMainWindowModeLocked: boolean;
   isForegroundTaskOutcomeVisible: boolean;
@@ -68,7 +63,6 @@ type ShouldBlockMainWindowCollapseInput = {
 };
 
 export const shouldBlockMainWindowCollapse = ({
-  source,
   isUiLabPreviewActive,
   isMainWindowModeLocked,
   isForegroundTaskOutcomeVisible,
@@ -83,35 +77,7 @@ export const shouldBlockMainWindowCollapse = ({
   || isForegroundTaskOutcomeVisible
   || isDragging
   || isDropHovering
-  || (source !== "idle" && isPanelHovered)
+  || isPanelHovered
   || isContextMenuOpen
   || !startupAutoMinimizeUnlocked
-);
-
-type ShouldArmMainWindowIdleTimerInput = {
-  isUiLabPreviewActive: boolean;
-  isMainWindowModeLocked: boolean;
-  isForegroundTaskOutcomeVisible: boolean;
-  isDragging: boolean;
-  isDropHovering: boolean;
-  isContextMenuOpen: boolean;
-  startupAutoMinimizeUnlocked: boolean;
-};
-
-export const shouldArmMainWindowIdleTimer = ({
-  isUiLabPreviewActive,
-  isMainWindowModeLocked,
-  isForegroundTaskOutcomeVisible,
-  isDragging,
-  isDropHovering,
-  isContextMenuOpen,
-  startupAutoMinimizeUnlocked,
-}: ShouldArmMainWindowIdleTimerInput): boolean => (
-  !isUiLabPreviewActive
-  && !isMainWindowModeLocked
-  && !isForegroundTaskOutcomeVisible
-  && !isDragging
-  && !isDropHovering
-  && !isContextMenuOpen
-  && startupAutoMinimizeUnlocked
 );
