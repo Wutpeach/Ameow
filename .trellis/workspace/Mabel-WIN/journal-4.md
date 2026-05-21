@@ -846,3 +846,36 @@ Reduced compact/full transition latency by shortening leave grace and removing r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 163: Normalize video quality download flow
+
+**Date**: 2026-05-21
+**Task**: Normalize video quality download flow
+**Branch**: `main`
+
+### Summary
+
+Removed YouTube light-mode download path, migrated download quality plumbing to videoQuality, kept legacy quality fields as inbound compatibility reads, and verified type-check/lint/focused runtime tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `736f598` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
