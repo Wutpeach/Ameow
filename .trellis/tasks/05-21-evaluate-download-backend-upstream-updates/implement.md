@@ -308,10 +308,37 @@
     - `git diff --check` 退出码 `0`，仅有 Windows 行尾转换提示
   - `npm run package:mac:zip` 在 Windows 上已确认先准备 `x86_64-apple-darwin` Python runtime，随后失败于 electron-builder 平台限制：`Build for macOS is supported only on macOS`
   - 旧 downloader runtime 关键词扫描 0 命中
+  - GitHub Actions 手动 macOS runtime package 验证已通过：
+    - workflow: `Verify macOS Runtime Package`
+    - run: `26244461847`
+    - URL: `https://github.com/Wutpeach/Ameow/actions/runs/26244461847`
+    - arm64 job: `verify-macos-runtime-package (macos-15, --arm64, arm64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、上传 runtime verification 与 ZIP artifact
+    - x64 job: `verify-macos-runtime-package (macos-15-intel, --x64, x64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、上传 runtime verification 与 ZIP artifact
+    - arm64 verification JSON:
+      - `state: ok`
+      - `target: aarch64-apple-darwin`
+      - `.app` runtime path: `Contents/Resources/app/desktop-assets/binaries/python-aarch64-apple-darwin/bin/python3`
+      - manifest pinned `Python 3.11.15` / release `20260325`
+      - `binaryEntries` 仅包含 `.official-python-runtimes.json` 与 `python-aarch64-apple-darwin`
+      - `execution.attempted: true`
+      - packaged Python reported `Python 3.11.15`
+      - symlink venv + `pip --version` 成功，`pip 24.0`
+    - x64 verification JSON:
+      - `state: ok`
+      - `target: x86_64-apple-darwin`
+      - `.app` runtime path: `Contents/Resources/app/desktop-assets/binaries/python-x86_64-apple-darwin/bin/python3`
+      - manifest pinned `Python 3.11.15` / release `20260325`
+      - `binaryEntries` 仅包含 `.official-python-runtimes.json` 与 `python-x86_64-apple-darwin`
+      - `execution.attempted: true`
+      - packaged Python reported `Python 3.11.15`
+      - symlink venv + `pip --version` 成功，`pip 24.0`
+  - macOS `venv --copies` 被 GitHub Actions 实证否决：
+    - 初次 run `26243802684` 在 arm64/x64 均失败于 venv 内部 `ensurepip` 子进程 `SIGABRT`
+    - 与 Claude 复核后，将 macOS venv 策略修正为默认 symlink venv
+    - downloader venv metadata 新增 `bundledPythonPath`，app 移动或升级导致 bundled Python 路径变化时会触发 venv 重建
 - 当前环境未完成：
   - macOS 真实打包 / 真实首装链路：
-    - macOS arm64 fresh config，无依赖缓存
-    - macOS x64 / Intel fresh config
+    - packaged runtime 已在 GitHub macOS arm64/x64 runner 内执行验证通过；仍缺少真实启动 app 后通过 runtime gate 创建三套 downloader venv 的端到端手测证据
     - macOS 升级安装后旧 venv 自动重建或继续可用
   - `douyin-dl` single post successful media download with valid Douyin session：
     - 当前 Windows managed runtime 已证明 CLI 可启动、UTF-8 环境正确、未触发 browser fallback
