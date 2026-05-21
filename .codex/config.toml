@@ -29,7 +29,10 @@ project_doc_fallback_filenames = ["AGENTS.md"]
 # - min_wait_timeout_ms: 480000 ms = 8 min. Codex default is 10 s, too
 #   short for Trellis subagents that routinely take 2-10 min. Hard
 #   ceiling is 3,600,000 (1 h).
-[features.multi_agent_v2]
-enabled = true
-max_concurrent_threads_per_session = 6
-min_wait_timeout_ms = 480000
+# [features.multi_agent_v2]
+# enabled = true
+# max_concurrent_threads_per_session = 6
+# min_wait_timeout_ms = 480000
+
+[features]
+multi_agent_v2 = true
