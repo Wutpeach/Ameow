@@ -38,6 +38,8 @@
   - `yt-dlp`, `gallery-dl`, and `douyin-dl` must resolve from managed per-tool virtualenvs under `app_config_dir/runtimes/<tool>/<target>/venv/...`.
   - Official downloader provenance is represented by pinned Python package sources in `electron/managedPythonPackageManifest.mts`, not by shipping standalone downloader release binaries.
   - Scripts that need managed Python package pins must read the compiled Electron manifest through `scripts/managed-python-package-manifest.mjs`; they must not define a second downloader version/source table.
+  - Managed Python venv creation must use Python's default symlink-based layout on macOS. Do not pass `--copies` for macOS python-build-standalone runtimes, because copying the interpreter out of its bundled tree can break loader/runtime lookup and abort during `ensurepip`.
+  - Managed Python downloader metadata must record both `bundledPythonVersion` and the concrete `bundledPythonPath`; if either changes, rebuild that downloader venv so app moves or packaged-resource path changes do not leave stale symlinks behind.
   - Repo-managed bundled-Python ensure flows must treat official provenance as part of readiness:
     - use the unified `runtime:ensure:python` entrypoint for local dev/build/package preparation
     - presence of an arbitrary matching `python-<target>` directory is not enough if the runtime has not been stamped by the repo manifest
@@ -183,7 +185,7 @@
   - `node ./scripts/ensure-capability-probe-runtime.mjs --tool yt-dlp` exits 0.
   - `npm run package:win:dir` and `npm run package:portable:skip-build` succeed on Windows host verification.
   - Packaged Electron resources include `desktop-assets/binaries/python-<target>` for the current target.
-  - On macOS package verification, `npm run runtime:verify:macos-package -- <arm64|x64> require-execution` must pass against the built `.app` bundle. This verifies the `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>` layout, Python runtime manifest provenance, compiled `managedPythonPackageManifest.mjs`, packaged `main.mjs` resource-dir wiring, absence of old standalone downloader assets, and packaged Python `venv --copies` execution on the matching host architecture.
+  - On macOS package verification, `npm run runtime:verify:macos-package -- <arm64|x64> require-execution` must pass against the built `.app` bundle. This verifies the `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>` layout, Python runtime manifest provenance, compiled `managedPythonPackageManifest.mjs`, packaged `main.mjs` resource-dir wiring, absence of old standalone downloader assets, and packaged Python venv/pip execution on the matching host architecture.
   - Launch the packaged/main app with missing managed runtimes and assert the first visible window appears before any managed-runtime download starts.
   - Launch the app into compact icon mode with missing managed runtimes and assert startup bootstrap waits until the expanded main window is visible instead of forcing an unsolicited first-launch expand.
   - With missing managed runtimes on Electron/macOS startup, allow the initial status/gate refresh to settle and assert the delayed startup bootstrap still transitions from `idle` to `checking`/`downloading` without requiring a manual retry click.

@@ -12,6 +12,7 @@ import {
   managedDouyinDlPath,
   managedFfmpegPaths,
   managedGalleryDlPath,
+  managedPythonVirtualenvArgs,
   managedYtDlpPaths,
   resolvePinnedManagedPythonPackage,
   selectDenoRuntimeArtifactSpec,
@@ -61,6 +62,15 @@ describe("managed runtime bootstrap helpers", () => {
     expect(() => resolvePinnedManagedPythonPackage("unknown" as never)).toThrow(
       "Unsupported managed Python package tool: unknown",
     );
+  });
+
+  it("uses symlink-based Python virtualenv creation on every platform", () => {
+    expect(managedPythonVirtualenvArgs("/tmp/ameow-venv")).toEqual([
+      "-m",
+      "venv",
+      "/tmp/ameow-venv",
+    ]);
+    expect(managedPythonVirtualenvArgs("/tmp/ameow-venv")).not.toContain("--copies");
   });
 
   it("re-exports the app-owned Python downloader package manifest", () => {

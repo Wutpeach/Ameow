@@ -119,7 +119,7 @@ const smokePackagedPython = async (pythonPath) => {
   const venvPython = path.join(venvDir, "bin", "python");
 
   try {
-    await runCommand(pythonPath, ["-m", "venv", "--copies", venvDir]);
+    await runCommand(pythonPath, ["-m", "venv", venvDir]);
     const pip = await runCommand(venvPython, ["-m", "pip", "--version"]);
     return {
       pythonVersion: `${version.stdout}\n${version.stderr}`.trim(),

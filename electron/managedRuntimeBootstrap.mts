@@ -315,6 +315,12 @@ const compareVersionTuples = (
 const formatVersionTuple = (value: [number, number, number]): string =>
   `${value[0]}.${value[1]}.${value[2]}`;
 
+export const managedPythonVirtualenvArgs = (venvDir: string): string[] => [
+  "-m",
+  "venv",
+  venvDir,
+];
+
 export const assertPythonVersionSatisfiesManagedPackage = (
   toolId: ManagedPythonPackageToolId,
   pythonVersion: string,
@@ -335,15 +341,13 @@ export const assertPythonVersionSatisfiesManagedPackage = (
 const ensureManagedPythonVirtualenvReady = async (
   pythonPath: string,
   paths: ManagedPythonRuntimePaths,
-  platform: NodeJS.Platform,
 ): Promise<void> => {
   if (existsSync(paths.python)) {
     return;
   }
   await rm(paths.venvDir, { recursive: true, force: true }).catch(() => {});
   await mkdir(paths.root, { recursive: true });
-  const venvArgs = ["-m", "venv", ...(platform === "darwin" ? ["--copies"] : []), paths.venvDir];
-  await runUtilityCommand(pythonPath, venvArgs);
+  await runUtilityCommand(pythonPath, managedPythonVirtualenvArgs(paths.venvDir));
 };
 
 const readCommandVersion = async (command: string): Promise<string> => {
@@ -430,6 +434,11 @@ const shouldRebuildManagedPythonRuntime = async (
 
   const bundledPythonVersion = await bundledPythonVersionFrom(options);
   if (metadata.bundledPythonVersion !== bundledPythonVersion) {
+    return true;
+  }
+
+  const bundledPythonPath = bundledPythonPathFrom(options);
+  if (metadata.bundledPythonPath !== bundledPythonPath) {
     return true;
   }
 
@@ -765,7 +774,7 @@ const ensureManagedPythonPackageReady = async (
     const bundledPythonVersion = await bundledPythonVersionFrom(options);
     assertPythonVersionSatisfiesManagedPackage(toolId, bundledPythonVersion, spec.minPython);
     await cleanupManagedPythonRuntimeRoot(paths.root);
-    await ensureManagedPythonVirtualenvReady(bundledPythonPath, paths, options.platform);
+    await ensureManagedPythonVirtualenvReady(bundledPythonPath, paths);
     await options.onActivity?.({
       component: spec.component,
       stage: "installing",
@@ -807,6 +816,7 @@ const ensureManagedPythonPackageReady = async (
       entrypoint: targetPath,
       pythonVersion,
       pythonPath: bundledPythonPath,
+      bundledPythonPath,
       bundledPythonVersion,
       runtimeTarget: currentManagedRuntimeTarget(options.platform, options.arch),
       installedAtMs: timestamp,

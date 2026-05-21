@@ -243,13 +243,13 @@ src/electron-runtime/pythonRuntimePaths.ts
 建议将 venv 创建模式也封装在 Python runtime helper 中：
 
 - Windows: 默认 `python -m venv`
-- macOS: `python -m venv --copies`
+- macOS: 默认 `python -m venv`
 
 注意：
 
-- `--copies` 的核心目的不是“app relocation”
-- 而是避免 venv 中指向 app bundle 内 Python 的符号链接在应用更新替换后失效
-- 因为 venv 位于 configDir，而 bundled Python 位于 app resources，更新后资源路径可能变化
+- 早期草案曾考虑 macOS 使用 `--copies` 来规避 app relocation 后的 symlink 失效。
+- GitHub Actions macOS arm64/x64 实测显示，python-build-standalone 的 macOS runtime 被复制出原 bundled tree 后会在 venv 内部 `ensurepip` 阶段 `SIGABRT`。
+- 最终策略改为 macOS 使用默认 symlink venv，并在 downloader venv metadata 中记录 `bundledPythonPath`；app 移动或升级后路径变化会触发 venv 重建。
 
 ## 推荐 manifest 机制
 

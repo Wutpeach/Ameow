@@ -65,6 +65,7 @@ const readCommandVersion = async (command) => {
 const shouldRebuildProbeRuntime = async (toolId, target, paths) => {
   const metadataPath = path.join(paths.root, "metadata.json");
   const spec = await resolveManagedPythonPackageSpec(toolId);
+  const bundledPythonPath = resolveBundledPythonExecutable(target);
   if (!existsSync(paths.entrypoint)) {
     return true;
   }
@@ -73,9 +74,10 @@ const shouldRebuildProbeRuntime = async (toolId, target, paths) => {
   }
   try {
     const raw = JSON.parse(await (await import("node:fs/promises")).readFile(metadataPath, "utf8"));
-    const bundledPythonVersion = await readCommandVersion(resolveBundledPythonExecutable(target));
+    const bundledPythonVersion = await readCommandVersion(bundledPythonPath);
     return raw.packageVersion !== spec.packageVersion
       || raw.packageSource !== spec.installSource
+      || raw.bundledPythonPath !== bundledPythonPath
       || raw.bundledPythonVersion !== bundledPythonVersion;
   } catch {
     return true;
@@ -117,12 +119,7 @@ async function main() {
   if (needsRebuild) {
     await (await import("node:fs/promises")).rm(paths.root, { recursive: true, force: true }).catch(() => {});
     await (await import("node:fs/promises")).mkdir(paths.root, { recursive: true });
-    const venvArgs = [
-      "-m",
-      "venv",
-      ...(paths.platformName === "darwin" ? ["--copies"] : []),
-      paths.venvDir,
-    ];
+    const venvArgs = ["-m", "venv", paths.venvDir];
     await runCommand(bundledPython.executable, venvArgs);
     await runCommand(paths.python, [
       "-m",
@@ -143,6 +140,7 @@ async function main() {
     const metadata = {
       packageVersion: spec.packageVersion,
       packageSource: spec.installSource,
+      bundledPythonPath: bundledPython.executable,
       bundledPythonVersion: await readCommandVersion(bundledPython.executable),
       builtAt: new Date().toISOString(),
     };

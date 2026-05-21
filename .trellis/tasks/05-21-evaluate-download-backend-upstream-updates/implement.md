@@ -259,7 +259,7 @@
     - 检查 `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>`、`.official-python-runtimes.json`、`managedPythonPackageManifest.mjs`
     - 检查 compiled `main.mjs` 使用 `resourceDir: app.isPackaged ? process.resourcesPath : null`
     - 检查旧 `.official-downloader-binaries.json` 与 standalone `yt-dlp` / `gallery-dl` assets 不存在
-    - 在 macOS host target 匹配时会执行 packaged Python `--version`、`sqlite3` / `ssl` import、`venv --copies` 与 `pip --version`
+    - 在 macOS host target 匹配时会执行 packaged Python `--version`、`sqlite3` / `ssl` import、默认 symlink venv 与 `pip --version`
     - Windows 上已用合成 `.app` fixture 验证静态检查路径：
       - `node --check scripts/verify-macos-python-runtime-package.mjs`
       - `npm run runtime:verify:macos-package -- arm64 D:\Ameow\build\macos-package-verify-fixture\Ameow.app static-only`

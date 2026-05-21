@@ -204,7 +204,7 @@ bundled python validation
   - entrypoint name
   - minimum python version
   - metadata schema
-  - `venv` 创建模式（macOS 需要 `--copies`）
+  - `venv` 创建模式（macOS 使用默认 symlink venv，避免 `--copies` 破坏 python-build-standalone 的 bundled runtime layout）
 - downloader 安装逻辑改为：
   - 先校验 bundled Python ready
   - 再基于 shared Python 创建该 downloader 的 venv

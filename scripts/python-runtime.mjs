@@ -297,7 +297,7 @@ const smokeCheckBundledPython = async (pythonPath, platformName) => {
 
   const tempDir = await mkdtemp(path.join(tmpdir(), "ameow-python-runtime-smoke-"));
   const venvDir = path.join(tempDir, "venv");
-  const venvArgs = ["-m", "venv", ...(platformName === "darwin" ? ["--copies"] : []), venvDir];
+  const venvArgs = ["-m", "venv", venvDir];
   const venvPython = platformName === "win32"
     ? path.join(venvDir, "Scripts", "python.exe")
     : path.join(venvDir, "bin", "python");
