@@ -109,7 +109,7 @@
 - [x] Windows x64 portable 换目录后继续可用
 - [x] macOS arm64 packaged fresh config downloader bootstrap，无依赖缓存
 - [x] macOS x64 / Intel packaged fresh config downloader bootstrap，无依赖缓存
-- [ ] macOS 升级安装后旧 venv 自动重建或继续可用
+- [x] macOS 升级/移动后旧 venv 自动重建或继续可用
 - [x] Unicode 用户目录 / configDir
 
 ### 下载器链路
@@ -282,7 +282,7 @@
       - `build/douyin-site-session-redaction-check/stdout-stderr.txt` redaction 检查确认 fake cookie secret 未出现在 stdout/stderr
   - macOS release workflow 已接入 packaged runtime 自动验证：
     - 根据 GitHub-hosted runners 官方文档，`macos-15` 覆盖 arm64，`macos-15-intel` 覆盖 Intel x64；release matrix 已扩展为 arm64 + x64
-    - `Package macOS ZIP and open-source DMG` 后运行 `npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution`
+    - `Package macOS ZIP and open-source DMG` 后运行 `npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap require-relocation-rebuild`
     - 通过 `tee` 生成 `build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json`
     - 上传 `macos-runtime-verification-${{ matrix.artifact_arch }}` artifact
     - release 创建阶段已下载并发布 `macos-dmg-x64` / `macos-zip-x64`，不再只发布 arm64 macOS 产物
@@ -296,7 +296,7 @@
     - `.github/workflows/verify-macos-runtime-package.yml`
     - `workflow_dispatch` 触发
     - matrix 覆盖 `macos-15` / arm64 与 `macos-15-intel` / x64
-    - 每个 job 运行 `node ./scripts/run-electron-package.mjs --mac zip <arch>`，随后运行 `npm run runtime:verify:macos-package -- <artifact_arch> require-execution`
+    - 每个 job 运行 `node ./scripts/run-electron-package.mjs --mac zip <arch>`，随后运行 `npm run runtime:verify:macos-package -- <artifact_arch> require-execution require-downloader-bootstrap require-relocation-rebuild`
     - 上传 `macos-runtime-verification-<arch>` JSON artifact 与对应 macOS ZIP artifact
     - 本地已用 PyYAML 解析该 workflow，并通过 `node --check` / `git diff --check`
   - 提交前最终本地质量门：
@@ -313,10 +313,10 @@
   - 旧 downloader runtime 关键词扫描 0 命中
   - GitHub Actions 手动 macOS runtime package 验证已通过：
     - workflow: `Verify macOS Runtime Package`
-    - run: `26245402915`
-    - URL: `https://github.com/Wutpeach/Ameow/actions/runs/26245402915`
-    - arm64 job: `verify-macos-runtime-package (macos-15, --arm64, arm64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、上传 runtime verification 与 ZIP artifact
-    - x64 job: `verify-macos-runtime-package (macos-15-intel, --x64, x64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、上传 runtime verification 与 ZIP artifact
+    - run: `26245995118`
+    - URL: `https://github.com/Wutpeach/Ameow/actions/runs/26245995118`
+    - arm64 job: `verify-macos-runtime-package (macos-15, --arm64, arm64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、relocation rebuild、上传 runtime verification 与 ZIP artifact
+    - x64 job: `verify-macos-runtime-package (macos-15-intel, --x64, x64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、relocation rebuild、上传 runtime verification 与 ZIP artifact
     - arm64 verification JSON:
       - `state: ok`
       - `target: aarch64-apple-darwin`
@@ -331,6 +331,11 @@
       - packaged downloader versions 匹配：`yt-dlp 2026.03.17`、`gallery-dl 1.32.1`、`douyin-dl 2.0.0`
       - bootstrap activities 覆盖 `ytDlp` / `galleryDl` / `douyinDl` 的 `checking`、`installing`、`verifying`
       - `configDirRetained: false`，验证成功后清理临时 venv
+      - `relocationRebuild.attempted: true`
+      - `relocationRebuild.result.rebuilt: true`
+      - relocation 首次 Python 路径为 `.app/Contents/Resources/app/desktop-assets/binaries/python-aarch64-apple-darwin/bin/python3`
+      - relocation 二次 Python 路径为临时移动后的 `python-aarch64-apple-darwin/bin/python3`
+      - relocation activities 显示三套 downloader 在路径变化后再次 `checking`、`installing`、`verifying`
     - x64 verification JSON:
       - `state: ok`
       - `target: x86_64-apple-darwin`
@@ -345,14 +350,18 @@
       - packaged downloader versions 匹配：`yt-dlp 2026.03.17`、`gallery-dl 1.32.1`、`douyin-dl 2.0.0`
       - bootstrap activities 覆盖 `ytDlp` / `galleryDl` / `douyinDl` 的 `checking`、`installing`、`verifying`
       - `configDirRetained: false`，验证成功后清理临时 venv
+      - `relocationRebuild.attempted: true`
+      - `relocationRebuild.result.rebuilt: true`
+      - relocation 首次 Python 路径为 `.app/Contents/Resources/app/desktop-assets/binaries/python-x86_64-apple-darwin/bin/python3`
+      - relocation 二次 Python 路径为临时移动后的 `python-x86_64-apple-darwin/bin/python3`
+      - relocation activities 显示三套 downloader 在路径变化后再次 `checking`、`installing`、`verifying`
   - macOS `venv --copies` 被 GitHub Actions 实证否决：
     - 初次 run `26243802684` 在 arm64/x64 均失败于 venv 内部 `ensurepip` 子进程 `SIGABRT`
     - 与 Claude 复核后，将 macOS venv 策略修正为默认 symlink venv
     - downloader venv metadata 新增 `bundledPythonPath`，app 移动或升级导致 bundled Python 路径变化时会触发 venv 重建
 - 当前环境未完成：
-  - macOS 真实打包 / 真实首装链路：
-    - packaged runtime 与 `.app` 内 compiled bootstrap 已在 GitHub macOS arm64/x64 runner 内创建三套 downloader venv 并校验版本；仍缺少真实启动 app UI 后通过 runtime gate 自动预热的手测证据
-    - macOS 升级安装后旧 venv 自动重建或继续可用
+  - macOS 真实 app UI 启动手测：
+    - packaged runtime 与 `.app` 内 compiled bootstrap 已在 GitHub macOS arm64/x64 runner 内创建三套 downloader venv、校验版本，并验证 bundled Python 路径变化后自动重建；仍缺少真实启动 app UI 后观察 runtime gate 自动预热提示的手测证据
   - `douyin-dl` single post successful media download with valid Douyin session：
     - 当前 Windows managed runtime 已证明 CLI 可启动、UTF-8 环境正确、未触发 browser fallback
     - 当前无登录态实测被 Douyin API anti-bot 拦截，summary 为 `Success 0 / Failed 1`
