@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 160
+- **Total Sessions**: 161
 - **Last Active**: 2026-05-21
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~782 | Active |
+| `journal-4.md` | ~815 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 161 | 2026-05-21 | Download pipeline focused code review and fixes | `08013e6` | `main` |
 | 160 | 2026-05-21 | Fix code review findings | `30f0094` | `main` |
 | 159 | 2026-05-20 | Finish professional project review fixes | `7853f03`, `a807142`, `009cf65` | `main` |
 | 158 | 2026-05-20 | Browser extension boundary refactor | `1ed773f` | `main` |

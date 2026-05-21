@@ -780,3 +780,36 @@ Reviewed Ameow codebase, fixed high-confidence async extension response, setting
 ### Next Steps
 
 - None - task complete
+
+
+## Session 161: Download pipeline focused code review and fixes
+
+**Date**: 2026-05-21
+**Task**: Download pipeline focused code review and fixes
+**Branch**: `main`
+
+### Summary
+
+Reviewed the download pipeline, fixed Xiaohongshu drag media preservation, fixed direct-download stream completion semantics, added regression tests, and updated backend contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08013e6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
