@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
@@ -146,5 +146,24 @@ describe("runDirectVideoDownload", () => {
       outputDir,
       fetch: fetchMock,
     }))).rejects.toBe(runtimeError);
+  });
+
+  it("rejects when the output stream cannot flush the file", async () => {
+    const outputDir = path.join(
+      os.tmpdir(),
+      `ameow-direct-missing-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+
+    await expect(runDirectVideoDownload(createContext({
+      outputDir,
+      fetch: async () => new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: {
+          "content-type": "video/mp4",
+          "content-length": "3",
+        },
+      }),
+    }))).rejects.toThrow(/ENOENT|no such file|cannot find/i);
+    expect(existsSync(outputDir)).toBe(false);
   });
 });

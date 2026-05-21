@@ -98,6 +98,7 @@ import {
   buildVideoSelectedV2QueuePayload,
   createVideoDownloadCommandBridge,
 } from "./videoDownloadCommands.mjs";
+import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaResult.mjs";
 import {
   currentManagedRuntimeTarget,
   ensureManagedDenoRuntimeReady,
@@ -2721,22 +2722,18 @@ async function handleCommand(command, payload = {}) {
             }),
           );
           if (resolvedViaExtension?.success && resolvedViaExtension.kind === "video") {
-            return {
-              kind: resolvedViaExtension.kind === "video" || resolvedViaExtension.kind === "image"
-                ? resolvedViaExtension.kind
-                : "unknown",
-              pageUrl: resolvedViaExtension.pageUrl ?? pageUrl ?? String(payload.url ?? ""),
-              imageUrl: resolvedViaExtension.imageUrl ?? imageUrl ?? null,
-              videoUrl: null,
-              videoCandidates: [],
-              videoIntentConfidence:
-                typeof resolvedViaExtension.videoIntentConfidence === "number"
-                  ? resolvedViaExtension.videoIntentConfidence
-                  : videoIntentConfidence ?? null,
-              videoIntentSources: Array.isArray(resolvedViaExtension.videoIntentSources)
-                ? resolvedViaExtension.videoIntentSources
-                : videoIntentSources ?? [],
-            };
+            return buildXiaohongshuResolvedDragMediaResult(
+              resolvedViaExtension,
+              {
+                requiredPageUrl: pageUrl ?? String(payload.url ?? ""),
+                pageUrl,
+                imageUrl,
+                detailUrl,
+                sourcePageUrl,
+                videoIntentConfidence,
+                videoIntentSources,
+              },
+            );
           }
         } catch (error) {
           console.warn(
@@ -2786,24 +2783,18 @@ async function handleCommand(command, payload = {}) {
         }),
       );
       const extensionHintResult = resolvedViaExtension
-        ? {
-            kind: resolvedViaExtension.kind === "video" || resolvedViaExtension.kind === "image"
-              ? resolvedViaExtension.kind
-              : "unknown",
-            pageUrl: resolvedViaExtension.pageUrl ?? pageUrl ?? String(payload.url ?? ""),
-            imageUrl: resolvedViaExtension.imageUrl ?? imageUrl ?? null,
-            videoUrl: null,
-            videoCandidates: [],
-            videoIntentConfidence:
-              typeof resolvedViaExtension.videoIntentConfidence === "number"
-                ? resolvedViaExtension.videoIntentConfidence
-                : videoIntentConfidence ?? null,
-            videoIntentSources: Array.isArray(resolvedViaExtension.videoIntentSources)
-              ? resolvedViaExtension.videoIntentSources
-              : videoIntentSources ?? [],
-            detailUrl: normalizeVideoPageUrl(resolvedViaExtension.detailUrl ?? detailUrl) ?? null,
-            sourcePageUrl: normalizeVideoPageUrl(resolvedViaExtension.sourcePageUrl ?? sourcePageUrl) ?? null,
-          }
+        ? buildXiaohongshuResolvedDragMediaResult(
+            resolvedViaExtension,
+            {
+              requiredPageUrl: pageUrl ?? String(payload.url ?? ""),
+              pageUrl,
+              imageUrl,
+              detailUrl,
+              sourcePageUrl,
+              videoIntentConfidence,
+              videoIntentSources,
+            },
+          )
         : null;
 
       const preferredVideoResult = resolvedViaDesktopFallback && (

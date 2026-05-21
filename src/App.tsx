@@ -3663,6 +3663,8 @@ function App({
         await enqueueVideoDownload({
           url: resolvedXiaohongshuMedia?.pageUrl ?? xiaohongshuPageUrl,
           pageUrl: resolvedXiaohongshuMedia?.pageUrl ?? xiaohongshuPageUrl,
+          videoUrl: resolvedXiaohongshuMedia?.videoUrl ?? undefined,
+          videoCandidates: resolvedXiaohongshuMedia?.videoCandidates ?? undefined,
           siteHint: "xiaohongshu",
         });
         return;

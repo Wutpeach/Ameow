@@ -317,6 +317,8 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
   - For `gallery-dl`, the `speed` field may carry i18n-friendly activity tokens such as `activity:galleryDl.resolvingMedia`, `activity:galleryDl.collectingMetadata`, or `activity:galleryDl.savingFile`; renderer status surfaces should translate those tokens as activity text instead of literal transfer-rate values.
 - Executor routing:
   - Direct media URLs (`*.mp4`, `*.mov`, `*.m4v`) use the direct-download executor.
+  - The direct-download executor must not return success until the output file stream has accepted all response chunks and the writer has finished/closed.
+  - Direct-download stream open/write/flush errors must reject the task, clean the partial output file when present, and let the runtime emit a failed terminal `video-download-complete` event.
   - Provider planning may choose `gallery-dl` as the primary engine for Pinterest-style gallery/image-heavy inputs.
   - Remaining URLs default to the orchestrated `yt-dlp` / `gallery-dl` / `direct` engine ladder rather than site-hardcoded executor branching.
 - Toolchain contract:
@@ -334,6 +336,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
 | active cancel path kills the child but leaves queue counts stale | active task cancel | queue badge/progress state lingers | remove active task on settlement and emit refreshed queue count/detail payloads |
 | child process completes normally after an abort listener was attached | long-running desktop session | completed tasks retain abort listener closures and can accumulate memory/listener references | remove the exact abort listener in a `finally` path after `close` handling |
 | `gallery-dl` emits little or no machine-readable progress detail for a task | renderer progress state | main window can look stuck on `Preparing...` until the task suddenly completes | emit an early indeterminate `downloading` event and map recognized tool lines to short activity labels |
+| direct-download output stream cannot open/write/flush | `src/electron-runtime/directDownload.ts` | task rejects and cleans the partial output instead of reporting success before bytes are durable | wait for write callbacks and writer `finished(...)` before returning success |
 
 ### 5. Good / Base / Bad Cases
 
@@ -360,6 +363,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
   - `src/electron-runtime/runtimePaths.test.ts` validates bundled and managed runtime status resolution.
   - `src/electron-runtime/ytDlpProgress.test.ts` validates yt-dlp progress normalization.
   - `src/electron-runtime/galleryDlDownload.test.ts` validates early indeterminate `downloading` events and tokenized `gallery-dl` activity labels.
+  - `src/electron-runtime/directDownload.test.ts` validates direct-download referer handling, stream read error preservation, and output-stream write/flush failure rejection.
   - `src/electron-runtime/processRunner.test.ts` validates stream line handling, pre-aborted signals, and abort-listener cleanup after child exit.
   - `src/electron-runtime/service.test.ts` validates queue concurrency and pending cancellation semantics.
 

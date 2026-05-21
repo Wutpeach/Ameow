@@ -1137,6 +1137,8 @@ Required tests:
     - `videoCandidates`
     - `videoIntentConfidence?`
     - `videoIntentSources?`
+  - if extension-side or desktop fallback resolution returns `videoUrl` / `videoCandidates`, Electron main must preserve those fields in the renderer response instead of replacing them with `null` / `[]`.
+  - when the renderer queues a Xiaohongshu video after `resolve_xiaohongshu_drag_media`, it must forward preserved `videoUrl` / `videoCandidates` as runtime hints while keeping the canonical note URL in `url` / `pageUrl` for yt-dlp routing.
 - `save_image` payload fields to preserve when the extension asks Electron main to perform an authenticated protected-image download:
   - `url`
   - `targetDir?`
@@ -1220,6 +1222,7 @@ Validation and error matrix:
 | Xiaohongshu feed/profile page has no scoped card title | `browser-extension/xiaohongshu-detector.js` -> `background.js` -> `src/electron-runtime/service.ts` | Request omits `title`, so runtime naming falls back to canonical URL/id instead of page title pollution | Never fallback to feed/profile `document.title` for right-click naming |
 | Xiaohongshu drag payload initially says `mediaType: "image"` but bridge cache later exposes a tokenized `detailUrl` plus medium/high video intent | `browser-extension/xiaohongshu-detector.js` -> `background.js` -> `electron/main.mts` | Desktop still treats the note as video-eligible and queues the canonical note URL instead of finalizing the cover image immediately | Let tokenized `detailUrl` + confidence override the earlier weak image guess |
 | Dragged Xiaohongshu card payload exposes only a note page URL plus an ambiguous cover image | renderer `resolve_xiaohongshu_drag_media` -> Electron main -> runtime page fetch | Desktop resolves the note page to canonical media before deciding image vs video | Prefer canonical page media over card-cover heuristics; tokenized `detailUrl` is the preferred canonical page hint |
+| Extension-side Xiaohongshu drag resolution returns a direct `videoUrl` and candidates | `electron/main.mts` -> renderer queue payload | Response and queued request preserve the media hints; provider still executes the canonical note URL | Normalize response through a tested helper and forward hints from renderer queueing |
 | Xiaohongshu image drag resolves to a bare `xhscdn` host root or Chromium rejects the note page as an invalid referrer | renderer `download_image` -> `electron/main.mts` protected-image fetch | Desktop must reject the bare root as invalid and, for real Xiaohongshu CDN image requests, avoid a note-page referrer that Chromium blocks | Filter CDN roots before image selection; use origin-only Xiaohongshu headers plus `no-referrer` session fetch fallback |
 | X image drag comes from an overlay page like `/status/<id>/photo/1` | renderer image drop parsing -> `download_image` | Desktop image download receives the canonical status permalink instead of the overlay URL | Canonicalize X overlay URLs before forwarding `pageUrl` |
 | `pbs.twimg.com` request is valid but Chromium rejects the X status referrer as invalid | `electron/main.mts` image download fetch | Desktop still attempts the image download without forcing a referrer contract that Chromium blocks | Drop `Referer`/`Origin` for public X image requests and keep a non-session HTTP fallback |
@@ -1260,6 +1263,7 @@ Required tests and assertion points:
 - Regression checks:
   - Keep the existing Xiaohongshu drag-resolution checks proving that document-global stale media alone cannot upgrade an image card to video.
   - Add/keep checks proving that a cached tokenized `detailUrl` survives drag payload parsing and reaches Electron `resolve_xiaohongshu_drag_media`.
+  - Add/keep checks proving that `resolve_xiaohongshu_drag_media` preserves extension-resolved `videoUrl` and `videoCandidates`, and renderer queueing forwards them as hints.
   - Add/keep checks proving that bare `xhscdn` host roots are rejected as image hints in renderer/runtime parsing.
   - Add/keep checks proving that Xiaohongshu protected-image desktop fetch uses the origin-only / no-referrer fallback instead of a note-page referrer on the Chromium session path.
   - Add/keep checks proving that video queue URL normalization preserves valid downloader-owned page URL variants such as X `/photo/<n>` overlays.

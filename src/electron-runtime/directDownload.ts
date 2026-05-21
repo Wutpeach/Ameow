@@ -1,4 +1,6 @@
 import { createWriteStream, promises as fs } from "node:fs";
+import type { Writable } from "node:stream";
+import { finished } from "node:stream/promises";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
@@ -38,6 +40,26 @@ const buildDirectDownloadRequestInit = (
     headers,
     signal,
   };
+};
+
+const writeChunk = async (writer: Writable, chunk: Uint8Array): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    writer.write(chunk, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+};
+
+const closeWriter = async (
+  writer: Writable,
+  writerFinished: Promise<void>,
+): Promise<void> => {
+  writer.end();
+  await writerFinished;
 };
 
 export const runDirectVideoDownload = async (
@@ -81,6 +103,7 @@ export const runDirectVideoDownload = async (
   }
 
   const writer = createWriteStream(outputPath);
+  const writerFinished = finished(writer);
   const reader = response.body.getReader();
   const totalBytes = Number(response.headers.get("content-length") ?? "0");
   let downloadedBytes = 0;
@@ -95,7 +118,7 @@ export const runDirectVideoDownload = async (
       if (context.abortSignal.aborted) {
         throw new Error("Download cancelled");
       }
-      writer.write(value);
+      await writeChunk(writer, value);
       downloadedBytes += value.byteLength;
 
       const now = Date.now();
@@ -113,7 +136,7 @@ export const runDirectVideoDownload = async (
       });
     }
 
-    writer.end();
+    await closeWriter(writer, writerFinished);
     return {
       traceId: context.traceId,
       success: true,
@@ -121,6 +144,7 @@ export const runDirectVideoDownload = async (
     };
   } catch (error) {
     writer.destroy();
+    await writerFinished.catch(() => undefined);
     await fs.unlink(outputPath).catch(() => undefined);
     if (error instanceof DownloadRuntimeError) {
       throw error;
