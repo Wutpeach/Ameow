@@ -1,8 +1,3 @@
-import {
-  getManagedYtDlpVersion,
-  managedYtDlpMinimumPythonVersion,
-} from "./managedYtDlpRuntime.mjs";
-
 type DownloaderStatusEntry = {
   state: "ready" | "missing";
   source: "bundled" | "managed" | null;
@@ -12,8 +7,18 @@ type DownloaderStatusEntry = {
 };
 
 type RuntimeDependencyStatusSnapshot = {
+  python: DownloaderStatusEntry;
   ytDlp: DownloaderStatusEntry;
   galleryDl: DownloaderStatusEntry;
+  douyinDl: DownloaderStatusEntry;
+};
+
+type ManagedPythonRuntimeMetadata = {
+  packageVersion?: unknown;
+  packageSource?: unknown;
+  pythonVersion?: unknown;
+  pythonPath?: unknown;
+  bundledPythonVersion?: unknown;
 };
 
 type DownloaderVersionInfo = {
@@ -26,7 +31,7 @@ type DownloaderVersionInfo = {
   pythonVersion: string | null;
   pythonPath: string | null;
   pythonSupportsLatestStable: boolean | null;
-  updateChannel: "managed_release" | "managed_python_package" | "bundled_release" | "unavailable";
+  updateChannel: "managed_python_package" | "unavailable";
 };
 
 type DownloaderVersionInfoOptions = {
@@ -34,86 +39,114 @@ type DownloaderVersionInfoOptions = {
   getRuntimeDependencyStatus(): Promise<RuntimeDependencyStatusSnapshot>;
   getUserDataDir(): string;
   currentManagedRuntimeTarget(): string;
-  getManagedYtDlpVersion(configDir: string, target: string): Promise<{
-    version: string | null;
-    pythonVersion: string | null;
-    pythonPath: string | null;
-    pythonSupportsLatestStable: boolean | null;
-    path: string | null;
-  } | null>;
   getLocalDownloaderVersion(toolId: "yt-dlp" | "gallery-dl", binaryPath: string): Promise<string>;
-  resolvePinnedDownloaderRelease(toolId: "yt-dlp" | "gallery-dl"): { version: string };
+  resolvePinnedManagedPythonPackage(
+    toolId: "yt-dlp" | "gallery-dl",
+  ): {
+    packageVersion: string;
+    minPython?: [number, number, number];
+  };
   compareLooseVersions(left: string, right: string): number;
+  readManagedPythonRuntimeMetadata?(
+    toolId: "yt-dlp" | "gallery-dl",
+    runtimeRoot: string,
+  ): Promise<ManagedPythonRuntimeMetadata | null>;
+};
+
+const normalizeOptionalString = (value: unknown): string | null => (
+  typeof value === "string" && value.trim() ? value.trim() : null
+);
+
+const parseVersionTuple = (value: string | null): [number, number, number] | null => {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+};
+
+const compareVersionTuples = (
+  left: [number, number, number],
+  right: [number, number, number],
+): number => {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] > right[index]) {
+      return 1;
+    }
+    if (left[index] < right[index]) {
+      return -1;
+    }
+  }
+  return 0;
+};
+
+const runtimeRootFromEntrypoint = (
+  entryPath: string | null | undefined,
+  platform: NodeJS.Platform,
+): string | null => {
+  if (!entryPath) {
+    return null;
+  }
+  const suffix = platform === "win32"
+    ? "\\venv\\Scripts\\"
+    : "/venv/bin/";
+  const normalizedEntryPath = platform === "win32"
+    ? entryPath.replace(/\//g, "\\")
+    : entryPath.replace(/\\/g, "/");
+  const markerIndex = normalizedEntryPath.lastIndexOf(suffix);
+  if (markerIndex < 0) {
+    return null;
+  }
+  return normalizedEntryPath.slice(0, markerIndex);
 };
 
 export const checkYtdlpVersion = async (
   options: DownloaderVersionInfoOptions,
 ): Promise<DownloaderVersionInfo> => {
   const status = await options.getRuntimeDependencyStatus();
-  const latest = options.resolvePinnedDownloaderRelease("yt-dlp").version;
-
-  if (options.platform !== "darwin") {
-    const entryPath = status.ytDlp.path;
-    let current = "missing";
-    let localError = status.ytDlp.error ?? null;
-    if (entryPath) {
-      try {
-        current = await options.getLocalDownloaderVersion("yt-dlp", entryPath);
-        localError = null;
-      } catch (error) {
-        current = "unknown";
-        localError = String(error);
-      }
-    }
-    return {
-      current,
-      latest,
-      updateAvailable:
-        current !== "missing" && current !== "unknown" && latest
-          ? options.compareLooseVersions(current, latest) < 0
-          : null,
-      latestError: localError,
-      source: entryPath ? "managed" : "missing",
-      path: entryPath ?? null,
-      pythonVersion: null,
-      pythonPath: null,
-      pythonSupportsLatestStable: null,
-      updateChannel: entryPath ? "managed_release" : "unavailable",
-    };
-  }
-
-  const managed = await options.getManagedYtDlpVersion(options.getUserDataDir(), options.currentManagedRuntimeTarget());
-  let current = managed?.version ?? "missing";
+  const pinnedPackage = options.resolvePinnedManagedPythonPackage("yt-dlp");
+  const latest = pinnedPackage.packageVersion;
+  const entryPath = status.ytDlp.path;
+  let current = "missing";
   let localError = status.ytDlp.error ?? null;
-  if (managed?.path) {
-    current = managed.version ?? "missing";
-    localError = null;
-  } else {
-    localError = localError ?? "Managed yt-dlp runtime is missing";
+  if (entryPath) {
+    try {
+      current = await options.getLocalDownloaderVersion("yt-dlp", entryPath);
+      localError = null;
+    } catch (error) {
+      current = "unknown";
+      localError = String(error);
+    }
   }
-  const pythonBlocksPinnedVersion = Boolean(
-    managed
-    && latest
-    && !managed.pythonSupportsLatestStable
-    && options.compareLooseVersions(managed.version ?? "missing", latest) < 0,
-  );
-  const effectiveLatestError = pythonBlocksPinnedVersion
-    ? `Latest stable yt-dlp requires Python ${managedYtDlpMinimumPythonVersion()}+, current managed runtime uses ${managed?.pythonVersion ?? "an older Python"}.`
-    : localError;
+  const runtimeRoot = runtimeRootFromEntrypoint(entryPath, options.platform);
+  const metadata = runtimeRoot && options.readManagedPythonRuntimeMetadata
+    ? await options.readManagedPythonRuntimeMetadata("yt-dlp", runtimeRoot)
+    : null;
+  const pythonVersion = normalizeOptionalString(metadata?.pythonVersion)
+    ?? normalizeOptionalString(metadata?.bundledPythonVersion);
+  const pythonPath = normalizeOptionalString(metadata?.pythonPath) ?? status.python.path;
+  const parsedPythonVersion = parseVersionTuple(pythonVersion);
+  const minPython = pinnedPackage.minPython ?? null;
   return {
     current,
     latest,
     updateAvailable:
-      current !== "missing" && current !== "unknown" && latest && !pythonBlocksPinnedVersion
+      current !== "missing" && current !== "unknown" && latest
         ? options.compareLooseVersions(current, latest) < 0
         : null,
-    latestError: effectiveLatestError,
-    source: managed?.path ? "managed" : "missing",
-    path: managed?.path ?? null,
-    pythonVersion: managed?.pythonVersion ?? null,
-    pythonPath: managed?.pythonPath ?? null,
-    pythonSupportsLatestStable: managed?.pythonSupportsLatestStable ?? null,
-    updateChannel: managed?.path ? "managed_python_package" : "unavailable",
+    latestError: localError,
+    source: entryPath ? "managed" : "missing",
+    path: entryPath ?? null,
+    pythonVersion,
+    pythonPath,
+    pythonSupportsLatestStable:
+      parsedPythonVersion && minPython
+        ? compareVersionTuples(parsedPythonVersion, minPython) >= 0
+        : null,
+    updateChannel: entryPath ? "managed_python_package" : "unavailable",
   };
 };
 
@@ -124,7 +157,7 @@ export const getGalleryDlInfo = async (
   if (status.galleryDl.state !== "ready" || !status.galleryDl.path) {
     return {
       current: "missing",
-      latest: options.resolvePinnedDownloaderRelease("gallery-dl").version,
+      latest: options.resolvePinnedManagedPythonPackage("gallery-dl").packageVersion,
       updateAvailable: null,
       latestError: status.galleryDl.error,
       source: "missing",
@@ -142,7 +175,7 @@ export const getGalleryDlInfo = async (
   } catch (error) {
     latestError = String(error);
   }
-  const latest = options.resolvePinnedDownloaderRelease("gallery-dl").version;
+  const latest = options.resolvePinnedManagedPythonPackage("gallery-dl").packageVersion;
 
   return {
     current,
@@ -155,8 +188,8 @@ export const getGalleryDlInfo = async (
     source: "managed",
     path: status.galleryDl.path,
     pythonVersion: null,
-    pythonPath: null,
+    pythonPath: status.python.path,
     pythonSupportsLatestStable: null,
-    updateChannel: "managed_release",
+    updateChannel: "managed_python_package",
   };
 };

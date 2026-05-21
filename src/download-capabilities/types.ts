@@ -1,6 +1,12 @@
 export type CapabilitySeedSchemaVersion = 1;
 
-export type CapabilityEngineId = "yt-dlp" | "gallery-dl" | "douyin-dl" | "direct";
+export const CAPABILITY_ENGINE_IDS = ["yt-dlp", "gallery-dl", "douyin-dl", "direct"] as const;
+
+export type CapabilityEngineId = typeof CAPABILITY_ENGINE_IDS[number];
+
+export const CAPABILITY_PROBE_ENGINE_IDS = ["yt-dlp", "gallery-dl", "direct"] as const satisfies readonly CapabilityEngineId[];
+
+export type CapabilityProbeEngineId = typeof CAPABILITY_PROBE_ENGINE_IDS[number];
 
 export type CapabilitySourceType = "official_supported_sites" | "manual";
 

@@ -57,20 +57,8 @@ const missingComponentsFrom = (
 const bundledFailureErrorFrom = (
   snapshot: RuntimeDependencyStatusSnapshot,
 ): string | null => {
-  if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
-    return snapshot.ytDlp.error ?? "Missing bundled yt-dlp runtime";
-  }
-  if (snapshot.galleryDl.state !== "ready") {
-    if (snapshot.galleryDl.expectedSource === "managed") {
-      return null;
-    }
-    return snapshot.galleryDl.error ?? "Missing bundled gallery-dl runtime";
-  }
-  if (snapshot.douyinDl.state !== "ready") {
-    if (snapshot.douyinDl.expectedSource === "managed") {
-      return null;
-    }
-    return snapshot.douyinDl.error ?? "Missing bundled douyin-dl runtime";
+  if (snapshot.python.state !== "ready") {
+    return snapshot.python.error ?? "Missing bundled Python runtime";
   }
   return null;
 };

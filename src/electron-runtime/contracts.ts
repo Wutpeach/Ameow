@@ -14,6 +14,7 @@ import type {
 } from "../types/videoRuntime.js";
 import type {
   DownloadEngine,
+  EngineId,
   EngineExecutionContext,
   RawDownloadInput,
   SiteProvider,
@@ -96,6 +97,10 @@ export interface ElectronDownloadRuntimeOptions {
     context: EngineExecutionContext,
     input: RawDownloadInput,
   ): EngineExecutionContext;
+  ensureEngineRuntimeReady?(
+    engineId: EngineId,
+    reason: string,
+  ): Promise<void>;
   bootstrapManagedComponents?(
     context: RuntimeBootstrapContext,
   ): Promise<RuntimeDependencyStatusSnapshot | void>;

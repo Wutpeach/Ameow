@@ -6,8 +6,8 @@
 
 ## When to Use
 
-- You add/rename files in `src-tauri/binaries/`.
-- You modify `bundle.externalBin` in `src-tauri/tauri.conf.json`.
+- You add/rename bundled runtime assets under `desktop-assets/binaries/`.
+- You modify packaged desktop resources or packaging scripts that stage runtime prerequisites.
 - You touch Windows-only crates/APIs (`clipboard-win`, `taskkill`, etc.).
 - You change runtime commands that depend on system tools (`python3`, `deno`, shell scripts).
 
@@ -16,8 +16,8 @@
 ## Pre-Change Checklist
 
 - [ ] Did I identify all target platforms affected (Windows/macOS/Linux)?
-- [ ] Are sidecar names in Rust `sidecar("<name>")` still aligned with `externalBin` prefixes?
-- [ ] For each platform, does `src-tauri/binaries/<name>-<target-triple>` exist and have executable permission?
+- [ ] Are packaged runtime resource paths still aligned with the runtime path resolver used by Electron/Tauri code?
+- [ ] For each platform, does the required bundled prerequisite directory such as `desktop-assets/binaries/python-<target>/` exist and remain executable where needed?
 - [ ] Did I guard platform-specific code paths with `#[cfg(...)]`?
 - [ ] If a dependency is optional on some platforms, is there an explicit degraded behavior instead of crash?
 
@@ -26,17 +26,17 @@
 ## Build-Time Checks
 
 - [ ] `npm run build` passes.
-- [ ] `cargo check --manifest-path src-tauri/Cargo.toml` passes on current platform.
-- [ ] No build-script resource errors like `resource path ... doesn't exist`.
+- [ ] Packaging/build commands for the touched surface pass on the current platform.
+- [ ] No packaged-resource errors such as missing `desktop-assets/binaries/python-<target>` for the target artifact.
 
 ---
 
 ## Runtime Checks
 
-- [ ] Wrapper scripts resolve local runtime correctly (`.venv` first, system fallback).
-- [ ] Python wrapper bootstrap paths handle PEP 668 / externally-managed environments (for example Homebrew Python 3.12+ may require `--user --break-system-packages`).
+- [ ] Bundled Python preparation resolves the correct target runtime and does not execute foreign-target binaries during cross-target packaging.
+- [ ] Python downloader bootstrap paths use the app-managed bundled Python rather than assuming `python3` from the host environment.
 - [ ] Service health endpoint stays available even when optional dependency is missing.
-- [ ] Main app can still start (`npm run tauri dev`) without hard failure.
+- [ ] Main app can still start (`npm run dev` / packaged Electron build as appropriate) without hard failure.
 - [ ] If a packaged desktop renderer boots from `file://.../dist/index.html`, the built HTML references relative assets (`./assets/...`) instead of root-relative `/assets/...`.
 - [ ] Renderer code that accepts dropped/pasted `file://` URLs parses them as URIs instead of stripping `file:///` as a plain string, so macOS paths keep their leading `/` and Windows paths still normalize to drive-letter/UNC forms.
 - [ ] On Windows, any cleanup of dev/runtime processes targets exact executables or exact command-line signatures; never kill by broad working-directory/path substring matches that can also match `WindowsTerminal.exe` or the current `pwsh.exe`.
@@ -156,20 +156,20 @@
   - If `Compress-Archive` is blocked or fails due to environment policy, packaging must fallback to `tar -a -c -f ...`.
 - Portable package must include:
     - `Ameow.exe`
-    - `yt-dlp-x86_64-pc-windows-msvc.exe` under the packaged desktop runtime resources
+    - `desktop-assets/binaries/python-x86_64-pc-windows-msvc/` under the packaged desktop runtime resources
 - Runtime tools that moved to managed bootstrap (`deno`, `ffmpeg`) must not be reintroduced into the portable ZIP as hidden packaging dependencies.
-- If a runtime tool is required for packaged behavior, either keep it intentionally bundled (`yt-dlp`) or make the packaged app bootstrap it into `app_config_dir/runtimes/...` deterministically. Do not rely on the developer machine already having it on `PATH`.
+- If a runtime tool is required for packaged behavior, either keep it intentionally bundled as a prerequisite (`python`) or make the packaged app bootstrap it into `app_config_dir/runtimes/...` deterministically. Do not rely on the developer machine already having it on `PATH`.
 - Validation and error matrix:
   - `Compress-Archive` succeeds: normal zip produced.
   - `Compress-Archive` blocked/fails: fallback `tar` path still produces the zip.
-  - Missing bundled helper (`yt-dlp`) : script fails fast with explicit file-not-found error.
+  - Missing bundled prerequisite (`python`) : script fails fast with explicit file-not-found error.
   - Managed runtime accidentally copied into the ZIP: artifact size regresses and packaging no longer matches first-launch bootstrap contracts.
   - Runtime tool exists only on developer PATH: local test may pass, but shipped portable package is invalid until the tool is either bundled intentionally or bootstrapped by the app.
 - Cases:
   - Good: either primary or fallback command creates `Ameow_<version>_windows_x64_portable.zip`.
   - Base: fallback path triggered by policy restrictions but artifact remains valid.
   - Bad: no fallback, packaging aborts when `Compress-Archive` is unavailable.
-  - Bad: portable downloads depend on a system-installed `ffmpeg` because managed bootstrap was skipped or the ZIP silently reintroduced stale runtime binaries.
+  - Bad: portable Python downloaders depend on a user-installed `python3` because the bundled prerequisite was omitted or stale.
 
 ### 7) Windows mixed-monitor shortcut reveal position contract
 

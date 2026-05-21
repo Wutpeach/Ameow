@@ -11,6 +11,7 @@ node_modules
 .venv
 dist
 dist-electron
+dist-scripts
 dist-release
 dist-ssr
 build
@@ -43,16 +44,9 @@ gcm-diagnose.log
 .mcp.json
 CLAUDE.md
 
-# Desktop runtime binaries (downloaded or built in CI)
-desktop-assets/binaries/*.exe
-!desktop-assets/binaries/yt-dlp-x86_64-pc-windows-msvc.exe
-!desktop-assets/binaries/gallery-dl-x86_64-pc-windows-msvc.exe
-!desktop-assets/binaries/yt-dlp-aarch64-apple-darwin
-!desktop-assets/binaries/yt-dlp-x86_64-apple-darwin
-!desktop-assets/binaries/gallery-dl-aarch64-apple-darwin
-!desktop-assets/binaries/gallery-dl-x86_64-apple-darwin
-!desktop-assets/binaries/.official-downloader-binaries.json
-desktop-assets/binaries/pinterest-dl-*
+# Desktop runtime assets (prepared locally / in CI)
+desktop-assets/binaries/*
+!desktop-assets/binaries/.official-python-runtimes.json
 
 # Python cache artifacts
 __pycache__/

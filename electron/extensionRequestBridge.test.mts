@@ -34,7 +34,7 @@ describe("createExtensionRequestBridge", () => {
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       title: "Example",
-      ytdlpQualityPreference: "balanced",
+      videoQuality: "balanced",
     })).toEqual({
       success: true,
       message: "pasted_video_selection_received",
@@ -45,7 +45,7 @@ describe("createExtensionRequestBridge", () => {
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       title: "Example",
-      ytdlpQualityPreference: "balanced",
+      videoQuality: "balanced",
     });
   });
 

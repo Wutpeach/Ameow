@@ -1,21 +1,22 @@
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MANAGED_PYTHON_PACKAGE_SPECS,
+  resolvePinnedManagedPythonPackage as resolvePinnedManagedPythonPackageFromManifest,
+} from "./managedPythonPackageManifest.mjs";
+import {
+  assertPythonVersionSatisfiesManagedPackage,
   currentManagedRuntimeTarget,
   managedDenoPath,
-  managedFfmpegPaths,
   managedDouyinDlPath,
+  managedFfmpegPaths,
   managedGalleryDlPath,
   managedYtDlpPaths,
-  resolvePinnedDownloaderRelease,
+  resolvePinnedManagedPythonPackage,
   selectDenoRuntimeArtifactSpec,
   selectFfmpegRuntimeArtifactSpec,
-  selectPinnedDownloaderReleaseAsset,
-  writeDownloaderLatestCache,
 } from "./managedRuntimeBootstrap.mjs";
-import { mkdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 const createOptions = (overrides = {}) => ({
   configDir: "/tmp/ameow-config",
@@ -41,36 +42,34 @@ describe("managed runtime bootstrap helpers", () => {
       join("/tmp/ameow-config", "runtimes", "douyin-dl", "x86_64-pc-windows-msvc", "venv", "Scripts", "douyin-dl.exe"),
     );
     expect(managedYtDlpPaths(options).ytDlp).toBe(
-      join("/tmp/ameow-config", "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "real", "yt-dlp-x86_64-pc-windows-msvc.exe"),
+      join("/tmp/ameow-config", "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "venv", "Scripts", "yt-dlp.exe"),
     );
     expect(managedGalleryDlPath(options)).toBe(
-      join("/tmp/ameow-config", "runtimes", "gallery-dl", "x86_64-pc-windows-msvc", "real", "gallery-dl-x86_64-pc-windows-msvc.exe"),
+      join("/tmp/ameow-config", "runtimes", "gallery-dl", "x86_64-pc-windows-msvc", "venv", "Scripts", "gallery-dl.exe"),
     );
   });
 
-  it("keeps pinned downloader release metadata explicit", () => {
-    expect(resolvePinnedDownloaderRelease("yt-dlp")).toMatchObject({
-      version: "2026.03.17",
-      latestCacheFileName: "ytdlp-latest.json",
+  it("keeps pinned Python downloader package metadata explicit", () => {
+    expect(resolvePinnedManagedPythonPackage("yt-dlp")).toMatchObject({
+      packageVersion: "2026.03.17",
+      installSource: "yt-dlp==2026.03.17",
     });
-    expect(resolvePinnedDownloaderRelease("gallery-dl")).toMatchObject({
-      version: "1.32.0-dev:2026.03.30",
-      latestCacheFileName: "gallery-dl-latest.json",
+    expect(resolvePinnedManagedPythonPackage("gallery-dl")).toMatchObject({
+      packageVersion: "1.32.1",
+      installSource: "gallery-dl==1.32.1",
     });
-    expect(() => resolvePinnedDownloaderRelease("unknown" as never)).toThrow(
-      "Unsupported pinned downloader tool: unknown",
+    expect(() => resolvePinnedManagedPythonPackage("unknown" as never)).toThrow(
+      "Unsupported managed Python package tool: unknown",
     );
   });
 
-  it("selects pinned release assets by platform-specific name", () => {
-    expect(selectPinnedDownloaderReleaseAsset("yt-dlp", createOptions())).toEqual({
-      assetName: "yt-dlp.exe",
-      downloadUrl: "https://github.com/yt-dlp/yt-dlp/releases/download/2026.03.17/yt-dlp.exe",
-    });
-    expect(selectPinnedDownloaderReleaseAsset("gallery-dl", createOptions())).toEqual({
-      assetName: "gallery-dl_windows.exe",
-      downloadUrl: "https://github.com/gdl-org/builds/releases/download/2026.03.30/gallery-dl_windows.exe",
-    });
+  it("re-exports the app-owned Python downloader package manifest", () => {
+    expect(resolvePinnedManagedPythonPackage).toBe(resolvePinnedManagedPythonPackageFromManifest);
+    expect(Object.keys(MANAGED_PYTHON_PACKAGE_SPECS).sort()).toEqual([
+      "douyin-dl",
+      "gallery-dl",
+      "yt-dlp",
+    ]);
   });
 
   it("resolves managed deno and ffmpeg artifact specs per target", () => {
@@ -89,23 +88,15 @@ describe("managed runtime bootstrap helpers", () => {
     });
   });
 
-  it("writes downloader latest cache metadata", async () => {
-    const configDir = join(tmpdir(), `ameow-managed-runtime-test-${Date.now()}`);
-    await mkdir(configDir, { recursive: true });
-    try {
-      await writeDownloaderLatestCache("gallery-dl", "1.2.3", createOptions({
-        configDir,
-        now: () => 123,
-      }));
-
-      await expect(
-        readFile(join(configDir, "gallery-dl-latest.json"), "utf8"),
-      ).resolves.toBe(JSON.stringify({
-        version: "1.2.3",
-        fetchedAtMs: 123,
-      }));
-    } finally {
-      await rm(configDir, { recursive: true, force: true });
-    }
+  it("rejects bundled Python versions below a managed package minimum", () => {
+    expect(() =>
+      assertPythonVersionSatisfiesManagedPackage("yt-dlp", "Python 3.11.15", [3, 10, 0]),
+    ).not.toThrow();
+    expect(() =>
+      assertPythonVersionSatisfiesManagedPackage("yt-dlp", "Python 3.9.18", [3, 10, 0]),
+    ).toThrow("Bundled Python 3.9.18 is too old for yt-dlp");
+    expect(() =>
+      assertPythonVersionSatisfiesManagedPackage("gallery-dl", "not-a-version", [3, 8, 0]),
+    ).toThrow("Unable to parse bundled Python version for gallery-dl");
   });
 });

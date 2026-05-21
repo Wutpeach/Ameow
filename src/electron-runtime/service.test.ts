@@ -95,6 +95,7 @@ const createRuntime = (options: {
   engines?: DownloadEngine[];
   maxConcurrent?: number;
   configString?: string;
+  ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl" | "douyin-dl" | "direct", reason: string) => Promise<void>;
   environment?: {
     repoRoot?: string;
     configDir?: string;
@@ -129,6 +130,7 @@ const createRuntime = (options: {
       options.onTelemetry?.(event);
     },
   },
+  ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -311,6 +313,71 @@ describe("AmeowElectronDownloadRuntime", () => {
       errorCode: null,
       errorClassification: null,
     });
+  });
+
+  it("ensures the selected engine runtime before executing the download", async () => {
+    const ensured: Array<{ engineId: string; reason: string }> = [];
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      ensureEngineRuntimeReady: vi.fn(async (engineId, reason) => {
+        ensured.push({ engineId, reason });
+      }),
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => ensured.length === 1);
+    expect(ensured[0]?.engineId).toBe("yt-dlp");
+    expect(ensured[0]?.reason).toMatch(/^runtime_execute_.*_yt-dlp$/);
+  });
+
+  it("waits for the selected engine runtime before executing the download", async () => {
+    const runtimeEnsure = {
+      release: null as (() => void) | null,
+    };
+    let engineExecuted = false;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      ensureEngineRuntimeReady: vi.fn(async () => {
+        await new Promise<void>((resolve) => {
+          runtimeEnsure.release = resolve;
+        });
+      }),
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          engineExecuted = true;
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => runtimeEnsure.release !== null);
+    expect(engineExecuted).toBe(false);
+    const resolveRuntimeEnsure = runtimeEnsure.release;
+    if (!resolveRuntimeEnsure) {
+      throw new Error("Runtime ensure resolver was not captured");
+    }
+    resolveRuntimeEnsure();
+    await waitFor(() => engineExecuted);
   });
 
   it("records failure telemetry with classified errors", async () => {

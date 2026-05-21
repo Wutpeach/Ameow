@@ -37,6 +37,7 @@ import {
   createElectronDownloadRuntime,
   inspectRuntimeDependencyStatus,
   releaseRenameStem,
+  resolveBundledPythonRuntime,
   resetRenameSequenceState,
   resolveXiaohongshuDragMedia,
   resolveRuntimeBinaryPaths,
@@ -85,10 +86,6 @@ import {
   createMainWindowPointerBoundaryController,
 } from "./mainWindowPointerBoundary.mjs";
 import {
-  ensureManagedYtDlpReady,
-  getManagedYtDlpVersion,
-} from "./managedYtDlpRuntime.mjs";
-import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
   UI_LAB_WINDOW_CONTENT_HEIGHT,
@@ -106,13 +103,12 @@ import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaR
 import {
   currentManagedRuntimeTarget,
   ensureManagedDenoRuntimeReady,
-  ensureManagedDouyinDlBrowserSupportReady,
   ensureManagedFfmpegRuntimeReady,
   ensureManagedDouyinDlRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
   ensureManagedYtDlpRuntimeReady,
   managedDouyinDlRuntimePaths,
-  resolvePinnedDownloaderRelease,
+  resolvePinnedManagedPythonPackage,
 } from "./managedRuntimeBootstrap.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { getSiteSessionConfig, isSupportedSiteSessionId } from "../src/site-sessions.js";
@@ -1122,7 +1118,7 @@ function buildElectronRuntimeEnvironment() {
   return {
     repoRoot,
     configDir: getUserDataDir(),
-    resourceDir: app.isPackaged ? join(process.resourcesPath, "desktop-assets") : null,
+    resourceDir: app.isPackaged ? process.resourcesPath : null,
     executableDir: dirname(process.execPath),
     desktopDir: app.getPath("desktop"),
     tempDir: tmpdir(),
@@ -1133,11 +1129,15 @@ function buildElectronRuntimeEnvironment() {
 }
 
 function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity = null) {
+  const environment = buildElectronRuntimeEnvironment();
+  const bundledPython = resolveBundledPythonRuntime(environment);
   return {
     configDir: getUserDataDir(),
     platform: process.platform,
     arch: process.arch,
     fetch: fetchWithDesktopSession,
+    bundledPythonRoot: bundledPython.root,
+    bundledPythonPath: bundledPython.executable,
     missingComponents: _missingComponents,
     log(message) {
       logInfo("Electron", message);
@@ -1165,6 +1165,26 @@ function getElectronDownloadRuntime() {
       log(message) {
         logInfo("ElectronRuntime", message);
       },
+    },
+    ensureEngineRuntimeReady: async (engineId, reason) => {
+      const options = buildManagedRuntimeBootstrapOptions();
+      if (engineId === "yt-dlp") {
+        await ensureManagedYtDlpRuntimeReady(reason, options);
+        await ensureManagedFfmpegRuntimeReady(reason, options);
+        await ensureManagedDenoRuntimeReady(reason, options);
+        return;
+      }
+      if (engineId === "gallery-dl") {
+        await ensureManagedGalleryDlRuntimeReady(reason, options);
+        return;
+      }
+      if (engineId === "douyin-dl") {
+        await ensureManagedDouyinDlRuntimeReady(reason, options);
+        return;
+      }
+      if (engineId === "direct") {
+        return;
+      }
     },
     bootstrapManagedComponents: async ({ reason }) => {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
@@ -1350,6 +1370,7 @@ function assertUiLabEnabled() {
 
 function cloneRuntimeStatusSnapshot(snapshot) {
   return {
+    python: { ...snapshot.python },
     ytDlp: { ...snapshot.ytDlp },
     galleryDl: { ...snapshot.galleryDl },
     douyinDl: { ...snapshot.douyinDl },
@@ -1487,9 +1508,8 @@ async function checkYtdlpVersion() {
     getRuntimeDependencyStatus,
     getUserDataDir,
     currentManagedRuntimeTarget,
-    getManagedYtDlpVersion,
     getLocalDownloaderVersion,
-    resolvePinnedDownloaderRelease,
+    resolvePinnedManagedPythonPackage,
     compareLooseVersions,
   });
 }
@@ -1499,7 +1519,7 @@ async function getGalleryDlInfo() {
     platform: process.platform,
     getRuntimeDependencyStatus,
     getLocalDownloaderVersion,
-    resolvePinnedDownloaderRelease,
+    resolvePinnedManagedPythonPackage,
     compareLooseVersions,
   });
 }

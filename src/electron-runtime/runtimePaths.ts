@@ -8,9 +8,8 @@ import {
   denoBinaryNameFor,
   ffmpegBinaryNameFor,
   ffprobeBinaryNameFor,
-  galleryDlBinaryNameFor,
+  pythonBinaryNameFor,
   resolveRuntimeTarget,
-  ytDlpBinaryNameFor,
 } from "./platform.js";
 import type {
   RuntimeDependencySource,
@@ -44,25 +43,47 @@ const missingStatus = (
 ): RuntimeDependencyStatusEntry =>
   createStatusEntry("missing", null, null, error, overrides);
 
-const firstCandidate = (candidates: string[]): string | null => candidates[0] ?? null;
-
-const existingCandidate = (candidates: string[]): string | null =>
-  candidates.find((candidate) => existsSync(candidate)) ?? null;
-
-const resolveBundledCandidates = (
+const resolveBundledPythonRootCandidates = (
   environment: ElectronRuntimeEnvironment,
-  fileName: string,
 ): string[] => {
-  const candidates = [
-    path.join(environment.repoRoot, "desktop-assets", "binaries", fileName),
+  const target = resolveRuntimeTarget(environment.platform, environment.arch);
+  return [
+    path.join(environment.repoRoot, "desktop-assets", "binaries", `python-${target}`),
+    ...(environment.resourceDir
+      ? [
+          path.join(environment.resourceDir, "binaries", `python-${target}`),
+          path.join(environment.resourceDir, "app", "desktop-assets", "binaries", `python-${target}`),
+        ]
+      : []),
+    ...(environment.executableDir
+      ? [path.join(environment.executableDir, "binaries", `python-${target}`)]
+      : []),
   ];
-  if (environment.resourceDir) {
-    candidates.push(path.join(environment.resourceDir, "binaries", fileName));
-  }
-  if (environment.executableDir) {
-    candidates.push(path.join(environment.executableDir, "binaries", fileName));
-  }
-  return candidates;
+};
+
+export const resolveBundledPythonExecutable = (
+  pythonRoot: string,
+  environment: Pick<ElectronRuntimeEnvironment, "platform">,
+): string => (
+  environment.platform === "win32"
+    ? path.join(pythonRoot, pythonBinaryNameFor(environment.platform))
+    : path.join(pythonRoot, "bin", pythonBinaryNameFor(environment.platform))
+);
+
+export const resolveBundledPythonRuntime = (
+  environment: ElectronRuntimeEnvironment,
+): {
+  root: string;
+  executable: string;
+} => {
+  const candidateRoots = resolveBundledPythonRootCandidates(environment);
+  const existingRoot = candidateRoots.find((candidate) =>
+    fileExists(resolveBundledPythonExecutable(candidate, environment)));
+  const root = existingRoot ?? candidateRoots[0] ?? "";
+  return {
+    root,
+    executable: resolveBundledPythonExecutable(root, environment),
+  };
 };
 
 const runtimeRootFor = (
@@ -97,18 +118,11 @@ const managedDenoPathFor = (environment: ElectronRuntimeEnvironment): string => 
 };
 
 const managedYtDlpPathFor = (environment: ElectronRuntimeEnvironment): string => {
-  const root = runtimeRootFor(environment, "yt-dlp");
-  if (environment.platform === "win32") {
-    return path.join(root, "real", ytDlpBinaryNameFor(environment.platform, environment.arch));
-  }
-  return path.join(root, "venv", "bin", "yt-dlp");
+  return resolveManagedYtDlpRuntimePaths(environment).entrypoint;
 };
 
-const managedGalleryDlPathFor = (environment: ElectronRuntimeEnvironment): string => {
-  const root = runtimeRootFor(environment, "gallery-dl");
-  const realRoot = environment.platform === "win32" ? path.join(root, "real") : root;
-  return path.join(realRoot, galleryDlBinaryNameFor(environment.platform, environment.arch));
-};
+const managedGalleryDlPathFor = (environment: ElectronRuntimeEnvironment): string =>
+  resolveManagedGalleryDlRuntimePaths(environment).entrypoint;
 
 const managedDouyinDlPathFor = (environment: ElectronRuntimeEnvironment): string => {
   return resolveManagedDouyinRuntimePaths(environment).entrypoint;
@@ -136,6 +150,50 @@ export const resolveManagedDouyinRuntimePaths = (
   };
 };
 
+export const resolveManagedYtDlpRuntimePaths = (
+  environment: ElectronRuntimeEnvironment,
+): {
+  root: string;
+  venvDir: string;
+  python: string;
+  entrypoint: string;
+} => {
+  const root = runtimeRootFor(environment, "yt-dlp");
+  const executableDir = path.join(
+    root,
+    "venv",
+    environment.platform === "win32" ? "Scripts" : "bin",
+  );
+  return {
+    root,
+    venvDir: path.join(root, "venv"),
+    python: path.join(executableDir, environment.platform === "win32" ? "python.exe" : "python"),
+    entrypoint: path.join(executableDir, environment.platform === "win32" ? "yt-dlp.exe" : "yt-dlp"),
+  };
+};
+
+export const resolveManagedGalleryDlRuntimePaths = (
+  environment: ElectronRuntimeEnvironment,
+): {
+  root: string;
+  venvDir: string;
+  python: string;
+  entrypoint: string;
+} => {
+  const root = runtimeRootFor(environment, "gallery-dl");
+  const executableDir = path.join(
+    root,
+    "venv",
+    environment.platform === "win32" ? "Scripts" : "bin",
+  );
+  return {
+    root,
+    venvDir: path.join(root, "venv"),
+    python: path.join(executableDir, environment.platform === "win32" ? "python.exe" : "python"),
+    entrypoint: path.join(executableDir, environment.platform === "win32" ? "gallery-dl.exe" : "gallery-dl"),
+  };
+};
+
 const fileExists = (entryPath: string): boolean => {
   try {
     return existsSync(entryPath);
@@ -160,37 +218,38 @@ const resolveManagedStatus = (
 const resolveYtDlpStatus = (
   environment: ElectronRuntimeEnvironment,
 ): RuntimeDependencyStatusEntry => {
-  const bundledCandidates = resolveBundledCandidates(
-    environment,
-    ytDlpBinaryNameFor(environment.platform, environment.arch),
-  );
   const managedPath = managedYtDlpPathFor(environment);
-  const bundledPath = existingCandidate(bundledCandidates);
 
   if (fileExists(managedPath)) {
     return readyStatus(managedPath, "managed", {
       expectedSource: "managed",
-      fallbackSource: bundledPath ? "bundled" : null,
-      fallbackPath: bundledPath,
-    });
-  }
-
-  if (bundledPath) {
-    return missingStatus(
-      `Missing managed yt-dlp runtime. Bundled macOS fallback is available at ${bundledPath}`,
-      {
-      expectedSource: "managed",
-      fallbackSource: "bundled",
-      fallbackPath: bundledPath,
     });
   }
 
   return missingStatus(
-    `Missing managed yt-dlp runtime. Expected ${JSON.stringify([managedPath])}; bundled fallback checked ${JSON.stringify(bundledCandidates)}`,
+    `Missing managed yt-dlp runtime. Expected ${JSON.stringify([managedPath])}`,
     {
       expectedSource: "managed",
-      fallbackSource: "bundled",
-      fallbackPath: firstCandidate(bundledCandidates),
+    },
+  );
+};
+
+const resolvePythonStatus = (
+  environment: ElectronRuntimeEnvironment,
+): RuntimeDependencyStatusEntry => {
+  const runtime = resolveBundledPythonRuntime(environment);
+  if (runtime.root && fileExists(runtime.executable)) {
+    return readyStatus(runtime.executable, "bundled", {
+      expectedSource: "bundled",
+    });
+  }
+  return createStatusEntry(
+    "missing",
+    null,
+    runtime.executable || null,
+    `Missing bundled Python runtime. Expected executable at ${runtime.executable}`,
+    {
+      expectedSource: "bundled",
     },
   );
 };
@@ -199,9 +258,6 @@ const resolveYtDlpBinaryPath = (environment: ElectronRuntimeEnvironment): string
   const status = resolveYtDlpStatus(environment);
   if (status.path) {
     return status.path;
-  }
-  if (status.fallbackPath && fileExists(status.fallbackPath)) {
-    return status.fallbackPath;
   }
   return managedYtDlpPathFor(environment);
 };
@@ -225,14 +281,15 @@ export const inspectRuntimeDependencyStatus = (
 ): RuntimeDependencyStatusSnapshot => {
   const ffmpegPaths = managedFfmpegPathsFor(environment);
   const denoPath = managedDenoPathFor(environment);
-  const galleryDlPath = managedGalleryDlPathFor(environment);
+  const galleryDlPaths = resolveManagedGalleryDlRuntimePaths(environment);
   const douyinDlPath = managedDouyinDlPathFor(environment);
 
   return {
+    python: resolvePythonStatus(environment),
     ytDlp: resolveYtDlpStatus(environment),
-    galleryDl: fileExists(galleryDlPath)
-      ? readyStatus(galleryDlPath, "managed", { expectedSource: "managed" })
-      : missingStatus(`Missing managed gallery-dl runtime. Expected ${JSON.stringify([galleryDlPath])}`, {
+    galleryDl: fileExists(galleryDlPaths.entrypoint)
+      ? readyStatus(galleryDlPaths.entrypoint, "managed", { expectedSource: "managed" })
+      : missingStatus(`Missing managed gallery-dl runtime. Expected ${JSON.stringify([galleryDlPaths.entrypoint])}`, {
           expectedSource: "managed",
         }),
     douyinDl: fileExists(douyinDlPath)

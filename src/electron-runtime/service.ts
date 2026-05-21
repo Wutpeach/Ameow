@@ -680,9 +680,15 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       );
       let result = await this.orchestrator.execute(
         activeTask.request,
-        (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
+        async (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
           executedProviderId = plan.providerId;
           executedEngineId = enginePlan.engine;
+          if (this.options.ensureEngineRuntimeReady) {
+            await this.options.ensureEngineRuntimeReady(
+              enginePlan.engine,
+              `runtime_execute_${traceId}_${enginePlan.engine}`,
+            );
+          }
           this.logger.log(`>>> [ElectronRuntime] engine dispatch: ${JSON.stringify({
             traceId,
             providerId: plan.providerId,

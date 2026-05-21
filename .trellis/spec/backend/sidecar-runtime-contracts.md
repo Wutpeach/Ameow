@@ -1,94 +1,67 @@
 # Runtime Binary Contracts
 
-> Executable contracts for bundled runtime binaries across macOS/Windows development environments.
+> Executable contracts for bundled Python and managed downloader runtimes across macOS/Windows development environments.
 
 ---
 
-## Scenario: Cross-Platform Runtime Binary Resolution for Video Download
+## Scenario: Cross-Platform Runtime Resolution For Downloaders
 
 ### 1. Scope / Trigger
 
-- Trigger: any change touching `src-tauri/tauri.conf.json` `bundle.resources`, runtime binary startup code in Rust, or runtime scripts/binaries in `src-tauri/binaries/`.
-- Why this needs code-spec depth: build-time resource resolution and runtime process startup are cross-layer contracts (`tauri.conf.json` -> packaged `binaries/` layout -> Rust path resolution -> child process execution).
+- Trigger: any change touching bundled Python packaging under `desktop-assets/binaries/`, managed runtime bootstrap, Electron runtime path resolution, or packaging scripts that prepare downloader prerequisites.
+- Why this needs code-spec depth: runtime readiness now spans repo-managed bundled Python assets, packaged Electron resource layout, config-dir managed runtimes, and cross-platform process execution.
 
 ### 2. Signatures
 
-- Desktop downloader commands:
-  - `check_ytdlp_version() -> Promise<YtdlpVersionInfo>`
-  - `get_gallery_dl_info() -> Promise<GalleryDlInfo>`
-  - `update_ytdlp() -> Promise<string>`
-  - `update_gallery_dl() -> Promise<string>`
-- Runtime binary resolution helpers (Rust):
-  - `ytdlp_binary_path(app: &AppHandle) -> Result<PathBuf, String>`
-  - `get_deno_path(app: &AppHandle) -> Result<PathBuf, String>`
-  - `ffmpeg_binary_path(app: &AppHandle) -> Result<PathBuf, String>`
-- Tauri config:
-  - `src-tauri/tauri.conf.json -> bundle.resources`
-  - Required prefixes:
-    - `binaries/yt-dlp*`
-- Platform-specific binary/script names expected by Tauri at build/runtime:
-  - `src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe`
-  - `src-tauri/binaries/yt-dlp-aarch64-apple-darwin`
-  - `src-tauri/binaries/yt-dlp-x86_64-apple-darwin`
+- Runtime status/version surfaces:
+  - `checkYtdlpVersion(...) -> Promise<DownloaderVersionInfo>`
+  - `getGalleryDlInfo(...) -> Promise<DownloaderVersionInfo>`
+  - `inspectRuntimeDependencyStatus(...) -> RuntimeDependencyStatusSnapshot`
+- Bundled runtime preparation scripts:
+  - `npm run runtime:ensure:python`
+  - `npm run runtime:smoke:python`
+  - `npm run runtime:smoke:downloaders`
+  - `npm run runtime:smoke:douyin-session`
+  - `npm run runtime:verify:macos-package`
+  - `node ./scripts/ensure-capability-probe-runtime.mjs --tool <tool>`
+- Runtime bootstrap entrypoints:
+  - `ensureManagedYtDlpRuntimeReady(...)`
+  - `ensureManagedGalleryDlRuntimeReady(...)`
+  - `ensureManagedDouyinDlRuntimeReady(...)`
+  - `ensureManagedFfmpegRuntimeReady(...)`
+  - `ensureManagedDenoRuntimeReady(...)`
 
 ### 3. Contracts
 
-- Runtime contract for official bundled downloader binaries:
-  - Windows must resolve `yt-dlp` / `gallery-dl` from official upstream release assets, not Python wrapper scripts or PyInstaller rebuilds.
-  - macOS keeps `gallery-dl` bundled from official upstream release assets, but `yt-dlp` is now a platform-split migration path:
-    - steady-state target source is an app-managed runtime under `app_config_dir/runtimes/yt-dlp/<target>/...`
-    - Phase 1 may still expose a bundled fallback path for execution continuity while the managed installer/update flow is landing
-  - The unified bootstrap entrypoint is `npm run runtime:ensure:downloaders`.
-  - Repo-managed downloader status/update checks must read and replace the stable bundled file names under `desktop-assets/binaries/`.
-  - App-managed yt-dlp downloads must force UTF-8 process output and capture a machine-readable final path via `--print-to-file after_move:filepath`; do not rely only on human-readable stdout variants such as `Destination:`, `Merging formats into`, or `has already been downloaded`.
-- Runtime contract for `update_ytdlp` / `update_gallery_dl`:
-  - Must resolve the bundled destination path by current OS/arch:
-    - Windows x64 -> `yt-dlp-x86_64-pc-windows-msvc.exe`
-    - macOS arm64 -> `yt-dlp-aarch64-apple-darwin`
-    - macOS x64 -> `yt-dlp-x86_64-apple-darwin`
-    - Windows x64 -> `gallery-dl-x86_64-pc-windows-msvc.exe`
-    - macOS arm64 -> `gallery-dl-aarch64-apple-darwin`
-    - macOS x64 -> `gallery-dl-x86_64-apple-darwin`
-  - The repo-managed bundled downloader supply chain must source `yt-dlp` and `gallery-dl` from official upstream release assets and normalize the downloaded file into the stable internal name above.
-  - Must download the platform-matched official release asset:
-    - Windows `yt-dlp` -> `yt-dlp.exe`
-    - macOS `yt-dlp` -> `yt-dlp_macos`
-    - Windows `gallery-dl` -> `gallery-dl_windows.exe`
-    - macOS `gallery-dl` -> `gallery-dl_macos`
-  - Version-check surfaces must compare the local bundled version against the latest upstream release tag and expose whether an update is available.
-  - Update commands must return the local bundled version from `<tool> --version` after replacement; do not hard-fail on post-update remote version API checks.
-  - On Unix targets, the replaced binary must be executable (`0o755`).
-  - Electron-owned updater/version-check HTTP requests must use Electron session / Chromium network fetch rather than Node global `fetch`, so system proxy, PAC, and any session-level proxy overrides apply consistently.
-- Runtime contract for runtime path resolution:
-  - Runtime must probe only `binaries/<file>` candidates in development, `resource_dir`, and `current_exe`-relative locations.
-  - Candidate order should include:
-    - debug source tree: `<manifest>/binaries/<file>`
-    - packaged resources: `<resource_dir>/binaries/<file>`
-    - portable/current exe fallback: `<exe_dir>/binaries/<file>`
-  - Root-level helper executable candidates such as `<base>/<file>` must not be relied on.
-  - Repo-managed bundled downloader binaries must keep stable internal file names even when the upstream asset uses a different public name:
-    - Windows `gallery-dl_windows.exe` -> `gallery-dl-x86_64-pc-windows-msvc.exe`
-    - macOS `gallery-dl_macos` -> `gallery-dl-<apple-target>`
-    - Windows `yt-dlp.exe` -> `yt-dlp-x86_64-pc-windows-msvc.exe`
-    - macOS `yt-dlp_macos` -> `yt-dlp-<apple-target>`
-  - Repo-managed downloader ensure flows must treat official provenance as part of readiness:
-    - use the unified `runtime:ensure:downloaders` entrypoint for local dev/build/package preparation
-    - presence of an arbitrary matching file name is not enough if the downloader has not been stamped by the repo manifest
-    - the source-of-truth manifest is `desktop-assets/binaries/.official-downloader-binaries.json`
-  - Electron runtime path/status resolution is platform-sensitive for `yt-dlp`:
-    - Windows: `ytDlp.source` must resolve as `"bundled"` when ready
-    - macOS steady-state target: `ytDlp.expectedSource` must be `"managed"`
-    - macOS managed-missing status must serialize `ytDlp.state === "missing"` so startup bootstrap can auto-trigger, even when a bundled fallback file exists
-    - when macOS managed yt-dlp is missing but the bundled fallback exists, status should expose `fallbackSource: "bundled"` and `fallbackPath`, while actual execution path resolution may still run the bundled fallback for continuity
-    - macOS managed runtime target path lives under `app_config_dir/runtimes/yt-dlp/<target>/venv/bin/yt-dlp` (or `venv/Scripts/yt-dlp.exe` on Windows-style layouts used by helpers/tests)
-  - yt-dlp version checks and downloads must execute the resolved absolute binary path directly; do not depend on `app.shell().sidecar("yt-dlp")` on Windows.
+- Runtime path resolution:
+  - Bundled Python is the only packaged prerequisite for Python downloaders.
+  - `yt-dlp`, `gallery-dl`, and `douyin-dl` must resolve from managed per-tool virtualenvs under `app_config_dir/runtimes/<tool>/<target>/venv/...`.
+  - Official downloader provenance is represented by pinned Python package sources in `electron/managedPythonPackageManifest.mts`, not by shipping standalone downloader release binaries.
+  - Scripts that need managed Python package pins must read the compiled Electron manifest through `scripts/managed-python-package-manifest.mjs`; they must not define a second downloader version/source table.
+  - Repo-managed bundled-Python ensure flows must treat official provenance as part of readiness:
+    - use the unified `runtime:ensure:python` entrypoint for local dev/build/package preparation
+    - presence of an arbitrary matching `python-<target>` directory is not enough if the runtime has not been stamped by the repo manifest
+    - the source-of-truth manifest is `desktop-assets/binaries/.official-python-runtimes.json`
+  - Electron runtime path/status resolution for Python downloaders:
+    - `python.source` must resolve as `"bundled"` when ready
+    - `python.expectedSource` must be `"bundled"`
+    - `ytDlp.expectedSource`, `galleryDl.expectedSource`, and `douyinDl.expectedSource` must be `"managed"`
+    - downloader managed runtime target paths live under `app_config_dir/runtimes/<tool>/<target>/venv/bin/<entrypoint>` (or `venv/Scripts/<entrypoint>.exe` on Windows)
+  - Bundled Python candidate order must include:
+    - repo dev tree: `<repoRoot>/desktop-assets/binaries/python-<target>`
+    - packaged Electron resources: `<resourceDir>/binaries/python-<target>`
+    - packaged Electron app resources: `<resourceDir>/app/desktop-assets/binaries/python-<target>`
+    - portable/current exe fallback: `<exeDir>/binaries/python-<target>`
+  - Status inspection and bootstrap output must agree on the same managed runtime paths; do not let `runtimePaths.ts` and `managedRuntimeBootstrap.mts` drift.
   - On Windows, app-managed console binaries that stream output back into Rust or Electron (`yt-dlp`, `gallery-dl`, selection probes, version checks) must use one shared hidden-CLI spawn path instead of `tauri-plugin-shell` spawn so multi-process routes do not flash transient console windows.
   - The shared Windows helper must keep `CREATE_NO_WINDOW` intact and must not combine it with `DETACHED_PROCESS`, because that causes the no-window flag to be ignored.
   - App-managed yt-dlp invocations must include `--ignore-config` so portable builds do not inherit host-machine yt-dlp configuration files.
 - Managed runtime install contract:
   - App-owned managed runtimes install under `app_config_dir/runtimes/<component>/<target>/`.
+  - `python` is a bundled prerequisite and must not enter `missingComponents` or `MANAGED_RUNTIME_BOOTSTRAP_ORDER`.
+  - If bundled Python is missing or invalid, runtime gate state must fail early with a reinstall-style error instead of attempting downloader bootstrap.
   - `deno` and `ffmpeg` are resolved from this managed runtime directory, not from bundled/resource or `PATH` fallbacks.
-  - Rust `setup()` must not auto-bootstrap managed runtimes before the main window has had a chance to render.
+  - Electron startup must not auto-bootstrap managed runtimes before the main window has had a chance to render.
   - Startup may inspect runtime readiness and publish gate state, and if managed runtimes are missing the app should auto-start bootstrap only after the frontend main window is visibly expanded.
   - Compact icon-mode startup does not count as "main window visible" for auto-bootstrap purposes; startup bootstrap must not interrupt the compact first reveal by forcing an immediate expand.
   - The runtime reminder UI may expose hoverable progress/details during automatic bootstrap, but explicit click-to-retry should be reserved for failed or otherwise manual-action states.
@@ -98,9 +71,10 @@
   - Managed runtime download/extract temp paths may live inside the target runtime directory, so the parent directory must be created before opening temp files.
   - Managed runtime downloads must validate expected size + sha256 before install and replace the live binary atomically.
   - Electron-owned managed-runtime bootstrap HTTP requests must use Electron session / Chromium network fetch rather than Node global `fetch`, so startup bootstrap respects system proxy, PAC, and any session-level proxy overrides.
-  - macOS managed yt-dlp bootstrap must prefer the newest available local `python3` that satisfies the current upstream stable `yt-dlp` minimum Python requirement.
-  - If a managed yt-dlp virtualenv was created with an older Python but a compatible newer Python later becomes available, bootstrap/update should recreate the managed virtualenv with the newer interpreter.
-  - If no compatible Python is available, managed yt-dlp may install the newest version allowed by that interpreter, but status/version surfaces must not misreport this as the latest upstream stable release.
+  - Downloader managed bootstrap must source Python from bundled runtime bootstrap options; do not fall back to system Python in steady state.
+  - Shared Python package bootstrap must use per-tool in-flight promise joining so startup prewarm, settings refresh, and first real download converge on one venv install/rebuild flow per tool.
+  - Managed `ffmpeg` and `deno` bootstrap must use component-and-target in-flight promise joining so startup prewarm, yt-dlp engine preparation, and first real download converge on one managed binary install flow per component.
+  - `douyin-dl` browser support (`playwright` / Chromium) remains lazy and must not be part of default startup prewarm.
 - Runtime contract for `ffmpeg` used by yt-dlp/internal post-processing:
   - `ffmpeg` is no longer bundled into the Windows portable ZIP or treated as a system `PATH` dependency.
   - Runtime must bootstrap `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/` from a pinned FFmpegBin release asset when missing.
@@ -150,18 +124,16 @@
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| macOS build missing `yt-dlp-<target>` | `cargo check` build script | Build fails with missing resource path | Add required runtime script/binary |
+| bundled `python-<target>` directory missing from packaged resources | runtime status inspection / package smoke | runtime gate fails before downloader bootstrap | rerun `npm run runtime:ensure:python` and repackage |
 | non-Windows build imports `clipboard-win` directly | Rust compile step | Compile error unresolved import | Guard import/function logic with `#[cfg(windows)]` |
-| wrapper script not executable | runtime process spawn | spawn/start fails | `chmod +x` wrapper scripts |
-| `update_ytdlp` uses Windows-only URL on macOS | update command runtime | update fails or writes wrong artifact | choose URL by target OS |
-| post-update check depends on remote API availability | update command runtime | update appears failed though file replaced | validate with local `yt-dlp --version` first |
-| replaced runtime binary loses exec bit on Unix | runtime process spawn after update | `Permission denied` on spawn | set file mode to `0o755` after copy |
+| bundled Python executable loses exec bit on Unix | runtime process spawn | `Permission denied` on bootstrap or smoke check | restore executable mode during ensure/extract |
 | portable package leaves duplicate helper executables at root | package inspection + runtime version check | users can observe stale duplicate files after update | ship helper executables only under `binaries/` |
-| installer/resource layout omits `binaries/yt-dlp-<target>` | version check / download spawn | yt-dlp path resolution fails on packaged app | bundle the target file as a `resources` entry |
+| installer/resource layout omits `desktop-assets/binaries/python-<target>` | runtime status / startup gate | Python downloaders cannot bootstrap | include the current target bundled Python directory in packaged resources |
 | host machine has custom yt-dlp config | packaged download runtime | portable build behaves differently across machines | pass `--ignore-config` on app-managed yt-dlp invocations |
 | Electron main-process HTTP downloads use Node global `fetch` instead of Electron session fetch | managed runtime bootstrap / updater / version checks | proxy-configured users bypass system/session proxy settings and remote downloads can appear unusually slow or fail | route requests through Electron session / Chromium network fetch |
 | Windows managed downloader path uses a generic shell/plugin spawn | highest-quality or retry-heavy download runtime | one or more transient console windows can flash even though the main app is GUI-only | route the process through the shared native hidden-CLI helper |
 | yt-dlp exits 0 after reusing an existing file | packaged/runtime completion normalization | app reports false failure because no final path was captured from stdout | recover final path from `after_move:filepath` report and keep stdout parsing only as fallback |
+| non-host packaging prepare tries to execute foreign Python | cross-target packaging prepare | packaging fails on the host before artifact assembly | skip runtime smoke execution for non-host targets while still verifying checksum/extract/manifest |
 | managed `deno` runtime missing | app startup / yt-dlp spawn | YouTube-capable yt-dlp path cannot start JS runtime | bootstrap `deno` into `app_config_dir/runtimes/...` before yt-dlp spawn |
 | managed `deno` archive checksum mismatch | runtime bootstrap | corrupted runtime would be installed | reject archive and keep runtime missing |
 | managed `deno` archive extracted from unvalidated asset | runtime bootstrap | runtime provenance is unclear | validate archive size + sha256 before extraction |
@@ -181,42 +153,41 @@
 ### 5. Good / Base / Bad Cases
 
 - Good:
-  - `npm run tauri dev` starts successfully on macOS.
-  - `cargo check --manifest-path src-tauri/Cargo.toml` passes.
-  - `update_ytdlp` returns a concrete version string after successful replacement.
-  - `src-tauri/binaries/yt-dlp-aarch64-apple-darwin --version` returns a version string.
+  - `npm run runtime:ensure:python` prepares the official bundled Python runtime for the active package target.
+  - `node ./scripts/smoke-python-runtime.mjs` passes and proves `venv`, `pip`, `sqlite3`, and `ssl` are usable from the bundled runtime.
+  - `checkYtdlpVersion(...)` reports managed `yt-dlp` plus bundled Python metadata.
   - Windows portable ZIP contains helper executables only under `binaries/`.
   - On Windows, `highest` downloads, YouTube cookie-free probes, and `gallery-dl` runs complete without flashing transient console windows.
   - A clean config directory bootstraps `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/`, and Windows packaged builds can merge yt-dlp split streams without any system-installed ffmpeg.
-  - The same bundled yt-dlp build behaves identically on two Windows machines even if one host has custom yt-dlp config files installed.
+  - The same managed yt-dlp runtime behaves identically on two Windows machines even if one host has custom yt-dlp config files installed.
   - A prior interrupted Bilibili `highest` download recovers automatically on the next attempt instead of surfacing raw HTTP 416 to the user.
 - Base:
   - `yt-dlp` route works for generic platforms while direct path handles Douyin/Xiaohongshu CDN URLs.
 - Bad:
-  - Update path is hardcoded to Windows binary on non-Windows targets.
-  - Update flow succeeds on disk but returns error because of remote version check failure.
-  - Missing runtime target files causes build-script failure.
+  - Bundled Python is missing from packaged resources.
+  - Update/download behavior depends on a user-installed Python or shell PATH state.
   - Windows-only crate imports break non-Windows compilation.
-  - Runtime still depends on root-level `yt-dlp.exe` that Tauri sidecar would place next to the app.
   - Download behavior depends on developer machine `PATH` state because managed `ffmpeg` bootstrap never runs.
 
 ### 6. Tests Required (with assertion points)
 
 - Build assertions:
   - `npm run build` succeeds.
-  - `cargo check --manifest-path src-tauri/Cargo.toml` succeeds.
-- Runtime binary assertions:
-  - `src-tauri/binaries/yt-dlp-aarch64-apple-darwin --version` exits 0.
-- Runtime assertion:
-  - `npm run tauri dev` starts without bundled-runtime resource missing error.
-  - Trigger `update_ytdlp` and assert command returns non-empty version string.
-  - After update, trigger `check_ytdlp_version` and assert payload still includes `updateAvailable`.
+  - `npm run runtime:ensure:python` succeeds.
+- Runtime assertions:
+  - `npm run runtime:smoke:python` exits 0 on the host target.
+  - `node ./scripts/smoke-python-runtime.mjs --mac zip` fails clearly on a Windows host instead of executing foreign-target Python; use `node ./scripts/ensure-python-runtime.mjs --mac zip` for cross-target preparation.
+  - `npm run runtime:smoke:downloaders` exits 0 and verifies fresh per-tool venv creation plus pinned versions for `yt-dlp`, `gallery-dl`, and `douyin-dl`.
+  - `npm run runtime:smoke:downloaders` also exercises local HTTP fixture downloads for managed `yt-dlp` and `gallery-dl`, proving those venv entrypoints can produce output files without relying on external sites.
+  - With a valid Douyin session cookies file, `npm run runtime:smoke:douyin-session -- <cookies-file> [douyin-url]` exits 0 and verifies the managed `douyin-dl` runtime can download a non-empty media artifact through the same app runtime execution path with `browser_fallback.enabled=false`.
+  - `node ./scripts/ensure-capability-probe-runtime.mjs --tool yt-dlp` exits 0.
+  - `npm run package:win:dir` and `npm run package:portable:skip-build` succeed on Windows host verification.
+  - Packaged Electron resources include `desktop-assets/binaries/python-<target>` for the current target.
+  - On macOS package verification, `npm run runtime:verify:macos-package -- <arm64|x64> require-execution` must pass against the built `.app` bundle. This verifies the `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>` layout, Python runtime manifest provenance, compiled `managedPythonPackageManifest.mjs`, packaged `main.mjs` resource-dir wiring, absence of old standalone downloader assets, and packaged Python `venv --copies` execution on the matching host architecture.
   - Launch the packaged/main app with missing managed runtimes and assert the first visible window appears before any managed-runtime download starts.
   - Launch the app into compact icon mode with missing managed runtimes and assert startup bootstrap waits until the expanded main window is visible instead of forcing an unsolicited first-launch expand.
   - With missing managed runtimes on Electron/macOS startup, allow the initial status/gate refresh to settle and assert the delayed startup bootstrap still transitions from `idle` to `checking`/`downloading` without requiring a manual retry click.
-  - With a system proxy or PAC configured, launch the Electron app with missing managed runtimes and assert startup bootstrap, `check_ytdlp_version`, and `update_ytdlp` all use the proxied route successfully.
   - Open Settings with missing runtimes and assert status refresh does not start a managed-runtime bootstrap by itself.
-  - YouTube and X download both succeed in dev with the resolved `binaries/` yt-dlp executable.
   - On a clean config directory without managed runtimes, startup or first yt-dlp JS-runtime use bootstraps `deno` into `app_config_dir/runtimes/deno/<target>/`.
   - On a clean config directory without managed runtimes, startup or first media-tool use bootstraps `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/` with both `ffmpeg` and `ffprobe`.
   - On a Windows portable package without external tooling installed, a merged yt-dlp download produces a single final file and no `.f*` residue.
@@ -225,40 +196,30 @@
   - Force a retryable YouTube extractor failure and assert runtime emits a retry activity token before the second extended attempt.
   - On Windows with `AE-Friendly Format` enabled, ffmpeg-backed post-processing completes without showing a transient console window.
   - When yt-dlp reports `has already been downloaded`, the app still resolves the existing final file path and emits success instead of `E_OUTPUT_NORMALIZATION_FAILED`.
-  - On a machine with custom yt-dlp config files, an app-triggered bundled yt-dlp download produces the same selected formats as a clean machine.
-  - After creating stale `.part` / `.ytdl` state for a packaged yt-dlp download, the next app-triggered attempt succeeds via the one-time no-resume retry path.
-  - Inspect the Windows portable ZIP and assert `yt-dlp` remains under `binaries/` while `ffmpeg` is absent from the artifact because it now bootstraps on first use.
+  - Inspect the Windows portable ZIP and assert bundled Python remains under packaged resources while `ffmpeg` is absent from the artifact because it now bootstraps on first use.
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
-```rust
-use clipboard_win::{formats, get_clipboard}; // unguarded on all platforms
+```ts
+return childProcess.spawn("python3", ["-m", "venv", targetDir]);
 ```
 
-```json
-"externalBin": ["binaries/yt-dlp"] // runtime now expects bundled binaries/ resources instead
+```ts
+return path.join(resourceDir, "binaries", "yt-dlp.exe");
 ```
 
 #### Correct
 
-```rust
-#[cfg(windows)]
-use clipboard_win::{formats, get_clipboard};
+```ts
+const bundledPythonPath = resolveBundledPythonRuntime(environment).executable;
+await runUtilityCommand(bundledPythonPath, ["-m", "venv", targetDir]);
 ```
 
-```json
-"resources": {
-  "binaries/yt-dlp*": "binaries/"
-}
-```
-
-```bash
-src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe
-src-tauri/binaries/yt-dlp-aarch64-apple-darwin
-src-tauri/binaries/yt-dlp-x86_64-apple-darwin
-# all resolved from binaries/ at runtime
+```ts
+const bundledPython = resolveBundledPythonRuntime(environment);
+const ytDlp = resolveManagedYtDlpRuntimePaths(environment).entrypoint;
 ```
 
 ---
@@ -304,7 +265,7 @@ src-tauri/binaries/yt-dlp-x86_64-apple-darwin
   - `yt-dlp` remains a bundled runtime resolved from `src-tauri/binaries/` in dev and `binaries/` in packaged layouts.
   - `gallery-dl` remains a bundled runtime resolved from `desktop-assets/binaries/` in dev and `binaries/` in packaged layouts.
   - Local Electron entrypoints that can exercise downloader flows (`npm run dev`, `npm run electron:dev`, `npm run build`, packaging scripts) must run the unified official-downloader ensure flow before launch/package so missing or non-official bundled runtimes fail early instead of surfacing as `spawn ... ENOENT` during a download task.
-  - The official downloader ensure flow writes `desktop-assets/binaries/.official-downloader-binaries.json`; a stale or hand-dropped downloader binary without that manifest entry does not satisfy the repo-managed supply-chain contract.
+  - The official bundled-Python ensure flow writes `desktop-assets/binaries/.official-python-runtimes.json`; a stale or hand-dropped `python-<target>` directory without that manifest entry does not satisfy the repo-managed supply-chain contract.
   - `ffmpeg`, `ffprobe`, and `deno` remain managed runtimes resolved from `<configDir>/runtimes/<component>/<target>/...`.
   - On Windows, managed `ffmpeg` and `deno` use `real/` for the actual console binaries.
 - Queue and event compatibility:

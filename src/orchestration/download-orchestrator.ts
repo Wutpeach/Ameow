@@ -58,7 +58,7 @@ export class DownloadOrchestrator {
     buildContext: (
       plan: ResolvedDownloadPlan,
       enginePlan: EnginePlan,
-    ) => EngineExecutionContext,
+    ) => EngineExecutionContext | Promise<EngineExecutionContext>,
   ): Promise<DownloadResultPayload> {
     const normalizedInput = rawDownloadInputSchema.parse(input);
     const resolvedPlan = this.siteRegistry.resolve(normalizedInput);
@@ -103,7 +103,8 @@ export class DownloadOrchestrator {
       }
 
       try {
-        const result = await engine.execute(buildContext(resolvedPlan, enginePlan));
+        const context = await buildContext(resolvedPlan, enginePlan);
+        const result = await engine.execute(context);
         if (result.success) {
           return result;
         }

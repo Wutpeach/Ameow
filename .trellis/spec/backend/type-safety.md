@@ -87,11 +87,11 @@ pub struct GalleryDlInfo {
 | `save_config` | `Result<(), String>` | `invoke<void>("save_config", { json })` |
 | `open_current_output_folder` | `Result<(), String>` | `invoke<void>("open_current_output_folder")` |
 | `export_support_log` | `Result<String, String>` | `invoke<string>("export_support_log")` |
-| `get_gallery_dl_info` | `Result<GalleryDlInfo, String>` | `invoke<{ current: string; source: "bundled" \| "missing"; path: string \| null; updateChannel: "bundled_release" \| "unavailable" }>("get_gallery_dl_info")` |
+| `get_gallery_dl_info` | `Result<GalleryDlInfo, String>` | `invoke<{ current: string; latest: string \| null; updateAvailable: boolean \| null; latestError: string \| null; source: "managed" \| "missing"; path: string \| null; updateChannel: "managed_python_package" \| "unavailable" }>("get_gallery_dl_info")` |
 | `download_video` | `Result<DownloadResult, String>` | `invoke<{ traceId: string; success: boolean; file_path?: string; error?: string }>(...)` |
 | `queue_pasted_video_download` | `Result<QueuedVideoDownloadAck, String>` | `invoke<{ accepted: boolean; traceId: string }>("queue_pasted_video_download", { url, pageUrl?, siteHint? })` |
 | `queue_video_download` | `Result<QueuedVideoDownloadAck, String>` | `invoke<{ accepted: boolean; traceId: string }>("queue_video_download", { url, pageUrl?, videoUrl?, videoCandidates? })` |
-| `check_ytdlp_version` | `Result<YtdlpVersionInfo, String>` | `invoke<{ current: string; latest: string \| null; updateAvailable: boolean \| null; latestError: string \| null; source?: "managed" \| "bundled" \| "missing"; path?: string \| null; pythonVersion?: string \| null; pythonPath?: string \| null; pythonSupportsLatestStable?: boolean \| null; updateChannel?: "managed_python_package" \| "bundled_release" \| "unavailable" }>(...)` |
+| `check_ytdlp_version` | `Result<YtdlpVersionInfo, String>` | `invoke<{ current: string; latest: string \| null; updateAvailable: boolean \| null; latestError: string \| null; source?: "managed" \| "bundled" \| "missing"; path?: string \| null; pythonVersion?: string \| null; pythonPath?: string \| null; pythonSupportsLatestStable?: boolean \| null; updateChannel?: "managed_python_package" \| "unavailable" }>(...)` |
 | `get_runtime_dependency_status` | `RuntimeDependencyStatusSnapshot` | `invoke<{ ytDlp: { state: "ready" \| "missing"; source: "bundled" \| "managed" \| null; expectedSource?: "bundled" \| "managed" \| null; fallbackSource?: "bundled" \| "managed" \| null; path: string \| null; fallbackPath?: string \| null; error: string \| null }; galleryDl: ...; ffmpeg: ...; deno: ... }>("get_runtime_dependency_status")` |
 | `get_runtime_dependency_gate_state` | `RuntimeDependencyGateStatePayload` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "ffmpeg" \| "deno" \| null }>("get_runtime_dependency_gate_state")` |
 | `refresh_runtime_dependency_gate_state` | `RuntimeDependencyGateStatePayload` | Inspection-only refresh of current runtime readiness; must not auto-start downloads |
@@ -198,10 +198,10 @@ Contract rules:
   - `source` distinguishes managed install, bundled fallback visibility, or fully missing state
   - `path` points at the active managed runtime or bundled fallback path when present
   - `pythonVersion` / `pythonPath` / `pythonSupportsLatestStable` describe the interpreter backing the managed runtime
-  - `updateChannel` must serialize `"managed_python_package"` for managed macOS yt-dlp and `"bundled_release"` for bundled channels
-- `get_gallery_dl_info.current` is the version returned by the bundled `gallery-dl` binary itself.
-- `get_gallery_dl_info.source` must serialize as `"bundled"` when the bundled binary is present and `"missing"` otherwise.
-- `get_gallery_dl_info.updateChannel` currently serializes as `"bundled_release"` when the bundled runtime is present and `"unavailable"` otherwise.
+  - `updateChannel` must serialize `"managed_python_package"` when the managed runtime is present and `"unavailable"` otherwise
+- `get_gallery_dl_info.current` is the version returned by the managed `gallery-dl` entrypoint itself.
+- `get_gallery_dl_info.source` must serialize as `"managed"` when the managed runtime is present and `"missing"` otherwise.
+- `get_gallery_dl_info.updateChannel` currently serializes as `"managed_python_package"` when the managed runtime is present and `"unavailable"` otherwise.
 - `refresh_runtime_dependency_gate_state` is inspection-only: it may update `phase`, `missingComponents`, and `lastError`, but it must not start a managed-runtime download by itself.
 - `start_runtime_dependency_bootstrap` is the only automatic bootstrap entrypoint for the main-window post-paint flow; `setup()` must not start managed-runtime downloads before the UI is visible.
 - `video-download-progress.traceId` and `video-download-complete.traceId` identify the task that produced the event.

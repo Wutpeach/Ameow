@@ -3,7 +3,7 @@ import {
   capabilityProbeResultSchema,
   type CapabilityProbeResult,
 } from "./probe.js";
-import { capabilityEngineIdSchema } from "./schema.js";
+import { capabilityProbeEngineIdSchema } from "./schema.js";
 
 export const capabilityProbeTargetTierSchema = z.enum([
   "critical",
@@ -15,7 +15,7 @@ export type CapabilityProbeTargetTier = z.infer<typeof capabilityProbeTargetTier
 
 export const capabilityProbeTargetSchema = z.object({
   id: z.string().trim().min(1),
-  engine: capabilityEngineIdSchema,
+  engine: capabilityProbeEngineIdSchema,
   sourceUrl: z.url(),
   siteId: z.string().trim().min(1).optional(),
   tier: capabilityProbeTargetTierSchema,

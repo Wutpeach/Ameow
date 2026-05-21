@@ -41,6 +41,9 @@ export const getMissingRuntimeComponentsFromStatus = (
   }
 
   const missingComponents: string[] = [];
+  if (status.python.state !== "ready") {
+    missingComponents.push("python");
+  }
   if (status.ytDlp.state !== "ready") {
     missingComponents.push("yt-dlp");
   }

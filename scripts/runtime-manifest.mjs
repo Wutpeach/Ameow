@@ -1,0 +1,33 @@
+export const PYTHON_RUNTIME_MANIFEST = {
+  releaseTag: "20260325",
+  pythonVersion: "3.11.15",
+  targets: {
+    "x86_64-pc-windows-msvc": {
+      assetName: "cpython-3.11.15+20260325-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      downloadUrl:
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260325/cpython-3.11.15%2B20260325-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      sha256: "ec6d6439f700863e2ea740c4e7b80d70cbc3a605a8d3d8b9b817626317ef2621",
+      size: 25593816,
+      executableRelativePath: "python.exe",
+      platform: "win32",
+    },
+    "aarch64-apple-darwin": {
+      assetName: "cpython-3.11.15+20260325-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      downloadUrl:
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260325/cpython-3.11.15%2B20260325-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      sha256: "9d50cd14269d1ea8601ab279ae0175bdaad7cb151700f53f201a1ea7d0dc53b7",
+      size: 20020845,
+      executableRelativePath: "bin/python3",
+      platform: "darwin",
+    },
+    "x86_64-apple-darwin": {
+      assetName: "cpython-3.11.15+20260325-x86_64-apple-darwin-install_only_stripped.tar.gz",
+      downloadUrl:
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20260325/cpython-3.11.15%2B20260325-x86_64-apple-darwin-install_only_stripped.tar.gz",
+      sha256: "0982c85799ccb8c0dd455b8812d75e9cc530bcb618ff66bcd74940c527ccda81",
+      size: 20022548,
+      executableRelativePath: "bin/python3",
+      platform: "darwin",
+    },
+  },
+};

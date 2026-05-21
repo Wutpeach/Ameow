@@ -43,3 +43,6 @@ export const ffmpegBinaryNameFor = (platform: NodeJS.Platform): string =>
 export const ffprobeBinaryNameFor = (platform: NodeJS.Platform): string =>
   `ffprobe${executableExtensionFor(platform)}`;
 
+export const pythonBinaryNameFor = (platform: NodeJS.Platform): string =>
+  platform === "win32" ? "python.exe" : "python3";
+

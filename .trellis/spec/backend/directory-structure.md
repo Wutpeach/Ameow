@@ -1,51 +1,79 @@
 # Directory Structure
 
-> How backend code is organized in FlowSelect.
+> How backend/runtime code is organized in Ameow.
 
 ---
 
 ## Overview
 
-The backend is a single-file Rust application with all logic in `lib.rs`. External binaries (yt-dlp) are bundled in the `binaries/` directory.
+The backend is no longer a single-file Rust app. Runtime ownership is split across:
+
+- `electron/` for Electron main-process orchestration, runtime bootstrap, and command bridges
+- `src/electron-runtime/` for framework-light runtime logic such as queueing, path resolution, downloader execution, and progress normalization
+- `scripts/` for build/package/runtime preparation flows
+- `src-tauri/` for the remaining native/Tauri-owned integrations that have not moved into Electron
+
+The downloader stack now treats bundled Python as the packaged prerequisite and installs Python downloaders into per-tool virtual environments under the app config directory.
 
 ---
 
 ## Directory Layout
 
-```
+```text
+electron/
+├── main.mts                       # Electron main entrypoint and desktop orchestration
+├── managedRuntimeBootstrap.mts    # Managed runtime installers/bootstrap
+├── runtimeDependencyGate.mts      # Runtime gate state machine
+└── downloaderVersionInfo.mts      # Downloader/runtime diagnostics
+
+src/
+└── electron-runtime/
+    ├── service.ts                 # Download queue/runtime service
+    ├── runtimePaths.ts            # Bundled/managed runtime path resolution
+    ├── ytDlpDownload.ts           # yt-dlp executor
+    ├── galleryDlDownload.ts       # gallery-dl executor
+    └── processRunner.ts           # Shared hidden CLI execution helpers
+
+desktop-assets/
+└── binaries/
+    ├── python-<target>/           # Bundled CPython runtime prepared by repo scripts
+    └── .official-python-runtimes.json
+
+scripts/
+├── python-runtime.mjs             # Bundled Python fetch/verify/extract logic
+├── ensure-python-runtime.mjs      # Local ensure entrypoint
+├── smoke-python-runtime.mjs       # Bundled Python smoke checks
+├── ensure-capability-probe-runtime.mjs
+└── run-electron-package.mjs       # Packaging wrapper that prepares bundled Python first
+
 src-tauri/
-├── src/
-│   ├── lib.rs             # Core backend logic (~1600 lines)
-│   └── main.rs            # Entry point (minimal)
-│
-├── binaries/              # Bundled executables
-│   └── yt-dlp-x86_64-pc-windows-msvc.exe
-│
-├── capabilities/          # Tauri v2 permissions
-│   └── default.json       # Capability declarations
-│
-├── icons/                 # App icons
-│
-├── Cargo.toml             # Rust dependencies
-├── tauri.conf.json        # Tauri configuration
-└── build.rs               # Build script
+├── src/                           # Legacy/native integrations still owned by Rust/Tauri
+├── Cargo.toml
+└── tauri.conf.json
 ```
 
 ---
 
 ## Module Organization
 
-All backend code lives in `lib.rs`, organized by functionality:
+Runtime/download responsibilities are organized by boundary:
 
-1. **Imports & State** (lines 1-50)
-2. **File Operations** (lines 50-160)
-3. **Image Processing** (lines 160-310)
-4. **AE Integration** (lines 310-390)
-5. **Video Download** (lines 390-700)
-6. **Config Management** (lines 700-800)
-7. **System Integration** (lines 800-1000)
-8. **WebSocket Server** (lines 1000-1400)
-9. **App Setup** (lines 1400-1600)
+1. **Electron main ownership**
+   - IPC command bridging
+   - window/tray/updater/config integration
+   - runtime dependency gate state publishing
+2. **Framework-light runtime core**
+   - queue ownership
+   - downloader routing/execution
+   - runtime path inspection
+   - progress/event normalization
+3. **Managed runtime bootstrap**
+   - bundled Python validation
+   - per-tool venv bootstrap for `yt-dlp`, `gallery-dl`, and `douyin-dl`
+   - managed `ffmpeg` and `deno` downloads
+4. **Build/package preparation**
+   - ensuring the official bundled Python runtime exists for the current package target
+   - smoke checks for bundled Python capability (`venv`, `pip`, `sqlite3`, `ssl`)
 
 ---
 
@@ -53,16 +81,16 @@ All backend code lives in `lib.rs`, organized by functionality:
 
 | Type | Convention | Example |
 |------|------------|---------|
-| Functions | snake_case | `get_clipboard_files` |
-| Structs | PascalCase | `DownloadProgress` |
-| Constants | SCREAMING_SNAKE | `DOWNLOAD_CHILD` |
-| Commands | snake_case | `#[tauri::command]` |
+| Functions | camelCase / verb-first helpers in TS, snake_case in Rust | `ensureManagedYtDlpRuntimeReady` / `get_clipboard_files` |
+| Types | PascalCase | `RuntimeDependencyStatusSnapshot` |
+| Constants | SCREAMING_SNAKE | `MANAGED_RUNTIME_BOOTSTRAP_ORDER` |
+| Commands | stable string command ids | `"start_runtime_dependency_bootstrap"` |
 
 ---
 
 ## Examples
 
-**Well-structured command**: `src-tauri/src/lib.rs:119-158`
-- Clear function signature
-- Proper error handling with Result
-- Logging with `>>>` prefix
+**Well-structured runtime boundary**:
+- `electron/managedRuntimeBootstrap.mts` keeps downloader bootstrap logic independent from Electron globals by taking injected options.
+- `src/electron-runtime/runtimePaths.ts` is the shared source of truth for bundled Python and managed downloader path resolution.
+- `electron/runtimeDependencyGate.mts` keeps `python` as a bundled prerequisite while restricting bootstrap order to managed components only.

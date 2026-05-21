@@ -14,6 +14,7 @@ const readyStatus = {
 } as const;
 
 const runtimeStatus: RuntimeDependencyStatusSnapshot = {
+  python: readyStatus,
   ytDlp: readyStatus,
   galleryDl: { ...readyStatus, source: "bundled" },
   douyinDl: { ...readyStatus, source: "managed" },

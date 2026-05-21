@@ -13,6 +13,7 @@ export type RuntimeDependencyStatusEntry = {
 };
 
 export type RuntimeDependencyStatusSnapshot = {
+  python: RuntimeDependencyStatusEntry;
   ytDlp: RuntimeDependencyStatusEntry;
   galleryDl: RuntimeDependencyStatusEntry;
   douyinDl: RuntimeDependencyStatusEntry;

@@ -1,6 +1,11 @@
 import { z } from "zod";
+import {
+  CAPABILITY_ENGINE_IDS,
+  CAPABILITY_PROBE_ENGINE_IDS,
+} from "./types.js";
 
-export const capabilityEngineIdSchema = z.enum(["yt-dlp", "gallery-dl", "douyin-dl", "direct"]);
+export const capabilityEngineIdSchema = z.enum(CAPABILITY_ENGINE_IDS);
+export const capabilityProbeEngineIdSchema = z.enum(CAPABILITY_PROBE_ENGINE_IDS);
 export const capabilitySourceTypeSchema = z.enum(["official_supported_sites", "manual"]);
 export const capabilityClaimStatusSchema = z.enum([
   "claimed_supported",

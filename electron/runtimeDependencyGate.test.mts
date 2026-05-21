@@ -46,6 +46,7 @@ const missingBundledEntry = (
 const createStatus = (
   overrides: Partial<RuntimeDependencyStatusSnapshot> = {},
 ): RuntimeDependencyStatusSnapshot => ({
+  python: readyBundledEntry,
   ytDlp: readyBundledEntry,
   galleryDl: readyBundledEntry,
   douyinDl: readyManagedEntry,
@@ -160,10 +161,10 @@ describe("runtime dependency gate controller", () => {
     });
   });
 
-  it("maps missing bundled downloader snapshots to failed state", async () => {
+  it("maps missing bundled python snapshots to failed state before managed bootstrap", async () => {
     const { controller } = createControllerHarness([
       createStatus({
-        ytDlp: missingBundledEntry("Missing bundled yt-dlp runtime"),
+        python: missingBundledEntry("Missing bundled Python runtime"),
         ffmpeg: missingManagedEntry(),
       }),
     ]);
@@ -171,7 +172,7 @@ describe("runtime dependency gate controller", () => {
     await expect(controller.getState()).resolves.toMatchObject({
       phase: "failed",
       missingComponents: ["ffmpeg"],
-      lastError: "Missing bundled yt-dlp runtime",
+      lastError: "Missing bundled Python runtime",
       nextComponent: "ffmpeg",
     });
   });

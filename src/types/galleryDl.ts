@@ -5,5 +5,5 @@ export type GalleryDlInfo = {
   latestError: string | null;
   source: "managed" | "missing";
   path: string | null;
-  updateChannel: "managed_release" | "unavailable";
+  updateChannel: "managed_python_package" | "unavailable";
 };

@@ -453,24 +453,29 @@ function buildManagedRuntimeBootstrapOptions(
 ### 3. Contracts
 
 - `electron/main.mts` owns runtime dependency gate state, UI Lab overrides, IPC command entrypoints, log routing, and event emission.
-- `electron/managedRuntimeBootstrap.mts` owns managed runtime target/path helpers, pinned downloader release metadata, Deno/FFmpeg artifact specs, release asset lookup, runtime asset download, checksum verification, archive extraction, executable chmod, file replacement, and downloader latest-cache writing.
+- `electron/managedRuntimeBootstrap.mts` owns managed runtime target/path helpers, bundled-Python-backed downloader venv bootstrap, Deno/FFmpeg artifact specs, runtime asset download, checksum verification, archive extraction, executable chmod, and file replacement.
 - Bootstrap functions must receive Electron-specific dependencies through `ManagedRuntimeBootstrapOptions`; they must not import `app`, `BrowserWindow`, IPC handlers, or renderer event emitters.
-- `buildManagedRuntimeBootstrapOptions(...)` must pass `configDir: getUserDataDir()`, `platform: process.platform`, `arch: process.arch`, `fetch: fetchWithDesktopSession`, `logInfo`, and an `onActivity` adapter into `updateRuntimeDependencyGateDownloadActivity(...)`.
-- `ensureMissingManagedRuntimesReady(...)` must call managed bootstrap functions in `MANAGED_RUNTIME_BOOTSTRAP_ORDER`-compatible dependency order: `ytDlp`, `galleryDl`, `ffmpeg`, then `deno`, with a fresh runtime status snapshot between components.
+- `buildManagedRuntimeBootstrapOptions(...)` must pass `configDir: getUserDataDir()`, `platform: process.platform`, `arch: process.arch`, `fetch: fetchWithDesktopSession`, bundled Python paths, `logInfo`, and an `onActivity` adapter into `updateRuntimeDependencyGateDownloadActivity(...)`.
+- `ytDlp`, `galleryDl`, and `douyinDl` are all managed Python packages bootstrapped from the bundled CPython runtime into per-tool venvs; none of them may fall back to direct binary release downloads or system Python in steady state.
+- Managed Python downloader package pins must have one app-owned source of truth: `electron/managedPythonPackageManifest.mts`. Scripts that need those pins must read the compiled Electron manifest instead of defining duplicate version/source constants.
+- `ensureMissingManagedRuntimesReady(...)` must call managed bootstrap functions in `MANAGED_RUNTIME_BOOTSTRAP_ORDER`-compatible dependency order: `ytDlp`, `galleryDl`, `douyinDl`, `ffmpeg`, then `deno`, with a fresh runtime status snapshot between components.
 - Runtime path helpers in `managedRuntimeBootstrap.mts` must stay consistent with `src/electron-runtime/runtimePaths.ts` so status inspection and installer output point at the same files.
-- `resolvePinnedDownloaderRelease(...)` must throw for unsupported downloader tool ids instead of returning `undefined`.
+- `resolvePinnedManagedPythonPackage(...)` must throw for unsupported downloader tool ids instead of returning `undefined`.
+- Shared Python package bootstrap must use per-tool in-flight promise joining so concurrent ensure calls for the same downloader reuse one install/rebuild flow instead of racing `rm`/`venv`/`pip install`.
+- Managed `ffmpeg` and `deno` bootstrap must use component-and-target in-flight promise joining so startup prewarm and first real download do not download/extract the same managed binary concurrently.
+- `ensureManagedDouyinDlBrowserSupportReady(...)` must keep Playwright / Chromium installation lazy and must not bypass the same per-tool runtime ensure path used by default bootstrap.
 - `replaceFile(...)` must preserve the old Electron main algorithm: try `unlink(target)`, then `rename(temp, target)`, and fall back to `copyFile(temp, target)` plus cleanup.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| Existing managed runtime binary exists | `ensureManaged*RuntimeReady(...)` | Return existing path without downloading | Keep gate state unchanged except later refreshed status |
+| Existing managed runtime binary exists | `ensureManaged*RuntimeReady(...)` | Return existing path without rebuilding | Keep gate state unchanged except later refreshed status |
 | Missing Deno/FFmpeg runtime | `select*RuntimeArtifactSpec(...)` + download/extract | Download pinned archive, verify size/checksum, extract executable(s), chmod on non-Windows, replace final file | Surface activity stages through `onActivity` |
-| Missing Windows `yt-dlp` / `gallery-dl` | pinned release lookup | Fetch pinned GitHub release, select platform asset, verify checksum, install release binary | Write latest-cache JSON after successful replace |
-| Missing macOS `yt-dlp` | `ensureManagedYtDlpRuntimeReady(...)` | Delegate to `ensureManagedYtDlpReady(...)` Python package bootstrap with same target/version | Report install stages through `onActivity` |
+| Missing `yt-dlp` / `gallery-dl` / `douyin-dl` managed runtime | `ensureManaged*RuntimeReady(...)` | Create per-tool venv from bundled Python, install pinned package source, chmod entrypoints, write metadata | Report `checking`/`installing`/`verifying` through `onActivity` |
+| Metadata missing, layout version mismatch, stale `real/` dir, entrypoint missing, pinned package version/source changed, or bundled Python version changed | `shouldRebuildManagedPythonRuntime(...)` | Remove stale runtime root and rebuild that downloader venv from scratch | Leave other downloader venvs untouched |
 | Unsupported platform/arch | `currentManagedRuntimeTarget(...)` | Throw unsupported managed runtime target error | Gate surfaces bootstrap failure |
-| Unsupported downloader tool id | `resolvePinnedDownloaderRelease(...)` | Throw `Unsupported pinned downloader tool: <id>` | Do not continue with undefined metadata |
+| Unsupported downloader tool id | `resolvePinnedManagedPythonPackage(...)` | Throw `Unsupported managed Python package tool: <id>` | Do not continue with undefined metadata |
 | Download stalls or all fallback URLs fail | `downloadRuntimeAssetWithFallbacks(...)` | Remove temp file and throw `Failed to download managed <component> runtime: ...` | Gate remains recoverable for retry |
 | Checksum or size mismatch | `verifyDownloadedRuntimeAsset(...)` | Throw mismatch error before replacing final binary | Leave existing final binary untouched |
 
@@ -721,7 +726,7 @@ type YtdlpVersionInfo = {
   pythonVersion?: string | null;
   pythonPath?: string | null;
   pythonSupportsLatestStable?: boolean | null;
-  updateChannel?: "managed_python_package" | "managed_release" | "unavailable";
+  updateChannel?: "managed_python_package" | "unavailable";
 };
 
 type GalleryDlInfo = {
@@ -731,17 +736,18 @@ type GalleryDlInfo = {
   latestError: string | null;
   source: "managed" | "missing";
   path: string | null;
-  updateChannel: "managed_release" | "unavailable";
+  updateChannel: "managed_python_package" | "unavailable";
 };
 ```
 
 ### 3. Contracts
 
-- Installers must not package `desktop-assets/binaries/yt-dlp-*` or `desktop-assets/binaries/gallery-dl-*`.
-- Release workflows must not pre-download downloader binaries for packaging.
-- `electron/main.mts` owns the release-pinned downloader versions and checksums in `PINNED_DOWNLOADER_RELEASES`.
+- Installers must not package standalone `yt-dlp` / `gallery-dl` release binaries as managed downloader payloads.
+- Release workflows must not pre-download legacy downloader binaries for first-run bootstrap.
+- `electron/managedPythonPackageManifest.mts` owns the pinned Python downloader package versions; `electron/main.mts` and `electron/managedRuntimeBootstrap.mts` consume those pins through the bundled-Python bootstrap contract.
 - `inspectRuntimeDependencyStatus(...)` must report both `ytDlp` and `galleryDl` as `expectedSource: "managed"` when absent.
-- `start_runtime_dependency_bootstrap` must include missing `ytDlp` and `galleryDl` in `missingComponents`, then download/configure them from the pinned release source.
+- `inspectRuntimeDependencyStatus(...)` must also report `douyinDl` as `expectedSource: "managed"` when absent.
+- `start_runtime_dependency_bootstrap` must include missing `ytDlp`, `galleryDl`, and `douyinDl` in `missingComponents`, then create/configure them from bundled Python plus pinned package sources.
 - Settings must not expose downloader cards, downloader versions, or manual downloader update commands. Recovery stays in the main-window runtime gate.
 - The preload command union must not expose `update_ytdlp` or `update_gallery_dl`.
 
@@ -749,25 +755,25 @@ type GalleryDlInfo = {
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| Fresh install has no downloader binaries | `inspectRuntimeDependencyStatus(...)` | `ytDlp` / `galleryDl` are `missing`, `expectedSource: "managed"` | Runtime gate can bootstrap both |
-| Runtime bootstrap starts with missing downloaders | `start_runtime_dependency_bootstrap` | Gate enters `downloading`, current/next component uses `ytDlp` / `galleryDl` ids | Download pinned assets or pinned Python package |
-| Pinned asset checksum mismatches | `verifyDownloadedRuntimeAsset(...)` | Bootstrap fails with checksum error and no final binary replace | Surface failure through `runtime-dependency-gate-state` |
+| Fresh install has no downloader venvs | `inspectRuntimeDependencyStatus(...)` | `ytDlp` / `galleryDl` / `douyinDl` are `missing`, `expectedSource: "managed"` | Runtime gate can bootstrap all three |
+| Runtime bootstrap starts with missing downloaders | `start_runtime_dependency_bootstrap` | Gate enters `downloading`, current/next component uses `ytDlp` / `galleryDl` / `douyinDl` ids | Create venvs from bundled Python and install pinned packages |
+| Bundled Python missing | `inspectRuntimeDependencyStatus(...)` / gate sync | Gate fails before managed bootstrap | User sees reinstall/fix-runtime guidance instead of partial downloader bootstrap |
 | Settings page renders | `src/pages/SettingsPage.tsx` | No downloader management section appears | User cannot manually update downloaders |
 | Renderer attempts obsolete update command | `src/types/electronBridge.ts` / `handleCommand` | Type union rejects it; runtime throws unsupported command if manually invoked | Use runtime bootstrap instead |
-| Package build runs | `electron-builder.config.mjs` / release workflow | App package contains app assets, not downloader binaries | First launch prepares runtimes |
+| Package build runs | packaging workflow / bundled resources | App package contains bundled Python plus app assets, not legacy downloader binaries | First launch prepares downloader venvs |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `galleryDl` missing -> `missingComponents: ["galleryDl"]` -> main window starts bootstrap -> pinned asset downloads into `userData/runtimes/gallery-dl/<target>/...`.
+- Good: `galleryDl` missing -> `missingComponents: ["galleryDl"]` -> main window starts bootstrap -> bundled Python creates `userData/runtimes/gallery-dl/<target>/venv` and installs `gallery-dl==1.32.1`.
 - Base: all managed runtimes exist -> gate reports `ready`; no downloader network request is made.
-- Bad: adding `desktop-assets/binaries/gallery-dl-*` back to Electron Builder `files` makes packaging pass locally but breaks the first-launch managed-runtime contract.
+- Bad: reintroducing standalone downloader binary packaging or system-Python fallback makes packaging pass locally but breaks the first-launch managed-runtime contract.
 - Bad: exposing `update_ytdlp` in `AmeowRendererCommand` reintroduces a user-managed update surface that bypasses release-pinned runtime policy.
 
 ### 6. Tests Required
 
-- `src/electron-runtime/runtimePaths.test.ts`: assert missing/ready `ytDlp` and `galleryDl` use managed paths and `expectedSource: "managed"`.
+- `src/electron-runtime/runtimePaths.test.ts`: assert missing/ready `ytDlp`, `galleryDl`, and `douyinDl` use managed venv entrypoints and `expectedSource: "managed"`.
 - `src/electron-runtime/runtimeDependencyGate.test.ts`: assert missing managed downloader components keep the gate recoverable, not fatal.
-- `src/utils/runtimeDependencyGate.test.ts`: assert frontend startup bootstrap detection includes `galleryDl`.
+- `src/utils/runtimeDependencyGate.test.ts`: assert frontend startup bootstrap detection includes managed Python downloaders.
 - `npm run type-check`: catches preload/type drift after command union or payload changes.
 - `npm run lint`: catches frontend dead code after removing settings surfaces.
 

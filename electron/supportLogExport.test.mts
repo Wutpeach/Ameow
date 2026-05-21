@@ -17,6 +17,7 @@ const createOptions = (overrides = {}) => ({
   },
   readConfigObject: async () => ({ outputPath: "C:/Downloads" }),
   getRuntimeDependencyStatus: async () => ({
+    python: { state: "ready", source: "bundled", path: "C:/python/python.exe", error: null },
     ytDlp: { state: "ready", path: "C:/yt-dlp.exe" },
   }),
   readRecentRuntimeLogLines: async () => ["[log] runtime ready"],

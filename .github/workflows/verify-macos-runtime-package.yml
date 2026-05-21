@@ -1,0 +1,59 @@
+name: Verify macOS Runtime Package
+
+on:
+  workflow_dispatch:
+
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+jobs:
+  verify-macos-runtime-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            builder_arch: --arm64
+            artifact_arch: arm64
+          - runner: macos-15-intel
+            builder_arch: --x64
+            artifact_arch: x64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS ZIP
+        run: node ./scripts/run-electron-package.mjs --mac zip ${{ matrix.builder_arch }}
+
+      - name: Verify packaged Python runtime
+        run: |
+          set -o pipefail
+          mkdir -p build
+          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution \
+            | tee "build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json"
+
+      - name: Upload runtime verification artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-runtime-verification-${{ matrix.artifact_arch }}
+          path: build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json
+          if-no-files-found: error
+
+      - name: Upload macOS ZIP artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-zip-${{ matrix.artifact_arch }}
+          path: dist-release/Ameow_*_macos_${{ matrix.artifact_arch }}.zip
+          if-no-files-found: error

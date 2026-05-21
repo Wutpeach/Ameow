@@ -20,6 +20,7 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
 } => ({
   maxConcurrent: 3,
   getRuntimeDependencyStatus: vi.fn(() => ({
+    python: { ...readyStatus, source: "bundled" },
     ytDlp: readyStatus,
     galleryDl: readyStatus,
     douyinDl: readyStatus,

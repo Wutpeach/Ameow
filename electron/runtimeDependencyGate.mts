@@ -176,11 +176,11 @@ export const createRuntimeDependencyGateController = (
     snapshot: RuntimeDependencyStatusSnapshot,
   ): RuntimeDependencyGateStatePayload => {
     const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-    if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
+    if (snapshot.python.state !== "ready") {
       return applyRuntimeDependencyGateState({
         phase: "failed",
         missingComponents,
-        lastError: snapshot.ytDlp.error ?? "Missing bundled yt-dlp runtime",
+        lastError: snapshot.python.error ?? "Missing bundled Python runtime",
         currentComponent: null,
         currentStage: null,
         progressPercent: null,
@@ -189,32 +189,6 @@ export const createRuntimeDependencyGateController = (
         nextComponent: nextManagedRuntimeComponent(missingComponents),
       });
     }
-  if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
-    return applyRuntimeDependencyGateState({
-      phase: "failed",
-      missingComponents,
-      lastError: snapshot.galleryDl.error ?? "Missing gallery-dl runtime",
-        currentComponent: null,
-        currentStage: null,
-        progressPercent: null,
-        downloadedBytes: null,
-        totalBytes: null,
-      nextComponent: nextManagedRuntimeComponent(missingComponents),
-    });
-  }
-  if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource !== "managed") {
-    return applyRuntimeDependencyGateState({
-      phase: "failed",
-      missingComponents,
-      lastError: snapshot.douyinDl.error ?? "Missing douyin-dl runtime",
-      currentComponent: null,
-      currentStage: null,
-      progressPercent: null,
-      downloadedBytes: null,
-      totalBytes: null,
-      nextComponent: nextManagedRuntimeComponent(missingComponents),
-    });
-  }
 
     return applyRuntimeDependencyGateState({
       phase: missingComponents.length === 0 ? "ready" : "idle",
@@ -354,13 +328,7 @@ export const createRuntimeDependencyGateController = (
 
       const snapshot = await options.getRuntimeDependencyStatus();
       const missingComponents = collectMissingManagedRuntimeComponents(snapshot);
-      if (snapshot.ytDlp.state !== "ready" && snapshot.ytDlp.expectedSource !== "managed") {
-        return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
-      }
-      if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource !== "managed") {
-        return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
-      }
-      if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource !== "managed") {
+      if (snapshot.python.state !== "ready") {
         return syncRuntimeDependencyGateStateFromSnapshot(snapshot);
       }
       if (missingComponents.length === 0) {

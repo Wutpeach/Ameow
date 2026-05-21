@@ -20,6 +20,7 @@ const missingEntry = {
 const createStatus = (
   overrides: Partial<RuntimeDependencyStatusSnapshot> = {},
 ): RuntimeDependencyStatusSnapshot => ({
+  python: readyEntry,
   ytDlp: readyEntry,
   galleryDl: readyEntry,
   douyinDl: readyEntry,
@@ -96,6 +97,24 @@ describe("createRuntimeDependencyResolver", () => {
       phase: "ready",
       missingComponents: [],
       lastError: null,
+    });
+  });
+
+  it("fails fast when bundled python is missing", () => {
+    const resolver = createRuntimeDependencyResolver(
+      createStatus({
+        python: {
+          ...missingEntry,
+          expectedSource: "bundled",
+          error: "Missing bundled Python runtime",
+        },
+      }),
+      () => createStatus(),
+    );
+
+    expect(resolver.getGateState()).toMatchObject({
+      phase: "failed",
+      lastError: "Missing bundled Python runtime",
     });
   });
 });

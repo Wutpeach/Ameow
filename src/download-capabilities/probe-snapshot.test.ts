@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  capabilityProbeTargetSchema,
   createCapabilityProbeRecord,
   createCapabilityProbeSnapshot,
 } from "./probe-snapshot.js";
@@ -64,5 +65,15 @@ describe("capability probe snapshots", () => {
       unstable: 0,
       broken: 0,
     });
+  });
+
+  it("rejects probe targets for engines without implemented probe support", () => {
+    expect(() => capabilityProbeTargetSchema.parse({
+      id: "douyin-douyin-dl",
+      engine: "douyin-dl",
+      sourceUrl: "https://www.douyin.com/video/7493088730088770870",
+      siteId: "douyin",
+      tier: "critical",
+    })).toThrow();
   });
 });

@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   createCapabilityProbeRecord,
   createCapabilityProbeSnapshot,
@@ -52,18 +52,44 @@ const resolveRuntimeTarget = (
   throw new Error(`Unsupported probe runtime target: ${platformName}-${archName}`);
 };
 
-const executableExtensionFor = (platformName: NodeJS.Platform = process.platform): string => (
-  platformName === "win32" ? ".exe" : ""
-);
+const runtimePathCache = new Map<"yt-dlp" | "gallery-dl", string>();
 
 const resolveBinaryPath = (engine: "yt-dlp" | "gallery-dl"): string => {
+  const cached = runtimePathCache.get(engine);
+  if (cached) {
+    return cached;
+  }
+
   const target = resolveRuntimeTarget();
-  return path.join(
-    repoRoot,
-    "desktop-assets",
-    "binaries",
-    `${engine}-${target}${executableExtensionFor()}`,
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(repoRoot, "scripts", "ensure-capability-probe-runtime.mjs"),
+      "--tool",
+      engine,
+      "--target",
+      target,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: process.env,
+      windowsHide: true,
+    },
   );
+
+  if (result.status !== 0) {
+    throw new Error(
+      (result.stderr || result.stdout || `Failed to ensure capability probe runtime for ${engine}`).trim(),
+    );
+  }
+
+  const payload = JSON.parse(result.stdout) as { path?: string };
+  if (!payload.path) {
+    throw new Error(`Capability probe runtime did not return a binary path for ${engine}`);
+  }
+  runtimePathCache.set(engine, payload.path);
+  return payload.path;
 };
 
 const executeCommandProbe = async (

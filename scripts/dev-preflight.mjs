@@ -4,13 +4,11 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
-  DOWNLOADER_TOOL_IDS,
-  ensureOfficialDownloaderBinary,
-  getManifestEntry,
-  readDownloaderManifest,
-  resolveBinaryPath,
+  ensureOfficialBundledPythonRuntime,
+  readPythonRuntimeManifest,
+  resolveBundledPythonExecutable,
   resolveRuntimeTarget,
-} from "./downloader-binaries.mjs";
+} from "./python-runtime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,47 +89,35 @@ const ensureLocalesForDev = async () => {
   console.log(">>> [DevPreflight] Locales already in sync");
 };
 
-const shouldForceDownloaderEnsure = () => (
+const shouldForcePythonEnsure = () => (
   process.argv.includes("--force")
   || truthyFlags.has((process.env.AMEOW_FORCE_DEV_PREFLIGHT ?? "").trim().toLowerCase())
 );
 
-const ensureDownloadersForDev = async () => {
+const ensureBundledPythonForDev = async () => {
   const target = resolveRuntimeTarget();
-  const force = shouldForceDownloaderEnsure();
+  const force = shouldForcePythonEnsure();
 
   if (force) {
-    console.log(">>> [DevPreflight] Forcing downloader runtime verification");
+    console.log(">>> [DevPreflight] Forcing bundled Python runtime verification");
   }
 
-  const manifest = await readDownloaderManifest();
-  const toolIdsToEnsure = [];
-
-  for (const toolId of DOWNLOADER_TOOL_IDS) {
-    const binaryPath = resolveBinaryPath(toolId, target);
-    const manifestEntry = getManifestEntry(manifest, toolId, target);
-    const binaryExists = await fileExists(binaryPath);
-    if (force || !manifestEntry || !binaryExists) {
-      toolIdsToEnsure.push(toolId);
-    }
-  }
-
-  if (toolIdsToEnsure.length === 0) {
-    console.log(">>> [DevPreflight] Downloader runtimes already cached");
+  const manifest = await readPythonRuntimeManifest();
+  const manifestEntry = manifest.runtimes?.[target] ?? null;
+  const executablePath = resolveBundledPythonExecutable(target);
+  const pythonExists = await fileExists(executablePath);
+  if (!force && manifestEntry && pythonExists) {
+    console.log(">>> [DevPreflight] Bundled Python runtime already cached");
     return;
   }
 
-  const results = [];
-  for (const toolId of toolIdsToEnsure) {
-    results.push(await ensureOfficialDownloaderBinary(toolId, target, { force }));
-  }
-
-  console.log(JSON.stringify({ target, results }, null, 2));
+  const result = await ensureOfficialBundledPythonRuntime(target, { force });
+  console.log(JSON.stringify(result, null, 2));
 };
 
 async function main() {
   await ensureLocalesForDev();
-  await ensureDownloadersForDev();
+  await ensureBundledPythonForDev();
 }
 
 main().catch((error) => {

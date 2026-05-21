@@ -25,6 +25,7 @@ const missingEntry = {
 const createStatus = (
   overrides: Partial<RuntimeDependencyStatusSnapshot> = {},
 ): RuntimeDependencyStatusSnapshot => ({
+  python: readyEntry,
   ytDlp: readyEntry,
   galleryDl: readyEntry,
   douyinDl: readyEntry,
@@ -36,13 +37,13 @@ const createStatus = (
 const translateKey = (key: string): string => key;
 
 describe("hasMissingManagedRuntimeComponents", () => {
-  it("returns false when only bundled yt-dlp is missing", () => {
+  it("returns false when only bundled python is missing", () => {
     expect(hasMissingManagedRuntimeComponents(createStatus({
-      ytDlp: missingEntry,
+      python: missingEntry,
     }))).toBe(false);
   });
 
-  it("returns true when macOS yt-dlp is expected to be managed and missing", () => {
+  it("returns true when yt-dlp is expected to be managed and missing", () => {
     expect(hasMissingManagedRuntimeComponents(createStatus({
       ytDlp: {
         ...missingEntry,
@@ -73,12 +74,13 @@ describe("hasMissingManagedRuntimeComponents", () => {
 describe("getMissingRuntimeComponentsFromStatus", () => {
   it("includes missing bundled and managed runtimes in user-facing order", () => {
     expect(getMissingRuntimeComponentsFromStatus(createStatus({
+      python: missingEntry,
       ytDlp: missingEntry,
       galleryDl: missingEntry,
       douyinDl: missingEntry,
       ffmpeg: missingEntry,
       deno: missingEntry,
-    }))).toEqual(["yt-dlp", "gallery-dl", "douyin-dl", "ffmpeg", "deno"]);
+    }))).toEqual(["python", "yt-dlp", "gallery-dl", "douyin-dl", "ffmpeg", "deno"]);
   });
 
   it("returns an empty list when status is unavailable or all runtimes are ready", () => {

@@ -1,3 +1,5 @@
+import { resolveTargetFromBuilderArgs } from "./scripts/python-runtime.mjs";
+
 export const ELECTRON_BUILDER_OUTPUT_DIR = "dist-release";
 export const ELECTRON_PORTABLE_SUBDIR = "portable";
 export const ELECTRON_DMG_SUBDIR = "dmg";
@@ -25,9 +27,11 @@ function resolveBuilderArch() {
 }
 
 function packagedBinaryPatterns() {
-  resolveBuilderPlatform();
-  resolveBuilderArch();
-  return [];
+  const target = resolveTargetFromBuilderArgs(process.argv.slice(2));
+  return [
+    `desktop-assets/binaries/python-${target}/**/*`,
+    "desktop-assets/binaries/.official-python-runtimes.json",
+  ];
 }
 
 const PACKAGED_BINARY_PATTERNS = packagedBinaryPatterns();
