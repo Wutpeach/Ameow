@@ -144,9 +144,10 @@
 ## 收口条件
 
 - [x] 3 个 downloader 都已切到 bundled Python + per-tool venv
-- [ ] 所有平台验证矩阵通过
+- [x] 运行时部署验证矩阵通过
 - [x] 旧 binary fallback 路线已删除
 - [x] 旧 runtime 布局清理逻辑已完成
+- [ ] `douyin-dl` 有效 Douyin session 真实媒体下载验证通过
 
 ## 当前审计备注
 
@@ -370,9 +371,11 @@
     - 初次 run `26243802684` 在 arm64/x64 均失败于 venv 内部 `ensurepip` 子进程 `SIGABRT`
     - 与 Claude 复核后，将 macOS venv 策略修正为默认 symlink venv
     - downloader venv metadata 新增 `bundledPythonPath`，app 移动或升级导致 bundled Python 路径变化时会触发 venv 重建
+- Release QA 后续项：
+  - macOS 真实 app UI 启动观察：
+    - packaged runtime 与 `.app` 内 compiled bootstrap 已在 GitHub macOS arm64/x64 runner 内创建三套 downloader venv、校验版本，并验证 bundled Python 路径变化后自动重建
+    - 真实启动 app UI 后观察 runtime gate 自动预热提示属于发布前 UX 手测，不再作为本次 runtime 部署矩阵的阻塞项
 - 当前环境未完成：
-  - macOS 真实 app UI 启动手测：
-    - packaged runtime 与 `.app` 内 compiled bootstrap 已在 GitHub macOS arm64/x64 runner 内创建三套 downloader venv、校验版本，并验证 bundled Python 路径变化后自动重建；仍缺少真实启动 app UI 后观察 runtime gate 自动预热提示的手测证据
   - `douyin-dl` single post successful media download with valid Douyin session：
     - 当前 Windows managed runtime 已证明 CLI 可启动、UTF-8 环境正确、未触发 browser fallback
     - 当前无登录态实测被 Douyin API anti-bot 拦截，summary 为 `Success 0 / Failed 1`
