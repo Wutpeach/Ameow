@@ -813,3 +813,36 @@ Reviewed the download pipeline, fixed Xiaohongshu drag media preservation, fixed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 162: Window state transition timing cleanup
+
+**Date**: 2026-05-21
+**Task**: Window state transition timing cleanup
+**Branch**: `main`
+
+### Summary
+
+Reduced compact/full transition latency by shortening leave grace and removing redundant settle ownership after the Windows focusability hot path was eliminated.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f62bc94` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
