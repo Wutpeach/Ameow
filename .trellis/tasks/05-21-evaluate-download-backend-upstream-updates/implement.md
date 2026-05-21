@@ -269,6 +269,8 @@
   - 新增 Douyin 登录态成功下载验证入口：
     - `npm run runtime:smoke:douyin-session -- <cookies-file> [douyin-url]`
     - 支持 `node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <path-to-douyin.json>` 直接读取 Ameow site-session JSON 中的 `cookiesNetscape`
+    - 未传 cookies 参数时默认查找 Ameow 本地 userData 下的 `site-sessions/douyin.json`
+    - 支持 `--user-data-dir <dir>` 覆盖默认 userData，用于临时目录与 fake session 验证
     - 脚本先构建 Electron runtime，再确保 bundled Python 与 managed `douyin-dl` venv
     - 复用 `runDouyinDlDownload(...)` 的应用实际执行路径，保持 `browser_fallback.enabled=false`
     - 成功条件是返回非空媒体文件路径并验证文件大小大于 0
@@ -276,10 +278,19 @@
     - 已验证：
       - `node --check scripts/smoke-douyin-dl-session-download.mjs`
       - `npm run runtime:smoke:douyin-session -- help`
-      - `npm run runtime:smoke:douyin-session` 无 cookies 文件时明确失败
+      - `npm run runtime:smoke:douyin-session` 无本地 Douyin session 时明确失败，并指出预期路径 `C:\Users\Administrator\AppData\Roaming\ameow\site-sessions\douyin.json`
       - 使用 fake cookies 执行 `node ./scripts/smoke-douyin-dl-session-download.mjs --cookies-file <fake-cookies> --skip-build`，确认脚本走 managed `douyin-dl` runtime，失败 JSON 不输出 cookie 值，并报告缺少有效登录态 / anti-bot
       - 使用 fake Ameow site-session JSON 执行 `node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <fake-douyin.json> --skip-build`，确认脚本读取 `cookiesNetscape`、走 managed `douyin-dl` runtime，并报告缺少有效 Douyin 登录 cookie / anti-bot
+      - 使用 fake default userData 执行 `node ./scripts/smoke-douyin-dl-session-download.mjs --user-data-dir build\douyin-site-session-default-check --skip-build`，确认脚本默认读取 `<userDataDir>\site-sessions\douyin.json`
       - `build/douyin-site-session-redaction-check/stdout-stderr.txt` redaction 检查确认 fake cookie secret 未出现在 stdout/stderr
+      - 本轮收尾验证：
+        - `node --check scripts/smoke-douyin-dl-session-download.mjs`
+        - `npm run runtime:smoke:douyin-session -- help`，确认 help 包含 `--user-data-dir`
+        - `npm run runtime:smoke:douyin-session`，确认无本地 Douyin session 时失败路径指向 `C:\Users\Administrator\AppData\Roaming\ameow\site-sessions\douyin.json`
+        - `build\douyin-site-session-default-check\stdout-stderr.txt` saved-output 检查确认 fake default userData 路径生效且 fake cookie secret 未泄露
+        - `npm run type-check`
+        - `npm run lint`
+        - `npm test`（102 个测试文件，606 个用例）
   - macOS release workflow 已接入 packaged runtime 自动验证：
     - 根据 GitHub-hosted runners 官方文档，`macos-15` 覆盖 arm64，`macos-15-intel` 覆盖 Intel x64；release matrix 已扩展为 arm64 + x64
     - `Package macOS ZIP and open-source DMG` 后运行 `npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap require-relocation-rebuild`

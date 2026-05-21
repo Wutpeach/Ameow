@@ -6,6 +6,7 @@ import {
   stat,
 } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { homedir } from "node:os";
 import path from "node:path";
 
 import {
@@ -22,8 +23,11 @@ const usage = () => [
   "  npm run runtime:smoke:douyin-session -- <cookies-file> [url]",
   "  node ./scripts/smoke-douyin-dl-session-download.mjs --cookies-file <path> [--url <douyin-url>]",
   "  node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <path-to-douyin.json> [--url <douyin-url>]",
+  "  node ./scripts/smoke-douyin-dl-session-download.mjs --user-data-dir <path> [--url <douyin-url>]",
+  "  node ./scripts/smoke-douyin-dl-session-download.mjs [--url <douyin-url>]",
   "",
   "The cookies file must contain Netscape cookies, a Cookie header/string, or an Ameow site-session JSON file.",
+  "When no cookies file is provided, the script looks for Ameow's local site-sessions/douyin.json.",
   "The script does not print cookie contents.",
 ].join("\n");
 
@@ -44,6 +48,24 @@ const defaultOutputDir = () => path.join(
   "external-download-smoke",
   "douyin-dl-session",
 );
+
+const defaultAmeowUserDataDir = () => {
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA?.trim();
+    return path.join(appData || path.join(homedir(), "AppData", "Roaming"), "ameow");
+  }
+  if (process.platform === "darwin") {
+    return path.join(homedir(), "Library", "Application Support", "ameow");
+  }
+  return path.join(process.env.XDG_CONFIG_HOME?.trim() || path.join(homedir(), ".config"), "ameow");
+};
+
+const defaultDouyinSiteSessionPath = (args) => {
+  const userDataDir = typeof args["user-data-dir"] === "string" && args["user-data-dir"].trim()
+    ? path.resolve(args["user-data-dir"].trim())
+    : defaultAmeowUserDataDir();
+  return path.join(userDataDir, "site-sessions", "douyin.json");
+};
 
 const runCommand = async (command, args) => {
   const child = spawn(command, args, {
@@ -119,13 +141,22 @@ async function main() {
     return;
   }
 
-  const cookiesFile = typeof args["site-session"] === "string"
+  const explicitCookiesFile = typeof args["site-session"] === "string"
     ? args["site-session"]
     : typeof args["cookies-file"] === "string"
     ? args["cookies-file"]
     : positional[0];
+  const cookiesFile = explicitCookiesFile ?? defaultDouyinSiteSessionPath(args);
   if (!cookiesFile) {
     throw new Error(`Missing Douyin cookies file.\n${usage()}`);
+  }
+  if (!explicitCookiesFile && !existsSync(cookiesFile)) {
+    throw new Error(
+      `Missing Douyin site session file: ${cookiesFile}\n`
+      + "Capture Douyin login state in Settings, then rerun this smoke without arguments, "
+      + "or pass --site-session / --cookies-file explicitly.\n"
+      + usage(),
+    );
   }
 
   const sourceUrl = typeof args.url === "string" && args.url.trim()
