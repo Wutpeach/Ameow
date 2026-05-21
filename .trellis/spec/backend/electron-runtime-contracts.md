@@ -1802,8 +1802,7 @@ const updateTrayMenu = trayMenuController.updateTrayMenu;
 Quality preferences:
 
 ```ts
-type YtdlpQualityPreference = "best" | "balanced" | "data_saver";
-type YouTubeMode = "light" | "extended";
+type VideoQualityPreference = "best" | "balanced" | "data_saver";
 ```
 
 Mode owners:
@@ -1816,30 +1815,31 @@ src/electron-runtime/engineManifest.ts
 
 ### 3. Contracts
 
-- YouTube downloads must start in `extended` mode for every quality profile unless a future measured replacement proves equal format availability and stability.
-- Cookies or `extensionData.youtube.forceExtended === true` must force `extended` mode regardless of quality.
-- `light` mode uses `youtube:player_client=android,web` and may expose only format `18` (640x360 progressive MP4) for some videos.
-- `extended` mode uses `youtube:player_js_variant=tv`, remote EJS components, and JS runtimes when available; it is the stable default expected to expose adaptive formats and handle current YouTube extractor challenges.
-- `balanced` selector remains capped at `height<=1080`, but mode selection must ensure the selector has adaptive formats to choose from.
+- YouTube downloads must use the extended extractor path by default.
+- The runtime must not start public/page-context-only YouTube runs with `youtube:player_client=android,web`; that path can succeed while exposing only low-resolution progressive MP4 formats.
+- Extended mode uses `youtube:player_js_variant=tv`, remote EJS components, and JS runtimes when available; it is the primary path expected to expose adaptive formats and handle current YouTube extractor challenges.
+- `balanced` selector must try exact `height=1080` formats first, then choose the highest available format at `height<=1080`.
+- `best` selects the highest available format, and `data_saver` selects the lowest available profile.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
 | YouTube `balanced`, no cookies | `runYtDlpDownload(...)` args | First attempt includes `youtube:player_js_variant=tv` and `--remote-components ejs:github` | OK |
-| YouTube `best`, plain URL | `runYtDlpDownload(...)` args | First attempt uses `extended` mode | OK |
-| YouTube `data_saver`, no cookies | `runYtDlpDownload(...)` args | First attempt uses `extended` mode | OK |
-| Light-mode YouTube attempt succeeds with only 360p for `balanced` | manual simulation / output filename | Contract failure | Start `balanced` in `extended` |
+| YouTube `best`, plain URL | `runYtDlpDownload(...)` args | First attempt uses the extended extractor path | OK |
+| YouTube `data_saver`, no cookies | `runYtDlpDownload(...)` args | First attempt uses the extended extractor path while preserving the data-saver selector | OK |
+| YouTube `balanced` selector | `resolveYtdlpFormatProfile(...)` / command args | Exact 1080p entries appear before `height<=1080` fallbacks | OK |
+| A YouTube path reintroduces `youtube:player_client=android,web` | code review/tests | Contract failure | Remove the light-mode branch |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: `balanced` for `https://www.youtube.com/watch?v=UBqh6ud5LqY` selects `299+140` (1920x1080 video + m4a audio) under `--simulate`.
-- Base: `data_saver` still uses the data-saver format selector but starts in `extended` mode for extractor stability.
-- Bad: `balanced` starts in `light`, sees only `18 640x360`, exits successfully, and saves `...[640x360][balanced].mp4`.
+- Good: `balanced` for `https://www.youtube.com/watch?v=UBqh6ud5LqY` starts with extended extractor args and selects an adaptive 1080p format under `--simulate` when available.
+- Base: `data_saver` still uses the data-saver format selector but uses the same extended YouTube extractor path.
+- Bad: `balanced` starts with `youtube:player_client=android,web`, sees only `18 640x360`, exits successfully, and saves `...[640x360][balanced].mp4`.
 
 ### 6. Tests Required
 
-- `npm test -- src/electron-runtime/ytDlpDownload.test.ts`: assert YouTube `best`, `balanced`, and `data_saver` use extended args by default.
+- `npm test -- src/electron-runtime/ytDlpDownload.test.ts`: assert YouTube `best`, `balanced`, and `data_saver` use extended extractor args by default.
 - `npm test -- src/electron-runtime/engineManifest.test.ts src/electron-runtime/ytDlpCommandPlan.test.ts`: format selector and command-plan contracts remain stable.
 - `npm run type-check`
 - `npm run lint`

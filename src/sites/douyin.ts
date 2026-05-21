@@ -27,7 +27,7 @@ const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   priority: 90,
   candidates: input.videoCandidates ?? [],
   selectionScope: input.selectionScope,
-  ytdlpQuality: input.ytdlpQuality,
+  videoQuality: input.videoQuality,
   preferredFormat: "mp4",
 });
 

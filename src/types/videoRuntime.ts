@@ -123,7 +123,7 @@ export type QueuedVideoDownloadRequest = {
   selectionScope?: "current_item" | "playlist";
   clipStartSec?: number;
   clipEndSec?: number;
-  ytdlpQuality?: "best" | "balanced" | "data_saver";
+  videoQuality?: "best" | "balanced" | "data_saver";
   siteHint?: string;
   extensionData?: {
     youtube?: {

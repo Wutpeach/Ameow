@@ -28,6 +28,7 @@ export const rawDownloadInputSchema = z.object({
   selectionScope: z.enum(["current_item", "playlist"]).optional(),
   clipStartSec: z.number().finite().nonnegative().optional(),
   clipEndSec: z.number().finite().nonnegative().optional(),
+  videoQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   ytdlpQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   siteHint: z.string().trim().optional(),
   extensionData: downloadExtensionDataSchema.optional(),

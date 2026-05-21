@@ -5,6 +5,7 @@ import {
   normalizeVideoPageUrl,
   resolveVideoSelectionSiteHint,
 } from "./videoHintNormalization.mjs";
+import { normalizeVideoQualityPreference } from "../src/core/index.js";
 
 export type PastedVideoSelectionRequest = {
   url: string;
@@ -29,7 +30,7 @@ export type PastedVideoSelectionResolution = {
   selectionScope?: "current_item" | "playlist";
   clipStartSec?: number;
   clipEndSec?: number;
-  ytdlpQualityPreference?: "best" | "balanced" | "data_saver";
+  videoQuality?: "best" | "balanced" | "data_saver";
   extensionData?: Record<string, unknown>;
   code?: string;
   error?: string;
@@ -74,23 +75,6 @@ const normalizeOptionalString = (value: unknown): string | undefined => {
 const normalizeOptionalNumber = (value: unknown): number | undefined => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : undefined;
-};
-
-const normalizeYtdlpQualityPreference = (
-  value: unknown,
-): "best" | "balanced" | "data_saver" | undefined => {
-  switch (value) {
-    case "best":
-      return "best";
-    case "balanced":
-    case "high":
-      return "balanced";
-    case "data_saver":
-    case "standard":
-      return "data_saver";
-    default:
-      return undefined;
-  }
 };
 
 const asObject = (value: unknown): Record<string, unknown> | null => (
@@ -203,9 +187,9 @@ export const createExtensionRequestBridge = (
         selectionScope: normalizeSelectionScope(payload?.selectionScope),
         clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec),
         clipEndSec: normalizeOptionalNumber(payload?.clipEndSec ?? payload?.clip_end_sec),
-        ytdlpQualityPreference:
-          normalizeYtdlpQualityPreference(payload?.ytdlpQualityPreference)
-          ?? normalizeYtdlpQualityPreference(payload?.ytdlpQuality),
+        videoQuality:
+          normalizeVideoQualityPreference(payload?.videoQuality)
+          ?? normalizeVideoQualityPreference(payload?.ytdlpQuality),
         extensionData: rawExtensionData,
         code: normalizeOptionalString(payload?.code),
         error: normalizeOptionalString(payload?.error),

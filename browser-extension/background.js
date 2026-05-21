@@ -760,8 +760,8 @@ function summarizeVideoSelectionForDebug(payload) {
     videoCandidateCount: normalizedCandidates.length,
     clipStartSec: Number.isFinite(payload?.clipStartSec) ? payload.clipStartSec : null,
     clipEndSec: Number.isFinite(payload?.clipEndSec) ? payload.clipEndSec : null,
-    ytdlpQualityPreference:
-      typeof payload?.ytdlpQualityPreference === 'string' ? payload.ytdlpQualityPreference : null,
+    videoQuality:
+      typeof payload?.videoQuality === 'string' ? payload.videoQuality : null,
   };
 }
 
@@ -1057,11 +1057,11 @@ async function reportPastedVideoSelectionResolutionResult(requestId, result) {
         : undefined,
       clipStartSec: normalizeClipTimeSeconds(result?.clipStartSec) ?? undefined,
       clipEndSec: normalizeClipTimeSeconds(result?.clipEndSec) ?? undefined,
-      ytdlpQualityPreference:
-        result?.ytdlpQualityPreference === 'best'
-        || result?.ytdlpQualityPreference === 'balanced'
-        || result?.ytdlpQualityPreference === 'data_saver'
-          ? result.ytdlpQualityPreference
+      videoQuality:
+        result?.videoQuality === 'best'
+        || result?.videoQuality === 'balanced'
+        || result?.videoQuality === 'data_saver'
+          ? result.videoQuality
           : undefined,
       extensionData: result?.extensionData && typeof result.extensionData === 'object'
         ? result.extensionData
@@ -1661,7 +1661,7 @@ function syncDownloadPreferencesToApp() {
       const response = await sendRequestToApp(
         'sync_download_preferences',
         {
-          ytdlpQualityPreference: qualityPreference,
+          videoQuality: qualityPreference,
         },
         REQUEST_TIMEOUT_MS,
         {
@@ -1993,7 +1993,7 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
       selectionScope,
       clipStartSec: normalized.clipStartSec,
       clipEndSec: normalized.clipEndSec,
-      ytdlpQualityPreference: qualityPreference,
+      videoQuality: qualityPreference,
       extensionData: normalized.extensionData,
     },
     injectionDebugEnabled,
@@ -2125,7 +2125,7 @@ async function handlePastedVideoSelectionResolveRequest(data) {
       pageUrl: pageUrl || rawUrl,
       siteHint,
       selectionScope: 'current_item',
-      ytdlpQualityPreference: qualityPreference,
+      videoQuality: qualityPreference,
       extensionData: siteHint === 'youtube'
         ? { youtube: { source: 'pasted' } }
         : undefined,

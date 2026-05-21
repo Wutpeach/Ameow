@@ -2,8 +2,8 @@ import type { MediaCandidate } from "./media-candidate.js";
 import type {
   DownloadExtensionData,
   DownloadSelectionScope,
-  YtdlpQualityPreference,
 } from "./raw-download-input.js";
+import type { VideoQualityPreference } from "../download-preferences.js";
 
 type BaseIntent = {
   siteId: string;
@@ -16,7 +16,7 @@ type BaseIntent = {
   priority: number;
   candidates: MediaCandidate[];
   selectionScope?: DownloadSelectionScope;
-  ytdlpQuality?: YtdlpQualityPreference;
+  videoQuality?: VideoQualityPreference;
   extensionData?: DownloadExtensionData;
 };
 

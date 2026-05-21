@@ -24,7 +24,6 @@ type YtdlpManifest = {
     titlePrint: string;
   };
   youtube: {
-    lightExtractorArgs: readonly string[];
     extendedExtractorArgs: readonly string[];
     remoteComponentsArgs: readonly string[];
     retryingCompatibleExtractorActivity: string;
@@ -85,16 +84,31 @@ const YTDLP_FORMAT_SELECTOR_DATA_SAVER = [
   "worst",
 ].join("");
 const YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED = [
+  "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
+  "bv*[height=1080][ext=mp4]+ba[ext=m4a]/",
+  "b[height=1080][vcodec^=avc1][ext=mp4]/",
+  "b[height=1080][ext=mp4]/",
+  "best[height=1080][ext=mp4]/",
   "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
   "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/",
+  "b[height<=1080][vcodec^=avc1][ext=mp4]/",
   "b[height<=1080][ext=mp4]/",
   "best[height<=1080][ext=mp4]/",
   "best[ext=mp4]/",
   "best",
 ].join("");
 const YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER = [
-  "best[height<=360][ext=mp4]/",
+  "bv*[height=360][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
+  "bv*[height=360][ext=mp4]+ba[ext=m4a]/",
+  "b[height=360][vcodec^=avc1][ext=mp4]/",
+  "b[height=360][ext=mp4]/",
+  "best[height=360][ext=mp4]/",
+  "bv*[height<=360][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/",
+  "bv*[height<=360][ext=mp4]+ba[ext=m4a]/",
+  "b[height<=360][vcodec^=avc1][ext=mp4]/",
   "b[height<=360][ext=mp4]/",
+  "best[height<=360][ext=mp4]/",
+  "worstvideo[ext=mp4]+ba[ext=m4a]/",
   "worst[ext=mp4]/",
   "worst",
 ].join("");
@@ -125,12 +139,12 @@ const YTDLP_SITE_FORMAT_PROFILES: YtdlpSiteFormatProfiles = {
     },
     balanced: {
       selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_BALANCED,
-      sort: "ext:mp4:m4a",
+      sort: "res,ext:mp4:m4a",
       mergeOutputFormat: "mp4",
     },
     data_saver: {
       selector: YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER,
-      sort: "ext:mp4:m4a",
+      sort: "res,ext:mp4:m4a",
       mergeOutputFormat: "mp4",
     },
   },
@@ -152,10 +166,6 @@ export const CLI_ENGINE_MANIFESTS = {
       titlePrint: "after_move:title",
     },
     youtube: {
-      lightExtractorArgs: [
-        "--extractor-args",
-        "youtube:player_client=android,web",
-      ],
       extendedExtractorArgs: [
         "--extractor-args",
         "youtube:player_js_variant=tv",

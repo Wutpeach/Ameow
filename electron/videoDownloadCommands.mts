@@ -2,6 +2,10 @@ import {
   createElectronRuntimeCommandRouter,
   type ElectronDownloadRuntime,
 } from "../src/electron-runtime/index.js";
+import {
+  normalizeVideoQualityPreference,
+  resolveYtdlpQualityPreferenceFromConfig,
+} from "../src/core/index.js";
 import type { AmeowRendererCommand } from "../src/types/electronBridge.js";
 import type { QueuedVideoDownloadAck } from "../src/types/videoRuntime.js";
 import {
@@ -40,7 +44,7 @@ export type VideoDownloadCommandBridgeOptions = {
 
 export const buildVideoSelectedV2QueuePayload = (
   data: Record<string, unknown>,
-  options: { ytdlpQualityPreference?: unknown } = {},
+  options: { videoQuality?: unknown } = {},
 ): Record<string, unknown> => ({
   url: data.url,
   pageUrl: data.pageUrl,
@@ -52,10 +56,10 @@ export const buildVideoSelectedV2QueuePayload = (
   clipStartSec: data.clipStartSec,
   clipEndSec: data.clipEndSec,
   extensionData: data.extensionData ?? data.extension_data,
-  ytdlpQualityPreference:
-    options.ytdlpQualityPreference
-    ?? data.ytdlpQualityPreference
-    ?? data.defaultVideoDownloadQuality,
+  videoQuality:
+    normalizeVideoQualityPreference(options.videoQuality)
+    ?? normalizeVideoQualityPreference(data.videoQuality)
+    ?? normalizeVideoQualityPreference(data.defaultVideoDownloadQuality),
 });
 
 const EXTENSION_ASSISTED_PASTED_VIDEO_SITE_HINTS = new Set([
@@ -98,30 +102,8 @@ const normalizeTraceId = (payload: CommandPayload): string => (
   normalizeOptionalString(asObject(payload).traceId ?? asObject(payload).trace_id) ?? ""
 );
 
-const normalizeYtdlpQualityPreference = (
-  value: unknown,
-): "best" | "balanced" | "data_saver" | undefined => {
-  switch (value) {
-    case "best":
-      return "best";
-    case "balanced":
-    case "high":
-      return "balanced";
-    case "data_saver":
-    case "standard":
-      return "data_saver";
-    default:
-      return undefined;
-  }
-};
-
 const resolveVideoDownloadPreferencesFromConfig = (config: Record<string, unknown>) => ({
-  ytdlpQuality:
-    normalizeYtdlpQualityPreference(
-      normalizeOptionalString(config.defaultVideoDownloadQuality)
-        ?? normalizeOptionalString(config.ytdlpQualityPreference),
-    )
-    ?? "best",
+  videoQuality: resolveYtdlpQualityPreferenceFromConfig(config),
 });
 
 const summarizeQueuePayload = (payload: Record<string, unknown>) => ({
@@ -136,8 +118,8 @@ const summarizeQueuePayload = (payload: Record<string, unknown>) => ({
     : Array.isArray(payload.video_candidates)
       ? payload.video_candidates.length
       : 0,
-  ytdlpQualityPreference:
-    payload.ytdlpQualityPreference
+  videoQuality:
+    payload.videoQuality
     ?? payload.ytdlpQuality
     ?? payload.defaultVideoDownloadQuality
     ?? null,
@@ -157,7 +139,7 @@ export const createVideoDownloadCommandBridge = (
     const mergedPreferences = resolveVideoDownloadPreferencesFromConfig(config);
     const request = {
       ...asObject(payload),
-      defaultVideoDownloadQuality: mergedPreferences.ytdlpQuality,
+      videoQuality: mergedPreferences.videoQuality,
     };
     options.logInjectedDebug(config, "Normalized injected download request", summarizeQueuePayload(request));
     const ack = await router.invoke<QueuedVideoDownloadAck>("queue_video_download", request);
@@ -206,7 +188,7 @@ export const createVideoDownloadCommandBridge = (
             siteHint: resolvedViaExtension.siteHint ?? siteHint,
             videoCandidatesCount: resolvedViaExtension.videoCandidates?.length ?? 0,
             selectionScope: resolvedViaExtension.selectionScope ?? null,
-            ytdlpQualityPreference: resolvedViaExtension.ytdlpQualityPreference ?? null,
+            videoQuality: resolvedViaExtension.videoQuality ?? null,
           }),
         );
         return await queueVideoDownload({

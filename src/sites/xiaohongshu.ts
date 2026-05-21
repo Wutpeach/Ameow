@@ -94,7 +94,7 @@ export const xiaohongshuProvider: SiteProvider = {
       priority: 88,
       candidates: [],
       selectionScope: input.selectionScope,
-      ytdlpQuality: input.ytdlpQuality,
+      videoQuality: input.videoQuality,
       preferredFormat: "mp4",
       clipStartSec: input.clipStartSec,
       clipEndSec: input.clipEndSec,

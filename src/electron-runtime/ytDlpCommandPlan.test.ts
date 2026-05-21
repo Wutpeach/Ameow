@@ -24,7 +24,7 @@ const createContext = (overrides: Record<string, unknown> = {}) => ({
     pageUrl: "https://www.youtube.com/watch?v=abc123",
     selectionScope: "current_item",
     siteId: "youtube",
-    ytdlpQuality: "best",
+    videoQuality: "best",
   },
   abortSignal: new AbortController().signal,
   onProgress: async () => undefined,
@@ -48,10 +48,9 @@ describe("yt-dlp command planning", () => {
     expect(plan.ffmpegDir).toBe(path.dirname("D:/tools/ffmpeg/bin/ffmpeg.exe"));
   });
 
-  it("builds light youtube args in the expected command order", () => {
+  it("builds extended youtube args in the expected command order", () => {
     const plan = createYtdlpCommandPlan(createContext());
     const args = buildYtdlpCommandArgs(plan, {
-      mode: "light",
       cookiesPath: "D:/temp/trace-plan-cookies.txt",
       hasFfmpeg: true,
       hasDeno: true,
@@ -80,8 +79,8 @@ describe("yt-dlp command planning", () => {
     expect(args).toContain("--ffmpeg-location");
     expect(args).toContain("--no-playlist");
     expect(args).toContain("D:/temp/trace-plan-cookies.txt");
-    expect(args).toContain("youtube:player_client=android,web");
-    expect(args).not.toContain("youtube:player_js_variant=tv");
+    expect(args).toContain("youtube:player_js_variant=tv");
+    expect(args).toContain("--remote-components");
     expect(args[args.length - 1]).toBe("https://www.youtube.com/watch?v=abc123");
   });
 
@@ -92,7 +91,7 @@ describe("yt-dlp command planning", () => {
         pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
         selectionScope: "current_item",
         siteId: "bilibili",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 5.25,
         clipEndSec: 8.75,
       },
@@ -102,7 +101,6 @@ describe("yt-dlp command planning", () => {
     }));
 
     const args = buildYtdlpCommandArgs(plan, {
-      mode: "light",
       cookiesPath: null,
       hasFfmpeg: true,
       hasDeno: false,
@@ -120,14 +118,12 @@ describe("yt-dlp command planning", () => {
   it("uses platform-specific extended youtube js runtime ordering", () => {
     const plan = createYtdlpCommandPlan(createContext());
     const windowsArgs = buildYtdlpCommandArgs(plan, {
-      mode: "extended",
       cookiesPath: null,
       hasFfmpeg: true,
       hasDeno: true,
       platform: "win32",
     });
     const macArgs = buildYtdlpCommandArgs(plan, {
-      mode: "extended",
       cookiesPath: null,
       hasFfmpeg: true,
       hasDeno: true,
@@ -158,7 +154,7 @@ describe("yt-dlp command planning", () => {
         pageUrl: "https://x.com/ameow/status/1234567890",
         selectionScope: "current_item",
         siteId: "twitter-x",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 3,
         clipEndSec: 9,
       },

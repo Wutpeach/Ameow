@@ -11,6 +11,9 @@ import type {
   QueuedVideoDownloadRequest,
 } from "../types/videoRuntime.js";
 import type { ElectronDownloadRuntime } from "./contracts.js";
+import {
+  normalizeVideoQualityPreference,
+} from "../core/index.js";
 import { resolveSiteHint } from "../core/site-hints.js";
 import { orderVideoCandidatesForSite } from "../core/video-candidate-order.js";
 import { createInteractionCapabilityDiagnostic } from "../download-capabilities/runtime-interaction-capabilities.js";
@@ -416,17 +419,14 @@ const normalizeQueueVideoDownloadRequest = (
       const value = Number(raw);
       return Number.isFinite(value) && value >= 0 ? value : undefined;
     })(),
-    ytdlpQuality: (() => {
-      const value = readOptionalTrimmedString(
+    videoQuality: normalizeVideoQualityPreference(
+      readOptionalTrimmedString(
         request,
+        "videoQuality",
         "ytdlpQuality",
-        "ytdlpQualityPreference",
         "defaultVideoDownloadQuality",
-      );
-      return value === "best" || value === "balanced" || value === "data_saver"
-        ? value
-        : undefined;
-    })(),
+      ),
+    ),
     siteHint,
     extensionData,
     dragDiagnostic,

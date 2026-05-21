@@ -10,6 +10,7 @@ export * from "./types/engine-plan.js";
 export * from "./types/media-candidate.js";
 export * from "./types/raw-download-input.js";
 export * from "./types/site-provider.js";
+export * from "./download-preferences.js";
 export * from "./schemas/download-intent-schema.js";
 export * from "./schemas/engine-plan-schema.js";
 export * from "./schemas/raw-download-input-schema.js";

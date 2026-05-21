@@ -2,52 +2,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
-import { getCliEngineManifest } from "./engineManifest.js";
-import { buildYtdlpCommandArgs, createYtdlpCommandPlan, type YouTubeMode } from "./ytDlpCommandPlan.js";
+import { buildYtdlpCommandArgs, createYtdlpCommandPlan } from "./ytDlpCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
-
-const RETRY_WITH_EXTENDED_YOUTUBE_PATTERNS = [
-  /\bcookies?\b/i,
-  /\blog(?:in|ged in)\b/i,
-  /\bsign(?:ed)? in\b/i,
-  /\bnot a bot\b/i,
-  /\bconfirm you're not a bot\b/i,
-  /\bauth(?:entication|orization)?\b/i,
-  /\brequires?\s+(?:login|cookies|authentication|authorization)\b/i,
-  /\bnsig\b/i,
-  /\bsignature\b/i,
-  /\bplayer response\b/i,
-  /\bplayer api\b/i,
-  /\bextractor\b/i,
-];
-
-const asObject = (value: unknown): Record<string, unknown> => (
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
-);
-
-const resolveInitialYouTubeMode = (context: EngineExecutionContext): YouTubeMode => {
-  const youtubeExtensionData = asObject(asObject(context.intent.extensionData).youtube);
-  if (youtubeExtensionData.forceExtended === true) {
-    return "extended";
-  }
-
-  if (context.intent.cookies?.trim()) {
-    return "extended";
-  }
-
-  return "extended";
-};
-
-const shouldRetryWithExtendedYouTubeMode = (error: unknown): boolean => {
-  const message = summarizeError(error);
-  return RETRY_WITH_EXTENDED_YOUTUBE_PATTERNS.some((pattern) => pattern.test(message));
-};
 
 const YTDLP_ACTIVITY_FALLBACK = "Resolving media...";
 
@@ -144,11 +104,9 @@ const cleanupTaskArtifacts = async (
     .filter((entry) => !beforeFiles.has(entry))
     .map((entry) => fs.unlink(path.join(outputDir, entry)).catch(() => undefined)));
 };
-
 export const runYtDlpDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
-  const manifest = getCliEngineManifest("yt-dlp");
   const taskStartedAtMs = Date.now();
   let commandPlan: ReturnType<typeof createYtdlpCommandPlan>;
   try {
@@ -168,19 +126,20 @@ export const runYtDlpDownload = async (
       },
     );
   }
+
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir, commandPlan.artifactPrefixes));
   logYtDlpTiming("task start", {
     traceId: context.traceId,
     siteId: context.intent.siteId,
-    quality: context.intent.ytdlpQuality ?? "best",
+    quality: context.intent.videoQuality ?? "best",
     sourceUrl: commandPlan.sourceUrl,
     isYouTube: commandPlan.isYouTube,
     formatSelectorLength: commandPlan.formatProfile.selector.length,
   });
   const clipDurationSec = resolveClipDurationSec(commandPlan.clipRange);
-
   const stderrLines: string[] = [];
-  const runAttempt = async (mode: YouTubeMode): Promise<DownloadResultPayload> => {
+
+  const runAttempt = async (): Promise<DownloadResultPayload> => {
     if (context.abortSignal.aborted) {
       throw new Error("Download cancelled");
     }
@@ -188,7 +147,6 @@ export const runYtDlpDownload = async (
 
     const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
     const args = buildYtdlpCommandArgs(commandPlan, {
-      mode,
       cookiesPath,
       hasFfmpeg: Boolean(context.binaries.ffmpeg),
       hasDeno: Boolean(context.binaries.deno),
@@ -211,17 +169,18 @@ export const runYtDlpDownload = async (
         titlePresent: Boolean(context.intent.title),
         cookiesPresent: Boolean(context.intent.cookies?.trim()),
         cookiesPath,
-        ytdlpQuality: context.intent.ytdlpQuality ?? null,
+        videoQuality: context.intent.videoQuality ?? null,
         formatSelector: commandPlan.formatProfile.selector,
         formatSort: commandPlan.formatProfile.sort,
         mergeOutputFormat: commandPlan.formatProfile.mergeOutputFormat,
-        youtubeMode: mode,
+        youtubeMode: "extended",
         args,
       });
     }
+
     logYtDlpTiming("attempt start", {
       traceId: context.traceId,
-      mode,
+      mode: "extended",
       elapsedMs: formatElapsedMs(taskStartedAtMs),
       selectorLength: commandPlan.formatProfile.selector.length,
       hasCookies: Boolean(cookiesPath),
@@ -248,7 +207,7 @@ export const runYtDlpDownload = async (
               loggedFirstProgress = true;
               logYtDlpTiming("first download progress", {
                 traceId: context.traceId,
-                mode,
+                mode: "extended",
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 percent: progress.percent,
@@ -265,7 +224,7 @@ export const runYtDlpDownload = async (
               loggedFirstActivity = true;
               logYtDlpTiming("first extractor activity", {
                 traceId: context.traceId,
-                mode,
+                mode: "extended",
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 activity,
@@ -289,7 +248,7 @@ export const runYtDlpDownload = async (
               loggedFirstProgress = true;
               logYtDlpTiming("first download progress", {
                 traceId: context.traceId,
-                mode,
+                mode: "extended",
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 percent: progress.percent,
@@ -309,7 +268,7 @@ export const runYtDlpDownload = async (
               loggedFirstActivity = true;
               logYtDlpTiming("first extractor activity", {
                 traceId: context.traceId,
-                mode,
+                mode: "extended",
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 activity,
@@ -331,7 +290,7 @@ export const runYtDlpDownload = async (
       const reportedTitle = await readReportedValue(commandPlan.titleReportPath);
       logYtDlpTiming("attempt finished", {
         traceId: context.traceId,
-        mode,
+        mode: "extended",
         elapsedMs: formatElapsedMs(taskStartedAtMs),
         attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
         exitCode,
@@ -356,7 +315,7 @@ export const runYtDlpDownload = async (
       logYtDlpTiming("task success", {
         traceId: context.traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
-        mode,
+        mode: "extended",
         filePath: reportedPath,
       });
 
@@ -374,43 +333,7 @@ export const runYtDlpDownload = async (
   };
 
   try {
-    const initialMode = commandPlan.isYouTube
-      ? resolveInitialYouTubeMode(context)
-      : "light";
-    try {
-      return await runAttempt(initialMode);
-    } catch (error) {
-      if (
-        commandPlan.isYouTube
-        && initialMode === "light"
-        && !context.abortSignal.aborted
-        && shouldRetryWithExtendedYouTubeMode(error)
-      ) {
-        if (isInjectionDebugEnabled(context.config)) {
-          logInjectedDownloadDebug("yt-dlp retrying with extended youtube mode", {
-            traceId: context.traceId,
-            sourceUrl: commandPlan.sourceUrl,
-            fallbackReason: summarizeError(error),
-          });
-        }
-        logYtDlpTiming("fallback to extended", {
-          traceId: context.traceId,
-          elapsedMs: formatElapsedMs(taskStartedAtMs),
-          reason: summarizeError(error),
-        });
-        await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
-        stderrLines.length = 0;
-        await context.onProgress({
-          traceId: context.traceId,
-          percent: -1,
-          stage: "preparing",
-          speed: manifest.youtube.retryingCompatibleExtractorActivity,
-          eta: "",
-        });
-        return await runAttempt("extended");
-      }
-      throw error;
-    }
+    return await runAttempt();
   } catch (error) {
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {

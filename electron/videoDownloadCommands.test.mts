@@ -112,7 +112,7 @@ describe("createVideoDownloadCommandBridge", () => {
     expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
-      ytdlpQuality: "balanced",
+      videoQuality: "balanced",
     }));
   });
 
@@ -136,7 +136,7 @@ describe("createVideoDownloadCommandBridge", () => {
       selectionScope: "current_item",
       clipStartSec: 35.25,
       clipEndSec: 48.75,
-      ytdlpQuality: "balanced",
+      videoQuality: "balanced",
     }));
   });
 
@@ -178,7 +178,7 @@ describe("createVideoDownloadCommandBridge", () => {
     expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
       url: "https://v.douyin.com/5qqlazbdEoU/",
       siteHint: "douyin",
-      ytdlpQuality: "balanced",
+      videoQuality: "balanced",
     }));
   });
 
@@ -198,7 +198,7 @@ describe("createVideoDownloadCommandBridge", () => {
     expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
       url: "https://www.xiaohongshu.com/explore/abc123",
       siteHint: "xiaohongshu",
-      ytdlpQuality: "balanced",
+      videoQuality: "balanced",
     }));
   });
 
@@ -242,7 +242,7 @@ describe("buildVideoSelectedV2QueuePayload", () => {
           source: "injected",
         },
       },
-      ytdlpQualityPreference: "best",
+      videoQuality: "best",
     })).toMatchObject({
       url: "https://www.youtube.com/watch?v=clip123",
       pageUrl: "https://www.youtube.com/watch?v=clip123&t=35s",
@@ -258,7 +258,7 @@ describe("buildVideoSelectedV2QueuePayload", () => {
           source: "injected",
         },
       },
-      ytdlpQualityPreference: "best",
+      videoQuality: "best",
     });
   });
 
@@ -284,12 +284,12 @@ describe("buildVideoSelectedV2QueuePayload", () => {
     expect(buildVideoSelectedV2QueuePayload(
       {
         url: "https://www.bilibili.com/video/BV1xx411c7mD",
-        ytdlpQualityPreference: "best",
+        videoQuality: "best",
       },
-      { ytdlpQualityPreference: "balanced" },
+      { videoQuality: "balanced" },
     )).toMatchObject({
       url: "https://www.bilibili.com/video/BV1xx411c7mD",
-      ytdlpQualityPreference: "balanced",
+      videoQuality: "balanced",
     });
   });
 });

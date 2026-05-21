@@ -24,7 +24,7 @@ export const genericProvider: SiteProvider = {
       priority: 10,
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
-      ytdlpQuality: input.ytdlpQuality,
+      videoQuality: input.videoQuality,
       extensionData: input.extensionData,
       preferredFormat: "best",
     };

@@ -41,7 +41,7 @@ describe("CLI engine manifests", () => {
     const noFfmpegBalanced = resolveYtdlpFormatProfile("balanced", false, { siteId: "youtube" });
 
     expect(genericBalanced.selector).toContain("bv*[height=1080]");
-    expect(youtubeBalanced.selector).not.toContain("bv*[height=1080]");
+    expect(youtubeBalanced.selector).toContain("bv*[height=1080]");
     expect(youtubeBalanced.selector).toContain("best[height<=1080][ext=mp4]");
     expect(youtubeUrlBalanced).toBe(youtubeBalanced);
     expect(unknownSiteDataSaver.selector).toContain("bv*[height=360]");

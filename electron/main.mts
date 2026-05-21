@@ -42,6 +42,10 @@ import {
   resolveRuntimeBinaryPaths,
   resolveRenameEnabled,
 } from "../src/electron-runtime/index.js";
+import {
+  normalizeVideoQualityPreference,
+  resolveYtdlpQualityPreferenceFromConfig,
+} from "../src/core/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
 import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
@@ -875,10 +879,9 @@ function summarizeInjectedVideoSelectionPayload(payload) {
     videoCandidateCount: normalizedVideoCandidates.length,
     clipStartSec: normalizeOptionalNumber(payload?.clipStartSec ?? payload?.clip_start_sec) ?? null,
     clipEndSec: normalizeOptionalNumber(payload?.clipEndSec ?? payload?.clip_end_sec) ?? null,
-    ytdlpQualityPreference:
-      normalizeYtdlpQualityPreference(payload?.ytdlpQualityPreference)
-      ?? normalizeYtdlpQualityPreference(payload?.ytdlpQuality)
-      ?? normalizeYtdlpQualityPreference(payload?.defaultVideoDownloadQuality)
+    videoQuality:
+      normalizeVideoQualityPreference(payload?.videoQuality)
+      ?? normalizeVideoQualityPreference(payload?.defaultVideoDownloadQuality)
       ?? null,
   };
 }
@@ -1016,37 +1019,17 @@ function normalizeSelectionScope(value) {
   return value === "current_item" || value === "playlist" ? value : "auto";
 }
 
-function normalizeYtdlpQualityPreference(value) {
-  switch (value) {
-    case "best":
-      return "best";
-    case "balanced":
-    case "high":
-      return "balanced";
-    case "data_saver":
-    case "standard":
-      return "data_saver";
-    default:
-      return null;
-  }
-}
-
 function resolveVideoDownloadPreferencesFromConfig(config) {
   return {
-    ytdlpQuality:
-      normalizeYtdlpQualityPreference(
-        normalizeOptionalString(config.defaultVideoDownloadQuality)
-          ?? normalizeOptionalString(config.ytdlpQualityPreference),
-      )
-      ?? "best",
+    videoQuality: resolveYtdlpQualityPreferenceFromConfig(config),
     aeFriendlyConversionEnabled: config.aeFriendlyConversionEnabled === true,
   };
 }
 
 async function syncIncomingDownloadPreferences(data) {
   const incomingQuality = normalizeYtdlpQualityPreference(
-    normalizeOptionalString(data?.ytdlpQualityPreference)
-      ?? normalizeOptionalString(data?.defaultVideoDownloadQuality),
+    normalizeOptionalString(data?.videoQuality)
+    ?? normalizeOptionalString(data?.defaultVideoDownloadQuality),
   );
   const incomingAeFriendly = typeof data?.aeFriendlyConversionEnabled === "boolean"
     ? data.aeFriendlyConversionEnabled
@@ -1067,7 +1050,7 @@ async function syncIncomingDownloadPreferences(data) {
 
   const merged = resolveVideoDownloadPreferencesFromConfig(config);
   return {
-    quality: merged.ytdlpQuality,
+    quality: merged.videoQuality,
     aeFriendlyConversionEnabled: merged.aeFriendlyConversionEnabled,
   };
 }
@@ -2507,7 +2490,7 @@ async function handleWsMessage(rawMessage) {
         const ack = await getVideoDownloadCommandBridge().invoke(
           "queue_video_download",
           buildVideoSelectedV2QueuePayload(data, {
-            ytdlpQualityPreference: syncedPreferences?.quality,
+            videoQuality: syncedPreferences?.quality,
           }),
         );
         return {

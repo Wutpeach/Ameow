@@ -22,7 +22,7 @@ const baseIntentSchema = z.object({
   priority: z.number().int(),
   candidates: z.array(mediaCandidateSchema),
   selectionScope: z.enum(["current_item", "playlist"]).optional(),
-  ytdlpQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
+  videoQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   extensionData: downloadExtensionDataSchema.optional(),
 });
 

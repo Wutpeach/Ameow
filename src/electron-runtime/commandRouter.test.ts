@@ -252,6 +252,7 @@ describe("createElectronRuntimeCommandRouter", () => {
       url: "https://www.youtube.com/watch?v=abc123",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       selectionScope: "current_item",
+      videoQuality: undefined,
       extensionData: {
         youtube: {
           forceExtended: true,
@@ -259,6 +260,21 @@ describe("createElectronRuntimeCommandRouter", () => {
           source: "injected",
         },
       },
+    }));
+  });
+
+  it("normalizes video quality preferences on queue requests", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await router.invoke<{ accepted: boolean; traceId: string }>("queue_video_download", {
+      url: "https://www.youtube.com/watch?v=abc123",
+      videoQuality: "balanced",
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://www.youtube.com/watch?v=abc123",
+      videoQuality: "balanced",
     }));
   });
 

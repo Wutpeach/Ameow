@@ -89,7 +89,7 @@ describe("runYtDlpDownload", () => {
       },
       intent: {
         originalUrl: "https://www.youtube.com/watch?v=1",
-        ytdlpQuality: "best",
+        videoQuality: "best",
       },
       abortSignal: new AbortController().signal,
       onProgress: vi.fn(async () => undefined),
@@ -164,7 +164,7 @@ describe("runYtDlpDownload", () => {
       },
       intent: {
         originalUrl: "https://www.youtube.com/watch?v=abc123",
-        ytdlpQuality: "best",
+        videoQuality: "best",
       },
       abortSignal: new AbortController().signal,
       onProgress,
@@ -184,7 +184,7 @@ describe("runYtDlpDownload", () => {
     }));
   });
 
-  it("uses extended youtube mode for high quality plain url downloads", async () => {
+  it("uses extended youtube args for plain youtube downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -216,7 +216,7 @@ describe("runYtDlpDownload", () => {
       },
       intent: {
         originalUrl: "https://www.youtube.com/watch?v=plain123",
-        ytdlpQuality: "best",
+        videoQuality: "best",
       },
       abortSignal: new AbortController().signal,
       onProgress: vi.fn(async () => undefined),
@@ -228,7 +228,53 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("uses the trimmed youtube balanced selector for injected downloads", async () => {
+  it("does not retry public youtube downloads through an extended mode branch", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Retry Video"
+        : path.join("D:/downloads", "Retry Video.mp4")
+    ));
+    const onProgress = vi.fn(async () => undefined);
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("--extractor-args");
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-light",
+      outputDir: "D:/downloads",
+      outputStem: "Retry Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=light123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=light123",
+        pageUrl: "https://www.youtube.com/watch?v=light123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress,
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Retry Video.mp4"),
+    });
+  });
+
+  it("uses extended youtube mode for injected downloads", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -236,19 +282,8 @@ describe("runYtDlpDownload", () => {
         : path.join("D:/downloads", "Balanced Video.mp4")
     ));
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
-      const formatIndex = args.indexOf("-f");
-      expect(formatIndex).toBeGreaterThanOrEqual(0);
-      expect(args[formatIndex + 1]).toBe(
-        "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/"
-        + "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/"
-        + "b[height<=1080][ext=mp4]/"
-        + "best[height<=1080][ext=mp4]/"
-        + "best[ext=mp4]/"
-        + "best",
-      );
       expect(args).toContain("youtube:player_js_variant=tv");
       expect(args).toContain("--remote-components");
-      expect(args).toContain("ejs:github");
       return 0;
     });
 
@@ -270,7 +305,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=balanced123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "balanced",
+        videoQuality: "balanced",
         extensionData: {
           youtube: {
             source: "injected",
@@ -298,7 +333,6 @@ describe("runYtDlpDownload", () => {
     runStreamingCommandMock.mockImplementation(async (_command, args) => {
       expect(args).toContain("youtube:player_js_variant=tv");
       expect(args).toContain("--remote-components");
-      expect(args).toContain("ejs:github");
       return 0;
     });
 
@@ -320,7 +354,222 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=datasaver123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "data_saver",
+        videoQuality: "data_saver",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Data Saver Video.mp4"),
+    });
+  });
+
+  it("keeps injected public high quality downloads on extended mode", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Injected Public Video"
+        : path.join("D:/downloads", "Injected Public Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("--no-playlist");
+      expect(args).toContain("--extractor-args");
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).not.toContain("--cookies");
+      expect(args).toContain("--remote-components");
+      expect(args).toContain("ejs:github");
+      expect(args).toContain("--js-runtimes");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-public-injected",
+      outputDir: "D:/downloads",
+      outputStem: "Injected Public Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=public123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=public123",
+        pageUrl: "https://www.youtube.com/watch?v=public123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        extensionData: {
+          youtube: {
+            source: "injected",
+            allowCookies: false,
+          },
+        },
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Injected Public Video.mp4"),
+    });
+  });
+
+  it("does not retry youtube failures after the download has been aborted", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Cancelled Video"
+        : path.join("D:/downloads", "Cancelled Video.mp4")
+    ));
+    const onProgress = vi.fn(async () => undefined);
+    const abortController = new AbortController();
+    runStreamingCommandMock.mockImplementationOnce(async (_command, args, options) => {
+      expect(args).toContain("youtube:player_js_variant=tv");
+      abortController.abort();
+      await options?.onStderrLine?.("ERROR: Sign in to confirm you're not a bot");
+      return 1;
+    });
+
+    const context = {
+      traceId: "trace-cancelled-youtube",
+      outputDir: "D:/downloads",
+      outputStem: "Cancelled Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=cancel123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=cancel123",
+        pageUrl: "https://www.youtube.com/watch?v=cancel123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "data_saver",
+        extensionData: {
+          youtube: {
+            source: "injected",
+            allowCookies: false,
+          },
+        },
+      },
+      abortSignal: abortController.signal,
+      onProgress,
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toThrow("Sign in to confirm you're not a bot");
+    expect(runStreamingCommandMock).toHaveBeenCalledTimes(1);
+    expect(onProgress).not.toHaveBeenCalledWith(expect.objectContaining({
+      speed: "activity:youtube.retryingCompatibleExtractor",
+    }));
+  });
+
+  it("uses the trimmed youtube balanced selector for injected downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Balanced Video"
+        : path.join("D:/downloads", "Balanced Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      const formatIndex = args.indexOf("-f");
+      expect(formatIndex).toBeGreaterThanOrEqual(0);
+      expect(args[formatIndex + 1]).toBe(
+        "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/"
+        + "bv*[height=1080][ext=mp4]+ba[ext=m4a]/"
+        + "b[height=1080][vcodec^=avc1][ext=mp4]/"
+        + "b[height=1080][ext=mp4]/"
+        + "best[height=1080][ext=mp4]/"
+        + "bv*[height<=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/"
+        + "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/"
+        + "b[height<=1080][vcodec^=avc1][ext=mp4]/"
+        + "b[height<=1080][ext=mp4]/"
+        + "best[height<=1080][ext=mp4]/"
+        + "best[ext=mp4]/"
+        + "best",
+      );
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-balanced",
+      outputDir: "D:/downloads",
+      outputStem: "Balanced Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=balanced123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=balanced123",
+        pageUrl: "https://www.youtube.com/watch?v=balanced123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "balanced",
+        extensionData: {
+          youtube: {
+            source: "injected",
+            allowCookies: false,
+          },
+        },
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Balanced Video.mp4"),
+    });
+  });
+
+  it("uses extended youtube mode for data-saver downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Data Saver Video"
+        : path.join("D:/downloads", "Data Saver Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-youtube-data-saver",
+      outputDir: "D:/downloads",
+      outputStem: "Data Saver Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=datasaver123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=datasaver123",
+        pageUrl: "https://www.youtube.com/watch?v=datasaver123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "data_saver",
       },
       abortSignal: new AbortController().signal,
       onProgress: vi.fn(async () => undefined),
@@ -377,7 +626,7 @@ describe("runYtDlpDownload", () => {
         selectionScope: "current_item",
         cookies: "# Netscape HTTP Cookie File",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        videoQuality: "best",
       },
       abortSignal: new AbortController().signal,
       onProgress: vi.fn(async () => undefined),
@@ -428,7 +677,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=clip123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 5.25,
         clipEndSec: 8.75,
       },
@@ -474,7 +723,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=clip123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 5,
         clipEndSec: 25,
       },
@@ -534,7 +783,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD?p=2",
         selectionScope: "current_item",
         siteId: "bilibili",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 12,
         clipEndSec: 24,
       },
@@ -569,7 +818,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://x.com/ameow/status/1234567890",
         selectionScope: "current_item",
         siteId: "twitter-x",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         clipStartSec: 3,
         clipEndSec: 9,
       },
@@ -654,7 +903,7 @@ describe("runYtDlpDownload", () => {
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "video.mp4.part"));
   });
 
-  it("uses extended youtube mode for injected public high quality downloads", async () => {
+  it("keeps injected public high quality downloads on extended mode", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -665,8 +914,8 @@ describe("runYtDlpDownload", () => {
       expect(args).toContain("--no-playlist");
       expect(args).toContain("--extractor-args");
       expect(args).toContain("youtube:player_js_variant=tv");
-      expect(args).not.toContain("--cookies");
       expect(args).toContain("--remote-components");
+      expect(args).not.toContain("--cookies");
       expect(args).toContain("ejs:github");
       expect(args).toContain("--js-runtimes");
       return 0;
@@ -690,7 +939,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=public123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "best",
+        videoQuality: "best",
         extensionData: {
           youtube: {
             source: "injected",
@@ -719,6 +968,7 @@ describe("runYtDlpDownload", () => {
     const abortController = new AbortController();
     runStreamingCommandMock.mockImplementationOnce(async (_command, args, options) => {
       expect(args).toContain("youtube:player_js_variant=tv");
+      expect(args).toContain("--remote-components");
       abortController.abort();
       await options?.onStderrLine?.("ERROR: Sign in to confirm you're not a bot");
       return 1;
@@ -742,7 +992,7 @@ describe("runYtDlpDownload", () => {
         pageUrl: "https://www.youtube.com/watch?v=cancel123",
         selectionScope: "current_item",
         siteId: "youtube",
-        ytdlpQuality: "data_saver",
+        videoQuality: "data_saver",
         extensionData: {
           youtube: {
             source: "injected",

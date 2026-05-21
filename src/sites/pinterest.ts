@@ -45,11 +45,11 @@ export const pinterestProvider: SiteProvider = {
       cookies: input.cookies,
       referer: input.pageUrl,
       priority: 95,
-      candidates: pinterestCandidates(input),
-      selectionScope: input.selectionScope,
-      ytdlpQuality: input.ytdlpQuality,
-      preferredFormat: "mp4",
-    };
+  candidates: pinterestCandidates(input),
+  selectionScope: input.selectionScope,
+  videoQuality: input.videoQuality,
+  preferredFormat: "mp4",
+};
 
     return {
       providerId: "pinterest",

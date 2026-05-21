@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { EngineExecutionContext, YtdlpQualityPreference } from "../core/index.js";
+import type { EngineExecutionContext, VideoQualityPreference } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest, resolveYtdlpFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { resolveRenameEnabled } from "./renameRules.js";
@@ -24,7 +24,6 @@ export type YtdlpCommandPlan = {
 };
 
 type BuildYtdlpCommandArgsOptions = {
-  mode: YouTubeMode;
   cookiesPath: string | null;
   hasFfmpeg: boolean;
   hasDeno: boolean;
@@ -56,7 +55,7 @@ export const appendExtendedYouTubeYtdlpArgs = (
 };
 
 const resolveYtdlpQualityLabel = (
-  quality: YtdlpQualityPreference | undefined,
+  quality: VideoQualityPreference | undefined,
 ): "highest" | "balanced" | "data-saver" => {
   switch (quality) {
     case "balanced":
@@ -160,7 +159,7 @@ const buildYtdlpOutputTemplate = (
     return path.join(context.outputDir, `${clipRangePrefix}.%(ext)s`);
   }
 
-  const qualityLabel = resolveYtdlpQualityLabel(context.intent.ytdlpQuality);
+  const qualityLabel = resolveYtdlpQualityLabel(context.intent.videoQuality);
   return path.join(
     context.outputDir,
     `${context.outputStem}[%(width|unknown)sx%(height|unknown)s][${qualityLabel}].%(ext)s`,
@@ -177,7 +176,7 @@ export const createYtdlpCommandPlan = (
   }
   const youtubeUrl = isYouTubeUrl(sourceUrl);
   const formatProfile = resolveYtdlpFormatProfile(
-    context.intent.ytdlpQuality,
+    context.intent.videoQuality,
     Boolean(context.binaries.ffmpeg),
     { isYouTube: youtubeUrl, siteId: context.intent.siteId },
   );
@@ -239,15 +238,11 @@ export const buildYtdlpCommandArgs = (
     args.push("--cookies", options.cookiesPath);
   }
 
-  if (plan.isYouTube && options.mode === "extended") {
+  if (plan.isYouTube) {
     appendExtendedYouTubeYtdlpArgs(args, {
       hasDeno: options.hasDeno,
       platform: options.platform,
     });
-  } else if (plan.isYouTube) {
-    args.push(
-      ...manifest.youtube.lightExtractorArgs,
-    );
   }
 
   args.push(plan.sourceUrl);

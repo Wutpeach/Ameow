@@ -24,6 +24,7 @@ export type RawDownloadInput = {
   selectionScope?: DownloadSelectionScope;
   clipStartSec?: number;
   clipEndSec?: number;
+  videoQuality?: YtdlpQualityPreference;
   ytdlpQuality?: YtdlpQualityPreference;
   siteHint?: string;
   extensionData?: DownloadExtensionData;
