@@ -38,10 +38,11 @@ jobs:
         run: node ./scripts/run-electron-package.mjs --mac zip ${{ matrix.builder_arch }}
 
       - name: Verify packaged Python runtime
+        timeout-minutes: 20
         run: |
           set -o pipefail
           mkdir -p build
-          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution \
+          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap \
             | tee "build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json"
 
       - name: Upload runtime verification artifact

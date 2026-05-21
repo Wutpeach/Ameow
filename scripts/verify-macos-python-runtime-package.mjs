@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   isCurrentHostTarget,
@@ -131,6 +131,100 @@ const smokePackagedPython = async (pythonPath) => {
   }
 };
 
+const readCommandVersion = async (command) => {
+  const { stdout, stderr } = await runCommand(command, ["--version"]);
+  return `${stdout}\n${stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) ?? "unknown";
+};
+
+const smokePackagedDownloaderBootstrap = async (details, verifierOptions = {}) => {
+  const bootstrapPath = path.join(
+    details.appResourcesDir,
+    "dist-electron",
+    "electron",
+    "managedRuntimeBootstrap.mjs",
+  );
+  assertPathExists(bootstrapPath, "compiled managed runtime bootstrap");
+  assertPathExists(
+    path.join(details.appResourcesDir, "dist-electron", "src", "electron-runtime", "platform.js"),
+    "compiled electron runtime platform helper",
+  );
+  assertPathExists(
+    path.join(details.appResourcesDir, "dist-electron", "electron", "managedPythonPackageManifest.mjs"),
+    "compiled managed Python package manifest",
+  );
+
+  const bootstrap = await import(pathToFileURL(bootstrapPath).href);
+  const configDir = mkdtempSync(path.join(tmpdir(), "ameow-macos-packaged-downloaders-"));
+  const activities = [];
+  const bootstrapOptions = {
+    configDir,
+    platform: "darwin",
+    arch: details.arch === "arm64" ? "arm64" : "x64",
+    fetch,
+    bundledPythonRoot: details.pythonRoot,
+    bundledPythonPath: details.pythonExecutable,
+    onActivity(activity) {
+      activities.push(`${activity.component}:${activity.stage}`);
+    },
+  };
+  const keepConfigDir = verifierOptions.keepConfigDir === true;
+
+  try {
+    const ytDlp = await bootstrap.ensureManagedYtDlpRuntimeReady("verify_macos_package", bootstrapOptions);
+    const galleryDl = await bootstrap.ensureManagedGalleryDlRuntimeReady("verify_macos_package", bootstrapOptions);
+    const douyinDl = await bootstrap.ensureManagedDouyinDlRuntimeReady("verify_macos_package", bootstrapOptions);
+    const paths = {
+      ytDlp,
+      galleryDl,
+      douyinDl,
+      ytDlpPython: bootstrap.managedYtDlpPaths(bootstrapOptions).python,
+      galleryDlExpected: bootstrap.managedGalleryDlPath(bootstrapOptions),
+      douyinDlExpected: bootstrap.managedDouyinDlPath(bootstrapOptions),
+    };
+
+    for (const [label, entryPath] of Object.entries(paths)) {
+      assertPathExists(entryPath, `managed downloader ${label}`);
+    }
+
+    const versions = {
+      "yt-dlp": await readCommandVersion(ytDlp),
+      "gallery-dl": await readCommandVersion(galleryDl),
+      "douyin-dl": await readCommandVersion(douyinDl),
+    };
+    const expectedVersions = {
+      "yt-dlp": bootstrap.resolvePinnedManagedPythonPackage("yt-dlp").packageVersion,
+      "gallery-dl": bootstrap.resolvePinnedManagedPythonPackage("gallery-dl").packageVersion,
+      "douyin-dl": bootstrap.resolvePinnedManagedPythonPackage("douyin-dl").packageVersion,
+    };
+
+    for (const [toolId, expected] of Object.entries(expectedVersions)) {
+      if (versions[toolId] !== expected) {
+        throw new Error(`${toolId} version mismatch: expected ${expected}, received ${versions[toolId]}`);
+      }
+    }
+
+    return {
+      attempted: true,
+      configDir,
+      configDirRetained: keepConfigDir,
+      bootstrapPath,
+      entries: paths,
+      versions,
+      expectedVersions,
+      activities,
+    };
+  } catch (error) {
+    throw error;
+  } finally {
+    if (!keepConfigDir) {
+      rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+};
+
 const readJson = (entryPath) => JSON.parse(readFileSync(entryPath, "utf8"));
 
 const verifyManifestEntry = (manifestPath, target) => {
@@ -225,6 +319,33 @@ const verifyMacosPackage = async (options) => {
     execution.result = await smokePackagedPython(pythonExecutable);
   }
 
+  const downloaderBootstrap = {
+    attempted: false,
+    skippedReason: null,
+    result: null,
+  };
+  const downloaderBootstrapRequired = options.requireDownloaderBootstrap === true;
+  if (options.staticOnly === true) {
+    downloaderBootstrap.skippedReason = "static_only";
+  } else if (!canExecute) {
+    downloaderBootstrap.skippedReason = `non_host_target:${target}`;
+    if (downloaderBootstrapRequired) {
+      throw new Error(`Cannot bootstrap packaged downloaders for non-host target ${target}`);
+    }
+  } else if (options.verifyDownloaderBootstrap === true || downloaderBootstrapRequired) {
+    downloaderBootstrap.attempted = true;
+    downloaderBootstrap.result = await smokePackagedDownloaderBootstrap({
+      arch,
+      appResourcesDir,
+      pythonRoot,
+      pythonExecutable,
+    }, {
+      keepConfigDir: options.keepConfigDir === true,
+    });
+  } else {
+    downloaderBootstrap.skippedReason = "not_requested";
+  }
+
   return {
     state: "ok",
     arch,
@@ -241,19 +362,31 @@ const verifyMacosPackage = async (options) => {
     manifestEntry,
     binaryEntries,
     execution,
+    downloaderBootstrap,
   };
 };
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const positional = Array.isArray(args._) ? args._ : [];
-  const positionalFlags = new Set(["static-only", "require-execution"]);
+  const positionalFlags = new Set([
+    "static-only",
+    "require-execution",
+    "verify-downloader-bootstrap",
+    "require-downloader-bootstrap",
+    "keep-config-dir",
+  ]);
   const positionalValues = positional.filter((value) => !positionalFlags.has(value));
   const result = await verifyMacosPackage({
     arch: typeof args.arch === "string" ? args.arch : positionalValues[0],
     app: typeof args.app === "string" ? args.app : positionalValues[1],
     staticOnly: args["static-only"] === "true" || positional.includes("static-only"),
     requireExecution: args["require-execution"] === "true" || positional.includes("require-execution"),
+    verifyDownloaderBootstrap: args["verify-downloader-bootstrap"] === "true"
+      || positional.includes("verify-downloader-bootstrap"),
+    requireDownloaderBootstrap: args["require-downloader-bootstrap"] === "true"
+      || positional.includes("require-downloader-bootstrap"),
+    keepConfigDir: args["keep-config-dir"] === "true" || positional.includes("keep-config-dir"),
   });
   console.log(JSON.stringify(result, null, 2));
 }

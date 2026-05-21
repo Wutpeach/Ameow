@@ -128,10 +128,11 @@ jobs:
           npm run package:macos-open-source-dmg -- --arch ${{ matrix.arch }} --version "${{ steps.version.outputs.version }}"
 
       - name: Verify macOS packaged Python runtime
+        timeout-minutes: 20
         run: |
           set -o pipefail
           mkdir -p build
-          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution \
+          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap \
             | tee "build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json"
 
       - name: Upload macOS runtime verification artifact
