@@ -42,7 +42,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build
-          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap \
+          npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution require-downloader-bootstrap require-relocation-rebuild \
             | tee "build/macos-runtime-package-verification-${{ matrix.artifact_arch }}.json"
 
       - name: Upload runtime verification artifact

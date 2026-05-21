@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdtempSync,
   readdirSync,
@@ -225,6 +226,90 @@ const smokePackagedDownloaderBootstrap = async (details, verifierOptions = {}) =
   }
 };
 
+const smokePackagedDownloaderRelocationRebuild = async (details, verifierOptions = {}) => {
+  const bootstrapPath = path.join(
+    details.appResourcesDir,
+    "dist-electron",
+    "electron",
+    "managedRuntimeBootstrap.mjs",
+  );
+  assertPathExists(bootstrapPath, "compiled managed runtime bootstrap");
+  const bootstrap = await import(pathToFileURL(bootstrapPath).href);
+  const configDir = mkdtempSync(path.join(tmpdir(), "ameow-macos-packaged-relocation-config-"));
+  const movedRuntimeDir = mkdtempSync(path.join(tmpdir(), "ameow-macos-packaged-relocation-runtime-"));
+  const movedPythonRoot = path.join(movedRuntimeDir, path.basename(details.pythonRoot));
+  const keepConfigDir = verifierOptions.keepConfigDir === true;
+  const activities = [];
+
+  const createOptions = (pythonRoot, pythonExecutable) => ({
+    configDir,
+    platform: "darwin",
+    arch: details.arch === "arm64" ? "arm64" : "x64",
+    fetch,
+    bundledPythonRoot: pythonRoot,
+    bundledPythonPath: pythonExecutable,
+    onActivity(activity) {
+      activities.push(`${activity.component}:${activity.stage}`);
+    },
+  });
+
+  const ensureAllDownloaders = async (options) => {
+    const ytDlp = await bootstrap.ensureManagedYtDlpRuntimeReady("verify_macos_package_relocation", options);
+    const galleryDl = await bootstrap.ensureManagedGalleryDlRuntimeReady("verify_macos_package_relocation", options);
+    const douyinDl = await bootstrap.ensureManagedDouyinDlRuntimeReady("verify_macos_package_relocation", options);
+    return {
+      ytDlp,
+      galleryDl,
+      douyinDl,
+      ytDlpMetadata: bootstrap.managedYtDlpPaths(options).metadata,
+    };
+  };
+
+  try {
+    const firstOptions = createOptions(details.pythonRoot, details.pythonExecutable);
+    const first = await ensureAllDownloaders(firstOptions);
+    const firstMetadata = readJson(first.ytDlpMetadata);
+
+    cpSync(details.pythonRoot, movedPythonRoot, { recursive: true });
+    const movedPythonExecutable = path.join(movedPythonRoot, path.relative(details.pythonRoot, details.pythonExecutable));
+    assertPathExists(movedPythonExecutable, "relocated bundled Python executable");
+
+    const secondOptions = createOptions(movedPythonRoot, movedPythonExecutable);
+    const second = await ensureAllDownloaders(secondOptions);
+    const secondMetadata = readJson(second.ytDlpMetadata);
+
+    if (firstMetadata.bundledPythonPath === secondMetadata.bundledPythonPath) {
+      throw new Error("Relocation rebuild did not update bundledPythonPath metadata");
+    }
+    if (secondMetadata.bundledPythonPath !== movedPythonExecutable) {
+      throw new Error("Relocation rebuild did not record the relocated Python executable");
+    }
+
+    for (const [label, entryPath] of Object.entries({
+      ytDlp: second.ytDlp,
+      galleryDl: second.galleryDl,
+      douyinDl: second.douyinDl,
+    })) {
+      assertPathExists(entryPath, `relocated managed downloader ${label}`);
+    }
+
+    return {
+      attempted: true,
+      configDir,
+      configDirRetained: keepConfigDir,
+      firstBundledPythonPath: firstMetadata.bundledPythonPath,
+      secondBundledPythonPath: secondMetadata.bundledPythonPath,
+      rebuilt: firstMetadata.bundledPythonPath !== secondMetadata.bundledPythonPath,
+      activities,
+    };
+  } finally {
+    rmSync(movedRuntimeDir, { recursive: true, force: true });
+    if (!keepConfigDir) {
+      rmSync(configDir, { recursive: true, force: true });
+    }
+  }
+};
+
 const readJson = (entryPath) => JSON.parse(readFileSync(entryPath, "utf8"));
 
 const verifyManifestEntry = (manifestPath, target) => {
@@ -346,6 +431,33 @@ const verifyMacosPackage = async (options) => {
     downloaderBootstrap.skippedReason = "not_requested";
   }
 
+  const relocationRebuild = {
+    attempted: false,
+    skippedReason: null,
+    result: null,
+  };
+  const relocationRebuildRequired = options.requireRelocationRebuild === true;
+  if (options.staticOnly === true) {
+    relocationRebuild.skippedReason = "static_only";
+  } else if (!canExecute) {
+    relocationRebuild.skippedReason = `non_host_target:${target}`;
+    if (relocationRebuildRequired) {
+      throw new Error(`Cannot verify relocation rebuild for non-host target ${target}`);
+    }
+  } else if (options.verifyRelocationRebuild === true || relocationRebuildRequired) {
+    relocationRebuild.attempted = true;
+    relocationRebuild.result = await smokePackagedDownloaderRelocationRebuild({
+      arch,
+      appResourcesDir,
+      pythonRoot,
+      pythonExecutable,
+    }, {
+      keepConfigDir: options.keepConfigDir === true,
+    });
+  } else {
+    relocationRebuild.skippedReason = "not_requested";
+  }
+
   return {
     state: "ok",
     arch,
@@ -363,6 +475,7 @@ const verifyMacosPackage = async (options) => {
     binaryEntries,
     execution,
     downloaderBootstrap,
+    relocationRebuild,
   };
 };
 
@@ -374,6 +487,8 @@ async function main() {
     "require-execution",
     "verify-downloader-bootstrap",
     "require-downloader-bootstrap",
+    "verify-relocation-rebuild",
+    "require-relocation-rebuild",
     "keep-config-dir",
   ]);
   const positionalValues = positional.filter((value) => !positionalFlags.has(value));
@@ -386,6 +501,10 @@ async function main() {
       || positional.includes("verify-downloader-bootstrap"),
     requireDownloaderBootstrap: args["require-downloader-bootstrap"] === "true"
       || positional.includes("require-downloader-bootstrap"),
+    verifyRelocationRebuild: args["verify-relocation-rebuild"] === "true"
+      || positional.includes("verify-relocation-rebuild"),
+    requireRelocationRebuild: args["require-relocation-rebuild"] === "true"
+      || positional.includes("require-relocation-rebuild"),
     keepConfigDir: args["keep-config-dir"] === "true" || positional.includes("keep-config-dir"),
   });
   console.log(JSON.stringify(result, null, 2));
