@@ -96,16 +96,39 @@ describe("createMainWindowPointerBoundaryController", () => {
       });
 
       controller.start();
-      expect(vi.getTimerCount()).toBe(1);
+      expect(vi.getTimerCount()).toBe(2);
 
       controller.stop();
       expect(vi.getTimerCount()).toBe(0);
 
       controller.start();
-      expect(vi.getTimerCount()).toBe(1);
+      expect(vi.getTimerCount()).toBe(2);
 
       win.listeners.get("closed")?.();
       expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels the deferred initial emit when stopped before the timer fires", () => {
+    vi.useFakeTimers();
+    try {
+      const win = createWindow();
+      const screenRef = {
+        getCursorScreenPoint: () => ({ x: 150, y: 150 }),
+      };
+      const controller = createMainWindowPointerBoundaryController({
+        win,
+        screenRef,
+        pollMs: 50,
+      });
+
+      controller.start();
+      controller.stop();
+      vi.runOnlyPendingTimers();
+
+      expect(win.webContents.send).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

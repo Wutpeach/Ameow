@@ -927,7 +927,6 @@ function App({
   const foregroundOutcomeRequestIdRef = useRef(0);
   const isForegroundTaskOutcomeVisibleRef = useRef(false);
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
-  const compactNativeSettleFrameRef = useRef<number | null>(null);
   const isContextMenuOpenRef = useRef(false);
   const isDraggingRef = useRef(false);
   const cancellingTraceIdsRef = useRef<Set<string>>(new Set());
@@ -1128,23 +1127,6 @@ function App({
     });
   }, []);
 
-  const cancelCompactNativeSettle = useCallback(() => {
-    if (compactNativeSettleFrameRef.current !== null) {
-      cancelAnimationFrame(compactNativeSettleFrameRef.current);
-      compactNativeSettleFrameRef.current = null;
-    }
-  }, []);
-
-  const scheduleCompactNativeSettle = useCallback((commit: () => void) => {
-    cancelCompactNativeSettle();
-    compactNativeSettleFrameRef.current = requestAnimationFrame(() => {
-      compactNativeSettleFrameRef.current = requestAnimationFrame(() => {
-        compactNativeSettleFrameRef.current = null;
-        commit();
-      });
-    });
-  }, [cancelCompactNativeSettle]);
-
   const updateShellPhase = useCallback((
     nextPhase: "full" | "collapsing" | "compact" | "expanding",
   ) => {
@@ -1337,7 +1319,7 @@ function App({
               type: "collapseTimerFired",
               token: effect.token,
             });
-          }, 140);
+          }, 80);
           break;
         case "setInteractionMode":
           if (effect.mode === "compact-passthrough" && !supportsCompactPassthroughHotspot) {
@@ -1346,7 +1328,6 @@ function App({
           applyCurrentWindowInteractionMode(effect.mode);
           break;
         case "requestExpand": {
-          cancelCompactNativeSettle();
           compactNativeSettledRef.current = false;
           compactHotspotInsideRef.current = false;
           beginMainWindowBoundsTransition("full");
@@ -1355,15 +1336,10 @@ function App({
           setIsMinimized(false);
           setShowEdgeGlow(false);
           window.setTimeout(() => setShowEdgeGlow(true), 500);
-          window.setTimeout(() => {
-            const container = document.querySelector('[tabIndex="0"]') as HTMLElement | null;
-            container?.focus();
-          }, 100);
           break;
         }
         case "requestCollapse":
           compactHotspotInsideRef.current = false;
-          cancelCompactNativeSettle();
           compactNativeSettledRef.current = false;
           pendingCompactResizeTokenRef.current = beginMainWindowBoundsTransition("compact");
           updateShellPhase("collapsing");
@@ -1377,7 +1353,6 @@ function App({
   }, [
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
-    cancelCompactNativeSettle,
     clearMainWindowInteractionTimer,
     supportsCompactPassthroughHotspot,
     updateShellPhase,
@@ -1598,16 +1573,13 @@ function App({
       compactHotspotInsideRef.current = false;
       isPanelHoveredRef.current = false;
       setIsPanelHovered(false);
-      scheduleCompactNativeSettle(() => {
-        if (!isMainWindowBoundsTransitionStillCurrent(compactResizeToken, "compact")) {
-          return;
-        }
+      if (isMainWindowBoundsTransitionStillCurrent(compactResizeToken, "compact")) {
         compactNativeSettledRef.current = true;
         if (supportsCompactPassthroughHotspot) {
           applyCurrentWindowInteractionMode("compact-passthrough");
         }
-        restoreAnimatedPanelTransitions();
-      });
+      }
+      restoreAnimatedPanelTransitions();
       return;
     }
 
@@ -2160,9 +2132,6 @@ function App({
       }
       if (panelTransitionModeResetFrameRef.current !== null) {
         cancelAnimationFrame(panelTransitionModeResetFrameRef.current);
-      }
-      if (compactNativeSettleFrameRef.current !== null) {
-        cancelAnimationFrame(compactNativeSettleFrameRef.current);
       }
       if (compactHotspotFrameRef.current !== null) {
         cancelAnimationFrame(compactHotspotFrameRef.current);

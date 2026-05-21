@@ -578,6 +578,10 @@ function keepMainWindowOffWindowsTaskbar(win: BrowserWindow) {
   win.setSkipTaskbar(true);
 }
 
+function shouldToggleFocusabilityForInteractionMode() {
+  return process.platform !== "win32";
+}
+
 function clampWindowBoundsValue(value: unknown, fallback: number) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -2928,12 +2932,17 @@ function registerIpcHandlers() {
     if (mode === "compact-passthrough") {
       mainWindowPointerBoundaryController?.stop();
       win.setIgnoreMouseEvents(true, { forward: true });
-      win.setFocusable(false);
+      if (shouldToggleFocusabilityForInteractionMode()) {
+        win.setFocusable(false);
+      }
+      keepMainWindowOffWindowsTaskbar(win);
       return;
     }
 
     win.setIgnoreMouseEvents(false);
-    win.setFocusable(true);
+    if (shouldToggleFocusabilityForInteractionMode()) {
+      win.setFocusable(true);
+    }
     keepMainWindowOffWindowsTaskbar(win);
     if (win === getWindow(WINDOW_LABELS.main)) {
       mainWindowPointerBoundaryController?.start();

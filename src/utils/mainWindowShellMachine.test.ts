@@ -49,22 +49,27 @@ describe("mainWindowShellMachine", () => {
     expect(collapsed.state.phase).toBe("collapsing");
     expect(collapsed.effects).toEqual([
       { type: "cancelCollapseTimer" },
-      { type: "setInteractionMode", mode: "interactive" },
       { type: "requestCollapse" },
     ]);
   });
 
-  it("deterministically collapses when pointer leaves during expand", () => {
+  it("waits for expand completion before collapsing after pointer leaves during expand", () => {
     const expanding = apply(
       createMainWindowShellState({ startsCompact: true }),
       { type: "pointerEnter" },
     ).state;
-    const pending = apply(expanding, { type: "pointerLeave" });
-    const token = pending.state.collapseTimerToken;
+    const leftDuringExpand = apply(expanding, { type: "pointerLeave" });
 
+    expect(leftDuringExpand.state.phase).toBe("expanding");
+    expect(leftDuringExpand.state.pointerInside).toBe(false);
+    expect(leftDuringExpand.effects).toEqual([]);
+
+    const pending = apply(leftDuringExpand.state, { type: "expandAnimationComplete" });
+    const token = pending.state.collapseTimerToken;
     expect(pending.state.phase).toBe("collapsePending");
-    expect(apply(pending.state, { type: "expandAnimationComplete" }).state.phase)
-      .toBe("collapsePending");
+    expect(pending.effects).toEqual([
+      { type: "startCollapseTimer", token },
+    ]);
 
     const collapsed = apply(pending.state, { type: "collapseTimerFired", token });
     expect(collapsed.state.phase).toBe("collapsing");
@@ -127,8 +132,6 @@ describe("mainWindowShellMachine", () => {
 
     const settled = apply(collapsing, { type: "collapseAnimationComplete" });
     expect(settled.state.phase).toBe("compact");
-    expect(settled.effects).toEqual([
-      { type: "setInteractionMode", mode: "compact-passthrough" },
-    ]);
+    expect(settled.effects).toEqual([]);
   });
 });

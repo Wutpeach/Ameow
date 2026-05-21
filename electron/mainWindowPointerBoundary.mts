@@ -45,6 +45,7 @@ export const createMainWindowPointerBoundaryController = ({
   pollMs?: number;
 }): MainWindowPointerBoundaryController => {
   let interval: ReturnType<typeof setInterval> | null = null;
+  let pendingInitialEmit: ReturnType<typeof setTimeout> | null = null;
   let lastInside: boolean | null = null;
 
   const emitIfChanged = () => {
@@ -66,7 +67,12 @@ export const createMainWindowPointerBoundaryController = ({
   };
 
   const stop = () => {
+    if (pendingInitialEmit !== null) {
+      clearTimeout(pendingInitialEmit);
+      pendingInitialEmit = null;
+    }
     if (interval === null) {
+      lastInside = null;
       return;
     }
     clearInterval(interval);
@@ -75,10 +81,13 @@ export const createMainWindowPointerBoundaryController = ({
   };
 
   const start = () => {
-    if (win.isDestroyed() || interval !== null) {
+    if (win.isDestroyed() || interval !== null || pendingInitialEmit !== null) {
       return;
     }
-    emitIfChanged();
+    pendingInitialEmit = setTimeout(() => {
+      pendingInitialEmit = null;
+      emitIfChanged();
+    }, 0);
     interval = setInterval(emitIfChanged, pollMs);
   };
 

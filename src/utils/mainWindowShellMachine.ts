@@ -123,7 +123,6 @@ const beginCollapse = (state: MainWindowShellState): MainWindowShellTransition =
     },
     effects: [
       { type: "cancelCollapseTimer" },
-      { type: "setInteractionMode", mode: "interactive" },
       { type: "requestCollapse" },
     ],
   };
@@ -181,6 +180,15 @@ export const reduceMainWindowShell = (
     }
 
     case "pointerLeave":
+      if (state.phase === "expanding") {
+        return {
+          state: {
+            ...state,
+            pointerInside: false,
+          },
+          effects: [],
+        };
+      }
       return beginCollapseDelay({
         ...state,
         pointerInside: false,
@@ -290,7 +298,7 @@ export const reduceMainWindowShell = (
           ...state,
           phase: "compact",
         },
-        effects: [{ type: "setInteractionMode", mode: "compact-passthrough" }],
+        effects: [],
       };
   }
 };
