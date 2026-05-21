@@ -21,8 +21,9 @@ const usage = () => [
   "  npm run runtime:smoke:douyin-session -- help",
   "  npm run runtime:smoke:douyin-session -- <cookies-file> [url]",
   "  node ./scripts/smoke-douyin-dl-session-download.mjs --cookies-file <path> [--url <douyin-url>]",
+  "  node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <path-to-douyin.json> [--url <douyin-url>]",
   "",
-  "The cookies file must contain Netscape cookies or a Cookie header/string for a valid Douyin session.",
+  "The cookies file must contain Netscape cookies, a Cookie header/string, or an Ameow site-session JSON file.",
   "The script does not print cookie contents.",
 ].join("\n");
 
@@ -80,6 +81,36 @@ const sanitizeErrorContext = (value) => {
   return sanitized;
 };
 
+const readCookiesInput = async (entryPath) => {
+  const resolvedPath = path.resolve(entryPath);
+  const raw = await readFile(resolvedPath, "utf8");
+  if (!raw.trim()) {
+    throw new Error(`Douyin cookies file is empty: ${resolvedPath}`);
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const cookiesNetscape = typeof parsed?.cookiesNetscape === "string"
+      ? parsed.cookiesNetscape.trim()
+      : "";
+    if (cookiesNetscape) {
+      return {
+        cookies: cookiesNetscape,
+        sourcePath: resolvedPath,
+        sourceType: "site-session",
+      };
+    }
+  } catch {
+    // Raw Netscape/Cookie-header inputs are valid and intentionally not JSON.
+  }
+
+  return {
+    cookies: raw,
+    sourcePath: resolvedPath,
+    sourceType: "raw-cookies",
+  };
+};
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const positional = Array.isArray(args._) ? args._ : [];
@@ -88,7 +119,9 @@ async function main() {
     return;
   }
 
-  const cookiesFile = typeof args["cookies-file"] === "string"
+  const cookiesFile = typeof args["site-session"] === "string"
+    ? args["site-session"]
+    : typeof args["cookies-file"] === "string"
     ? args["cookies-file"]
     : positional[0];
   if (!cookiesFile) {
@@ -103,11 +136,8 @@ async function main() {
     : defaultOutputDir();
   const fresh = args.fresh !== "false";
   const target = resolveRuntimeTarget();
-  const cookiesPath = path.resolve(cookiesFile);
-  const cookies = await readFile(cookiesPath, "utf8");
-  if (!cookies.trim()) {
-    throw new Error(`Douyin cookies file is empty: ${cookiesPath}`);
-  }
+  const cookiesInput = await readCookiesInput(cookiesFile);
+  const cookies = cookiesInput.cookies;
 
   if (fresh) {
     await rm(outputDir, { recursive: true, force: true }).catch(() => {});
@@ -189,6 +219,8 @@ async function main() {
       state: "ok",
       target,
       sourceUrl,
+      cookiesSourceType: cookiesInput.sourceType,
+      cookiesSourcePath: cookiesInput.sourcePath,
       outputDir,
       outputPath: result.file_path,
       outputSize: outputStats.size,
@@ -202,6 +234,8 @@ async function main() {
       state: "failed",
       target,
       sourceUrl,
+      cookiesSourceType: cookiesInput.sourceType,
+      cookiesSourcePath: cookiesInput.sourcePath,
       outputDir,
       bundledPythonPath: bundledPython.executable,
       douyinDl,

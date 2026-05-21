@@ -107,8 +107,8 @@
 - [x] Windows x64 NSIS 打包与 installer payload 静态检查
 - [x] Windows x64 NSIS 覆盖安装升级
 - [x] Windows x64 portable 换目录后继续可用
-- [ ] macOS arm64 fresh config，无依赖缓存
-- [ ] macOS x64 / Intel fresh config
+- [x] macOS arm64 packaged fresh config downloader bootstrap，无依赖缓存
+- [x] macOS x64 / Intel packaged fresh config downloader bootstrap，无依赖缓存
 - [ ] macOS 升级安装后旧 venv 自动重建或继续可用
 - [x] Unicode 用户目录 / configDir
 
@@ -122,7 +122,7 @@
 - [x] `douyin-dl` single post execution path without browser fallback
 - [ ] `douyin-dl` single post successful media download with valid Douyin session
 - [x] 首次下载执行路径会等待 `ensureEngineRuntimeReady` 完成后才 dispatch engine
-- [ ] 首次真实外站下载不再等待 Python runtime 下载
+- [x] 首次真实外站下载不再等待 Python runtime 下载
 
 ### Gate 行为
 
@@ -268,6 +268,7 @@
       - `npm run runtime:verify:macos-package -- arm64 require-execution` 在 Windows 无 `.app` 时明确失败为 `No .app bundle found ...`，符合“实机打包后执行”的契约
   - 新增 Douyin 登录态成功下载验证入口：
     - `npm run runtime:smoke:douyin-session -- <cookies-file> [douyin-url]`
+    - 支持 `node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <path-to-douyin.json>` 直接读取 Ameow site-session JSON 中的 `cookiesNetscape`
     - 脚本先构建 Electron runtime，再确保 bundled Python 与 managed `douyin-dl` venv
     - 复用 `runDouyinDlDownload(...)` 的应用实际执行路径，保持 `browser_fallback.enabled=false`
     - 成功条件是返回非空媒体文件路径并验证文件大小大于 0
@@ -277,6 +278,8 @@
       - `npm run runtime:smoke:douyin-session -- help`
       - `npm run runtime:smoke:douyin-session` 无 cookies 文件时明确失败
       - 使用 fake cookies 执行 `node ./scripts/smoke-douyin-dl-session-download.mjs --cookies-file <fake-cookies> --skip-build`，确认脚本走 managed `douyin-dl` runtime，失败 JSON 不输出 cookie 值，并报告缺少有效登录态 / anti-bot
+      - 使用 fake Ameow site-session JSON 执行 `node ./scripts/smoke-douyin-dl-session-download.mjs --site-session <fake-douyin.json> --skip-build`，确认脚本读取 `cookiesNetscape`、走 managed `douyin-dl` runtime，并报告缺少有效 Douyin 登录 cookie / anti-bot
+      - `build/douyin-site-session-redaction-check/stdout-stderr.txt` redaction 检查确认 fake cookie secret 未出现在 stdout/stderr
   - macOS release workflow 已接入 packaged runtime 自动验证：
     - 根据 GitHub-hosted runners 官方文档，`macos-15` 覆盖 arm64，`macos-15-intel` 覆盖 Intel x64；release matrix 已扩展为 arm64 + x64
     - `Package macOS ZIP and open-source DMG` 后运行 `npm run runtime:verify:macos-package -- ${{ matrix.artifact_arch }} require-execution`
@@ -310,10 +313,10 @@
   - 旧 downloader runtime 关键词扫描 0 命中
   - GitHub Actions 手动 macOS runtime package 验证已通过：
     - workflow: `Verify macOS Runtime Package`
-    - run: `26244461847`
-    - URL: `https://github.com/Wutpeach/Ameow/actions/runs/26244461847`
-    - arm64 job: `verify-macos-runtime-package (macos-15, --arm64, arm64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、上传 runtime verification 与 ZIP artifact
-    - x64 job: `verify-macos-runtime-package (macos-15-intel, --x64, x64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、上传 runtime verification 与 ZIP artifact
+    - run: `26245402915`
+    - URL: `https://github.com/Wutpeach/Ameow/actions/runs/26245402915`
+    - arm64 job: `verify-macos-runtime-package (macos-15, --arm64, arm64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、上传 runtime verification 与 ZIP artifact
+    - x64 job: `verify-macos-runtime-package (macos-15-intel, --x64, x64)`，完成 `Build macOS ZIP`、`Verify packaged Python runtime`、packaged downloader bootstrap、上传 runtime verification 与 ZIP artifact
     - arm64 verification JSON:
       - `state: ok`
       - `target: aarch64-apple-darwin`
@@ -323,6 +326,11 @@
       - `execution.attempted: true`
       - packaged Python reported `Python 3.11.15`
       - symlink venv + `pip --version` 成功，`pip 24.0`
+      - `downloaderBootstrap.attempted: true`
+      - 使用 `.app` 内 compiled `managedRuntimeBootstrap.mjs` 与 fresh temp configDir 创建三套 downloader venv
+      - packaged downloader versions 匹配：`yt-dlp 2026.03.17`、`gallery-dl 1.32.1`、`douyin-dl 2.0.0`
+      - bootstrap activities 覆盖 `ytDlp` / `galleryDl` / `douyinDl` 的 `checking`、`installing`、`verifying`
+      - `configDirRetained: false`，验证成功后清理临时 venv
     - x64 verification JSON:
       - `state: ok`
       - `target: x86_64-apple-darwin`
@@ -332,17 +340,23 @@
       - `execution.attempted: true`
       - packaged Python reported `Python 3.11.15`
       - symlink venv + `pip --version` 成功，`pip 24.0`
+      - `downloaderBootstrap.attempted: true`
+      - 使用 `.app` 内 compiled `managedRuntimeBootstrap.mjs` 与 fresh temp configDir 创建三套 downloader venv
+      - packaged downloader versions 匹配：`yt-dlp 2026.03.17`、`gallery-dl 1.32.1`、`douyin-dl 2.0.0`
+      - bootstrap activities 覆盖 `ytDlp` / `galleryDl` / `douyinDl` 的 `checking`、`installing`、`verifying`
+      - `configDirRetained: false`，验证成功后清理临时 venv
   - macOS `venv --copies` 被 GitHub Actions 实证否决：
     - 初次 run `26243802684` 在 arm64/x64 均失败于 venv 内部 `ensurepip` 子进程 `SIGABRT`
     - 与 Claude 复核后，将 macOS venv 策略修正为默认 symlink venv
     - downloader venv metadata 新增 `bundledPythonPath`，app 移动或升级导致 bundled Python 路径变化时会触发 venv 重建
 - 当前环境未完成：
   - macOS 真实打包 / 真实首装链路：
-    - packaged runtime 已在 GitHub macOS arm64/x64 runner 内执行验证通过；仍缺少真实启动 app 后通过 runtime gate 创建三套 downloader venv 的端到端手测证据
+    - packaged runtime 与 `.app` 内 compiled bootstrap 已在 GitHub macOS arm64/x64 runner 内创建三套 downloader venv 并校验版本；仍缺少真实启动 app UI 后通过 runtime gate 自动预热的手测证据
     - macOS 升级安装后旧 venv 自动重建或继续可用
   - `douyin-dl` single post successful media download with valid Douyin session：
     - 当前 Windows managed runtime 已证明 CLI 可启动、UTF-8 环境正确、未触发 browser fallback
     - 当前无登录态实测被 Douyin API anti-bot 拦截，summary 为 `Success 0 / Failed 1`
+    - 本机 `C:\Users\Administrator\AppData\Roaming\ameow\site-sessions` 仅存在 `bilibili.json`，不存在 `douyin.json`
     - 需要带有效 Douyin site session/cookies 再验证成功产物
 
 ## macOS 实机验证命令建议
