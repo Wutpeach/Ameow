@@ -1027,7 +1027,7 @@ function resolveVideoDownloadPreferencesFromConfig(config) {
 }
 
 async function syncIncomingDownloadPreferences(data) {
-  const incomingQuality = normalizeYtdlpQualityPreference(
+  const incomingQuality = normalizeVideoQualityPreference(
     normalizeOptionalString(data?.videoQuality)
     ?? normalizeOptionalString(data?.defaultVideoDownloadQuality),
   );
