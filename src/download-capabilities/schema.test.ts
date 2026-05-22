@@ -24,9 +24,8 @@ describe("download capability seed", () => {
       siteId: "youtube",
       engineOrder: ["yt-dlp"],
     });
-    expect(registry.getPreferredEngine("pinterest")).toBe("direct");
+    expect(registry.getPreferredEngine("pinterest")).toBe("gallery-dl");
     expect(registry.supportsEngine("weibo", "gallery-dl")).toBe(true);
-    expect(registry.supportsEngine("weibo", "direct")).toBe(false);
     expect(registry.supportsInteractionMode("xiaohongshu", "page_bridge")).toBe(true);
     expect(registry.findSiteStrategyForUrl("https://www.xiaohongshu.com/explore/123")).toMatchObject({
       siteId: "xiaohongshu",

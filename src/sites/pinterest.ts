@@ -1,5 +1,4 @@
 import type {
-  MediaCandidate,
   RawDownloadInput,
   ResolvedDownloadPlan,
   SiteProvider,
@@ -11,29 +10,12 @@ import { getRuntimeManualSiteStrategy } from "../download-capabilities/runtime-s
 const isPinterestUrl = (value: string | undefined): boolean =>
   Boolean(value && /pinterest\./i.test(value));
 
-const isDirectPinterestAsset = (value: string): boolean =>
-  /\/videos\/iht\/expmp4\//i.test(value) || /\.mp4(?:$|\?)/i.test(value);
-
-const isPinterestHintCandidate = (candidate: MediaCandidate): boolean =>
-  isDirectPinterestAsset(candidate.url) || /(\.m3u8|\.cmfv)(?:$|\?)/i.test(candidate.url);
-
-const directSourceFromPinterest = (input: RawDownloadInput): string | undefined => {
-  if (input.videoUrl && isDirectPinterestAsset(input.videoUrl)) {
-    return input.videoUrl;
-  }
-  return input.videoCandidates?.find((candidate) => isDirectPinterestAsset(candidate.url))?.url;
-};
-
-const pinterestCandidates = (input: RawDownloadInput): MediaCandidate[] =>
-  (input.videoCandidates ?? []).filter(isPinterestHintCandidate);
-
 export const pinterestProvider: SiteProvider = {
   id: "pinterest",
   matches(input: RawDownloadInput): boolean {
     return input.siteHint === "pinterest" || isPinterestUrl(input.pageUrl) || isPinterestUrl(input.url);
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
-    const directSource = directSourceFromPinterest(input);
     const strategy = getRuntimeManualSiteStrategy("pinterest");
     const pageSourceUrl = input.pageUrl ?? input.url;
     const intent: VideoDownloadIntent = {
@@ -45,28 +27,20 @@ export const pinterestProvider: SiteProvider = {
       cookies: input.cookies,
       referer: input.pageUrl,
       priority: 95,
-  candidates: pinterestCandidates(input),
-  selectionScope: input.selectionScope,
-  videoQuality: input.videoQuality,
-  preferredFormat: "mp4",
-};
+      candidates: [],
+      selectionScope: input.selectionScope,
+      videoQuality: input.videoQuality,
+      preferredFormat: "mp4",
+    };
 
     return {
       providerId: "pinterest",
       label: input.title?.trim() || input.pageUrl || input.url,
       intent,
       engines: buildEnginePlansFromStrategySources(strategy, {
-        direct: directSource
-          ? {
-              sourceUrl: directSource,
-              reason: "Verified Pinterest direct media asset is available",
-            }
-          : undefined,
         "gallery-dl": {
           sourceUrl: pageSourceUrl,
-          reason: directSource
-            ? "Use gallery-dl as the maintained Pinterest extractor path"
-            : "Pinterest resources are handled by gallery-dl",
+          reason: "Pinterest resources are handled by gallery-dl",
         },
       }),
     };

@@ -1,9 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   buildGalleryDlProbeArgs,
   buildYtDlpProbeArgs,
   capabilityProbeResultSchema,
-  runDirectProbe,
   runGalleryDlProbe,
   runYtDlpProbe,
 } from "./probe.js";
@@ -93,83 +92,4 @@ describe("capability probe helpers", () => {
     });
   });
 
-  it("treats direct media HEAD responses as working", async () => {
-    const fetchImpl = vi.fn(async () => new Response(null, {
-      status: 200,
-      headers: {
-        "content-type": "video/mp4",
-      },
-    }));
-
-    const result = await runDirectProbe(
-      {
-        sourceUrl: "https://cdn.example.com/video.mp4",
-        siteId: "generic",
-      },
-      fetchImpl,
-    );
-
-    expect(capabilityProbeResultSchema.parse(result)).toMatchObject({
-      engine: "direct",
-      status: "works",
-      transport: "head_request",
-      httpStatus: 200,
-    });
-  });
-
-  it("falls back to a range request when HEAD is not supported", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 405 }))
-      .mockResolvedValueOnce(new Response(null, {
-        status: 206,
-        headers: {
-          "content-type": "video/mp4",
-        },
-      }));
-
-    const result = await runDirectProbe(
-      {
-        sourceUrl: "https://cdn.example.com/video.mp4",
-      },
-      fetchImpl,
-    );
-
-    expect(fetchImpl).toHaveBeenNthCalledWith(1, "https://cdn.example.com/video.mp4", {
-      method: "HEAD",
-      signal: undefined,
-    });
-    expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://cdn.example.com/video.mp4", {
-      method: "GET",
-      headers: {
-        Range: "bytes=0-0",
-      },
-      signal: undefined,
-    });
-    expect(capabilityProbeResultSchema.parse(result)).toMatchObject({
-      status: "works",
-      transport: "range_request",
-      httpStatus: 206,
-    });
-  });
-
-  it("marks protected direct links as works_with_auth", async () => {
-    const result = await runDirectProbe(
-      {
-        sourceUrl: "https://cdn.example.com/video.mp4",
-      },
-      async () => new Response(null, {
-        status: 403,
-        headers: {
-          "content-type": "text/html",
-        },
-      }),
-    );
-
-    expect(capabilityProbeResultSchema.parse(result)).toMatchObject({
-      status: "works_with_auth",
-      classification: "auth_required",
-      authRequirement: "required",
-    });
-  });
 });

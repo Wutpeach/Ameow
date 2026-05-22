@@ -56,16 +56,20 @@ FlowSelect backend is built with Rust and Tauri v2. It handles file operations, 
 
 | Downloader | Target Platforms | Implementation |
 |------------|------------------|----------------|
-| direct downloader | selected site CDN URLs such as Douyin | Rust HTTP download |
+| gallery-dl | Pinterest, Weibo primary, and gallery-dl-supported sites | Managed Python sidecar |
 | yt-dlp | YouTube, Twitter/X, Bilibili, and generic page URLs | Sidecar binary |
+| douyin-dl | Douyin page URLs | Managed Python sidecar |
 
 ### Smart Routing
 
 ```
 URL → Douyin → yt-dlp only (temporary validation strategy)
 URL → Xiaohongshu canonical note URL → yt-dlp only
+URL → Pinterest → gallery-dl only
 URL → other platforms → yt-dlp first
 ```
+
+`direct` is no longer a backend engine id. Media candidate labels such as `direct_mp4` or `direct_cdn` may still describe browser-discovered hints, but site providers must route those requests to an active sidecar backend.
 
 ### Cookies Flow (High Quality Video)
 

@@ -27,8 +27,6 @@ const downloadFailureClassificationSchema = z.enum([
 
 const capabilityProbeTransportSchema = z.enum([
   "command",
-  "head_request",
-  "range_request",
 ]);
 
 export type CapabilityProbeTransport = z.infer<typeof capabilityProbeTransportSchema>;
@@ -74,11 +72,6 @@ export type CommandProbeExecutor = (
   stderr: string;
 }>;
 
-export type FetchProbeExecutor = (
-  input: string,
-  init?: RequestInit,
-) => Promise<Response>;
-
 const appendTail = (value: string): string[] => value
   .split(/\r?\n/)
   .map((line) => line.trim())
@@ -94,14 +87,6 @@ const summarizeCommandFailure = (
   const detail = stderrTail[stderrTail.length - 1] ?? stdoutTail[stdoutTail.length - 1];
   const prefix = `${engine} probe exited with code ${exitCode ?? "unknown"}`;
   return detail ? `${prefix}: ${detail}` : prefix;
-};
-
-const summarizeHttpProbeFailure = (
-  status: number,
-  contentType: string | null,
-): string => {
-  const contentSuffix = contentType ? ` (${contentType})` : "";
-  return `Direct probe returned HTTP ${status}${contentSuffix}`;
 };
 
 const parseYtDlpJsonPayload = (stdout: string): Record<string, unknown> | null => {
@@ -293,97 +278,11 @@ export const runGalleryDlProbe = async (
   };
 };
 
-const isDirectProbeTextishContentType = (value: string | null): boolean => {
-  if (!value) {
-    return false;
-  }
-
-  const normalized = value.toLowerCase();
-  return normalized.includes("application/json")
-    || normalized.includes("application/vnd.apple.mpegurl")
-    || normalized.includes("application/x-mpegurl")
-    || normalized.startsWith("text/");
-};
-
-const createDirectProbeResult = (
-  input: CapabilityProbeInput,
-  transport: CapabilityProbeTransport,
-  response: Response,
-): CapabilityProbeResult => {
-  const contentType = response.headers.get("content-type");
-  if (response.ok && !isDirectProbeTextishContentType(contentType)) {
-    return capabilityProbeResultSchema.parse({
-      engine: "direct",
-      sourceUrl: input.sourceUrl,
-      siteId: input.siteId,
-      status: "works",
-      authRequirement: "none",
-      classification: null,
-      transport,
-      executedAt: new Date().toISOString(),
-      summary: "Direct probe confirmed a readable media response",
-      httpStatus: response.status,
-      notes: contentType ? [`content-type=${contentType}`] : undefined,
-    });
-  }
-
-  const summary = summarizeHttpProbeFailure(response.status, contentType);
-  const classification = (() => {
-    if (response.status === 401 || response.status === 403) {
-      return "auth_required" as const;
-    }
-    if (response.status === 429 || response.status >= 500) {
-      return "retry_same_engine" as const;
-    }
-    return "terminal_for_site" as const;
-  })();
-  const status = resolveProbeStatusFromClassification(classification);
-
-  return capabilityProbeResultSchema.parse({
-    engine: "direct",
-    sourceUrl: input.sourceUrl,
-    siteId: input.siteId,
-    status,
-    authRequirement: resolveAuthRequirementFromStatus(status),
-    classification,
-    transport,
-    executedAt: new Date().toISOString(),
-    summary,
-    httpStatus: response.status,
-    notes: contentType ? [`content-type=${contentType}`] : undefined,
-  });
-};
-
-export const runDirectProbe = async (
-  input: CapabilityProbeInput,
-  fetchImpl: FetchProbeExecutor,
-): Promise<CapabilityProbeResult> => {
-  const headResponse = await fetchImpl(input.sourceUrl, {
-    method: "HEAD",
-    signal: input.signal,
-  });
-
-  if (headResponse.status !== 405 && headResponse.status !== 501) {
-    return createDirectProbeResult(input, "head_request", headResponse);
-  }
-
-  const rangeResponse = await fetchImpl(input.sourceUrl, {
-    method: "GET",
-    headers: {
-      Range: "bytes=0-0",
-    },
-    signal: input.signal,
-  });
-
-  return createDirectProbeResult(input, "range_request", rangeResponse);
-};
-
 export const runCapabilityProbe = async (
   engine: CapabilityEngineId,
   input: CapabilityCommandProbeInput | CapabilityProbeInput,
   options: {
     execute?: CommandProbeExecutor;
-    fetch?: FetchProbeExecutor;
   },
 ): Promise<CapabilityProbeResult> => {
   switch (engine) {
@@ -397,11 +296,6 @@ export const runCapabilityProbe = async (
         throw new Error("gallery-dl probe requires a binaryPath and execute() implementation");
       }
       return runGalleryDlProbe(input, options.execute);
-    case "direct":
-      if (!options.fetch) {
-        throw new Error("Direct probe requires a fetch() implementation");
-      }
-      return runDirectProbe(input, options.fetch);
     case "douyin-dl":
       throw new Error("douyin-dl probe is not implemented");
     default:

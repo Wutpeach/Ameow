@@ -430,18 +430,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     traceId: string,
     label: string,
     sourcePath: string,
-    providerId: string,
-    engineId: EnginePlan["engine"],
     binaries: ReturnType<typeof resolveRuntimeBinaryPaths>,
   ): Promise<void> {
     try {
-      if (providerId === "xiaohongshu" && engineId === "direct") {
-        this.logger.log(
-          `>>> [ElectronRuntime] skipping transcode follow-up for ${traceId}: xiaohongshu direct asset`,
-        );
-        return;
-      }
-
       const prepared = await prepareVideoTranscodeTaskFromDownload({
         traceId,
         label,
@@ -804,8 +795,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           traceId,
           activeTask.label,
           result.file_path,
-          executedProviderId ?? "generic",
-          executedEngineId ?? "yt-dlp",
           binaries,
         );
       }

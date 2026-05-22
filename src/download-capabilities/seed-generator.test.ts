@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 type DownloadCapabilityEntry = {
   siteId: string;
   displayName: string;
-  engine: "yt-dlp" | "gallery-dl" | "direct";
+  engine: "yt-dlp" | "gallery-dl";
   authRequirement: "unknown" | "none" | "optional" | "required";
   upstreamState: "reported_supported" | "reported_broken";
   referenceUrl?: string;

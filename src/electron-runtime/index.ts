@@ -1,6 +1,5 @@
 export * from "./contracts.js";
 export * from "./commandRouter.js";
-export * from "./directDownload.js";
 export * from "./galleryDlDownload.js";
 export * from "./platform.js";
 export * from "./processRunner.js";

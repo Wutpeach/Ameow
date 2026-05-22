@@ -46,7 +46,6 @@ export const interactionStatusSchema = z.enum([
 export const downloadStrategyKindSchema = z.enum([
   "single_engine",
   "ordered_fallback",
-  "conditional_direct",
 ]);
 
 export const capabilitySourceEntrySchema = z.object({

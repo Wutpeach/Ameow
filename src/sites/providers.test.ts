@@ -253,11 +253,12 @@ describe("builtin site providers", () => {
     expect(intent.clipEndSec).toBe(8.75);
   });
 
-  it("prefers direct then gallery-dl for Pinterest direct-hint plans", () => {
+  it("uses gallery-dl only for Pinterest even when direct media hints are present", () => {
     const plan = resolvePlan({
       url: "https://www.pinterest.com/pin/1234567890/",
       pageUrl: "https://www.pinterest.com/pin/1234567890/",
       siteHint: "pinterest",
+      videoUrl: "https://v1.pinimg.com/videos/iht/expmp4/example.mp4",
       videoCandidates: [
         {
           url: "https://v1.pinimg.com/videos/iht/expmp4/example.mp4",
@@ -270,15 +271,11 @@ describe("builtin site providers", () => {
     const intent = expectVideoIntent(plan.intent);
 
     expect(plan.providerId).toBe("pinterest");
-    expect(plan.engines.map((engine) => engine.engine)).toEqual(["direct", "gallery-dl"]);
-    expect(intent.candidates).toEqual([
-      {
-        url: "https://v1.pinimg.com/videos/iht/expmp4/example.mp4",
-        type: "direct_mp4",
-        source: "network_probe",
-        confidence: "high",
-      },
-    ]);
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl"]);
+    expect(plan.engines[0]).toMatchObject({
+      sourceUrl: "https://www.pinterest.com/pin/1234567890/",
+    });
+    expect(intent.candidates).toEqual([]);
   });
 
   it("keeps Pinterest page-only routing on gallery-dl when no direct asset is available", () => {

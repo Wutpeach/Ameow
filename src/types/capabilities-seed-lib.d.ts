@@ -2,7 +2,7 @@ declare module "../../scripts/capabilities-seed-lib.mjs" {
   export type GeneratedDownloadCapabilityEntry = {
     siteId: string;
     displayName: string;
-    engine: "yt-dlp" | "gallery-dl" | "direct";
+    engine: "yt-dlp" | "gallery-dl";
     sourceId: string;
     claimStatus: "claimed_supported" | "manual_supported" | "manual_blocked";
     probeStatus: "unknown" | "works" | "works_with_auth" | "unstable" | "broken" | "forbidden";
@@ -22,7 +22,7 @@ declare module "../../scripts/capabilities-seed-lib.mjs" {
   export type GeneratedCapabilitySeedSource = {
     id: string;
     type: "official_supported_sites" | "manual";
-    engine: "yt-dlp" | "gallery-dl" | "direct" | null;
+    engine: "yt-dlp" | "gallery-dl" | null;
     label: string;
     url?: string;
     fetchedAt: string;

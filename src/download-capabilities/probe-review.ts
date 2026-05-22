@@ -39,7 +39,7 @@ export const capabilityProbeReviewCandidateSchema = z.object({
   target: z.object({
     id: z.string().trim().min(1),
     siteId: z.string().trim().min(1).nullable(),
-    engine: z.enum(["yt-dlp", "gallery-dl", "direct"]),
+    engine: z.enum(["yt-dlp", "gallery-dl"]),
     sourceUrl: z.url(),
     tier: z.enum(["critical", "auth_sensitive", "coverage"]),
     notes: z.array(z.string().trim().min(1)),

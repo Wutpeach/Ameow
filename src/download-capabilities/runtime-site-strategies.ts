@@ -55,8 +55,8 @@ export const runtimeManualSiteStrategies = [
     siteId: "pinterest",
     displayName: "Pinterest",
     sourceId: "ameow-manual-sites",
-    strategyKind: "conditional_direct",
-    engineOrder: ["direct", "gallery-dl"],
+    strategyKind: "single_engine",
+    engineOrder: ["gallery-dl"],
     matchHints: {
       hosts: ["pinterest.com", "pin.it", "pinimg.com"],
     },

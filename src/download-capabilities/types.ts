@@ -1,10 +1,10 @@
 export type CapabilitySeedSchemaVersion = 1;
 
-export const CAPABILITY_ENGINE_IDS = ["yt-dlp", "gallery-dl", "douyin-dl", "direct"] as const;
+export const CAPABILITY_ENGINE_IDS = ["yt-dlp", "gallery-dl", "douyin-dl"] as const;
 
 export type CapabilityEngineId = typeof CAPABILITY_ENGINE_IDS[number];
 
-export const CAPABILITY_PROBE_ENGINE_IDS = ["yt-dlp", "gallery-dl", "direct"] as const satisfies readonly CapabilityEngineId[];
+export const CAPABILITY_PROBE_ENGINE_IDS = ["yt-dlp", "gallery-dl"] as const satisfies readonly CapabilityEngineId[];
 
 export type CapabilityProbeEngineId = typeof CAPABILITY_PROBE_ENGINE_IDS[number];
 
@@ -42,8 +42,7 @@ export type InteractionStatus =
 
 export type DownloadStrategyKind =
   | "single_engine"
-  | "ordered_fallback"
-  | "conditional_direct";
+  | "ordered_fallback";
 
 export type CapabilitySourceEntry = {
   id: string;

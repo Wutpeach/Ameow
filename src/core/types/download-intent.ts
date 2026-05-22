@@ -43,14 +43,8 @@ export type BatchDownloadIntent = BaseIntent & {
   itemCountHint?: number;
 };
 
-export type DirectDownloadIntent = BaseIntent & {
-  type: "direct";
-  directUrl: string;
-};
-
 export type DownloadIntent =
   | VideoDownloadIntent
   | ImageDownloadIntent
   | SegmentDownloadIntent
-  | BatchDownloadIntent
-  | DirectDownloadIntent;
+  | BatchDownloadIntent;

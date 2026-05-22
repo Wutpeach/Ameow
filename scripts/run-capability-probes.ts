@@ -145,7 +145,7 @@ const createErroredRecord = (
   status: timedOut ? "unstable" : "broken",
   authRequirement: "unknown",
   classification: timedOut ? "retry_same_engine" : "terminal_for_site",
-  transport: target.engine === "direct" ? "head_request" : "command",
+  transport: "command",
   executedAt: new Date().toISOString(),
   summary: error instanceof Error ? error.message : String(error),
 });
@@ -175,21 +175,14 @@ async function main(): Promise<void> {
     try {
       const result = await runCapabilityProbe(
         target.engine,
-        target.engine === "direct"
-          ? {
-              sourceUrl: target.sourceUrl,
-              siteId: target.siteId,
-              signal: controller.signal,
-            }
-          : {
-              sourceUrl: target.sourceUrl,
-              siteId: target.siteId,
-              binaryPath: resolveBinaryPath(target.engine),
-              signal: controller.signal,
-            },
+        {
+          sourceUrl: target.sourceUrl,
+          siteId: target.siteId,
+          binaryPath: resolveBinaryPath(target.engine),
+          signal: controller.signal,
+        },
         {
           execute: executeCommandProbe,
-          fetch: globalThis.fetch,
         },
       );
       records.push(createCapabilityProbeRecord(target, result));

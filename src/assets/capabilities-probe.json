@@ -87,16 +87,6 @@
         "Representative Weibo tv/show route used by provider regression tests.",
         "Covers the explicit yt-dlp fallback path that bypasses gallery-dl."
       ]
-    },
-    {
-      "id": "generic-direct-media",
-      "engine": "direct",
-      "sourceUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-      "siteId": "generic",
-      "tier": "coverage",
-      "notes": [
-        "Stable public media URL for direct HEAD or range probe coverage."
-      ]
     }
   ],
   "records": [
@@ -320,27 +310,11 @@
       ],
       "stderrTail": [],
       "targetId": "weibo-ytdlp-tvshow"
-    },
-    {
-      "engine": "direct",
-      "sourceUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-      "siteId": "generic",
-      "status": "works",
-      "authRequirement": "none",
-      "classification": null,
-      "transport": "head_request",
-      "executedAt": "2026-05-21T16:48:16.181Z",
-      "summary": "Direct probe confirmed a readable media response",
-      "httpStatus": 200,
-      "notes": [
-        "content-type=video/mp4"
-      ],
-      "targetId": "generic-direct-media"
     }
   ],
   "summary": {
-    "total": 9,
-    "works": 7,
+    "total": 8,
+    "works": 6,
     "worksWithAuth": 1,
     "unstable": 0,
     "broken": 1

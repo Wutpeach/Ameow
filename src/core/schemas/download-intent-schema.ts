@@ -49,15 +49,9 @@ export const batchDownloadIntentSchema = baseIntentSchema.extend({
   itemCountHint: z.number().int().nonnegative().optional(),
 });
 
-export const directDownloadIntentSchema = baseIntentSchema.extend({
-  type: z.literal("direct"),
-  directUrl: z.url(),
-});
-
 export const downloadIntentSchema = z.discriminatedUnion("type", [
   videoDownloadIntentSchema,
   imageDownloadIntentSchema,
   segmentDownloadIntentSchema,
   batchDownloadIntentSchema,
-  directDownloadIntentSchema,
 ]);

@@ -1,7 +1,7 @@
 import type { DownloadErrorCode } from "../constants/error-codes.js";
 import type { DownloadFailureClassification } from "../constants/error-classifications.js";
 
-export type EngineId = "yt-dlp" | "gallery-dl" | "douyin-dl" | "direct";
+export type EngineId = "yt-dlp" | "gallery-dl" | "douyin-dl";
 
 export type EnginePlan = {
   engine: EngineId;

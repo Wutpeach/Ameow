@@ -1,6 +1,8 @@
 # Direct Download Onboarding Contracts
 
-> Executable contracts for adding a new direct-download platform with extension button injection and direct URL parsing.
+> Retired historical contract. `direct` is no longer a backend engine id, and site-provider planning must not create direct HTTP download routes from media candidates. Keep this file only as background for older archived tasks; new platform work should route through `yt-dlp`, `gallery-dl`, or a dedicated managed sidecar backend.
+
+> Do not use this document as an implementation template for new work.
 
 ---
 

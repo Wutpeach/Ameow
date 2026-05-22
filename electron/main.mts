@@ -1182,9 +1182,6 @@ function getElectronDownloadRuntime() {
         await ensureManagedDouyinDlRuntimeReady(reason, options);
         return;
       }
-      if (engineId === "direct") {
-        return;
-      }
     },
     bootstrapManagedComponents: async ({ reason }) => {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");

@@ -80,7 +80,7 @@ const waitFor = async (
 };
 
 const createEngineStub = (
-  id: "yt-dlp" | "gallery-dl" | "direct",
+  id: "yt-dlp" | "gallery-dl",
   execute: DownloadEngine["execute"],
 ): DownloadEngine => ({
   id,
@@ -95,7 +95,7 @@ const createRuntime = (options: {
   engines?: DownloadEngine[];
   maxConcurrent?: number;
   configString?: string;
-  ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl" | "douyin-dl" | "direct", reason: string) => Promise<void>;
+  ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl" | "douyin-dl", reason: string) => Promise<void>;
   environment?: {
     repoRoot?: string;
     configDir?: string;
@@ -586,25 +586,19 @@ describe("AmeowElectronDownloadRuntime", () => {
     }
   });
 
-  it("prefers direct for a Pinterest page with a verified direct asset", async () => {
+  it("uses gallery-dl for Pinterest even when a verified direct asset is present", async () => {
     const routes: string[] = [];
     const runtime = createRuntime({
       providers: [pinterestProvider, genericProvider],
       engines: [
         createEngineStub("gallery-dl", async (context) => {
           routes.push(`gallery:${context.traceId}`);
+          expect(context.enginePlan.sourceUrl).toBe("https://www.pinterest.com/pin/1234567890/");
+          expect(context.intent.candidates).toEqual([]);
           return {
             traceId: context.traceId,
             success: true,
             file_path: "gallery.mp4",
-          };
-        }),
-        createEngineStub("direct", async (context) => {
-          routes.push(`direct:${context.traceId}`);
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: "direct.mp4",
           };
         }),
       ],
@@ -620,38 +614,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     await waitFor(() => routes.length > 0);
     expect(routes).toHaveLength(1);
-    expect(routes[0]?.startsWith("direct:")).toBe(true);
-  });
-
-  it("passes the injected environment fetch into engine execution context", async () => {
-    const sessionFetch = async () => new Response(null, { status: 204 });
-    let receivedFetch: typeof fetch | undefined;
-
-    const runtime = createRuntime({
-      providers: [pinterestProvider, genericProvider],
-      environment: {
-        fetch: sessionFetch,
-      },
-      engines: [
-        createEngineStub("direct", async (context) => {
-          receivedFetch = context.fetch;
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: "direct.mp4",
-          };
-        }),
-      ],
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: "https://www.pinterest.com/pin/1234567890/",
-      videoUrl: "https://v1.pinimg.com/videos/iht/expmp4/example.mp4",
-    });
-
-    await waitFor(() => receivedFetch != null);
-    expect(receivedFetch).toBe(sessionFetch);
+    expect(routes[0]?.startsWith("gallery:")).toBe(true);
   });
 
   it("hydrates Xiaohongshu page requests but still routes through yt-dlp", async () => {
@@ -700,17 +663,6 @@ describe("AmeowElectronDownloadRuntime", () => {
             traceId: context.traceId,
             success: true,
             file_path: "yt.mp4",
-          };
-        }),
-        createEngineStub("direct", async (context) => {
-          routes.push(`direct:${context.traceId}`);
-          expect(context.enginePlan.sourceUrl).toBe(
-            "https://sns-video-bd.xhscdn.com/stream/example-1080p.mp4",
-          );
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: "direct.mp4",
           };
         }),
       ],
@@ -801,14 +753,6 @@ describe("AmeowElectronDownloadRuntime", () => {
     const runtime = createRuntime({
       providers: [xiaohongshuProvider, genericProvider],
       engines: [
-        createEngineStub("direct", async (context) => {
-          routes.push(`direct:${context.traceId}`);
-          return {
-            traceId: context.traceId,
-            success: false,
-            error: "direct failed",
-          };
-        }),
         createEngineStub("yt-dlp", async (context) => {
           routes.push(`yt:${context.traceId}`);
           expect(context.enginePlan.sourceUrl).toBe(

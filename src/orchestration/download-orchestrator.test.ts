@@ -81,10 +81,10 @@ describe("DownloadOrchestrator", () => {
   it("falls back only for fallback-to-other-engine failures", async () => {
     const plan = createVideoPlan([
       {
-        engine: "direct",
+        engine: "gallery-dl",
         priority: 100,
         when: "primary",
-        reason: "try direct first",
+        reason: "try gallery-dl first",
         sourceUrl: "https://example.com/page/42",
         fallbackOn: "any",
       },
@@ -99,10 +99,10 @@ describe("DownloadOrchestrator", () => {
     const orchestrator = new DownloadOrchestrator(
       createSiteRegistry([createProvider(plan)]),
       createEngineRegistry([
-        createEngine("direct", {
+        createEngine("gallery-dl", {
           validateIntent: () => new DownloadRuntimeError(
-            "E_DIRECT_SOURCE_REQUIRED",
-            "Direct engine requires a direct media URL",
+            "E_EXECUTION_FAILED",
+            "gallery-dl extractor reported unsupported page",
           ),
         }),
         createEngine("yt-dlp"),

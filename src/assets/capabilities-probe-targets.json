@@ -84,15 +84,5 @@
       "Representative Weibo tv/show route used by provider regression tests.",
       "Covers the explicit yt-dlp fallback path that bypasses gallery-dl."
     ]
-  },
-  {
-    "id": "generic-direct-media",
-    "engine": "direct",
-    "sourceUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    "siteId": "generic",
-    "tier": "coverage",
-    "notes": [
-      "Stable public media URL for direct HEAD or range probe coverage."
-    ]
   }
 ]

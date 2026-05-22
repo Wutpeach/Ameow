@@ -183,7 +183,6 @@ Behavior contract in backend naming paths:
   - If yt-dlp metadata does not expose width/height, the template may fall back to placeholder text, but different quality presets must still resolve to different target filenames.
 - Applied uniformly to:
   - `download_video_internal` (yt-dlp naming template)
-  - `download_video_direct` (direct downloader filename)
   - `download_image` / `save_data_url` / `process_files` (source-name preservation vs sequence naming)
 
 Contract rules:

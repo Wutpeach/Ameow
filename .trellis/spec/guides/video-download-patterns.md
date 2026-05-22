@@ -6,10 +6,13 @@
 
 ## Overview
 
-FlowSelect uses a three-path architecture:
-- Direct downloader for high-confidence Douyin CDN URLs and selected provider-owned direct candidates
-- `gallery-dl` for supported extractor-first sites that are routed through the site-provider layer
+FlowSelect uses a sidecar-first architecture:
+- Runtime site-provider planning must not emit `direct` engine plans; `direct` is no longer a backend engine id.
+- `gallery-dl` for Pinterest and supported extractor-first sites that are routed through the site-provider layer
 - `yt-dlp` as the generic fallback and the primary route for dedicated `yt-dlp` providers such as YouTube/Twitter/Bilibili
+- `douyin-dl` for Douyin page extraction
+
+Media candidate labels such as `direct_mp4` and `direct_cdn` are still valid hint vocabulary from browser/page inspection, but they do not imply a direct HTTP backend.
 
 videodl has been removed from runtime and packaging.
 
@@ -53,18 +56,15 @@ Browser Extension / UI URL
 
 ---
 
-## Pattern 3: Direct Download (Douyin)
+## Pattern 3: Direct Media Candidates As Hints
 
-**Used for**:
-- Douyin direct CDN links (`douyinvod.com`, `douyincdn.com`)
+**Used for**: browser/page extraction metadata such as `videoUrl`, `videoCandidates[]`, `direct_mp4`, or `direct_cdn`.
 
-**Why**:
-- Signed CDN links are often short-lived.
-- Browser context (cookies + referer) is usually enough for immediate direct fetch.
-- Fallback to yt-dlp is still required for non-direct inputs.
-
-For onboarding a new direct-download platform (button injection + parser contracts), follow:
-- `.trellis/spec/backend/direct-download-onboarding-contracts.md`
+**Contract**:
+- Providers may preserve media candidates on the intent when an active sidecar backend can use that context.
+- Providers must not create `direct` engine plans from those hints.
+- Pinterest ignores direct media hints for backend selection and always uses `gallery-dl`.
+- Xiaohongshu may preserve video candidates for context while still routing through canonical-note `yt-dlp`.
 
 ### WebSocket Message Contract
 
@@ -221,76 +221,53 @@ When extension sends both `clipStartSec` and `clipEndSec` for `youtube` or `bili
 ### Smart Router Contract (`download_video_smart`)
 
 ```rust
-if is_douyin_cdn_url(&url) { /* direct downloader */ }
 if is_xiaohongshu_note_url(&url) { /* yt-dlp */ }
-// otherwise: yt-dlp only
+if is_pinterest_url(&url) { /* gallery-dl */ }
+// otherwise: provider-selected sidecar backend
 ```
-
-### Phase 2 Direct Candidate Policy (Backend)
-
-Candidate order for Douyin direct path:
-1. short-TTL cache hit by `platform + normalized pageUrl`
-2. `videoUrl` (legacy field)
-3. `videoCandidates[]` (filtered, platform-matched)
-
-Retry contract:
-- Try direct candidate #1
-- On non-cancel failure, retry once with candidate #2 (if present)
-- If direct attempts still fail, fallback to `download_video_smart(pageUrl, ...)` (yt-dlp)
-
-Observability contract:
-- Emit `direct_candidate_policy`, `attempt_failed`, `fallback_selected`
-- Preserve route chain so terminal outcome can classify `direct_failed_then_ytdlp_success`
 
 ### Validation & Error Matrix
 
 | Condition | Expected Behavior | Fallback |
 |---|---|---|
-| `videoUrl` is direct CDN URL and headers valid | direct download success | no fallback needed |
+| `videoUrl` is a direct CDN URL | treat it as a candidate hint only | selected provider sidecar owns extraction/download |
 | Xiaohongshu homepage drag token says `mediaType=image` | preserve image path unless note-aware resolution reports video intent | no direct-video fallback |
 | `videoUrl` missing/`null` | use smart router by page/url | yt-dlp |
-| `ytdlpQualityPreference=balanced` | direct attempt unchanged; yt-dlp paths prefer 1080p | standard yt-dlp fallback chain |
-| `ytdlpQualityPreference=data_saver` | direct attempt unchanged; yt-dlp paths prefer 360p or lower | lowest available tier if platform min is above 360p |
+| `ytdlpQualityPreference=balanced` | yt-dlp paths prefer 1080p | standard yt-dlp fallback chain |
+| `ytdlpQualityPreference=data_saver` | yt-dlp paths prefer 360p or lower | lowest available tier if platform min is above 360p |
 | `ytdlpQualityPreference` missing/invalid | normalize to `best` | best available yt-dlp stream |
 | YouTube cookies-backed attempt fails with `n challenge` / `Only images are available` / `Requested format is not available` | retry yt-dlp once without cookies before terminal failure | public video downloads can recover without changing UI |
-| direct download returns `HTTP 4xx/5xx` | emit error and completion event | smart route fallback if page URL exists |
-| media URL is `blob:` | detector must not send blob as direct media | send page URL + optional candidates |
-| direct candidate #1 fails and #2 exists | retry one more direct attempt | fallback after retry |
-| direct attempts fail and `pageUrl` exists | do not terminate early | enter smart router |
+| media URL is `blob:` | detector must not send blob as a media candidate | send page URL + optional valid candidates |
 
 ### Good / Base / Bad Cases
 
 - Good:
-  - Extension sends `videoUrl` + `pageUrl` + `cookies`; backend chooses direct downloader.
+  - Extension sends `videoUrl` + `pageUrl` + candidates; backend treats candidates as hints and still routes through an active sidecar backend.
   - Xiaohongshu homepage image-card drag keeps downloading the dragged image unless the note itself resolves as video.
   - Xiaohongshu video notes enqueue canonical note URLs for yt-dlp instead of xhscdn direct candidates.
   - Extension sends `ytdlpQualityPreference=balanced`; Bilibili/YouTube yt-dlp path prefers 1080p when available.
   - A `best` high-resolution yt-dlp download can resolve to the highest visible tier, including `1440p/2160p`, with internal `mkv` merge when required by the stream mix, while the final returned file is normalized to AE-safe `mp4` when needed.
   - A `best` Bilibili preview-limited request that only resolves to `1080p` with MP4-compatible streams should land directly as `mp4` and skip the transcode queue.
-  - First direct candidate fails, second succeeds; trace contains `attempt_failed` then terminal success.
 - Base:
-  - Extension cannot extract direct URL; sends page URL only; backend uses yt-dlp path.
+  - Extension cannot extract candidate URLs; sends page URL only; backend uses the provider-selected sidecar path.
   - Xiaohongshu detail-page cat button queues a canonical note URL and yt-dlp owns extraction.
   - Extension omits `ytdlpQualityPreference`; backend defaults to `best`.
 - Bad:
-  - Extension sends `blob:` as direct URL.
+  - Extension sends `blob:` as a media candidate.
   - Xiaohongshu homepage image-card drag reuses a previous detail-page MP4 from `performance` or script state and downloads the wrong video.
   - Slice cache reuses a full-source download generated for `best` while current request is `data_saver`.
   - `best` is still constrained to MP4-friendly selectors and silently tops out at `1080p` even though the account can access higher tiers.
   - conservative tiers use arbitrary `+ba` audio while still forcing MP4 output, producing a file that some players treat as silent.
   - backend emits terminal success before AE-safe normalization finishes, so frontend/AE still receives the raw `mkv` or incompatible codec output.
   - hardware transcode fails and backend does not retry with CPU, causing unnecessary terminal failure.
-  - Direct path fails and flow ends without trying smart fallback despite valid `pageUrl`.
+  - Provider planning creates a `direct` engine plan from a browser-discovered media candidate.
 
 ### Required Tests
 
-- Douyin direct URL path: confirm direct downloader logs + success.
 - Xiaohongshu control-bar button path: confirm it queues a canonical note URL for yt-dlp.
 - Xiaohongshu direct CDN URL path: confirm the Xiaohongshu provider does not claim a bare `xhscdn` URL without note context.
 - Missing direct URL path: send only page URL and confirm yt-dlp fallback works.
 - Xiaohongshu homepage drag image path: drag an image card after downloading a different detail-page video in the same tab and confirm the image card still resolves to image, not the previous video URL.
-- Error path: force invalid direct URL and verify `video-download-complete` emits error payload.
-- Retry path: provide two direct candidates where first fails and second succeeds; verify one retry only.
 - Cache path: repeat same page URL within TTL and confirm trace shows cache-origin candidate.
 - Quality tier path: send `ytdlpQualityPreference=balanced` and confirm yt-dlp args prefer `1080p`.
 - Data saver path: send `ytdlpQualityPreference=data_saver` and confirm yt-dlp args prefer `360p` or lower-tier fallback.
