@@ -879,3 +879,36 @@ Removed YouTube light-mode download path, migrated download quality plumbing to 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 164: Complete downloader runtime refactor
+
+**Date**: 2026-05-22
+**Task**: Complete downloader runtime refactor
+**Branch**: `main`
+
+### Summary
+
+Completed the bundled Python downloader runtime refactor by fixing Douyin site-session readiness, blocking bytedance custom-scheme navigation during capture, validating Netscape cookie YAML generation, proving real Douyin media download with a captured session, and archiving the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a210f1e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

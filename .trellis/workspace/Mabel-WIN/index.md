@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 163
-- **Last Active**: 2026-05-21
+- **Total Sessions**: 164
+- **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~881 | Active |
+| `journal-4.md` | ~914 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 164 | 2026-05-22 | Complete downloader runtime refactor | `a210f1e` | `main` |
 | 163 | 2026-05-21 | Normalize video quality download flow | `736f598` | `main` |
 | 162 | 2026-05-21 | Window state transition timing cleanup | `f62bc94` | `main` |
 | 161 | 2026-05-21 | Download pipeline focused code review and fixes | `08013e6` | `main` |
