@@ -15,9 +15,6 @@ jobs:
           - runner: macos-15
             builder_arch: --arm64
             artifact_arch: arm64
-          - runner: macos-15-intel
-            builder_arch: --x64
-            artifact_arch: x64
 
     runs-on: ${{ matrix.runner }}
 

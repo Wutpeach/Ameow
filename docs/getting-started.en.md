@@ -2,9 +2,9 @@
 
 [中文](./getting-started.md) | [English](./getting-started.en.md)
 
-This page is for first-time Ameow installation and first-time use.
+New to Ameow? Follow the steps below and go from install to your first download in just a few minutes.
 
-## 1. Download
+## 1. Download Ameow
 
 Go to [GitHub Releases](https://github.com/Wutpeach/Ameow/releases) and download the build for your platform.
 
@@ -16,7 +16,6 @@ Go to [GitHub Releases](https://github.com/Wutpeach/Ameow/releases) and download
 ### macOS
 
 - `Apple Silicon DMG`: for M-series Macs.
-- `Intel DMG`: for Intel Macs.
 - The current macOS package is distributed as an unsigned open-source DMG.
 
 ## 2. Install And First Launch
@@ -38,21 +37,21 @@ Go to [GitHub Releases](https://github.com/Wutpeach/Ameow/releases) and download
 xattr -dr com.apple.quarantine "/Applications/Ameow.app"
 ```
 
-## 3. Collect Your First Assets
+## 3. Try It: Send Something To Ameow
 
-You can send content into Ameow in several ways:
+Start with any of these common flows:
 
-- Drag local files into the floating window to copy them into the current output folder.
-- Drag a folder into the floating window to make it the new output folder.
-- Copy an image URL, video URL, or another supported page URL, then paste with `Ctrl+V` or `Cmd+V`.
-- On Windows, copied files from the clipboard can also be pasted directly.
+- Drag a local file into the floating window to copy it into the current output folder.
+- Drag a folder into the window to make it the new output folder.
+- Copy an image URL, video URL, or another supported page URL, then paste it with `Ctrl+V` or `Cmd+V`.
+- On Windows, clipboard files can be pasted directly too.
 
-## 4. Output Folder And Settings
+## 4. Output Folder And Everyday Settings
 
 - The default output folder is `Desktop/Ameow_Received`.
 - Double-click the empty area of the main window to quickly open the current output folder.
 - Right-click the main window to open the current output folder or choose a new one.
-- In Settings, you can manage:
+- In Settings, you can adjust:
   - theme
   - global shortcut
   - launch at startup
@@ -60,14 +59,14 @@ You can send content into Ameow in several ways:
   - After Effects integration
 - Downloader runtimes are prepared automatically from the main window when first needed.
 
-## 5. Browser Extension Handoff
+## 5. Want Browser-To-Desktop Handoff?
 
-If you want to trigger downloads directly from web pages or pass browser cookies into the desktop app, continue here:
+If you want to trigger downloads straight from the page or pass browser cookies into the desktop app, continue here:
 
 - [Browser Extension](./browser-extension.en.md)
 
-## 6. Common Questions
+## 6. Need Help?
 
-For launch, download, or connection issues, see:
+If launch, download, or connection issues get in the way, start here:
 
 - [FAQ](./faq.en.md)

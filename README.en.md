@@ -1,8 +1,7 @@
 # Ameow
 
 <div align="center">
-  <img src="./app-icon.png" width="112" alt="Ameow logo" />
-  <p><strong>A floating desktop collector for files, images, web video, and browser-extension assisted capture.</strong></p>
+  <p><strong>Ameow is an always-on-top floating window for downloads and quick collection. Drop in files, paste a link, and send web content straight to your desktop.</strong></p>
   <p>
     <a href="./README.md">中文</a> |
     <a href="./README.en.md">English</a> |
@@ -19,39 +18,30 @@
   </p>
 </div>
 
-Ameow is a lightweight Electron desktop collector with a small always-on-top window for gathering files, images, and web video into a controlled output folder. It supports drag and drop, paste flows, and browser-extension assisted capture so desktop and browser assets can flow into the same workspace.
+Drop in files, paste a link, and your download or collection starts right away. Add the browser extension, and web video or page content can move straight to the desktop too. One window keeps everyday download tasks in one place.
 
-## Good Fit For
+## Highlights
 
-- People who want files, images, and web video to land in one controlled folder.
-- People who need a low-friction collector window that stays available on the desktop.
-- People who trigger downloads from the browser and want them to continue on the desktop side.
+- **Floating drop zone** — drop files, folders, links, or Windows clipboard content straight into the window.
+- **Download queue** — watch progress live, cancel tasks, and run up to three web downloads at once.
+- **Browser handoff** — send video URLs, cookies, and download preferences from the extension straight to the desktop app.
+- **Settings that stay out of the way** — tune output folders, rename rules, shortcuts, startup behavior, and After Effects integration when you need it.
 
-## Core Capabilities
-
-- A floating desktop collector that supports file drag and drop, folder drag and drop, pasted links, and Windows clipboard files.
-- A video download queue with live progress, cancellation, up to 3 concurrent tasks, and extractor fallback when direct media is unavailable.
-- Browser-extension assisted capture that can pass selected video URLs, cookies, and preferences into the desktop app.
-- Settings for output folder management, rename rules, shortcuts, launch at startup, and After Effects integration.
-
-## Downloads
-
-Ameow ships through GitHub Releases, including desktop builds and the browser-extension package.
+## Get Ameow
 
 <p>
   <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Installer EXE" src="https://img.shields.io/badge/Windows-Installer_EXE-2563EB?logo=windows&logoColor=white" /></a>
   <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Portable ZIP" src="https://img.shields.io/badge/Windows-Portable_ZIP-0F6CBD?logo=windows&logoColor=white" /></a>
   <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Intel DMG" src="https://img.shields.io/badge/macOS-Intel_DMG-374151?logo=apple&logoColor=white" /></a>
 </p>
 
 For installation, first launch, and platform-specific help, see [Getting Started](./docs/getting-started.en.md).
 
-## Docs
+## Guides
 
-- [Getting Started](./docs/getting-started.en.md): install, first launch, basic collection flows, and settings entry points.
-- [Browser Extension](./docs/browser-extension.en.md): extension install flow, desktop connection, supported sites, and handoff behavior.
-- [FAQ](./docs/faq.en.md): macOS gatekeeper notes, download failures, output-folder issues, and connection troubleshooting.
+- [Getting Started](./docs/getting-started.en.md): go from install to your first download in a few minutes.
+- [Browser Extension](./docs/browser-extension.en.md): send links, cookies, and preferences from the browser to the desktop app.
+- [FAQ](./docs/faq.en.md): troubleshoot macOS launch prompts, failed downloads, and connection issues.
 
 ## Development
 
@@ -70,14 +60,6 @@ npm run lint
 npm run type-check
 npm run test
 ```
-
-### Main Directories
-
-- [`src/`](./src): React frontend for the floating window, settings, and context menu windows.
-- [`electron/`](./electron): Electron main-process code and preload bridge.
-- [`browser-extension/`](./browser-extension): companion browser extension source.
-- [`scripts/`](./scripts): development, packaging, and version-management helpers.
-- [`release-notes/`](./release-notes): versioned release notes.
 
 ## Acknowledgements
 

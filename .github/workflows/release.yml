@@ -79,12 +79,6 @@ jobs:
             artifact_arch: arm64
             deno_asset: deno-aarch64-apple-darwin.zip
             ffmpeg_asset: ffmpeg-osx-arm64.zip
-          - runner: macos-15-intel
-            arch: x86_64
-            target: x86_64-apple-darwin
-            artifact_arch: x64
-            deno_asset: deno-x86_64-apple-darwin.zip
-            ffmpeg_asset: ffmpeg-osx-x64.zip
 
     runs-on: ${{ matrix.runner }}
 
@@ -195,18 +189,6 @@ jobs:
           name: macos-zip-arm64
           path: artifacts/macos-zip-arm64
 
-      - name: Download macOS x64 DMG
-        uses: actions/download-artifact@v5
-        with:
-          name: macos-dmg-x64
-          path: artifacts/macos-dmg-x64
-
-      - name: Download macOS x64 ZIP
-        uses: actions/download-artifact@v5
-        with:
-          name: macos-zip-x64
-          path: artifacts/macos-zip-x64
-
       - name: Extract version from tag
         id: version
         run: |
@@ -261,8 +243,6 @@ jobs:
             artifacts/windows-portable/*.zip
             artifacts/macos-dmg-arm64/*.dmg
             artifacts/macos-zip-arm64/*.zip
-            artifacts/macos-dmg-x64/*.dmg
-            artifacts/macos-zip-x64/*.zip
             artifacts/browser-extension/*.zip
             artifacts/updater/latest.json
 

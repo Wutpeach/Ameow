@@ -2,18 +2,11 @@
 
 [中文](./browser-extension.md) | [English](./browser-extension.en.md)
 
-The Ameow repository includes a Manifest V3 browser extension in [`browser-extension/`](../browser-extension). It targets Chromium-based browsers such as Chrome and Edge.
+Ameow provides a Manifest V3 browser extension for Chromium-based browsers such as Chrome and Edge.
 
 ## 1. Install The Extension
 
 You can load it from the repository source folder or from the packaged extension archive shipped in GitHub Releases.
-
-### Load From The Source Folder
-
-1. Open your browser's extensions page.
-2. Enable Developer Mode.
-3. Choose "Load unpacked".
-4. Select the [`browser-extension/`](../browser-extension) folder.
 
 ### Load From The Release Archive
 
@@ -22,6 +15,13 @@ You can load it from the repository source folder or from the packaged extension
 3. Open your browser's extensions page and enable Developer Mode.
 4. Choose "Load unpacked".
 5. Select the extracted `browser-extension/` folder.
+
+### Load From The Source Folder
+
+1. Open your browser's extensions page.
+2. Enable Developer Mode.
+3. Choose "Load unpacked".
+4. Select the [`browser-extension/`](../browser-extension) folder.
 
 ## 2. Connect To The Desktop App
 

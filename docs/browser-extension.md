@@ -2,18 +2,11 @@
 
 [中文](./browser-extension.md) | [English](./browser-extension.en.md)
 
-Ameow 仓库中包含一个 Manifest V3 浏览器扩展，位于 [`browser-extension/`](../browser-extension)。它面向 Chromium 内核浏览器，例如 Chrome 和 Edge。
+Ameow 提供一个 Manifest V3 浏览器扩展，面向 Chromium 内核浏览器，例如 Chrome 和 Edge。
 
 ## 1. 安装扩展
 
 你可以使用仓库源码目录，也可以使用 GitHub Releases 附带的扩展压缩包。
-
-### 从源码目录加载
-
-1. 打开浏览器扩展管理页面。
-2. 启用开发者模式。
-3. 选择“Load unpacked”。
-4. 选中 [`browser-extension/`](../browser-extension) 目录。
 
 ### 从 Release 压缩包加载
 
@@ -22,6 +15,13 @@ Ameow 仓库中包含一个 Manifest V3 浏览器扩展，位于 [`browser-exten
 3. 打开浏览器扩展管理页面并启用开发者模式。
 4. 选择“Load unpacked”。
 5. 选中解压后的 `browser-extension/` 目录。
+
+### 从源码目录加载
+
+1. 打开浏览器扩展管理页面。
+2. 启用开发者模式。
+3. 选择“Load unpacked”。
+4. 选中 [`browser-extension/`](../browser-extension) 目录。
 
 ## 2. 连接桌面应用
 
