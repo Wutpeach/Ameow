@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ameow Video Picker",
-  "version": "0.3.0.7",
+  "version": "0.3.0",
   "description": "Pick video elements from web pages for Ameow",
   "permissions": [
     "activeTab",
@@ -144,6 +144,5 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "version_name": "0.3.0-rc7"
+  }
 }
