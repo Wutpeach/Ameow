@@ -912,3 +912,37 @@ Completed the bundled Python downloader runtime refactor by fixing Douyin site-s
 ### Next Steps
 
 - None - task complete
+
+
+## Session 165: Normalize Douyin output layout
+
+**Date**: 2026-05-22
+**Task**: Normalize Douyin output layout
+**Branch**: `main`
+
+### Summary
+
+Flattened managed douyin-dl output into the selected directory root, removed the upstream manifest sidecar after consuming it, cleaned empty author directories, added collision-safe filename handling, verified with unit tests and a real Douyin session smoke, and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9dc631c` | (see git log) |
+| `5eaf553` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
