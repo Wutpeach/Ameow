@@ -375,18 +375,13 @@ const isVisuallyHovered = isPointerInside || isAnimating;
 
 ### 1. Scope / Trigger
 
-- Trigger: A transparent Tauri child window such as `/settings` or `/context-menu` is being rendered.
+- Trigger: A transparent desktop child window such as `/settings` or `/context-menu` is being rendered.
 
 ### 2. Signatures
 
 Window creation:
 
-```ts
-new WebviewWindow("context-menu", {
-  url: "/context-menu",
-  transparent: true,
-});
-```
+Current implementation detail may vary by Electron window creation helpers; the motion contract is about first paint and panel animation behavior, not a specific framework constructor.
 
 Theme hydration:
 

@@ -6,27 +6,31 @@
 
 ## Overview
 
-FlowSelect uses React hooks for state management and Tauri event listeners for backend communication. No external data fetching libraries are used - all backend calls go through Tauri's `invoke()`.
+FlowSelect uses React hooks for state management and the Electron preload bridge for desktop communication. No external data fetching libraries are used; renderer-side desktop calls should go through `src/desktop/runtime.ts`.
 
 ---
 
-## Tauri Event Listening Pattern
+## Desktop Event Listening Pattern
 
-**Standard pattern for Tauri events:**
+**Standard pattern for Electron bridge events:**
 
 ```tsx
-import { listen } from "@tauri-apps/api/event";
+import { desktopEvents } from "../desktop/runtime";
 
 useEffect(() => {
-  const unlistenProgress = listen<{ percent: number; speed: string }>(
+  let cleanup: (() => void) | null = null;
+
+  void desktopEvents.on<{ percent: number; speed: string }>(
     "video-download-progress",
     (event) => {
       setDownloadProgress(event.payload);
-    }
-  );
+    },
+  ).then((unlisten) => {
+    cleanup = unlisten;
+  });
 
   return () => {
-    unlistenProgress.then(fn => fn());
+    cleanup?.();
   };
 }, []);
 ```
@@ -37,17 +41,17 @@ useEffect(() => {
 
 ## Backend Communication
 
-**Calling Tauri commands:**
+**Calling Electron bridge commands:**
 
 ```tsx
-import { invoke } from "@tauri-apps/api/core";
+import { desktopCommands } from "../desktop/runtime";
 
 // Async call with typed response
-const configStr = await invoke<string>("get_config");
+const configStr = await desktopCommands.invoke<string>("get_config");
 const config = JSON.parse(configStr);
 
 // Call with parameters
-await invoke("save_config", { json: JSON.stringify(config) });
+await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
 ```
 
 *Reference: `src/App.tsx:76-89`*
@@ -62,7 +66,7 @@ await invoke("save_config", { json: JSON.stringify(config) });
 useEffect(() => {
   const loadConfig = async () => {
     try {
-      const configStr = await invoke<string>("get_config");
+      const configStr = await desktopCommands.invoke<string>("get_config");
       const config = JSON.parse(configStr);
       if (config.outputPath) {
         setOutputPath(config.outputPath);
@@ -116,7 +120,7 @@ This avoids stale-closure timing bugs where UI is still hovered but the window s
 
 ## Inline Overlay Focus Dismiss Pattern
 
-If a popup/menu is migrated from a dedicated Tauri window into an inline React overlay, do not keep the old "close on main window focus" listener.
+If a popup/menu is migrated from a dedicated desktop child window into an inline React overlay, do not keep the old "close on main window focus" listener.
 
 Why:
 - Separate-window popups may need window-level focus listeners because focus returns to the main window when the popup closes.
@@ -150,7 +154,7 @@ Treat focus-driven dismiss logic as part of the component contract whenever you 
 
 ## Dedicated Menu Window Dismiss Guard
 
-For tiny dedicated Tauri menu windows on Windows, do not arm blur/focus-dismiss logic immediately on mount.
+For tiny dedicated desktop menu windows on Windows, do not arm blur/focus-dismiss logic immediately on mount.
 
 Use a short guard window plus a dialog-in-flight ref:
 - Arm dismiss after a small timeout (for example `100-200ms`) to ignore creation-time focus jitter.
@@ -179,9 +183,12 @@ useEffect(() => {
 **CORRECT: Proper cleanup**
 ```tsx
 useEffect(() => {
-  const unlisten = listen("event", handler);
+  let cleanup: (() => void) | null = null;
+  void desktopEvents.on("event", handler).then((unlisten) => {
+    cleanup = unlisten;
+  });
   return () => {
-    unlisten.then(fn => fn());
+    cleanup?.();
   };
 }, []);
 ```
@@ -189,13 +196,13 @@ useEffect(() => {
 **WRONG: Blocking render with await**
 ```tsx
 // WRONG - blocks component
-const config = await invoke("get_config");
+const config = await desktopCommands.invoke("get_config");
 ```
 
 **CORRECT: Use useEffect for async**
 ```tsx
 useEffect(() => {
-  invoke("get_config").then(setConfig);
+  desktopCommands.invoke("get_config").then(setConfig);
 }, []);
 ```
 

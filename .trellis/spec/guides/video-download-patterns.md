@@ -45,14 +45,14 @@ Browser Extension / UI URL
 **Flow**:
 ```
 Browser Extension / UI URL
-  -> Rust smart router
+  -> Electron/runtime smart router
   -> yt-dlp sidecar
 ```
 
 **Implementation**:
-- `download_video_internal()` in `src-tauri/src/lib.rs`
+- `src/sites/*.ts` + `src/electron-runtime/service.ts` / `src/electron-runtime/commandRouter.ts`
 - Uses yt-dlp as sidecar binary
-- Supports extension cookies when provided (including YouTube) via `--cookies`
+- Supports extension cookies when provided (including YouTube) via sidecar cookie handling
 
 ---
 
@@ -218,12 +218,11 @@ When extension sends both `clipStartSec` and `clipEndSec` for `youtube` or `bili
   - extension sends only one clip field.
   - extension sends `clipEndSec <= clipStartSec`.
 
-### Smart Router Contract (`download_video_smart`)
+### Smart Router Contract
 
-```rust
-if is_xiaohongshu_note_url(&url) { /* yt-dlp */ }
-if is_pinterest_url(&url) { /* gallery-dl */ }
-// otherwise: provider-selected sidecar backend
+```ts
+resolvePlan({ url });
+// provider-selected sidecar backend with current site strategy ordering
 ```
 
 ### Validation & Error Matrix
@@ -293,7 +292,7 @@ Use `DownloadTrace` logs to generate comparable reports:
 ```bash
 python3 ./.trellis/scripts/download_trace_report.py \
   --input <flowselect-log-file> \
-  --output .trellis/tasks/02-26-phase-out-videodl-direct-ytdlp/deletion-gate-report.md \
+  --output .trellis/tasks/<task>/deletion-gate-report.md \
   --env canary \
   --window-days 7 \
   --max-direct-fallback-ratio 0.35

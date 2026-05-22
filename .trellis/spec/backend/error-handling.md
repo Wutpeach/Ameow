@@ -6,68 +6,53 @@
 
 ## Overview
 
-FlowSelect uses Rust's `Result<T, String>` pattern for error handling. Errors are propagated to the frontend as string messages.
+FlowSelect desktop/runtime code primarily uses typed TypeScript errors plus structured result payloads. Renderer-facing failures should preserve stable command/event behavior and avoid lossy generic string-only error handling where richer context already exists.
 
 ---
 
 ## Error Types
 
-**Standard return type for Tauri commands:**
-```rust
-#[tauri::command]
-fn my_command() -> Result<String, String> {
-    // ...
-}
+**Preferred runtime error shape:**
+```ts
+throw new DownloadRuntimeError("E_EXECUTION_FAILED", "Readable message", {
+  context: {
+    exitCode,
+    stderrTail,
+  },
+});
 ```
 
 ---
 
 ## Error Handling Patterns
 
-**Using `map_err` for error conversion:**
-```rust
-let entries = fs::read_dir(dir_path)
-    .map_err(|e| format!("Failed to read directory: {}", e))?;
+**Wrap execution failures with context:**
+```ts
+throw new DownloadRuntimeError("E_EXECUTION_FAILED", summary, {
+  context: {
+    stdoutTail,
+    stderrTail,
+  },
+});
 ```
 
-*Reference: `src-tauri/src/lib.rs:71-72`*
-
-**Early return with descriptive errors:**
-```rust
-if !dir_path.exists() {
-    return Err(format!("Path does not exist: {}", path));
-}
-
-if !dir_path.is_dir() {
-    return Err(format!("Path is not a directory: {}", path));
+**Return descriptive validation failures early:**
+```ts
+if (!isSafeHttpUrl(url)) {
+  throw new DownloadRuntimeError("E_INPUT_INVALID", `Unsupported URL: ${url}`);
 }
 ```
-
-*Reference: `src-tauri/src/lib.rs:63-69`*
 
 ---
 
 ## Common Mistakes
 
-**WRONG: Using unwrap**
-```rust
-// WRONG - panics on error
-let file = fs::File::open(path).unwrap();
+**WRONG: throw generic errors with no context**
+```ts
+throw new Error("Error");
 ```
 
-**CORRECT: Propagate with ?**
-```rust
-// CORRECT - returns error to caller
-let file = fs::File::open(path)
-    .map_err(|e| format!("Failed to open: {}", e))?;
-```
-
-**WRONG: Generic error messages**
-```rust
-return Err("Error".to_string());
-```
-
-**CORRECT: Descriptive messages**
-```rust
-return Err(format!("Failed to copy {}: {}", path, e));
+**CORRECT: preserve stable error code + readable message**
+```ts
+throw new DownloadRuntimeError("E_OUTPUT_WRITE_FAILED", `Failed to copy ${path}: ${message}`);
 ```

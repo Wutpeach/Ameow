@@ -6,7 +6,7 @@
 
 ## Overview
 
-FlowSelect backend is built with Rust and Tauri v2. It handles file operations, video downloads, system integration, and WebSocket communication with browser extensions.
+FlowSelect desktop runtime is Electron-first. It handles file operations, video downloads, system integration, and WebSocket communication with browser extensions through Electron main-process code plus shared TypeScript runtime modules.
 
 ---
 
@@ -14,13 +14,11 @@ FlowSelect backend is built with Rust and Tauri v2. It handles file operations, 
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| Tauri | 2.x | Desktop framework |
-| Tokio | 1.x | Async runtime |
-| Reqwest | 0.11 | HTTP client |
-| Serde | 1.x | Serialization |
-| clipboard-win | 5.x | Clipboard access |
-| regex | 1.x | Pattern matching |
-| tokio-tungstenite | 0.21 | WebSocket server |
+| Electron | 41.x | Desktop framework |
+| Node.js runtime | current toolchain | Main-process runtime |
+| TypeScript | 5.8.3 | Shared runtime typing |
+| ws | 8.20.0 | WebSocket server/client |
+| zod | 4.3.6 | Runtime validation |
 
 ---
 
@@ -29,8 +27,8 @@ FlowSelect backend is built with Rust and Tauri v2. It handles file operations, 
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Done |
-| [Type Safety](./type-safety.md) | Rust/Tauri command and event type contracts | Done |
-| [Electron Runtime Contracts](./electron-runtime-contracts.md) | Tauri-to-Electron preload, window, extension transport, config, and packaging boundaries | Done |
+| [Type Safety](./type-safety.md) | Desktop command and event type contracts | Done |
+| [Electron Runtime Contracts](./electron-runtime-contracts.md) | Preload, window, extension transport, config, and packaging boundaries | Done |
 | [Error Handling](./error-handling.md) | Result types, error propagation | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Done |
 | [Logging Guidelines](./logging-guidelines.md) | Log format, `>>>` prefix convention | Done |
@@ -40,13 +38,12 @@ FlowSelect backend is built with Rust and Tauri v2. It handles file operations, 
 
 ---
 
-## Tauri Plugins
+## Runtime Boundaries
 
-- `tauri-plugin-opener` - File/URL opening
-- `tauri-plugin-dialog` - File dialogs
-- `tauri-plugin-autostart` - Startup configuration
-- `tauri-plugin-global-shortcut` - Hotkey registration
-- `tauri-plugin-shell` - Available plugin; Windows-sensitive managed downloader flows prefer native hidden CLI spawning
+- `electron/` owns app lifecycle, windowing, tray, autostart, updater, dialogs, loopback extension transport, and desktop command bridging.
+- `src/electron-runtime/` owns framework-light downloader/runtime logic.
+- `src/desktop/runtime.ts` is the renderer-facing bridge wrapper.
+- Historical Tauri/Rust references in older docs or archived tasks should be treated as migration background unless the same file explicitly says they are still current.
 
 ---
 
@@ -85,15 +82,10 @@ yt-dlp / gallery-dl / douyin-dl cookie-file or config path
 
 Browser-extension cookie reads are reserved for request-level page/media resolution flows such as Xiaohongshu drag resolution and protected-image fetching.
 
-**Tauri Event Emission**:
+**Electron Event Emission**:
 
-```rust
-// Use emit() for global events (frontend uses listen())
-app.emit("video-download-complete", result);
-
-// Don't use emit_to() unless targeting specific window with window.listen()
-// app.emit_to("main", ...) may not work with global listen()
-```
+- Desktop-originated renderer events must preserve current event names such as `video-download-progress`, `video-download-complete`, and `video-queue-count`.
+- Renderer code should consume those events through `window.ameow.events.on(...)` via `src/desktop/runtime.ts`.
 
 **Progress Bar Lifecycle**:
 - Always emit `video-download-complete` event on ALL code paths (success, error, cancel)
@@ -115,7 +107,7 @@ The repository has GitHub Actions configured for automated releases.
 #    Then ensure `release-notes/vX.Y.Z.md` exists and is filled (see `.trellis/spec/guides/release-prep-guide.md`).
 
 # 2. Commit version bump
-git add browser-extension/manifest.json package.json package-lock.json src/constants/appVersion.ts src-tauri/Cargo.toml src-tauri/tauri.conf.json
+git add browser-extension/manifest.json package.json package-lock.json src/constants/appVersion.ts
 git commit -m "chore: bump version to X.Y.Z"
 
 # 3. Push commit

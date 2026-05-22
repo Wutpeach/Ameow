@@ -2,7 +2,9 @@
 
 > Retired historical contract. `direct` is no longer a backend engine id, and site-provider planning must not create direct HTTP download routes from media candidates. Keep this file only as background for older archived tasks; new platform work should route through `yt-dlp`, `gallery-dl`, or a dedicated managed sidecar backend.
 
-> Do not use this document as an implementation template for new work.
+> DO NOT USE THIS DOCUMENT AS AN IMPLEMENTATION TEMPLATE FOR NEW WORK.
+
+> Historical references below to `src-tauri/`, Rust routers, or direct HTTP downloader branches are preserved only to explain older archived tasks. They do not describe the current implementation path.
 
 ---
 

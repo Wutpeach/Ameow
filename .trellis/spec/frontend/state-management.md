@@ -6,7 +6,7 @@
 
 ## Overview
 
-FlowSelect uses local React state for most UI state, with ThemeContext for global theme management. Configuration is persisted to the Rust backend via JSON files.
+FlowSelect uses local React state for most UI state, with ThemeContext for global theme management. Configuration is persisted through the Electron desktop bridge into JSON files under the app user-data directory.
 
 ---
 
@@ -63,7 +63,7 @@ function MyComponent() {
 
 ### Transparent Child Window Theme Hydration
 
-For transparent Tauri child windows such as `/settings` and `/context-menu`, do not render the window with a hardcoded fallback theme and then asynchronously switch to the persisted theme.
+For transparent desktop child windows such as `/settings` and `/context-menu`, do not render the window with a hardcoded fallback theme and then asynchronously switch to the persisted theme.
 
 Why:
 - Transparent windows make first-paint theme mismatches highly visible.
@@ -95,15 +95,15 @@ Provider behavior rule:
 ```
 User changes setting
   → React setState
-  → invoke("save_config", { json })
-  → Rust writes JSON file
+  → desktopCommands.invoke("save_config", { json })
+  → Electron main writes JSON file
 ```
 
 **Backend → Frontend:**
 ```
 App mounts
-  → invoke("get_config")
-  → Rust reads JSON file
+  → desktopCommands.invoke("get_config")
+  → Electron main reads JSON file
   → React setState
   → UI updates
 ```
@@ -112,10 +112,10 @@ App mounts
 ```tsx
 // Save config
 const saveConfig = async () => {
-  const configStr = await invoke<string>("get_config");
-  const config = JSON.parse(configStr);
-  config.outputPath = outputPath;
-await invoke("save_config", { json: JSON.stringify(config) });
+const configStr = await desktopCommands.invoke<string>("get_config");
+const config = JSON.parse(configStr);
+config.outputPath = outputPath;
+await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
 };
 ```
 
@@ -212,7 +212,7 @@ config.theme = 'white';
 **CORRECT: Save through backend**
 ```tsx
 // CORRECT - persists to disk
-await invoke("save_config", { json: JSON.stringify(config) });
+await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
 ```
 
 **WRONG: Missing ThemeProvider**

@@ -11,7 +11,7 @@ The backend is no longer a single-file Rust app. Runtime ownership is split acro
 - `electron/` for Electron main-process orchestration, runtime bootstrap, and command bridges
 - `src/electron-runtime/` for framework-light runtime logic such as queueing, path resolution, downloader execution, and progress normalization
 - `scripts/` for build/package/runtime preparation flows
-- `src-tauri/` for the remaining native/Tauri-owned integrations that have not moved into Electron
+- historical `src-tauri/` references may still appear in archived tasks/spec text, but current runtime ownership is Electron-first
 
 The downloader stack now treats bundled Python as the packaged prerequisite and installs Python downloaders into per-tool virtual environments under the app config directory.
 
@@ -46,10 +46,6 @@ scripts/
 ├── ensure-capability-probe-runtime.mjs
 └── run-electron-package.mjs       # Packaging wrapper that prepares bundled Python first
 
-src-tauri/
-├── src/                           # Legacy/native integrations still owned by Rust/Tauri
-├── Cargo.toml
-└── tauri.conf.json
 ```
 
 ---
@@ -81,7 +77,7 @@ Runtime/download responsibilities are organized by boundary:
 
 | Type | Convention | Example |
 |------|------------|---------|
-| Functions | camelCase / verb-first helpers in TS, snake_case in Rust | `ensureManagedYtDlpRuntimeReady` / `get_clipboard_files` |
+| Functions | camelCase / verb-first helpers in TS | `ensureManagedYtDlpRuntimeReady` |
 | Types | PascalCase | `RuntimeDependencyStatusSnapshot` |
 | Constants | SCREAMING_SNAKE | `MANAGED_RUNTIME_BOOTSTRAP_ORDER` |
 | Commands | stable string command ids | `"start_runtime_dependency_bootstrap"` |

@@ -8,8 +8,7 @@
 
 Ameow uses runtime-owned logging with a consistent `>>>` prefix for human-facing terminal output.
 
-- Rust/Tauri paths use `println!`.
-- Electron main paths use `console.log/info/warn/error`, but the emitted message should still follow the `>>> [Scope] ...` shape when it is meant for terminal diagnostics.
+- Electron main/runtime paths use `console.log/info/warn/error`, but the emitted message should still follow the `>>> [Scope] ...` shape when it is meant for terminal diagnostics.
 - Support-log export must include recent runtime output, not only static config snapshots.
 
 ---
@@ -17,20 +16,16 @@ Ameow uses runtime-owned logging with a consistent `>>>` prefix for human-facing
 ## Log Format
 
 **Standard format:**
-```rust
-println!(">>> [Rust] {action}: {details}");
+```ts
+console.log(`>>> [Scope] ${action}: ${details}`);
 ```
 
 **Examples from codebase:**
-```rust
-println!(">>> [Rust] Receiving files to process: {:?}", paths);
-println!(">>> [Rust] Target directory: {:?}", final_target_dir);
-println!(">>> [Rust] Downloading image from: {}", url);
-println!(">>> [Rust] Saved to: {:?}", dest_path);
-println!(">>> [Rust] Saving data URL");
+```ts
+console.log(">>> [WS] Server listening on 127.0.0.1:39527");
+console.warn(">>> [PastedVideo] Extension-assisted selection failed, falling back to direct queue:", error);
+console.error(">>> [Electron] Failed to load desktop bootstrap config during renderer startup:", error);
 ```
-
-*Reference: `src-tauri/src/lib.rs:120-215`*
 
 Electron main example:
 
@@ -96,7 +91,7 @@ Do not include:
 
 ## High-Frequency CLI Progress
 
-For streaming sidecar tools such as `yt-dlp` and `ffmpeg`, do not emit every progress tick as its own `println!` line.
+For streaming sidecar tools such as `yt-dlp` and `ffmpeg`, do not emit every progress tick as its own terminal line.
 
 Why:
 - CLI download/transcode progress can update dozens of times per second.

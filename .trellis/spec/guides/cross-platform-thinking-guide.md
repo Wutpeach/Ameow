@@ -16,9 +16,9 @@
 ## Pre-Change Checklist
 
 - [ ] Did I identify all target platforms affected (Windows/macOS/Linux)?
-- [ ] Are packaged runtime resource paths still aligned with the runtime path resolver used by Electron/Tauri code?
+- [ ] Are packaged runtime resource paths still aligned with the runtime path resolver used by current Electron code?
 - [ ] For each platform, does the required bundled prerequisite directory such as `desktop-assets/binaries/python-<target>/` exist and remain executable where needed?
-- [ ] Did I guard platform-specific code paths with `#[cfg(...)]`?
+- [ ] Did I isolate platform-specific code paths behind explicit platform checks or platform-scoped helpers?
 - [ ] If a dependency is optional on some platforms, is there an explicit degraded behavior instead of crash?
 
 ---
@@ -59,21 +59,11 @@
 ### 1) Transparent main window on macOS
 
 - Files:
-  - `src-tauri/tauri.conf.json`
-  - `src-tauri/Cargo.toml`
+  - `electron/main.mts`
+  - renderer shell files such as `src/App.tsx` / `src/main.tsx`
 - Contract:
-  - If main window uses `"transparent": true`, config must set:
-    - `app.macOSPrivateApi = true`
-  - Rust dependency must enable:
-    - `tauri` feature `macos-private-api`
-- Validation and error matrix:
-  - Missing `app.macOSPrivateApi`: startup warns transparent window is unsupported on macOS.
-  - Missing Cargo feature: build fails with allowlist/feature mismatch and asks for `macos-private-api`.
-  - Both present: transparent window starts without that warning.
-- Cases:
-  - Good: both config + Cargo feature enabled.
-  - Base: one side enabled (warning or build failure).
-  - Bad: neither enabled while relying on transparent behavior.
+  - Transparent-window behavior must be validated against the current Electron BrowserWindow configuration, renderer first-paint timing, and theme hydration flow.
+  - Do not assume historical Tauri/macOS-private-api requirements still apply to the current runtime.
 
 ### 2) Electron `npm run dev` orchestration contract
 
@@ -104,8 +94,7 @@
 ### 3) macOS global input monitor safety contract
 
 - Files:
-  - `src-tauri/src/lib.rs`
-  - `src-tauri/Cargo.toml`
+  - current Electron main/runtime ownership files that implement hover, focus, or pointer-monitor logic
 - Contract:
   - Treat third-party global input hook callbacks as platform-sensitive and potentially non-main-thread.
   - Do not call AppKit/HIToolbox-sensitive APIs from unknown callback queues.
@@ -131,7 +120,7 @@
 ### 5) macOS shortcut reveal positioning contract
 
 - Files:
-  - `src-tauri/src/lib.rs`
+  - current Electron main/runtime ownership files that implement shortcut reveal positioning
 - Contract:
   - For shortcut-triggered reveal, apply target window position before `window.show()`.
   - Resolve bounds using the monitor containing cursor (`monitor_from_point`) instead of window's current monitor.
@@ -174,7 +163,7 @@
 ### 7) Windows mixed-monitor shortcut reveal position contract
 
 - Files:
-  - `src-tauri/src/lib.rs`
+  - `electron/main.mts`
   - `src/App.tsx`
 - Contract:
   - Command/API signatures:
@@ -198,9 +187,9 @@
   - Base: cursor near monitor edge still clamps within the cursor monitor and remains deterministic across repeated shortcut presses.
   - Bad: window first appears at stale location then jumps, or lands on the wrong monitor edge/bottom.
 - Required tests (with assertion points):
-  - `npm run type-check`: no TS error on `listen<void>("shortcut-show", ...)` and no drift in Tauri invoke typing.
+  - `npm run type-check`: no TS error on desktop event/listener typing and no drift in desktop command payload typing.
   - `npm run lint`: no new frontend lint violations in `src/App.tsx`.
-  - `cargo check --manifest-path src-tauri/Cargo.toml`: Rust command signature and position API usage compile.
+  - current Electron/TypeScript validation commands pass for the touched boundary.
   - Manual assertion (Windows mixed monitors): shortcut reveal appears once, no second jump, anchor remains cursor lower-left or monitor-clamped equivalent.
   - Manual assertion (focused + inside-window cursor): second shortcut press still hides window without relocation drift.
 
@@ -231,7 +220,7 @@
   - Manual assertion: run `npm run dev`, press `Ctrl+C` once, confirm Vite, watcher, and Electron all exit.
   - Manual assertion: edit an Electron main-process file during `npm run dev` and confirm only Electron restarts.
 
-### 9) Tauri bundle identifier suffix and config migration contract
+### 9) Bundle identifier and config migration contract
 
 - Files:
   - `electron-builder.config.mjs`
@@ -257,7 +246,7 @@
 ### 10) Windows managed CLI hidden-window contract
 
 - Files:
-  - `src-tauri/src/lib.rs`
+  - Electron/runtime process-launch helpers
 - Contract:
   - Managed console executables launched by the desktop app (`yt-dlp`, `gallery-dl`, selection probes, version checks, similar future download helpers) must share one native Windows hidden-process spawn helper.
   - Do not assume `tauri-plugin-shell` spawn is sufficient for Windows no-flash behavior on retry-heavy or multi-stage downloader paths.
