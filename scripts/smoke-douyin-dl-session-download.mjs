@@ -15,7 +15,7 @@ import {
   repoRoot,
   resolveRuntimeTarget,
 } from "./python-runtime.mjs";
-const DEFAULT_DOUYIN_URL = "https://www.douyin.com/video/7493088730088770870";
+const DEFAULT_DOUYIN_URL = "https://www.douyin.com/video/7642294524819131683";
 
 const usage = () => [
   "Usage:",

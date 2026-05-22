@@ -18,7 +18,6 @@ export const SITE_SESSION_CONFIGS = [
     loginUrl: "https://www.douyin.com/",
     cookieDomains: ["douyin.com"],
     requiredCookieKeys: [
-      "msToken",
       "ttwid",
       "odin_tt",
       "passport_csrf_token",

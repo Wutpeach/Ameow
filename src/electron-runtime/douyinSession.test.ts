@@ -22,11 +22,37 @@ describe("parseDouyinCookies", () => {
       odin_tt: "header-odin",
     });
   });
+
+  it("does not parse Netscape cookie lines as Cookie header tokens", () => {
+    const cookies = parseDouyinCookies([
+      "# Netscape HTTP Cookie File",
+      ".douyin.com\tTRUE\t/\tTRUE\t1893456000\tttwid\tnetscape=ttwid=value",
+      ".douyin.com\tTRUE\t/\tTRUE\t1893456000\tmsToken\tms=token=value",
+    ].join("\n"));
+
+    expect(cookies).toEqual({
+      ttwid: "netscape=ttwid=value",
+      msToken: "ms=token=value",
+    });
+    expect(Object.keys(cookies).some((key) => key.includes("\t"))).toBe(false);
+  });
 });
 
 describe("buildDouyinCookieYamlLines", () => {
   it("renders an explicit empty map when no cookies are present", () => {
     expect(buildDouyinCookieYamlLines({})).toEqual(["cookies: {}"]);
+  });
+
+  it("drops invalid cookie keys that would break YAML output", () => {
+    expect(buildDouyinCookieYamlLines({
+      "bad\tkey": "tab",
+      "bad key": "space",
+      "bad;key": "semicolon",
+      ttwid: "valid",
+    })).toEqual([
+      "cookies:",
+      "  ttwid: \"valid\"",
+    ]);
   });
 });
 

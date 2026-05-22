@@ -1245,6 +1245,13 @@ function getSiteSessionManager(siteId) {
 
       captureWindow.setMenuBarVisibility(false);
       captureWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (!isHttpNavigationUrl(url)) {
+          logInfo("SiteSession", "Blocked non-web popup URL", JSON.stringify({
+            siteId: site.id,
+            url,
+          }));
+          return { action: "deny" };
+        }
         captureWindow.loadURL(url).catch((error) => {
           logInfo("SiteSession", "Failed to load popup URL", JSON.stringify({
             siteId: site.id,
@@ -1253,6 +1260,16 @@ function getSiteSessionManager(siteId) {
           }));
         });
         return { action: "deny" };
+      });
+      captureWindow.webContents.on("will-navigate", (event, url) => {
+        if (isHttpNavigationUrl(url)) {
+          return;
+        }
+        event.preventDefault();
+        logInfo("SiteSession", "Blocked non-web navigation URL", JSON.stringify({
+          siteId: site.id,
+          url,
+        }));
       });
       captureWindow.on("closed", () => {
         logInfo("SiteSession", "Site capture window closed", JSON.stringify({ siteId: site.id, partition }));
@@ -1288,6 +1305,15 @@ function requireSiteSessionManager(siteId) {
     throw new Error(`Unsupported site session: ${siteId ?? ""}`);
   }
   return manager;
+}
+
+function isHttpNavigationUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function resolveSiteSessionIdFromPayload(payload, fallback = "douyin") {

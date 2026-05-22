@@ -2108,6 +2108,7 @@ type SiteSessionConfig = {
 - `electron/siteSessionManager.mts` owns persisted session files under `<userDataDir>/site-sessions/<siteId>.json`.
 - Stored sessions must include a Netscape cookie string because downloader execution consumes cookie files, not Electron cookie jars.
 - Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
+- Douyin `requiredCookieKeys` must track `douyin-dl`'s actual `CookieManager.validate_cookies()` contract: `ttwid`, `odin_tt`, and `passport_csrf_token` are required; `msToken` is optional because upstream can generate it when absent.
 - Settings badges are site-level pills whose primary visible content is icon, localized site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
 - Badge click behavior is unified for every site: start a manual capture/refresh flow. The app may label ready-state clicks as refresh, but they still open the same confirmation-based capture path.
 - `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Browser-extension video download payloads must not provide cookies as a fallback; users should capture site login state from Settings for managed downloader cookies.

@@ -1,4 +1,5 @@
 const COOKIE_HEADER_SEPARATORS = /[;\r\n]/;
+const COOKIE_NAME_PATTERN = /^[^\s;=]+$/;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -50,13 +51,16 @@ const parseDouyinCookiesFromHeader = (raw: string): Record<string, string> => {
     .map((token) => token.trim())
     .filter(Boolean);
   for (const token of tokens) {
+    if (token.includes("\t")) {
+      continue;
+    }
     const separatorIndex = token.indexOf("=");
     if (separatorIndex <= 0) {
       continue;
     }
     const name = token.slice(0, separatorIndex).trim();
     const value = token.slice(separatorIndex + 1).trim();
-    if (!name || !value) {
+    if (!COOKIE_NAME_PATTERN.test(name) || !value) {
       continue;
     }
     parsed[name] = value;
@@ -105,7 +109,9 @@ export const mergeDouyinCookies = (
 export const buildDouyinCookieYamlLines = (
   cookies: Record<string, string>,
 ): string[] => {
-  const entries = Object.entries(cookies).sort(([left], [right]) => left.localeCompare(right));
+  const entries = Object.entries(cookies)
+    .filter(([key]) => COOKIE_NAME_PATTERN.test(key))
+    .sort(([left], [right]) => left.localeCompare(right));
   if (entries.length === 0) {
     return ["cookies: {}"];
   }
