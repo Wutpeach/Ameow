@@ -117,6 +117,49 @@
       "plugins": "插件",
       "advanced": "高级"
     },
+    "hub": {
+      "back": "返回设置",
+      "pages": {
+        "appearance": "外观与启动",
+        "saving": "保存与命名",
+        "sites": "站点登录",
+        "plugins": "插件与集成",
+        "system": "系统与支持"
+      },
+      "summary": {
+        "appearance": "{{theme}} · {{language}} · {{shortcut}} · {{startup}}",
+        "saving": "{{folder}} · {{rename}}",
+        "sitesReady": "{{count}}/{{total}} 个会话可用",
+        "sitesMissing": "站点需要 Cookies 时可手动登录",
+        "sitesPending": "登录捕获等待确认",
+        "sitesError": "有登录态需要处理",
+        "pluginsActive": "AE Portal 已启用",
+        "pluginsAvailable": "AE Portal 可用，后续继续接入",
+        "systemIdle": "v{{version}} · 更新、代理、日志",
+        "systemUpdateReady": "发现更新：{{version}}",
+        "systemProxyOn": "v{{version}} · 自定义代理已开",
+        "systemProxyError": "代理设置需要处理"
+      },
+      "state": {
+        "shortcutOff": "无快捷键",
+        "startupOn": "开机启动",
+        "startupOff": "不开机启动",
+        "noFolder": "未选文件夹",
+        "renameOff": "不重命名"
+      },
+      "search": {
+        "label": "搜索设置",
+        "placeholder": "搜索设置...",
+        "empty": "没有匹配的设置",
+        "match": {
+          "appearance": "主题、语言、快捷键、开机启动",
+          "saving": "输出文件夹、重命名规则、预览",
+          "sites": "站点会话、登录捕获、Cookies",
+          "plugins": "AE Portal、可执行文件、集成",
+          "system": "版本、更新、代理、日志、开发工具"
+        }
+      }
+    },
     "theme": {
       "title": "主题",
       "black": "黑色",

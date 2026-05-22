@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CloseIcon, FolderOpenIcon, KeyboardIcon } from "../components/icons/AppIcons";
+import {
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  FolderOpenIcon,
+  KeyboardIcon,
+  SearchIcon,
+} from "../components/icons/AppIcons";
 import { NeonButton } from "../components/ui/neon-button";
 import {
   NeonCard,
@@ -27,7 +34,6 @@ import {
   getContinuousCornerStyle,
   getFieldSurfaceStyle,
   getCompactLabelStyle,
-  getNoticeStyle,
   getShadowBackdropStyle,
   WINDOW_NO_DRAG_REGION_STYLE,
   getWindowBodyStyle,
@@ -70,9 +76,19 @@ import type {
 } from "../types/siteSession";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
-type SettingsTab = "general" | "downloads" | "plugins" | "advanced";
+type SettingsPageId = "hub" | "appearance" | "saving" | "sites" | "plugins" | "system";
+type SettingsDetailPageId = Exclude<SettingsPageId, "hub">;
 type SiteLoginBadgeTone = "ready" | "danger" | "muted";
 type SiteSessionAction = "start" | "confirm" | "cancel" | "clear";
+
+type SettingsHubDestination = {
+  id: SettingsDetailPageId;
+  title: string;
+  summary: string;
+  searchText: string;
+  matchSummary: string;
+  attentionTone: "accent" | "danger" | "warning" | null;
+};
 
 type SiteLoginBadgeModel = {
   id: SupportedSiteSessionId;
@@ -255,8 +271,9 @@ function SettingsPage() {
     useState<Partial<Record<SupportedSiteSessionId, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: SupportedSiteSessionId; action: SiteSessionAction } | null>(null);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
-  const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null);
+  const [activePage, setActivePage] = useState<SettingsPageId>("hub");
+  const [hoveredHubDestination, setHoveredHubDestination] = useState<SettingsDetailPageId | null>(null);
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
   const [supportLogHint, setSupportLogHint] = useState("");
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [appUpdatePhase, setAppUpdatePhase] = useState<AppUpdatePhase>("idle");
@@ -961,13 +978,6 @@ function SettingsPage() {
     </div>
   );
 
-  const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
-    { id: "general", label: t("desktop:settings.tabs.general") },
-    { id: "downloads", label: t("desktop:settings.tabs.downloads") },
-    { id: "plugins", label: t("desktop:settings.tabs.plugins") },
-    { id: "advanced", label: t("desktop:settings.tabs.advanced") },
-  ];
-
   const getPluginStatusPillStyle = (
     tone: "active" | "muted",
   ): CSSProperties => ({
@@ -1103,42 +1113,6 @@ function SettingsPage() {
     };
   });
 
-  const settingsTabChromeStyle: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 0,
-    padding: "0 10px",
-    borderBottom: `1px solid ${colors.borderStart}`,
-    ...WINDOW_NO_DRAG_REGION_STYLE,
-  };
-
-  const getSettingsTabStyle = (tab: SettingsTab): CSSProperties => ({
-    flex: "1 1 0",
-    minWidth: 0,
-    minHeight: 38,
-    padding: "11px 4px 12px",
-    fontSize: 11,
-    lineHeight: 1,
-    fontWeight: activeTab === tab ? 600 : 500,
-    border: "none",
-    cursor: "pointer",
-    background: "transparent",
-    borderBottom: `1.5px solid ${activeTab === tab ? colors.accentBorder : "transparent"}`,
-    marginBottom: -1,
-    textAlign: "center",
-    transition: [
-      `color 0.18s ${COMPACT_EASE}`,
-      `border-color 0.18s ${COMPACT_EASE}`,
-      `opacity 0.18s ${COMPACT_EASE}`,
-    ].join(", "),
-    color: activeTab === tab
-      ? colors.textPrimary
-      : hoveredSettingsTab === tab
-        ? colors.textPrimary
-        : colors.textSecondary,
-    opacity: activeTab === tab ? 1 : 0.86,
-  });
-
   const appVersionStatusText = (() => {
     if (appUpdateError) {
       return appUpdateError;
@@ -1167,7 +1141,330 @@ function SettingsPage() {
       ? colors.warningText
       : colors.textSecondary;
 
-  const renderGeneralTab = (): ReactNode => (
+  const readySiteLoginCount = siteLoginBadges.filter((site) => site.tone === "ready").length;
+  const hasSiteLoginError = siteLoginBadges.some((site) => site.tone === "danger");
+  const appearanceSummary = t("desktop:settings.hub.summary.appearance", {
+    theme: t(`desktop:settings.theme.${theme}`),
+    language: t(`common:language.${currentLanguage}`),
+    shortcut: shortcut
+      ? formatShortcutForDisplay(shortcut, isMacOS)
+      : t("desktop:settings.hub.state.shortcutOff"),
+    startup: autostart
+      ? t("desktop:settings.hub.state.startupOn")
+      : t("desktop:settings.hub.state.startupOff"),
+  });
+  const savingSummary = t("desktop:settings.hub.summary.saving", {
+    folder: outputPath
+      ? truncatePath(getLeafName(outputPath) || outputPath, 18)
+      : t("desktop:settings.hub.state.noFolder"),
+    rename: renameMediaOnDownload
+      ? t(`desktop:settings.rename.options.${
+        renameRulePreset === "desc_number"
+          ? "descending"
+          : renameRulePreset === "asc_number"
+            ? "ascending"
+            : "prefixSequence"
+      }`)
+      : t("desktop:settings.hub.state.renameOff"),
+  });
+  const siteLoginsSummary = siteSessionError
+    ? t("desktop:settings.hub.summary.sitesError")
+    : activeCapturePhase === "preparing" || activeCapturePhase === "awaiting_confirmation"
+      ? t("desktop:settings.hub.summary.sitesPending")
+      : readySiteLoginCount > 0
+        ? t("desktop:settings.hub.summary.sitesReady", {
+          count: readySiteLoginCount,
+          total: siteLoginBadges.length,
+        })
+        : t("desktop:settings.hub.summary.sitesMissing");
+  const pluginsSummary = aePortalEnabled
+    ? t("desktop:settings.hub.summary.pluginsActive")
+    : t("desktop:settings.hub.summary.pluginsAvailable");
+  const systemSummary = globalProxyError
+    ? t("desktop:settings.hub.summary.systemProxyError")
+    : appUpdateInfo
+      ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
+      : globalProxyEnabled
+        ? t("desktop:settings.hub.summary.systemProxyOn", { version: APP_VERSION })
+        : t("desktop:settings.hub.summary.systemIdle", { version: APP_VERSION });
+  const buildSearchText = (parts: string[]): string => parts
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+  const hubDestinations: SettingsHubDestination[] = [
+    {
+      id: "appearance",
+      title: t("desktop:settings.hub.pages.appearance"),
+      summary: appearanceSummary,
+      searchText: buildSearchText([
+        t("desktop:settings.hub.pages.appearance"),
+        appearanceSummary,
+        t("desktop:settings.theme.title"),
+        t("desktop:settings.theme.black"),
+        t("desktop:settings.theme.white"),
+        t("desktop:settings.language.title"),
+        t("desktop:settings.shortcut.title"),
+        t("desktop:settings.launchAtStartup.title"),
+      ]),
+      matchSummary: t("desktop:settings.hub.search.match.appearance"),
+      attentionTone: null,
+    },
+    {
+      id: "saving",
+      title: t("desktop:settings.hub.pages.saving"),
+      summary: savingSummary,
+      searchText: buildSearchText([
+        t("desktop:settings.hub.pages.saving"),
+        savingSummary,
+        t("desktop:settings.outputFolder.title"),
+        t("desktop:settings.outputFolder.choose"),
+        t("desktop:settings.rename.title"),
+        t("desktop:settings.rename.preset"),
+        t("desktop:settings.rename.prefix"),
+        t("desktop:settings.rename.suffix"),
+        t("desktop:settings.rename.preview"),
+      ]),
+      matchSummary: t("desktop:settings.hub.search.match.saving"),
+      attentionTone: renameMediaOnDownload ? "accent" : null,
+    },
+    {
+      id: "sites",
+      title: t("desktop:settings.hub.pages.sites"),
+      summary: siteLoginsSummary,
+      searchText: buildSearchText([
+        t("desktop:settings.hub.pages.sites"),
+        siteLoginsSummary,
+        t("desktop:settings.siteSessions.title"),
+        t("desktop:settings.siteSessions.confirmButton"),
+        t("desktop:settings.siteSessions.cancelButton"),
+        t("desktop:settings.siteSessions.clearButton"),
+        ...SITE_SESSION_CONFIGS.map((site) => t(site.labelKey)),
+      ]),
+      matchSummary: t("desktop:settings.hub.search.match.sites"),
+      attentionTone: hasSiteLoginError ? "danger" : readySiteLoginCount > 0 || activeCapturePhase !== "idle" ? "accent" : null,
+    },
+    {
+      id: "plugins",
+      title: t("desktop:settings.hub.pages.plugins"),
+      summary: pluginsSummary,
+      searchText: buildSearchText([
+        t("desktop:settings.hub.pages.plugins"),
+        pluginsSummary,
+        t("desktop:settings.pluginsPage.installed.title"),
+        t("desktop:settings.aePortal.title"),
+        t("desktop:settings.aePortal.chooseExe"),
+        t("desktop:settings.pluginsPage.future.title"),
+      ]),
+      matchSummary: t("desktop:settings.hub.search.match.plugins"),
+      attentionTone: aePortalEnabled ? "accent" : null,
+    },
+    {
+      id: "system",
+      title: t("desktop:settings.hub.pages.system"),
+      summary: systemSummary,
+      searchText: buildSearchText([
+        t("desktop:settings.hub.pages.system"),
+        systemSummary,
+        t("desktop:settings.versionCard.title"),
+        t("desktop:settings.versionCard.checkButton"),
+        t("desktop:settings.versionCard.updateButton"),
+        t("desktop:settings.appUpdates.title"),
+        t("desktop:settings.globalProxy.title"),
+        t("desktop:settings.globalProxy.urlLabel"),
+        t("desktop:settings.supportLog.title"),
+        t("desktop:settings.supportLog.button"),
+        isDevBuild ? t("desktop:settings.uiLab.developerSectionTitle") : "",
+        isDevBuild ? t("desktop:settings.uiLab.developerButton") : "",
+        isDevBuild ? t("desktop:settings.uiLab.injectionDebug.title") : "",
+      ]),
+      matchSummary: t("desktop:settings.hub.search.match.system"),
+      attentionTone: globalProxyError ? "danger" : appUpdateInfo ? "warning" : globalProxyEnabled ? "accent" : null,
+    },
+  ];
+  const normalizedSettingsSearchQuery = settingsSearchQuery.trim().toLocaleLowerCase();
+  const visibleHubDestinations = normalizedSettingsSearchQuery
+    ? hubDestinations.filter((destination) => (
+      destination.searchText.includes(normalizedSettingsSearchQuery)
+    ))
+    : hubDestinations;
+
+  const getHubDestinationStyle = (
+    destination: SettingsHubDestination,
+    hovered: boolean,
+  ): CSSProperties => {
+    const highlighted = hovered || destination.attentionTone === "accent";
+    return {
+      width: "100%",
+      minHeight: 50,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "7px 10px 7px 12px",
+      ...getFieldSurfaceStyle(colors, {
+        active: highlighted,
+        highlighted: hovered,
+        padding: "7px 10px 7px 12px",
+        height: 0,
+      }),
+      borderColor: destination.attentionTone === "danger"
+        ? colors.dangerBorder
+        : destination.attentionTone === "warning"
+          ? colors.warningBorder
+          : highlighted
+            ? colors.accentBorder
+            : colors.fieldBorder,
+      color: colors.textPrimary,
+      cursor: "pointer",
+      textAlign: "left",
+      transition: [
+        `background 0.18s ${COMPACT_EASE}`,
+        `border-color 0.18s ${COMPACT_EASE}`,
+        `box-shadow 0.18s ${COMPACT_EASE}`,
+        `color 0.18s ${COMPACT_EASE}`,
+      ].join(", "),
+      ...WINDOW_NO_DRAG_REGION_STYLE,
+    };
+  };
+
+  const getHubAttentionDotStyle = (tone: SettingsHubDestination["attentionTone"]): CSSProperties => {
+    const dotColor = tone === "danger"
+      ? colors.dangerSolid
+      : tone === "warning"
+        ? colors.warningSolid
+        : colors.accentSolid;
+    const glowColor = tone === "danger"
+      ? colors.dangerGlow
+      : tone === "warning"
+        ? colors.warningGlow
+        : colors.accentGlow;
+    return {
+      width: 7,
+      height: 7,
+      flexShrink: 0,
+      ...getContinuousCornerStyle(999),
+      background: dotColor,
+      boxShadow: `0 0 12px ${glowColor}`,
+    };
+  };
+
+  const renderHubPage = (): ReactNode => (
+    <div style={{ display: "grid", gap: 7 }}>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          ...getFieldSurfaceStyle(colors, {
+            active: Boolean(normalizedSettingsSearchQuery),
+            highlighted: Boolean(normalizedSettingsSearchQuery),
+            padding: "8px 10px",
+            height: 32,
+          }),
+          ...WINDOW_NO_DRAG_REGION_STYLE,
+        }}
+      >
+        <SearchIcon
+          size={13}
+          style={{
+            flexShrink: 0,
+            color: normalizedSettingsSearchQuery ? colors.accentText : colors.textSecondary,
+          }}
+        />
+        <input
+          type="search"
+          value={settingsSearchQuery}
+          onChange={(event) => setSettingsSearchQuery(event.target.value)}
+          placeholder={t("desktop:settings.hub.search.placeholder")}
+          aria-label={t("desktop:settings.hub.search.label")}
+          style={{
+            width: "100%",
+            minWidth: 0,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            color: colors.textPrimary,
+            fontSize: 11.5,
+            lineHeight: 1.2,
+          }}
+        />
+      </label>
+
+      <div style={{ display: "grid", gap: 6 }}>
+        {visibleHubDestinations.map((destination) => {
+        const hovered = hoveredHubDestination === destination.id;
+        return (
+          <button
+            key={destination.id}
+            type="button"
+            onClick={() => setActivePage(destination.id)}
+            onMouseEnter={() => setHoveredHubDestination(destination.id)}
+            onMouseLeave={() => setHoveredHubDestination((current) => (
+              current === destination.id ? null : current
+            ))}
+            style={getHubDestinationStyle(destination, hovered)}
+          >
+            {destination.attentionTone ? (
+              <span style={getHubAttentionDotStyle(destination.attentionTone)} aria-hidden="true" />
+            ) : null}
+            <span style={{ minWidth: 0, flex: "1 1 auto", display: "grid", gap: 4 }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 650,
+                  lineHeight: 1.15,
+                  color: colors.textPrimary,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {destination.title}
+              </span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  lineHeight: 1.25,
+                  color: colors.textSecondary,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {normalizedSettingsSearchQuery ? destination.matchSummary : destination.summary}
+              </span>
+            </span>
+            <ChevronRightIcon
+              size={14}
+              style={{
+                flexShrink: 0,
+                color: hovered ? colors.accentText : colors.textSecondary,
+              }}
+            />
+          </button>
+        );
+      })}
+      </div>
+
+      {visibleHubDestinations.length === 0 ? (
+        <div
+          style={{
+            minHeight: 42,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: colors.textSecondary,
+            fontSize: 10.5,
+            lineHeight: 1.35,
+            textAlign: "center",
+          }}
+        >
+          {t("desktop:settings.hub.search.empty")}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const renderAppearancePage = (): ReactNode => (
     <>
       <NeonSection title={t("desktop:settings.theme.title")}>
         <div style={{ display: "flex", gap: 8 }}>
@@ -1323,7 +1620,7 @@ function SettingsPage() {
     </>
   );
 
-  const renderDownloadsTab = (): ReactNode => (
+  const renderSavingPage = (): ReactNode => (
     <>
       <NeonSection title={t("desktop:settings.outputFolder.title")}>
         <NeonFieldButton
@@ -1415,7 +1712,11 @@ function SettingsPage() {
           </div>
         ) : null}
       </NeonSection>
+    </>
+  );
 
+  const renderSiteLoginsPage = (): ReactNode => (
+    <>
       <NeonSection
         title={t("desktop:settings.siteSessions.title")}
         hint={t("desktop:settings.siteSessions.hint")}
@@ -1527,12 +1828,8 @@ function SettingsPage() {
     </>
   );
 
-  const renderPluginsTab = (): ReactNode => (
+  const renderPluginsPage = (): ReactNode => (
     <>
-      <div style={{ ...getNoticeStyle(colors), marginBottom: 18 }}>
-        {t("desktop:settings.pluginsPage.intro")}
-      </div>
-
       <NeonSection
         title={t("desktop:settings.pluginsPage.installed.title")}
         hint={t("desktop:settings.pluginsPage.installed.hint")}
@@ -1637,7 +1934,7 @@ function SettingsPage() {
     </>
   );
 
-  const renderAdvancedTab = (): ReactNode => (
+  const renderSystemPage = (): ReactNode => (
     <>
       <NeonSection title={t("desktop:settings.versionCard.title")}>
         <NeonCard
@@ -1833,16 +2130,24 @@ function SettingsPage() {
     </>
   );
 
-  const renderActiveTab = (): ReactNode => {
-    switch (activeTab) {
-      case "general":
-        return renderGeneralTab();
-      case "downloads":
-        return renderDownloadsTab();
+  const activePageTitle = activePage === "hub"
+    ? t("desktop:settings.title")
+    : t(`desktop:settings.hub.pages.${activePage}`);
+
+  const renderActivePage = (): ReactNode => {
+    switch (activePage) {
+      case "hub":
+        return renderHubPage();
+      case "appearance":
+        return renderAppearancePage();
+      case "saving":
+        return renderSavingPage();
+      case "sites":
+        return renderSiteLoginsPage();
       case "plugins":
-        return renderPluginsTab();
-      case "advanced":
-        return renderAdvancedTab();
+        return renderPluginsPage();
+      case "system":
+        return renderSystemPage();
       default:
         return null;
     }
@@ -1866,15 +2171,41 @@ function SettingsPage() {
         }}
       >
         <div style={panelStyle}>
-          {/* Draggable Header */}
           <div
             style={getWindowHeaderStyle(colors, {
               dragRegion: true,
             })}
           >
-            <h2 style={{ fontSize: 14, fontWeight: 600, color: colors.textPrimary, margin: 0 }}>
-              {t("desktop:settings.title")}
-            </h2>
+            <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              {activePage !== "hub" ? (
+                <NeonIconButton
+                  onClick={() => setActivePage("hub")}
+                  size={20}
+                  aria-label={t("desktop:settings.hub.back")}
+                  style={{
+                    ...WINDOW_NO_DRAG_REGION_STYLE,
+                    marginLeft: -4,
+                    flexShrink: 0,
+                  }}
+                >
+                  <ArrowLeftIcon size={15} />
+                </NeonIconButton>
+              ) : null}
+              <h2
+                style={{
+                  minWidth: 0,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: colors.textPrimary,
+                  margin: 0,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {activePageTitle}
+              </h2>
+            </div>
             <NeonIconButton
               onClick={closeWindow}
               tone="danger"
@@ -1888,32 +2219,13 @@ function SettingsPage() {
             </NeonIconButton>
           </div>
 
-          <div style={settingsTabChromeStyle} role="tablist" aria-label={t("desktop:settings.title")}>
-              {settingsTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  id={`settings-tab-${tab.id}`}
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  aria-controls={`settings-panel-${tab.id}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  onMouseEnter={() => setHoveredSettingsTab(tab.id)}
-                  onMouseLeave={() => setHoveredSettingsTab((current) => (current === tab.id ? null : current))}
-                  style={getSettingsTabStyle(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-          </div>
-
           <div style={getWindowBodyStyle({ padding: "16px 18px 18px", gap: 0 })} className="hide-scrollbar">
             <div
-              id={`settings-panel-${activeTab}`}
-              role="tabpanel"
-              aria-labelledby={`settings-tab-${activeTab}`}
+              id={`settings-page-${activePage}`}
+              role={activePage === "hub" ? "navigation" : "region"}
+              aria-label={activePageTitle}
             >
-              {renderActiveTab()}
+              {renderActivePage()}
             </div>
           </div>
         </div>

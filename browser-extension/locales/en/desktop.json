@@ -117,6 +117,49 @@
       "plugins": "Plugins",
       "advanced": "Advanced"
     },
+    "hub": {
+      "back": "Back to settings",
+      "pages": {
+        "appearance": "Appearance & Launch",
+        "saving": "Saving & Naming",
+        "sites": "Site Logins",
+        "plugins": "Plugins & Integrations",
+        "system": "System & Support"
+      },
+      "summary": {
+        "appearance": "{{theme}} · {{language}} · {{shortcut}} · {{startup}}",
+        "saving": "{{folder}} · {{rename}}",
+        "sitesReady": "{{count}}/{{total}} sessions ready",
+        "sitesMissing": "Manual login when a site needs cookies",
+        "sitesPending": "Login capture waiting for confirmation",
+        "sitesError": "One login state needs attention",
+        "pluginsActive": "AE Portal enabled",
+        "pluginsAvailable": "AE Portal available, more integrations later",
+        "systemIdle": "v{{version}} · updates, proxy, logs",
+        "systemUpdateReady": "Update ready: {{version}}",
+        "systemProxyOn": "v{{version}} · custom proxy on",
+        "systemProxyError": "Proxy setting needs attention"
+      },
+      "state": {
+        "shortcutOff": "No shortcut",
+        "startupOn": "Startup on",
+        "startupOff": "Startup off",
+        "noFolder": "No folder",
+        "renameOff": "Rename off"
+      },
+      "search": {
+        "label": "Search settings",
+        "placeholder": "Search settings...",
+        "empty": "No matching settings",
+        "match": {
+          "appearance": "Theme, language, shortcut, startup",
+          "saving": "Output folder, rename rules, preview",
+          "sites": "Site sessions, login capture, cookies",
+          "plugins": "AE Portal, executable, integrations",
+          "system": "Version, updates, proxy, logs, developer tools"
+        }
+      }
+    },
     "theme": {
       "title": "Theme",
       "black": "Black",

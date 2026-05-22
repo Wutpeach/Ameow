@@ -45,6 +45,23 @@ export function CloseIcon(props: AppIconProps) {
   );
 }
 
+export function ArrowLeftIcon(props: AppIconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
+    </BaseIcon>
+  );
+}
+
+export function ChevronRightIcon(props: AppIconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="m9 18 6-6-6-6" />
+    </BaseIcon>
+  );
+}
+
 export function EyeIcon(props: AppIconProps) {
   return (
     <BaseIcon {...props}>
@@ -85,6 +102,15 @@ export function RotateCcwIcon(props: AppIconProps) {
     <BaseIcon {...props}>
       <path d="M3 2.5v5h5" />
       <path d="M3.8 11A8 8 0 1 0 6 6.5L3 9.5" />
+    </BaseIcon>
+  );
+}
+
+export function SearchIcon(props: AppIconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </BaseIcon>
   );
 }
