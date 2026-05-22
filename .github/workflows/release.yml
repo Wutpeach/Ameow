@@ -77,8 +77,6 @@ jobs:
             arch: aarch64
             target: aarch64-apple-darwin
             artifact_arch: arm64
-            deno_asset: deno-aarch64-apple-darwin.zip
-            ffmpeg_asset: ffmpeg-osx-arm64.zip
 
     runs-on: ${{ matrix.runner }}
 

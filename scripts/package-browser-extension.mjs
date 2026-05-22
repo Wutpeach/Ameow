@@ -1,10 +1,12 @@
 import {
   cpSync,
   existsSync,
+  readdirSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -55,6 +57,21 @@ function readAppVersion() {
 
 function ensureDir(path) {
   mkdirSync(path, { recursive: true });
+}
+
+function removeExtensionTestFiles(rootDir) {
+  const entries = readdirSync(rootDir);
+  for (const entry of entries) {
+    const fullPath = join(rootDir, entry);
+    const stats = statSync(fullPath);
+    if (stats.isDirectory()) {
+      removeExtensionTestFiles(fullPath);
+      continue;
+    }
+    if (/\.test\.js$/i.test(entry)) {
+      rmSync(fullPath, { force: true });
+    }
+  }
 }
 
 function run(command, args, options = {}) {
@@ -123,6 +140,7 @@ function main() {
 
   try {
     cpSync(sourceDir, stagedSourceDir, { recursive: true });
+    removeExtensionTestFiles(stagedSourceDir);
     writeFileSync(join(stagedSourceDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
     assertValidChromiumExtensionVersion(manifest.version, "Staged extension manifest version");
 

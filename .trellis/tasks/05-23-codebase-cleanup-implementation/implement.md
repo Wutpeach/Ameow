@@ -8,10 +8,10 @@
 6. [x] Commit Phase 2.
 7. [x] Complete Phase 3 extension legacy cleanup.
 8. [x] Run focused validation for Phase 3.
-9. [ ] Commit Phase 3.
-10. Complete Phase 4 packaging/release cleanup.
-11. Run focused validation for Phase 4.
-12. Commit Phase 4.
+9. [x] Commit Phase 3.
+10. [x] Complete Phase 4 packaging/release cleanup.
+11. [x] Run focused validation for Phase 4.
+12. [ ] Commit Phase 4.
 13. Run cross-phase validation and summarize remaining risks.
 
 ## Progress Notes
@@ -66,3 +66,14 @@
   - `npm run test -- browser-extension/manifest.test.js browser-extension/twitter-detector.test.js browser-extension/youtube-detector.test.js browser-extension/bilibili-detector.test.js browser-extension/video-selection-routing.test.js`
   - `npm run lint`
   - `npm run type-check`
+
+### Phase 4
+
+- Updated `scripts/package-browser-extension.mjs` so staged extension artifacts remove `*.test.js` files before ZIP packaging.
+- Removed unused macOS release workflow matrix fields from `.github/workflows/release.yml`.
+- Validation completed:
+  - `node --check scripts/package-browser-extension.mjs`
+  - `npm run lint`
+  - `npm run type-check`
+- Environment limitation:
+  - repository-local YAML parsing validation was not run because the current Node environment does not have a `yaml` package installed.
