@@ -182,6 +182,7 @@
   - `npm run runtime:smoke:downloaders` exits 0 and verifies fresh per-tool venv creation plus pinned versions for `yt-dlp`, `gallery-dl`, and `douyin-dl`.
   - `npm run runtime:smoke:downloaders` also exercises local HTTP fixture downloads for managed `yt-dlp` and `gallery-dl`, proving those venv entrypoints can produce output files without relying on external sites.
   - With a valid Douyin session cookies file, `npm run runtime:smoke:douyin-session -- <cookies-file> [douyin-url]` exits 0 and verifies the managed `douyin-dl` runtime can download a non-empty media artifact through the same app runtime execution path with `browser_fallback.enabled=false`.
+  - Managed `douyin-dl` output must be normalized after execution: Ameow may consume upstream `download_manifest.jsonl` internally, but the user-visible output directory should contain the final media artifact at its root, not an author subfolder or a manifest sidecar. Collision handling must choose a deterministic non-overwriting filename.
   - `node ./scripts/ensure-capability-probe-runtime.mjs --tool yt-dlp` exits 0.
   - `npm run package:win:dir` and `npm run package:portable:skip-build` succeed on Windows host verification.
   - Packaged Electron resources include `desktop-assets/binaries/python-<target>` for the current target.

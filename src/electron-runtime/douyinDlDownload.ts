@@ -45,6 +45,8 @@ const AUDIO_EXTENSIONS = new Set([
   ".aac",
 ]);
 
+const DOUYIN_DL_MANIFEST_NAME = "download_manifest.jsonl";
+
 const buildDouyinDlEnv = (): NodeJS.ProcessEnv => ({
   ...process.env,
   PYTHONIOENCODING: "utf-8",
@@ -355,6 +357,92 @@ const resolveArtifactPath = (outputDir: string, artifact: string): string => (
   path.isAbsolute(artifact) ? artifact : path.join(outputDir, artifact)
 );
 
+const pathsReferToSameLocation = (left: string, right: string): boolean => (
+  path.resolve(left) === path.resolve(right)
+);
+
+const pathExists = async (candidatePath: string): Promise<boolean> => {
+  try {
+    await fs.stat(candidatePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const resolveNonConflictingPath = async (targetPath: string, sourcePath: string): Promise<string> => {
+  if (pathsReferToSameLocation(targetPath, sourcePath) || !await pathExists(targetPath)) {
+    return targetPath;
+  }
+
+  const parsed = path.parse(targetPath);
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidatePath = path.join(parsed.dir, `${parsed.name} (${index})${parsed.ext}`);
+    if (pathsReferToSameLocation(candidatePath, sourcePath) || !await pathExists(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  throw new Error(`Unable to find a non-conflicting Douyin output path for ${targetPath}`);
+};
+
+const delay = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const removeEmptyDirectory = async (dirPath: string): Promise<boolean> => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const entries = await fs.readdir(dirPath);
+      if (entries.length > 0) {
+        return false;
+      }
+      await fs.rmdir(dirPath);
+      return true;
+    } catch {
+      if (attempt === 2) {
+        return false;
+      }
+      await delay(50);
+    }
+  }
+  return false;
+};
+
+const removeEmptyParentsUntil = async (startDir: string, stopDir: string): Promise<void> => {
+  let currentDir = path.resolve(startDir);
+  const resolvedStopDir = path.resolve(stopDir);
+
+  while (currentDir !== resolvedStopDir && currentDir.startsWith(resolvedStopDir + path.sep)) {
+    if (!await removeEmptyDirectory(currentDir)) {
+      break;
+    }
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+};
+
+const normalizeDouyinOutputArtifact = async (
+  outputDir: string,
+  artifactPath: string,
+): Promise<string> => {
+  const targetPath = await resolveNonConflictingPath(
+    path.join(outputDir, path.basename(artifactPath)),
+    artifactPath,
+  );
+
+  if (pathsReferToSameLocation(targetPath, artifactPath)) {
+    return artifactPath;
+  }
+
+  await fs.rename(artifactPath, targetPath);
+  await removeEmptyParentsUntil(path.dirname(artifactPath), outputDir);
+  return targetPath;
+};
+
 const extractCliArgs = (context: EngineExecutionContext): string[] => {
   const intent = context.intent as Record<string, unknown>;
   const rawUrl = context.enginePlan.sourceUrl ?? intent.pageUrl ?? intent.originalUrl;
@@ -418,7 +506,7 @@ export const runDouyinDlDownload = async (
     "utf8",
   );
   const beforeFiles = new Set(await collectTaskArtifacts(context.outputDir));
-  const manifestPath = path.join(context.outputDir, "download_manifest.jsonl");
+  const manifestPath = path.join(context.outputDir, DOUYIN_DL_MANIFEST_NAME);
   const manifestRecordCountBefore = (await readDouyinDlManifestRecords(manifestPath)).length;
   const stdoutLines: string[] = [];
   const stderrLines: string[] = [];
@@ -472,10 +560,12 @@ export const runDouyinDlDownload = async (
       : null;
 
     if ((summary?.success ?? 0) > 0 && resolvedArtifactPath) {
+      const normalizedArtifactPath = await normalizeDouyinOutputArtifact(context.outputDir, resolvedArtifactPath);
+      await fs.unlink(manifestPath).catch(() => undefined);
       return {
         traceId: context.traceId,
         success: true,
-        file_path: resolvedArtifactPath,
+        file_path: normalizedArtifactPath,
       };
     }
 
@@ -498,10 +588,12 @@ export const runDouyinDlDownload = async (
     }
 
     if ((summary?.skipped ?? 0) > 0 && resolvedArtifactPath) {
+      const normalizedArtifactPath = await normalizeDouyinOutputArtifact(context.outputDir, resolvedArtifactPath);
+      await fs.unlink(manifestPath).catch(() => undefined);
       return {
         traceId: context.traceId,
         success: true,
-        file_path: resolvedArtifactPath,
+        file_path: normalizedArtifactPath,
       };
     }
 
@@ -524,10 +616,15 @@ export const runDouyinDlDownload = async (
       );
     }
 
+    const normalizedArtifactPath = await normalizeDouyinOutputArtifact(
+      context.outputDir,
+      resolvedArtifactPath ?? resolveArtifactPath(context.outputDir, resultArtifact),
+    );
+    await fs.unlink(manifestPath).catch(() => undefined);
     return {
       traceId: context.traceId,
       success: true,
-      file_path: resolvedArtifactPath ?? resolveArtifactPath(context.outputDir, resultArtifact),
+      file_path: normalizedArtifactPath,
     };
   } catch (error) {
     if (error instanceof DownloadRuntimeError) {
