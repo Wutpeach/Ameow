@@ -1613,12 +1613,6 @@ function handleMessage(message) {
     case 'request_download_preferences':
       void bootstrapDownloadPreferencesSync();
       break;
-    case 'start_picker':
-      startPicker(message.tabId);
-      break;
-    case 'stop_picker':
-      stopPicker(message.tabId);
-      break;
     case 'resolve_protected_image':
       void handleProtectedImageResolveRequest(message.data || {});
       break;
@@ -1628,20 +1622,6 @@ function handleMessage(message) {
     case 'resolve_xiaohongshu_drag':
       void handleXiaohongshuDragResolveRequest(message.data || {});
       break;
-  }
-}
-
-async function startPicker(tabId) {
-  const tab = tabId ? { id: tabId } : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-  if (tab) {
-    chrome.tabs.sendMessage(tab.id, { type: 'start_picker' });
-  }
-}
-
-async function stopPicker(tabId) {
-  const tab = tabId ? { id: tabId } : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-  if (tab) {
-    chrome.tabs.sendMessage(tab.id, { type: 'stop_picker' });
   }
 }
 
