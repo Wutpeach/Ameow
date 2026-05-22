@@ -1,0 +1,4 @@
+{"file":".trellis/tasks/05-23-codebase-cleanup-audit/prd.md","reason":"Audit baseline for verifying implemented cleanup matches findings."}
+{"file":".trellis/spec/guides/index.md","reason":"Shared review guidance for cleanup validation."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend review context."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend/runtime review context."}
