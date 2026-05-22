@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -80,6 +81,7 @@ type SettingsPageId = "hub" | "appearance" | "saving" | "sites" | "plugins" | "s
 type SettingsDetailPageId = Exclude<SettingsPageId, "hub">;
 type SiteLoginBadgeTone = "ready" | "danger" | "muted";
 type SiteSessionAction = "start" | "confirm" | "cancel" | "clear";
+type SettingsNavigationDirection = "forward" | "back";
 
 type SettingsHubDestination = {
   id: SettingsDetailPageId;
@@ -247,6 +249,7 @@ const buildRenamePreview = (
 function SettingsPage() {
   const { t, i18n } = useTranslation(["desktop", "common"]);
   const { theme, colors, setTheme } = useTheme();
+  const shouldReduceMotion = useReducedMotion();
   const isMacOS = navigator.userAgent.toLowerCase().includes("mac");
   const isDevBuild = import.meta.env.DEV;
   const [outputPath, setOutputPath] = useState("");
@@ -272,6 +275,8 @@ function SettingsPage() {
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: SupportedSiteSessionId; action: SiteSessionAction } | null>(null);
   const [activePage, setActivePage] = useState<SettingsPageId>("hub");
+  const [settingsNavigationDirection, setSettingsNavigationDirection] =
+    useState<SettingsNavigationDirection>("forward");
   const [hoveredHubDestination, setHoveredHubDestination] = useState<SettingsDetailPageId | null>(null);
   const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
   const [supportLogHint, setSupportLogHint] = useState("");
@@ -715,6 +720,12 @@ function SettingsPage() {
       setGlobalProxyUrl((current) => current.trim());
     }
   };
+
+  const navigateSettingsPage = useCallback((nextPage: SettingsPageId) => {
+    setHoveredHubDestination(null);
+    setSettingsNavigationDirection(nextPage === "hub" ? "back" : "forward");
+    setActivePage(nextPage);
+  }, []);
 
   const setSiteSessionError = useCallback((siteId: SupportedSiteSessionId, error: string | null) => {
     setSiteSessionErrors((current) => ({
@@ -1396,7 +1407,7 @@ function SettingsPage() {
           <button
             key={destination.id}
             type="button"
-            onClick={() => setActivePage(destination.id)}
+            onClick={() => navigateSettingsPage(destination.id)}
             onMouseEnter={() => setHoveredHubDestination(destination.id)}
             onMouseLeave={() => setHoveredHubDestination((current) => (
               current === destination.id ? null : current
@@ -2153,6 +2164,18 @@ function SettingsPage() {
     }
   };
 
+  const pageOffset = settingsNavigationDirection === "forward" ? 8 : -8;
+  const settingsPageMotionInitial = shouldReduceMotion
+    ? { opacity: 1, x: 0 }
+    : { opacity: 0, x: pageOffset };
+  const settingsPageMotionExit = shouldReduceMotion
+    ? { opacity: 1, x: 0 }
+    : { opacity: 0, x: -pageOffset };
+  const settingsPageMotionTransition = {
+    duration: shouldReduceMotion ? 0 : 0.16,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div
@@ -2179,7 +2202,7 @@ function SettingsPage() {
             <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
               {activePage !== "hub" ? (
                 <NeonIconButton
-                  onClick={() => setActivePage("hub")}
+                  onClick={() => navigateSettingsPage("hub")}
                   size={20}
                   aria-label={t("desktop:settings.hub.back")}
                   style={{
@@ -2220,13 +2243,23 @@ function SettingsPage() {
           </div>
 
           <div style={getWindowBodyStyle({ padding: "16px 18px 18px", gap: 0 })} className="hide-scrollbar">
-            <div
-              id={`settings-page-${activePage}`}
-              role={activePage === "hub" ? "navigation" : "region"}
-              aria-label={activePageTitle}
-            >
-              {renderActivePage()}
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activePage}
+                id={`settings-page-${activePage}`}
+                role={activePage === "hub" ? "navigation" : "region"}
+                aria-label={activePageTitle}
+                initial={settingsPageMotionInitial}
+                animate={{ opacity: 1, x: 0 }}
+                exit={settingsPageMotionExit}
+                transition={settingsPageMotionTransition}
+                style={{
+                  willChange: shouldReduceMotion ? undefined : "transform, opacity",
+                }}
+              >
+                {renderActivePage()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </div>
