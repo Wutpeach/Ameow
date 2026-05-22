@@ -946,3 +946,36 @@ Flattened managed douyin-dl output into the selected directory root, removed the
 ### Next Steps
 
 - None - task complete
+
+
+## Session 166: Settings navigation motion
+
+**Date**: 2026-05-22
+**Task**: Settings navigation motion
+**Branch**: `main`
+
+### Summary
+
+Added compact motion/react page-boundary navigation animation for the settings hub drill-down flow, including reduced-motion handling and hover-state cleanup.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `14c63fc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

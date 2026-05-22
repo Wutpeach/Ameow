@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 165
+- **Total Sessions**: 166
 - **Last Active**: 2026-05-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~948 | Active |
+| `journal-4.md` | ~981 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 166 | 2026-05-22 | Settings navigation motion | `14c63fc` | `main` |
 | 165 | 2026-05-22 | Normalize Douyin output layout | `9dc631c`, `5eaf553` | `main` |
 | 164 | 2026-05-22 | Complete downloader runtime refactor | `a210f1e` | `main` |
 | 163 | 2026-05-21 | Normalize video quality download flow | `736f598` | `main` |
