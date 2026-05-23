@@ -387,11 +387,12 @@
     return `${mediaType}-${Math.abs(hash).toString(36)}`;
   }
 
-  function describeCandidate({ url, mediaType, source, type, confidence, title, width, height }) {
+  function describeCandidate({ url, mediaType, source, type, confidence, title, width, height, previewUrl }) {
     const normalized = normalizeHttpUrl(url);
     if (!normalized) {
       return null;
     }
+    const normalizedPreviewUrl = normalizeHttpUrl(previewUrl);
     return {
       id: candidateId(mediaType, normalized),
       mediaType,
@@ -404,6 +405,7 @@
       source,
       type: typeof type === "string" ? type : undefined,
       confidence: typeof confidence === "string" ? confidence : "low",
+      ...(normalizedPreviewUrl ? { previewUrl: normalizedPreviewUrl } : {}),
       ...(Number.isFinite(width) && width > 0 ? { width: Math.round(width) } : {}),
       ...(Number.isFinite(height) && height > 0 ? { height: Math.round(height) } : {}),
     };
@@ -457,6 +459,7 @@
           title: video.getAttribute("title") || video.getAttribute("aria-label") || extractTitle(),
           width: video.videoWidth || rect?.width,
           height: video.videoHeight || rect?.height,
+          previewUrl: video.poster || video.getAttribute("poster"),
         });
         if (described) {
           candidates.push(described);
@@ -522,6 +525,7 @@
         source: "img_element",
         confidence: "high",
         title: image.getAttribute("alt") || image.getAttribute("title"),
+        previewUrl: url,
         width,
         height,
       });
@@ -542,6 +546,7 @@
         mediaType: "image",
         source: "picture_source",
         confidence: "medium",
+        previewUrl: url,
       });
       if (described) {
         candidates.push(described);
@@ -560,6 +565,7 @@
         source: "direct_link",
         confidence: "medium",
         title: anchor.textContent,
+        previewUrl: url,
       });
       if (described) {
         candidates.push(described);

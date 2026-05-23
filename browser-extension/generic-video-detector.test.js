@@ -265,6 +265,7 @@ describe("generic video detector", () => {
         {
           mediaType: "image",
           url: "https://cdn.example.com/media/photo.jpg",
+          previewUrl: "https://cdn.example.com/media/photo.jpg",
           title: "Hero photo",
           source: "img_element",
           width: 1280,
