@@ -17,6 +17,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "floating-launcher.css",
         "locales/*/*.json",
         "protected-image-page-bridge.js",
         "xiaohongshu-page-bridge.js"
@@ -41,8 +42,13 @@
       ],
       "js": [
         "dom-injection-utils.js",
+        "locale-utils.js",
+        "launcher-config.js",
+        "capture-evidence.js",
+        "extension-data-utils.js",
         "generic-video-selection-utils.js",
         "generic-video-detector.js",
+        "floating-launcher.js",
         "protected-image-detector.js"
       ],
       "all_frames": true,

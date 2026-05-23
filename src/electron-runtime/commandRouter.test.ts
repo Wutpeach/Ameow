@@ -264,6 +264,79 @@ describe("createElectronRuntimeCommandRouter", () => {
     }));
   });
 
+  it("preserves unknown extension data namespaces on queue requests", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await router.invoke<{ accepted: boolean; traceId: string }>("queue_video_download", {
+      url: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
+      page_url: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
+      site_hint: "douyin",
+      extension_data: {
+        ameowCapture: {
+          version: 1,
+          action: "current_content",
+          pageUrl: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
+          contentIds: {
+            modal_id: "7637912431158644014",
+          },
+        },
+      },
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "current_content",
+          pageUrl: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
+          contentIds: {
+            modal_id: "7637912431158644014",
+          },
+        },
+      },
+    }));
+  });
+
+  it("preserves unknown extension data while normalizing known YouTube hints", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await router.invoke<{ accepted: boolean; traceId: string }>("queue_video_download", {
+      url: "https://www.youtube.com/watch?v=abc123",
+      extensionData: {
+        youtube: {
+          force_extended: true,
+          allow_cookies: false,
+          source: "injected",
+          ignored: "value",
+        },
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl: "https://www.youtube.com/watch?v=abc123",
+          targetHref: "https://www.youtube.com/watch?v=abc123",
+        },
+      },
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
+      extensionData: {
+        youtube: {
+          forceExtended: true,
+          allowCookies: false,
+          source: "injected",
+        },
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl: "https://www.youtube.com/watch?v=abc123",
+          targetHref: "https://www.youtube.com/watch?v=abc123",
+        },
+      },
+    }));
+  });
+
   it("normalizes video quality preferences on queue requests", async () => {
     const runtime = createRuntimeStub();
     const router = createElectronRuntimeCommandRouter({ runtime });

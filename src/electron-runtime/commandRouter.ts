@@ -261,6 +261,42 @@ const normalizeVideoCandidates = (
 
 const normalizeBoolean = (value: unknown): boolean => value === true;
 
+const hasOwnEnumerableKeys = (value: Record<string, unknown>): boolean => (
+  Object.keys(value).length > 0
+);
+
+const normalizeExtensionData = (
+  value: unknown,
+): Record<string, unknown> | undefined => {
+  const rawExtensionData = asObject(value);
+  const rawYouTubeExtensionData = asObject(rawExtensionData.youtube);
+  const youtubeSource = readOptionalTrimmedString(rawYouTubeExtensionData, "source");
+  const normalizedYoutubeSource: "injected" | "pasted" | "context_menu" | undefined = (
+    youtubeSource === "injected" || youtubeSource === "pasted" || youtubeSource === "context_menu"
+  )
+    ? youtubeSource
+    : undefined;
+  const normalizedYouTube = {
+    forceExtended: readOptionalBoolean(rawYouTubeExtensionData, "forceExtended", "force_extended"),
+    allowCookies: readOptionalBoolean(rawYouTubeExtensionData, "allowCookies", "allow_cookies"),
+    source: normalizedYoutubeSource,
+  };
+  const hasNormalizedYouTube = (
+    normalizedYouTube.forceExtended !== undefined
+    || normalizedYouTube.allowCookies !== undefined
+    || normalizedYouTube.source !== undefined
+  );
+  const normalizedExtensionData = { ...rawExtensionData };
+
+  if (hasNormalizedYouTube) {
+    normalizedExtensionData.youtube = normalizedYouTube;
+  } else {
+    delete normalizedExtensionData.youtube;
+  }
+
+  return hasOwnEnumerableKeys(normalizedExtensionData) ? normalizedExtensionData : undefined;
+};
+
 const normalizeDragDiagnosticFlags = (
   value: unknown,
 ): PinterestDragDiagnosticFlags | undefined => {
@@ -365,33 +401,7 @@ const normalizeQueueVideoDownloadRequest = (
       }),
     };
   })();
-  const rawExtensionData = asObject(request.extensionData ?? request.extension_data);
-  const rawYouTubeExtensionData = asObject(rawExtensionData.youtube);
-  const extensionData = (() => {
-    const youtubeSource = readOptionalTrimmedString(rawYouTubeExtensionData, "source");
-    const normalizedYoutubeSource: "injected" | "pasted" | "context_menu" | undefined = (
-      youtubeSource === "injected" || youtubeSource === "pasted" || youtubeSource === "context_menu"
-    )
-      ? youtubeSource
-      : undefined;
-    const normalizedYouTube = {
-      forceExtended: readOptionalBoolean(rawYouTubeExtensionData, "forceExtended", "force_extended"),
-      allowCookies: readOptionalBoolean(rawYouTubeExtensionData, "allowCookies", "allow_cookies"),
-      source: normalizedYoutubeSource,
-    };
-
-    if (
-      normalizedYouTube.forceExtended === undefined
-      && normalizedYouTube.allowCookies === undefined
-      && normalizedYouTube.source === undefined
-    ) {
-      return undefined;
-    }
-
-    return {
-      youtube: normalizedYouTube,
-    };
-  })();
+  const extensionData = normalizeExtensionData(request.extensionData ?? request.extension_data);
 
   return {
     url: readRequiredHttpUrlString(request, "url"),

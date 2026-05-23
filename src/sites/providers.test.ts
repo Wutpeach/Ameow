@@ -30,6 +30,82 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
   });
 
+  it("synthesizes Douyin video page source from extension modal evidence", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "current_content",
+          pageUrl,
+          contentIds: {
+            modal_id: "7637912431158644014",
+          },
+        },
+      },
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines).toHaveLength(1);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: "https://www.douyin.com/video/7637912431158644014",
+    });
+    expect(intent.extensionData).toMatchObject({
+      ameowCapture: {
+        contentIds: {
+          modal_id: "7637912431158644014",
+        },
+      },
+    });
+  });
+
+  it("prefers accepted Douyin canonical evidence over modal id synthesis", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
+    const canonicalUrl = "https://www.douyin.com/video/7604129988555574538";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "current_content",
+          pageUrl,
+          canonicalUrl,
+          contentIds: {
+            modal_id: "7637912431158644014",
+          },
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: canonicalUrl,
+    });
+  });
+
+  it("keeps Douyin page fallback when extension modal evidence is absent", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: pageUrl,
+    });
+  });
+
   it("routes Xiaohongshu page URLs through yt-dlp with the canonical note URL", () => {
     const directUrl = "https://sns-video-bd.xhscdn.com/stream/example.mp4";
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";

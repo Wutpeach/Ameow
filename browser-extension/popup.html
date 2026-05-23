@@ -38,6 +38,30 @@
         </span>
       </div>
     </section>
+
+    <section class="ameow-popup-card ameow-launcher-card" id="launcherCard">
+      <div class="ameow-section-header">
+        <div class="ameow-section-title" id="launcherSectionTitle">Launcher</div>
+        <div class="ameow-section-hint" id="launcherStateText">Checking</div>
+      </div>
+      <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
+        <span class="ameow-launcher-toggle-copy">
+          <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
+          <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
+        </span>
+        <span class="ameow-launcher-toggle-track" aria-hidden="true">
+          <span class="ameow-launcher-toggle-thumb"></span>
+        </span>
+      </button>
+      <div class="ameow-launcher-actions" id="launcherPopupActions">
+        <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
+          Restore on this site
+        </button>
+        <button type="button" class="ameow-popup-action-btn" id="fallbackDownloadButton" hidden>
+          Download this page
+        </button>
+      </div>
+    </section>
   </main>
   <script src="direct-download-quality.js"></script>
   <script src="locale-utils.js"></script>

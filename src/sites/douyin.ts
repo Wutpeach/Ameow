@@ -16,6 +16,63 @@ const isDirectVideoUrl = (value: string | undefined): boolean => (
   Boolean(value && DOUYIN_HOST_PATTERN.test(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
 );
 
+const readAmeowCaptureEvidence = (
+  input: RawDownloadInput,
+): Record<string, unknown> | undefined => {
+  const ameowCapture = input.extensionData?.ameowCapture;
+  return ameowCapture && typeof ameowCapture === "object" && !Array.isArray(ameowCapture)
+    ? ameowCapture as Record<string, unknown>
+    : undefined;
+};
+
+const extractCaptureContentId = (
+  input: RawDownloadInput,
+  key: string,
+): string | undefined => {
+  const contentIds = readAmeowCaptureEvidence(input)?.contentIds;
+  if (!contentIds || typeof contentIds !== "object" || Array.isArray(contentIds)) {
+    return undefined;
+  }
+
+  const value = (contentIds as Record<string, unknown>)[key];
+  return typeof value === "string" && /^\d{15,20}$/.test(value) ? value : undefined;
+};
+
+const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
+  if (!value || !isDouyinUrl(value)) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return /^\/(?:video|note|gallery)\/\d{15,20}(?:\/)?$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+};
+
+const synthesizeDouyinVideoSourceFromCapture = (
+  input: RawDownloadInput,
+): string | undefined => {
+  const modalId = extractCaptureContentId(input, "modal_id");
+  return modalId ? `https://www.douyin.com/video/${modalId}` : undefined;
+};
+
+const resolveDouyinDlSourceUrl = (input: RawDownloadInput): string => {
+  const captureEvidence = readAmeowCaptureEvidence(input);
+  const canonicalSource = captureEvidence?.canonicalUrl;
+  const ogSource = captureEvidence?.ogUrl;
+  const pageSourceUrl = input.pageUrl ?? input.url;
+
+  if (typeof canonicalSource === "string" && isAcceptedDouyinPageSource(canonicalSource)) {
+    return canonicalSource;
+  }
+  if (typeof ogSource === "string" && isAcceptedDouyinPageSource(ogSource)) {
+    return ogSource;
+  }
+
+  return synthesizeDouyinVideoSourceFromCapture(input) ?? pageSourceUrl;
+};
+
 const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   type: "video",
   siteId: "douyin",
@@ -28,6 +85,7 @@ const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   candidates: input.videoCandidates ?? [],
   selectionScope: input.selectionScope,
   videoQuality: input.videoQuality,
+  extensionData: input.extensionData,
   preferredFormat: "mp4",
 });
 
@@ -42,7 +100,7 @@ export const douyinProvider: SiteProvider = {
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
     const intent = buildIntent(input) as VideoDownloadIntent;
     const strategy = getRuntimeManualSiteStrategy("douyin");
-    const pageSourceUrl = input.pageUrl ?? input.url;
+    const sourceUrl = resolveDouyinDlSourceUrl(input);
 
     return {
       providerId: "douyin",
@@ -50,8 +108,8 @@ export const douyinProvider: SiteProvider = {
       intent,
       engines: buildEnginePlansFromStrategySources(strategy, {
         "douyin-dl": {
-          sourceUrl: pageSourceUrl,
-          reason: "Use douyin-downloader as the only Douyin website extractor",
+          sourceUrl,
+          reason: "Use douyin-downloader with a provider-owned accepted Douyin page source",
         },
       }),
     };

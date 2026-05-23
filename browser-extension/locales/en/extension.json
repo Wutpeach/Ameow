@@ -19,12 +19,41 @@
       }
     },
     "sections": {
-      "quality": "Quality"
+      "quality": "Quality",
+      "launcher": "Launcher"
     },
     "preferences": {
       "highest": {
         "hint": "Some high-quality videos may enter the transcode queue after download."
       }
+    }
+  },
+  "launcher": {
+    "actions": {
+      "pick": "Pick download",
+      "current": "Download current content",
+      "more": "More"
+    },
+    "menu": {
+      "hideSite": "Hide on this site",
+      "switchSide": "Switch side"
+    },
+    "picker": {
+      "instruction": "Click the content to download. Right-click or press Esc to cancel."
+    },
+    "status": {
+      "visible": "Visible",
+      "hidden": "Hidden here",
+      "unavailable": "Unavailable",
+      "disabled": "Hidden",
+      "checking": "Checking"
+    },
+    "popup": {
+      "toggleTitle": "Edge launcher",
+      "toggleOn": "Show in pages",
+      "toggleOff": "Hidden globally",
+      "restore": "Restore on this site",
+      "fallback": "Download this page"
     }
   },
   "preferences": {

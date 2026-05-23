@@ -3,8 +3,10 @@
 
 importScripts(
   "direct-download-quality.js",
+  "extension-data-utils.js",
   "generic-video-selection-utils.js",
   "injection-debug-config.js",
+  "launcher-config.js",
   "video-selection-routing.js",
   "xiaohongshu-drag-resolution-utils.js",
 );
@@ -40,6 +42,11 @@ const INTERNAL_RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE = 'resolve_xiaohongshu_
 const INTERNAL_NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE = 'navigate_xiaohongshu_note';
 const INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE = 'save_image_from_page';
 const INTERNAL_REGISTER_XIAOHONGSHU_DRAG_MESSAGE = 'register_xiaohongshu_drag';
+const INTERNAL_DOWNLOAD_CURRENT_CONTENT_MESSAGE = 'ameow_download_current_content';
+const INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE = 'ameow_capture_current_content';
+const INTERNAL_LAUNCHER_PING_MESSAGE = 'ameow_launcher_ping';
+const INTERNAL_LAUNCHER_RESTORE_MESSAGE = 'ameow_launcher_restore';
+const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
 const pendingRequests = new Map();
@@ -52,8 +59,10 @@ let lastConnectionIssue = OFFLINE_STATUS_TEXT;
 let currentTheme = 'black';
 let currentLanguage = resolvePreferredLanguage(undefined, self.navigator?.language);
 const directDownloadQuality = self.AmeowDirectDownloadQuality;
+const extensionDataUtils = self.AmeowExtensionDataUtils;
 const genericVideoSelectionUtils = self.AmeowGenericVideoSelectionUtils;
 const injectionDebugConfig = self.AmeowInjectionDebugConfig;
+const launcherConfig = self.AmeowLauncherConfig;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
@@ -325,30 +334,8 @@ function normalizeMediaSelectionPayload(message) {
     : message?.extension_data && typeof message.extension_data === 'object'
       ? message.extension_data
       : null;
-  const rawYouTubeExtensionData = rawExtensionData?.youtube && typeof rawExtensionData.youtube === 'object'
-    ? rawExtensionData.youtube
-    : null;
-  const normalizedExtensionData = rawYouTubeExtensionData
-    ? {
-        youtube: {
-          forceExtended: typeof rawYouTubeExtensionData.forceExtended === 'boolean'
-            ? rawYouTubeExtensionData.forceExtended
-            : typeof rawYouTubeExtensionData.force_extended === 'boolean'
-              ? rawYouTubeExtensionData.force_extended
-              : undefined,
-          allowCookies: typeof rawYouTubeExtensionData.allowCookies === 'boolean'
-            ? rawYouTubeExtensionData.allowCookies
-            : typeof rawYouTubeExtensionData.allow_cookies === 'boolean'
-              ? rawYouTubeExtensionData.allow_cookies
-              : undefined,
-          source:
-            rawYouTubeExtensionData.source === 'injected'
-            || rawYouTubeExtensionData.source === 'pasted'
-            || rawYouTubeExtensionData.source === 'context_menu'
-              ? rawYouTubeExtensionData.source
-              : undefined,
-        },
-      }
+  const normalizedExtensionData = extensionDataUtils?.normalizeExtensionData
+    ? extensionDataUtils.normalizeExtensionData(rawExtensionData)
     : undefined;
   const siteHint = deriveSiteHint([
     message?.siteHint,
@@ -2168,6 +2155,138 @@ function removeTabQuietly(tabId) {
   });
 }
 
+async function pingLauncherForActiveTab() {
+  const tab = await getActiveTab();
+  const config = launcherConfig?.getConfig ? await launcherConfig.getConfig() : null;
+  if (!tab?.id) {
+    return {
+      ok: false,
+      mounted: false,
+      visible: false,
+      enabled: config?.enabled !== false,
+      hiddenForSite: Boolean(config && launcherConfig?.isSiteDisabled?.(config, tab?.url)),
+      side: config?.side,
+      reason: 'no_active_tab',
+      version: 1,
+    };
+  }
+
+  const requestId = `launcher-ping-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const response = await Promise.race([
+    sendMessageToTab(tab.id, {
+      type: INTERNAL_LAUNCHER_PING_MESSAGE,
+      requestId,
+    }).catch(() => null),
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), 500);
+    }),
+  ]);
+
+  if (!response || response.requestId !== requestId) {
+    return {
+      ok: false,
+      mounted: false,
+      visible: false,
+      enabled: config?.enabled !== false,
+      hiddenForSite: Boolean(config && launcherConfig?.isSiteDisabled?.(config, tab.url)),
+      side: config?.side,
+      version: 1,
+    };
+  }
+
+  return response;
+}
+
+async function broadcastLauncherConfigToTabs(config) {
+  if (!chrome?.tabs?.query) {
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.map((tab) => {
+    if (typeof tab.id !== 'number') {
+      return Promise.resolve(null);
+    }
+    return sendMessageToTab(tab.id, {
+      type: INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE,
+      config,
+    }).catch(() => null);
+  }));
+}
+
+async function setLauncherEnabled(enabled) {
+  if (!launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+
+  const config = await launcherConfig.updateConfig((current) => ({
+    ...current,
+    enabled: enabled === true,
+  }));
+  await broadcastLauncherConfigToTabs(config);
+
+  return {
+    success: true,
+    config,
+  };
+}
+
+async function restoreLauncherForActiveSite() {
+  const tab = await getActiveTab();
+  if (!tab?.url || !launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+
+  const config = await launcherConfig.updateConfig((current) => (
+    launcherConfig.removeDisabledSitePattern(current, tab.url)
+  ));
+
+  if (tab.id) {
+    await sendMessageToTab(tab.id, {
+      type: INTERNAL_LAUNCHER_RESTORE_MESSAGE,
+    }).catch(() => null);
+  }
+
+  return {
+    success: true,
+    config,
+  };
+}
+
+async function downloadCurrentContentFromActiveTab() {
+  const tab = await getActiveTab();
+  if (!tab?.id) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'no_active_tab',
+    };
+  }
+
+  const response = await sendMessageToTab(tab.id, {
+    type: INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE,
+  }).catch(() => null);
+  const payload = response?.payload && typeof response.payload === 'object'
+    ? response.payload
+    : {
+        type: INTERNAL_VIDEO_SELECTION_MESSAGE,
+        url: tab.url,
+        pageUrl: tab.url,
+        title: tab.title,
+        selectionScope: 'current_item',
+      };
+
+  return handleVideoSelectionRequest(payload, {
+    tabUrl: tab.url,
+  });
+}
+
 function waitForTabComplete(tabId, options = {}) {
   const timeoutMs = typeof options.timeoutMs === 'number'
     ? options.timeoutMs
@@ -2495,6 +2614,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tabUrl: sender.tab?.url,
     }).then(sendResponse);
     return true;
+  } else if (message.type === INTERNAL_DOWNLOAD_CURRENT_CONTENT_MESSAGE) {
+    const payload = message?.payload && typeof message.payload === 'object'
+      ? message.payload
+      : null;
+    if (!payload) {
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'invalid_current_content_payload',
+      });
+      return true;
+    }
+    handleVideoSelectionRequest(payload, {
+      tabUrl: sender.tab?.url,
+    }).then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to queue current-content selection:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'prepare_failed',
+      });
+    });
+    return true;
   } else if (message.type === INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE) {
     handlePageImageSelectionRequest(message, {
       tabUrl: sender.tab?.url,
@@ -2629,6 +2771,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       state: connectionState(),
       statusText: connectionStatusText(),
     });
+  } else if (message.type === 'get_launcher_status') {
+    pingLauncherForActiveTab().then(sendResponse);
+    return true;
+  } else if (message.type === 'restore_launcher_for_site') {
+    restoreLauncherForActiveSite().then(sendResponse);
+    return true;
+  } else if (message.type === 'set_launcher_enabled') {
+    setLauncherEnabled(message.enabled === true).then(sendResponse);
+    return true;
+  } else if (message.type === 'download_current_content') {
+    downloadCurrentContentFromActiveTab().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to trigger current-content download:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'prepare_failed',
+      });
+    });
+    return true;
   } else if (message.type === 'get_theme') {
     sendResponse({ theme: currentTheme });
   } else if (message.type === 'get_language') {

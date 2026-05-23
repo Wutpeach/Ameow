@@ -19,12 +19,41 @@
       }
     },
     "sections": {
-      "quality": "画质"
+      "quality": "画质",
+      "launcher": "贴边入口"
     },
     "preferences": {
       "highest": {
         "hint": "部分高画质视频下载后会自动进入转码队列。"
       }
+    }
+  },
+  "launcher": {
+    "actions": {
+      "pick": "拾取下载",
+      "current": "下载当前内容",
+      "more": "更多"
+    },
+    "menu": {
+      "hideSite": "隐藏本站点",
+      "switchSide": "切换贴边"
+    },
+    "picker": {
+      "instruction": "点击要下载的内容。右键或按 Esc 取消。"
+    },
+    "status": {
+      "visible": "已显示",
+      "hidden": "本站已隐藏",
+      "unavailable": "不可用",
+      "disabled": "已隐藏",
+      "checking": "检查中"
+    },
+    "popup": {
+      "toggleTitle": "贴边入口",
+      "toggleOn": "在网页中显示",
+      "toggleOff": "已全局隐藏",
+      "restore": "在本站点恢复",
+      "fallback": "下载当前页面"
     }
   },
   "preferences": {

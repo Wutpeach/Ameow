@@ -1,0 +1,456 @@
+(function initAmeowFloatingLauncher() {
+  "use strict";
+
+  const launcherConfig = window.AmeowLauncherConfig;
+  const captureEvidence = window.AmeowCaptureEvidence;
+  const localeUtils = window.AmeowLocaleUtils;
+  const ROOT_ID = "ameow-floating-launcher-root";
+  const PING_MESSAGE = "ameow_launcher_ping";
+  const STATUS_MESSAGE = "ameow_launcher_status";
+  const DOWNLOAD_CURRENT_MESSAGE = "ameow_download_current_content";
+  const CAPTURE_CURRENT_MESSAGE = "ameow_capture_current_content";
+  const RESTORE_MESSAGE = "ameow_launcher_restore";
+  const CONFIG_UPDATE_MESSAGE = "ameow_launcher_config_update";
+
+  if (!launcherConfig || !captureEvidence || !chrome?.runtime) {
+    return;
+  }
+
+  if (window.top !== window) {
+    return;
+  }
+
+  if (document.getElementById(ROOT_ID)) {
+    return;
+  }
+
+  let config = launcherConfig.normalizeConfig();
+  let launcher = null;
+  let rootHost = null;
+  let pickerStyle = null;
+  let pickerState = null;
+  let connectionState = "offline";
+  let localeBundle = {
+    language: "en",
+    _namespaces: ["extension", "common"],
+    extension: {},
+    common: {},
+  };
+
+  function t(key, fallback) {
+    return localeUtils?.translate(localeBundle, key, fallback) || fallback || key;
+  }
+
+  async function loadLocale() {
+    if (!localeUtils?.resolveCurrentLanguage || !localeUtils?.loadLocaleBundle) {
+      return;
+    }
+    const language = await localeUtils.resolveCurrentLanguage();
+    localeBundle = await localeUtils.loadLocaleBundle(language);
+  }
+
+  function icon(name) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+
+    const nodes = {
+      cat: ['<path d="M11.75 6.4c-1.48 0-1.63.16-2.39.16C8.72 6.56 6.8 5 5.85 5S3.77 5.56 3.77 7.19v1.87c0 .5.18 2 .88 1.6-.83.98-.91 2.12-.9 3.22-.22.06-.45.14-.67.21-.68.24-1.41.54-1.74.75a.75.75 0 0 0 .82 1.26c.15-.1.72-.35 1.4-.58l.23-.08c.05.43.16.83.33 1.19l-.02.01c-.41.22-.79.47-1.03.63l-.12.07a.75.75 0 1 0 .82 1.26l.13-.09c.24-.16.56-.36.9-.54.08-.04.16-.08.23-.12C6.76 19.48 9.87 20 11.75 20s4.99-.52 6.72-2.15c.07.04.15.08.23.12.34.18.66.38.9.54l.13.09a.75.75 0 0 0 .82-1.26l-.12-.07a13 13 0 0 0-1.03-.63l-.02-.01c.17-.36.28-.76.33-1.19l.23.08c.69.23 1.25.48 1.41.58a.75.75 0 0 0 .81-1.26c-.33-.21-1.05-.51-1.74-.75-.22-.07-.45-.15-.67-.21.01-1.1-.07-2.24-.9-3.22.7.4.88-1.1.88-1.6V7.19C19.73 5.56 18.61 5 17.66 5s-2.88 1.56-3.51 1.56c-.77 0-.92-.16-2.4-.16Zm-.67 9.2c.2-.07.44-.1.67-.1s.48.03.68.1c.1.03.22.09.33.17.1.09.24.25.24.48s-.14.39-.24.48c-.11.08-.23.14-.33.17-.2.07-.44.1-.68.1s-.47-.03-.67-.1c-.1-.03-.23-.09-.33-.17a.62.62 0 0 1-.25-.48c0-.23.14-.39.25-.48.1-.08.23-.14.33-.17Zm2.84-3.1c.14-.23.41-.5.81-.5s.67.27.81.5c.14.24.21.53.21.81s-.07.57-.21.81c-.14.23-.41.5-.81.5s-.67-.27-.81-.5a1.6 1.6 0 0 1-.21-.81c0-.28.07-.57.21-.81Zm-5.96 0c.14-.23.41-.5.81-.5s.67.27.81.5c.14.24.21.53.21.81s-.07.57-.21.81c-.14.23-.41.5-.81.5s-.67-.27-.81-.5a1.6 1.6 0 0 1-.21-.81c0-.28.07-.57.21-.81Z"/>'],
+      pick: ['<circle cx="12" cy="12" r="7"/>', '<path d="M12 3v3"/>', '<path d="M12 18v3"/>', '<path d="M3 12h3"/>', '<path d="M18 12h3"/>', '<circle cx="12" cy="12" r="1"/>'],
+      download: ['<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>', '<path d="M7 10l5 5 5-5"/>', '<path d="M12 15V3"/>'],
+      more: ['<circle cx="12" cy="12" r="1"/>', '<circle cx="19" cy="12" r="1"/>', '<circle cx="5" cy="12" r="1"/>'],
+      eyeOff: ['<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>', '<path d="M6.61 6.61C3.98 8.36 2 12 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>', '<path d="M2 2l20 20"/>', '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>'],
+      switchSide: ['<path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/>', '<path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/>', '<path d="M12 8l-3 4 3 4"/>', '<path d="M12 8l3 4-3 4"/>'],
+    }[name] || [];
+
+    svg.innerHTML = nodes.join("");
+    return svg;
+  }
+
+  function sendMessage(message) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime?.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response || null);
+      });
+    });
+  }
+
+  function updateLauncherConfig(nextConfig) {
+    config = launcherConfig.normalizeConfig(nextConfig);
+    if (!launcher) {
+      return;
+    }
+    launcher.dataset.side = config.side;
+    launcher.style.setProperty("--ameow-launcher-top", `${Math.round(config.verticalPosition * 100)}vh`);
+  }
+
+  function unmountLauncher() {
+    closeMenu();
+    stopPicker();
+    rootHost?.remove();
+    rootHost = null;
+    launcher = null;
+  }
+
+  function closeMenu() {
+    if (launcher) {
+      launcher.dataset.menuOpen = "false";
+    }
+  }
+
+  async function hideOnThisSite() {
+    const nextConfig = await launcherConfig.updateConfig((current) => (
+      launcherConfig.addDisabledSitePattern(current, window.location.href)
+    ));
+    updateLauncherConfig(nextConfig);
+    unmountLauncher();
+  }
+
+  async function switchSide() {
+    const nextConfig = await launcherConfig.updateConfig((current) => ({
+      ...current,
+      side: current.side === "right" ? "left" : "right",
+    }));
+    updateLauncherConfig(nextConfig);
+    closeMenu();
+  }
+
+  async function downloadCurrentContent() {
+    const payload = captureEvidence.buildCurrentContentPayload();
+    if (!payload) {
+      return;
+    }
+    await sendMessage({
+      type: DOWNLOAD_CURRENT_MESSAGE,
+      payload,
+    });
+    closeMenu();
+  }
+
+  function getTargetRect(target) {
+    if (!(target instanceof Element)) {
+      return null;
+    }
+    const rect = target.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    return rect;
+  }
+
+  function stopPicker() {
+    if (!pickerState) {
+      return;
+    }
+    document.removeEventListener("mousemove", pickerState.handleMove, true);
+    document.removeEventListener("click", pickerState.handleClick, true);
+    document.removeEventListener("contextmenu", pickerState.handleContextMenu, true);
+    document.removeEventListener("keydown", pickerState.handleKeyDown, true);
+    pickerState.box.remove();
+    pickerState.tip.remove();
+    pickerState.overlay.remove();
+    pickerStyle?.remove();
+    pickerStyle = null;
+    pickerState = null;
+    if (launcher) {
+      launcher.dataset.pickerActive = "false";
+    }
+  }
+
+  function startPicker() {
+    stopPicker();
+    closeMenu();
+
+    const overlay = document.createElement("div");
+    const box = document.createElement("div");
+    const tip = document.createElement("div");
+    pickerStyle = document.createElement("style");
+    pickerStyle.textContent = `
+      .ameow-picker-overlay{position:fixed;inset:0;z-index:2147483646;pointer-events:none}
+      .ameow-picker-box{position:fixed;z-index:2147483647;border:2px solid #60a5fa;border-radius:8px;background:rgba(96,165,250,.12);box-shadow:0 0 0 9999px rgba(0,0,0,.12);pointer-events:none}
+      .ameow-picker-tip{position:fixed;z-index:2147483647;left:50%;top:18px;transform:translateX(-50%);padding:7px 10px;border-radius:999px;background:rgba(32,31,37,.94);color:#f3f4f6;font:600 12px/1.2 "SF Pro Text","Segoe UI",Arial,sans-serif;box-shadow:0 12px 28px rgba(0,0,0,.32);pointer-events:none}
+    `;
+    overlay.className = "ameow-picker-overlay";
+    box.className = "ameow-picker-box";
+    tip.className = "ameow-picker-tip";
+    tip.textContent = t(
+      "launcher.picker.instruction",
+      "Click the content to download. Right-click or press Esc to cancel.",
+    );
+    document.documentElement.append(pickerStyle, overlay, box, tip);
+    if (launcher) {
+      launcher.dataset.pickerActive = "true";
+    }
+
+    const updateBox = (target) => {
+      const rect = getTargetRect(target);
+      if (!rect) {
+        box.style.display = "none";
+        return;
+      }
+      box.style.display = "block";
+      box.style.left = `${Math.max(0, rect.left)}px`;
+      box.style.top = `${Math.max(0, rect.top)}px`;
+      box.style.width = `${Math.max(1, rect.width)}px`;
+      box.style.height = `${Math.max(1, rect.height)}px`;
+    };
+
+    const handleMove = (event) => {
+      updateBox(event.target);
+    };
+
+    const handleClick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const payload = captureEvidence.buildPickDownloadPayload(event.target);
+      stopPicker();
+      if (payload) {
+        await sendMessage({
+          type: DOWNLOAD_CURRENT_MESSAGE,
+          payload,
+        });
+      }
+    };
+
+    const handleContextMenu = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      stopPicker();
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        stopPicker();
+      }
+    };
+
+    pickerState = {
+      overlay,
+      box,
+      tip,
+      handleMove,
+      handleClick,
+      handleContextMenu,
+      handleKeyDown,
+    };
+
+    document.addEventListener("mousemove", handleMove, true);
+    document.addEventListener("click", handleClick, true);
+    document.addEventListener("contextmenu", handleContextMenu, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+  }
+
+  function createActionButton(name, label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ameow-launcher-action";
+    button.dataset.action = name;
+    if (label) {
+      button.dataset.tooltip = label;
+    }
+    button.setAttribute("aria-label", label);
+    button.appendChild(icon(name));
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function createMenuItem(name, label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ameow-launcher-menu-item";
+    button.dataset.menuItem = name;
+    const labelText = document.createElement("span");
+    labelText.className = "ameow-launcher-menu-label";
+    labelText.textContent = label;
+    button.appendChild(icon(name));
+    button.appendChild(labelText);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function setActionLabel(name, label) {
+    const button = launcher?.querySelector(`[data-action="${name}"]`);
+    if (!button) {
+      return;
+    }
+    if (label) {
+      button.dataset.tooltip = label;
+    } else {
+      delete button.dataset.tooltip;
+    }
+    button.setAttribute("aria-label", label);
+  }
+
+  function setMenuLabel(name, label) {
+    const labelText = launcher?.querySelector(`[data-menu-item="${name}"] .ameow-launcher-menu-label`);
+    if (labelText) {
+      labelText.textContent = label;
+    }
+  }
+
+  function refreshLauncherLabels() {
+    setActionLabel("pick", t("launcher.actions.pick", "Pick download"));
+    setActionLabel("download", t("launcher.actions.current", "Download current content"));
+    setActionLabel("more", t("launcher.actions.more", "More"));
+    setMenuLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
+    setMenuLabel("switchSide", t("launcher.menu.switchSide", "Switch side"));
+    if (pickerState?.tip) {
+      pickerState.tip.textContent = t(
+        "launcher.picker.instruction",
+        "Click the content to download. Right-click or press Esc to cancel.",
+      );
+    }
+  }
+
+  function mountLauncher() {
+    if (launcher || rootHost?.isConnected) {
+      return;
+    }
+    rootHost = document.createElement("div");
+    rootHost.id = ROOT_ID;
+    const shadow = rootHost.attachShadow({ mode: "open" });
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = chrome.runtime.getURL("floating-launcher.css");
+
+    launcher = document.createElement("div");
+    launcher.className = "ameow-launcher";
+    launcher.dataset.connectionState = connectionState;
+    launcher.dataset.menuOpen = "false";
+    launcher.dataset.pickerActive = "false";
+
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "ameow-launcher-handle";
+    handle.setAttribute("aria-label", "Ameow");
+    handle.appendChild(icon("cat"));
+
+    const topActions = document.createElement("div");
+    topActions.className = "ameow-launcher-actions ameow-launcher-actions-top";
+    topActions.append(
+      createActionButton("pick", t("launcher.actions.pick", "Pick download"), startPicker),
+    );
+
+    const bottomActions = document.createElement("div");
+    bottomActions.className = "ameow-launcher-actions ameow-launcher-actions-bottom";
+    bottomActions.append(
+      createActionButton("download", t("launcher.actions.current", "Download current content"), downloadCurrentContent),
+      createActionButton("more", t("launcher.actions.more", "More"), () => {
+        launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
+      }),
+    );
+
+    const menu = document.createElement("div");
+    menu.className = "ameow-launcher-menu";
+    menu.append(
+      createMenuItem("eyeOff", t("launcher.menu.hideSite", "Hide on this site"), () => void hideOnThisSite()),
+      createMenuItem("switchSide", t("launcher.menu.switchSide", "Switch side"), () => void switchSide()),
+    );
+
+    launcher.append(topActions, handle, bottomActions, menu);
+    shadow.append(stylesheet, launcher);
+    document.documentElement.appendChild(rootHost);
+    updateLauncherConfig(config);
+  }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === PING_MESSAGE) {
+      sendResponse({
+        ok: true,
+        requestId: message.requestId,
+        mounted: Boolean(launcher),
+        visible: Boolean(launcher && rootHost?.isConnected),
+        enabled: config.enabled,
+        hiddenForSite: launcherConfig.isSiteDisabled(config, window.location.href),
+        side: config.side,
+        version: 1,
+      });
+      return true;
+    }
+
+    if (message?.type === CAPTURE_CURRENT_MESSAGE) {
+      sendResponse({
+        success: true,
+        payload: captureEvidence.buildCurrentContentPayload(),
+      });
+      return true;
+    }
+
+    if (message?.type === RESTORE_MESSAGE) {
+      void (async () => {
+        config = await launcherConfig.getConfig();
+        if (config.enabled && !launcherConfig.isSiteDisabled(config, window.location.href)) {
+          mountLauncher();
+        }
+        sendResponse({
+          success: Boolean(launcher),
+          mounted: Boolean(launcher),
+          side: config.side,
+        });
+      })();
+      return true;
+    }
+
+    if (message?.type === CONFIG_UPDATE_MESSAGE) {
+      config = launcherConfig.normalizeConfig(message.config);
+      if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
+        unmountLauncher();
+      } else if (!launcher) {
+        mountLauncher();
+      } else {
+        updateLauncherConfig(config);
+      }
+      sendResponse({
+        success: true,
+        mounted: Boolean(launcher),
+        visible: Boolean(launcher && rootHost?.isConnected),
+        enabled: config.enabled,
+        side: config.side,
+      });
+      return true;
+    }
+
+    if (message?.type === "connection_update") {
+      connectionState = message.state || (message.connected ? "connected" : "offline");
+      if (launcher) {
+        launcher.dataset.connectionState = connectionState;
+      }
+    }
+
+    if (message?.type === "language_update") {
+      void (async () => {
+        await loadLocale();
+        refreshLauncherLabels();
+      })();
+    }
+
+    return false;
+  });
+
+  void (async () => {
+    await loadLocale();
+    config = await launcherConfig.getConfig();
+    if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
+      return;
+    }
+    mountLauncher();
+    const statusResponse = await sendMessage({ type: "get_status" });
+    connectionState = statusResponse?.state || (statusResponse?.connected ? "connected" : "offline");
+    if (launcher) {
+      launcher.dataset.connectionState = connectionState;
+    }
+    await sendMessage({ type: STATUS_MESSAGE, mounted: true });
+  })();
+})();
