@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 166
-- **Last Active**: 2026-05-22
+- **Total Sessions**: 167
+- **Last Active**: 2026-05-23
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~981 | Active |
+| `journal-4.md` | ~1018 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 167 | 2026-05-23 | Codebase cleanup audit and phased residue removal | `feefc7d`, `c9d5de9`, `2ab39c2`, `bb87547`, `b8d347f` | `main` |
 | 166 | 2026-05-22 | Settings navigation motion | `14c63fc` | `main` |
 | 165 | 2026-05-22 | Normalize Douyin output layout | `9dc631c`, `5eaf553` | `main` |
 | 164 | 2026-05-22 | Complete downloader runtime refactor | `a210f1e` | `main` |

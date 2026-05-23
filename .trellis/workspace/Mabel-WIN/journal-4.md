@@ -979,3 +979,40 @@ Added compact motion/react page-boundary navigation animation for the settings h
 ### Next Steps
 
 - None - task complete
+
+
+## Session 167: Codebase cleanup audit and phased residue removal
+
+**Date**: 2026-05-23
+**Task**: Codebase cleanup audit and phased residue removal
+**Branch**: `main`
+
+### Summary
+
+Audited leftover and legacy code paths, verified findings with Claude, removed low-risk dead files, aligned living specs with the Electron runtime, deleted disconnected browser-extension legacy mechanisms, stopped shipping extension test residue, and removed the dead TAURI_DEV_HOST dev-config branch.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `feefc7d` | (see git log) |
+| `c9d5de9` | (see git log) |
+| `2ab39c2` | (see git log) |
+| `bb87547` | (see git log) |
+| `b8d347f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
