@@ -199,6 +199,22 @@
   justify-content: center;
 }
 
+.ameow-launcher-quality::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 12px;
+}
+
+.ameow-launcher[data-side="right"] .ameow-launcher-quality::before {
+  right: 100%;
+}
+
+.ameow-launcher[data-side="left"] .ameow-launcher-quality::before {
+  left: 100%;
+}
+
 .ameow-launcher-quality-flyout {
   position: absolute;
   top: 50%;
