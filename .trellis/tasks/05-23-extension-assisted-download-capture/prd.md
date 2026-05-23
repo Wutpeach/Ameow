@@ -86,30 +86,52 @@ Design the complete next-generation Ameow browser extension download experience 
 - Add site/provider adapter patterns for high-value sites without making global URL normalization responsible for all cases.
 - Add test coverage for extension payload preservation, provider source selection, and fallback behavior.
 
-### Phase 3: Launcher Maturity
+### Phase 3: Popup Console And Launcher Management
 
 - Start only after MVP user testing/review passes and the user explicitly asks to continue.
-- Add drag-to-reposition and snap-to-edge behavior.
-- Add lock behavior if it proves useful in daily use.
-- Add launcher quality flyout if daily use shows quality changes need to be available in-page.
-- Add lightweight site capability hints, such as downloadable / login needed / unrecognized, after MVP proves the launcher flow.
-- Add persistent launcher controls such as close/hide, without crowding the three primary actions.
-- Add robust site disablement and recovery entry points from toolbar/settings.
+- Redesign the toolbar popup as a compact three-tab console:
+  - Browse;
+  - Controls;
+  - Sites.
+- The popup should default to Browse on every open and should not remember the previous active tab.
+- Add robust hidden-site management in the popup:
+  - hidden site list;
+  - restore current site;
+  - restore one hidden site;
+  - restore all hidden sites.
+- Add launcher management in the popup:
+  - global enabled state;
+  - side / edge selection;
+  - reset position;
+  - current-site visibility and recovery.
+- Keep the launcher as a quick in-page entry rather than a full management center.
+- Launcher drag-to-reposition, snap-to-edge, lock, quality flyout, and compact feedback may remain or mature as daily-use affordances, but hidden-site list and restore-all belong in the popup.
 
-### Phase 4: Existing Trigger Rationalization
+### Phase 4: Popup Advanced Media Browser
 
 - Start only after MVP user testing/review passes and the user explicitly asks to continue.
-- Review existing injected buttons after the new launcher and picker are proven.
+- Add the advanced media browser inside the toolbar popup Browse tab.
+- The media browser scans the active page only after explicit user action. It must not auto-scan on popup open.
+- Browse subtabs are:
+  - Video;
+  - Image.
+- Do not add All or Link subtabs.
+- Treat links as candidate source metadata for video/image rows, not as a user-facing media type.
+- Candidate rows should stay compact:
+  - type/status symbol;
+  - short title or filename;
+  - concise host/source/format metadata;
+  - one row menu for actions.
+- Row menu actions should include download, copy link, and view source/details.
+- The media browser remains an advanced current-page inspection tool. It must not replace launcher current-content download or element picker as the ordinary user path.
+
+### Phase 5: Existing Trigger Rationalization
+
+- Start only after MVP user testing/review passes and the user explicitly asks to continue.
+- Review existing injected buttons only after the new launcher, picker, popup console, and popup media browser have been observed in daily use.
 - Keep injected buttons only where they provide site-specific advanced value beyond plain download.
-- Retire or demote duplicate download-only injected controls where the new launcher covers the use case.
-- Remove existing context-menu/right-click download code after MVP, unless a compatibility blocker is discovered during review.
-
-### Phase 5: Optional Advanced Media Browser
-
-- Start only after MVP user testing/review passes and the user explicitly asks to continue.
-- Evaluate whether a full-page media list is useful as an advanced or diagnostic tool.
-- It must not replace the launcher, current-content download, or element picker as the default user path.
-- If implemented, it should be clearly separated from the primary download flow and should avoid forcing ordinary users to hunt through candidates.
+- Retire or demote duplicate download-only injected controls where the new surfaces cover the use case.
+- Remove existing context-menu/right-click download code only after observation confirms no compatibility blocker.
 
 ### Final State
 
@@ -118,7 +140,8 @@ Design the complete next-generation Ameow browser extension download experience 
   - one-click current-content download for obvious pages;
   - element picker for precise targeting;
   - provider-owned source selection for backend compatibility;
-  - no page-wide candidate waterfall as the main UX;
+- no page-wide candidate waterfall as the main UX;
+- popup media browser as an advanced manual scan surface for video/image candidates;
   - existing injected controls only where they are justified by unique value.
 
 ## Surface Responsibility Model
@@ -185,6 +208,12 @@ Design the complete next-generation Ameow browser extension download experience 
 - The user wants context-menu/right-click code removed after MVP review rather than during MVP implementation.
 - The user wants current injected buttons left untouched until the new approach is validated.
 - The user proposed a collapsible edge-attached in-page launcher/window so download actions can be triggered without returning to the browser toolbar.
+- The user later chose a post-MVP popup console direction: top-level tabs should be Browse / Controls / Sites.
+- The popup should always open to Browse and should not remember the previous tab.
+- The advanced media browser should live inside the popup Browse tab, not as a side panel primary path.
+- The Browse tab should scan only after the user clicks Scan current page.
+- Browse subtabs should be Video and Image only. All and Link were rejected; links should be shown as source metadata for video/image candidates.
+- Media candidate rows should remain restrained: core metadata visible, with download/copy/source actions behind a row menu.
 
 ## Claude Consultation Notes
 

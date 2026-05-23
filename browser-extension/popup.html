@@ -16,51 +16,96 @@
         <div class="ameow-popup-title" id="popupTitle">Ameow</div>
         <div class="ameow-popup-subtitle" id="popupSubtitle">Extension</div>
       </div>
+      <div class="ameow-header-status" id="headerStatus" data-state="offline" title="Offline">
+        <span class="ameow-status-dot" id="statusDot"></span>
+        <span class="ameow-header-status-text" id="statusText">Offline</span>
+      </div>
     </header>
 
-    <section class="ameow-popup-card ameow-status-card" id="statusCard" data-connected="false" data-state="offline">
-      <div class="ameow-status-main">
-        <span class="ameow-status-dot" id="statusDot"></span>
-        <span class="ameow-status-text" id="statusText">Offline</span>
-      </div>
-      <div class="ameow-status-hint" id="statusHint">Open desktop app to connect.</div>
-    </section>
+    <nav class="ameow-tab-bar" aria-label="Ameow popup sections">
+      <button type="button" class="ameow-tab-btn active" data-tab="browse" id="browseTabButton">Browse</button>
+      <button type="button" class="ameow-tab-btn" data-tab="controls" id="controlsTabButton">Controls</button>
+      <button type="button" class="ameow-tab-btn" data-tab="sites" id="sitesTabButton">Sites</button>
+    </nav>
 
-    <section class="ameow-popup-card">
-      <div class="ameow-section-header">
-        <div class="ameow-section-title" id="qualitySectionTitle">Quality</div>
-      </div>
-      <div class="ameow-quality-grid" id="qualityGrid"></div>
-      <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
-        <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
-        <span class="ameow-quality-hint-text" id="highestQualityHintText">
-          Some high-quality videos may enter the transcode queue after download.
-        </span>
-      </div>
-    </section>
-
-    <section class="ameow-popup-card ameow-launcher-card" id="launcherCard">
-      <div class="ameow-section-header">
-        <div class="ameow-section-title" id="launcherSectionTitle">Launcher</div>
-        <div class="ameow-section-hint" id="launcherStateText">Checking</div>
-      </div>
-      <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
-        <span class="ameow-launcher-toggle-copy">
-          <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
-          <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
-        </span>
-        <span class="ameow-launcher-toggle-track" aria-hidden="true">
-          <span class="ameow-launcher-toggle-thumb"></span>
-        </span>
-      </button>
-      <div class="ameow-launcher-actions" id="launcherPopupActions">
-        <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
-          Restore on this site
-        </button>
-        <button type="button" class="ameow-popup-action-btn" id="fallbackDownloadButton" hidden>
-          Download this page
+    <section class="ameow-tab-panel active" id="browsePanel" data-panel="browse">
+      <div class="ameow-media-toolbar">
+        <div class="ameow-media-tabs" role="tablist" aria-label="Media type">
+          <button type="button" class="ameow-media-tab active" data-media-type="video" id="videoMediaTab">Video</button>
+          <button type="button" class="ameow-media-tab" data-media-type="image" id="imageMediaTab">Image</button>
+        </div>
+        <button type="button" class="ameow-icon-action" id="scanMediaButton" title="Scan current page" aria-label="Scan current page">
+          <span aria-hidden="true">Scan</span>
         </button>
       </div>
+      <div class="ameow-media-summary" id="mediaSummary">Scan the current page to find media.</div>
+      <div class="ameow-media-list" id="mediaList"></div>
+      <div class="ameow-media-empty" id="mediaEmpty">
+        <div class="ameow-empty-mark" aria-hidden="true">o</div>
+        <div class="ameow-empty-title" id="mediaEmptyTitle">Scan current page</div>
+        <div class="ameow-empty-copy" id="mediaEmptyCopy">Find videos and images on the active page.</div>
+      </div>
+    </section>
+
+    <section class="ameow-tab-panel" id="controlsPanel" data-panel="controls">
+      <section class="ameow-popup-card ameow-status-card" id="statusCard" data-connected="false" data-state="offline">
+        <div class="ameow-status-hint" id="statusHint">Open desktop app to connect.</div>
+      </section>
+
+      <section class="ameow-popup-card">
+        <div class="ameow-section-header">
+          <div class="ameow-section-title" id="qualitySectionTitle">Quality</div>
+        </div>
+        <div class="ameow-quality-grid" id="qualityGrid"></div>
+        <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
+          <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
+          <span class="ameow-quality-hint-text" id="highestQualityHintText">
+            Some high-quality videos may enter the transcode queue after download.
+          </span>
+        </div>
+      </section>
+
+      <section class="ameow-popup-card ameow-launcher-card" id="launcherCard">
+        <div class="ameow-section-header">
+          <div class="ameow-section-title" id="launcherSectionTitle">Launcher</div>
+          <div class="ameow-section-hint" id="launcherStateText">Checking</div>
+        </div>
+        <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
+          <span class="ameow-launcher-toggle-copy">
+            <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
+            <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
+          </span>
+          <span class="ameow-launcher-toggle-track" aria-hidden="true">
+            <span class="ameow-launcher-toggle-thumb"></span>
+          </span>
+        </button>
+        <div class="ameow-side-control" role="group" aria-label="Launcher side">
+          <button type="button" class="ameow-side-btn" data-side="left" id="launcherSideLeft">Left</button>
+          <button type="button" class="ameow-side-btn" data-side="right" id="launcherSideRight">Right</button>
+          <button type="button" class="ameow-side-reset" id="resetLauncherPositionButton">Reset</button>
+        </div>
+        <div class="ameow-launcher-actions" id="launcherPopupActions">
+          <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
+            Restore on this site
+          </button>
+          <button type="button" class="ameow-popup-action-btn" id="fallbackDownloadButton" hidden>
+            Download this page
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section class="ameow-tab-panel" id="sitesPanel" data-panel="sites">
+      <section class="ameow-popup-card ameow-sites-card">
+        <div class="ameow-section-header">
+          <div class="ameow-section-title" id="sitesSectionTitle">Hidden sites</div>
+          <div class="ameow-section-hint" id="hiddenSitesCount">0</div>
+        </div>
+        <div class="ameow-sites-list" id="hiddenSitesList"></div>
+        <button type="button" class="ameow-popup-action-btn" id="restoreAllSitesButton" hidden>
+          Restore all
+        </button>
+      </section>
     </section>
   </main>
   <script src="direct-download-quality.js"></script>

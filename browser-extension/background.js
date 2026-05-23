@@ -47,8 +47,12 @@ const INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE = 'ameow_capture_current_content'
 const INTERNAL_LAUNCHER_PING_MESSAGE = 'ameow_launcher_ping';
 const INTERNAL_LAUNCHER_RESTORE_MESSAGE = 'ameow_launcher_restore';
 const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
+const INTERNAL_SCAN_PAGE_MEDIA_MESSAGE = 'ameow_scan_page_media';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
+const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
+const MEDIA_SCAN_CACHE_TTL_MS = 60 * 1000;
+const MEDIA_SCAN_TIMEOUT_MS = 5000;
 const pendingRequests = new Map();
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
@@ -621,6 +625,15 @@ function normalizeHttpUrl(raw) {
   } catch (error) {
     return null;
   }
+}
+
+function hashString(value) {
+  const input = typeof value === 'string' ? value : '';
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) - hash + input.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
 }
 
 function selectFirstHttpUrl(...values) {
@@ -2259,6 +2272,105 @@ async function restoreLauncherForActiveSite() {
   };
 }
 
+async function getLauncherControlsState() {
+  const [status, config] = await Promise.all([
+    pingLauncherForActiveTab(),
+    launcherConfig?.getConfig ? launcherConfig.getConfig() : Promise.resolve(null),
+  ]);
+
+  return {
+    success: true,
+    status,
+    config,
+    hiddenSites: config?.disabledSitePatterns || [],
+  };
+}
+
+async function restoreHiddenSitePattern(pattern) {
+  if (!launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+  const config = await launcherConfig.updateConfig((current) => (
+    launcherConfig.removeDisabledPatternValue
+      ? launcherConfig.removeDisabledPatternValue(current, pattern)
+      : {
+          ...current,
+          disabledSitePatterns: (current.disabledSitePatterns || []).filter((entry) => entry !== pattern),
+        }
+  ));
+  await broadcastLauncherConfigToTabs(config);
+  return {
+    success: true,
+    config,
+    hiddenSites: config.disabledSitePatterns,
+  };
+}
+
+async function restoreAllHiddenSites() {
+  if (!launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+  const config = await launcherConfig.updateConfig((current) => (
+    launcherConfig.clearDisabledSitePatterns
+      ? launcherConfig.clearDisabledSitePatterns(current)
+      : { ...current, disabledSitePatterns: [] }
+  ));
+  await broadcastLauncherConfigToTabs(config);
+  return {
+    success: true,
+    config,
+    hiddenSites: config.disabledSitePatterns,
+  };
+}
+
+async function setLauncherSide(side) {
+  if (!launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+  const config = await launcherConfig.updateConfig((current) => (
+    launcherConfig.setSide
+      ? launcherConfig.setSide(current, side)
+      : { ...current, side: side === 'left' ? 'left' : 'right' }
+  ));
+  await broadcastLauncherConfigToTabs(config);
+  return {
+    success: true,
+    config,
+  };
+}
+
+async function resetLauncherPosition() {
+  if (!launcherConfig?.updateConfig) {
+    return {
+      success: false,
+      reason: 'launcher_config_unavailable',
+    };
+  }
+  const config = await launcherConfig.updateConfig((current) => (
+    launcherConfig.resetPosition
+      ? launcherConfig.resetPosition(current)
+      : {
+          ...current,
+          side: launcherConfig.DEFAULT_CONFIG?.side || 'right',
+          verticalPosition: launcherConfig.DEFAULT_CONFIG?.verticalPosition || 0.62,
+        }
+  ));
+  await broadcastLauncherConfigToTabs(config);
+  return {
+    success: true,
+    config,
+  };
+}
+
 async function downloadCurrentContentFromActiveTab() {
   const tab = await getActiveTab();
   if (!tab?.id) {
@@ -2284,6 +2396,183 @@ async function downloadCurrentContentFromActiveTab() {
 
   return handleVideoSelectionRequest(payload, {
     tabUrl: tab.url,
+  });
+}
+
+function mediaScanCacheKey(tab) {
+  const tabId = typeof tab?.id === 'number' ? tab.id : 'none';
+  const url = typeof tab?.url === 'string' ? tab.url : '';
+  return `${tabId}-${hashString(url)}`;
+}
+
+function normalizeMediaScanResponse(response, tab) {
+  if (!response?.success) {
+    return {
+      success: false,
+      reason: response?.reason || 'scan_failed',
+      pageUrl: tab?.url || null,
+      pageTitle: tab?.title || '',
+      videos: [],
+      images: [],
+      scannedAt: Date.now(),
+      scanDurationMs: 0,
+    };
+  }
+  return {
+    success: true,
+    pageUrl: normalizeHttpUrl(response.pageUrl) || tab?.url || null,
+    pageTitle: typeof response.pageTitle === 'string' ? response.pageTitle : tab?.title || '',
+    videos: Array.isArray(response.videos) ? response.videos.slice(0, 100) : [],
+    images: Array.isArray(response.images) ? response.images.slice(0, 100) : [],
+    scannedAt: typeof response.scannedAt === 'number' ? response.scannedAt : Date.now(),
+    scanDurationMs: typeof response.scanDurationMs === 'number' ? response.scanDurationMs : 0,
+    truncated: response.truncated === true,
+  };
+}
+
+async function getMediaScanCacheForActiveTab() {
+  const tab = await getActiveTab();
+  if (!tab?.id) {
+    return {
+      success: false,
+      reason: 'no_active_tab',
+    };
+  }
+
+  const result = await storageGet(MEDIA_SCAN_CACHE_KEY).catch(() => ({}));
+  const cache = result?.[MEDIA_SCAN_CACHE_KEY] || {};
+  const key = mediaScanCacheKey(tab);
+  const entry = cache[key] || null;
+  if (!entry) {
+    return {
+      success: true,
+      cached: false,
+      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+    };
+  }
+
+  const ageMs = Date.now() - Number(entry.scannedAt || 0);
+  return {
+    success: true,
+    cached: true,
+    stale: ageMs > MEDIA_SCAN_CACHE_TTL_MS,
+    ageMs,
+    ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+    result: entry,
+  };
+}
+
+async function storeMediaScanCache(tab, result) {
+  const key = mediaScanCacheKey(tab);
+  const current = await storageGet(MEDIA_SCAN_CACHE_KEY).catch(() => ({}));
+  const cache = current?.[MEDIA_SCAN_CACHE_KEY] && typeof current[MEDIA_SCAN_CACHE_KEY] === 'object'
+    ? current[MEDIA_SCAN_CACHE_KEY]
+    : {};
+  const nextCache = {};
+  const now = Date.now();
+  Object.entries(cache).forEach(([entryKey, entry]) => {
+    if (entryKey === key) {
+      return;
+    }
+    const scannedAt = Number(entry?.scannedAt || 0);
+    if (now - scannedAt <= MEDIA_SCAN_CACHE_TTL_MS * 5) {
+      nextCache[entryKey] = entry;
+    }
+  });
+  nextCache[key] = result;
+  await storageSet({ [MEDIA_SCAN_CACHE_KEY]: nextCache });
+}
+
+async function scanPageMediaForActiveTab() {
+  const tab = await getActiveTab();
+  if (!tab?.id) {
+    return {
+      success: false,
+      reason: 'no_active_tab',
+    };
+  }
+
+  const response = await Promise.race([
+    sendMessageToTab(tab.id, { type: INTERNAL_SCAN_PAGE_MEDIA_MESSAGE }, { frameId: 0 }).catch((error) => ({
+      success: false,
+      reason: error?.message || 'scan_unavailable',
+    })),
+    new Promise((resolve) => {
+      setTimeout(() => resolve({
+        success: false,
+        reason: 'scan_timeout',
+      }), MEDIA_SCAN_TIMEOUT_MS);
+    }),
+  ]);
+  const normalized = normalizeMediaScanResponse(response, tab);
+  if (normalized.success) {
+    await storeMediaScanCache(tab, normalized).catch((error) => {
+      console.warn('[Ameow] Failed to cache media scan result:', error);
+    });
+  }
+  return {
+    ...normalized,
+    ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+  };
+}
+
+async function downloadMediaCandidate(candidate) {
+  if (!candidate || typeof candidate !== 'object') {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'invalid_candidate',
+    };
+  }
+  const tab = await getActiveTab();
+  const mediaType = candidate.mediaType;
+  const url = normalizeHttpUrl(candidate.url);
+  const pageUrl = selectFirstHttpUrl(candidate.pageUrl, tab?.url, url);
+
+  if (!url) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'invalid_candidate_url',
+    };
+  }
+
+  if (mediaType === 'image') {
+    return handlePageImageSelectionRequest({
+      type: INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE,
+      url,
+      pageUrl,
+      originalFilename: candidate.title || undefined,
+    }, {
+      tabUrl: tab?.url,
+    });
+  }
+
+  return handleVideoSelectionRequest({
+    type: INTERNAL_VIDEO_SELECTION_MESSAGE,
+    url,
+    pageUrl,
+    videoUrl: url,
+    title: candidate.title || tab?.title,
+    videoCandidates: [{
+      url,
+      type: typeof candidate.type === 'string' ? candidate.type : 'unknown',
+      confidence: typeof candidate.confidence === 'string' ? candidate.confidence : 'low',
+      source: typeof candidate.source === 'string' ? candidate.source : 'popup_media_browser',
+      mediaType: 'video',
+    }],
+    selectionScope: 'current_item',
+    extensionData: {
+      ameowCapture: {
+        version: 1,
+        action: 'popup_fallback',
+        pageUrl: pageUrl || url,
+        targetHref: url,
+        title: candidate.title || tab?.title,
+      },
+    },
+  }, {
+    tabUrl: tab?.url,
   });
 }
 
@@ -2774,11 +3063,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'get_launcher_status') {
     pingLauncherForActiveTab().then(sendResponse);
     return true;
+  } else if (message.type === 'get_launcher_controls_state') {
+    getLauncherControlsState().then(sendResponse);
+    return true;
   } else if (message.type === 'restore_launcher_for_site') {
     restoreLauncherForActiveSite().then(sendResponse);
     return true;
   } else if (message.type === 'set_launcher_enabled') {
     setLauncherEnabled(message.enabled === true).then(sendResponse);
+    return true;
+  } else if (message.type === 'set_launcher_side') {
+    setLauncherSide(message.side).then(sendResponse);
+    return true;
+  } else if (message.type === 'reset_launcher_position') {
+    resetLauncherPosition().then(sendResponse);
+    return true;
+  } else if (message.type === 'restore_hidden_site') {
+    restoreHiddenSitePattern(message.pattern).then(sendResponse);
+    return true;
+  } else if (message.type === 'restore_all_hidden_sites') {
+    restoreAllHiddenSites().then(sendResponse);
+    return true;
+  } else if (message.type === 'scan_page_media') {
+    scanPageMediaForActiveTab().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to scan page media:', error);
+      sendResponse({
+        success: false,
+        reason: 'scan_failed',
+      });
+    });
+    return true;
+  } else if (message.type === 'get_media_scan_cache') {
+    getMediaScanCacheForActiveTab().then(sendResponse);
+    return true;
+  } else if (message.type === 'download_media_candidate') {
+    downloadMediaCandidate(message.candidate).then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to download media candidate:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'prepare_failed',
+      });
+    });
     return true;
   } else if (message.type === 'download_current_content') {
     downloadCurrentContentFromActiveTab().then(sendResponse).catch((error) => {

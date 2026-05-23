@@ -136,6 +136,40 @@
     };
   }
 
+  function removeDisabledPatternValue(config, patternValue) {
+    const normalized = normalizeConfig(config);
+    const pattern = typeof patternValue === "string" ? patternValue.trim().toLowerCase() : "";
+    if (!pattern) {
+      return normalized;
+    }
+    return {
+      ...normalized,
+      disabledSitePatterns: normalized.disabledSitePatterns.filter((entry) => entry !== pattern),
+    };
+  }
+
+  function clearDisabledSitePatterns(config) {
+    return {
+      ...normalizeConfig(config),
+      disabledSitePatterns: [],
+    };
+  }
+
+  function setSide(config, side) {
+    return {
+      ...normalizeConfig(config),
+      side: isValidSide(side) ? side : DEFAULT_CONFIG.side,
+    };
+  }
+
+  function resetPosition(config) {
+    return {
+      ...normalizeConfig(config),
+      side: DEFAULT_CONFIG.side,
+      verticalPosition: DEFAULT_CONFIG.verticalPosition,
+    };
+  }
+
   root.AmeowLauncherConfig = {
     STORAGE_KEY,
     DEFAULT_CONFIG,
@@ -146,5 +180,9 @@
     isSiteDisabled,
     addDisabledSitePattern,
     removeDisabledSitePattern,
+    removeDisabledPatternValue,
+    clearDisabledSitePatterns,
+    setSide,
+    resetPosition,
   };
 })(typeof self !== "undefined" ? self : globalThis);

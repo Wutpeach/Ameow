@@ -58,4 +58,29 @@ describe("launcher config helper", () => {
       disabledSitePatterns: [],
     });
   });
+
+  it("manages hidden sites and position from popup-safe helpers", () => {
+    const helper = loadHelper();
+    const config = helper.normalizeConfig({
+      side: "left",
+      verticalPosition: 0.31,
+      disabledSitePatterns: ["www.douyin.com", "instagram.com"],
+    });
+
+    expect(helper.removeDisabledPatternValue(config, "www.douyin.com")).toMatchObject({
+      disabledSitePatterns: ["instagram.com"],
+    });
+    expect(helper.clearDisabledSitePatterns(config)).toMatchObject({
+      disabledSitePatterns: [],
+    });
+    expect(helper.setSide(config, "right")).toMatchObject({
+      side: "right",
+      verticalPosition: 0.31,
+    });
+    expect(helper.resetPosition(config)).toMatchObject({
+      side: "right",
+      verticalPosition: 0.62,
+      disabledSitePatterns: ["www.douyin.com", "instagram.com"],
+    });
+  });
 });

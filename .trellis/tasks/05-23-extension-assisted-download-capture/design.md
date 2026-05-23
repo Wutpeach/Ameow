@@ -119,31 +119,54 @@ Engineering outcomes:
 - Site/provider adapters for high-value sites such as Douyin and Instagram, without turning the system into a global URL normalizer.
 - Tests for payload preservation, provider source selection, and representative site cases.
 
-### Phase 3: Launcher Maturity
+### Phase 3: Popup Console And Launcher Management
 
-Goal: make the floating launcher comfortable for daily use across many websites.
+Goal: make launcher recovery and daily-use controls complete without turning the launcher itself into a management center.
 
 Start only after MVP user testing/review passes and the user explicitly asks to continue.
 
 What users get:
 
-- Drag-to-reposition.
-- Snap-to-left/right edge.
-- Persisted vertical position.
-- Optional lock behavior if daily use shows it is useful.
-- Optional quality flyout if in-page quality switching proves valuable.
-- Lightweight site capability hints, such as downloadable / login needed / unrecognized.
-- More robust hidden/disabled site management.
+- A redesigned browser toolbar popup with three tabs:
+  - Browse;
+  - Controls;
+  - Sites.
+- Popup opens to Browse every time.
+- Controls tab owns launcher state, quality preference, current-site restore, side selection, and reset position.
+- Sites tab owns hidden-site management, including restore one and restore all.
+- The in-page launcher remains a quick action surface for pick download, current-content download, compact feedback, and local hide/side controls.
 
 Engineering outcomes:
 
-- Launcher positioning model is stable across viewport sizes and common fixed-page UI.
-- Collision mitigation exists through side switching, drag, hide-on-site, and restore paths.
-- The launcher remains compact and does not become a full toolbar.
+- Launcher config has dedicated read/update paths for hidden sites, side, vertical position, and global enabled state.
+- Popup and launcher stay synchronized through storage updates and active-tab messages.
+- Hidden-site management is recoverable from the popup even after users hide the launcher on multiple sites.
 
-### Phase 4: Existing Trigger Rationalization
+### Phase 4: Popup Advanced Media Browser
 
-Goal: simplify the old extension download surfaces after the new model is proven.
+Goal: add a restrained advanced current-page media browser inside the popup Browse tab.
+
+Start only after MVP user testing/review passes and the user explicitly asks to continue.
+
+What users get:
+
+- Manual scan of the active page for video/image candidates.
+- Browse subtabs:
+  - Video;
+  - Image.
+- Compact candidate rows with only core metadata visible.
+- Row action menu for download, copy link, and view source/details.
+
+Engineering outcomes:
+
+- Active-tab scan flow through popup/background/content-script messaging.
+- Bounded, deduplicated candidate lists.
+- Short-lived scan cache so popup close/reopen does not lose recent results.
+- Clear unavailable states for restricted pages and injection failures.
+
+### Phase 5: Existing Trigger Rationalization
+
+Goal: simplify the old extension download surfaces after the new model is proven in daily use.
 
 Start only after MVP user testing/review passes and the user explicitly asks to continue.
 
@@ -157,24 +180,7 @@ Engineering outcomes:
 - Audit existing injected buttons by site.
 - Keep controls that provide advanced actions, such as screenshot, clip range, or site-specific capture that the launcher cannot replace.
 - Remove or demote download-only injected buttons that the launcher fully covers.
-- Remove existing context-menu/right-click download code after MVP review, unless a compatibility blocker is discovered.
-
-### Phase 5: Optional Advanced Media Browser
-
-Goal: evaluate a full-page media list only as an explicit post-MVP advanced/diagnostic capability.
-
-Start only after MVP user testing/review passes and the user explicitly asks to continue.
-
-What users might get:
-
-- A secondary media browser for unusual pages where picker/current-content capture is insufficient.
-- A clearly separated advanced/debug-style surface, not a default download path.
-
-Constraints:
-
-- Must not replace launcher, current-content download, or picker as the main UX.
-- Must not force ordinary users to hunt through page-wide candidates.
-- Should be justified by MVP review findings before implementation.
+- Remove existing context-menu/right-click download code only after observation confirms no compatibility blocker.
 
 ### Final Completed State
 
@@ -200,36 +206,67 @@ After all phases, Ameow's browser extension should have:
 
 ### Toolbar Popup
 
-Role: global control and recovery.
+Role: compact control console and advanced media browser.
 
-The popup should remain compact and calm. It is not the best primary trigger for page-specific downloads because it pulls attention away from the webpage target. Its default layout should focus on:
+The popup should remain compact and calm, but it now owns more of the post-MVP management surface. Its approved top-level structure is:
 
-- desktop connection status;
-- download quality preference;
-- floating launcher state;
-- recovery actions when the launcher is hidden or unavailable;
-- entry to full settings.
+- Browse;
+- Controls;
+- Sites.
+
+It should target roughly 320-340px wide. It should always open to Browse and should not remember the previous tab.
 
 Current local state:
 
 - `browser-extension/popup.html` currently has app identity, connection status, and quality selection.
 - No current-page download action is currently present.
 
-Recommended toolbar layout:
+Recommended post-MVP toolbar layout:
 
-1. Header: Ameow identity and compact extension subtitle.
-2. Status card: desktop connection, same semantic state as the floating launcher.
-3. Quality card: Highest / Balanced / Saver. This remains the MVP quality control surface.
-4. Launcher card: enabled state, current-site visibility, restore/show action when hidden.
-5. Footer action: extension-level recovery or help only if there is a concrete destination.
+1. Header: Ameow identity and compact desktop connection state.
+2. Top-level tabs: Browse / Controls / Sites.
+3. Browse: Video/Image manual scan and restrained candidate list.
+4. Controls: quality preference and launcher state/position/recovery.
+5. Sites: hidden-site list and restore controls.
 
-Current-content download should not be shown by default in the popup. It can appear as a conditional fallback only when:
+Current-content download should not become the primary popup action. It can appear as a conditional fallback only when:
 
 - the page cannot inject the launcher;
 - the launcher is disabled for the current site and the user needs a one-time action;
 - browser restrictions prevent in-page UI.
 
 The popup should detect launcher availability with a lightweight ping to the active tab. If the page cannot answer, the fallback can appear with wording such as "Download this page" rather than competing with the launcher as a normal primary action.
+
+### Popup Media Browser
+
+Role: advanced current-page inspection and manual media selection.
+
+The media browser lives inside the popup Browse tab. It scans only after the user explicitly clicks Scan current page.
+
+Subtabs:
+
+- Video;
+- Image.
+
+Rejected subtabs:
+
+- All, because it makes the first result set less intentional.
+- Link, because link is a source form rather than a media type.
+
+Candidate rows should show only:
+
+- media icon/status;
+- short filename/title;
+- concise host/source/format metadata;
+- a row More action.
+
+The More menu should include:
+
+- Download;
+- Copy link;
+- View source/details.
+
+The media browser must not become the main user path. Launcher current-content download and element picker remain the ordinary flows.
 
 ### Floating Launcher
 

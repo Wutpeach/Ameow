@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "05-24-extension-popup-console-media-browser"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",

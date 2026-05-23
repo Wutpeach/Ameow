@@ -39,9 +39,10 @@ function createSelectionUtils() {
   };
 }
 
-function loadDetectorHooks(currentUrl) {
+function loadDetectorHooks(currentUrl, overrides = {}) {
   const parsedCurrentUrl = new URL(currentUrl);
   let messageListener = null;
+  const documentOverride = overrides.document || {};
   const window = {
     location: {
       href: parsedCurrentUrl.toString(),
@@ -103,6 +104,7 @@ function loadDetectorHooks(currentUrl) {
       querySelectorAll() {
         return [];
       },
+      ...documentOverride,
     },
   };
 
@@ -210,6 +212,65 @@ describe("generic video detector", () => {
           candidateCount: 1,
         },
       },
+    });
+  });
+
+  it("collects bounded image candidates for popup media scans", () => {
+    const image = {
+      currentSrc: "https://cdn.example.com/media/photo.jpg",
+      src: "https://cdn.example.com/media/photo.jpg",
+      naturalWidth: 1280,
+      naturalHeight: 720,
+      getAttribute(name) {
+        return name === "alt" ? "Hero photo" : null;
+      },
+      getBoundingClientRect() {
+        return { width: 320, height: 180 };
+      },
+    };
+    const smallImage = {
+      currentSrc: "https://cdn.example.com/icon.png",
+      src: "https://cdn.example.com/icon.png",
+      naturalWidth: 32,
+      naturalHeight: 32,
+      getAttribute() {
+        return null;
+      },
+      getBoundingClientRect() {
+        return { width: 32, height: 32 };
+      },
+    };
+    const { hooks } = loadDetectorHooks("https://www.example.com/post/1", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "img[src]") {
+            return [image, smallImage];
+          }
+          return [];
+        },
+        title: "Example post",
+      },
+    });
+
+    expect(hooks.collectPageMediaCandidates()).toMatchObject({
+      success: true,
+      pageUrl: "https://www.example.com/post/1",
+      pageTitle: "Example post",
+      videos: [],
+      images: [
+        {
+          mediaType: "image",
+          url: "https://cdn.example.com/media/photo.jpg",
+          title: "Hero photo",
+          source: "img_element",
+          width: 1280,
+          height: 720,
+        },
+      ],
     });
   });
 });

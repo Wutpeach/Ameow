@@ -136,6 +136,7 @@
   }
 
   globalScope.AmeowGenericVideoSelectionUtils = {
+    candidateStrength,
     classifyVideoCandidateType,
     mergeVideoCandidates,
     normalizeHttpUrl,

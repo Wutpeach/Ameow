@@ -53,23 +53,80 @@ function normalizeConnectionState(response) {
   return STATUS_STATE_OFFLINE;
 }
 
+function safeText(value, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function shortHost(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
+function sourceLabel(source) {
+  const labels = {
+    direct_link: "link",
+    img_element: "img",
+    open_graph: "og",
+    performance_resource: "resource",
+    picture_source: "picture",
+    source_element: "source",
+    video_element: "video",
+    video_source: "source",
+  };
+  return labels[source] || source || "source";
+}
+
+function formatAge(ageMs) {
+  if (!Number.isFinite(ageMs) || ageMs < 0) {
+    return "";
+  }
+  const seconds = Math.round(ageMs / 1000);
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+  return `${Math.round(seconds / 60)}m ago`;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const statusText = document.getElementById("statusText");
-  const statusCard = document.getElementById("statusCard");
-  const statusHint = document.getElementById("statusHint");
-  const qualityGrid = document.getElementById("qualityGrid");
-  const highestQualityHint = document.getElementById("highestQualityHint");
-  const highestQualityHintText = document.getElementById("highestQualityHintText");
-  const popupTitle = document.getElementById("popupTitle");
-  const popupSubtitle = document.getElementById("popupSubtitle");
-  const qualitySectionTitle = document.getElementById("qualitySectionTitle");
-  const launcherSectionTitle = document.getElementById("launcherSectionTitle");
-  const launcherStateText = document.getElementById("launcherStateText");
-  const launcherToggleButton = document.getElementById("launcherToggleButton");
-  const launcherToggleTitle = document.getElementById("launcherToggleTitle");
-  const launcherToggleHint = document.getElementById("launcherToggleHint");
-  const restoreLauncherButton = document.getElementById("restoreLauncherButton");
-  const fallbackDownloadButton = document.getElementById("fallbackDownloadButton");
+  const elements = {
+    popupTitle: document.getElementById("popupTitle"),
+    popupSubtitle: document.getElementById("popupSubtitle"),
+    headerStatus: document.getElementById("headerStatus"),
+    statusText: document.getElementById("statusText"),
+    statusCard: document.getElementById("statusCard"),
+    statusHint: document.getElementById("statusHint"),
+    tabButtons: Array.from(document.querySelectorAll(".ameow-tab-btn")),
+    tabPanels: Array.from(document.querySelectorAll(".ameow-tab-panel")),
+    mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
+    scanMediaButton: document.getElementById("scanMediaButton"),
+    mediaSummary: document.getElementById("mediaSummary"),
+    mediaList: document.getElementById("mediaList"),
+    mediaEmpty: document.getElementById("mediaEmpty"),
+    mediaEmptyTitle: document.getElementById("mediaEmptyTitle"),
+    mediaEmptyCopy: document.getElementById("mediaEmptyCopy"),
+    qualityGrid: document.getElementById("qualityGrid"),
+    highestQualityHint: document.getElementById("highestQualityHint"),
+    highestQualityHintText: document.getElementById("highestQualityHintText"),
+    qualitySectionTitle: document.getElementById("qualitySectionTitle"),
+    launcherSectionTitle: document.getElementById("launcherSectionTitle"),
+    launcherStateText: document.getElementById("launcherStateText"),
+    launcherToggleButton: document.getElementById("launcherToggleButton"),
+    launcherToggleTitle: document.getElementById("launcherToggleTitle"),
+    launcherToggleHint: document.getElementById("launcherToggleHint"),
+    restoreLauncherButton: document.getElementById("restoreLauncherButton"),
+    fallbackDownloadButton: document.getElementById("fallbackDownloadButton"),
+    launcherSideLeft: document.getElementById("launcherSideLeft"),
+    launcherSideRight: document.getElementById("launcherSideRight"),
+    resetLauncherPositionButton: document.getElementById("resetLauncherPositionButton"),
+    sitesSectionTitle: document.getElementById("sitesSectionTitle"),
+    hiddenSitesCount: document.getElementById("hiddenSitesCount"),
+    hiddenSitesList: document.getElementById("hiddenSitesList"),
+    restoreAllSitesButton: document.getElementById("restoreAllSitesButton"),
+  };
+
   let statusTimer = null;
   let launcherTimer = null;
   let currentBundle = {
@@ -80,19 +137,27 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentStatusState = STATUS_STATE_OFFLINE;
   let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
   let currentLauncherStatus = null;
+  let currentLauncherConfig = null;
+  let currentMediaType = "video";
+  let mediaScanResult = null;
+  let scanStarted = false;
+  let openMenuId = null;
+  const downloadCooldown = new Set();
 
   function t(key, fallback) {
     return localeUtils?.translate(currentBundle, key, fallback) || fallback || key;
   }
 
   function renderStaticCopy() {
-    popupTitle.textContent = t("app.name", "Ameow");
-    popupSubtitle.textContent = t("popup.subtitle", "Extension");
-    qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
-    launcherSectionTitle.textContent = t("popup.sections.launcher", "Launcher");
-    launcherToggleTitle.textContent = t("launcher.popup.toggleTitle", "Edge launcher");
-    restoreLauncherButton.textContent = t("launcher.popup.restore", "Restore on this site");
-    fallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
+    elements.popupTitle.textContent = t("app.name", "Ameow");
+    elements.popupSubtitle.textContent = t("popup.subtitle", "Extension");
+    elements.qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
+    elements.launcherSectionTitle.textContent = t("popup.sections.launcher", "Launcher");
+    elements.launcherToggleTitle.textContent = t("launcher.popup.toggleTitle", "Edge launcher");
+    elements.restoreLauncherButton.textContent = t("launcher.popup.restore", "Restore on this site");
+    elements.fallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
+    elements.sitesSectionTitle.textContent = "Hidden sites";
+    elements.restoreAllSitesButton.textContent = "Restore all";
     document.title = t("app.name", "Ameow");
   }
 
@@ -120,10 +185,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateStatus(nextState) {
     currentStatusState = nextState;
     const copy = getStatusCopy(nextState);
-    statusCard.dataset.connected = nextState === STATUS_STATE_CONNECTED ? "true" : "false";
-    statusCard.dataset.state = nextState;
-    statusText.textContent = copy.label;
-    statusHint.textContent = copy.hint;
+    elements.statusCard.dataset.connected = nextState === STATUS_STATE_CONNECTED ? "true" : "false";
+    elements.statusCard.dataset.state = nextState;
+    elements.headerStatus.dataset.state = nextState;
+    elements.headerStatus.title = copy.hint;
+    elements.statusText.textContent = copy.label;
+    elements.statusHint.textContent = copy.hint;
   }
 
   async function checkStatus() {
@@ -131,56 +198,81 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStatus(normalizeConnectionState(response));
   }
 
-  function renderLauncherStatus(status) {
+  function setActiveTab(tabName) {
+    elements.tabButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.tab === tabName);
+    });
+    elements.tabPanels.forEach((panel) => {
+      panel.classList.toggle("active", panel.dataset.panel === tabName);
+    });
+    closeRowMenus();
+  }
+
+  function setMediaType(mediaType) {
+    currentMediaType = mediaType === "image" ? "image" : "video";
+    elements.mediaTabs.forEach((button) => {
+      button.classList.toggle("active", button.dataset.mediaType === currentMediaType);
+    });
+    renderMediaState();
+  }
+
+  function renderLauncherStatus(status, config = currentLauncherConfig) {
+    currentLauncherStatus = status;
+    currentLauncherConfig = config || currentLauncherConfig;
+
     if (!status) {
-      launcherToggleButton.dataset.enabled = "true";
-      launcherToggleButton.setAttribute("aria-checked", "true");
-      launcherToggleHint.textContent = t("launcher.popup.toggleOn", "Show in pages");
-      restoreLauncherButton.hidden = true;
-      fallbackDownloadButton.hidden = true;
-      launcherStateText.textContent = t("launcher.status.checking", "Checking");
+      elements.launcherToggleButton.dataset.enabled = "true";
+      elements.launcherToggleButton.setAttribute("aria-checked", "true");
+      elements.launcherToggleHint.textContent = t("launcher.popup.toggleOn", "Show in pages");
+      elements.restoreLauncherButton.hidden = true;
+      elements.fallbackDownloadButton.hidden = true;
+      elements.launcherStateText.textContent = t("launcher.status.checking", "Checking");
+      renderSideButtons(config?.side);
       return;
     }
 
     const enabled = status?.enabled !== false;
     const mounted = status?.mounted === true && status?.visible !== false;
     const hiddenForSite = status?.hiddenForSite === true;
-    launcherToggleButton.dataset.enabled = enabled ? "true" : "false";
-    launcherToggleButton.setAttribute("aria-checked", enabled ? "true" : "false");
-    launcherToggleHint.textContent = enabled
+    elements.launcherToggleButton.dataset.enabled = enabled ? "true" : "false";
+    elements.launcherToggleButton.setAttribute("aria-checked", enabled ? "true" : "false");
+    elements.launcherToggleHint.textContent = enabled
       ? t("launcher.popup.toggleOn", "Show in pages")
       : t("launcher.popup.toggleOff", "Hidden globally");
-    restoreLauncherButton.hidden = !enabled || !hiddenForSite;
-    fallbackDownloadButton.hidden = mounted;
+    elements.restoreLauncherButton.hidden = !enabled || !hiddenForSite;
+    elements.fallbackDownloadButton.hidden = mounted;
 
     if (!enabled) {
-      launcherStateText.textContent = t("launcher.status.disabled", "Hidden");
-      return;
+      elements.launcherStateText.textContent = t("launcher.status.disabled", "Hidden");
+    } else if (mounted) {
+      elements.launcherStateText.textContent = t("launcher.status.visible", "Visible");
+    } else if (hiddenForSite) {
+      elements.launcherStateText.textContent = t("launcher.status.hidden", "Hidden here");
+    } else {
+      elements.launcherStateText.textContent = t("launcher.status.unavailable", "Unavailable");
     }
 
-    if (mounted) {
-      launcherStateText.textContent = t("launcher.status.visible", "Visible");
-      return;
-    }
-
-    if (hiddenForSite) {
-      launcherStateText.textContent = t("launcher.status.hidden", "Hidden here");
-      return;
-    }
-
-    launcherStateText.textContent = t("launcher.status.unavailable", "Unavailable");
+    renderSideButtons(config?.side || status?.side);
   }
 
-  async function checkLauncherStatus() {
-    const response = await sendRuntimeMessage({ type: "get_launcher_status" });
-    currentLauncherStatus = response;
-    renderLauncherStatus(response);
+  function renderSideButtons(side) {
+    const normalizedSide = side === "left" ? "left" : "right";
+    elements.launcherSideLeft.classList.toggle("active", normalizedSide === "left");
+    elements.launcherSideRight.classList.toggle("active", normalizedSide === "right");
+  }
+
+  async function refreshLauncherControls() {
+    const response = await sendRuntimeMessage({ type: "get_launcher_controls_state" });
+    const status = response?.status || response;
+    const config = response?.config || null;
+    renderLauncherStatus(status, config);
+    renderHiddenSites(response?.hiddenSites || config?.disabledSitePatterns || []);
   }
 
   function renderQualityOptions(selectedValue) {
     const normalizedSelectedValue = directDownloadQuality.normalizeQualityPreference(selectedValue);
     currentQualityPreference = normalizedSelectedValue;
-    qualityGrid.innerHTML = "";
+    elements.qualityGrid.innerHTML = "";
 
     directDownloadQuality.QUALITY_PREFERENCE_OPTIONS.forEach((option) => {
       const button = document.createElement("button");
@@ -207,7 +299,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      qualityGrid.appendChild(button);
+      elements.qualityGrid.appendChild(button);
     });
 
     renderHighestQualityHint(normalizedSelectedValue);
@@ -216,14 +308,255 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderHighestQualityHint(selectedValue) {
     const normalizedSelectedValue = directDownloadQuality.normalizeQualityPreference(selectedValue);
     const hintVisible = normalizedSelectedValue === "best";
-    highestQualityHintText.textContent = t(
+    elements.highestQualityHintText.textContent = t(
       "popup.preferences.highest.hint",
-      "Some high-quality videos may enter the transcode queue after download."
+      "Some high-quality videos may enter the transcode queue after download.",
     );
-    highestQualityHint.dataset.visible = hintVisible ? "true" : "false";
-    highestQualityHint.hidden = !hintVisible;
-    highestQualityHint.setAttribute("aria-hidden", hintVisible ? "false" : "true");
-    highestQualityHint.style.display = hintVisible ? "flex" : "none";
+    elements.highestQualityHint.dataset.visible = hintVisible ? "true" : "false";
+    elements.highestQualityHint.hidden = !hintVisible;
+    elements.highestQualityHint.setAttribute("aria-hidden", hintVisible ? "false" : "true");
+    elements.highestQualityHint.style.display = hintVisible ? "flex" : "none";
+  }
+
+  function renderHiddenSites(patterns) {
+    const hiddenSites = Array.isArray(patterns) ? patterns.filter(Boolean) : [];
+    elements.hiddenSitesCount.textContent = String(hiddenSites.length);
+    elements.restoreAllSitesButton.hidden = hiddenSites.length === 0;
+    elements.hiddenSitesList.innerHTML = "";
+
+    if (hiddenSites.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "ameow-media-empty";
+      empty.innerHTML = `
+        <div class="ameow-empty-mark" aria-hidden="true">ok</div>
+        <div class="ameow-empty-title">No hidden sites</div>
+        <div class="ameow-empty-copy">Sites hidden from the launcher will appear here.</div>
+      `;
+      elements.hiddenSitesList.appendChild(empty);
+      return;
+    }
+
+    hiddenSites.forEach((pattern) => {
+      const row = document.createElement("div");
+      const mark = document.createElement("span");
+      const host = document.createElement("span");
+      const restore = document.createElement("button");
+
+      row.className = "ameow-site-row";
+      mark.className = "ameow-site-mark";
+      mark.textContent = "x";
+      host.className = "ameow-site-host";
+      host.textContent = pattern;
+      restore.type = "button";
+      restore.className = "ameow-site-restore";
+      restore.title = `Restore ${pattern}`;
+      restore.setAttribute("aria-label", `Restore ${pattern}`);
+      restore.textContent = "R";
+      restore.addEventListener("click", async () => {
+        await sendRuntimeMessage({ type: "restore_hidden_site", pattern });
+        await refreshLauncherControls();
+      });
+
+      row.append(mark, host, restore);
+      elements.hiddenSitesList.appendChild(row);
+    });
+  }
+
+  function renderMediaState() {
+    closeRowMenus();
+    const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
+      ? mediaScanResult[`${currentMediaType}s`]
+      : [];
+    elements.mediaList.innerHTML = "";
+
+    if (!scanStarted && !mediaScanResult) {
+      elements.mediaList.dataset.visible = "false";
+      elements.mediaEmpty.style.display = "flex";
+      elements.mediaEmptyTitle.textContent = "Scan current page";
+      elements.mediaEmptyCopy.textContent = "Find videos and images on the active page.";
+      elements.mediaSummary.textContent = "Manual scan only. Nothing runs until you choose Scan.";
+      return;
+    }
+
+    if (mediaScanResult?.success === false) {
+      elements.mediaList.dataset.visible = "false";
+      elements.mediaEmpty.style.display = "flex";
+      elements.mediaEmptyTitle.textContent = "Cannot scan this page";
+      elements.mediaEmptyCopy.textContent = mediaScanResult.reason || "The active page is unavailable to the extension.";
+      elements.mediaSummary.textContent = "Scan unavailable";
+      return;
+    }
+
+    const videoCount = mediaScanResult?.videos?.length || 0;
+    const imageCount = mediaScanResult?.images?.length || 0;
+    const ageCopy = formatAge(Date.now() - Number(mediaScanResult?.scannedAt || Date.now()));
+    elements.mediaSummary.textContent = `${videoCount} video / ${imageCount} image${ageCopy ? ` / ${ageCopy}` : ""}`;
+
+    if (candidates.length === 0) {
+      elements.mediaList.dataset.visible = "false";
+      elements.mediaEmpty.style.display = "flex";
+      elements.mediaEmptyTitle.textContent = currentMediaType === "video" ? "No videos found" : "No images found";
+      elements.mediaEmptyCopy.textContent = "Try the other media tab or rescan after the page finishes loading.";
+      return;
+    }
+
+    elements.mediaEmpty.style.display = "none";
+    elements.mediaList.dataset.visible = "true";
+    candidates.forEach((candidate) => {
+      elements.mediaList.appendChild(createMediaRow(candidate));
+    });
+  }
+
+  function createMediaRow(candidate) {
+    const row = document.createElement("div");
+    const icon = document.createElement("span");
+    const main = document.createElement("div");
+    const title = document.createElement("div");
+    const meta = document.createElement("div");
+    const menuButton = document.createElement("button");
+    const menu = document.createElement("div");
+
+    const id = safeText(candidate.id, `${candidate.mediaType}-${Math.random().toString(16).slice(2)}`);
+    row.className = "ameow-media-row";
+    row.dataset.candidateId = id;
+    icon.className = "ameow-media-icon";
+    icon.textContent = candidate.mediaType === "image" ? "IMG" : "VID";
+
+    main.className = "ameow-media-row-main";
+    title.className = "ameow-media-title";
+    title.textContent = safeText(candidate.title, candidate.url);
+    meta.className = "ameow-media-meta";
+    meta.textContent = [
+      candidate.host || shortHost(candidate.url),
+      sourceLabel(candidate.source),
+      candidate.extension || candidate.type,
+      candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "",
+    ].filter(Boolean).join(" / ");
+    main.append(title, meta);
+
+    menuButton.type = "button";
+    menuButton.className = "ameow-row-menu-btn";
+    menuButton.textContent = "...";
+    menuButton.setAttribute("aria-label", "Candidate actions");
+    menuButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const nextOpen = openMenuId !== id;
+      closeRowMenus();
+      if (nextOpen) {
+        openMenuId = id;
+        menuButton.dataset.open = "true";
+        menu.dataset.open = "true";
+      }
+    });
+
+    menu.className = "ameow-row-menu";
+    menu.append(
+      createMenuItem("Download", () => downloadCandidate(candidate, row)),
+      createMenuItem("Copy link", () => copyCandidateLink(candidate, row)),
+      createMenuItem("View source", () => showCandidateSource(candidate, row)),
+    );
+
+    row.append(icon, main, menuButton, menu);
+    return row;
+  }
+
+  function createMenuItem(label, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ameow-menu-item";
+    button.textContent = label;
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      closeRowMenus();
+      await onClick();
+    });
+    return button;
+  }
+
+  function closeRowMenus() {
+    openMenuId = null;
+    document.querySelectorAll(".ameow-row-menu").forEach((menu) => {
+      menu.dataset.open = "false";
+    });
+    document.querySelectorAll(".ameow-row-menu-btn").forEach((button) => {
+      button.dataset.open = "false";
+    });
+  }
+
+  function setRowFeedback(row, message) {
+    const meta = row?.querySelector(".ameow-media-meta");
+    if (!meta) {
+      return;
+    }
+    const previous = meta.textContent;
+    meta.textContent = message;
+    window.setTimeout(() => {
+      meta.textContent = previous;
+    }, 1600);
+  }
+
+  async function downloadCandidate(candidate, row) {
+    const key = candidate.url;
+    if (downloadCooldown.has(key)) {
+      return;
+    }
+    downloadCooldown.add(key);
+    setRowFeedback(row, "Submitting");
+    const response = await sendRuntimeMessage({
+      type: "download_media_candidate",
+      candidate,
+    });
+    setRowFeedback(row, response?.success ? "Submitted" : (response?.connected === false ? "Desktop offline" : "Failed"));
+    window.setTimeout(() => downloadCooldown.delete(key), 700);
+  }
+
+  async function copyCandidateLink(candidate, row) {
+    try {
+      await navigator.clipboard.writeText(candidate.url);
+      setRowFeedback(row, "Copied");
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = candidate.url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+      setRowFeedback(row, "Copied");
+    }
+  }
+
+  function showCandidateSource(candidate, row) {
+    setRowFeedback(row, `${sourceLabel(candidate.source)} / ${shortHost(candidate.url)}`);
+  }
+
+  async function scanPageMedia() {
+    scanStarted = true;
+    elements.scanMediaButton.disabled = true;
+    elements.scanMediaButton.textContent = "Scanning";
+    elements.mediaList.dataset.visible = "false";
+    elements.mediaEmpty.style.display = "flex";
+    elements.mediaEmptyTitle.textContent = "Scanning";
+    elements.mediaEmptyCopy.textContent = "Checking the active page for videos and images.";
+    elements.mediaSummary.textContent = "Scanning current page";
+
+    const response = await sendRuntimeMessage({ type: "scan_page_media" });
+    mediaScanResult = response && typeof response === "object"
+      ? response
+      : { success: false, reason: "scan_failed" };
+    elements.scanMediaButton.disabled = false;
+    elements.scanMediaButton.textContent = "Scan";
+    renderMediaState();
+  }
+
+  async function loadMediaCache() {
+    const response = await sendRuntimeMessage({ type: "get_media_scan_cache" });
+    if (response?.cached && response.result && response.stale !== true) {
+      scanStarted = true;
+      mediaScanResult = response.result;
+      renderMediaState();
+      return;
+    }
+    renderMediaState();
   }
 
   async function applyLanguage(nextLanguage) {
@@ -232,7 +565,8 @@ document.addEventListener("DOMContentLoaded", () => {
     renderStaticCopy();
     renderQualityOptions(currentQualityPreference);
     updateStatus(currentStatusState);
-    renderLauncherStatus(currentLauncherStatus);
+    renderLauncherStatus(currentLauncherStatus, currentLauncherConfig);
+    renderMediaState();
   }
 
   async function resolveInitialLanguage() {
@@ -258,6 +592,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  if (chrome?.storage?.onChanged && directDownloadQuality) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") {
+        return;
+      }
+      const changedValue =
+        changes?.[directDownloadQuality.STORAGE_KEY]?.newValue
+        ?? changes?.[directDownloadQuality.LEGACY_STORAGE_KEY]?.newValue;
+      if (typeof changedValue !== "string") {
+        return;
+      }
+      currentQualityPreference = directDownloadQuality.normalizeQualityPreference(changedValue);
+      renderQualityOptions(currentQualityPreference);
+    });
+  }
+
+  window.addEventListener("click", closeRowMenus);
   window.addEventListener("beforeunload", () => {
     if (statusTimer !== null) {
       clearInterval(statusTimer);
@@ -269,30 +620,58 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  restoreLauncherButton.addEventListener("click", async () => {
-    await sendRuntimeMessage({ type: "restore_launcher_for_site" });
-    await checkLauncherStatus();
+  elements.tabButtons.forEach((button) => {
+    button.addEventListener("click", () => setActiveTab(button.dataset.tab || "browse"));
   });
-
-  launcherToggleButton.addEventListener("click", async () => {
-    const nextEnabled = launcherToggleButton.dataset.enabled !== "true";
-    currentLauncherStatus = {
+  elements.mediaTabs.forEach((button) => {
+    button.addEventListener("click", () => setMediaType(button.dataset.mediaType || "video"));
+  });
+  elements.scanMediaButton.addEventListener("click", () => {
+    void scanPageMedia();
+  });
+  elements.restoreLauncherButton.addEventListener("click", async () => {
+    await sendRuntimeMessage({ type: "restore_launcher_for_site" });
+    await refreshLauncherControls();
+  });
+  elements.launcherToggleButton.addEventListener("click", async () => {
+    const nextEnabled = elements.launcherToggleButton.dataset.enabled !== "true";
+    renderLauncherStatus({
       ...(currentLauncherStatus || {}),
       enabled: nextEnabled,
       mounted: nextEnabled ? currentLauncherStatus?.mounted : false,
       visible: nextEnabled ? currentLauncherStatus?.visible : false,
-    };
-    renderLauncherStatus(currentLauncherStatus);
+    }, currentLauncherConfig);
     await sendRuntimeMessage({ type: "set_launcher_enabled", enabled: nextEnabled });
-    await checkLauncherStatus();
+    await refreshLauncherControls();
   });
-
-  fallbackDownloadButton.addEventListener("click", async () => {
+  elements.fallbackDownloadButton.addEventListener("click", async () => {
     await sendRuntimeMessage({ type: "download_current_content" });
     window.close();
   });
+  elements.launcherSideLeft.addEventListener("click", async () => {
+    await sendRuntimeMessage({ type: "set_launcher_side", side: "left" });
+    await refreshLauncherControls();
+  });
+  elements.launcherSideRight.addEventListener("click", async () => {
+    await sendRuntimeMessage({ type: "set_launcher_side", side: "right" });
+    await refreshLauncherControls();
+  });
+  elements.resetLauncherPositionButton.addEventListener("click", async () => {
+    await sendRuntimeMessage({ type: "reset_launcher_position" });
+    await refreshLauncherControls();
+  });
+  elements.restoreAllSitesButton.addEventListener("click", async () => {
+    const count = currentLauncherConfig?.disabledSitePatterns?.length || 0;
+    if (count > 0 && !window.confirm(`Restore all ${count} hidden sites?`)) {
+      return;
+    }
+    await sendRuntimeMessage({ type: "restore_all_hidden_sites" });
+    await refreshLauncherControls();
+  });
 
   void (async () => {
+    setActiveTab("browse");
+    setMediaType("video");
     await applyLanguage(await resolveInitialLanguage());
 
     try {
@@ -308,7 +687,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     void checkStatus();
-    void checkLauncherStatus();
+    void refreshLauncherControls();
+    void loadMediaCache();
 
     const themeResponse = await sendRuntimeMessage({ type: "get_theme" });
     applyTheme(themeResponse?.theme || "black");
@@ -317,7 +697,7 @@ document.addEventListener("DOMContentLoaded", () => {
       void checkStatus();
     }, 1200);
     launcherTimer = window.setInterval(() => {
-      void checkLauncherStatus();
+      void refreshLauncherControls();
     }, 1500);
   })();
 });
