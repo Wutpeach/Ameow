@@ -11,8 +11,8 @@
 9. [x] Commit Phase 3.
 10. [x] Complete Phase 4 packaging/release cleanup.
 11. [x] Run focused validation for Phase 4.
-12. [ ] Commit Phase 4.
-13. Run cross-phase validation and summarize remaining risks.
+12. [x] Commit Phase 4.
+13. [ ] Run cross-phase validation and summarize remaining risks.
 
 ## Progress Notes
 
@@ -77,3 +77,15 @@
   - `npm run type-check`
 - Environment limitation:
   - repository-local YAML parsing validation was not run because the current Node environment does not have a `yaml` package installed.
+
+### Follow-up: Vite Dev Host Residue
+
+- Removed the dead `TAURI_DEV_HOST` branch from `vite.config.ts`.
+- Simplified Vite renderer dev-server config to the behavior already enforced by the Electron dev harness:
+  - `server.host = false`
+  - removed legacy custom HMR host block
+- Validation completed:
+  - focused repository grep confirms `TAURI_DEV_HOST` no longer exists in the repo
+  - `npm run lint`
+  - `npm run type-check`
+  - `npm run test -- electron/windowRouting.test.mts`
