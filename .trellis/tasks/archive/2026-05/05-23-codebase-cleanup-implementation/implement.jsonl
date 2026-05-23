@@ -1,0 +1,4 @@
+{"file":".trellis/tasks/05-23-codebase-cleanup-audit/prd.md","reason":"Source audit baseline and cleanup candidate inventory."}
+{"file":".trellis/spec/guides/index.md","reason":"Shared guidance for reuse, cross-layer, and cross-platform cleanup decisions."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend cleanup scope and constraints."}
+{"file":".trellis/spec/backend/index.md","reason":"Backend/runtime cleanup scope and current downloader architecture."}
