@@ -290,6 +290,7 @@ function SettingsPage() {
   const [hasCheckedForAppUpdate, setHasCheckedForAppUpdate] = useState(false);
   const [hoveredThemeOption, setHoveredThemeOption] = useState<"black" | "white" | null>(null);
   const [hoveredShortcutAction, setHoveredShortcutAction] = useState<"confirm" | "cancel" | null>(null);
+  const [hoveredSavingAction, setHoveredSavingAction] = useState<"outputFolder" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
   const currentLanguage = normalizeAppLanguage(i18n.resolvedLanguage) ?? FALLBACK_LANGUAGE;
@@ -980,6 +981,30 @@ function SettingsPage() {
     opacity: enabled ? 1 : 0.5,
     cursor: enabled ? "pointer" : "not-allowed",
   });
+  const getSettingsControlRowStyle = ({
+    active = false,
+    interactive = false,
+    highlighted = false,
+  }: {
+    active?: boolean;
+    interactive?: boolean;
+    highlighted?: boolean;
+  } = {}): CSSProperties => ({
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    textAlign: "left",
+    color: colors.textPrimary,
+    cursor: interactive ? "pointer" : "default",
+    ...getFieldSurfaceStyle(colors, {
+      active,
+      highlighted,
+      padding: "10px 12px",
+      height: 0,
+    }),
+  });
   const renderRenamePresetField = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label style={getCompactLabelStyle(colors)}>
@@ -1085,7 +1110,7 @@ function SettingsPage() {
       flexShrink: 0,
       ...getContinuousCornerStyle(999),
       background: toneColors.dot,
-      boxShadow: tone === "muted" ? "none" : `0 0 12px ${toneColors.glow}`,
+      boxShadow: tone === "muted" ? "none" : `0 0 7px ${toneColors.glow}`,
     };
   };
 
@@ -1653,30 +1678,59 @@ function SettingsPage() {
   const renderSavingPage = (): ReactNode => (
     <>
       <NeonSection title={t("desktop:settings.outputFolder.title")}>
-        <NeonFieldButton
+        <button
+          type="button"
           onClick={selectOutputPath}
-          leadingIcon={<FolderOpenIcon size={14} />}
+          onMouseEnter={() => setHoveredSavingAction("outputFolder")}
+          onMouseLeave={() => setHoveredSavingAction((current) => (
+            current === "outputFolder" ? null : current
+          ))}
+          onFocus={() => setHoveredSavingAction("outputFolder")}
+          onBlur={() => setHoveredSavingAction((current) => (
+            current === "outputFolder" ? null : current
+          ))}
+          style={{
+            ...getSettingsControlRowStyle({
+              interactive: true,
+              highlighted: hoveredSavingAction === "outputFolder",
+            }),
+            ...WINDOW_NO_DRAG_REGION_STYLE,
+          }}
         >
-          {outputPath ? truncatePath(outputPath) : t("desktop:settings.outputFolder.choose")}
-        </NeonFieldButton>
+          <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+              {t("desktop:settings.outputFolder.title")}
+            </span>
+            <span
+              style={{
+                fontSize: 10.5,
+                lineHeight: 1.4,
+                color: colors.textSecondary,
+                opacity: 0.82,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {outputPath ? truncatePath(outputPath) : t("desktop:settings.outputFolder.choose")}
+            </span>
+          </div>
+          <FolderOpenIcon
+            size={15}
+            style={{
+              flexShrink: 0,
+              color: hoveredSavingAction === "outputFolder" ? colors.accentText : colors.textSecondary,
+              transition: `color 0.18s ${COMPACT_EASE}`,
+            }}
+          />
+        </button>
       </NeonSection>
 
       <NeonSection
         title={t("desktop:settings.rename.title")}
         hint={t("desktop:settings.rename.hint")}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            ...getFieldSurfaceStyle(colors, {
-              padding: "10px 12px",
-              height: 0,
-            }),
-          }}
-        >
+        <div style={getSettingsControlRowStyle()}>
           <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
               {t("desktop:settings.rename.title")}
@@ -1752,7 +1806,6 @@ function SettingsPage() {
         hint={t("desktop:settings.siteSessions.hint")}
       >
         <NeonCard
-          glow={siteLoginBadges.some((site) => site.tone === "ready")}
           style={{
             padding: "10px",
             display: "grid",
