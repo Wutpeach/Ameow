@@ -32,6 +32,7 @@
     "actions": {
       "pick": "Pick download",
       "current": "Download current content",
+      "quality": "Quality",
       "lock": "Lock position",
       "unlock": "Unlock position",
       "more": "More"

@@ -43,6 +43,7 @@
       "js": [
         "dom-injection-utils.js",
         "locale-utils.js",
+        "direct-download-quality.js",
         "launcher-config.js",
         "capture-evidence.js",
         "extension-data-utils.js",

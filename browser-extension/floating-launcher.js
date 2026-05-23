@@ -4,6 +4,7 @@
   const launcherConfig = window.AmeowLauncherConfig;
   const captureEvidence = window.AmeowCaptureEvidence;
   const localeUtils = window.AmeowLocaleUtils;
+  const directDownloadQuality = window.AmeowDirectDownloadQuality;
   const ROOT_ID = "ameow-floating-launcher-root";
   const PING_MESSAGE = "ameow_launcher_ping";
   const STATUS_MESSAGE = "ameow_launcher_status";
@@ -31,6 +32,8 @@
   let pickerState = null;
   let dragState = null;
   let connectionState = "offline";
+  let qualityPreference = directDownloadQuality?.DEFAULT_QUALITY_PREFERENCE || "balanced";
+  let storageChangeListener = null;
   let localeBundle = {
     language: "en",
     _namespaces: ["extension", "common"],
@@ -59,6 +62,7 @@
       cat: ['<path d="M11.75 6.4c-1.48 0-1.63.16-2.39.16C8.72 6.56 6.8 5 5.85 5S3.77 5.56 3.77 7.19v1.87c0 .5.18 2 .88 1.6-.83.98-.91 2.12-.9 3.22-.22.06-.45.14-.67.21-.68.24-1.41.54-1.74.75a.75.75 0 0 0 .82 1.26c.15-.1.72-.35 1.4-.58l.23-.08c.05.43.16.83.33 1.19l-.02.01c-.41.22-.79.47-1.03.63l-.12.07a.75.75 0 1 0 .82 1.26l.13-.09c.24-.16.56-.36.9-.54.08-.04.16-.08.23-.12C6.76 19.48 9.87 20 11.75 20s4.99-.52 6.72-2.15c.07.04.15.08.23.12.34.18.66.38.9.54l.13.09a.75.75 0 0 0 .82-1.26l-.12-.07a13 13 0 0 0-1.03-.63l-.02-.01c.17-.36.28-.76.33-1.19l.23.08c.69.23 1.25.48 1.41.58a.75.75 0 0 0 .81-1.26c-.33-.21-1.05-.51-1.74-.75-.22-.07-.45-.15-.67-.21.01-1.1-.07-2.24-.9-3.22.7.4.88-1.1.88-1.6V7.19C19.73 5.56 18.61 5 17.66 5s-2.88 1.56-3.51 1.56c-.77 0-.92-.16-2.4-.16Zm-.67 9.2c.2-.07.44-.1.67-.1s.48.03.68.1c.1.03.22.09.33.17.1.09.24.25.24.48s-.14.39-.24.48c-.11.08-.23.14-.33.17-.2.07-.44.1-.68.1s-.47-.03-.67-.1c-.1-.03-.23-.09-.33-.17a.62.62 0 0 1-.25-.48c0-.23.14-.39.25-.48.1-.08.23-.14.33-.17Zm2.84-3.1c.14-.23.41-.5.81-.5s.67.27.81.5c.14.24.21.53.21.81s-.07.57-.21.81c-.14.23-.41.5-.81.5s-.67-.27-.81-.5a1.6 1.6 0 0 1-.21-.81c0-.28.07-.57.21-.81Zm-5.96 0c.14-.23.41-.5.81-.5s.67.27.81.5c.14.24.21.53.21.81s-.07.57-.21.81c-.14.23-.41.5-.81.5s-.67-.27-.81-.5a1.6 1.6 0 0 1-.21-.81c0-.28.07-.57.21-.81Z"/>'],
       pick: ['<circle cx="12" cy="12" r="7"/>', '<path d="M12 3v3"/>', '<path d="M12 18v3"/>', '<path d="M3 12h3"/>', '<path d="M18 12h3"/>', '<circle cx="12" cy="12" r="1"/>'],
       download: ['<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>', '<path d="M7 10l5 5 5-5"/>', '<path d="M12 15V3"/>'],
+      sliders: ['<path d="M4 21v-7"/>', '<path d="M4 10V3"/>', '<path d="M12 21v-9"/>', '<path d="M12 8V3"/>', '<path d="M20 21v-5"/>', '<path d="M20 12V3"/>', '<path d="M2 14h4"/>', '<path d="M10 8h4"/>', '<path d="M18 16h4"/>'],
       more: ['<circle cx="12" cy="12" r="1"/>', '<circle cx="19" cy="12" r="1"/>', '<circle cx="5" cy="12" r="1"/>'],
       lock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 8 0v4"/>'],
       unlock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 7.48-2"/>'],
@@ -80,6 +84,16 @@
         resolve(response || null);
       });
     });
+  }
+
+  async function loadQualityPreference() {
+    if (!directDownloadQuality?.getQualityPreference) {
+      qualityPreference = "balanced";
+      return qualityPreference;
+    }
+    qualityPreference = await directDownloadQuality.getQualityPreference();
+    refreshQualitySelection();
+    return qualityPreference;
   }
 
   function updateLauncherConfig(nextConfig) {
@@ -105,6 +119,11 @@
     if (launcher) {
       launcher.dataset.menuOpen = "false";
     }
+  }
+
+  function qualityLabel(value) {
+    const option = directDownloadQuality?.QUALITY_PREFERENCE_OPTIONS?.find((entry) => entry.value === value);
+    return t(option?.labelKey || "", value);
   }
 
   async function hideOnThisSite() {
@@ -325,6 +344,26 @@
     }
   }
 
+  function refreshQualitySelection() {
+    if (!launcher) {
+      return;
+    }
+    const normalized = directDownloadQuality?.normalizeQualityPreference
+      ? directDownloadQuality.normalizeQualityPreference(qualityPreference)
+      : qualityPreference;
+    launcher.querySelectorAll(".ameow-launcher-quality-option").forEach((button) => {
+      const active = button.dataset.quality === normalized;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    const qualityButton = launcher.querySelector('[data-action="quality"]');
+    const label = t("launcher.actions.quality", "Quality");
+    if (qualityButton) {
+      delete qualityButton.dataset.tooltip;
+      qualityButton.setAttribute("aria-label", `${label}: ${qualityLabel(normalized)}`);
+    }
+  }
+
   function refreshLauncherLabels() {
     setActionLabel("pick", t("launcher.actions.pick", "Pick download"));
     setActionLabel("download", t("launcher.actions.current", "Download current content"));
@@ -338,6 +377,17 @@
     setActionLabel("more", t("launcher.actions.more", "More"));
     setMenuLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
     setMenuLabel("switchSide", t("launcher.menu.switchSide", "Switch side"));
+    if (launcher) {
+      launcher.querySelectorAll(".ameow-launcher-quality-option").forEach((button) => {
+        const option = directDownloadQuality?.QUALITY_PREFERENCE_OPTIONS?.find((entry) => entry.value === button.dataset.quality);
+        const label = t(option?.labelKey || "", button.dataset.quality || "");
+        const labelText = button.querySelector(".ameow-launcher-quality-label");
+        if (labelText) {
+          labelText.textContent = label;
+        }
+      });
+      refreshQualitySelection();
+    }
     if (pickerState?.tip) {
       pickerState.tip.textContent = t(
         "launcher.picker.instruction",
@@ -428,6 +478,48 @@
     document.addEventListener("pointercancel", handleEnd, true);
   }
 
+  function createQualityControl() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "ameow-launcher-quality";
+
+    const trigger = createActionButton("sliders", t("launcher.actions.quality", "Quality"), () => {});
+    trigger.dataset.action = "quality";
+    delete trigger.dataset.tooltip;
+
+    const flyout = document.createElement("div");
+    flyout.className = "ameow-launcher-quality-flyout";
+
+    const options = directDownloadQuality?.QUALITY_PREFERENCE_OPTIONS || [];
+    options.forEach((option) => {
+      const button = document.createElement("button");
+      const label = document.createElement("span");
+      button.type = "button";
+      button.className = "ameow-launcher-quality-option";
+      button.dataset.quality = option.value;
+      button.setAttribute("aria-pressed", "false");
+      label.className = "ameow-launcher-quality-label";
+      label.textContent = t(option.labelKey, option.value);
+      button.appendChild(label);
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          const savedValue = directDownloadQuality?.setQualityPreference
+            ? await directDownloadQuality.setQualityPreference(option.value)
+            : option.value;
+          qualityPreference = savedValue;
+          refreshQualitySelection();
+        } catch (error) {
+          console.error("[Ameow] Failed to save launcher quality preference:", error);
+        }
+      });
+      flyout.appendChild(button);
+    });
+
+    wrapper.append(trigger, flyout);
+    return wrapper;
+  }
+
   function mountLauncher() {
     if (launcher || rootHost?.isConnected) {
       return;
@@ -462,6 +554,7 @@
     bottomActions.className = "ameow-launcher-actions ameow-launcher-actions-bottom";
     bottomActions.append(
       createActionButton("download", t("launcher.actions.current", "Download current content"), downloadCurrentContent),
+      createQualityControl(),
       createActionButton("lock", t("launcher.actions.lock", "Lock position"), toggleLocked),
       createActionButton("more", t("launcher.actions.more", "More"), () => {
         launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
@@ -480,6 +573,7 @@
     document.documentElement.appendChild(rootHost);
     updateLauncherConfig(config);
     refreshLauncherLabels();
+    refreshQualitySelection();
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -558,8 +652,26 @@
     return false;
   });
 
+  if (chrome?.storage?.onChanged && directDownloadQuality) {
+    storageChangeListener = (changes, areaName) => {
+      if (areaName !== "local") {
+        return;
+      }
+      const changedValue =
+        changes?.[directDownloadQuality.STORAGE_KEY]?.newValue
+        ?? changes?.[directDownloadQuality.LEGACY_STORAGE_KEY]?.newValue;
+      if (typeof changedValue !== "string") {
+        return;
+      }
+      qualityPreference = directDownloadQuality.normalizeQualityPreference(changedValue);
+      refreshQualitySelection();
+    };
+    chrome.storage.onChanged.addListener(storageChangeListener);
+  }
+
   void (async () => {
     await loadLocale();
+    await loadQualityPreference();
     config = await launcherConfig.getConfig();
     if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
       return;

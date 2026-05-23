@@ -32,6 +32,7 @@
     "actions": {
       "pick": "拾取下载",
       "current": "下载当前内容",
+      "quality": "画质",
       "lock": "锁定位置",
       "unlock": "解除锁定",
       "more": "更多"
