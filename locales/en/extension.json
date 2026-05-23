@@ -44,6 +44,19 @@
     "picker": {
       "instruction": "Click the content to download. Right-click or press Esc to cancel."
     },
+    "feedback": {
+      "submitting": "Submitting",
+      "submitted": "Submitted",
+      "offline": "Open desktop app",
+      "failed": "Failed",
+      "unavailable": "Cannot capture page"
+    },
+    "capability": {
+      "offline": "Desktop offline",
+      "connecting": "Connecting",
+      "ready": "Ready to capture",
+      "generic": "Try current page"
+    },
     "status": {
       "visible": "Visible",
       "hidden": "Hidden here",

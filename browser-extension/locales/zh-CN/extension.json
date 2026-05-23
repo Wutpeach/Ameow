@@ -44,6 +44,19 @@
     "picker": {
       "instruction": "点击要下载的内容。右键或按 Esc 取消。"
     },
+    "feedback": {
+      "submitting": "提交中",
+      "submitted": "已提交",
+      "offline": "请打开桌面应用",
+      "failed": "提交失败",
+      "unavailable": "无法捕获页面"
+    },
+    "capability": {
+      "offline": "桌面端离线",
+      "connecting": "连接中",
+      "ready": "可捕获",
+      "generic": "可尝试当前页"
+    },
     "status": {
       "visible": "已显示",
       "hidden": "本站已隐藏",

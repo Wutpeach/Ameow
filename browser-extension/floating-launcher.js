@@ -34,6 +34,7 @@
   let connectionState = "offline";
   let qualityPreference = directDownloadQuality?.DEFAULT_QUALITY_PREFERENCE || "balanced";
   let storageChangeListener = null;
+  let feedbackTimer = null;
   let localeBundle = {
     language: "en",
     _namespaces: ["extension", "common"],
@@ -96,6 +97,46 @@
     return qualityPreference;
   }
 
+  function deriveSiteHint(rawUrl = root.location?.href) {
+    const value = typeof rawUrl === "string" ? rawUrl.toLowerCase() : "";
+    if (!value) return "generic";
+    if (value.includes("douyin.com/")) return "douyin";
+    if (value.includes("instagram.com/")) return "instagram";
+    if (value.includes("youtube.com/") || value.includes("youtu.be/")) return "youtube";
+    if (value.includes("bilibili.com/") || value.includes("b23.tv/")) return "bilibili";
+    if (value.includes("twitter.com/") || value.includes("x.com/")) return "twitter-x";
+    if (value.includes("xiaohongshu.com/") || value.includes("xhslink.com/")) return "xiaohongshu";
+    if (value.includes("pinterest.com/")) return "pinterest";
+    if (value.includes("weibo.com/") || value.includes("weibo.cn/")) return "weibo";
+    return "generic";
+  }
+
+  function capabilityCopy() {
+    if (connectionState === "offline") {
+      return t("launcher.capability.offline", "Desktop offline");
+    }
+    if (connectionState === "connecting") {
+      return t("launcher.capability.connecting", "Connecting");
+    }
+
+    const payload = captureEvidence.buildCurrentContentPayload?.();
+    const evidence = payload?.extensionData?.ameowCapture;
+    const hasPageEvidence = Boolean(
+      evidence?.canonicalUrl
+      || evidence?.ogUrl
+      || evidence?.targetHref
+      || evidence?.targetSrc
+      || (evidence?.contentIds && Object.keys(evidence.contentIds).length > 0),
+    );
+    const siteHint = deriveSiteHint(evidence?.pageUrl);
+
+    if (siteHint !== "generic" || hasPageEvidence) {
+      return t("launcher.capability.ready", "Ready to capture");
+    }
+
+    return t("launcher.capability.generic", "Try current page");
+  }
+
   function updateLauncherConfig(nextConfig) {
     config = launcherConfig.normalizeConfig(nextConfig);
     if (!launcher) {
@@ -104,6 +145,7 @@
     launcher.dataset.side = config.side;
     launcher.dataset.locked = config.locked ? "true" : "false";
     launcher.style.setProperty("--ameow-launcher-top", `${(config.verticalPosition * 100).toFixed(2)}vh`);
+    refreshHandleTooltip();
   }
 
   function unmountLauncher() {
@@ -119,6 +161,49 @@
     if (launcher) {
       launcher.dataset.menuOpen = "false";
     }
+  }
+
+  function setFeedback(kind, message, options = {}) {
+    if (!launcher) {
+      return;
+    }
+    const feedback = launcher.querySelector(".ameow-launcher-feedback");
+    if (!feedback) {
+      return;
+    }
+    if (feedbackTimer !== null) {
+      window.clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
+    feedback.textContent = message;
+    feedback.dataset.kind = kind;
+    feedback.dataset.visible = "true";
+    const durationMs = typeof options.durationMs === "number" ? options.durationMs : 1800;
+    if (durationMs > 0) {
+      feedbackTimer = window.setTimeout(() => {
+        feedback.dataset.visible = "false";
+        feedbackTimer = null;
+      }, durationMs);
+    }
+  }
+
+  function responseFeedback(response) {
+    if (response?.success) {
+      return {
+        kind: "success",
+        message: t("launcher.feedback.submitted", "Submitted"),
+      };
+    }
+    if (response?.connected === false || response?.reason === "not_connected") {
+      return {
+        kind: "danger",
+        message: t("launcher.feedback.offline", "Open desktop app"),
+      };
+    }
+    return {
+      kind: "danger",
+      message: t("launcher.feedback.failed", "Failed"),
+    };
   }
 
   function qualityLabel(value) {
@@ -156,12 +241,16 @@
   async function downloadCurrentContent() {
     const payload = captureEvidence.buildCurrentContentPayload();
     if (!payload) {
+      setFeedback("danger", t("launcher.feedback.unavailable", "Cannot capture page"));
       return;
     }
-    await sendMessage({
+    setFeedback("pending", t("launcher.feedback.submitting", "Submitting"), { durationMs: 0 });
+    const response = await sendMessage({
       type: DOWNLOAD_CURRENT_MESSAGE,
       payload,
     });
+    const feedback = responseFeedback(response);
+    setFeedback(feedback.kind, feedback.message);
     closeMenu();
   }
 
@@ -243,10 +332,15 @@
       const payload = captureEvidence.buildPickDownloadPayload(event.target);
       stopPicker();
       if (payload) {
-        await sendMessage({
+        setFeedback("pending", t("launcher.feedback.submitting", "Submitting"), { durationMs: 0 });
+        const response = await sendMessage({
           type: DOWNLOAD_CURRENT_MESSAGE,
           payload,
         });
+        const feedback = responseFeedback(response);
+        setFeedback(feedback.kind, feedback.message);
+      } else {
+        setFeedback("danger", t("launcher.feedback.unavailable", "Cannot capture page"));
       }
     };
 
@@ -337,6 +431,15 @@
     button.prepend(icon(iconName));
   }
 
+  function refreshHandleTooltip() {
+    const handle = launcher?.querySelector(".ameow-launcher-handle");
+    if (!handle) {
+      return;
+    }
+    handle.dataset.tooltip = capabilityCopy();
+    handle.setAttribute("aria-label", `Ameow: ${capabilityCopy()}`);
+  }
+
   function setMenuLabel(name, label) {
     const labelText = launcher?.querySelector(`[data-menu-item="${name}"] .ameow-launcher-menu-label`);
     if (labelText) {
@@ -377,6 +480,7 @@
     setActionLabel("more", t("launcher.actions.more", "More"));
     setMenuLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
     setMenuLabel("switchSide", t("launcher.menu.switchSide", "Switch side"));
+    refreshHandleTooltip();
     if (launcher) {
       launcher.querySelectorAll(".ameow-launcher-quality-option").forEach((button) => {
         const option = directDownloadQuality?.QUALITY_PREFERENCE_OPTIONS?.find((entry) => entry.value === button.dataset.quality);
@@ -567,8 +671,12 @@
       createMenuItem("eyeOff", t("launcher.menu.hideSite", "Hide on this site"), () => void hideOnThisSite()),
       createMenuItem("switchSide", t("launcher.menu.switchSide", "Switch side"), () => void switchSide()),
     );
+    const feedback = document.createElement("div");
+    feedback.className = "ameow-launcher-feedback";
+    feedback.dataset.visible = "false";
+    feedback.dataset.kind = "pending";
 
-    launcher.append(topActions, handle, bottomActions, menu);
+    launcher.append(topActions, handle, bottomActions, menu, feedback);
     shadow.append(stylesheet, launcher);
     document.documentElement.appendChild(rootHost);
     updateLauncherConfig(config);
@@ -639,6 +747,7 @@
       connectionState = message.state || (message.connected ? "connected" : "offline");
       if (launcher) {
         launcher.dataset.connectionState = connectionState;
+        refreshHandleTooltip();
       }
     }
 
@@ -681,6 +790,7 @@
     connectionState = statusResponse?.state || (statusResponse?.connected ? "connected" : "offline");
     if (launcher) {
       launcher.dataset.connectionState = connectionState;
+      refreshHandleTooltip();
     }
     await sendMessage({ type: STATUS_MESSAGE, mounted: true });
   })();
