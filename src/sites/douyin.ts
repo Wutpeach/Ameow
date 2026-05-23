@@ -7,6 +7,10 @@ import type {
 } from "../core/index.js";
 import { buildEnginePlansFromStrategySources } from "../download-capabilities/strategy-plans.js";
 import { getRuntimeManualSiteStrategy } from "../download-capabilities/runtime-site-strategies.js";
+import {
+  readAmeowCaptureEvidence,
+  readCaptureContentId,
+} from "./extension-capture.js";
 
 const DOUYIN_HOST_PATTERN = /(douyin\.com|douyinvod\.com|douyincdn\.com|bytecdn|bytedance)/i;
 
@@ -15,28 +19,6 @@ const isDouyinUrl = (value: string | undefined): boolean => Boolean(value && DOU
 const isDirectVideoUrl = (value: string | undefined): boolean => (
   Boolean(value && DOUYIN_HOST_PATTERN.test(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
 );
-
-const readAmeowCaptureEvidence = (
-  input: RawDownloadInput,
-): Record<string, unknown> | undefined => {
-  const ameowCapture = input.extensionData?.ameowCapture;
-  return ameowCapture && typeof ameowCapture === "object" && !Array.isArray(ameowCapture)
-    ? ameowCapture as Record<string, unknown>
-    : undefined;
-};
-
-const extractCaptureContentId = (
-  input: RawDownloadInput,
-  key: string,
-): string | undefined => {
-  const contentIds = readAmeowCaptureEvidence(input)?.contentIds;
-  if (!contentIds || typeof contentIds !== "object" || Array.isArray(contentIds)) {
-    return undefined;
-  }
-
-  const value = (contentIds as Record<string, unknown>)[key];
-  return typeof value === "string" && /^\d{15,20}$/.test(value) ? value : undefined;
-};
 
 const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
   if (!value || !isDouyinUrl(value)) {
@@ -53,7 +35,7 @@ const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
 const synthesizeDouyinVideoSourceFromCapture = (
   input: RawDownloadInput,
 ): string | undefined => {
-  const modalId = extractCaptureContentId(input, "modal_id");
+  const modalId = readCaptureContentId(input, "modal_id", /^\d{15,20}$/);
   return modalId ? `https://www.douyin.com/video/${modalId}` : undefined;
 };
 

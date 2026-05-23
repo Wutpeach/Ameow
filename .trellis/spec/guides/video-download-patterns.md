@@ -66,6 +66,109 @@ Browser Extension / UI URL
 - Pinterest ignores direct media hints for backend selection and always uses `gallery-dl`.
 - Xiaohongshu may preserve video candidates for context while still routing through canonical-note `yt-dlp`.
 
+---
+
+## Pattern 3.5: Extension Capture Evidence
+
+### 1. Scope / Trigger
+
+- Trigger: browser-extension download actions can now send `extensionData.ameowCapture` through `video_selected_v2` / `queue_video_download`.
+- Scope: use this evidence to improve provider-owned source selection without creating a global URL normalizer.
+- Non-goal: do not use this contract to add a page-wide media candidate list, active-player inspection, or nearby DOM crawling.
+
+### 2. Signatures
+
+```ts
+type AmeowCaptureEvidenceV1 = {
+  version: 1;
+  action: "current_content" | "pick_download" | "popup_fallback";
+  pageUrl: string;
+  canonicalUrl?: string;
+  ogUrl?: string;
+  title?: string;
+  contentIds?: Record<string, string>;
+  structuredDataUrls?: string[];
+  targetHref?: string;
+  targetSrc?: string;
+};
+
+type DownloadExtensionData = Record<string, unknown> & {
+  youtube?: YouTubeExtensionData;
+  ameowCapture?: AmeowCaptureEvidenceV1;
+};
+```
+
+Provider helpers:
+
+```ts
+readAmeowCaptureEvidence(input: RawDownloadInput): AmeowCaptureEvidenceV1 | undefined;
+readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): string | undefined;
+```
+
+### 3. Contracts
+
+- `url` remains the original user/browser interaction anchor.
+- `pageUrl` remains the browser page URL when available.
+- `extensionData.ameowCapture` carries bounded evidence:
+  - page URL, canonical URL, Open Graph URL;
+  - selected element `href` / `src`;
+  - known content IDs such as Douyin `modal_id` or Instagram shortcode;
+  - bounded JSON-LD URLs from `url`, `contentUrl`, `embedUrl`, `@id`, or `mainEntityOfPage`.
+- Providers choose downloader-specific `sourceUrl` values from evidence.
+- The extension must not synthesize backend-specific URLs such as `https://www.douyin.com/video/{id}` as the top-level request URL.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| `ameowCapture.version !== 1` | provider ignores capture evidence |
+| evidence URL is not HTTP(S) | browser helper drops it before sending |
+| JSON-LD is malformed or too large | browser helper ignores it |
+| provider has accepted evidence URL | provider uses it as engine `sourceUrl` |
+| provider has only content ID evidence | provider may synthesize a site-scoped source URL |
+| evidence is missing or unusable | provider falls back to existing `pageUrl ?? url` behavior |
+
+### 5. Good / Base / Bad Cases
+
+- Good:
+  - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes `/video/{id}` for `douyin-dl`.
+  - Instagram explore/modal context carries shortcode evidence, while the gallery-dl-supported provider selects a permalink for `gallery-dl` and `yt-dlp`.
+- Base:
+  - A long-tail supported site sends only `pageUrl`, canonical URL, and OG URL; provider fallback behavior remains unchanged.
+- Bad:
+  - Browser extension rewrites every site to one "canonical" URL before queueing.
+  - Provider reads unbounded DOM snapshots or full-page media inventories as the primary intent.
+
+### 6. Tests Required
+
+- Extension helper tests for:
+  - low-cost ID extraction;
+  - canonical/OG evidence;
+  - bounded JSON-LD URL extraction;
+  - picker `targetHref` / `targetSrc` anchoring.
+- Queue/command-router tests for preserving unknown `extensionData` namespaces.
+- Provider tests for:
+  - site-scoped source priority;
+  - fallback when evidence is absent;
+  - preserving `intent.extensionData` for diagnostics and future routing.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+payload.url = `https://www.douyin.com/video/${modalId}`;
+```
+
+#### Correct
+
+```ts
+payload.url = evidence.pageUrl;
+payload.extensionData = { ameowCapture: evidence };
+// Later, inside the Douyin provider:
+sourceUrl = `https://www.douyin.com/video/${modalId}`;
+```
+
 ### WebSocket Message Contract
 
 ```json

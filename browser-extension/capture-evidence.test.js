@@ -25,6 +25,7 @@ const loadHelper = (options = {}) => {
     canonical: createElement({ href: options.canonicalUrl }),
     og: createElement({ content: options.ogUrl }),
   };
+  const structuredDataScripts = options.structuredDataScripts || [];
   const context = {
     window: null,
     globalThis: {},
@@ -39,6 +40,12 @@ const loadHelper = (options = {}) => {
           return elements.og;
         }
         return null;
+      },
+      querySelectorAll(selector) {
+        if (selector === 'script[type="application/ld+json"]') {
+          return structuredDataScripts.map((textContent) => ({ textContent }));
+        }
+        return [];
       },
     },
     URL,
@@ -102,6 +109,46 @@ describe("capture evidence helper", () => {
           targetHref: "https://example.com/post/42",
         },
       },
+    });
+  });
+
+  it("extracts Instagram shortcode evidence from current urls", () => {
+    const helper = loadHelper({
+      pageUrl: "https://www.instagram.com/reel/C7example_/",
+    });
+
+    expect(helper.buildCurrentContentPayload()).toMatchObject({
+      extensionData: {
+        ameowCapture: {
+          contentIds: {
+            instagram_shortcode_path: "reel",
+            instagram_shortcode: "C7example_",
+          },
+        },
+      },
+    });
+  });
+
+  it("collects structured data urls as bounded supporting evidence", () => {
+    const helper = loadHelper({
+      pageUrl: "https://example.com/modal",
+      structuredDataScripts: [
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "VideoObject",
+          contentUrl: "/watch/123",
+          url: "https://example.com/watch/123",
+          mainEntityOfPage: {
+            "@id": "/watch/123",
+          },
+        }),
+      ],
+    });
+
+    expect(helper.buildCurrentContentPayload()?.extensionData.ameowCapture).toMatchObject({
+      structuredDataUrls: [
+        "https://example.com/watch/123",
+      ],
     });
   });
 });

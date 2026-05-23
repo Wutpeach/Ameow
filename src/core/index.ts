@@ -7,6 +7,7 @@ export * from "./video-candidate-order.js";
 export * from "./types/download-intent.js";
 export * from "./types/engine.js";
 export * from "./types/engine-plan.js";
+export * from "./types/extension-capture-evidence.js";
 export * from "./types/media-candidate.js";
 export * from "./types/raw-download-input.js";
 export * from "./types/site-provider.js";

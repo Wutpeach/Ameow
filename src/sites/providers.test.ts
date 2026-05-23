@@ -385,6 +385,63 @@ describe("builtin site providers", () => {
     expect(intent.siteId).toBe("instagram.com");
   });
 
+  it("prefers Instagram permalink evidence for gallery-dl-supported source selection", () => {
+    const pageUrl = "https://www.instagram.com/explore/";
+    const permalink = "https://www.instagram.com/reel/C7example_/";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "instagram",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "current_content",
+          pageUrl,
+          canonicalUrl: permalink,
+          contentIds: {
+            instagram_shortcode_path: "reel",
+            instagram_shortcode: "C7example_",
+          },
+        },
+      },
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("gallery-dl-supported");
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines.every((engine) => engine.sourceUrl === permalink)).toBe(true);
+    expect(intent.extensionData).toMatchObject({
+      ameowCapture: {
+        canonicalUrl: permalink,
+      },
+    });
+  });
+
+  it("synthesizes Instagram permalink source from shortcode evidence inside the provider", () => {
+    const pageUrl = "https://www.instagram.com/explore/";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "instagram",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          contentIds: {
+            instagram_shortcode_path: "p",
+            instagram_shortcode: "C7example_",
+          },
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("gallery-dl-supported");
+    expect(plan.engines.every((engine) => (
+      engine.sourceUrl === "https://www.instagram.com/p/C7example_/"
+    ))).toBe(true);
+  });
+
   it("normalizes Weibo layerid links to the canonical detail URL for gallery-dl", () => {
     const plan = resolvePlan({
       url: "https://weibo.com/?layerid=4913212871149937",

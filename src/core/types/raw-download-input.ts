@@ -1,4 +1,5 @@
 import type { MediaCandidate } from "./media-candidate.js";
+import type { AmeowCaptureEvidenceV1 } from "./extension-capture-evidence.js";
 
 export type DownloadSelectionScope = "current_item" | "playlist";
 
@@ -12,6 +13,7 @@ export type YouTubeExtensionData = {
 
 export type DownloadExtensionData = Record<string, unknown> & {
   youtube?: YouTubeExtensionData;
+  ameowCapture?: AmeowCaptureEvidenceV1;
 };
 
 export type RawDownloadInput = {

@@ -449,6 +449,7 @@ export const buildGalleryDlVideoIntent = (
   candidates: input.videoCandidates ?? [],
   selectionScope: input.selectionScope,
   videoQuality: input.videoQuality,
+  extensionData: input.extensionData,
   preferredFormat: "best",
   clipStartSec: input.clipStartSec,
   clipEndSec: input.clipEndSec,

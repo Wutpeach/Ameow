@@ -6,8 +6,22 @@ const youtubeExtensionDataSchema = z.object({
   source: z.enum(["injected", "pasted", "context_menu"]).optional(),
 });
 
+const ameowCaptureEvidenceSchema = z.object({
+  version: z.literal(1),
+  action: z.enum(["current_content", "pick_download", "popup_fallback"]),
+  pageUrl: z.url(),
+  canonicalUrl: z.url().optional(),
+  ogUrl: z.url().optional(),
+  title: z.string().trim().optional(),
+  contentIds: z.record(z.string(), z.string()).optional(),
+  structuredDataUrls: z.array(z.url()).max(8).optional(),
+  targetHref: z.url().optional(),
+  targetSrc: z.url().optional(),
+}).catchall(z.unknown());
+
 const downloadExtensionDataSchema = z.object({
   youtube: youtubeExtensionDataSchema.optional(),
+  ameowCapture: ameowCaptureEvidenceSchema.optional(),
 }).catchall(z.unknown());
 
 export const mediaCandidateSchema = z.object({
