@@ -29,6 +29,7 @@
   let rootHost = null;
   let pickerStyle = null;
   let pickerState = null;
+  let dragState = null;
   let connectionState = "offline";
   let localeBundle = {
     language: "en",
@@ -59,6 +60,8 @@
       pick: ['<circle cx="12" cy="12" r="7"/>', '<path d="M12 3v3"/>', '<path d="M12 18v3"/>', '<path d="M3 12h3"/>', '<path d="M18 12h3"/>', '<circle cx="12" cy="12" r="1"/>'],
       download: ['<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>', '<path d="M7 10l5 5 5-5"/>', '<path d="M12 15V3"/>'],
       more: ['<circle cx="12" cy="12" r="1"/>', '<circle cx="19" cy="12" r="1"/>', '<circle cx="5" cy="12" r="1"/>'],
+      lock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 8 0v4"/>'],
+      unlock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 7.48-2"/>'],
       eyeOff: ['<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>', '<path d="M6.61 6.61C3.98 8.36 2 12 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>', '<path d="M2 2l20 20"/>', '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>'],
       switchSide: ['<path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/>', '<path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/>', '<path d="M12 8l-3 4 3 4"/>', '<path d="M12 8l3 4-3 4"/>'],
     }[name] || [];
@@ -85,10 +88,12 @@
       return;
     }
     launcher.dataset.side = config.side;
-    launcher.style.setProperty("--ameow-launcher-top", `${Math.round(config.verticalPosition * 100)}vh`);
+    launcher.dataset.locked = config.locked ? "true" : "false";
+    launcher.style.setProperty("--ameow-launcher-top", `${(config.verticalPosition * 100).toFixed(2)}vh`);
   }
 
   function unmountLauncher() {
+    stopDrag();
     closeMenu();
     stopPicker();
     rootHost?.remove();
@@ -116,6 +121,16 @@
       side: current.side === "right" ? "left" : "right",
     }));
     updateLauncherConfig(nextConfig);
+    closeMenu();
+  }
+
+  async function toggleLocked() {
+    const nextConfig = await launcherConfig.updateConfig((current) => ({
+      ...current,
+      locked: !current.locked,
+    }));
+    updateLauncherConfig(nextConfig);
+    refreshLauncherLabels();
     closeMenu();
   }
 
@@ -293,6 +308,16 @@
     button.setAttribute("aria-label", label);
   }
 
+  function setActionIcon(name, iconName) {
+    const button = launcher?.querySelector(`[data-action="${name}"]`);
+    if (!button) {
+      return;
+    }
+    const currentIcon = button.querySelector("svg");
+    currentIcon?.remove();
+    button.prepend(icon(iconName));
+  }
+
   function setMenuLabel(name, label) {
     const labelText = launcher?.querySelector(`[data-menu-item="${name}"] .ameow-launcher-menu-label`);
     if (labelText) {
@@ -303,6 +328,13 @@
   function refreshLauncherLabels() {
     setActionLabel("pick", t("launcher.actions.pick", "Pick download"));
     setActionLabel("download", t("launcher.actions.current", "Download current content"));
+    setActionLabel(
+      "lock",
+      config.locked
+        ? t("launcher.actions.unlock", "Unlock position")
+        : t("launcher.actions.lock", "Lock position"),
+    );
+    setActionIcon("lock", config.locked ? "lock" : "unlock");
     setActionLabel("more", t("launcher.actions.more", "More"));
     setMenuLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
     setMenuLabel("switchSide", t("launcher.menu.switchSide", "Switch side"));
@@ -312,6 +344,88 @@
         "Click the content to download. Right-click or press Esc to cancel.",
       );
     }
+  }
+
+  function getViewportHeight() {
+    return Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+  }
+
+  function normalizeVerticalFromClientY(clientY) {
+    const viewportHeight = getViewportHeight();
+    return Math.min(0.9, Math.max(0.12, clientY / viewportHeight));
+  }
+
+  function stopDrag() {
+    if (!dragState) {
+      return;
+    }
+    document.removeEventListener("pointermove", dragState.handleMove, true);
+    document.removeEventListener("pointerup", dragState.handleEnd, true);
+    document.removeEventListener("pointercancel", dragState.handleEnd, true);
+    dragState.captureTarget?.releasePointerCapture?.(dragState.pointerId);
+    if (launcher) {
+      launcher.dataset.dragging = "false";
+    }
+    dragState = null;
+  }
+
+  function startDrag(event) {
+    if (!launcher || config.locked || event.button !== 0) {
+      return;
+    }
+
+    closeMenu();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+
+    const handleMove = (moveEvent) => {
+      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!dragState.moved && distance < 4) {
+        return;
+      }
+      dragState.moved = true;
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
+      const nextSide = moveEvent.clientX < window.innerWidth / 2 ? "left" : "right";
+      const nextVertical = normalizeVerticalFromClientY(moveEvent.clientY);
+      config = launcherConfig.normalizeConfig({
+        ...config,
+        side: nextSide,
+        verticalPosition: nextVertical,
+      });
+      launcher.dataset.dragging = "true";
+      updateLauncherConfig(config);
+    };
+
+    const handleEnd = async (endEvent) => {
+      const moved = dragState?.moved === true;
+      stopDrag();
+      if (!moved) {
+        return;
+      }
+      endEvent.preventDefault();
+      endEvent.stopPropagation();
+      const nextConfig = await launcherConfig.updateConfig((current) => ({
+        ...current,
+        side: config.side,
+        verticalPosition: config.verticalPosition,
+      }));
+      updateLauncherConfig(nextConfig);
+    };
+
+    dragState = {
+      pointerId,
+      moved: false,
+      captureTarget: event.currentTarget,
+      handleMove,
+      handleEnd,
+    };
+
+    event.currentTarget?.setPointerCapture?.(pointerId);
+    document.addEventListener("pointermove", handleMove, true);
+    document.addEventListener("pointerup", handleEnd, true);
+    document.addEventListener("pointercancel", handleEnd, true);
   }
 
   function mountLauncher() {
@@ -336,6 +450,7 @@
     handle.className = "ameow-launcher-handle";
     handle.setAttribute("aria-label", "Ameow");
     handle.appendChild(icon("cat"));
+    handle.addEventListener("pointerdown", startDrag);
 
     const topActions = document.createElement("div");
     topActions.className = "ameow-launcher-actions ameow-launcher-actions-top";
@@ -347,6 +462,7 @@
     bottomActions.className = "ameow-launcher-actions ameow-launcher-actions-bottom";
     bottomActions.append(
       createActionButton("download", t("launcher.actions.current", "Download current content"), downloadCurrentContent),
+      createActionButton("lock", t("launcher.actions.lock", "Lock position"), toggleLocked),
       createActionButton("more", t("launcher.actions.more", "More"), () => {
         launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
       }),
@@ -363,6 +479,7 @@
     shadow.append(stylesheet, launcher);
     document.documentElement.appendChild(rootHost);
     updateLauncherConfig(config);
+    refreshLauncherLabels();
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -375,6 +492,7 @@
         enabled: config.enabled,
         hiddenForSite: launcherConfig.isSiteDisabled(config, window.location.href),
         side: config.side,
+        locked: config.locked,
         version: 1,
       });
       return true;
@@ -418,6 +536,7 @@
         visible: Boolean(launcher && rootHost?.isConnected),
         enabled: config.enabled,
         side: config.side,
+        locked: config.locked,
       });
       return true;
     }

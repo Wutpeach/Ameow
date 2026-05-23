@@ -6,6 +6,7 @@
     enabled: true,
     side: "right",
     verticalPosition: 0.62,
+    locked: false,
     disabledSitePatterns: [],
   });
 
@@ -39,6 +40,7 @@
       enabled: typeof source.enabled === "boolean" ? source.enabled : DEFAULT_CONFIG.enabled,
       side: isValidSide(source.side) ? source.side : DEFAULT_CONFIG.side,
       verticalPosition: clampVerticalPosition(Number(source.verticalPosition)),
+      locked: typeof source.locked === "boolean" ? source.locked : DEFAULT_CONFIG.locked,
       disabledSitePatterns: normalizeDisabledSitePatterns(source.disabledSitePatterns),
     };
   }

@@ -32,6 +32,8 @@
     "actions": {
       "pick": "Pick download",
       "current": "Download current content",
+      "lock": "Lock position",
+      "unlock": "Unlock position",
       "more": "More"
     },
     "menu": {

@@ -24,11 +24,13 @@ describe("launcher config helper", () => {
       enabled: false,
       side: "top",
       verticalPosition: 99,
+      locked: true,
       disabledSitePatterns: ["douyin.com", "", 123, "www.instagram.com"],
     })).toEqual({
       enabled: false,
       side: "right",
       verticalPosition: 0.9,
+      locked: true,
       disabledSitePatterns: ["douyin.com", "www.instagram.com"],
     });
   });
