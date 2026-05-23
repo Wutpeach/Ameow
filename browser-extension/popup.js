@@ -65,29 +65,33 @@ function shortHost(value) {
   }
 }
 
-function sourceLabel(source) {
+function sourceLabel(source, translate = null) {
   const labels = {
-    direct_link: "link",
-    img_element: "img",
-    open_graph: "og",
-    performance_resource: "resource",
-    picture_source: "picture",
-    source_element: "source",
-    video_element: "video",
-    video_source: "source",
+    direct_link: ["popup.media.sources.directLink", "link"],
+    img_element: ["popup.media.sources.imageElement", "img"],
+    open_graph: ["popup.media.sources.openGraph", "og"],
+    performance_resource: ["popup.media.sources.performanceResource", "resource"],
+    picture_source: ["popup.media.sources.pictureSource", "picture"],
+    source_element: ["popup.media.sources.sourceElement", "source"],
+    video_element: ["popup.media.sources.videoElement", "video"],
+    video_source: ["popup.media.sources.videoSource", "source"],
   };
-  return labels[source] || source || "source";
+  const label = labels[source];
+  if (label) {
+    return typeof translate === "function" ? translate(label[0], label[1]) : label[1];
+  }
+  return source || (typeof translate === "function" ? translate("popup.media.sources.source", "source") : "source");
 }
 
-function formatAge(ageMs) {
+function ageBucket(ageMs) {
   if (!Number.isFinite(ageMs) || ageMs < 0) {
-    return "";
+    return null;
   }
   const seconds = Math.round(ageMs / 1000);
   if (seconds < 60) {
-    return `${seconds}s ago`;
+    return { unit: "seconds", count: seconds };
   }
-  return `${Math.round(seconds / 60)}m ago`;
+  return { unit: "minutes", count: Math.round(seconds / 60) };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -148,16 +152,46 @@ document.addEventListener("DOMContentLoaded", () => {
     return localeUtils?.translate(currentBundle, key, fallback) || fallback || key;
   }
 
+  function tt(key, values, fallback) {
+    return localeUtils?.translateTemplate(currentBundle, key, values, fallback) || fallback || key;
+  }
+
+  function formatAge(ageMs) {
+    const bucket = ageBucket(ageMs);
+    if (!bucket) {
+      return "";
+    }
+    return tt(
+      bucket.unit === "seconds" ? "popup.media.age.seconds" : "popup.media.age.minutes",
+      { count: bucket.count },
+      bucket.unit === "seconds" ? `${bucket.count}s ago` : `${bucket.count}m ago`,
+    );
+  }
+
   function renderStaticCopy() {
     elements.popupTitle.textContent = t("app.name", "Ameow");
     elements.popupSubtitle.textContent = t("popup.subtitle", "Extension");
+    elements.tabButtons.forEach((button) => {
+      const tab = button.dataset.tab || "browse";
+      button.textContent = t(`popup.tabs.${tab}`, button.textContent || tab);
+    });
+    elements.mediaTabs.forEach((button) => {
+      const mediaType = button.dataset.mediaType || "video";
+      button.textContent = t(`popup.media.tabs.${mediaType}`, button.textContent || mediaType);
+    });
+    elements.scanMediaButton.textContent = t("popup.media.scan", "Scan");
+    elements.scanMediaButton.title = t("popup.media.scanTitle", "Scan current page");
+    elements.scanMediaButton.setAttribute("aria-label", t("popup.media.scanTitle", "Scan current page"));
     elements.qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
     elements.launcherSectionTitle.textContent = t("popup.sections.launcher", "Launcher");
     elements.launcherToggleTitle.textContent = t("launcher.popup.toggleTitle", "Edge launcher");
     elements.restoreLauncherButton.textContent = t("launcher.popup.restore", "Restore on this site");
     elements.fallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
-    elements.sitesSectionTitle.textContent = "Hidden sites";
-    elements.restoreAllSitesButton.textContent = "Restore all";
+    elements.launcherSideLeft.textContent = t("popup.controls.side.left", "Left");
+    elements.launcherSideRight.textContent = t("popup.controls.side.right", "Right");
+    elements.resetLauncherPositionButton.textContent = t("popup.controls.resetPosition", "Reset");
+    elements.sitesSectionTitle.textContent = t("popup.sections.hiddenSites", "Hidden sites");
+    elements.restoreAllSitesButton.textContent = t("popup.sites.restoreAll", "Restore all");
     document.title = t("app.name", "Ameow");
   }
 
@@ -327,11 +361,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hiddenSites.length === 0) {
       const empty = document.createElement("div");
       empty.className = "ameow-media-empty";
-      empty.innerHTML = `
-        <div class="ameow-empty-mark" aria-hidden="true">ok</div>
-        <div class="ameow-empty-title">No hidden sites</div>
-        <div class="ameow-empty-copy">Sites hidden from the launcher will appear here.</div>
-      `;
+      const mark = document.createElement("div");
+      const title = document.createElement("div");
+      const copy = document.createElement("div");
+      mark.className = "ameow-empty-mark";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = "ok";
+      title.className = "ameow-empty-title";
+      title.textContent = t("popup.sites.empty.title", "No hidden sites");
+      copy.className = "ameow-empty-copy";
+      copy.textContent = t("popup.sites.empty.copy", "Sites hidden from the launcher will appear here.");
+      empty.append(mark, title, copy);
       elements.hiddenSitesList.appendChild(empty);
       return;
     }
@@ -349,9 +389,8 @@ document.addEventListener("DOMContentLoaded", () => {
       host.textContent = pattern;
       restore.type = "button";
       restore.className = "ameow-site-restore";
-      restore.title = `Restore ${pattern}`;
-      restore.setAttribute("aria-label", `Restore ${pattern}`);
-      restore.textContent = "R";
+      restore.title = tt("popup.sites.restoreOne", { pattern }, `Restore ${pattern}`);
+      restore.setAttribute("aria-label", tt("popup.sites.restoreOne", { pattern }, `Restore ${pattern}`));
       restore.addEventListener("click", async () => {
         await sendRuntimeMessage({ type: "restore_hidden_site", pattern });
         await refreshLauncherControls();
@@ -372,31 +411,38 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!scanStarted && !mediaScanResult) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
-      elements.mediaEmptyTitle.textContent = "Scan current page";
-      elements.mediaEmptyCopy.textContent = "Find videos and images on the active page.";
-      elements.mediaSummary.textContent = "Manual scan only. Nothing runs until you choose Scan.";
+      elements.mediaEmptyTitle.textContent = t("popup.media.empty.initial.title", "Scan current page");
+      elements.mediaEmptyCopy.textContent = t("popup.media.empty.initial.copy", "Find videos and images on the active page.");
+      elements.mediaSummary.textContent = t("popup.media.summary.initial", "Manual scan only. Nothing runs until you choose Scan.");
       return;
     }
 
     if (mediaScanResult?.success === false) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
-      elements.mediaEmptyTitle.textContent = "Cannot scan this page";
-      elements.mediaEmptyCopy.textContent = mediaScanResult.reason || "The active page is unavailable to the extension.";
-      elements.mediaSummary.textContent = "Scan unavailable";
+      elements.mediaEmptyTitle.textContent = t("popup.media.empty.unavailable.title", "Cannot scan this page");
+      elements.mediaEmptyCopy.textContent = mediaScanResult.reason || t("popup.media.empty.unavailable.copy", "The active page is unavailable to the extension.");
+      elements.mediaSummary.textContent = t("popup.media.summary.unavailable", "Scan unavailable");
       return;
     }
 
     const videoCount = mediaScanResult?.videos?.length || 0;
     const imageCount = mediaScanResult?.images?.length || 0;
     const ageCopy = formatAge(Date.now() - Number(mediaScanResult?.scannedAt || Date.now()));
-    elements.mediaSummary.textContent = `${videoCount} video / ${imageCount} image${ageCopy ? ` / ${ageCopy}` : ""}`;
+    const ageSuffix = ageCopy ? ` / ${ageCopy}` : "";
+    elements.mediaSummary.textContent = tt(
+      "popup.media.summary.results",
+      { videoCount, imageCount, age: ageSuffix },
+      `${videoCount} video / ${imageCount} image${ageSuffix}`,
+    );
 
     if (candidates.length === 0) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
-      elements.mediaEmptyTitle.textContent = currentMediaType === "video" ? "No videos found" : "No images found";
-      elements.mediaEmptyCopy.textContent = "Try the other media tab or rescan after the page finishes loading.";
+      elements.mediaEmptyTitle.textContent = currentMediaType === "video"
+        ? t("popup.media.empty.video.title", "No videos found")
+        : t("popup.media.empty.image.title", "No images found");
+      elements.mediaEmptyCopy.textContent = t("popup.media.empty.none.copy", "Try the other media tab or rescan after the page finishes loading.");
       return;
     }
 
@@ -409,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function createMediaRow(candidate) {
     const row = document.createElement("div");
-    const icon = document.createElement("span");
+    const preview = document.createElement("span");
     const main = document.createElement("div");
     const title = document.createElement("div");
     const meta = document.createElement("div");
@@ -419,8 +465,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = safeText(candidate.id, `${candidate.mediaType}-${Math.random().toString(16).slice(2)}`);
     row.className = "ameow-media-row";
     row.dataset.candidateId = id;
-    icon.className = "ameow-media-icon";
-    icon.textContent = candidate.mediaType === "image" ? "IMG" : "VID";
+    preview.className = "ameow-media-preview";
+    preview.dataset.type = candidate.mediaType === "image" ? "image" : "video";
+    preview.textContent = candidate.mediaType === "image"
+      ? t("popup.media.type.imageShort", "IMG")
+      : t("popup.media.type.videoShort", "VID");
+    if (candidate.previewUrl) {
+      const image = document.createElement("img");
+      image.src = candidate.previewUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      image.referrerPolicy = "no-referrer";
+      image.addEventListener("load", () => {
+        preview.dataset.hasPreview = "true";
+      }, { once: true });
+      image.addEventListener("error", () => {
+        image.remove();
+        preview.dataset.hasPreview = "false";
+      }, { once: true });
+      preview.appendChild(image);
+    }
 
     main.className = "ameow-media-row-main";
     title.className = "ameow-media-title";
@@ -428,7 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
     meta.className = "ameow-media-meta";
     meta.textContent = [
       candidate.host || shortHost(candidate.url),
-      sourceLabel(candidate.source),
+      sourceLabel(candidate.source, t),
       candidate.extension || candidate.type,
       candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "",
     ].filter(Boolean).join(" / ");
@@ -437,7 +501,7 @@ document.addEventListener("DOMContentLoaded", () => {
     menuButton.type = "button";
     menuButton.className = "ameow-row-menu-btn";
     menuButton.textContent = "...";
-    menuButton.setAttribute("aria-label", "Candidate actions");
+    menuButton.setAttribute("aria-label", t("popup.media.actions.open", "Candidate actions"));
     menuButton.addEventListener("click", (event) => {
       event.stopPropagation();
       const nextOpen = openMenuId !== id;
@@ -451,12 +515,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     menu.className = "ameow-row-menu";
     menu.append(
-      createMenuItem("Download", () => downloadCandidate(candidate, row)),
-      createMenuItem("Copy link", () => copyCandidateLink(candidate, row)),
-      createMenuItem("View source", () => showCandidateSource(candidate, row)),
+      createMenuItem(t("popup.media.actions.download", "Download"), () => downloadCandidate(candidate, row)),
+      createMenuItem(t("popup.media.actions.copy", "Copy link"), () => copyCandidateLink(candidate, row)),
+      createMenuItem(t("popup.media.actions.source", "View source"), () => showCandidateSource(candidate, row)),
     );
 
-    row.append(icon, main, menuButton, menu);
+    row.append(preview, main, menuButton, menu);
     return row;
   }
 
@@ -501,19 +565,23 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     downloadCooldown.add(key);
-    setRowFeedback(row, "Submitting");
+    setRowFeedback(row, t("popup.media.feedback.submitting", "Submitting"));
     const response = await sendRuntimeMessage({
       type: "download_media_candidate",
       candidate,
     });
-    setRowFeedback(row, response?.success ? "Submitted" : (response?.connected === false ? "Desktop offline" : "Failed"));
+    setRowFeedback(row, response?.success
+      ? t("popup.media.feedback.submitted", "Submitted")
+      : (response?.connected === false
+        ? t("popup.media.feedback.offline", "Desktop offline")
+        : t("popup.media.feedback.failed", "Failed")));
     window.setTimeout(() => downloadCooldown.delete(key), 700);
   }
 
   async function copyCandidateLink(candidate, row) {
     try {
       await navigator.clipboard.writeText(candidate.url);
-      setRowFeedback(row, "Copied");
+      setRowFeedback(row, t("popup.media.feedback.copied", "Copied"));
     } catch {
       const input = document.createElement("textarea");
       input.value = candidate.url;
@@ -521,30 +589,30 @@ document.addEventListener("DOMContentLoaded", () => {
       input.select();
       document.execCommand("copy");
       input.remove();
-      setRowFeedback(row, "Copied");
+      setRowFeedback(row, t("popup.media.feedback.copied", "Copied"));
     }
   }
 
   function showCandidateSource(candidate, row) {
-    setRowFeedback(row, `${sourceLabel(candidate.source)} / ${shortHost(candidate.url)}`);
+    setRowFeedback(row, `${sourceLabel(candidate.source, t)} / ${shortHost(candidate.url)}`);
   }
 
   async function scanPageMedia() {
     scanStarted = true;
     elements.scanMediaButton.disabled = true;
-    elements.scanMediaButton.textContent = "Scanning";
+    elements.scanMediaButton.textContent = t("popup.media.scanning", "Scanning");
     elements.mediaList.dataset.visible = "false";
     elements.mediaEmpty.style.display = "flex";
-    elements.mediaEmptyTitle.textContent = "Scanning";
-    elements.mediaEmptyCopy.textContent = "Checking the active page for videos and images.";
-    elements.mediaSummary.textContent = "Scanning current page";
+    elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
+    elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for videos and images.");
+    elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
 
     const response = await sendRuntimeMessage({ type: "scan_page_media" });
     mediaScanResult = response && typeof response === "object"
       ? response
       : { success: false, reason: "scan_failed" };
     elements.scanMediaButton.disabled = false;
-    elements.scanMediaButton.textContent = "Scan";
+    elements.scanMediaButton.textContent = t("popup.media.scan", "Scan");
     renderMediaState();
   }
 
@@ -662,7 +730,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   elements.restoreAllSitesButton.addEventListener("click", async () => {
     const count = currentLauncherConfig?.disabledSitePatterns?.length || 0;
-    if (count > 0 && !window.confirm(`Restore all ${count} hidden sites?`)) {
+    if (count > 0 && !window.confirm(tt(
+      "popup.sites.restoreAllConfirm",
+      { count },
+      `Restore all ${count} hidden sites?`,
+    ))) {
       return;
     }
     await sendRuntimeMessage({ type: "restore_all_hidden_sites" });

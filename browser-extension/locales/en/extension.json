@@ -20,7 +20,99 @@
     },
     "sections": {
       "quality": "Quality",
-      "launcher": "Launcher"
+      "launcher": "Launcher",
+      "hiddenSites": "Hidden sites"
+    },
+    "tabs": {
+      "browse": "Browse",
+      "controls": "Controls",
+      "sites": "Sites"
+    },
+    "controls": {
+      "side": {
+        "left": "Left",
+        "right": "Right"
+      },
+      "resetPosition": "Reset"
+    },
+    "media": {
+      "tabs": {
+        "video": "Video",
+        "image": "Image"
+      },
+      "scan": "Scan",
+      "scanTitle": "Scan current page",
+      "scanning": "Scanning",
+      "type": {
+        "videoShort": "VID",
+        "imageShort": "IMG"
+      },
+      "age": {
+        "seconds": "{count}s ago",
+        "minutes": "{count}m ago"
+      },
+      "summary": {
+        "initial": "Manual scan only. Nothing runs until you choose Scan.",
+        "scanning": "Scanning current page",
+        "unavailable": "Scan unavailable",
+        "results": "{videoCount} video / {imageCount} image{age}"
+      },
+      "empty": {
+        "initial": {
+          "title": "Scan current page",
+          "copy": "Find videos and images on the active page."
+        },
+        "scanning": {
+          "title": "Scanning",
+          "copy": "Checking the active page for videos and images."
+        },
+        "unavailable": {
+          "title": "Cannot scan this page",
+          "copy": "The active page is unavailable to the extension."
+        },
+        "video": {
+          "title": "No videos found"
+        },
+        "image": {
+          "title": "No images found"
+        },
+        "none": {
+          "copy": "Try the other media tab or rescan after the page finishes loading."
+        }
+      },
+      "actions": {
+        "open": "Candidate actions",
+        "download": "Download",
+        "copy": "Copy link",
+        "source": "View source"
+      },
+      "feedback": {
+        "submitting": "Submitting",
+        "submitted": "Submitted",
+        "offline": "Desktop offline",
+        "failed": "Failed",
+        "copied": "Copied"
+      },
+      "sources": {
+        "source": "source",
+        "directLink": "link",
+        "imageElement": "img",
+        "openGraph": "og",
+        "performanceResource": "resource",
+        "pictureSource": "picture",
+        "sourceElement": "source",
+        "videoElement": "video",
+        "videoSource": "source"
+      }
+    },
+    "sites": {
+      "restoreAll": "Restore all",
+      "restoreAllConfirm": "Restore all {count} hidden sites?",
+      "restoreOne": "Restore {pattern}",
+      "empty": {
+        "title": "No hidden sites",
+        "copy": "Sites hidden from the launcher will appear here."
+      }
     },
     "preferences": {
       "highest": {
