@@ -111,6 +111,10 @@ const COMPACT_THEME_BUTTON_PADDING = "6px 10px";
 const COMPACT_SHORTCUT_ACTION_HEIGHT = 32;
 const COMPACT_SHORTCUT_ACTION_MIN_WIDTH = 74;
 const COMPACT_SHORTCUT_ACTION_PADDING = "6px 12px";
+const SETTINGS_HUB_SEARCH_HEIGHT = 34;
+const SETTINGS_HUB_DESTINATION_MIN_HEIGHT = 54;
+const SETTINGS_HUB_SEARCH_TO_LIST_GAP = 14;
+const SETTINGS_HUB_DESTINATION_GAP = 9;
 const UI_LAB_WINDOW_WIDTH = 420;
 const UI_LAB_WINDOW_HEIGHT = 560;
 const SITE_SESSION_LOGOS: Record<SupportedSiteSessionId, ComponentType<{ size?: number }>> = {
@@ -1306,15 +1310,15 @@ function SettingsPage() {
     const highlighted = hovered || destination.attentionTone === "accent";
     return {
       width: "100%",
-      minHeight: 50,
+      minHeight: SETTINGS_HUB_DESTINATION_MIN_HEIGHT,
       display: "flex",
       alignItems: "center",
       gap: 10,
-      padding: "7px 10px 7px 12px",
+      padding: "9px 10px 9px 12px",
       ...getFieldSurfaceStyle(colors, {
         active: highlighted,
         highlighted: hovered,
-        padding: "7px 10px 7px 12px",
+        padding: "9px 10px 9px 12px",
         height: 0,
       }),
       borderColor: destination.attentionTone === "danger"
@@ -1359,7 +1363,14 @@ function SettingsPage() {
   };
 
   const renderHubPage = (): ReactNode => (
-    <div style={{ display: "grid", gap: 7 }}>
+    <div
+      style={{
+        minHeight: "100%",
+        display: "grid",
+        gridTemplateRows: `${SETTINGS_HUB_SEARCH_HEIGHT}px 1fr`,
+        gap: SETTINGS_HUB_SEARCH_TO_LIST_GAP,
+      }}
+    >
       <label
         style={{
           display: "flex",
@@ -1369,7 +1380,7 @@ function SettingsPage() {
             active: Boolean(normalizedSettingsSearchQuery),
             highlighted: Boolean(normalizedSettingsSearchQuery),
             padding: "8px 10px",
-            height: 32,
+            height: SETTINGS_HUB_SEARCH_HEIGHT,
           }),
           ...WINDOW_NO_DRAG_REGION_STYLE,
         }}
@@ -1400,7 +1411,15 @@ function SettingsPage() {
         />
       </label>
 
-      <div style={{ display: "grid", gap: 6 }}>
+      <div
+        style={{
+          minHeight: 0,
+          display: "grid",
+          alignContent: "start",
+          gap: SETTINGS_HUB_DESTINATION_GAP,
+          paddingBottom: 2,
+        }}
+      >
         {visibleHubDestinations.map((destination) => {
         const hovered = hoveredHubDestination === destination.id;
         return (
@@ -2255,6 +2274,14 @@ function SettingsPage() {
                 transition={settingsPageMotionTransition}
                 style={{
                   willChange: shouldReduceMotion ? undefined : "transform, opacity",
+                  ...(activePage === "hub"
+                    ? {
+                      flex: "1 1 auto",
+                      minHeight: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                    }
+                    : {}),
                 }}
               >
                 {renderActivePage()}
