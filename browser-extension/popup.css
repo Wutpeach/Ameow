@@ -109,54 +109,6 @@ body::-webkit-scrollbar-thumb:hover {
   gap: 7px;
 }
 
-.ameow-popup-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ameow-popup-logo {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ameow-popup-logo svg {
-  width: 24px;
-  height: 24px;
-  fill: var(--ameow-text-tertiary);
-}
-
-.ameow-popup-meta {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1 1 auto;
-}
-
-.ameow-popup-title {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ameow-popup-subtitle {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ameow-text-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ameow-popup-card {
   background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
   border: 1px solid var(--ameow-card-border);
@@ -241,7 +193,8 @@ body::-webkit-scrollbar-thumb:hover {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 4px 0 2px;
+  min-height: 34px;
+  padding: 1px 0 2px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -288,6 +241,7 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   align-items: center;
   gap: 5px;
+  justify-content: flex-end;
 }
 
 .ameow-context-primary,
@@ -313,6 +267,36 @@ body::-webkit-scrollbar-thumb:hover {
   padding: 0 9px;
   background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
   color: var(--ameow-text-secondary);
+}
+
+.ameow-refresh-button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ameow-refresh-button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ameow-refresh-button[data-scanning="true"] svg {
+  transform: rotate(90deg);
+}
+
+.ameow-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .ameow-context-secondary:hover,
@@ -773,17 +757,21 @@ body::-webkit-scrollbar-thumb:hover {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
+  gap: 5px;
+  min-height: 30px;
+  max-width: 96px;
+  padding: 0 8px;
   border: 1px solid var(--ameow-card-border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
   color: var(--ameow-text-secondary);
   flex: 0 0 auto;
+  box-shadow: var(--ameow-card-shadow);
 }
 
 .ameow-header-status-text {
-  max-width: 74px;
+  min-width: 0;
+  max-width: 58px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
@@ -925,13 +913,26 @@ body::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(18, 17, 21, 0.94) 0%, rgba(23, 22, 27, 0.98) 100%);
 }
 
+.ameow-footer-slot {
+  min-width: 0;
+  display: flex;
+}
+
+.ameow-footer-slot-left {
+  justify-content: flex-start;
+}
+
+.ameow-footer-slot-right {
+  justify-content: flex-end;
+}
+
 body.ameow-theme-white .ameow-popup-footer {
   background: linear-gradient(180deg, #d8d8dc 0%, #ccccd1 100%);
 }
 
 .ameow-footer-btn {
   appearance: none;
-  min-width: 0;
+  min-width: 76px;
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -977,8 +978,6 @@ body.ameow-theme-white .ameow-footer-btn[aria-expanded="true"] {
 
 .ameow-footer-more {
   position: relative;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .ameow-footer-menu {

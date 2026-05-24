@@ -111,8 +111,6 @@ function ageBucket(ageMs) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const elements = {
-    popupTitle: document.getElementById("popupTitle"),
-    popupSubtitle: document.getElementById("popupSubtitle"),
     headerStatus: document.getElementById("headerStatus"),
     statusText: document.getElementById("statusText"),
     contextCard: document.getElementById("contextCard"),
@@ -121,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     contextCounts: document.getElementById("contextCounts"),
     contextFallbackDownloadButton: document.getElementById("contextFallbackDownloadButton"),
     refreshMediaButton: document.getElementById("refreshMediaButton"),
+    refreshMediaText: document.getElementById("refreshMediaText"),
     mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
     mediaSummary: document.getElementById("mediaSummary"),
     mediaList: document.getElementById("mediaList"),
@@ -210,10 +209,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderStaticCopy() {
-    elements.popupTitle.textContent = t("app.name", "Ameow");
-    elements.popupSubtitle.textContent = t("popup.subtitle", "Extension");
     renderMediaTabs();
-    elements.refreshMediaButton.textContent = t("popup.media.refresh", "Refresh");
+    elements.refreshMediaText.textContent = t("popup.media.refresh", "Refresh");
     elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
     elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
     elements.qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
@@ -699,7 +696,10 @@ document.addEventListener("DOMContentLoaded", () => {
     scanStarted = true;
     scanInProgress = true;
     elements.refreshMediaButton.disabled = true;
-    elements.refreshMediaButton.textContent = t("popup.media.scanning", "Scanning");
+    elements.refreshMediaButton.dataset.scanning = "true";
+    elements.refreshMediaText.textContent = t("popup.media.scanning", "Scanning");
+    elements.refreshMediaButton.title = t("popup.media.scanning", "Scanning");
+    elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.scanning", "Scanning"));
     if (!mediaScanResult) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
@@ -717,7 +717,10 @@ document.addEventListener("DOMContentLoaded", () => {
     currentPageTitle = mediaScanResult.pageTitle || currentPageTitle;
     scanInProgress = false;
     elements.refreshMediaButton.disabled = false;
-    elements.refreshMediaButton.textContent = t("popup.media.refresh", "Refresh");
+    elements.refreshMediaButton.dataset.scanning = "false";
+    elements.refreshMediaText.textContent = t("popup.media.refresh", "Refresh");
+    elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
+    elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
     renderMediaState();
   }
 
