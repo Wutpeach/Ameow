@@ -274,4 +274,39 @@ describe("generic video detector", () => {
       ],
     });
   });
+
+  it("caps popup media scan results to a bounded total", () => {
+    const images = Array.from({ length: 120 }, (_, index) => ({
+      currentSrc: `https://cdn.example.com/media/photo-${index}.jpg`,
+      src: `https://cdn.example.com/media/photo-${index}.jpg`,
+      naturalWidth: 320,
+      naturalHeight: 180,
+      getAttribute() {
+        return null;
+      },
+      getBoundingClientRect() {
+        return { width: 320, height: 180 };
+      },
+    }));
+    const { hooks } = loadDetectorHooks("https://www.example.com/gallery", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "img[src]") {
+            return images;
+          }
+          return [];
+        },
+        title: "Example gallery",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+    expect(result.images).toHaveLength(100);
+    expect(result.videos).toHaveLength(0);
+    expect(result.truncated).toBe(true);
+  });
 });

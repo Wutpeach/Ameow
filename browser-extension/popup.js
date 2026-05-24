@@ -300,7 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const status = response?.status || response;
     const config = response?.config || null;
     renderLauncherStatus(status, config);
-    renderHiddenSites(response?.hiddenSites || config?.disabledSitePatterns || []);
+    renderHiddenSites(config?.disabledSitePatterns || []);
   }
 
   function renderQualityOptions(selectedValue) {

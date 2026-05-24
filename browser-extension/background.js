@@ -53,6 +53,7 @@ const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
 const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
 const MEDIA_SCAN_CACHE_TTL_MS = 60 * 1000;
 const MEDIA_SCAN_TIMEOUT_MS = 5000;
+const MEDIA_SCAN_TOTAL_LIMIT = 100;
 const pendingRequests = new Map();
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
@@ -2282,18 +2283,26 @@ async function getLauncherControlsState() {
     success: true,
     status,
     config,
-    hiddenSites: config?.disabledSitePatterns || [],
   };
 }
 
-async function restoreHiddenSitePattern(pattern) {
+async function updateLauncherConfigAndBroadcast(updater) {
   if (!launcherConfig?.updateConfig) {
     return {
       success: false,
       reason: 'launcher_config_unavailable',
     };
   }
-  const config = await launcherConfig.updateConfig((current) => (
+  const config = await launcherConfig.updateConfig(updater);
+  await broadcastLauncherConfigToTabs(config);
+  return {
+    success: true,
+    config,
+  };
+}
+
+async function restoreHiddenSitePattern(pattern) {
+  return updateLauncherConfigAndBroadcast((current) => (
     launcherConfig.removeDisabledPatternValue
       ? launcherConfig.removeDisabledPatternValue(current, pattern)
       : {
@@ -2301,61 +2310,26 @@ async function restoreHiddenSitePattern(pattern) {
           disabledSitePatterns: (current.disabledSitePatterns || []).filter((entry) => entry !== pattern),
         }
   ));
-  await broadcastLauncherConfigToTabs(config);
-  return {
-    success: true,
-    config,
-    hiddenSites: config.disabledSitePatterns,
-  };
 }
 
 async function restoreAllHiddenSites() {
-  if (!launcherConfig?.updateConfig) {
-    return {
-      success: false,
-      reason: 'launcher_config_unavailable',
-    };
-  }
-  const config = await launcherConfig.updateConfig((current) => (
+  return updateLauncherConfigAndBroadcast((current) => (
     launcherConfig.clearDisabledSitePatterns
       ? launcherConfig.clearDisabledSitePatterns(current)
       : { ...current, disabledSitePatterns: [] }
   ));
-  await broadcastLauncherConfigToTabs(config);
-  return {
-    success: true,
-    config,
-    hiddenSites: config.disabledSitePatterns,
-  };
 }
 
 async function setLauncherSide(side) {
-  if (!launcherConfig?.updateConfig) {
-    return {
-      success: false,
-      reason: 'launcher_config_unavailable',
-    };
-  }
-  const config = await launcherConfig.updateConfig((current) => (
+  return updateLauncherConfigAndBroadcast((current) => (
     launcherConfig.setSide
       ? launcherConfig.setSide(current, side)
       : { ...current, side: side === 'left' ? 'left' : 'right' }
   ));
-  await broadcastLauncherConfigToTabs(config);
-  return {
-    success: true,
-    config,
-  };
 }
 
 async function resetLauncherPosition() {
-  if (!launcherConfig?.updateConfig) {
-    return {
-      success: false,
-      reason: 'launcher_config_unavailable',
-    };
-  }
-  const config = await launcherConfig.updateConfig((current) => (
+  return updateLauncherConfigAndBroadcast((current) => (
     launcherConfig.resetPosition
       ? launcherConfig.resetPosition(current)
       : {
@@ -2364,11 +2338,6 @@ async function resetLauncherPosition() {
           verticalPosition: launcherConfig.DEFAULT_CONFIG?.verticalPosition || 0.62,
         }
   ));
-  await broadcastLauncherConfigToTabs(config);
-  return {
-    success: true,
-    config,
-  };
 }
 
 async function downloadCurrentContentFromActiveTab() {
@@ -2418,15 +2387,24 @@ function normalizeMediaScanResponse(response, tab) {
       scanDurationMs: 0,
     };
   }
+  const videos = Array.isArray(response.videos)
+    ? response.videos.slice(0, MEDIA_SCAN_TOTAL_LIMIT)
+    : [];
+  const images = Array.isArray(response.images)
+    ? response.images.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length))
+    : [];
   return {
     success: true,
     pageUrl: normalizeHttpUrl(response.pageUrl) || tab?.url || null,
     pageTitle: typeof response.pageTitle === 'string' ? response.pageTitle : tab?.title || '',
-    videos: Array.isArray(response.videos) ? response.videos.slice(0, 100) : [],
-    images: Array.isArray(response.images) ? response.images.slice(0, 100) : [],
+    videos,
+    images,
     scannedAt: typeof response.scannedAt === 'number' ? response.scannedAt : Date.now(),
     scanDurationMs: typeof response.scanDurationMs === 'number' ? response.scanDurationMs : 0,
-    truncated: response.truncated === true,
+    truncated: response.truncated === true || videos.length + images.length < (
+      (Array.isArray(response.videos) ? response.videos.length : 0)
+      + (Array.isArray(response.images) ? response.images.length : 0)
+    ),
   };
 }
 
@@ -2440,7 +2418,10 @@ async function getMediaScanCacheForActiveTab() {
   }
 
   const result = await storageGet(MEDIA_SCAN_CACHE_KEY).catch(() => ({}));
-  const cache = result?.[MEDIA_SCAN_CACHE_KEY] || {};
+  const storedCache = result?.[MEDIA_SCAN_CACHE_KEY];
+  const cache = storedCache && typeof storedCache === 'object' && !Array.isArray(storedCache)
+    ? storedCache
+    : {};
   const key = mediaScanCacheKey(tab);
   const entry = cache[key] || null;
   if (!entry) {
