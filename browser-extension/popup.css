@@ -1,5 +1,17 @@
 @import url("./ameow-shared.css");
 
+:root {
+  --ameow-scrollbar-track: rgba(32, 30, 37, 0.82);
+  --ameow-scrollbar-thumb: rgba(75, 73, 81, 0.88);
+  --ameow-scrollbar-thumb-hover: rgba(75, 73, 81, 1);
+}
+
+:root:has(body.ameow-theme-white) {
+  --ameow-scrollbar-track: rgba(0, 0, 0, 0.035);
+  --ameow-scrollbar-thumb: rgba(51, 51, 51, 0.24);
+  --ameow-scrollbar-thumb-hover: rgba(37, 99, 235, 0.42);
+}
+
 body {
   --ameow-surface-start: #201e25;
   --ameow-surface-end: #323137;
@@ -20,9 +32,9 @@ body {
   --ameow-success-soft: rgba(52, 211, 153, 0.18);
   --ameow-danger: #f87171;
   --ameow-danger-soft: rgba(248, 113, 113, 0.16);
-  --ameow-scrollbar-track: rgba(255, 255, 255, 0.03);
-  --ameow-scrollbar-thumb: rgba(170, 170, 170, 0.28);
-  --ameow-scrollbar-thumb-hover: rgba(96, 165, 250, 0.46);
+  --ameow-scrollbar-track: rgba(32, 30, 37, 0.82);
+  --ameow-scrollbar-thumb: rgba(75, 73, 81, 0.88);
+  --ameow-scrollbar-thumb-hover: rgba(75, 73, 81, 1);
   width: 344px;
   padding: 10px;
   margin: 0;
@@ -53,6 +65,38 @@ body.ameow-theme-white {
   --ameow-scrollbar-thumb: rgba(51, 51, 51, 0.24);
   --ameow-scrollbar-thumb-hover: rgba(37, 99, 235, 0.42);
   background: linear-gradient(180deg, #e3e3e3 0%, #efefef 100%);
+}
+
+html,
+body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ameow-scrollbar-thumb) var(--ameow-scrollbar-track);
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 8px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: var(--ameow-scrollbar-track);
+  border-radius: 999px;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--ameow-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background: var(--ameow-scrollbar-thumb-hover);
+  background-clip: content-box;
 }
 
 * {
