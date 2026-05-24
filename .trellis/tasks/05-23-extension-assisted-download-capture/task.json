@@ -19,7 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "05-24-extension-popup-console-media-browser"
+    "05-24-extension-popup-console-media-browser",
+    "05-24-context-aware-toolbar-auto-media-scan"
   ],
   "parent": null,
   "relatedFiles": [],

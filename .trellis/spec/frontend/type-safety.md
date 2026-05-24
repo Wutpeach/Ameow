@@ -205,6 +205,139 @@ Validation and error matrix:
 | Runtime recovery starts through an obsolete command name | Command invocation | Backend bootstrap actually starts | Call `start_runtime_dependency_bootstrap` and treat the returned payload as the next source of truth |
 | Runtime gate event typed as `any` | TS review | Shared payload fields remain strongly typed | Use `listen<RuntimeDependencyGateStatePayload>(...)` |
 
+#### Browser Extension Popup Media Scan Contract
+
+### 1. Scope / Trigger
+
+- Trigger: Any change to `browser-extension/generic-video-detector.js`, `browser-extension/background.js`, or `browser-extension/popup.js` that changes popup media scanning, cache behavior, or candidate shape.
+- Why this needs code-spec depth: The scan response crosses content script, background service worker, storage cache, and popup UI. Missing fields or stale cache entries make the popup show incorrect resources even when each layer works locally.
+
+### 2. Signatures
+
+Content-script scan response:
+
+```ts
+type PopupMediaType = "video" | "audio" | "image";
+
+type PopupMediaCandidate = {
+  id: string;
+  mediaType: PopupMediaType;
+  url: string;
+  title?: string;
+  host?: string;
+  extension?: string;
+  mimeType?: string;
+  source:
+    | "video_element"
+    | "audio_element"
+    | "source_element"
+    | "img_element"
+    | "picture_source"
+    | "direct_link"
+    | "open_graph"
+    | "performance_resource";
+  type?: string;
+  confidence?: "high" | "medium" | "low";
+  previewUrl?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+};
+
+type PopupMediaScanResult = {
+  success: boolean;
+  reason?: string;
+  pageUrl: string | null;
+  pageTitle: string;
+  videos: PopupMediaCandidate[];
+  audios: PopupMediaCandidate[];
+  images: PopupMediaCandidate[];
+  scannedAt: number;
+  scanDurationMs: number;
+  truncated?: boolean;
+  ttlMs?: number;
+};
+```
+
+Message flow:
+
+```text
+popup.js -> chrome.runtime.sendMessage({ type: "scan_page_media" })
+background.js -> active tab frame 0: { type: "ameow_scan_page_media" }
+generic-video-detector.js -> PopupMediaScanResult
+background.js -> normalize/cache -> popup.js
+```
+
+### 3. Contracts
+
+- `videos`, `audios`, and `images` must always exist as arrays after `background.js` normalization, including failure responses.
+- Cache keys must include active tab id plus URL hash. Cache reads must also compare the stored `pageUrl` against the active tab URL before returning an entry.
+- Auto-scan must skip restricted page schemes before sending content-script messages, including `about:`, `chrome:`, `chrome-extension:`, `edge:`, `moz-extension:`, `opera:`, and `vivaldi:`.
+- Background must dedupe in-flight scans by the same cache key so rapid popup close/reopen does not launch concurrent scans for the same tab URL.
+- Audio candidates should prefer stable direct audio files (`mp3`, `m4a`, `aac`, `wav`, `ogg`, `oga`, `flac`, `opus`) and exclude playlist/segment shapes (`m3u8`, `mpd`, `m4s`, `ts`) unless a later provider-specific contract explicitly opts them in.
+- Known-duration audio below 5 seconds is treated as likely UI sound and excluded from popup scan results.
+- Popup row downloads may pass `mediaType: "audio"` through the video-selection queue path, but the candidate metadata must preserve `mediaType: "audio"` instead of rewriting it to `"video"`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Validation Point | Expected Behavior | Action |
+|-----------|------------------|-------------------|--------|
+| Content script omits `audios` | `normalizeMediaScanResponse` | Popup still receives `audios: []` | Default missing arrays in background |
+| Active tab URL changed after a cached scan | `getMediaScanCacheForActiveTab` | Old cache is ignored | Compare cached `pageUrl` to current tab URL |
+| Same URL exists in two tabs | Cache key | Results do not leak across tabs | Include tab id in cache key |
+| User opens/closes popup rapidly | Background in-flight map | Only one active scan runs per tab URL | Reuse existing scan promise |
+| Restricted browser page is active | `scanPageMediaForActiveTab` | Return compact failure without waiting for timeout | Pre-check scheme before tab message |
+| Page exposes short click/ping audio | Audio detector | Candidate is excluded when duration is known below 5s | Apply duration threshold |
+| Page exposes streaming fragments | Audio detector | Segment/playlist URLs are excluded from Audio tab | Filter extension/MIME-like URL shapes |
+| Popup downloads an audio row | `downloadMediaCandidate` | Candidate keeps `mediaType: "audio"` in metadata | Preserve media type in queued candidate |
+
+### 5. Good / Base / Bad Cases
+
+- Good:
+  - A normal page scan returns `{ videos, audios, images }`, the popup shows `Video / Audio / Image`, and cache refresh replaces stale counts without blocking first render.
+  - A page with `<audio src="song.mp3" duration=180>` shows one Audio row.
+  - `chrome://extensions` returns `scan_restricted_page` immediately and the popup shows an unavailable state.
+- Base:
+  - Existing video/image-only detectors still work because missing `audios` normalizes to `[]`.
+  - A popup close during scan is harmless because the background promise can finish and cache the result.
+- Bad:
+  - Cache keyed only by URL shows one tab's scan results in another tab.
+  - Popup assumes `result.audios` exists before background normalization.
+  - Audio detection lists dozens of `m4s` chunks or 1-second UI sounds as downloadable audio.
+
+### 6. Tests Required
+
+- Unit tests:
+  - `collectPageMediaCandidates()` returns `audios`.
+  - Audio collection includes stable audio files and excludes short sounds plus streaming fragments.
+  - Result caps still bound total candidate count across media types.
+- Static checks:
+  - `node --check browser-extension/popup.js`
+  - `node --check browser-extension/background.js`
+  - `node --check browser-extension/generic-video-detector.js`
+- Integration/manual checks:
+  - Popup opens on a scannable page and auto-populates without clicking Scan.
+  - Popup opens on a restricted page and does not wait for content-script timeout.
+  - Same-tab navigation does not show the previous URL's cache result.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```js
+const key = hashString(tab.url);
+const candidates = mediaScanResult[`${currentMediaType}s`];
+```
+
+#### Correct
+
+```js
+const key = `${tab.id}-${hashString(tab.url)}`;
+const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
+  ? mediaScanResult[`${currentMediaType}s`]
+  : [];
+```
+
 #### Protected Image Drag Fallback Contract
 
 - Source files:

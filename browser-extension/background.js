@@ -57,6 +57,7 @@ const MEDIA_SCAN_TOTAL_LIMIT = 100;
 const pendingRequests = new Map();
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
+const mediaScanInFlight = new Map();
 let requestCounter = 0;
 let lastConnectionIssue = OFFLINE_STATUS_TEXT;
 
@@ -2374,6 +2375,14 @@ function mediaScanCacheKey(tab) {
   return `${tabId}-${hashString(url)}`;
 }
 
+function isRestrictedTabUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return true;
+  }
+
+  return /^(?:about|chrome|chrome-extension|edge|moz-extension|opera|vivaldi):/i.test(rawUrl.trim());
+}
+
 function normalizeMediaScanResponse(response, tab) {
   if (!response?.success) {
     return {
@@ -2382,6 +2391,7 @@ function normalizeMediaScanResponse(response, tab) {
       pageUrl: tab?.url || null,
       pageTitle: tab?.title || '',
       videos: [],
+      audios: [],
       images: [],
       scannedAt: Date.now(),
       scanDurationMs: 0,
@@ -2390,21 +2400,26 @@ function normalizeMediaScanResponse(response, tab) {
   const videos = Array.isArray(response.videos)
     ? response.videos.slice(0, MEDIA_SCAN_TOTAL_LIMIT)
     : [];
-  const images = Array.isArray(response.images)
-    ? response.images.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length))
+  const audios = Array.isArray(response.audios)
+    ? response.audios.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length))
     : [];
+  const images = Array.isArray(response.images)
+    ? response.images.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length - audios.length))
+    : [];
+  const inputTotal =
+    (Array.isArray(response.videos) ? response.videos.length : 0)
+    + (Array.isArray(response.audios) ? response.audios.length : 0)
+    + (Array.isArray(response.images) ? response.images.length : 0);
   return {
     success: true,
     pageUrl: normalizeHttpUrl(response.pageUrl) || tab?.url || null,
     pageTitle: typeof response.pageTitle === 'string' ? response.pageTitle : tab?.title || '',
     videos,
+    audios,
     images,
     scannedAt: typeof response.scannedAt === 'number' ? response.scannedAt : Date.now(),
     scanDurationMs: typeof response.scanDurationMs === 'number' ? response.scanDurationMs : 0,
-    truncated: response.truncated === true || videos.length + images.length < (
-      (Array.isArray(response.videos) ? response.videos.length : 0)
-      + (Array.isArray(response.images) ? response.images.length : 0)
-    ),
+    truncated: response.truncated === true || videos.length + audios.length + images.length < inputTotal,
   };
 }
 
@@ -2424,10 +2439,12 @@ async function getMediaScanCacheForActiveTab() {
     : {};
   const key = mediaScanCacheKey(tab);
   const entry = cache[key] || null;
-  if (!entry) {
+  if (!entry || normalizeHttpUrl(entry.pageUrl) !== normalizeHttpUrl(tab.url)) {
     return {
       success: true,
       cached: false,
+      pageUrl: tab.url || null,
+      pageTitle: tab.title || '',
       ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
     };
   }
@@ -2473,28 +2490,58 @@ async function scanPageMediaForActiveTab() {
     };
   }
 
-  const response = await Promise.race([
-    sendMessageToTab(tab.id, { type: INTERNAL_SCAN_PAGE_MEDIA_MESSAGE }, { frameId: 0 }).catch((error) => ({
+  if (isRestrictedTabUrl(tab.url)) {
+    return {
       success: false,
-      reason: error?.message || 'scan_unavailable',
-    })),
-    new Promise((resolve) => {
-      setTimeout(() => resolve({
-        success: false,
-        reason: 'scan_timeout',
-      }), MEDIA_SCAN_TIMEOUT_MS);
-    }),
-  ]);
-  const normalized = normalizeMediaScanResponse(response, tab);
-  if (normalized.success) {
-    await storeMediaScanCache(tab, normalized).catch((error) => {
-      console.warn('[Ameow] Failed to cache media scan result:', error);
-    });
+      reason: 'scan_restricted_page',
+      pageUrl: tab.url || null,
+      pageTitle: tab.title || '',
+      videos: [],
+      audios: [],
+      images: [],
+      scannedAt: Date.now(),
+      scanDurationMs: 0,
+      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+    };
   }
-  return {
-    ...normalized,
-    ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
-  };
+
+  const cacheKey = mediaScanCacheKey(tab);
+  const existingScan = mediaScanInFlight.get(cacheKey);
+  if (existingScan) {
+    return existingScan;
+  }
+
+  const scanPromise = (async () => {
+    const response = await Promise.race([
+      sendMessageToTab(tab.id, { type: INTERNAL_SCAN_PAGE_MEDIA_MESSAGE }, { frameId: 0 }).catch((error) => ({
+        success: false,
+        reason: error?.message || 'scan_unavailable',
+      })),
+      new Promise((resolve) => {
+        setTimeout(() => resolve({
+          success: false,
+          reason: 'scan_timeout',
+        }), MEDIA_SCAN_TIMEOUT_MS);
+      }),
+    ]);
+    const normalized = normalizeMediaScanResponse(response, tab);
+    if (normalized.success) {
+      await storeMediaScanCache(tab, normalized).catch((error) => {
+        console.warn('[Ameow] Failed to cache media scan result:', error);
+      });
+    }
+    return {
+      ...normalized,
+      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+    };
+  })();
+
+  mediaScanInFlight.set(cacheKey, scanPromise);
+  try {
+    return await scanPromise;
+  } finally {
+    mediaScanInFlight.delete(cacheKey);
+  }
 }
 
 async function downloadMediaCandidate(candidate) {
@@ -2540,7 +2587,7 @@ async function downloadMediaCandidate(candidate) {
       type: typeof candidate.type === 'string' ? candidate.type : 'unknown',
       confidence: typeof candidate.confidence === 'string' ? candidate.confidence : 'low',
       source: typeof candidate.source === 'string' ? candidate.source : 'popup_media_browser',
-      mediaType: 'video',
+      mediaType: mediaType === 'audio' ? 'audio' : 'video',
     }],
     selectionScope: 'current_item',
     extensionData: {

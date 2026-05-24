@@ -192,6 +192,134 @@ body.ameow-theme-white {
   white-space: nowrap;
 }
 
+.ameow-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 11px;
+  background: linear-gradient(180deg, var(--ameow-surface-elevated-start) 0%, var(--ameow-surface-end) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-context-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ameow-context-title {
+  min-width: 0;
+  color: var(--ameow-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-context-status,
+.ameow-context-counts {
+  min-width: 0;
+  color: var(--ameow-text-secondary);
+  font-size: 10px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-context-counts {
+  color: var(--ameow-text-tertiary);
+}
+
+.ameow-context-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ameow-context-primary,
+.ameow-context-secondary {
+  min-height: 30px;
+  min-width: 0;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 8px;
+  box-shadow: var(--ameow-card-shadow);
+  font: 700 11px/1.2 "SF Pro Text", "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.ameow-context-primary {
+  flex: 1 1 auto;
+  background: linear-gradient(180deg, var(--ameow-accent-strong) 0%, var(--ameow-accent) 100%);
+  color: var(--ameow-surface-elevated-start);
+  border-color: var(--ameow-accent-border);
+}
+
+.ameow-context-secondary {
+  flex: 0 1 auto;
+  padding: 0 10px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
+  color: var(--ameow-text-secondary);
+}
+
+.ameow-context-secondary:hover,
+.ameow-context-secondary:focus-visible {
+  border-color: var(--ameow-accent-border);
+  color: var(--ameow-accent);
+}
+
+.ameow-context-primary[hidden],
+.ameow-context-secondary[hidden] {
+  display: none;
+}
+
+.ameow-context-secondary[disabled] {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.ameow-disclosure {
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-disclosure-summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ameow-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ameow-disclosure-summary::after {
+  content: ">";
+  color: var(--ameow-text-secondary);
+  font-size: 11px;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ameow-disclosure[open] .ameow-disclosure-summary::after {
+  transform: rotate(90deg);
+}
+
+.ameow-disclosure > .ameow-popup-card {
+  margin: 0 6px 6px;
+}
+
 .ameow-media-toolbar {
   display: flex;
   align-items: center;
@@ -200,7 +328,7 @@ body.ameow-theme-white {
 
 .ameow-media-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--ameow-card-border);
@@ -261,7 +389,7 @@ body.ameow-theme-white {
   display: none;
   flex-direction: column;
   gap: 6px;
-  max-height: 292px;
+  max-height: 238px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -327,6 +455,11 @@ body.ameow-theme-white {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.ameow-media-preview[data-type="audio"] {
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.16) 0%, rgba(255, 255, 255, 0.03) 100%);
+  color: var(--ameow-success);
 }
 
 .ameow-media-preview img {
@@ -428,7 +561,7 @@ body.ameow-theme-white {
 }
 
 .ameow-media-empty {
-  min-height: 196px;
+  min-height: 156px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -619,7 +752,7 @@ body.ameow-theme-white {
 }
 
 .ameow-tab-bar {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   padding: 4px;

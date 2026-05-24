@@ -73,6 +73,7 @@ function sourceLabel(source, translate = null) {
     performance_resource: ["popup.media.sources.performanceResource", "resource"],
     picture_source: ["popup.media.sources.pictureSource", "picture"],
     source_element: ["popup.media.sources.sourceElement", "source"],
+    audio_element: ["popup.media.sources.audioElement", "audio"],
     video_element: ["popup.media.sources.videoElement", "video"],
     video_source: ["popup.media.sources.videoSource", "source"],
   };
@@ -100,18 +101,21 @@ document.addEventListener("DOMContentLoaded", () => {
     popupSubtitle: document.getElementById("popupSubtitle"),
     headerStatus: document.getElementById("headerStatus"),
     statusText: document.getElementById("statusText"),
-    statusCard: document.getElementById("statusCard"),
-    statusHint: document.getElementById("statusHint"),
-    tabButtons: Array.from(document.querySelectorAll(".ameow-tab-btn")),
-    tabPanels: Array.from(document.querySelectorAll(".ameow-tab-panel")),
+    contextCard: document.getElementById("contextCard"),
+    contextTitle: document.getElementById("contextTitle"),
+    contextStatus: document.getElementById("contextStatus"),
+    contextCounts: document.getElementById("contextCounts"),
+    contextRestoreLauncherButton: document.getElementById("contextRestoreLauncherButton"),
+    contextFallbackDownloadButton: document.getElementById("contextFallbackDownloadButton"),
+    refreshMediaButton: document.getElementById("refreshMediaButton"),
     mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
-    scanMediaButton: document.getElementById("scanMediaButton"),
     mediaSummary: document.getElementById("mediaSummary"),
     mediaList: document.getElementById("mediaList"),
     mediaEmpty: document.getElementById("mediaEmpty"),
     mediaEmptyTitle: document.getElementById("mediaEmptyTitle"),
     mediaEmptyCopy: document.getElementById("mediaEmptyCopy"),
     qualityGrid: document.getElementById("qualityGrid"),
+    qualitySummaryText: document.getElementById("qualitySummaryText"),
     highestQualityHint: document.getElementById("highestQualityHint"),
     highestQualityHintText: document.getElementById("highestQualityHintText"),
     qualitySectionTitle: document.getElementById("qualitySectionTitle"),
@@ -121,7 +125,6 @@ document.addEventListener("DOMContentLoaded", () => {
     launcherToggleTitle: document.getElementById("launcherToggleTitle"),
     launcherToggleHint: document.getElementById("launcherToggleHint"),
     restoreLauncherButton: document.getElementById("restoreLauncherButton"),
-    fallbackDownloadButton: document.getElementById("fallbackDownloadButton"),
     launcherSideLeft: document.getElementById("launcherSideLeft"),
     launcherSideRight: document.getElementById("launcherSideRight"),
     resetLauncherPositionButton: document.getElementById("resetLauncherPositionButton"),
@@ -145,6 +148,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentMediaType = "video";
   let mediaScanResult = null;
   let scanStarted = false;
+  let scanInProgress = false;
+  let currentPageTitle = "";
+  let currentPageUrl = "";
   let openMenuId = null;
   const downloadCooldown = new Set();
 
@@ -171,28 +177,33 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderStaticCopy() {
     elements.popupTitle.textContent = t("app.name", "Ameow");
     elements.popupSubtitle.textContent = t("popup.subtitle", "Extension");
-    elements.tabButtons.forEach((button) => {
-      const tab = button.dataset.tab || "browse";
-      button.textContent = t(`popup.tabs.${tab}`, button.textContent || tab);
-    });
     elements.mediaTabs.forEach((button) => {
       const mediaType = button.dataset.mediaType || "video";
       button.textContent = t(`popup.media.tabs.${mediaType}`, button.textContent || mediaType);
     });
-    elements.scanMediaButton.textContent = t("popup.media.scan", "Scan");
-    elements.scanMediaButton.title = t("popup.media.scanTitle", "Scan current page");
-    elements.scanMediaButton.setAttribute("aria-label", t("popup.media.scanTitle", "Scan current page"));
+    elements.refreshMediaButton.textContent = t("popup.media.refresh", "Refresh");
+    elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
+    elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
     elements.qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
     elements.launcherSectionTitle.textContent = t("popup.sections.launcher", "Launcher");
     elements.launcherToggleTitle.textContent = t("launcher.popup.toggleTitle", "Edge launcher");
     elements.restoreLauncherButton.textContent = t("launcher.popup.restore", "Restore on this site");
-    elements.fallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
+    elements.contextRestoreLauncherButton.textContent = t("launcher.popup.restore", "Restore on this site");
+    elements.contextFallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
     elements.launcherSideLeft.textContent = t("popup.controls.side.left", "Left");
     elements.launcherSideRight.textContent = t("popup.controls.side.right", "Right");
     elements.resetLauncherPositionButton.textContent = t("popup.controls.resetPosition", "Reset");
     elements.sitesSectionTitle.textContent = t("popup.sections.hiddenSites", "Hidden sites");
     elements.restoreAllSitesButton.textContent = t("popup.sites.restoreAll", "Restore all");
     document.title = t("app.name", "Ameow");
+  }
+
+  function pageHost(value) {
+    try {
+      return new URL(value).hostname.replace(/^www\./i, "");
+    } catch {
+      return "";
+    }
   }
 
   function getStatusCopy(state) {
@@ -219,12 +230,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateStatus(nextState) {
     currentStatusState = nextState;
     const copy = getStatusCopy(nextState);
-    elements.statusCard.dataset.connected = nextState === STATUS_STATE_CONNECTED ? "true" : "false";
-    elements.statusCard.dataset.state = nextState;
     elements.headerStatus.dataset.state = nextState;
     elements.headerStatus.title = copy.hint;
     elements.statusText.textContent = copy.label;
-    elements.statusHint.textContent = copy.hint;
+    renderContextCard();
   }
 
   async function checkStatus() {
@@ -232,18 +241,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStatus(normalizeConnectionState(response));
   }
 
-  function setActiveTab(tabName) {
-    elements.tabButtons.forEach((button) => {
-      button.classList.toggle("active", button.dataset.tab === tabName);
-    });
-    elements.tabPanels.forEach((panel) => {
-      panel.classList.toggle("active", panel.dataset.panel === tabName);
-    });
-    closeRowMenus();
-  }
-
   function setMediaType(mediaType) {
-    currentMediaType = mediaType === "image" ? "image" : "video";
+    currentMediaType = mediaType === "audio" || mediaType === "image" ? mediaType : "video";
     elements.mediaTabs.forEach((button) => {
       button.classList.toggle("active", button.dataset.mediaType === currentMediaType);
     });
@@ -259,9 +258,11 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.launcherToggleButton.setAttribute("aria-checked", "true");
       elements.launcherToggleHint.textContent = t("launcher.popup.toggleOn", "Show in pages");
       elements.restoreLauncherButton.hidden = true;
-      elements.fallbackDownloadButton.hidden = true;
+      elements.contextRestoreLauncherButton.hidden = true;
+      elements.contextFallbackDownloadButton.hidden = true;
       elements.launcherStateText.textContent = t("launcher.status.checking", "Checking");
       renderSideButtons(config?.side);
+      renderContextCard();
       return;
     }
 
@@ -274,7 +275,8 @@ document.addEventListener("DOMContentLoaded", () => {
       ? t("launcher.popup.toggleOn", "Show in pages")
       : t("launcher.popup.toggleOff", "Hidden globally");
     elements.restoreLauncherButton.hidden = !enabled || !hiddenForSite;
-    elements.fallbackDownloadButton.hidden = mounted;
+    elements.contextRestoreLauncherButton.hidden = !enabled || !hiddenForSite;
+    elements.contextFallbackDownloadButton.hidden = mounted || !enabled;
 
     if (!enabled) {
       elements.launcherStateText.textContent = t("launcher.status.disabled", "Hidden");
@@ -287,6 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     renderSideButtons(config?.side || status?.side);
+    renderContextCard();
   }
 
   function renderSideButtons(side) {
@@ -317,6 +320,7 @@ document.addEventListener("DOMContentLoaded", () => {
       button.dataset.quality = option.value;
       if (option.value === normalizedSelectedValue) {
         button.classList.add("active");
+        elements.qualitySummaryText.textContent = t(option.labelKey, option.value);
       }
 
       label.className = "ameow-quality-value";
@@ -401,6 +405,85 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function mediaCounts() {
+    return {
+      video: mediaScanResult?.videos?.length || 0,
+      audio: mediaScanResult?.audios?.length || 0,
+      image: mediaScanResult?.images?.length || 0,
+    };
+  }
+
+  function formatMediaCounts() {
+    const counts = mediaCounts();
+    return tt(
+      "popup.media.summary.counts",
+      { videoCount: counts.video, audioCount: counts.audio, imageCount: counts.image },
+      `${counts.video} video / ${counts.audio} audio / ${counts.image} image`,
+    );
+  }
+
+  function renderContextCard() {
+    const host = pageHost(mediaScanResult?.pageUrl || currentPageUrl);
+    const title = host || safeText(mediaScanResult?.pageTitle, safeText(currentPageTitle, t("popup.context.thisPage", "This page")));
+    const statusCopy = getStatusCopy(currentStatusState);
+    const launcherState = currentLauncherStatus || {};
+    const launcherEnabled = launcherState.enabled !== false;
+    const launcherMounted = launcherState.mounted === true && launcherState.visible !== false;
+    const launcherHidden = launcherState.hiddenForSite === true;
+    const scanUnavailable = mediaScanResult?.success === false;
+
+    elements.contextTitle.textContent = title;
+    elements.contextCounts.textContent = formatMediaCounts();
+    elements.contextRestoreLauncherButton.hidden = !(launcherEnabled && launcherHidden);
+    elements.contextFallbackDownloadButton.hidden = launcherMounted || !launcherEnabled || mediaScanResult?.reason === "scan_restricted_page";
+    elements.refreshMediaButton.disabled = scanInProgress;
+
+    if (scanUnavailable) {
+      elements.contextCard.dataset.state = "unavailable";
+      elements.contextStatus.textContent = t("popup.context.scanUnavailable", "Cannot scan this page");
+      return;
+    }
+
+    if (currentStatusState === STATUS_STATE_OFFLINE) {
+      elements.contextCard.dataset.state = "offline";
+      elements.contextStatus.textContent = t("popup.context.offline", "Desktop app required for downloads");
+      return;
+    }
+
+    if (scanInProgress && mediaScanResult) {
+      elements.contextCard.dataset.state = "scanning";
+      elements.contextStatus.textContent = t("popup.context.refreshing", "Refreshing media resources");
+      return;
+    }
+
+    if (scanInProgress) {
+      elements.contextCard.dataset.state = "scanning";
+      elements.contextStatus.textContent = t("popup.context.scanning", "Scanning media resources");
+      return;
+    }
+
+    if (launcherHidden) {
+      elements.contextCard.dataset.state = "hidden";
+      elements.contextStatus.textContent = t("popup.context.launcherHidden", "Launcher hidden on this site");
+      return;
+    }
+
+    if (!launcherEnabled) {
+      elements.contextCard.dataset.state = "disabled";
+      elements.contextStatus.textContent = t("popup.context.launcherDisabled", "Launcher hidden globally");
+      return;
+    }
+
+    if (launcherMounted) {
+      elements.contextCard.dataset.state = "ready";
+      elements.contextStatus.textContent = t("popup.context.launcherActive", "Launcher active");
+      return;
+    }
+
+    elements.contextCard.dataset.state = currentStatusState;
+    elements.contextStatus.textContent = statusCopy.hint;
+  }
+
   function renderMediaState() {
     closeRowMenus();
     const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
@@ -411,9 +494,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!scanStarted && !mediaScanResult) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
-      elements.mediaEmptyTitle.textContent = t("popup.media.empty.initial.title", "Scan current page");
-      elements.mediaEmptyCopy.textContent = t("popup.media.empty.initial.copy", "Find videos and images on the active page.");
-      elements.mediaSummary.textContent = t("popup.media.summary.initial", "Manual scan only. Nothing runs until you choose Scan.");
+      elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
+      elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for media resources.");
+      elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
+      renderContextCard();
       return;
     }
 
@@ -423,26 +507,39 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.unavailable.title", "Cannot scan this page");
       elements.mediaEmptyCopy.textContent = mediaScanResult.reason || t("popup.media.empty.unavailable.copy", "The active page is unavailable to the extension.");
       elements.mediaSummary.textContent = t("popup.media.summary.unavailable", "Scan unavailable");
+      renderContextCard();
       return;
     }
 
-    const videoCount = mediaScanResult?.videos?.length || 0;
-    const imageCount = mediaScanResult?.images?.length || 0;
     const ageCopy = formatAge(Date.now() - Number(mediaScanResult?.scannedAt || Date.now()));
     const ageSuffix = ageCopy ? ` / ${ageCopy}` : "";
     elements.mediaSummary.textContent = tt(
       "popup.media.summary.results",
-      { videoCount, imageCount, age: ageSuffix },
-      `${videoCount} video / ${imageCount} image${ageSuffix}`,
+      {
+        videoCount: mediaCounts().video,
+        audioCount: mediaCounts().audio,
+        imageCount: mediaCounts().image,
+        age: ageSuffix,
+      },
+      `${formatMediaCounts()}${ageSuffix}`,
     );
 
     if (candidates.length === 0) {
       elements.mediaList.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
-      elements.mediaEmptyTitle.textContent = currentMediaType === "video"
-        ? t("popup.media.empty.video.title", "No videos found")
-        : t("popup.media.empty.image.title", "No images found");
-      elements.mediaEmptyCopy.textContent = t("popup.media.empty.none.copy", "Try the other media tab or rescan after the page finishes loading.");
+      const emptyTitleKey = currentMediaType === "audio"
+        ? "popup.media.empty.audio.title"
+        : currentMediaType === "image"
+          ? "popup.media.empty.image.title"
+          : "popup.media.empty.video.title";
+      const emptyTitleFallback = currentMediaType === "audio"
+        ? "No audio found"
+        : currentMediaType === "image"
+          ? "No images found"
+          : "No videos found";
+      elements.mediaEmptyTitle.textContent = t(emptyTitleKey, emptyTitleFallback);
+      elements.mediaEmptyCopy.textContent = t("popup.media.empty.none.copy", "Try another media type or refresh after the page finishes loading.");
+      renderContextCard();
       return;
     }
 
@@ -451,6 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
     candidates.forEach((candidate) => {
       elements.mediaList.appendChild(createMediaRow(candidate));
     });
+    renderContextCard();
   }
 
   function createMediaRow(candidate) {
@@ -466,10 +564,14 @@ document.addEventListener("DOMContentLoaded", () => {
     row.className = "ameow-media-row";
     row.dataset.candidateId = id;
     preview.className = "ameow-media-preview";
-    preview.dataset.type = candidate.mediaType === "image" ? "image" : "video";
-    preview.textContent = candidate.mediaType === "image"
-      ? t("popup.media.type.imageShort", "IMG")
-      : t("popup.media.type.videoShort", "VID");
+    preview.dataset.type = candidate.mediaType === "audio" || candidate.mediaType === "image"
+      ? candidate.mediaType
+      : "video";
+    preview.textContent = candidate.mediaType === "audio"
+      ? t("popup.media.type.audioShort", "AUD")
+      : candidate.mediaType === "image"
+        ? t("popup.media.type.imageShort", "IMG")
+        : t("popup.media.type.videoShort", "VID");
     if (candidate.previewUrl) {
       const image = document.createElement("img");
       image.src = candidate.previewUrl;
@@ -494,6 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       candidate.host || shortHost(candidate.url),
       sourceLabel(candidate.source, t),
       candidate.extension || candidate.type,
+      candidate.duration ? `${candidate.duration}s` : "",
       candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "",
     ].filter(Boolean).join(" / ");
     main.append(title, meta);
@@ -598,26 +701,38 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function scanPageMedia() {
+    if (scanInProgress) {
+      return;
+    }
     scanStarted = true;
-    elements.scanMediaButton.disabled = true;
-    elements.scanMediaButton.textContent = t("popup.media.scanning", "Scanning");
-    elements.mediaList.dataset.visible = "false";
-    elements.mediaEmpty.style.display = "flex";
-    elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
-    elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for videos and images.");
-    elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
+    scanInProgress = true;
+    elements.refreshMediaButton.disabled = true;
+    elements.refreshMediaButton.textContent = t("popup.media.scanning", "Scanning");
+    if (!mediaScanResult) {
+      elements.mediaList.dataset.visible = "false";
+      elements.mediaEmpty.style.display = "flex";
+      elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
+      elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for media resources.");
+      elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
+    }
+    renderContextCard();
 
     const response = await sendRuntimeMessage({ type: "scan_page_media" });
     mediaScanResult = response && typeof response === "object"
       ? response
       : { success: false, reason: "scan_failed" };
-    elements.scanMediaButton.disabled = false;
-    elements.scanMediaButton.textContent = t("popup.media.scan", "Scan");
+    currentPageUrl = mediaScanResult.pageUrl || currentPageUrl;
+    currentPageTitle = mediaScanResult.pageTitle || currentPageTitle;
+    scanInProgress = false;
+    elements.refreshMediaButton.disabled = false;
+    elements.refreshMediaButton.textContent = t("popup.media.refresh", "Refresh");
     renderMediaState();
   }
 
   async function loadMediaCache() {
     const response = await sendRuntimeMessage({ type: "get_media_scan_cache" });
+    currentPageUrl = response?.pageUrl || currentPageUrl;
+    currentPageTitle = response?.pageTitle || currentPageTitle;
     if (response?.cached && response.result && response.stale !== true) {
       scanStarted = true;
       mediaScanResult = response.result;
@@ -688,19 +803,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  elements.tabButtons.forEach((button) => {
-    button.addEventListener("click", () => setActiveTab(button.dataset.tab || "browse"));
-  });
   elements.mediaTabs.forEach((button) => {
     button.addEventListener("click", () => setMediaType(button.dataset.mediaType || "video"));
   });
-  elements.scanMediaButton.addEventListener("click", () => {
+  elements.refreshMediaButton.addEventListener("click", () => {
     void scanPageMedia();
   });
-  elements.restoreLauncherButton.addEventListener("click", async () => {
+  const restoreLauncherForSite = async () => {
     await sendRuntimeMessage({ type: "restore_launcher_for_site" });
     await refreshLauncherControls();
-  });
+  };
+  elements.restoreLauncherButton.addEventListener("click", restoreLauncherForSite);
+  elements.contextRestoreLauncherButton.addEventListener("click", restoreLauncherForSite);
   elements.launcherToggleButton.addEventListener("click", async () => {
     const nextEnabled = elements.launcherToggleButton.dataset.enabled !== "true";
     renderLauncherStatus({
@@ -712,7 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await sendRuntimeMessage({ type: "set_launcher_enabled", enabled: nextEnabled });
     await refreshLauncherControls();
   });
-  elements.fallbackDownloadButton.addEventListener("click", async () => {
+  elements.contextFallbackDownloadButton.addEventListener("click", async () => {
     await sendRuntimeMessage({ type: "download_current_content" });
     window.close();
   });
@@ -742,7 +856,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   void (async () => {
-    setActiveTab("browse");
     setMediaType("video");
     await applyLanguage(await resolveInitialLanguage());
 
@@ -760,7 +873,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     void checkStatus();
     void refreshLauncherControls();
-    void loadMediaCache();
+    void (async () => {
+      await loadMediaCache();
+      void scanPageMedia();
+    })();
 
     const themeResponse = await sendRuntimeMessage({ type: "get_theme" });
     applyTheme(themeResponse?.theme || "black");

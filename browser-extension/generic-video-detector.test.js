@@ -43,6 +43,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
   const parsedCurrentUrl = new URL(currentUrl);
   let messageListener = null;
   const documentOverride = overrides.document || {};
+  class TestAudioElement {}
   const window = {
     location: {
       href: parsedCurrentUrl.toString(),
@@ -50,6 +51,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     },
     innerWidth: 1440,
     innerHeight: 900,
+    HTMLAudioElement: TestAudioElement,
     AmeowDomInjectionUtils: {
       isRenderableElement() {
         return false;
@@ -80,6 +82,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     Element: class Element {},
     HTMLElement: class HTMLElement {},
     HTMLAnchorElement: class HTMLAnchorElement {},
+    HTMLAudioElement: TestAudioElement,
     HTMLVideoElement: class HTMLVideoElement {},
     MouseEvent: class MouseEvent {},
     chrome: {
@@ -112,6 +115,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
   return {
     hooks: context.window.AmeowGenericVideoDetectorTestHooks,
     messageListener,
+    TestAudioElement,
   };
 }
 
@@ -308,5 +312,77 @@ describe("generic video detector", () => {
     expect(result.images).toHaveLength(100);
     expect(result.videos).toHaveLength(0);
     expect(result.truncated).toBe(true);
+  });
+
+  it("collects audio candidates and filters short sounds and stream fragments", () => {
+    let audio = null;
+    let shortAudio = null;
+    let link = null;
+    let fragment = null;
+    const { hooks, TestAudioElement } = loadDetectorHooks("https://www.example.com/audio", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "audio") {
+            return [audio, shortAudio];
+          }
+          if (selector === "a[href]") {
+            return [link, fragment];
+          }
+          return [];
+        },
+        title: "Audio page",
+      },
+    });
+    audio = Object.assign(new TestAudioElement(), {
+      currentSrc: "https://cdn.example.com/media/song.mp3",
+      src: "https://cdn.example.com/media/song.mp3",
+      duration: 180,
+      getAttribute(name) {
+        return name === "title" ? "Theme song" : null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+    });
+    shortAudio = Object.assign(new TestAudioElement(), {
+      currentSrc: "https://cdn.example.com/media/click.mp3",
+      src: "https://cdn.example.com/media/click.mp3",
+      duration: 1,
+      getAttribute() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+    });
+    link = {
+      getAttribute(name) {
+        return name === "href" ? "https://cdn.example.com/media/podcast.m4a" : null;
+      },
+      textContent: "Podcast",
+    };
+    fragment = {
+      getAttribute(name) {
+        return name === "href" ? "https://cdn.example.com/media/segment.m4s" : null;
+      },
+      textContent: "Fragment",
+    };
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.audios).toHaveLength(2);
+    expect(result.audios.map((candidate) => candidate.url)).toEqual([
+      "https://cdn.example.com/media/song.mp3",
+      "https://cdn.example.com/media/podcast.m4a",
+    ]);
+    expect(result.audios[0]).toMatchObject({
+      mediaType: "audio",
+      source: "audio_element",
+      title: "Theme song",
+      duration: 180,
+    });
   });
 });

@@ -20,11 +20,110 @@
     },
     "sections": {
       "quality": "Quality",
-      "launcher": "Launcher"
+      "launcher": "Launcher",
+      "hiddenSites": "Hidden sites"
+    },
+    "controls": {
+      "side": {
+        "left": "Left",
+        "right": "Right"
+      },
+      "resetPosition": "Reset"
     },
     "preferences": {
       "highest": {
         "hint": "Some high-quality videos may enter the transcode queue after download."
+      }
+    },
+    "media": {
+      "tabs": {
+        "video": "Video",
+        "audio": "Audio",
+        "image": "Image"
+      },
+      "refresh": "Refresh",
+      "refreshTitle": "Refresh current page media",
+      "scanning": "Scanning",
+      "type": {
+        "videoShort": "VID",
+        "audioShort": "AUD",
+        "imageShort": "IMG"
+      },
+      "age": {
+        "seconds": "{count}s ago",
+        "minutes": "{count}m ago"
+      },
+      "summary": {
+        "scanning": "Scanning current page",
+        "unavailable": "Scan unavailable",
+        "counts": "{videoCount} video / {audioCount} audio / {imageCount} image",
+        "results": "{videoCount} video / {audioCount} audio / {imageCount} image{age}"
+      },
+      "empty": {
+        "scanning": {
+          "title": "Scanning",
+          "copy": "Checking the active page for media resources."
+        },
+        "unavailable": {
+          "title": "Cannot scan this page",
+          "copy": "The active page is unavailable to the extension."
+        },
+        "video": {
+          "title": "No videos found"
+        },
+        "audio": {
+          "title": "No audio found"
+        },
+        "image": {
+          "title": "No images found"
+        },
+        "none": {
+          "copy": "Try another media type or refresh after the page finishes loading."
+        }
+      },
+      "actions": {
+        "open": "Candidate actions",
+        "download": "Download",
+        "copy": "Copy link",
+        "source": "View source"
+      },
+      "feedback": {
+        "submitting": "Submitting",
+        "submitted": "Submitted",
+        "offline": "Desktop offline",
+        "failed": "Failed",
+        "copied": "Copied"
+      },
+      "sources": {
+        "source": "source",
+        "directLink": "link",
+        "imageElement": "img",
+        "openGraph": "og",
+        "performanceResource": "resource",
+        "pictureSource": "picture",
+        "sourceElement": "source",
+        "audioElement": "audio",
+        "videoElement": "video",
+        "videoSource": "source"
+      }
+    },
+    "context": {
+      "thisPage": "This page",
+      "scanUnavailable": "Cannot scan this page",
+      "offline": "Desktop app required for downloads",
+      "refreshing": "Refreshing media resources",
+      "scanning": "Scanning media resources",
+      "launcherHidden": "Launcher hidden on this site",
+      "launcherDisabled": "Launcher hidden globally",
+      "launcherActive": "Launcher active"
+    },
+    "sites": {
+      "restoreAll": "Restore all",
+      "restoreAllConfirm": "Restore all {count} hidden sites?",
+      "restoreOne": "Restore {pattern}",
+      "empty": {
+        "title": "No hidden sites",
+        "copy": "Sites hidden from the launcher will appear here."
       }
     }
   },

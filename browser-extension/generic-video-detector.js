@@ -16,6 +16,9 @@
   const MIN_IMAGE_WIDTH = 100;
   const MIN_IMAGE_HEIGHT = 100;
   const DIRECT_IMAGE_EXT_RE = /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i;
+  const DIRECT_AUDIO_EXT_RE = /\.(?:aac|flac|m4a|mp3|oga|ogg|opus|wav)(?:[?#]|$)/i;
+  const AUDIO_FRAGMENT_EXT_RE = /\.(?:m3u8|m4s|mpd|ts)(?:[?#]|$)/i;
+  const MIN_AUDIO_DURATION_SECONDS = 5;
   const MEDIA_ROUTE_PATH_RE =
     /\/(?:video|watch|reel|reels|p|status|pin|detail|post|clip|shorts|tv)\/[^/?#]+/i;
   const XIAOHONGSHU_NOTE_PATH_RE =
@@ -387,7 +390,19 @@
     return `${mediaType}-${Math.abs(hash).toString(36)}`;
   }
 
-  function describeCandidate({ url, mediaType, source, type, confidence, title, width, height, previewUrl }) {
+  function describeCandidate({
+    url,
+    mediaType,
+    source,
+    type,
+    confidence,
+    title,
+    width,
+    height,
+    previewUrl,
+    mimeType,
+    duration,
+  }) {
     const normalized = normalizeHttpUrl(url);
     if (!normalized) {
       return null;
@@ -405,9 +420,11 @@
       source,
       type: typeof type === "string" ? type : undefined,
       confidence: typeof confidence === "string" ? confidence : "low",
+      mimeType: typeof mimeType === "string" && mimeType.trim() ? mimeType.trim() : undefined,
       ...(normalizedPreviewUrl ? { previewUrl: normalizedPreviewUrl } : {}),
       ...(Number.isFinite(width) && width > 0 ? { width: Math.round(width) } : {}),
       ...(Number.isFinite(height) && height > 0 ? { height: Math.round(height) } : {}),
+      ...(Number.isFinite(duration) && duration > 0 ? { duration: Math.round(duration) } : {}),
     };
   }
 
@@ -575,6 +592,94 @@
     return dedupeCandidates(candidates, (candidate) => (candidate.width || 0) * (candidate.height || 0));
   }
 
+  function isLikelyAudioUrl(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    return Boolean(normalized && DIRECT_AUDIO_EXT_RE.test(normalized) && !AUDIO_FRAGMENT_EXT_RE.test(normalized));
+  }
+
+  function audioDuration(audio) {
+    const duration = Number(audio?.duration);
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  }
+
+  function shouldSkipShortAudio(audio) {
+    const duration = audioDuration(audio);
+    return duration !== null && duration < MIN_AUDIO_DURATION_SECONDS;
+  }
+
+  function collectAudioScanCandidates() {
+    const candidates = [];
+    const collect = ({ rawUrl, source, title, mimeType, duration, confidence = "medium" }) => {
+      const url = normalizeHttpUrl(rawUrl);
+      if (!url || !isLikelyAudioUrl(url)) {
+        return;
+      }
+      const described = describeCandidate({
+        url,
+        mediaType: "audio",
+        source,
+        confidence,
+        title,
+        mimeType,
+        duration,
+      });
+      if (described) {
+        candidates.push(described);
+      }
+    };
+
+    Array.from(document.querySelectorAll("audio")).forEach((audio) => {
+      if (!(audio instanceof HTMLAudioElement) || shouldSkipShortAudio(audio)) {
+        return;
+      }
+      const duration = audioDuration(audio);
+      collect({
+        rawUrl: audio.currentSrc || audio.src || audio.getAttribute("src"),
+        source: "audio_element",
+        title: audio.getAttribute("title") || audio.getAttribute("aria-label") || extractTitle(),
+        duration,
+        confidence: "high",
+      });
+      audio.querySelectorAll("source").forEach((source) => {
+        collect({
+          rawUrl: source.src || source.getAttribute("src"),
+          source: "source_element",
+          title: source.getAttribute("title") || audio.getAttribute("title") || extractTitle(),
+          mimeType: source.getAttribute("type") || "",
+          duration,
+        });
+      });
+    });
+
+    Array.from(document.querySelectorAll("a[href]")).slice(0, MEDIA_SCAN_LINK_LIMIT).forEach((anchor) => {
+      collect({
+        rawUrl: anchor.getAttribute("href"),
+        source: "direct_link",
+        title: anchor.textContent,
+        confidence: "medium",
+      });
+    });
+
+    const resources = performance.getEntriesByType("resource") || [];
+    for (
+      let index = resources.length - 1;
+      index >= 0 && index > resources.length - PERFORMANCE_SCAN_LIMIT;
+      index -= 1
+    ) {
+      collect({
+        rawUrl: resources[index]?.name,
+        source: "performance_resource",
+        title: urlFilename(resources[index]?.name || ""),
+        confidence: "low",
+      });
+    }
+
+    return dedupeCandidates(candidates, (candidate) => {
+      const confidenceScore = candidate.confidence === "high" ? 1000 : candidate.confidence === "medium" ? 500 : 100;
+      return confidenceScore + Math.min(Number(candidate.duration || 0), 600);
+    });
+  }
+
   function dedupeCandidates(candidates, scoreCandidate) {
     const merged = new Map();
     candidates.forEach((candidate) => {
@@ -592,15 +697,34 @@
   function collectPageMediaCandidates() {
     const startedAt = Date.now();
     const videos = collectVideoScanCandidates();
+    const audios = collectAudioScanCandidates();
     const images = collectImageScanCandidates();
-    const total = videos.length + images.length;
+    const total = videos.length + audios.length + images.length;
     let limitedVideos = videos;
+    let limitedAudios = audios;
     let limitedImages = images;
 
     if (total > MEDIA_SCAN_TOTAL_LIMIT) {
-      const videoLimit = Math.min(videos.length, Math.ceil(MEDIA_SCAN_TOTAL_LIMIT * 0.6));
+      const videoLimit = Math.min(videos.length, Math.ceil(MEDIA_SCAN_TOTAL_LIMIT * 0.5));
       limitedVideos = videos.slice(0, videoLimit);
-      limitedImages = images.slice(0, MEDIA_SCAN_TOTAL_LIMIT - limitedVideos.length);
+      const audioLimit = Math.min(audios.length, Math.ceil(MEDIA_SCAN_TOTAL_LIMIT * 0.2));
+      limitedAudios = audios.slice(0, audioLimit);
+      limitedImages = images.slice(0, MEDIA_SCAN_TOTAL_LIMIT - limitedVideos.length - limitedAudios.length);
+
+      let remaining = MEDIA_SCAN_TOTAL_LIMIT - limitedVideos.length - limitedAudios.length - limitedImages.length;
+      if (remaining > 0 && limitedVideos.length < videos.length) {
+        const nextVideos = videos.slice(limitedVideos.length, limitedVideos.length + remaining);
+        limitedVideos = limitedVideos.concat(nextVideos);
+        remaining -= nextVideos.length;
+      }
+      if (remaining > 0 && limitedAudios.length < audios.length) {
+        const nextAudios = audios.slice(limitedAudios.length, limitedAudios.length + remaining);
+        limitedAudios = limitedAudios.concat(nextAudios);
+        remaining -= nextAudios.length;
+      }
+      if (remaining > 0 && limitedImages.length < images.length) {
+        limitedImages = limitedImages.concat(images.slice(limitedImages.length, limitedImages.length + remaining));
+      }
     }
 
     return {
@@ -610,6 +734,7 @@
       pageUrl: normalizeHttpUrl(window.location.href) || window.location.href,
       pageTitle: extractTitle(),
       videos: limitedVideos,
+      audios: limitedAudios,
       images: limitedImages,
       truncated: total > MEDIA_SCAN_TOTAL_LIMIT,
     };
@@ -840,6 +965,7 @@
 
   window.AmeowGenericVideoDetectorTestHooks = {
     collectPageMediaCandidates,
+    collectAudioScanCandidates,
     normalizeContentUrl,
     normalizeXiaohongshuNoteUrl,
     resolveSelectionPageUrl,

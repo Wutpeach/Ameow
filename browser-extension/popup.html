@@ -22,40 +22,48 @@
       </div>
     </header>
 
-    <nav class="ameow-tab-bar" aria-label="Ameow popup sections">
-      <button type="button" class="ameow-tab-btn active" data-tab="browse" id="browseTabButton">Browse</button>
-      <button type="button" class="ameow-tab-btn" data-tab="controls" id="controlsTabButton">Controls</button>
-      <button type="button" class="ameow-tab-btn" data-tab="sites" id="sitesTabButton">Sites</button>
-    </nav>
-
-    <section class="ameow-tab-panel active" id="browsePanel" data-panel="browse">
-      <div class="ameow-media-toolbar">
-        <div class="ameow-media-tabs" role="tablist" aria-label="Media type">
-          <button type="button" class="ameow-media-tab active" data-media-type="video" id="videoMediaTab">Video</button>
-          <button type="button" class="ameow-media-tab" data-media-type="image" id="imageMediaTab">Image</button>
-        </div>
-        <button type="button" class="ameow-icon-action" id="scanMediaButton" title="Scan current page" aria-label="Scan current page">
-          <span aria-hidden="true">Scan</span>
-        </button>
+    <section class="ameow-context-card" id="contextCard" data-state="checking">
+      <div class="ameow-context-main">
+        <div class="ameow-context-title" id="contextTitle">Checking page</div>
+        <div class="ameow-context-status" id="contextStatus">Preparing scan</div>
       </div>
-      <div class="ameow-media-summary" id="mediaSummary">Scan the current page to find media.</div>
-      <div class="ameow-media-list" id="mediaList"></div>
-      <div class="ameow-media-empty" id="mediaEmpty">
-        <div class="ameow-empty-mark" aria-hidden="true">o</div>
-        <div class="ameow-empty-title" id="mediaEmptyTitle">Scan current page</div>
-        <div class="ameow-empty-copy" id="mediaEmptyCopy">Find videos and images on the active page.</div>
+      <div class="ameow-context-counts" id="contextCounts">- video · - audio · - image</div>
+      <div class="ameow-context-actions">
+        <button type="button" class="ameow-context-primary" id="contextRestoreLauncherButton" hidden>
+          Restore launcher
+        </button>
+        <button type="button" class="ameow-context-secondary" id="contextFallbackDownloadButton" hidden>
+          Download this page
+        </button>
+        <button type="button" class="ameow-context-secondary" id="refreshMediaButton">
+          Refresh
+        </button>
       </div>
     </section>
 
-    <section class="ameow-tab-panel" id="controlsPanel" data-panel="controls">
-      <section class="ameow-popup-card ameow-status-card" id="statusCard" data-connected="false" data-state="offline">
-        <div class="ameow-status-hint" id="statusHint">Open desktop app to connect.</div>
-      </section>
-
-      <section class="ameow-popup-card">
-        <div class="ameow-section-header">
-          <div class="ameow-section-title" id="qualitySectionTitle">Quality</div>
+    <section class="ameow-media-panel" id="mediaPanel">
+      <div class="ameow-media-toolbar">
+        <div class="ameow-media-tabs" role="tablist" aria-label="Media type">
+          <button type="button" class="ameow-media-tab active" data-media-type="video" id="videoMediaTab">Video</button>
+          <button type="button" class="ameow-media-tab" data-media-type="audio" id="audioMediaTab">Audio</button>
+          <button type="button" class="ameow-media-tab" data-media-type="image" id="imageMediaTab">Image</button>
         </div>
+      </div>
+      <div class="ameow-media-summary" id="mediaSummary">Scanning current page.</div>
+      <div class="ameow-media-list" id="mediaList"></div>
+      <div class="ameow-media-empty" id="mediaEmpty">
+        <div class="ameow-empty-mark" aria-hidden="true">o</div>
+        <div class="ameow-empty-title" id="mediaEmptyTitle">Scanning</div>
+        <div class="ameow-empty-copy" id="mediaEmptyCopy">Checking the active page for media resources.</div>
+      </div>
+    </section>
+
+    <details class="ameow-disclosure" id="qualityDisclosure">
+      <summary class="ameow-disclosure-summary">
+        <span class="ameow-section-title" id="qualitySectionTitle">Quality</span>
+        <span class="ameow-section-hint" id="qualitySummaryText">Balanced</span>
+      </summary>
+      <section class="ameow-popup-card">
         <div class="ameow-quality-grid" id="qualityGrid"></div>
         <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
           <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
@@ -64,12 +72,14 @@
           </span>
         </div>
       </section>
+    </details>
 
+    <details class="ameow-disclosure" id="launcherDisclosure">
+      <summary class="ameow-disclosure-summary">
+        <span class="ameow-section-title" id="launcherSectionTitle">Launcher</span>
+        <span class="ameow-section-hint" id="launcherStateText">Checking</span>
+      </summary>
       <section class="ameow-popup-card ameow-launcher-card" id="launcherCard">
-        <div class="ameow-section-header">
-          <div class="ameow-section-title" id="launcherSectionTitle">Launcher</div>
-          <div class="ameow-section-hint" id="launcherStateText">Checking</div>
-        </div>
         <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
           <span class="ameow-launcher-toggle-copy">
             <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
@@ -88,25 +98,22 @@
           <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
             Restore on this site
           </button>
-          <button type="button" class="ameow-popup-action-btn" id="fallbackDownloadButton" hidden>
-            Download this page
-          </button>
         </div>
       </section>
-    </section>
+    </details>
 
-    <section class="ameow-tab-panel" id="sitesPanel" data-panel="sites">
+    <details class="ameow-disclosure" id="sitesDisclosure">
+      <summary class="ameow-disclosure-summary">
+        <span class="ameow-section-title" id="sitesSectionTitle">Hidden sites</span>
+        <span class="ameow-section-hint" id="hiddenSitesCount">0</span>
+      </summary>
       <section class="ameow-popup-card ameow-sites-card">
-        <div class="ameow-section-header">
-          <div class="ameow-section-title" id="sitesSectionTitle">Hidden sites</div>
-          <div class="ameow-section-hint" id="hiddenSitesCount">0</div>
-        </div>
         <div class="ameow-sites-list" id="hiddenSitesList"></div>
         <button type="button" class="ameow-popup-action-btn" id="restoreAllSitesButton" hidden>
           Restore all
         </button>
       </section>
-    </section>
+    </details>
   </main>
   <script src="direct-download-quality.js"></script>
   <script src="locale-utils.js"></script>

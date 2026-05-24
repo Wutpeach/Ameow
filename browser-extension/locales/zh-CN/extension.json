@@ -23,11 +23,6 @@
       "launcher": "贴边入口",
       "hiddenSites": "隐藏站点"
     },
-    "tabs": {
-      "browse": "浏览",
-      "controls": "控制",
-      "sites": "站点"
-    },
     "controls": {
       "side": {
         "left": "左侧",
@@ -35,49 +30,55 @@
       },
       "resetPosition": "重置"
     },
+    "preferences": {
+      "highest": {
+        "hint": "部分高画质视频下载后会自动进入转码队列。"
+      }
+    },
     "media": {
       "tabs": {
         "video": "视频",
+        "audio": "音频",
         "image": "图片"
       },
-      "scan": "扫描",
-      "scanTitle": "扫描当前页面",
+      "refresh": "刷新",
+      "refreshTitle": "刷新当前页面媒体",
       "scanning": "扫描中",
       "type": {
-        "videoShort": "视频",
-        "imageShort": "图片"
+        "videoShort": "VID",
+        "audioShort": "AUD",
+        "imageShort": "IMG"
       },
       "age": {
         "seconds": "{count} 秒前",
         "minutes": "{count} 分钟前"
       },
       "summary": {
-        "initial": "手动扫描。点击扫描前不会读取页面媒体。",
         "scanning": "正在扫描当前页面",
         "unavailable": "无法扫描",
-        "results": "{videoCount} 个视频 / {imageCount} 张图片{age}"
+        "counts": "{videoCount} 个视频 / {audioCount} 个音频 / {imageCount} 张图片",
+        "results": "{videoCount} 个视频 / {audioCount} 个音频 / {imageCount} 张图片{age}"
       },
       "empty": {
-        "initial": {
-          "title": "扫描当前页面",
-          "copy": "查找当前页面中的视频和图片。"
-        },
         "scanning": {
           "title": "扫描中",
-          "copy": "正在检查当前页面中的视频和图片。"
+          "copy": "正在检查当前页面中的媒体资源。"
         },
         "unavailable": {
           "title": "无法扫描此页面",
-          "copy": "扩展无法访问当前页面。"
+          "copy": "当前页面无法被扩展访问。"
         },
         "video": {
           "title": "未找到视频"
+        },
+        "audio": {
+          "title": "未找到音频"
         },
         "image": {
           "title": "未找到图片"
         },
         "none": {
-          "copy": "可以切换媒体类型，或在页面加载完成后重新扫描。"
+          "copy": "可以切换媒体类型，或等页面加载完成后刷新。"
         }
       },
       "actions": {
@@ -101,9 +102,20 @@
         "performanceResource": "资源",
         "pictureSource": "picture",
         "sourceElement": "source",
+        "audioElement": "音频",
         "videoElement": "视频",
         "videoSource": "source"
       }
+    },
+    "context": {
+      "thisPage": "当前页面",
+      "scanUnavailable": "无法扫描此页面",
+      "offline": "下载需要打开桌面应用",
+      "refreshing": "正在刷新媒体资源",
+      "scanning": "正在扫描媒体资源",
+      "launcherHidden": "本站已隐藏贴边入口",
+      "launcherDisabled": "贴边入口已全局隐藏",
+      "launcherActive": "贴边入口已启用"
     },
     "sites": {
       "restoreAll": "全部恢复",
@@ -112,11 +124,6 @@
       "empty": {
         "title": "暂无隐藏站点",
         "copy": "从贴边入口隐藏的站点会显示在这里。"
-      }
-    },
-    "preferences": {
-      "highest": {
-        "hint": "部分高画质视频下载后会自动进入转码队列。"
       }
     }
   },
