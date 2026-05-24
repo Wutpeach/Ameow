@@ -35,6 +35,7 @@
   let qualityPreference = directDownloadQuality?.DEFAULT_QUALITY_PREFERENCE || "balanced";
   let storageChangeListener = null;
   let feedbackTimer = null;
+  let suppressNextHandleClick = false;
   let localeBundle = {
     language: "en",
     _namespaces: ["extension", "common"],
@@ -436,8 +437,10 @@
     if (!handle) {
       return;
     }
-    handle.dataset.tooltip = capabilityCopy();
-    handle.setAttribute("aria-label", `Ameow: ${capabilityCopy()}`);
+    const actionLabel = t("launcher.actions.current", "Download current content");
+    const statusLabel = capabilityCopy();
+    handle.dataset.tooltip = `${actionLabel} · ${statusLabel}`;
+    handle.setAttribute("aria-label", `${actionLabel}. ${statusLabel}`);
   }
 
   function setMenuLabel(name, label) {
@@ -469,7 +472,6 @@
 
   function refreshLauncherLabels() {
     setActionLabel("pick", t("launcher.actions.pick", "Pick download"));
-    setActionLabel("download", t("launcher.actions.current", "Download current content"));
     setActionLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
     setActionLabel(
       "lock",
@@ -559,6 +561,10 @@
       if (!moved) {
         return;
       }
+      suppressNextHandleClick = true;
+      window.setTimeout(() => {
+        suppressNextHandleClick = false;
+      }, 250);
       endEvent.preventDefault();
       endEvent.stopPropagation();
       const nextConfig = await launcherConfig.updateConfig((current) => ({
@@ -581,6 +587,16 @@
     document.addEventListener("pointermove", handleMove, true);
     document.addEventListener("pointerup", handleEnd, true);
     document.addEventListener("pointercancel", handleEnd, true);
+  }
+
+  function handleLauncherClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (suppressNextHandleClick) {
+      suppressNextHandleClick = false;
+      return;
+    }
+    void downloadCurrentContent();
   }
 
   function createQualityControl() {
@@ -678,6 +694,7 @@
     handle.setAttribute("aria-label", "Ameow");
     handle.appendChild(icon("cat"));
     handle.addEventListener("pointerdown", startDrag);
+    handle.addEventListener("click", handleLauncherClick);
 
     const handleWrap = document.createElement("div");
     handleWrap.className = "ameow-launcher-handle-wrap";
@@ -699,7 +716,6 @@
     const bottomActions = document.createElement("div");
     bottomActions.className = "ameow-launcher-actions ameow-launcher-actions-bottom";
     bottomActions.append(
-      createActionButton("download", t("launcher.actions.current", "Download current content"), downloadCurrentContent),
       createQualityControl(),
       createActionButton("more", t("launcher.actions.more", "More"), () => {
         launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
