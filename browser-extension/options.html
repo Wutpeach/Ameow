@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ameow Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body class="ameow-theme-black">
+  <main class="ameow-options-shell">
+    <header class="ameow-options-header">
+      <div>
+        <div class="ameow-options-kicker" id="optionsKicker">Extension settings</div>
+        <h1 id="optionsTitle">Launcher settings</h1>
+      </div>
+      <div class="ameow-options-status" id="optionsStatus">Checking</div>
+    </header>
+
+    <section class="ameow-options-card">
+      <div class="ameow-options-card-copy">
+        <h2 id="launcherSettingsTitle">Launcher settings</h2>
+        <p id="launcherSettingsDescription">Control the page-edge launcher without crowding the popup.</p>
+      </div>
+      <div class="ameow-options-controls">
+        <button type="button" class="ameow-switch-row" id="launcherEnabledButton" role="switch" aria-checked="true">
+          <span class="ameow-switch-copy">
+            <span id="launcherEnabledTitle">Show launcher</span>
+            <span id="launcherEnabledHint">Show the page-edge launcher on supported pages.</span>
+          </span>
+          <span class="ameow-switch-track" aria-hidden="true">
+            <span class="ameow-switch-thumb"></span>
+          </span>
+        </button>
+
+        <div class="ameow-field-row">
+          <div class="ameow-field-copy">
+            <span id="launcherSideTitle">Launcher side</span>
+            <span id="launcherSideHint">Choose which edge the launcher uses.</span>
+          </div>
+          <div class="ameow-segmented" role="group" aria-label="Launcher side">
+            <button type="button" class="ameow-segment-btn" data-side="left" id="launcherSideLeft">Left</button>
+            <button type="button" class="ameow-segment-btn" data-side="right" id="launcherSideRight">Right</button>
+          </div>
+        </div>
+
+        <button type="button" class="ameow-action-row" id="resetLauncherPositionButton">
+          <span id="resetLauncherPositionTitle">Reset position</span>
+          <span id="resetLauncherPositionHint">Return the launcher to its default edge position.</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="ameow-options-card">
+      <div class="ameow-options-card-copy">
+        <h2 id="hiddenSitesTitle">Hidden sites</h2>
+        <p id="hiddenSitesDescription">Sites hidden from the launcher are managed here.</p>
+      </div>
+      <div class="ameow-options-controls">
+        <div class="ameow-sites-header">
+          <span class="ameow-sites-count" id="hiddenSitesCount">0 hidden sites</span>
+          <button type="button" class="ameow-secondary-btn" id="restoreAllSitesButton" hidden>Restore all</button>
+        </div>
+        <div class="ameow-sites-list" id="hiddenSitesList"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="locale-utils.js"></script>
+  <script src="launcher-config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

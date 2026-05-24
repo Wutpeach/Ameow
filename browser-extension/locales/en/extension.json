@@ -23,6 +23,13 @@
       "launcher": "Launcher",
       "hiddenSites": "Hidden sites"
     },
+    "footer": {
+      "settings": "Settings",
+      "openSettings": "Open settings",
+      "more": "More",
+      "repository": "GitHub repository",
+      "gettingStarted": "Getting started"
+    },
     "controls": {
       "side": {
         "left": "Left",
@@ -118,6 +125,8 @@
       "launcherActive": "Launcher active"
     },
     "sites": {
+      "count": "{count} hidden sites",
+      "hiddenHere": "Hidden here",
       "restoreAll": "Restore all",
       "restoreAllConfirm": "Restore all {count} hidden sites?",
       "restoreOne": "Restore {pattern}",
@@ -125,6 +134,32 @@
         "title": "No hidden sites",
         "copy": "Sites hidden from the launcher will appear here."
       }
+    }
+  },
+  "options": {
+    "kicker": "Extension settings",
+    "launcher": {
+      "title": "Launcher settings",
+      "description": "Control the page-edge launcher without crowding the popup.",
+      "enabled": {
+        "title": "Show launcher",
+        "hint": "Show the page-edge launcher on supported pages."
+      },
+      "side": {
+        "title": "Launcher side",
+        "hint": "Choose which edge the launcher uses."
+      },
+      "reset": {
+        "title": "Reset position",
+        "hint": "Return the launcher to its default edge position."
+      }
+    },
+    "hiddenSites": {
+      "title": "Hidden sites",
+      "description": "Sites hidden from the launcher are managed here.",
+      "count": "{count} hidden sites",
+      "restoreAll": "Restore all",
+      "restoreAllConfirm": "Restore all {count} hidden sites?"
     }
   },
   "launcher": {

@@ -32,9 +32,6 @@
         <button type="button" class="ameow-context-secondary" id="refreshMediaButton">
           Refresh
         </button>
-        <button type="button" class="ameow-context-primary" id="contextRestoreLauncherButton" hidden>
-          Restore launcher
-        </button>
         <button type="button" class="ameow-context-secondary" id="contextFallbackDownloadButton" hidden>
           Download this page
         </button>
@@ -58,60 +55,53 @@
       </div>
     </section>
 
-    <details class="ameow-tools-drawer" id="toolsDrawer">
-      <summary class="ameow-tools-summary">
-        <span class="ameow-tool-chip">
+    <section class="ameow-compact-controls" aria-label="Popup controls">
+      <section class="ameow-control-panel">
+        <div class="ameow-control-heading">
           <span class="ameow-tool-label" id="qualitySectionTitle">Quality</span>
           <span class="ameow-tool-value" id="qualitySummaryText">Balanced</span>
-        </span>
-        <span class="ameow-tool-chip">
+        </div>
+        <div class="ameow-quality-grid" id="qualityGrid"></div>
+        <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
+          <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
+          <span class="ameow-quality-hint-text" id="highestQualityHintText">
+            Some high-quality videos may enter the transcode queue after download.
+          </span>
+        </div>
+      </section>
+      <button type="button" class="ameow-launcher-summary" id="launcherSettingsButton">
+        <span class="ameow-launcher-summary-main">
           <span class="ameow-tool-label" id="launcherSectionTitle">Launcher</span>
           <span class="ameow-tool-value" id="launcherStateText">Checking</span>
         </span>
-        <span class="ameow-tool-chip">
-          <span class="ameow-tool-label" id="sitesSectionTitle">Hidden sites</span>
-          <span class="ameow-tool-value" id="hiddenSitesCount">0</span>
+        <span class="ameow-launcher-summary-meta">
+          <span id="hiddenSitesCount">0 hidden sites</span>
+          <span class="ameow-launcher-settings-copy" id="launcherSettingsText">Settings</span>
         </span>
-      </summary>
-      <section class="ameow-tools-content">
-        <section class="ameow-tool-section">
-          <div class="ameow-quality-grid" id="qualityGrid"></div>
-          <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
-            <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
-            <span class="ameow-quality-hint-text" id="highestQualityHintText">
-              Some high-quality videos may enter the transcode queue after download.
-            </span>
-          </div>
-        </section>
-        <section class="ameow-tool-section ameow-launcher-card" id="launcherCard">
-          <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
-            <span class="ameow-launcher-toggle-copy">
-              <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
-              <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
-            </span>
-            <span class="ameow-launcher-toggle-track" aria-hidden="true">
-              <span class="ameow-launcher-toggle-thumb"></span>
-            </span>
+      </button>
+    </section>
+
+    <footer class="ameow-popup-footer">
+      <button type="button" class="ameow-footer-btn" id="openOptionsButton">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 1 0 7.5a3.75 3.75 0 0 1 0-7.5Zm0-5.25l1.25 2.25c.4.12.78.27 1.15.47l2.47-.72l1.75 3.03l-1.86 1.74c.08.4.12.82.12 1.23s-.04.83-.12 1.23l1.86 1.74l-1.75 3.03l-2.47-.72c-.37.2-.75.35-1.15.47L12 21l-1.25-2.25c-.4-.12-.78-.27-1.15-.47l-2.47.72l-1.75-3.03l1.86-1.74A6.4 6.4 0 0 1 7.12 12c0-.41.04-.83.12-1.23L5.38 9.03L7.13 6l2.47.72c.37-.2.75-.35 1.15-.47L12 3Z"/></svg>
+        <span id="footerSettingsText">Settings</span>
+      </button>
+      <span class="ameow-footer-version" id="popupVersion">v0.0.0</span>
+      <div class="ameow-footer-more">
+        <button type="button" class="ameow-footer-btn" id="moreMenuButton" aria-haspopup="menu" aria-expanded="false">
+          <span aria-hidden="true">...</span>
+          <span id="footerMoreText">More</span>
+        </button>
+        <div class="ameow-footer-menu" id="moreMenu" role="menu" data-open="false">
+          <button type="button" class="ameow-footer-menu-item" id="repositoryLinkButton" role="menuitem">
+            GitHub repository
           </button>
-          <div class="ameow-side-control" role="group" aria-label="Launcher side">
-            <button type="button" class="ameow-side-btn" data-side="left" id="launcherSideLeft">Left</button>
-            <button type="button" class="ameow-side-btn" data-side="right" id="launcherSideRight">Right</button>
-            <button type="button" class="ameow-side-reset" id="resetLauncherPositionButton">Reset</button>
-          </div>
-          <div class="ameow-launcher-actions" id="launcherPopupActions">
-            <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
-              Restore on this site
-            </button>
-          </div>
-        </section>
-        <section class="ameow-tool-section ameow-sites-card">
-          <div class="ameow-sites-list" id="hiddenSitesList"></div>
-          <button type="button" class="ameow-popup-action-btn" id="restoreAllSitesButton" hidden>
-            Restore all
+          <button type="button" class="ameow-footer-menu-item" id="gettingStartedLinkButton" role="menuitem">
+            Getting started
           </button>
-        </section>
-      </section>
-    </details>
+        </div>
+      </div>
+    </footer>
   </main>
   <script src="direct-download-quality.js"></script>
   <script src="locale-utils.js"></script>

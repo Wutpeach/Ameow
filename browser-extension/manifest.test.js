@@ -14,6 +14,10 @@ describe("browser extension manifest", () => {
     expect(manifest.permissions).toContain("contextMenus");
   });
 
+  it("declares the extension options page", () => {
+    expect(manifest.options_page).toBe("options.html");
+  });
+
   it("registers the Twitter/X injected detector", () => {
     expect(findContentScript("https://x.com/*")).toMatchObject({
       js: ["twitter-detector.js"],

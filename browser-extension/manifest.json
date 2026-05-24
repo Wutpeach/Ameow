@@ -3,6 +3,7 @@
   "name": "Ameow Video Picker",
   "version": "0.3.0",
   "description": "Pick video elements from web pages for Ameow",
+  "options_page": "options.html",
   "permissions": [
     "activeTab",
     "scripting",

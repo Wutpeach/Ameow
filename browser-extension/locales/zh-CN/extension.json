@@ -23,6 +23,13 @@
       "launcher": "贴边入口",
       "hiddenSites": "隐藏站点"
     },
+    "footer": {
+      "settings": "设置",
+      "openSettings": "打开设置",
+      "more": "更多",
+      "repository": "GitHub 仓库",
+      "gettingStarted": "使用说明"
+    },
     "controls": {
       "side": {
         "left": "左侧",
@@ -118,6 +125,8 @@
       "launcherActive": "贴边入口已启用"
     },
     "sites": {
+      "count": "{count} 个隐藏站点",
+      "hiddenHere": "本站已隐藏",
       "restoreAll": "全部恢复",
       "restoreAllConfirm": "恢复全部 {count} 个隐藏站点？",
       "restoreOne": "恢复 {pattern}",
@@ -125,6 +134,32 @@
         "title": "暂无隐藏站点",
         "copy": "从贴边入口隐藏的站点会显示在这里。"
       }
+    }
+  },
+  "options": {
+    "kicker": "扩展设置",
+    "launcher": {
+      "title": "贴边入口设置",
+      "description": "在更宽的设置页管理贴边入口，避免挤占弹窗空间。",
+      "enabled": {
+        "title": "显示贴边入口",
+        "hint": "在支持的网页中显示贴边入口。"
+      },
+      "side": {
+        "title": "贴边位置",
+        "hint": "选择贴边入口显示在页面哪一侧。"
+      },
+      "reset": {
+        "title": "重置位置",
+        "hint": "将贴边入口恢复到默认边缘位置。"
+      }
+    },
+    "hiddenSites": {
+      "title": "隐藏站点",
+      "description": "从贴边入口隐藏的站点在这里统一管理。",
+      "count": "{count} 个隐藏站点",
+      "restoreAll": "全部恢复",
+      "restoreAllConfirm": "恢复全部 {count} 个隐藏站点？"
     }
   },
   "launcher": {
