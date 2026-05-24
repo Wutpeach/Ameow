@@ -39,8 +39,8 @@
 }
 
 .ameow-launcher[data-mounting="true"],
-.ameow-launcher[data-mounting="true"] .ameow-launcher-actions {
-  transition: none;
+.ameow-launcher[data-mounting="true"] * {
+  transition: none !important;
 }
 
 .ameow-launcher:hover,

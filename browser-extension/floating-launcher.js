@@ -624,6 +624,35 @@
     return wrapper;
   }
 
+  function enableLauncherTransitionsAfterStylesheet(stylesheet) {
+    let settled = false;
+    let fallbackTimer = null;
+
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      stylesheet.removeEventListener("load", finish);
+      stylesheet.removeEventListener("error", finish);
+      if (fallbackTimer !== null) {
+        window.clearTimeout(fallbackTimer);
+      }
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (launcher?.dataset.mounting === "true") {
+            launcher.dataset.mounting = "false";
+          }
+        });
+      });
+    };
+
+    stylesheet.addEventListener("load", finish, { once: true });
+    stylesheet.addEventListener("error", finish, { once: true });
+    fallbackTimer = window.setTimeout(finish, 400);
+  }
+
   function mountLauncher() {
     if (launcher || rootHost?.isConnected) {
       return;
@@ -681,13 +710,9 @@
     updateLauncherConfig(config);
     refreshLauncherLabels();
     refreshQualitySelection();
+    enableLauncherTransitionsAfterStylesheet(stylesheet);
     shadow.append(stylesheet, launcher);
     document.documentElement.appendChild(rootHost);
-    window.requestAnimationFrame(() => {
-      if (launcher) {
-        launcher.dataset.mounting = "false";
-      }
-    });
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
