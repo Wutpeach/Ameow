@@ -1016,3 +1016,37 @@ Audited leftover and legacy code paths, verified findings with Claude, removed l
 ### Next Steps
 
 - None - task complete
+
+
+## Session 168: Browser extension popup options redesign
+
+**Date**: 2026-05-24
+**Task**: Browser extension popup options redesign
+**Branch**: `main`
+
+### Summary
+
+Redesigned the browser-extension popup as a compact media console with a stable Settings/version/More footer, added an options page for launcher and hidden-site management, updated locales and manifest coverage, incorporated Claude review fixes, and validated with locale sync, JS syntax checks, targeted Vitest, type-check, lint, and browser-extension packaging.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `25405e5` | (see git log) |
+| `a6b846e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
