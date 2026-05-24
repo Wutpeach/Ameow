@@ -1084,3 +1084,37 @@ Removed the visible extension brand header from the browser popup, moved connect
 ### Next Steps
 
 - None - task complete
+
+
+## Session 170: Repository root organization cleanup
+
+**Date**: 2026-05-24
+**Task**: Repository root organization cleanup
+**Branch**: `main`
+
+### Summary
+
+Moved bugfix.md into docs/engineering, relocated app-icon.svg into desktop-assets/icons/source, added repository layout guidance to both READMEs, validated with reference scans plus type-check, lint, test, build, and browser-extension packaging, and avoided moving path-sensitive packaging assets or release-note paths.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8fcfab6` | (see git log) |
+| `7ddec28` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

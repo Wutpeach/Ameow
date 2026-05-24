@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 169
+- **Total Sessions**: 170
 - **Last Active**: 2026-05-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1086 | Active |
+| `journal-4.md` | ~1120 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 170 | 2026-05-24 | Repository root organization cleanup | `8fcfab6`, `7ddec28` | `main` |
 | 169 | 2026-05-24 | Browser extension popup chrome refinement | `22d087e`, `2cb306b` | `main` |
 | 168 | 2026-05-24 | Browser extension popup options redesign | `25405e5`, `a6b846e` | `main` |
 | 167 | 2026-05-23 | Codebase cleanup audit and phased residue removal | `feefc7d`, `c9d5de9`, `2ab39c2`, `bb87547`, `b8d347f` | `main` |
