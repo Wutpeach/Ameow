@@ -61,6 +61,16 @@ npm run type-check
 npm run test
 ```
 
+### 仓库结构
+
+- `src/`：桌面端 React 界面。
+- `electron/`：Electron 主进程、托盘与原生窗口集成。
+- `browser-extension/`：浏览器扩展源码。
+- `docs/`：用户文档与工程记录。
+- `desktop-assets/`：应用图标、打包素材和托管运行时清单。
+- `distribution/`、`release-notes/`：发布包附带资料和版本发布说明。
+- `scripts/`、`locales/`：构建、打包、版本和多语言同步脚本及源文案。
+
 ## 致谢
 
 Ameow 的部分核心能力建立在优秀的开源项目之上。特别感谢 `yt-dlp`、`gallery-dl` 和 `FFmpeg`，它们为网页媒体提取、资源下载与后续媒体处理提供了重要基础。

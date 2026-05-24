@@ -61,6 +61,16 @@ npm run type-check
 npm run test
 ```
 
+### Repository Layout
+
+- `src/`: desktop React interface.
+- `electron/`: Electron main process, tray, and native window integration.
+- `browser-extension/`: browser extension source.
+- `docs/`: user guides and engineering notes.
+- `desktop-assets/`: app icons, packaging assets, and managed runtime manifests.
+- `distribution/`, `release-notes/`: release package collateral and versioned release notes.
+- `scripts/`, `locales/`: build, packaging, versioning, and localization source files.
+
 ## Acknowledgements
 
 Some of Ameow's core capabilities are built on top of excellent open-source projects. Special thanks to `yt-dlp`, `gallery-dl`, and `FFmpeg` for providing the foundation for web media extraction, resource downloading, and downstream media processing.
