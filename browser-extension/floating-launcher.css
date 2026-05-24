@@ -80,6 +80,29 @@
   cursor: grab;
 }
 
+.ameow-launcher-handle-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+.ameow-launcher-handle-wrap::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  width: 32px;
+}
+
+.ameow-launcher[data-side="right"] .ameow-launcher-handle-wrap::before {
+  right: 100%;
+}
+
+.ameow-launcher[data-side="left"] .ameow-launcher-handle-wrap::before {
+  left: 100%;
+}
+
 .ameow-launcher[data-locked="true"] .ameow-launcher-handle {
   cursor: default;
 }
@@ -146,6 +169,42 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.ameow-launcher-icon-control {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.88);
+  transition: opacity 0.14s ease, transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), color 0.14s ease, border-color 0.14s ease;
+}
+
+.ameow-launcher-icon-control[data-action="eyeOff"] {
+  top: -4px;
+}
+
+.ameow-launcher-icon-control[data-action="lock"] {
+  bottom: -4px;
+}
+
+.ameow-launcher[data-side="right"] .ameow-launcher-icon-control {
+  right: calc(100% + 4px);
+}
+
+.ameow-launcher[data-side="left"] .ameow-launcher-icon-control {
+  left: calc(100% + 4px);
+}
+
+.ameow-launcher:hover .ameow-launcher-icon-control,
+.ameow-launcher:focus-within .ameow-launcher-icon-control,
+.ameow-launcher[data-menu-open="true"] .ameow-launcher-icon-control,
+.ameow-launcher[data-picker-active="true"] .ameow-launcher-icon-control,
+.ameow-launcher[data-dragging="true"] .ameow-launcher-icon-control {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
 }
 
 .ameow-launcher-action[data-tooltip]::after {
@@ -216,6 +275,11 @@
 .ameow-launcher-menu-item:hover {
   border-color: rgba(96, 165, 250, 0.52);
   color: var(--ameow-launcher-accent);
+}
+
+.ameow-launcher-action[data-action="eyeOff"]:hover {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: var(--ameow-launcher-danger);
 }
 
 .ameow-launcher-action[data-action="lock"] {
@@ -317,6 +381,12 @@
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.ameow-launcher-icon-control svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.5;
 }
 
 .ameow-launcher-menu {

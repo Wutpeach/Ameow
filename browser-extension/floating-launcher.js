@@ -470,6 +470,7 @@
   function refreshLauncherLabels() {
     setActionLabel("pick", t("launcher.actions.pick", "Pick download"));
     setActionLabel("download", t("launcher.actions.current", "Download current content"));
+    setActionLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
     setActionLabel(
       "lock",
       config.locked
@@ -678,6 +679,17 @@
     handle.appendChild(icon("cat"));
     handle.addEventListener("pointerdown", startDrag);
 
+    const handleWrap = document.createElement("div");
+    handleWrap.className = "ameow-launcher-handle-wrap";
+    handleWrap.append(
+      handle,
+      createActionButton("eyeOff", t("launcher.menu.hideSite", "Hide on this site"), () => void hideOnThisSite()),
+      createActionButton("lock", t("launcher.actions.lock", "Lock position"), toggleLocked),
+    );
+    handleWrap.querySelectorAll(".ameow-launcher-action").forEach((button) => {
+      button.classList.add("ameow-launcher-icon-control");
+    });
+
     const topActions = document.createElement("div");
     topActions.className = "ameow-launcher-actions ameow-launcher-actions-top";
     topActions.append(
@@ -689,7 +701,6 @@
     bottomActions.append(
       createActionButton("download", t("launcher.actions.current", "Download current content"), downloadCurrentContent),
       createQualityControl(),
-      createActionButton("lock", t("launcher.actions.lock", "Lock position"), toggleLocked),
       createActionButton("more", t("launcher.actions.more", "More"), () => {
         launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
       }),
@@ -698,7 +709,6 @@
     const menu = document.createElement("div");
     menu.className = "ameow-launcher-menu";
     menu.append(
-      createMenuItem("eyeOff", t("launcher.menu.hideSite", "Hide on this site"), () => void hideOnThisSite()),
       createMenuItem("switchSide", t("launcher.menu.switchSide", "Switch side"), () => void switchSide()),
     );
     const feedback = document.createElement("div");
@@ -706,7 +716,7 @@
     feedback.dataset.visible = "false";
     feedback.dataset.kind = "pending";
 
-    launcher.append(topActions, handle, bottomActions, menu, feedback);
+    launcher.append(topActions, handleWrap, bottomActions, menu, feedback);
     updateLauncherConfig(config);
     refreshLauncherLabels();
     refreshQualitySelection();
