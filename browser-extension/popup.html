@@ -29,14 +29,14 @@
       </div>
       <div class="ameow-context-counts" id="contextCounts">- video · - audio · - image</div>
       <div class="ameow-context-actions">
+        <button type="button" class="ameow-context-secondary" id="refreshMediaButton">
+          Refresh
+        </button>
         <button type="button" class="ameow-context-primary" id="contextRestoreLauncherButton" hidden>
           Restore launcher
         </button>
         <button type="button" class="ameow-context-secondary" id="contextFallbackDownloadButton" hidden>
           Download this page
-        </button>
-        <button type="button" class="ameow-context-secondary" id="refreshMediaButton">
-          Refresh
         </button>
       </div>
     </section>
@@ -58,60 +58,58 @@
       </div>
     </section>
 
-    <details class="ameow-disclosure" id="qualityDisclosure">
-      <summary class="ameow-disclosure-summary">
-        <span class="ameow-section-title" id="qualitySectionTitle">Quality</span>
-        <span class="ameow-section-hint" id="qualitySummaryText">Balanced</span>
+    <details class="ameow-tools-drawer" id="toolsDrawer">
+      <summary class="ameow-tools-summary">
+        <span class="ameow-tool-chip">
+          <span class="ameow-tool-label" id="qualitySectionTitle">Quality</span>
+          <span class="ameow-tool-value" id="qualitySummaryText">Balanced</span>
+        </span>
+        <span class="ameow-tool-chip">
+          <span class="ameow-tool-label" id="launcherSectionTitle">Launcher</span>
+          <span class="ameow-tool-value" id="launcherStateText">Checking</span>
+        </span>
+        <span class="ameow-tool-chip">
+          <span class="ameow-tool-label" id="sitesSectionTitle">Hidden sites</span>
+          <span class="ameow-tool-value" id="hiddenSitesCount">0</span>
+        </span>
       </summary>
-      <section class="ameow-popup-card">
-        <div class="ameow-quality-grid" id="qualityGrid"></div>
-        <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
-          <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
-          <span class="ameow-quality-hint-text" id="highestQualityHintText">
-            Some high-quality videos may enter the transcode queue after download.
-          </span>
-        </div>
-      </section>
-    </details>
-
-    <details class="ameow-disclosure" id="launcherDisclosure">
-      <summary class="ameow-disclosure-summary">
-        <span class="ameow-section-title" id="launcherSectionTitle">Launcher</span>
-        <span class="ameow-section-hint" id="launcherStateText">Checking</span>
-      </summary>
-      <section class="ameow-popup-card ameow-launcher-card" id="launcherCard">
-        <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
-          <span class="ameow-launcher-toggle-copy">
-            <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
-            <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
-          </span>
-          <span class="ameow-launcher-toggle-track" aria-hidden="true">
-            <span class="ameow-launcher-toggle-thumb"></span>
-          </span>
-        </button>
-        <div class="ameow-side-control" role="group" aria-label="Launcher side">
-          <button type="button" class="ameow-side-btn" data-side="left" id="launcherSideLeft">Left</button>
-          <button type="button" class="ameow-side-btn" data-side="right" id="launcherSideRight">Right</button>
-          <button type="button" class="ameow-side-reset" id="resetLauncherPositionButton">Reset</button>
-        </div>
-        <div class="ameow-launcher-actions" id="launcherPopupActions">
-          <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
-            Restore on this site
+      <section class="ameow-tools-content">
+        <section class="ameow-tool-section">
+          <div class="ameow-quality-grid" id="qualityGrid"></div>
+          <div class="ameow-quality-hint" id="highestQualityHint" data-visible="false" hidden aria-live="polite" aria-hidden="true">
+            <span class="ameow-quality-hint-icon" aria-hidden="true">i</span>
+            <span class="ameow-quality-hint-text" id="highestQualityHintText">
+              Some high-quality videos may enter the transcode queue after download.
+            </span>
+          </div>
+        </section>
+        <section class="ameow-tool-section ameow-launcher-card" id="launcherCard">
+          <button type="button" class="ameow-launcher-toggle" id="launcherToggleButton" role="switch" aria-checked="true">
+            <span class="ameow-launcher-toggle-copy">
+              <span class="ameow-launcher-toggle-title" id="launcherToggleTitle">Edge launcher</span>
+              <span class="ameow-launcher-toggle-hint" id="launcherToggleHint">Show in pages</span>
+            </span>
+            <span class="ameow-launcher-toggle-track" aria-hidden="true">
+              <span class="ameow-launcher-toggle-thumb"></span>
+            </span>
           </button>
-        </div>
-      </section>
-    </details>
-
-    <details class="ameow-disclosure" id="sitesDisclosure">
-      <summary class="ameow-disclosure-summary">
-        <span class="ameow-section-title" id="sitesSectionTitle">Hidden sites</span>
-        <span class="ameow-section-hint" id="hiddenSitesCount">0</span>
-      </summary>
-      <section class="ameow-popup-card ameow-sites-card">
-        <div class="ameow-sites-list" id="hiddenSitesList"></div>
-        <button type="button" class="ameow-popup-action-btn" id="restoreAllSitesButton" hidden>
-          Restore all
-        </button>
+          <div class="ameow-side-control" role="group" aria-label="Launcher side">
+            <button type="button" class="ameow-side-btn" data-side="left" id="launcherSideLeft">Left</button>
+            <button type="button" class="ameow-side-btn" data-side="right" id="launcherSideRight">Right</button>
+            <button type="button" class="ameow-side-reset" id="resetLauncherPositionButton">Reset</button>
+          </div>
+          <div class="ameow-launcher-actions" id="launcherPopupActions">
+            <button type="button" class="ameow-popup-action-btn" id="restoreLauncherButton" hidden>
+              Restore on this site
+            </button>
+          </div>
+        </section>
+        <section class="ameow-tool-section ameow-sites-card">
+          <div class="ameow-sites-list" id="hiddenSitesList"></div>
+          <button type="button" class="ameow-popup-action-btn" id="restoreAllSitesButton" hidden>
+            Restore all
+          </button>
+        </section>
       </section>
     </details>
   </main>

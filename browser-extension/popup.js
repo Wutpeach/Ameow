@@ -177,10 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderStaticCopy() {
     elements.popupTitle.textContent = t("app.name", "Ameow");
     elements.popupSubtitle.textContent = t("popup.subtitle", "Extension");
-    elements.mediaTabs.forEach((button) => {
-      const mediaType = button.dataset.mediaType || "video";
-      button.textContent = t(`popup.media.tabs.${mediaType}`, button.textContent || mediaType);
-    });
+    renderMediaTabs();
     elements.refreshMediaButton.textContent = t("popup.media.refresh", "Refresh");
     elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
     elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
@@ -241,11 +238,25 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStatus(normalizeConnectionState(response));
   }
 
+  function mediaTabLabel(mediaType) {
+    const fallback = mediaType === "audio" ? "Audio" : mediaType === "image" ? "Image" : "Video";
+    return t(`popup.media.tabs.${mediaType}`, fallback);
+  }
+
+  function renderMediaTabs() {
+    const counts = mediaCounts();
+    elements.mediaTabs.forEach((button) => {
+      const mediaType = button.dataset.mediaType || "video";
+      button.textContent = `${mediaTabLabel(mediaType)} ${counts[mediaType] || 0}`;
+    });
+  }
+
   function setMediaType(mediaType) {
     currentMediaType = mediaType === "audio" || mediaType === "image" ? mediaType : "video";
     elements.mediaTabs.forEach((button) => {
       button.classList.toggle("active", button.dataset.mediaType === currentMediaType);
     });
+    renderMediaTabs();
     renderMediaState();
   }
 
@@ -490,6 +501,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ? mediaScanResult[`${currentMediaType}s`]
       : [];
     elements.mediaList.innerHTML = "";
+    renderMediaTabs();
 
     if (!scanStarted && !mediaScanResult) {
       elements.mediaList.dataset.visible = "false";

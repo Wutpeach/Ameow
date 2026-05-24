@@ -23,8 +23,8 @@ body {
   --ameow-scrollbar-track: rgba(255, 255, 255, 0.03);
   --ameow-scrollbar-thumb: rgba(170, 170, 170, 0.28);
   --ameow-scrollbar-thumb-hover: rgba(96, 165, 250, 0.46);
-  width: 336px;
-  padding: 12px;
+  width: 344px;
+  padding: 10px;
   margin: 0;
   font-family: "SF Pro Text", "Segoe UI", sans-serif;
   background: linear-gradient(180deg, #18171b 0%, #242229 100%);
@@ -62,7 +62,7 @@ body.ameow-theme-white {
 .ameow-popup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .ameow-popup-header {
@@ -193,21 +193,22 @@ body.ameow-theme-white {
 }
 
 .ameow-context-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
-  padding: 10px 11px;
-  border: 1px solid var(--ameow-card-border);
-  border-radius: 11px;
-  background: linear-gradient(180deg, var(--ameow-surface-elevated-start) 0%, var(--ameow-surface-end) 100%);
-  box-shadow: var(--ameow-card-shadow);
+  padding: 4px 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ameow-context-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ameow-context-title {
@@ -233,13 +234,16 @@ body.ameow-theme-white {
 }
 
 .ameow-context-counts {
+  display: none;
   color: var(--ameow-text-tertiary);
+  justify-self: end;
+  max-width: 108px;
 }
 
 .ameow-context-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .ameow-context-primary,
@@ -262,7 +266,7 @@ body.ameow-theme-white {
 
 .ameow-context-secondary {
   flex: 0 1 auto;
-  padding: 0 10px;
+  padding: 0 9px;
   background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
   color: var(--ameow-text-secondary);
 }
@@ -320,6 +324,99 @@ body.ameow-theme-white {
   margin: 0 6px 6px;
 }
 
+.ameow-tools-drawer {
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.032);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-tools-summary {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 0.78fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ameow-tools-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ameow-tools-summary::after {
+  content: ">";
+  color: var(--ameow-text-secondary);
+  font-size: 11px;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ameow-tools-drawer[open] .ameow-tools-summary::after {
+  transform: rotate(90deg);
+}
+
+.ameow-tool-chip {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 4px;
+  border-radius: 8px;
+}
+
+.ameow-tool-label {
+  min-width: 0;
+  color: var(--ameow-text-tertiary);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-tool-value {
+  min-width: 0;
+  color: var(--ameow-text-primary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-tools-content {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 7px 7px;
+}
+
+.ameow-tool-section {
+  padding: 8px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-media-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  padding: 8px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.018) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
 .ameow-media-toolbar {
   display: flex;
   align-items: center;
@@ -329,21 +426,21 @@ body.ameow-theme-white {
 .ameow-media-tabs {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
+  gap: 5px;
+  padding: 3px;
   border: 1px solid var(--ameow-card-border);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.12);
   flex: 1 1 auto;
 }
 
 .ameow-media-tab {
-  min-height: 28px;
-  border-radius: 7px;
+  min-height: 31px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ameow-text-secondary);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .ameow-media-tab:hover,
@@ -377,7 +474,7 @@ body.ameow-theme-white {
 
 .ameow-media-summary {
   min-height: 16px;
-  font-size: 10px;
+  font-size: 10.5px;
   line-height: 1.35;
   color: var(--ameow-text-secondary);
   overflow: hidden;
@@ -388,8 +485,8 @@ body.ameow-theme-white {
 .ameow-media-list {
   display: none;
   flex-direction: column;
-  gap: 6px;
-  max-height: 238px;
+  gap: 7px;
+  max-height: 292px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -428,11 +525,11 @@ body.ameow-theme-white {
 
 .ameow-media-row {
   position: relative;
-  min-height: 54px;
+  min-height: 62px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 28px;
+  grid-template-columns: 54px minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   padding: 7px 8px;
   border: 1px solid var(--ameow-card-border);
   border-radius: 9px;
@@ -442,8 +539,8 @@ body.ameow-theme-white {
 
 .ameow-media-preview {
   position: relative;
-  width: 42px;
-  height: 34px;
+  width: 54px;
+  height: 42px;
   border-radius: 8px;
   display: inline-flex;
   align-items: center;
@@ -490,7 +587,7 @@ body.ameow-theme-white {
 .ameow-media-title {
   min-width: 0;
   color: var(--ameow-text-primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
   overflow: hidden;
@@ -501,7 +598,7 @@ body.ameow-theme-white {
 .ameow-media-meta {
   min-width: 0;
   color: var(--ameow-text-secondary);
-  font-size: 10px;
+  font-size: 10.5px;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -561,7 +658,7 @@ body.ameow-theme-white {
 }
 
 .ameow-media-empty {
-  min-height: 156px;
+  min-height: 224px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -601,7 +698,7 @@ body.ameow-theme-white {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .ameow-quality-hint {
@@ -907,16 +1004,16 @@ body.ameow-theme-white {
 }
 
 .ameow-sites-card {
-  min-height: 304px;
+  min-height: 0;
 }
 
 .ameow-sites-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 242px;
+  max-height: 142px;
   overflow-y: auto;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .ameow-site-row {
