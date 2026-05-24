@@ -44,6 +44,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
   let messageListener = null;
   const documentOverride = overrides.document || {};
   class TestAudioElement {}
+  class TestVideoElement {}
   const window = {
     location: {
       href: parsedCurrentUrl.toString(),
@@ -83,7 +84,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     HTMLElement: class HTMLElement {},
     HTMLAnchorElement: class HTMLAnchorElement {},
     HTMLAudioElement: TestAudioElement,
-    HTMLVideoElement: class HTMLVideoElement {},
+    HTMLVideoElement: TestVideoElement,
     MouseEvent: class MouseEvent {},
     chrome: {
       runtime: {
@@ -116,6 +117,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     hooks: context.window.AmeowGenericVideoDetectorTestHooks,
     messageListener,
     TestAudioElement,
+    TestVideoElement,
   };
 }
 
@@ -276,6 +278,186 @@ describe("generic video detector", () => {
           height: 720,
         },
       ],
+    });
+  });
+
+  it("adds nearby title and cover metadata to popup video candidates", () => {
+    const cover = {
+      currentSrc: "https://cdn.example.com/covers/card.jpg",
+      src: "https://cdn.example.com/covers/card.jpg",
+      naturalWidth: 640,
+      naturalHeight: 360,
+      getAttribute(name) {
+        return name === "alt" ? "Card cover title" : null;
+      },
+    };
+    const heading = {
+      getAttribute() {
+        return null;
+      },
+      textContent: "Local video title",
+    };
+    const card = {
+      getAttribute() {
+        return null;
+      },
+      querySelector(selector) {
+        if (selector.includes("h1")) {
+          return heading;
+        }
+        if (selector.includes("img")) {
+          return cover;
+        }
+        return null;
+      },
+    };
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.example.com/post/2", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Page title",
+      },
+    });
+    const video = Object.assign(new TestVideoElement(), {
+      currentSrc: "https://cdn.example.com/videos/post.mp4",
+      src: "https://cdn.example.com/videos/post.mp4",
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: card,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return card;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 640, height: 360 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos).toHaveLength(1);
+    expect(result.videos[0]).toMatchObject({
+      mediaType: "video",
+      url: "https://cdn.example.com/videos/post.mp4",
+      title: "Local video title",
+      previewUrl: "https://cdn.example.com/covers/card.jpg",
+      width: 1920,
+      height: 1080,
+    });
+  });
+
+  it("uses open graph metadata for popup video candidates when element metadata is missing", () => {
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.example.com/post/3", {
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Open graph title" : null;
+              },
+            };
+          }
+          if (selector === 'meta[property="og:image"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "https://cdn.example.com/covers/og.jpg" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Page title",
+      },
+    });
+    const video = Object.assign(new TestVideoElement(), {
+      currentSrc: "https://cdn.example.com/videos/og.mp4",
+      src: "https://cdn.example.com/videos/og.mp4",
+      videoWidth: 0,
+      videoHeight: 0,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 640, height: 360 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos[0]).toMatchObject({
+      title: "Open graph title",
+      previewUrl: "https://cdn.example.com/covers/og.jpg",
+    });
+  });
+
+  it("adds page title and cover metadata to direct video links", () => {
+    const link = {
+      getAttribute(name) {
+        return name === "href" ? "https://cdn.example.com/videos/direct.mp4" : null;
+      },
+      textContent: "",
+    };
+    const { hooks } = loadDetectorHooks("https://www.example.com/post/4", {
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Direct video post" : null;
+              },
+            };
+          }
+          if (selector === 'meta[property="og:image"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "https://cdn.example.com/covers/direct.jpg" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "a[href]") {
+            return [link];
+          }
+          return [];
+        },
+        title: "Page title",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos[0]).toMatchObject({
+      mediaType: "video",
+      source: "direct_link",
+      title: "Direct video post",
+      previewUrl: "https://cdn.example.com/covers/direct.jpg",
     });
   });
 

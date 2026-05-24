@@ -345,12 +345,137 @@
   }
 
   function extractTitle() {
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim();
-    if (ogTitle) {
-      return ogTitle;
+    const metaTitle = firstMetaContent([
+      'meta[property="og:title"]',
+      'meta[name="og:title"]',
+      'meta[name="twitter:title"]',
+    ]);
+    if (metaTitle) {
+      return metaTitle;
     }
 
     return (document.title || "").trim();
+  }
+
+  function firstMetaContent(selectors) {
+    for (const selector of selectors) {
+      const value = document.querySelector(selector)?.getAttribute("content")?.trim();
+      if (value) {
+        return value;
+      }
+    }
+    return "";
+  }
+
+  function extractMetaPreviewUrl() {
+    const rawUrl = firstMetaContent([
+      'meta[property="og:image"]',
+      'meta[property="og:image:secure_url"]',
+      'meta[name="og:image"]',
+      'meta[name="twitter:image"]',
+      'meta[name="twitter:image:src"]',
+      'meta[itemprop="image"]',
+    ]);
+    return normalizeHttpUrl(rawUrl);
+  }
+
+  function normalizeCandidateTitle(rawTitle) {
+    if (typeof rawTitle !== "string") {
+      return "";
+    }
+    return rawTitle.replace(/\s+/g, " ").trim().slice(0, 140);
+  }
+
+  function titleFromElementAttribute(element, attributes = ["title", "aria-label", "data-title", "alt"]) {
+    if (!element?.getAttribute) {
+      return "";
+    }
+    for (const attribute of attributes) {
+      const value = normalizeCandidateTitle(element.getAttribute(attribute));
+      if (value) {
+        return value;
+      }
+    }
+    return "";
+  }
+
+  function titleFromElementText(element) {
+    return normalizeCandidateTitle(element?.textContent || "");
+  }
+
+  function resolveVideoMetadataScope(video) {
+    if (!video) {
+      return null;
+    }
+    if (typeof video.closest === "function") {
+      const scoped = video.closest(
+        'article, [role="article"], figure, [data-title], [data-e2e], [data-testid]',
+      );
+      if (scoped) {
+        return scoped;
+      }
+    }
+
+    let current = video.parentElement || null;
+    for (let depth = 0; current && depth < 4; depth += 1) {
+      if (
+        titleFromElementAttribute(current) ||
+        current.querySelector?.("h1, h2, h3, [role='heading'], img[alt]")
+      ) {
+        return current;
+      }
+      current = current.parentElement || null;
+    }
+    return video.parentElement || null;
+  }
+
+  function resolveVideoTitle(video) {
+    const scope = resolveVideoMetadataScope(video);
+    const titleElement = scope?.querySelector?.(
+      "h1, h2, h3, [role='heading'], [data-title], a[title], img[alt]",
+    );
+    return titleFromElementAttribute(video)
+      || titleFromElementAttribute(scope)
+      || titleFromElementAttribute(titleElement)
+      || titleFromElementText(titleElement)
+      || extractTitle();
+  }
+
+  function firstSrcsetUrl(rawSrcset) {
+    return typeof rawSrcset === "string"
+      ? rawSrcset.split(",")[0]?.trim()?.split(/\s+/)[0] || ""
+      : "";
+  }
+
+  function extractImageElementUrl(image) {
+    return normalizeHttpUrl(
+      image?.currentSrc
+        || image?.src
+        || image?.getAttribute?.("src")
+        || firstSrcsetUrl(image?.getAttribute?.("srcset"))
+        || image?.getAttribute?.("data-src")
+        || image?.getAttribute?.("data-original"),
+    );
+  }
+
+  function imageHasKnownSmallSize(image) {
+    const width = Number(image?.naturalWidth || image?.width || 0);
+    const height = Number(image?.naturalHeight || image?.height || 0);
+    return (width > 0 && width < MIN_IMAGE_WIDTH) || (height > 0 && height < MIN_IMAGE_HEIGHT);
+  }
+
+  function extractScopedPreviewUrl(scope) {
+    const image = scope?.querySelector?.("img[src], img[srcset], img[data-src], img[data-original]");
+    if (!image || imageHasKnownSmallSize(image)) {
+      return null;
+    }
+    return extractImageElementUrl(image);
+  }
+
+  function resolveVideoPreviewUrl(video) {
+    return normalizeHttpUrl(video?.poster || video?.getAttribute?.("poster"))
+      || extractScopedPreviewUrl(resolveVideoMetadataScope(video))
+      || extractMetaPreviewUrl();
   }
 
   function urlHost(rawUrl) {
@@ -473,10 +598,10 @@
         const described = describeCandidate({
           ...candidate,
           mediaType: "video",
-          title: video.getAttribute("title") || video.getAttribute("aria-label") || extractTitle(),
+          title: resolveVideoTitle(video),
           width: video.videoWidth || rect?.width,
           height: video.videoHeight || rect?.height,
-          previewUrl: video.poster || video.getAttribute("poster"),
+          previewUrl: resolveVideoPreviewUrl(video),
         });
         if (described) {
           candidates.push(described);
@@ -500,7 +625,8 @@
         type,
         confidence: type === "direct_mp4" ? "medium" : "low",
         source: "direct_link",
-        title: anchor.textContent,
+        title: anchor.textContent || extractTitle(),
+        previewUrl: extractMetaPreviewUrl(),
       });
       if (described) {
         candidates.push(described);

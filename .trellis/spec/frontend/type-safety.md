@@ -277,6 +277,7 @@ background.js -> normalize/cache -> popup.js
 - Audio candidates should prefer stable direct audio files (`mp3`, `m4a`, `aac`, `wav`, `ogg`, `oga`, `flac`, `opus`) and exclude playlist/segment shapes (`m3u8`, `mpd`, `m4s`, `ts`) unless a later provider-specific contract explicitly opts them in.
 - Known-duration audio below 5 seconds is treated as likely UI sound and excluded from popup scan results.
 - Popup row downloads may pass `mediaType: "audio"` through the video-selection queue path, but the candidate metadata must preserve `mediaType: "audio"` instead of rewriting it to `"video"`.
+- Video candidate metadata is owned by the detector, not the popup renderer. For `<video>` rows, preserve `poster` first, then bounded nearby image metadata, then page meta image (`og:image` / `twitter:image`) as `previewUrl`; resolve titles from the element, nearby scoped heading/card text, then page meta title. For direct video links with empty link text, use the page title/meta title and page meta image so the popup does not display only a CDN filename.
 
 ### 4. Validation & Error Matrix
 
@@ -290,6 +291,8 @@ background.js -> normalize/cache -> popup.js
 | Page exposes short click/ping audio | Audio detector | Candidate is excluded when duration is known below 5s | Apply duration threshold |
 | Page exposes streaming fragments | Audio detector | Segment/playlist URLs are excluded from Audio tab | Filter extension/MIME-like URL shapes |
 | Popup downloads an audio row | `downloadMediaCandidate` | Candidate keeps `mediaType: "audio"` in metadata | Preserve media type in queued candidate |
+| Page video has no `<video poster>` but exposes card/meta cover | `collectVideoScanCandidates` | Video candidate includes a bounded `previewUrl` without popup-side DOM guessing | Resolve cover in content script before background normalization |
+| Direct video link has empty text | `collectVideoScanCandidates` | Candidate title falls back to page/meta title instead of only CDN filename | Populate `title` before `describeCandidate` fallback |
 
 ### 5. Good / Base / Bad Cases
 
@@ -319,6 +322,8 @@ background.js -> normalize/cache -> popup.js
   - Popup opens on a scannable page and auto-populates without clicking Scan.
   - Popup opens on a restricted page and does not wait for content-script timeout.
   - Same-tab navigation does not show the previous URL's cache result.
+  - Video candidate without a poster still displays a nearby card cover or page meta cover when available.
+  - Direct video link with empty text displays a page/meta title.
 
 ### 7. Wrong vs Correct
 
@@ -336,6 +341,19 @@ const key = `${tab.id}-${hashString(tab.url)}`;
 const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
   ? mediaScanResult[`${currentMediaType}s`]
   : [];
+```
+
+#### Wrong
+
+```js
+title.textContent = candidate.title || inferTitleFromPopupDocument();
+```
+
+#### Correct
+
+```js
+title.textContent = safeText(candidate.title, candidate.url);
+// Detector owns title/previewUrl extraction while it still has access to the page DOM.
 ```
 
 #### Protected Image Drag Fallback Contract
