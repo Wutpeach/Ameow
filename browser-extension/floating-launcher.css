@@ -22,7 +22,7 @@
   font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
   color: var(--ameow-launcher-text);
   pointer-events: auto;
-  width: 40px;
+  width: 44px;
   transform: translateY(-50%);
   transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   user-select: none;
@@ -30,12 +30,12 @@
 
 .ameow-launcher[data-side="right"] {
   right: 0;
-  transform: translate(20px, -50%);
+  transform: translate(22px, -50%);
 }
 
 .ameow-launcher[data-side="left"] {
   left: 0;
-  transform: translate(-20px, -50%);
+  transform: translate(-22px, -50%);
 }
 
 .ameow-launcher[data-mounting="true"],
@@ -56,8 +56,7 @@
 }
 
 .ameow-launcher-handle,
-.ameow-launcher-action,
-.ameow-launcher-menu-item {
+.ameow-launcher-action {
   appearance: none;
   border: 1px solid var(--ameow-launcher-border);
   color: var(--ameow-launcher-text);
@@ -69,9 +68,9 @@
 
 .ameow-launcher-handle {
   position: relative;
-  width: 40px;
+  width: 44px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,7 +81,7 @@
 
 .ameow-launcher-handle-wrap {
   position: relative;
-  width: 40px;
+  width: 44px;
   height: 40px;
   flex: 0 0 auto;
 }
@@ -121,13 +120,25 @@
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.38), 0 0 0 3px rgba(96, 165, 250, 0.18);
 }
 
+.ameow-launcher[data-side="right"] .ameow-launcher-handle {
+  justify-content: flex-start;
+  padding-left: 9px;
+  padding-right: 0;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+}
+
 .ameow-launcher[data-side="left"] .ameow-launcher-handle {
-  border-radius: 999px;
+  justify-content: flex-end;
+  padding-left: 0;
+  padding-right: 9px;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
 }
 
 .ameow-launcher-handle svg {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
   fill: currentColor;
   color: var(--ameow-launcher-muted);
   transition: color 0.18s ease, filter 0.18s ease;
@@ -190,19 +201,19 @@
 }
 
 .ameow-launcher-icon-control[data-action="eyeOff"] {
-  top: -4px;
+  top: -5px;
 }
 
 .ameow-launcher-icon-control[data-action="lock"] {
-  bottom: -4px;
+  bottom: -5px;
 }
 
 .ameow-launcher[data-side="right"] .ameow-launcher-icon-control {
-  right: calc(100% + 4px);
+  right: calc(100% + 5px);
 }
 
 .ameow-launcher[data-side="left"] .ameow-launcher-icon-control {
-  left: calc(100% + 4px);
+  left: calc(100% + 5px);
 }
 
 .ameow-launcher:hover .ameow-launcher-icon-control,
@@ -283,8 +294,7 @@
   transition-delay: 1s;
 }
 
-.ameow-launcher-action:hover,
-.ameow-launcher-menu-item:hover {
+.ameow-launcher-action:hover {
   border-color: rgba(96, 165, 250, 0.52);
   color: var(--ameow-launcher-accent);
 }
@@ -384,8 +394,7 @@
   background: rgba(96, 165, 250, 0.12);
 }
 
-.ameow-launcher-action svg,
-.ameow-launcher-menu-item svg {
+.ameow-launcher-action svg {
   width: 18px;
   height: 18px;
   fill: none;
@@ -399,32 +408,6 @@
   width: 13px;
   height: 13px;
   stroke-width: 2.5;
-}
-
-.ameow-launcher-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  min-width: 156px;
-  display: none;
-  flex-direction: column;
-  gap: 6px;
-  padding: 7px;
-  border: 1px solid var(--ameow-launcher-border);
-  border-radius: 10px;
-  background: rgba(32, 31, 37, 0.96);
-  box-shadow: var(--ameow-launcher-shadow);
-}
-
-.ameow-launcher[data-side="right"] .ameow-launcher-menu {
-  right: 42px;
-}
-
-.ameow-launcher[data-side="left"] .ameow-launcher-menu {
-  left: 42px;
-}
-
-.ameow-launcher[data-menu-open="true"] .ameow-launcher-menu {
-  display: flex;
 }
 
 .ameow-launcher-feedback {
@@ -476,18 +459,6 @@
 
 .ameow-launcher[data-side="left"] .ameow-launcher-feedback {
   left: calc(100% + 8px);
-}
-
-.ameow-launcher-menu-item {
-  min-height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 9px;
-  font: 600 12px/1.2 "SF Pro Text", "Segoe UI", Arial, sans-serif;
-  text-align: left;
-  white-space: nowrap;
 }
 
 .ameow-picker-overlay {

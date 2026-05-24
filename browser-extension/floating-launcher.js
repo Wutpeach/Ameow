@@ -12,6 +12,7 @@
   const CAPTURE_CURRENT_MESSAGE = "ameow_capture_current_content";
   const RESTORE_MESSAGE = "ameow_launcher_restore";
   const CONFIG_UPDATE_MESSAGE = "ameow_launcher_config_update";
+  const SIDE_SWITCH_DRAG_DISTANCE_PX = 240;
 
   if (!launcherConfig || !captureEvidence || !chrome?.runtime) {
     return;
@@ -65,11 +66,9 @@
       pick: ['<circle cx="12" cy="12" r="7"/>', '<path d="M12 3v3"/>', '<path d="M12 18v3"/>', '<path d="M3 12h3"/>', '<path d="M18 12h3"/>', '<circle cx="12" cy="12" r="1"/>'],
       download: ['<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>', '<path d="M7 10l5 5 5-5"/>', '<path d="M12 15V3"/>'],
       sliders: ['<path d="M4 21v-7"/>', '<path d="M4 10V3"/>', '<path d="M12 21v-9"/>', '<path d="M12 8V3"/>', '<path d="M20 21v-5"/>', '<path d="M20 12V3"/>', '<path d="M2 14h4"/>', '<path d="M10 8h4"/>', '<path d="M18 16h4"/>'],
-      more: ['<circle cx="12" cy="12" r="1"/>', '<circle cx="19" cy="12" r="1"/>', '<circle cx="5" cy="12" r="1"/>'],
       lock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 8 0v4"/>'],
       unlock: ['<rect width="14" height="10" x="5" y="11" rx="2"/>', '<path d="M8 11V7a4 4 0 0 1 7.48-2"/>'],
       eyeOff: ['<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>', '<path d="M6.61 6.61C3.98 8.36 2 12 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>', '<path d="M2 2l20 20"/>', '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>'],
-      switchSide: ['<path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/>', '<path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/>', '<path d="M12 8l-3 4 3 4"/>', '<path d="M12 8l3 4-3 4"/>'],
     }[name] || [];
 
     svg.innerHTML = nodes.join("");
@@ -218,15 +217,6 @@
     ));
     updateLauncherConfig(nextConfig);
     unmountLauncher();
-  }
-
-  async function switchSide() {
-    const nextConfig = await launcherConfig.updateConfig((current) => ({
-      ...current,
-      side: current.side === "right" ? "left" : "right",
-    }));
-    updateLauncherConfig(nextConfig);
-    closeMenu();
   }
 
   async function toggleLocked() {
@@ -391,24 +381,6 @@
     return button;
   }
 
-  function createMenuItem(name, label, onClick) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "ameow-launcher-menu-item";
-    button.dataset.menuItem = name;
-    const labelText = document.createElement("span");
-    labelText.className = "ameow-launcher-menu-label";
-    labelText.textContent = label;
-    button.appendChild(icon(name));
-    button.appendChild(labelText);
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onClick();
-    });
-    return button;
-  }
-
   function setActionLabel(name, label) {
     const button = launcher?.querySelector(`[data-action="${name}"]`);
     if (!button) {
@@ -443,13 +415,6 @@
     handle.setAttribute("aria-label", `${actionLabel}. ${statusLabel}`);
   }
 
-  function setMenuLabel(name, label) {
-    const labelText = launcher?.querySelector(`[data-menu-item="${name}"] .ameow-launcher-menu-label`);
-    if (labelText) {
-      labelText.textContent = label;
-    }
-  }
-
   function refreshQualitySelection() {
     if (!launcher) {
       return;
@@ -480,9 +445,6 @@
         : t("launcher.actions.lock", "Lock position"),
     );
     setActionIcon("lock", config.locked ? "lock" : "unlock");
-    setActionLabel("more", t("launcher.actions.more", "More"));
-    setMenuLabel("eyeOff", t("launcher.menu.hideSite", "Hide on this site"));
-    setMenuLabel("switchSide", t("launcher.menu.switchSide", "Switch side"));
     refreshHandleTooltip();
     if (launcher) {
       launcher.querySelectorAll(".ameow-launcher-quality-option").forEach((button) => {
@@ -544,7 +506,12 @@
       dragState.moved = true;
       moveEvent.preventDefault();
       moveEvent.stopPropagation();
-      const nextSide = moveEvent.clientX < window.innerWidth / 2 ? "left" : "right";
+      let nextSide = dragState.startSide;
+      if (dragState.startSide === "right" && moveEvent.clientX < window.innerWidth - SIDE_SWITCH_DRAG_DISTANCE_PX) {
+        nextSide = "left";
+      } else if (dragState.startSide === "left" && moveEvent.clientX > SIDE_SWITCH_DRAG_DISTANCE_PX) {
+        nextSide = "right";
+      }
       const nextVertical = normalizeVerticalFromClientY(moveEvent.clientY);
       config = launcherConfig.normalizeConfig({
         ...config,
@@ -578,6 +545,7 @@
     dragState = {
       pointerId,
       moved: false,
+      startSide: config.side,
       captureTarget: event.currentTarget,
       handleMove,
       handleEnd,
@@ -717,22 +685,14 @@
     bottomActions.className = "ameow-launcher-actions ameow-launcher-actions-bottom";
     bottomActions.append(
       createQualityControl(),
-      createActionButton("more", t("launcher.actions.more", "More"), () => {
-        launcher.dataset.menuOpen = launcher.dataset.menuOpen === "true" ? "false" : "true";
-      }),
     );
 
-    const menu = document.createElement("div");
-    menu.className = "ameow-launcher-menu";
-    menu.append(
-      createMenuItem("switchSide", t("launcher.menu.switchSide", "Switch side"), () => void switchSide()),
-    );
     const feedback = document.createElement("div");
     feedback.className = "ameow-launcher-feedback";
     feedback.dataset.visible = "false";
     feedback.dataset.kind = "pending";
 
-    launcher.append(topActions, handleWrap, bottomActions, menu, feedback);
+    launcher.append(topActions, handleWrap, bottomActions, feedback);
     updateLauncherConfig(config);
     refreshLauncherLabels();
     refreshQualitySelection();
