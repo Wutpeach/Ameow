@@ -637,6 +637,7 @@
 
     launcher = document.createElement("div");
     launcher.className = "ameow-launcher";
+    launcher.dataset.mounting = "true";
     launcher.dataset.connectionState = connectionState;
     launcher.dataset.menuOpen = "false";
     launcher.dataset.pickerActive = "false";
@@ -677,11 +678,16 @@
     feedback.dataset.kind = "pending";
 
     launcher.append(topActions, handle, bottomActions, menu, feedback);
-    shadow.append(stylesheet, launcher);
-    document.documentElement.appendChild(rootHost);
     updateLauncherConfig(config);
     refreshLauncherLabels();
     refreshQualitySelection();
+    shadow.append(stylesheet, launcher);
+    document.documentElement.appendChild(rootHost);
+    window.requestAnimationFrame(() => {
+      if (launcher) {
+        launcher.dataset.mounting = "false";
+      }
+    });
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

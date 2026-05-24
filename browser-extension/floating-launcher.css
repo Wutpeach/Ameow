@@ -38,6 +38,11 @@
   transform: translate(-20px, -50%);
 }
 
+.ameow-launcher[data-mounting="true"],
+.ameow-launcher[data-mounting="true"] .ameow-launcher-actions {
+  transition: none;
+}
+
 .ameow-launcher:hover,
 .ameow-launcher[data-menu-open="true"],
 .ameow-launcher[data-picker-active="true"],
