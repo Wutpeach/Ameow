@@ -1050,3 +1050,37 @@ Redesigned the browser-extension popup as a compact media console with a stable 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 169: Browser extension popup chrome refinement
+
+**Date**: 2026-05-24
+**Task**: Browser extension popup chrome refinement
+**Branch**: `main`
+
+### Summary
+
+Removed the visible extension brand header from the browser popup, moved connection status into the context row, changed refresh to a fixed-size accessible icon button, aligned footer Settings and More slots, and validated with JS syntax check, targeted Vitest, type-check, lint, and browser-extension packaging.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `22d087e` | (see git log) |
+| `2cb306b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
