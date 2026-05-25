@@ -38,6 +38,7 @@ type SiteSessionManagerOptions = {
   site: SiteSessionDefinition;
   getUserDataDir(): string;
   createCaptureWindow(options: CreateCaptureWindowOptions): Promise<CaptureWindow>;
+  readSupplementalCookies?(partition: string): Promise<Record<string, string>>;
   readCookies(partition: string): Promise<Array<{
     domain?: string;
     expirationDate?: number;
@@ -91,6 +92,20 @@ const buildCookieHeader = (
 ): string => Object.entries(cookies)
   .map(([name, value]) => `${name}=${value}`)
   .join("; ");
+
+const mergeSupplementalCookies = (
+  primaryCookies: Record<string, string>,
+  supplementalCookies: Record<string, string>,
+): Record<string, string> => {
+  const merged = { ...primaryCookies };
+  const supplemental = sanitizeCookieRecord(supplementalCookies);
+  for (const [name, value] of Object.entries(supplemental)) {
+    if (!normalizeCookieValue(merged[name])) {
+      merged[name] = value;
+    }
+  }
+  return merged;
+};
 
 const normalizeCookieDomain = (domain: string): string => domain.trim().replace(/^\./, "").toLowerCase();
 
@@ -287,9 +302,13 @@ export const createSiteSessionManager = (
         value: cookie.value,
       }));
 
-    const cookies = sanitizeCookieRecord(Object.fromEntries(
+    const primaryCookies = sanitizeCookieRecord(Object.fromEntries(
       siteCookies.map((cookie) => [cookie.name, cookie.value]),
     ));
+    const supplementalCookies = options.readSupplementalCookies
+      ? await options.readSupplementalCookies(partition)
+      : {};
+    const cookies = mergeSupplementalCookies(primaryCookies, supplementalCookies);
     if (Object.keys(cookies).length === 0) {
       throw new Error(`${options.site.displayName} cookie capture finished without saving any cookies.`);
     }

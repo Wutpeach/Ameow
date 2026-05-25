@@ -181,4 +181,143 @@ describe("createSiteSessionManager", () => {
     expect(state.lastError).toContain("Instagram cookie capture finished without saving any cookies");
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it("saves supplemental cookies when the cookie jar is missing that cookie name", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const douyin = getSiteSessionConfig("douyin");
+    const manager = createSiteSessionManager({
+      site: douyin,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 45,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".douyin.com",
+          name: "ttwid",
+          value: "ttwid-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "odin_tt",
+          value: "odin-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "passport_csrf_token",
+          value: "csrf-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "sessionid",
+          value: "session-value",
+          path: "/",
+        },
+      ]),
+      readSupplementalCookies: vi.fn(async () => ({
+        msToken: "supplemental-ms-token",
+      })),
+      now: () => 1_779_428_739_180,
+    });
+
+    await manager.startCapture();
+    const state = await manager.confirmCapture();
+
+    expect(state).toMatchObject({
+      availability: "ready",
+      cookieCount: 5,
+      missingRequiredKeys: [],
+    });
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "douyin.json"), "utf8"),
+    ) as { cookies: Record<string, string>; cookieHeader: string; cookiesNetscape: string };
+    expect(stored.cookies).toMatchObject({
+      ttwid: "ttwid-value",
+      msToken: "supplemental-ms-token",
+    });
+    expect(stored.cookieHeader).toContain("msToken=supplemental-ms-token");
+    expect(stored.cookiesNetscape).not.toContain("msToken");
+  });
+
+  it("keeps cookie jar values when supplemental cookies conflict by name", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 46,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "jar-session",
+          path: "/",
+        },
+      ]),
+      readSupplementalCookies: vi.fn(async () => ({
+        sessionid: "supplemental-session",
+        csrftoken: "supplemental-csrf",
+      })),
+      now: () => 1_779_428_739_181,
+    });
+
+    await manager.startCapture();
+    await manager.confirmCapture();
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
+    ) as { cookies: Record<string, string> };
+    expect(stored.cookies).toMatchObject({
+      sessionid: "jar-session",
+      csrftoken: "supplemental-csrf",
+    });
+  });
+
+  it("ignores invalid supplemental cookie names and empty values", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 47,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "jar-session",
+          path: "/",
+        },
+      ]),
+      readSupplementalCookies: vi.fn(async () => ({
+        " ": "blank-name",
+        empty: " ",
+        valid: "supplemental-value",
+      })),
+      now: () => 1_779_428_739_182,
+    });
+
+    await manager.startCapture();
+    await manager.confirmCapture();
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
+    ) as { cookies: Record<string, string> };
+    expect(stored.cookies).toMatchObject({
+      sessionid: "jar-session",
+      valid: "supplemental-value",
+    });
+    expect(Object.hasOwn(stored.cookies, "")).toBe(false);
+    expect(Object.hasOwn(stored.cookies, "empty")).toBe(false);
+  });
 });

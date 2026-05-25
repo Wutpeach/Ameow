@@ -49,6 +49,12 @@ import {
 } from "../src/core/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
+import {
+  collectSupplementalCookiesFromRequest,
+  resolveSiteSessionCaptureAcceptLanguages,
+  resolveSiteSessionCaptureUserAgent,
+  shouldAllowSiteSessionCapturePermission,
+} from "./siteSessionCaptureHardening.mjs";
 import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
 import {
   normalizeVideoCandidates,
@@ -184,6 +190,7 @@ let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
 const siteSessionManagers = new Map();
+const siteSessionSupplementalCookies = new Map();
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -1226,6 +1233,7 @@ function getSiteSessionManager(siteId) {
     },
     getUserDataDir,
     async createCaptureWindow({ site, partition, onClosed }) {
+      configureSiteSessionCaptureSession({ site, partition });
       const captureWindow = new BrowserWindow({
         width: 1180,
         height: 860,
@@ -1241,6 +1249,7 @@ function getSiteSessionManager(siteId) {
       });
 
       captureWindow.setMenuBarVisibility(false);
+      captureWindow.webContents.setUserAgent(resolveSiteSessionCaptureUserAgent(captureWindow.webContents.getUserAgent()));
       captureWindow.webContents.setWindowOpenHandler(({ url }) => {
         if (!isHttpNavigationUrl(url)) {
           logInfo("SiteSession", "Blocked non-web popup URL", JSON.stringify({
@@ -1282,10 +1291,14 @@ function getSiteSessionManager(siteId) {
         },
       };
     },
+    async readSupplementalCookies(partition) {
+      return siteSessionSupplementalCookies.get(partition) ?? {};
+    },
     async readCookies(partition) {
       return session.fromPartition(partition).cookies.get({});
     },
     async destroyPartition(partition) {
+      siteSessionSupplementalCookies.delete(partition);
       await session.fromPartition(partition).clearStorageData();
     },
     log(message, details) {
@@ -1294,6 +1307,54 @@ function getSiteSessionManager(siteId) {
   });
   siteSessionManagers.set(siteId, manager);
   return manager;
+}
+
+function configureSiteSessionCaptureSession({ site, partition }) {
+  const captureSession = session.fromPartition(partition);
+  const userAgent = resolveSiteSessionCaptureUserAgent(app.userAgentFallback);
+  const acceptLanguages = resolveSiteSessionCaptureAcceptLanguages(app.getLocale());
+  const supplementalCookies = {};
+  siteSessionSupplementalCookies.set(partition, supplementalCookies);
+
+  captureSession.setUserAgent(userAgent, acceptLanguages);
+  captureSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+    logInfo("SiteSession", "Denied capture permission check", JSON.stringify({
+      siteId: site.id,
+      permission,
+      requestingOrigin,
+      webContentsId: webContents?.id ?? null,
+    }));
+    return shouldAllowSiteSessionCapturePermission();
+  });
+  captureSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    logInfo("SiteSession", "Denied capture permission request", JSON.stringify({
+      siteId: site.id,
+      permission,
+      requestingOrigin: details?.requestingUrl ?? details?.securityOrigin ?? null,
+      webContentsId: webContents?.id ?? null,
+    }));
+    callback(shouldAllowSiteSessionCapturePermission());
+  });
+
+  captureSession.webRequest.onBeforeSendHeaders(
+    { urls: site.cookieDomains.flatMap((domain) => [`*://*.${domain}/*`, `*://${domain}/*`]) },
+    (details, callback) => {
+      try {
+        collectSupplementalCookiesFromRequest({
+          url: details.url,
+          requestHeaders: details.requestHeaders,
+          cookieDomains: site.cookieDomains,
+          supplementalCookies,
+        });
+      } catch (error) {
+        logInfo("SiteSession", "Failed to collect supplemental request cookies", JSON.stringify({
+          siteId: site.id,
+          error: String(error),
+        }));
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    },
+  );
 }
 
 function requireSiteSessionManager(siteId) {
