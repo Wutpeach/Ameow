@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 174
+- **Total Sessions**: 175
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1257 | Active |
+| `journal-4.md` | ~1290 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 175 | 2026-05-25 | Extract App download view helpers | `4c7d055` | `main` |
 | 174 | 2026-05-25 | Harden site login capture | `e7b06b5`, `1080253` | `main` |
 | 173 | 2026-05-25 | Instagram yt-dlp routing and login state | `7d7ac71`, `44b5e20`, `c2cf315` | `main` |
 | 172 | 2026-05-25 | Compact window visible bounds | `679f999` | `main` |

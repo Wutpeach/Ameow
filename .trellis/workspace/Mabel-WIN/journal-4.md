@@ -1255,3 +1255,36 @@ Hardened Electron site-session login capture with permission denial, browser-lik
 ### Next Steps
 
 - None - task complete
+
+
+## Session 175: Extract App download view helpers
+
+**Date**: 2026-05-25
+**Task**: Extract App download view helpers
+**Branch**: `main`
+
+### Summary
+
+Completed Phase 1 of architecture-boundary-refactor: extracted App download/transcode view helpers into src/utils/downloadViewHelpers.ts, added focused unit tests, preserved App state/effects/protocol contracts, and passed type-check, lint, and npm test.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4c7d055` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
