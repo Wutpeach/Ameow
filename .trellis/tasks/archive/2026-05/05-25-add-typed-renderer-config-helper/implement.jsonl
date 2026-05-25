@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend renderer guidelines for SettingsPage and desktop runtime helper work."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Renderer config flow and settings state management guidance."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed helper and validation expectations."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and testing expectations."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Helper extracts repeated config read/patch/save logic."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Config helper must preserve renderer-to-desktop boundary contracts."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/info.md", "reason": "Parent Phase 3 scope, compatibility rules, and stop conditions."}

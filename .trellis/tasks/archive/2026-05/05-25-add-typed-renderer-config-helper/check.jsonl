@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check renderer-layer guideline compliance."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Check SettingsPage state behavior remains unchanged."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check typed helper and tests."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check test and code quality expectations."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check consolidation is focused and avoids over-abstraction."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check command contract compatibility and dependency direction."}
+{"file": ".trellis/tasks/05-25-add-typed-renderer-config-helper/prd.md", "reason": "Task-specific acceptance criteria."}
+{"file": ".trellis/tasks/05-25-add-typed-renderer-config-helper/info.md", "reason": "Task-specific plan and compatibility notes."}
