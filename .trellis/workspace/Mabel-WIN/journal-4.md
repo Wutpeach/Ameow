@@ -1118,3 +1118,38 @@ Moved bugfix.md into docs/engineering, relocated app-icon.svg into desktop-asset
 ### Next Steps
 
 - None - task complete
+
+
+## Session 171: Bound resource lifecycle state in extension and runtime
+
+**Date**: 2026-05-25
+**Task**: Bound resource lifecycle state in extension and runtime
+**Branch**: `main`
+
+### Summary
+
+Bounded browser-extension media scan background state, capped failed transcode retention as operational runtime state, and recorded audit/spec guidance for lifecycle hygiene.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4558f53` | (see git log) |
+| `5107910` | (see git log) |
+| `077554e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
