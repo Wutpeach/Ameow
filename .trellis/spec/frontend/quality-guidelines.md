@@ -139,6 +139,23 @@ Third-party DOM injection contract:
 - Submission URL resolution must prefer the current card/dialog/article permalink over `location.href` or page-level canonical tags. Feed pages often expose `https://www.instagram.com/` as the global URL even though the actionable media lives in a nested `/p/.../` or `/reel/.../` anchor.
 - SPA route changes must remove all prior FlowSelect-injected nodes and recompute mount targets from the new DOM. Reusing stale anchors is a common source of duplicate buttons and broken spacing.
 
+**7. Bound long-lived extension background state**
+```js
+// WRONG - age-only cleanup with no hard cap
+cache[key] = result;
+
+// CORRECT - keep TTL cleanup plus an explicit total-entry limit
+const nextCache = pruneEntries(cache, key, result, {
+  ttlMs,
+  totalLimit: 24,
+});
+```
+
+Extension background lifecycle contract:
+- Browser-extension background caches and registries that can live across many tabs or repeated scans must have an explicit hard bound, not only age-based cleanup.
+- Timeout helpers used inside `Promise.race(...)` or similar early-settling flows must clear their timer handle after the winning branch resolves.
+- Treat extension background maps/objects as long-lived runtime state even when they are not persisted to disk; if repeated user activity can grow them, add an eviction rule.
+
 ---
 
 ## Code Review Checklist
@@ -152,3 +169,5 @@ Third-party DOM injection contract:
 - [ ] If the renderer ships inside Electron over `file://`, built `dist/index.html` asset URLs were checked for `./assets/...` instead of `/assets/...`
 - [ ] For browser extension content scripts on third-party sites, button injection is scoped to the correct local action group and page mode
 - [ ] Third-party injected controls derive canonical submission URLs from the local card/dialog/article instead of falling back directly to global page URL
+- [ ] Long-lived browser-extension background caches/registries have an explicit hard limit, not just TTL cleanup
+- [ ] Timers created for early-settling async races are explicitly cleared after the race resolves

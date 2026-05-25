@@ -912,6 +912,9 @@ struct VideoTranscodeCompletePayload {
   - `video-transcode-queue-detail.tasks` order is `active` -> `pending` -> `failed`.
   - Each detail row may expose `stage`, `progressPercent`, `etaSeconds`, `sourcePath`, `sourceFormat`, `targetFormat`, and `error`.
   - `targetFormat` is currently always `"mp4"`.
+  - Failed transcode rows are operational queue state, not unbounded session history.
+    - Backend must retain only the newest bounded set of failed rows.
+    - Dropping old failed rows must not change event names or payload shape for retained rows.
 - Scheduling contract:
   - At most one transcode may be active at a time.
   - Backend must not start a new transcode while download work is still blocking queue priority.
@@ -948,6 +951,7 @@ struct VideoTranscodeCompletePayload {
 | `cancel_transcode` called for active GPU transcode | Command/runtime boundary | Backend kills ffmpeg, skips CPU fallback, and settles the task as cancelled/removed | Return `Ok(true)`, preserve source file, and emit cancellation removal events |
 | Active transcode succeeds | Transcode worker | Queue row disappears from active state, `video-transcode-complete` emits final path, local AE handoff uses final path | Emit complete payload and remove active row |
 | Active transcode fails | Transcode worker | Row remains visible as `failed` with `error` populated | Push task into failed section and emit `video-transcode-failed` |
+| Failed transcode retention exceeds cap | Queue-state retention | Oldest failed rows are pruned while newest failed rows remain retryable/removable | Trim failed queue before emitting updated queue state |
 | `retry_transcode` called for unknown trace | Command boundary | No crash, return `false` | Leave queue unchanged |
 | `retry_transcode` called but source file is missing | Command boundary | Return `Err(String)` describing missing local source | Keep failed row intact |
 | `remove_transcode` called for unknown trace | Command boundary | No crash, return `false` | Leave queue unchanged |
@@ -978,6 +982,10 @@ struct VideoTranscodeCompletePayload {
 - Download success handoff:
   - Complete an AE-safe source and assert `video-download-complete` fires with no `video-transcode-queued`.
   - Complete a non-AE-safe source and assert `video-download-complete` arrives before transcode queue/progress events for the same `traceId`.
+- Failed queue retention:
+  - Force more failed transcodes than the retention cap and assert `failedCount` stops at the cap.
+  - Assert `video-transcode-queue-detail.tasks` keeps only the newest failed rows in `failed` section order.
+  - Assert retained failed rows still support `retry_transcode` and `remove_transcode`.
 - Parsing/unit:
   - Add unit tests for ffprobe duration parsing, ffmpeg fallback `Duration:` parsing, and ffmpeg `out_time=` / `speed=` progress parsing.
 - Scheduler:
