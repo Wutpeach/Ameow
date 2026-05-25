@@ -2,6 +2,7 @@ import type { DownloadResultPayload, DownloadProgressPayload } from "../../types
 import type { DownloadRuntimeError } from "../errors/download-runtime-error.js";
 import type { DownloadIntent } from "./download-intent.js";
 import type { EngineId, EnginePlan, ResolvedDownloadPlan } from "./engine-plan.js";
+import type { RuntimeBinaryPaths } from "./runtime-binaries.js";
 
 export type EngineExecutionContext = {
   traceId: string;
@@ -12,7 +13,7 @@ export type EngineExecutionContext = {
   outputStem: string;
   config: Record<string, unknown>;
   userDataDir?: string;
-  binaries: import("../../electron-runtime/contracts.js").RuntimeBinaryPaths;
+  binaries: RuntimeBinaryPaths;
   abortSignal: AbortSignal;
   fetch?: typeof fetch;
   onProgress(payload: DownloadProgressPayload): void | Promise<void>;

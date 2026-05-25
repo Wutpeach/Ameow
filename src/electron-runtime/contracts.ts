@@ -17,6 +17,7 @@ import type {
   EngineId,
   EngineExecutionContext,
   RawDownloadInput,
+  RuntimeBinaryPaths as CoreRuntimeBinaryPaths,
   SiteProvider,
 } from "../core/index.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
@@ -69,14 +70,7 @@ export interface ElectronRuntimeEnvironment {
   fetch?: typeof fetch;
 }
 
-export interface RuntimeBinaryPaths {
-  ytDlp: string;
-  galleryDl: string;
-  douyinDl: string;
-  ffmpeg: string;
-  ffprobe: string;
-  deno: string;
-}
+export type RuntimeBinaryPaths = CoreRuntimeBinaryPaths;
 
 export interface RuntimeBootstrapContext {
   missingComponents: RuntimeManagedComponent[];

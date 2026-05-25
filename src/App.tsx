@@ -41,6 +41,23 @@ import type {
   RuntimeDependencyGateStatePayload,
   RuntimeDependencyStatusSnapshot,
 } from "./types/runtimeDependencies";
+import type {
+  DownloadProgressPayload,
+  DownloadResultPayload as DownloadResult,
+  DownloadStage,
+  QueuedVideoDownloadAck,
+  QueuedVideoDownloadRequest,
+  VideoQueueDetailPayload,
+  VideoQueueStatePayload,
+  VideoQueueTaskPayload,
+  VideoQueueTaskStatus,
+  VideoTranscodeCompletePayload,
+  VideoTranscodeQueueDetailPayload,
+  VideoTranscodeQueueStatePayload,
+  VideoTranscodeStage,
+  VideoTranscodeTaskPayload,
+  VideoTranscodeTaskStatus,
+} from "./types/videoRuntime";
 import {
   buildPinterestDragDiagnostic,
   extractEmbeddedPinterestDragPayload,
@@ -48,8 +65,6 @@ import {
   extractPinterestImageUrlFromHtml,
   isPinterestPinUrl,
   looksLikePinterestVideoHtml,
-  type PinterestDragDiagnostic,
-  type PinterestVideoCandidate,
 } from "./utils/pinterest";
 import { extractImageUrlFromHtml } from "./utils/imageDrag";
 import { upgradeImageUrl } from "./utils/imageQualityUpgrade";
@@ -58,7 +73,6 @@ import {
   hasXiaohongshuVideoSignals,
   isXiaohongshuPageUrl,
   pickXiaohongshuImageForDownload,
-  type XiaohongshuDragCandidate,
   type XiaohongshuResolvedDragMedia,
 } from "./utils/xiaohongshu";
 import { parseLocalFileUrl } from "./utils/localFileUrl";
@@ -303,94 +317,6 @@ const extractClipboardImageFile = (clipboardData: DataTransfer | null): File | n
   }
 
   return null;
-};
-
-type DownloadStage = "preparing" | "downloading" | "merging" | "post_processing";
-
-type DownloadProgressPayload = {
-  traceId: string;
-  percent: number;
-  stage: DownloadStage;
-  speed: string;
-  eta: string;
-};
-
-type DownloadResult = {
-  traceId: string;
-  success: boolean;
-  file_path?: string;
-  error?: string;
-};
-
-type VideoQueueStatePayload = {
-  activeCount: number;
-  pendingCount: number;
-  totalCount: number;
-  maxConcurrent: number;
-};
-
-type VideoQueueTaskStatus = "active" | "pending";
-
-type VideoQueueTaskPayload = {
-  traceId: string;
-  label: string;
-  status: VideoQueueTaskStatus;
-};
-
-type VideoQueueDetailPayload = {
-  tasks: VideoQueueTaskPayload[];
-};
-
-type VideoTranscodeTaskStatus = "active" | "pending" | "failed";
-
-type VideoTranscodeStage = "analyzing" | "transcoding" | "finalizing_mp4" | "failed";
-
-type VideoTranscodeQueueStatePayload = {
-  activeCount: number;
-  pendingCount: number;
-  failedCount: number;
-  totalCount: number;
-  maxConcurrent: number;
-};
-
-type VideoTranscodeTaskPayload = {
-  traceId: string;
-  label: string;
-  status: VideoTranscodeTaskStatus;
-  stage?: VideoTranscodeStage | null;
-  progressPercent?: number | null;
-  etaSeconds?: number | null;
-  sourcePath?: string | null;
-  sourceFormat?: string | null;
-  targetFormat?: string | null;
-  error?: string | null;
-};
-
-type VideoTranscodeQueueDetailPayload = {
-  tasks: VideoTranscodeTaskPayload[];
-};
-
-type VideoTranscodeCompletePayload = {
-  traceId: string;
-  label: string;
-  sourcePath: string;
-  filePath: string;
-  sourceFormat?: string | null;
-  targetFormat: string;
-};
-
-type QueuedVideoDownloadAck = {
-  accepted: boolean;
-  traceId: string;
-};
-
-type QueuedVideoDownloadRequest = {
-  url: string;
-  pageUrl?: string;
-  videoUrl?: string;
-  videoCandidates?: Array<PinterestVideoCandidate | XiaohongshuDragCandidate>;
-  siteHint?: string;
-  dragDiagnostic?: PinterestDragDiagnostic;
 };
 
 const isPinterestDownloadRequest = (request: QueuedVideoDownloadRequest): boolean => {
