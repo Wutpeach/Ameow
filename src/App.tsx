@@ -50,13 +50,10 @@ import type {
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
   VideoQueueTaskPayload,
-  VideoQueueTaskStatus,
   VideoTranscodeCompletePayload,
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
-  VideoTranscodeStage,
   VideoTranscodeTaskPayload,
-  VideoTranscodeTaskStatus,
 } from "./types/videoRuntime";
 import {
   buildPinterestDragDiagnostic,
@@ -88,6 +85,26 @@ import {
   getDroppedFolderErrorTranslationKey,
   shouldHandleDroppedFolderResult,
 } from "./utils/folderDrop";
+import {
+  advanceDownloadStage,
+  EMPTY_VIDEO_QUEUE_DETAIL,
+  EMPTY_VIDEO_QUEUE_STATE,
+  EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL,
+  EMPTY_VIDEO_TRANSCODE_QUEUE_STATE,
+  getDownloadStatusText,
+  getTranscodeStageLabel,
+  getTranscodeTaskStatusText,
+  getVideoTranscodeFormatLabel,
+  getVideoTranscodeTaskProgressPercent,
+  mergeVideoTranscodeTask,
+  normalizeVideoQueueDetail,
+  normalizeVideoQueueState,
+  normalizeVideoTranscodeQueueDetail,
+  normalizeVideoTranscodeQueueState,
+  normalizeVideoTranscodeTask,
+  removeVideoTranscodeTask,
+  upsertVideoTranscodeTask,
+} from "./utils/downloadViewHelpers";
 import { extractEmbeddedProtectedImageDragPayload } from "./utils/protectedImageDrag";
 import {
   DEFERRED_STARTUP_IDLE_CALLBACK_TIMEOUT_MS,
@@ -373,165 +390,6 @@ const mergeVideoCandidatesByUrl = <TCandidate extends { url: string }>(
   return merged;
 };
 
-const DEFAULT_STAGE_FALLBACK_LABELS: Record<DownloadStage, string> = {
-  preparing: "Preparing...",
-  downloading: "Downloading...",
-  merging: "Merging...",
-  post_processing: "Post-processing...",
-};
-const DOWNLOAD_ACTIVITY_TOKEN_PREFIX = "activity:";
-
-const getDownloadStageLabel = (stage: DownloadStage): string => {
-  const translationKey = stage === "post_processing" ? "postProcessing" : stage;
-  return i18n.t(`desktop:app.downloadStage.${translationKey}`);
-};
-
-const getDownloadActivityLabel = (value: string): string | null => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  if (trimmed.startsWith(DOWNLOAD_ACTIVITY_TOKEN_PREFIX)) {
-    const activityKey = trimmed.slice(DOWNLOAD_ACTIVITY_TOKEN_PREFIX.length);
-    if (!activityKey) {
-      return null;
-    }
-    const fullKey = `desktop:app.downloadActivity.${activityKey}`;
-    const translated = i18n.t(fullKey);
-    return translated !== fullKey ? translated : null;
-  }
-
-  switch (trimmed) {
-    case "Resolving media...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.resolvingMedia");
-    case "Collecting metadata...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.collectingMetadata");
-    case "Extracting media...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.extractingMedia");
-    case "Downloading media...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.downloadingMedia");
-    case "Checking existing file...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.checkingExistingFile");
-    case "Saving file...":
-      return i18n.t("desktop:app.downloadActivity.galleryDl.savingFile");
-    default:
-      return null;
-  }
-};
-
-const getTranscodeStageLabel = (stage: VideoTranscodeStage): string => {
-  const translationKey = stage === "finalizing_mp4" ? "finalizingMp4" : stage;
-  return i18n.t(`desktop:app.transcodeStage.${translationKey}`);
-};
-
-const formatEtaClock = (etaSeconds: number): string => {
-  const safeSeconds = Math.max(0, Math.floor(etaSeconds));
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
-  const seconds = safeSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-};
-
-const getTranscodeEtaLabel = (etaSeconds: number | null | undefined): string | null => {
-  if (typeof etaSeconds !== "number" || !Number.isFinite(etaSeconds) || etaSeconds < 0) {
-    return null;
-  }
-  return i18n.t("desktop:app.downloadStatus.eta", {
-    eta: formatEtaClock(etaSeconds),
-  });
-};
-
-const joinStatusParts = (...parts: Array<string | null | undefined>): string =>
-  parts.filter((part): part is string => typeof part === "string" && part.trim().length > 0).join(" · ");
-
-const DOWNLOAD_STAGE_ORDER: Record<DownloadStage, number> = {
-  preparing: 0,
-  downloading: 1,
-  merging: 2,
-  post_processing: 3,
-};
-
-const advanceDownloadStage = (
-  previous: DownloadStage | null,
-  incoming: DownloadStage,
-  percent: number,
-): DownloadStage => {
-  if (!previous) return incoming;
-  if (incoming === previous) return previous;
-  if (percent >= 0 && incoming === "preparing") return previous;
-  return DOWNLOAD_STAGE_ORDER[incoming] >= DOWNLOAD_STAGE_ORDER[previous] ? incoming : previous;
-};
-
-const getDownloadStatusText = (
-  progress: DownloadProgressPayload,
-  stage: DownloadStage | null,
-): string => {
-  const effectiveStage = stage ?? progress.stage;
-  const stageLabel = getDownloadStageLabel(effectiveStage);
-  const speedText = progress.speed.trim();
-  const etaText = progress.eta.trim();
-  const hasEta = etaText.length > 0 && etaText !== "N/A";
-  const etaLabel = i18n.t("desktop:app.downloadStatus.eta", { eta: etaText });
-  const activityLabel = getDownloadActivityLabel(speedText);
-
-  if (effectiveStage === "preparing") {
-    return activityLabel ?? stageLabel;
-  }
-
-  if (effectiveStage !== "downloading") {
-    return stageLabel;
-  }
-
-  if (activityLabel) {
-    return activityLabel;
-  }
-
-  if (
-    !speedText
-    || speedText === "gallery-dl"
-    || speedText === stageLabel
-    || speedText === DEFAULT_STAGE_FALLBACK_LABELS[effectiveStage]
-  ) {
-    if (hasEta) {
-      return `${stageLabel} ${etaLabel}`;
-    }
-    return stageLabel;
-  }
-
-  if (hasEta) {
-    return `${stageLabel} ${speedText} · ${etaLabel}`;
-  }
-  return `${stageLabel} ${speedText}`;
-};
-
-const EMPTY_VIDEO_QUEUE_STATE: VideoQueueStatePayload = {
-  activeCount: 0,
-  pendingCount: 0,
-  totalCount: 0,
-  maxConcurrent: 1,
-};
-
-const EMPTY_VIDEO_QUEUE_DETAIL: VideoQueueDetailPayload = {
-  tasks: [],
-};
-
-const EMPTY_VIDEO_TRANSCODE_QUEUE_STATE: VideoTranscodeQueueStatePayload = {
-  activeCount: 0,
-  pendingCount: 0,
-  failedCount: 0,
-  totalCount: 0,
-  maxConcurrent: 1,
-};
-
-const EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL: VideoTranscodeQueueDetailPayload = {
-  tasks: [],
-};
-
 type PendingWindowDragStart = {
   pointerId: number;
   clientX: number;
@@ -553,213 +411,6 @@ type ActiveWindowDragState = {
   lastAppliedY: number;
   applyInFlight: boolean;
 };
-const normalizeVideoQueueState = (
-  payload: Partial<VideoQueueStatePayload> | null | undefined,
-): VideoQueueStatePayload => {
-  const safeActiveCount = Number.isFinite(payload?.activeCount)
-    ? Math.max(0, Math.floor(payload?.activeCount ?? 0))
-    : 0;
-  const safePendingCount = Number.isFinite(payload?.pendingCount)
-    ? Math.max(0, Math.floor(payload?.pendingCount ?? 0))
-    : 0;
-  const safeMaxConcurrent = Number.isFinite(payload?.maxConcurrent)
-    ? Math.max(1, Math.floor(payload?.maxConcurrent ?? 1))
-    : 1;
-
-  return {
-    activeCount: safeActiveCount,
-    pendingCount: safePendingCount,
-    totalCount: safeActiveCount + safePendingCount,
-    maxConcurrent: safeMaxConcurrent,
-  };
-};
-
-const normalizeVideoQueueDetail = (
-  payload: Partial<VideoQueueDetailPayload> | null | undefined,
-): VideoQueueDetailPayload => ({
-  tasks: Array.isArray(payload?.tasks)
-    ? payload.tasks.flatMap((task) => {
-        if (!task || typeof task.traceId !== "string" || typeof task.label !== "string") {
-          return [];
-        }
-        const status: VideoQueueTaskStatus = task.status === "pending" ? "pending" : "active";
-        return [{
-          traceId: task.traceId,
-          label: task.label.trim() || task.traceId,
-          status,
-        }];
-      })
-    : [],
-});
-
-const normalizeVideoTranscodeStage = (
-  stage: unknown,
-  status: VideoTranscodeTaskStatus,
-): VideoTranscodeStage | null => {
-  if (stage === "analyzing" || stage === "transcoding" || stage === "finalizing_mp4" || stage === "failed") {
-    return stage;
-  }
-  return status === "failed" ? "failed" : null;
-};
-
-const normalizeVideoTranscodeTask = (
-  task: Partial<VideoTranscodeTaskPayload> | null | undefined,
-): VideoTranscodeTaskPayload | null => {
-  if (!task || typeof task.traceId !== "string" || typeof task.label !== "string") {
-    return null;
-  }
-
-  const status: VideoTranscodeTaskStatus = task.status === "failed"
-    ? "failed"
-    : task.status === "pending"
-      ? "pending"
-      : "active";
-  const safeProgressPercent = Number.isFinite(task.progressPercent)
-    ? Math.max(0, Math.min(100, Number(task.progressPercent)))
-    : null;
-  const safeEtaSeconds = Number.isFinite(task.etaSeconds)
-    ? Math.max(0, Math.floor(Number(task.etaSeconds)))
-    : null;
-  const trimOptional = (value: unknown): string | null =>
-    typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-
-  return {
-    traceId: task.traceId,
-    label: task.label.trim() || task.traceId,
-    status,
-    stage: normalizeVideoTranscodeStage(task.stage, status),
-    progressPercent: safeProgressPercent,
-    etaSeconds: safeEtaSeconds,
-    sourcePath: trimOptional(task.sourcePath),
-    sourceFormat: trimOptional(task.sourceFormat),
-    targetFormat: trimOptional(task.targetFormat),
-    error: trimOptional(task.error),
-  };
-};
-
-const normalizeVideoTranscodeQueueState = (
-  payload: Partial<VideoTranscodeQueueStatePayload> | null | undefined,
-): VideoTranscodeQueueStatePayload => {
-  const safeActiveCount = Number.isFinite(payload?.activeCount)
-    ? Math.max(0, Math.floor(payload?.activeCount ?? 0))
-    : 0;
-  const safePendingCount = Number.isFinite(payload?.pendingCount)
-    ? Math.max(0, Math.floor(payload?.pendingCount ?? 0))
-    : 0;
-  const safeFailedCount = Number.isFinite(payload?.failedCount)
-    ? Math.max(0, Math.floor(payload?.failedCount ?? 0))
-    : 0;
-  const safeMaxConcurrent = Number.isFinite(payload?.maxConcurrent)
-    ? Math.max(1, Math.floor(payload?.maxConcurrent ?? 1))
-    : 1;
-
-  return {
-    activeCount: safeActiveCount,
-    pendingCount: safePendingCount,
-    failedCount: safeFailedCount,
-    totalCount: safeActiveCount + safePendingCount + safeFailedCount,
-    maxConcurrent: safeMaxConcurrent,
-  };
-};
-
-const sortVideoTranscodeTasks = (tasks: VideoTranscodeTaskPayload[]): VideoTranscodeTaskPayload[] => {
-  const grouped: Record<VideoTranscodeTaskStatus, VideoTranscodeTaskPayload[]> = {
-    active: [],
-    pending: [],
-    failed: [],
-  };
-
-  for (const task of tasks) {
-    grouped[task.status].push(task);
-  }
-
-  return [
-    ...grouped.active,
-    ...grouped.pending,
-    ...grouped.failed,
-  ];
-};
-
-const normalizeVideoTranscodeQueueDetail = (
-  payload: Partial<VideoTranscodeQueueDetailPayload> | null | undefined,
-): VideoTranscodeQueueDetailPayload => ({
-  tasks: Array.isArray(payload?.tasks)
-    ? sortVideoTranscodeTasks(
-        payload.tasks.flatMap((task) => {
-          const normalized = normalizeVideoTranscodeTask(task);
-          return normalized ? [normalized] : [];
-        }),
-      )
-    : [],
-});
-
-const upsertVideoTranscodeTask = (
-  tasks: VideoTranscodeTaskPayload[],
-  incoming: VideoTranscodeTaskPayload,
-): VideoTranscodeTaskPayload[] =>
-  sortVideoTranscodeTasks([
-    ...tasks.filter((task) => task.traceId !== incoming.traceId),
-    incoming,
-  ]);
-
-const removeVideoTranscodeTask = (
-  tasks: VideoTranscodeTaskPayload[],
-  traceId: string,
-): VideoTranscodeTaskPayload[] => tasks.filter((task) => task.traceId !== traceId);
-
-const mergeVideoTranscodeTask = (
-  baseTask: VideoTranscodeTaskPayload,
-  liveTask?: VideoTranscodeTaskPayload | null,
-): VideoTranscodeTaskPayload => ({
-  ...baseTask,
-  ...(liveTask ?? {}),
-  traceId: baseTask.traceId,
-  label: liveTask?.label?.trim() || baseTask.label,
-  status: liveTask?.status ?? baseTask.status,
-});
-
-const getTranscodeTaskStatusText = (
-  task: VideoTranscodeTaskPayload,
-  options?: { includePercent?: boolean },
-): string => {
-  const includePercent = options?.includePercent ?? true;
-  if (task.status === "pending") {
-    return i18n.t("desktop:app.queue.waiting");
-  }
-
-  const effectiveStage = task.stage ?? (task.status === "failed" ? "failed" : "analyzing");
-  const stageLabel = getTranscodeStageLabel(effectiveStage);
-  const etaLabel = getTranscodeEtaLabel(task.etaSeconds);
-
-  if (task.status === "failed") {
-    return stageLabel;
-  }
-
-  const progressPercent = task.progressPercent;
-  if (includePercent && typeof progressPercent === "number" && Number.isFinite(progressPercent) && progressPercent >= 0) {
-    return joinStatusParts(`${Math.round(progressPercent)}%`, stageLabel, etaLabel);
-  }
-
-  return joinStatusParts(stageLabel, etaLabel);
-};
-
-const getVideoTranscodeTaskProgressPercent = (task: VideoTranscodeTaskPayload): number => {
-  if (task.status === "pending") {
-    return 8;
-  }
-  if (typeof task.progressPercent !== "number" || !Number.isFinite(task.progressPercent)) {
-    return task.status === "failed" ? 18 : 22;
-  }
-  return Math.max(8, Math.min(100, task.progressPercent));
-};
-
-const getVideoTranscodeFormatLabel = (task: VideoTranscodeTaskPayload): string | null => {
-  if (!task.sourceFormat || !task.targetFormat) {
-    return null;
-  }
-  return `${task.sourceFormat.toUpperCase()} -> ${task.targetFormat.toUpperCase()}`;
-};
-
 type AppProps = {
   initialStartupWindowMode?: AmeowStartupWindowMode;
 };
@@ -956,7 +607,7 @@ function App({
         kind: "download" as const,
         task: primaryDownloadTask,
         percent: downloadProgress.percent,
-        statusText: getDownloadStatusText(downloadProgress, downloadStage),
+        statusText: getDownloadStatusText(i18n.t, downloadProgress, downloadStage),
         indeterminate: downloadProgress.percent < 0,
       }
     : primaryTranscodeTask
@@ -964,7 +615,7 @@ function App({
           kind: "transcode" as const,
           task: primaryTranscodeTask,
           percent: primaryTranscodeTask.progressPercent ?? -1,
-          statusText: getTranscodeTaskStatusText(primaryTranscodeTask, { includePercent: false }),
+          statusText: getTranscodeTaskStatusText(i18n.t, primaryTranscodeTask, { includePercent: false }),
           indeterminate:
             typeof primaryTranscodeTask.progressPercent !== "number"
             || !Number.isFinite(primaryTranscodeTask.progressPercent),
@@ -2579,7 +2230,7 @@ function App({
       });
       showForegroundTaskOutcome({
         cancelled: true,
-        error: normalized.error ?? getTranscodeStageLabel("failed"),
+        error: normalized.error ?? getTranscodeStageLabel(i18n.t, "failed"),
         durationMs: 1800,
       });
       showQueueNotice(t("app.queue.transcodeFailedNotice"));
@@ -4066,7 +3717,7 @@ function App({
     if (!progress) {
       return t("app.downloadStage.preparing");
     }
-    const statusText = getDownloadStatusText(progress, progress.stage);
+    const statusText = getDownloadStatusText(i18n.t, progress, progress.stage);
     return progress.percent < 0
       ? statusText
       : t("app.queue.percentStatus", {
@@ -4761,7 +4412,7 @@ function App({
                         const markerGlow = isFailedTask ? colors.dangerGlow : colors.transcodeGlow;
                         const taskStatusText = isTaskActionPending
                           ? t("app.queue.cancellingTranscode")
-                          : getTranscodeTaskStatusText(task);
+                          : getTranscodeTaskStatusText(i18n.t, task);
 
                         return (
                           <div

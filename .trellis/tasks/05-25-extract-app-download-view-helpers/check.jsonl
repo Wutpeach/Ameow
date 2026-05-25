@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check renderer behavior and App boundary constraints."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify state ownership and hooks were not rewritten."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check TypeScript helper and test typing."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check helper extraction is focused and not premature abstraction."}
+{"file": ".trellis/tasks/05-25-extract-app-download-view-helpers/prd.md", "reason": "Task-specific acceptance criteria."}
+{"file": ".trellis/tasks/05-25-extract-app-download-view-helpers/design.md", "reason": "Task-specific technical boundaries and translation contract."}

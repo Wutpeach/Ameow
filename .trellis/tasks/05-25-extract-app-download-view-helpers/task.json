@@ -1,9 +1,9 @@
 {
-  "id": "architecture-boundary-refactor",
-  "name": "architecture-boundary-refactor",
-  "title": "Architecture boundary refactor",
+  "id": "extract-app-download-view-helpers",
+  "name": "extract-app-download-view-helpers",
+  "title": "Extract App download view helpers",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,10 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-25-extract-app-download-view-helpers"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "05-25-architecture-boundary-refactor",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

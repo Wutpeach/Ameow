@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Renderer and React constraints for extracting App view helpers without UI behavior changes."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State ownership constraints; this phase must not change state management."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Type patterns for extracted helper module and tests."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "This task extracts repeated/embedded helper logic into a focused reusable module."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/info.md", "reason": "Parent phase plan and Phase 1 boundaries."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/research/architecture-boundary-audit.md", "reason": "Audit finding that App download/transcode pure logic should be extracted first."}
