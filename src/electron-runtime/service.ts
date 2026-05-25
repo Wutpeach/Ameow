@@ -96,6 +96,7 @@ const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
   speed: "Resolving media...",
   eta: "",
 };
+export const FAILED_TRANSCODE_RETENTION_LIMIT = 20;
 
 const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - startedAtMs}ms`;
 
@@ -332,6 +333,16 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     await this.options.eventSink.emit("video-transcode-queue-detail", this.getTranscodeQueueDetail());
   }
 
+  private retainNewestFailedTranscodes(): void {
+    if (this.failedTranscodes.length <= FAILED_TRANSCODE_RETENTION_LIMIT) {
+      return;
+    }
+    this.failedTranscodes.splice(
+      0,
+      this.failedTranscodes.length - FAILED_TRANSCODE_RETENTION_LIMIT,
+    );
+  }
+
   private toTranscodeTaskPayload(task: TranscodeTaskState): VideoTranscodeTaskPayload {
     return {
       traceId: task.traceId,
@@ -514,6 +525,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         abortController: undefined,
       };
       this.failedTranscodes.push(nextFailedTask);
+      this.retainNewestFailedTranscodes();
       await this.emitTranscodeQueueState();
       await this.options.eventSink.emit("video-transcode-failed", this.toTranscodeTaskPayload(nextFailedTask));
     }

@@ -60,7 +60,10 @@ vi.mock("./transcode.js", () => ({
   runPreparedVideoTranscodeTask: runPreparedVideoTranscodeTaskMock,
 }));
 
-import { createElectronDownloadRuntime } from "./service";
+import {
+  FAILED_TRANSCODE_RETENTION_LIMIT,
+  createElectronDownloadRuntime,
+} from "./service";
 import type { RuntimeEmitterEvent } from "./contracts";
 import { resetRenameSequenceState } from "./renameRules";
 import { bilibiliProvider } from "../sites/bilibili";
@@ -1378,5 +1381,69 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(removed).toBe(true);
     await waitFor(() => runtime.getTranscodeQueueState().totalCount === 0);
     expect(events).toContain("video-transcode-removed");
+  });
+
+  it("caps failed transcode retention to the newest operational rows", async () => {
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `D:/downloads/${context.traceId}.mkv`,
+        })),
+      ],
+    });
+
+    prepareVideoTranscodeTaskFromDownloadMock.mockImplementation(async (...args: unknown[]) => {
+      const input = args[0] as { traceId: string; label: string; sourcePath: string };
+      return {
+        traceId: input.traceId,
+        label: input.label,
+        sourcePath: input.sourcePath,
+        sourceFormat: "mkv",
+        targetFormat: "mp4",
+        plan: "full_transcode",
+        durationSeconds: 30,
+        finalPath: `D:/downloads/${input.traceId}.mp4`,
+      };
+    });
+    runPreparedVideoTranscodeTaskMock.mockImplementation(async () => {
+      throw new Error("ffmpeg failed");
+    });
+
+    const queuedAcks: Array<{ traceId: string }> = [];
+    for (let index = 0; index < FAILED_TRANSCODE_RETENTION_LIMIT + 5; index += 1) {
+      const ack = await runtime.queueVideoDownload({
+        url: `https://www.youtube.com/watch?v=failure${index}`,
+        pageUrl: `https://www.youtube.com/watch?v=failure${index}`,
+        title: `Failure ${index}`,
+        siteHint: "youtube",
+        ytdlpQuality: "best",
+      });
+      queuedAcks.push(ack);
+    }
+
+    await waitFor(() => runtime.getQueueState().totalCount === 0);
+    await waitFor(() => runtime.getTranscodeQueueState().failedCount === FAILED_TRANSCODE_RETENTION_LIMIT);
+
+    const transcodeState = runtime.getTranscodeQueueState();
+    const transcodeDetail = runtime.getTranscodeQueueDetail();
+
+    expect(transcodeState.failedCount).toBe(FAILED_TRANSCODE_RETENTION_LIMIT);
+    expect(transcodeState.totalCount).toBe(FAILED_TRANSCODE_RETENTION_LIMIT);
+    expect(transcodeDetail.tasks).toHaveLength(FAILED_TRANSCODE_RETENTION_LIMIT);
+    expect(transcodeDetail.tasks.every((task) => task.status === "failed")).toBe(true);
+
+    expect(transcodeDetail.tasks.some((task) => task.traceId === queuedAcks[0]?.traceId)).toBe(false);
+    expect(transcodeDetail.tasks.some((task) => task.traceId === queuedAcks[4]?.traceId)).toBe(false);
+    expect(
+      transcodeDetail.tasks.some(
+        (task) => task.traceId === queuedAcks[queuedAcks.length - 1]?.traceId,
+      ),
+    ).toBe(true);
+    expect(transcodeDetail.tasks[0]?.traceId).toBe(queuedAcks[5]?.traceId);
+    expect(transcodeDetail.tasks[transcodeDetail.tasks.length - 1]?.traceId)
+      .toBe(queuedAcks[queuedAcks.length - 1]?.traceId);
   });
 });
