@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 176
+- **Total Sessions**: 177
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1323 | Active |
+| `journal-4.md` | ~1357 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 177 | 2026-05-25 | Add typed renderer config helper | `8433fc7`, `799dfe9` | `main` |
 | 176 | 2026-05-25 | Consolidate desktop video candidate normalization | `b650868` | `main` |
 | 175 | 2026-05-25 | Extract App download view helpers | `4c7d055` | `main` |
 | 174 | 2026-05-25 | Harden site login capture | `e7b06b5`, `1080253` | `main` |

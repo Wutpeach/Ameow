@@ -1321,3 +1321,37 @@ Completed Phase 2 of architecture-boundary-refactor: added a canonical core vide
 ### Next Steps
 
 - None - task complete
+
+
+## Session 177: Add typed renderer config helper
+
+**Date**: 2026-05-25
+**Task**: Add typed renderer config helper
+**Branch**: `main`
+
+### Summary
+
+Added renderer-side config patch helper, replaced two SettingsPage config toggles, documented the helper contract, verified type-check/lint/tests, and archived the Phase 3 child task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8433fc7` | (see git log) |
+| `799dfe9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
