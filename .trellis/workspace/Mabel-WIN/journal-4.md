@@ -1288,3 +1288,36 @@ Completed Phase 1 of architecture-boundary-refactor: extracted App download/tran
 ### Next Steps
 
 - None - task complete
+
+
+## Session 176: Consolidate desktop video candidate normalization
+
+**Date**: 2026-05-25
+**Task**: Consolidate desktop video candidate normalization
+**Branch**: `main`
+
+### Summary
+
+Completed Phase 2 of architecture-boundary-refactor: added a canonical core video candidate normalizer, made Electron videoHintNormalization a facade, updated runtime commandRouter to reuse the canonical normalizer, preserved protocol compatibility, added tests, and passed type-check, lint, npm test, and diff check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b650868` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
