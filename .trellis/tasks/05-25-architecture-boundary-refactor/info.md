@@ -175,6 +175,42 @@ Stop conditions:
 - The diff touches many unrelated settings sections.
 - Existing optimistic UI rollback behavior becomes ambiguous.
 
+Status: completed in child task `05-25-add-typed-renderer-config-helper`.
+
+Files committed:
+
+- `src/desktop/config.ts`
+- `src/desktop/config.test.ts`
+- `src/pages/SettingsPage.tsx`
+
+Scope completed:
+
+- Added a renderer-only typed config helper above the raw `get_config` / `save_config` command contract.
+- Reused the existing defensive config parser so invalid, empty, array, null, or non-object config strings fall back to `{}`.
+- Replaced only two low-risk SettingsPage handlers:
+  - `toggleAePortal`
+  - `toggleExtensionInjectionDebug`
+- Left stronger-coupled handlers unchanged for follow-up, including shortcut registration, rename rules, app-update preference, global proxy, AE executable path, and output-path helper consolidation.
+
+Compatibility preserved:
+
+- `get_config` still returns a raw config string.
+- `save_config` still receives `{ json: JSON.stringify(config) }`.
+- Config file format, keys, field semantics, settings UI behavior, and optimistic rollback paths were not changed.
+
+Validation run before commit:
+
+- `npm test -- src/desktop/config.test.ts`: passed, 9 tests.
+- `npm run type-check`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed, 111 test files and 690 tests.
+- `git diff --check`: passed with only Windows LF-to-CRLF working-copy warnings.
+
+Commits:
+
+- `8433fc7 refactor(settings): add typed renderer config helper`
+- `799dfe9 chore(spec): document renderer config patch helper`
+
 ## Phase 4: App Download Event Reducer
 
 Goal:
