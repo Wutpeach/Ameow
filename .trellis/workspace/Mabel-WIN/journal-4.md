@@ -1186,3 +1186,38 @@ Added compact-collapse bounds clamping so the main icon remains visible inside t
 ### Next Steps
 
 - None - task complete
+
+
+## Session 173: Instagram yt-dlp routing and login state
+
+**Date**: 2026-05-25
+**Task**: Instagram yt-dlp routing and login state
+**Branch**: `main`
+
+### Summary
+
+Routed Instagram downloads through yt-dlp first with gallery-dl fallback, added Instagram site-session capture in Settings, and documented the canonical instagram siteId cookie-injection contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7d7ac71` | (see git log) |
+| `44b5e20` | (see git log) |
+| `c2cf315` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
