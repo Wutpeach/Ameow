@@ -19,6 +19,7 @@
     {
       "resources": [
         "floating-launcher.css",
+        "mascot.svg",
         "locales/*/*.json",
         "protected-image-page-bridge.js",
         "xiaohongshu-page-bridge.js"

@@ -12,6 +12,7 @@
   --ameow-launcher-success: #34d399;
   --ameow-launcher-danger: #f87171;
   --ameow-launcher-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  --ameow-launcher-mascot-filter: none;
   position: fixed;
   top: var(--ameow-launcher-top, 62vh);
   z-index: 2147483647;
@@ -26,6 +27,18 @@
   transform: translateY(-50%);
   transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   user-select: none;
+}
+
+.ameow-launcher[data-theme="white"] {
+  --ameow-launcher-bg: #e3e3e3;
+  --ameow-launcher-bg-elevated: #f5f5f5;
+  --ameow-launcher-border: rgba(0, 0, 0, 0.16);
+  --ameow-launcher-text: #333333;
+  --ameow-launcher-muted: #666666;
+  --ameow-launcher-accent: #2563eb;
+  --ameow-launcher-danger: #ef4444;
+  --ameow-launcher-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.28), 0 3px 9px -4px rgba(0, 0, 0, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --ameow-launcher-mascot-filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.58));
 }
 
 .ameow-launcher[data-side="right"] {
@@ -136,27 +149,28 @@
   border-radius: 0 999px 999px 0;
 }
 
-.ameow-launcher-handle svg {
-  width: 19px;
-  height: 19px;
-  fill: currentColor;
-  color: var(--ameow-launcher-muted);
-  transition: color 0.18s ease, filter 0.18s ease;
+.ameow-launcher-mascot {
+  display: block;
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter: var(--ameow-launcher-mascot-filter);
+  transition: filter 0.18s ease, transform 0.18s ease;
 }
 
-.ameow-launcher[data-connection-state="connected"] .ameow-launcher-handle svg {
-  color: var(--ameow-launcher-success);
-  filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.42));
+.ameow-launcher[data-connection-state="connected"] .ameow-launcher-handle {
+  border-color: rgba(52, 211, 153, 0.42);
 }
 
-.ameow-launcher[data-connection-state="connecting"] .ameow-launcher-handle svg {
-  color: var(--ameow-launcher-accent);
-  filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.44));
+.ameow-launcher[data-connection-state="connecting"] .ameow-launcher-handle {
+  border-color: rgba(96, 165, 250, 0.52);
+  box-shadow: var(--ameow-launcher-shadow), 0 0 0 3px rgba(96, 165, 250, 0.12);
 }
 
-.ameow-launcher[data-connection-state="offline"] .ameow-launcher-handle svg {
-  color: var(--ameow-launcher-danger);
-  filter: drop-shadow(0 0 5px rgba(248, 113, 113, 0.32));
+.ameow-launcher[data-connection-state="offline"] .ameow-launcher-handle {
+  border-color: rgba(248, 113, 113, 0.34);
 }
 
 .ameow-launcher-actions {

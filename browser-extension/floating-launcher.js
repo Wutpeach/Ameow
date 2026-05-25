@@ -13,6 +13,7 @@
   const RESTORE_MESSAGE = "ameow_launcher_restore";
   const CONFIG_UPDATE_MESSAGE = "ameow_launcher_config_update";
   const SIDE_SWITCH_DRAG_DISTANCE_PX = 240;
+  const DEFAULT_THEME = "black";
 
   if (!launcherConfig || !captureEvidence || !chrome?.runtime) {
     return;
@@ -33,6 +34,7 @@
   let pickerState = null;
   let dragState = null;
   let connectionState = "offline";
+  let theme = DEFAULT_THEME;
   let qualityPreference = directDownloadQuality?.DEFAULT_QUALITY_PREFERENCE || "balanced";
   let storageChangeListener = null;
   let feedbackTimer = null;
@@ -57,6 +59,16 @@
   }
 
   function icon(name) {
+    if (name === "mascot") {
+      const image = document.createElement("img");
+      image.src = chrome.runtime.getURL("mascot.svg");
+      image.alt = "";
+      image.setAttribute("aria-hidden", "true");
+      image.draggable = false;
+      image.className = "ameow-launcher-mascot";
+      return image;
+    }
+
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.setAttribute("aria-hidden", "true");
@@ -95,6 +107,14 @@
     qualityPreference = await directDownloadQuality.getQualityPreference();
     refreshQualitySelection();
     return qualityPreference;
+  }
+
+  async function refreshTheme() {
+    const response = await sendMessage({ type: "get_theme" });
+    theme = response?.theme === "white" ? "white" : DEFAULT_THEME;
+    if (launcher) {
+      launcher.dataset.theme = theme;
+    }
   }
 
   function deriveSiteHint(rawUrl = root.location?.href) {
@@ -653,6 +673,7 @@
     launcher.className = "ameow-launcher";
     launcher.dataset.mounting = "true";
     launcher.dataset.connectionState = connectionState;
+    launcher.dataset.theme = theme;
     launcher.dataset.menuOpen = "false";
     launcher.dataset.pickerActive = "false";
 
@@ -660,7 +681,7 @@
     handle.type = "button";
     handle.className = "ameow-launcher-handle";
     handle.setAttribute("aria-label", "Ameow");
-    handle.appendChild(icon("cat"));
+    handle.appendChild(icon("mascot"));
     handle.addEventListener("pointerdown", startDrag);
     handle.addEventListener("click", handleLauncherClick);
 
@@ -768,6 +789,13 @@
       }
     }
 
+    if (message?.type === "theme_update") {
+      theme = message.theme === "white" ? "white" : DEFAULT_THEME;
+      if (launcher) {
+        launcher.dataset.theme = theme;
+      }
+    }
+
     if (message?.type === "language_update") {
       void (async () => {
         await loadLocale();
@@ -798,6 +826,7 @@
   void (async () => {
     await loadLocale();
     await loadQualityPreference();
+    await refreshTheme();
     config = await launcherConfig.getConfig();
     if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
       return;

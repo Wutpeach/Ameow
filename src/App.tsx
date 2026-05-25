@@ -842,7 +842,7 @@ function App({
   initialStartupWindowMode = "full",
 }: AppProps) {
   const { t } = useTranslation("desktop");
-  const { colors } = useTheme();
+  const { theme, colors } = useTheme();
   const shouldReduceMotion = useReducedMotion();
   const userAgent = navigator.userAgent.toLowerCase();
   const isMacOS = userAgent.includes("mac");
@@ -4082,8 +4082,15 @@ function App({
       ? colors.panelShadowCompact
       : containerBackdropShadow,
   });
+  const minimizedContainerBoxShadow = theme === "black"
+    ? [
+      "inset 0 0 0 1px rgba(245,245,245,0.18)",
+      "inset 0 1px 0 rgba(245,245,245,0.24)",
+      "inset 0 -1px 0 rgba(0,0,0,0.22)",
+    ].join(", ")
+    : `inset 0 0 0 1px ${colors.borderStart}, inset 0 1px 0 ${colors.fieldInset}`;
   const containerBoxShadow = visualIsMinimized && !isMacOS
-    ? `inset 0 0 0 1px ${colors.borderStart}, inset 0 1px 0 ${colors.fieldInset}`
+    ? minimizedContainerBoxShadow
     : containerShellBoxShadow;
   const shouldShowAppUpdateIndicator = !!appUpdateInfo && (
     appUpdatePhase === "available"
