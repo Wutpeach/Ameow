@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend runtime, Electron, config, extension transport, and event contract guidelines for future architecture phases."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Renderer, React, desktop bridge, state, and UI behavior constraints for future App and Settings phases."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Boundary refactor spans renderer, preload, Electron main, runtime, core, and extension data flow."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Future phases intentionally reduce duplicate helpers and protocol normalization logic."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/research/architecture-boundary-audit.md", "reason": "Primary architecture audit findings and Phase 0 status update for this task."}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check backend contract preservation, Electron/runtime boundaries, and quality rules."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check renderer behavior, desktop bridge usage, state boundaries, and UI non-regression constraints."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer contract preservation across future phases."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check that future helper extraction reduces duplication without premature abstraction."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/research/architecture-boundary-audit.md", "reason": "Check future diffs against the recorded audit findings and stop conditions."}
