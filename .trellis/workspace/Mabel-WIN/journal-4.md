@@ -1221,3 +1221,37 @@ Routed Instagram downloads through yt-dlp first with gallery-dl fallback, added 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 174: Harden site login capture
+
+**Date**: 2026-05-25
+**Task**: Harden site login capture
+**Branch**: `main`
+
+### Summary
+
+Hardened Electron site-session login capture with permission denial, browser-like UA/language defaults, same-site supplemental cookie capture, focused tests, and backend spec/task documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e7b06b5` | (see git log) |
+| `1080253` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
