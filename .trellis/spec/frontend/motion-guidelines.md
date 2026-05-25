@@ -496,6 +496,7 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 - Collapse checks that happen after a morph, task outcome, or other transient lock release must reconcile hover from the DOM first, for example via `element.matches(":hover")`, before mutating minimized state.
 - External drag-drop hover into the compact shell must participate in the same ownership model as pointer hover. `dragover` alone does not guarantee a matching DOM `:hover` or React `mouseenter`, so compact-window collapse guards must keep an explicit drag-hover ref until `drop` or `dragleave` settles.
 - Compact/full native-bounds requests must have one logical owner. If multiple async callbacks can request `animateBounds(...)`, every request must carry a transition token or epoch and every completion must verify that the token is still current before committing renderer-state follow-up such as `setIsMinimized(false)` or `setWindowResized(true)`.
+- Before the main window settles into compact/icon mode, clamp the compact frame's target position into the current monitor work area. The full shell can be dragged partly outside a display, but the final icon hotspot must remain visible and reachable.
 - On macOS compact-shell flows, do not hand visual ownership from the panel shell to a separate minimized icon plate before the native window is already compact-sized. During full-window -> icon collapse, keep one visible shell surface active through the morph and only enable a standalone minimized plate after `windowResized === true`; otherwise the icon can double-apply compact insets and show end-of-animation drift or a transparent-shell flicker.
 - For Windows compact-shell flows, keep the restore target behind a shared constant such as `INTERMEDIATE_EXPAND_SIZE` instead of scattering raw `200` literals across expand, foreground-task restore, and morph handoff code.
 - Pointer-leave collapse must be guarded while pointer-down, drag-threshold pending, or active drag state exists. Do not allow leave handling to cancel window dragging.
@@ -512,6 +513,7 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 | Post-task unlock runs after hover state drift | Window uses real hover truth, not stale React state | Reconcile with `matches(":hover")` before collapse |
 | External dragover expands the compact shell without firing a real pointer enter | Expand morph stays open through the drop instead of collapsing mid-drag | Hold a dedicated drag-hover ref and treat it as hover ownership until `drop`/`dragleave` |
 | A stale shrink callback resolves after a newer full-mode request | Full panel never renders inside an `80x80` native shell | Guard `animateBounds(...)` completions with the current transition token |
+| Full shell is dragged partly outside the display before collapse | Compact icon remains visible and reachable inside the current work area | Clamp compact target position before the final compact settle |
 | macOS collapse shows icon drift or last-frame flicker | One shell stays visually anchored until native compact bounds settle | Delay standalone minimized plate activation until `windowResized === true` |
 | Enter feels laggy | Window feels sticky or slow | Keep enter immediate; do not mirror leave delay onto enter |
 
@@ -534,6 +536,7 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 - Rapidly enter and leave from icon mode: verify no one-frame flash of the full panel appears.
 - Repeated icon -> panel -> leave cycles: verify collapse remains consistent after many repetitions.
 - On macOS, verify the cat icon stays centered through the last collapse frames and no extra inset jump appears when the compact shell settles.
+- Drag the full shell against each display edge, then collapse: verify the compact icon remains inside the active monitor work area.
 - Trigger compact -> expand -> compact -> expand stress cycles and verify a late compact callback cannot leave the main panel clipped inside the native `80x80` window.
 - Start dragging the main window and cross the panel edge: verify dragging still works and collapse does not interrupt it.
 - Drag a web image or video into icon mode: verify the window expands once, does not bounce back to compact during the drag, and does not end stuck in the full window because of a stale collapse decision.

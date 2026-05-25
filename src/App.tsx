@@ -23,6 +23,7 @@ import {
 import type { AppUpdateInfo, AppUpdatePhase } from "./types/appUpdate";
 import type {
   AmeowCurrentWindowInteractionMode,
+  AmeowDisplay,
   AmeowStartupWindowMode,
 } from "./types/electronBridge";
 import {
@@ -97,6 +98,7 @@ import {
   isMainWindowBoundsTransitionCurrent,
   type MainWindowBoundsTransitionState,
 } from "./utils/mainWindowTransitionToken";
+import { resolveMainWindowCompactVisibilityBounds } from "./utils/mainWindowCompactBounds";
 import { isPointInsideCompactPointerHotspot } from "./utils/compactPointerHotspot";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
 import { isVideoUrl } from "./utils/videoUrl";
@@ -131,6 +133,7 @@ const isResolvableVideoInputUrl = (value: string): boolean => (
 );
 
 const MAX_IN_MEMORY_DROPPED_FILE_BYTES = 25 * 1024 * 1024;
+const COMPACT_WINDOW_VISIBILITY_MOVE_DURATION_MS = 180;
 
 // Helper function to check and show sequence overflow error
 const checkSequenceOverflow = (error: unknown): boolean => {
@@ -1303,6 +1306,62 @@ function App({
     return result.transitionToken;
   }, [getCurrentWindowPosition]);
 
+  const ensureMainWindowCompactTargetVisible = useCallback(async (
+    transitionToken: number,
+  ) => {
+    const [position, size] = await Promise.all([
+      desktopCurrentWindow.outerPosition(),
+      desktopCurrentWindow.outerSize(),
+    ]);
+    lastKnownWindowPositionRef.current = position;
+
+    let monitor: AmeowDisplay | null = null;
+    try {
+      monitor = await desktopSystem.currentMonitor();
+    } catch (err) {
+      console.error("Failed to resolve current monitor for compact window placement:", err);
+    }
+
+    if (!isMainWindowBoundsTransitionStillCurrent(transitionToken, "compact")) {
+      return;
+    }
+
+    const targetBounds = resolveMainWindowCompactVisibilityBounds({
+      currentBounds: {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+      },
+      compactFrameSize: ICON_SIZE,
+      edgePadding: WINDOW_EDGE_PADDING,
+      monitor,
+    });
+
+    if (targetBounds.x === position.x && targetBounds.y === position.y) {
+      return;
+    }
+
+    const result = await desktopCurrentWindow.animateBounds(targetBounds, {
+      durationMs: shouldReduceMotion ? 0 : COMPACT_WINDOW_VISIBILITY_MOVE_DURATION_MS,
+      transitionToken,
+    });
+
+    if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "compact")) {
+      return;
+    }
+
+    lastKnownWindowPositionRef.current = {
+      x: targetBounds.x,
+      y: targetBounds.y,
+    };
+  }, [
+    ICON_SIZE,
+    WINDOW_EDGE_PADDING,
+    isMainWindowBoundsTransitionStillCurrent,
+    shouldReduceMotion,
+  ]);
+
   const dispatchShellEventRef = useRef<((event: MainWindowShellEvent) => void) | null>(null);
 
   const runShellEffects = useCallback((effects: MainWindowShellModeEffect[]) => {
@@ -1342,6 +1401,10 @@ function App({
           compactHotspotInsideRef.current = false;
           compactNativeSettledRef.current = false;
           pendingCompactResizeTokenRef.current = beginMainWindowBoundsTransition("compact");
+          void ensureMainWindowCompactTargetVisible(pendingCompactResizeTokenRef.current)
+            .catch((err) => {
+              console.error("Failed to keep compact main window visible:", err);
+            });
           updateShellPhase("collapsing");
           isPanelHoveredRef.current = false;
           setIsPanelHovered(false);
@@ -1354,6 +1417,7 @@ function App({
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
     clearMainWindowInteractionTimer,
+    ensureMainWindowCompactTargetVisible,
     supportsCompactPassthroughHotspot,
     updateShellPhase,
   ]);
