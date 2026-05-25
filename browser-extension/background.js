@@ -48,6 +48,7 @@ const INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE = 'ameow_capture_current_content'
 const INTERNAL_LAUNCHER_PING_MESSAGE = 'ameow_launcher_ping';
 const INTERNAL_LAUNCHER_RESTORE_MESSAGE = 'ameow_launcher_restore';
 const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
+const INTERNAL_THEME_UPDATE_MESSAGE = 'theme_update';
 const INTERNAL_SCAN_PAGE_MEDIA_MESSAGE = 'ameow_scan_page_media';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
@@ -1599,11 +1600,13 @@ function handleMessage(message) {
       currentTheme = message.data?.theme || 'black';
       // Notify popup if open (ignore errors if popup is closed)
       chrome.runtime.sendMessage({ type: 'theme_update', theme: currentTheme }).catch(() => {});
+      void broadcastThemeToTabs(currentTheme);
       break;
     case 'theme_info':
       // Compatible with: message.data.theme or message.theme
       currentTheme = message.data?.theme || message.theme || 'black';
       chrome.runtime.sendMessage({ type: 'theme_update', theme: currentTheme }).catch(() => {});
+      void broadcastThemeToTabs(currentTheme);
       break;
     case WS_ACTION_LANGUAGE_CHANGED:
     case WS_ACTION_LANGUAGE_INFO: {
@@ -2228,6 +2231,24 @@ async function broadcastLauncherConfigToTabs(config) {
     return sendMessageToTab(tab.id, {
       type: INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE,
       config,
+    }).catch(() => null);
+  }));
+}
+
+async function broadcastThemeToTabs(theme) {
+  if (!chrome?.tabs?.query) {
+    return;
+  }
+
+  const normalizedTheme = theme === 'white' ? 'white' : 'black';
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(tabs.map((tab) => {
+    if (typeof tab.id !== 'number') {
+      return Promise.resolve(null);
+    }
+    return sendMessageToTab(tab.id, {
+      type: INTERNAL_THEME_UPDATE_MESSAGE,
+      theme: normalizedTheme,
     }).catch(() => null);
   }));
 }
