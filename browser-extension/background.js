@@ -7,6 +7,7 @@ importScripts(
   "generic-video-selection-utils.js",
   "injection-debug-config.js",
   "launcher-config.js",
+  "media-scan-cache.js",
   "video-selection-routing.js",
   "xiaohongshu-drag-resolution-utils.js",
 );
@@ -52,6 +53,7 @@ const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
 const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
 const MEDIA_SCAN_CACHE_TTL_MS = 60 * 1000;
+const MEDIA_SCAN_CACHE_TOTAL_LIMIT = 24;
 const MEDIA_SCAN_TIMEOUT_MS = 5000;
 const MEDIA_SCAN_TOTAL_LIMIT = 100;
 const pendingRequests = new Map();
@@ -69,6 +71,7 @@ const extensionDataUtils = self.AmeowExtensionDataUtils;
 const genericVideoSelectionUtils = self.AmeowGenericVideoSelectionUtils;
 const injectionDebugConfig = self.AmeowInjectionDebugConfig;
 const launcherConfig = self.AmeowLauncherConfig;
+const mediaScanCache = self.AmeowMediaScanCache;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
@@ -2466,18 +2469,11 @@ async function storeMediaScanCache(tab, result) {
   const cache = current?.[MEDIA_SCAN_CACHE_KEY] && typeof current[MEDIA_SCAN_CACHE_KEY] === 'object'
     ? current[MEDIA_SCAN_CACHE_KEY]
     : {};
-  const nextCache = {};
-  const now = Date.now();
-  Object.entries(cache).forEach(([entryKey, entry]) => {
-    if (entryKey === key) {
-      return;
-    }
-    const scannedAt = Number(entry?.scannedAt || 0);
-    if (now - scannedAt <= MEDIA_SCAN_CACHE_TTL_MS * 5) {
-      nextCache[entryKey] = entry;
-    }
+  const nextCache = mediaScanCache.pruneMediaScanCacheEntries(cache, key, result, {
+    now: Date.now(),
+    ttlMs: MEDIA_SCAN_CACHE_TTL_MS * 5,
+    totalLimit: MEDIA_SCAN_CACHE_TOTAL_LIMIT,
   });
-  nextCache[key] = result;
   await storageSet({ [MEDIA_SCAN_CACHE_KEY]: nextCache });
 }
 
@@ -2512,18 +2508,22 @@ async function scanPageMediaForActiveTab() {
   }
 
   const scanPromise = (async () => {
+    let timeoutId = null;
     const response = await Promise.race([
       sendMessageToTab(tab.id, { type: INTERNAL_SCAN_PAGE_MEDIA_MESSAGE }, { frameId: 0 }).catch((error) => ({
         success: false,
         reason: error?.message || 'scan_unavailable',
       })),
       new Promise((resolve) => {
-        setTimeout(() => resolve({
+        timeoutId = setTimeout(() => resolve({
           success: false,
           reason: 'scan_timeout',
         }), MEDIA_SCAN_TIMEOUT_MS);
       }),
     ]);
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
     const normalized = normalizeMediaScanResponse(response, tab);
     if (normalized.success) {
       await storeMediaScanCache(tab, normalized).catch((error) => {
