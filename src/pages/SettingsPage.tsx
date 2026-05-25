@@ -68,6 +68,7 @@ import { SITE_SESSION_CONFIGS } from "../site-sessions";
 import {
   BilibiliLogo,
   DouyinLogo,
+  InstagramLogo,
   XiaohongshuLogo,
   YouTubeLogo,
 } from "../site-session-icons";
@@ -121,6 +122,7 @@ const SITE_SESSION_LOGOS: Record<SupportedSiteSessionId, ComponentType<{ size?: 
   douyin: DouyinLogo,
   bilibili: BilibiliLogo,
   xiaohongshu: XiaohongshuLogo,
+  instagram: InstagramLogo,
   youtube: YouTubeLogo,
 };
 const SHORTCUT_KEY_ALIASES: Record<string, string> = {

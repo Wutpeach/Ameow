@@ -60,6 +60,15 @@ export const SITE_SESSION_CONFIGS = [
       "SID",
     ],
   },
+  {
+    id: "instagram",
+    displayName: "Instagram",
+    labelKey: "desktop:settings.siteSessions.sites.instagram",
+    loginUrl: "https://www.instagram.com/",
+    cookieDomains: ["instagram.com"],
+    requiredCookieKeys: [],
+    loginCookieKeys: ["sessionid"],
+  },
 ] as const satisfies readonly SiteSessionConfig[];
 
 export const SUPPORTED_SITE_SESSION_IDS = SITE_SESSION_CONFIGS.map((site) => site.id);

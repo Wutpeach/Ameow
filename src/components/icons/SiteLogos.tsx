@@ -52,3 +52,11 @@ export function YouTubeLogo(props: SiteLogoProps) {
     </SiteLogoBase>
   );
 }
+
+export function InstagramLogo(props: SiteLogoProps) {
+  return (
+    <SiteLogoBase {...props}>
+      <path d="M7.2 2h9.6C19.67 2 22 4.33 22 7.2v9.6c0 2.87-2.33 5.2-5.2 5.2H7.2C4.33 22 2 19.67 2 16.8V7.2C2 4.33 4.33 2 7.2 2Zm0 2A3.2 3.2 0 0 0 4 7.2v9.6A3.2 3.2 0 0 0 7.2 20h9.6a3.2 3.2 0 0 0 3.2-3.2V7.2A3.2 3.2 0 0 0 16.8 4H7.2ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm5.25-2.55a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z" />
+    </SiteLogoBase>
+  );
+}

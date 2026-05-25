@@ -9,6 +9,7 @@ export type SupportedSiteSessionId =
   | "douyin"
   | "bilibili"
   | "xiaohongshu"
+  | "instagram"
   | "youtube";
 
 export type SiteSessionState = {

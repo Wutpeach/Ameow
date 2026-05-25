@@ -81,4 +81,104 @@ describe("createSiteSessionManager", () => {
     });
     expect(stored.cookies).not.toHaveProperty("msToken");
   });
+
+  it("marks Instagram login ready when a sessionid cookie is captured", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 43,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "instagram-session",
+          path: "/",
+        },
+        {
+          domain: ".instagram.com",
+          name: "csrftoken",
+          value: "csrf-value",
+          path: "/",
+        },
+        {
+          domain: ".cdninstagram.com",
+          name: "ignored",
+          value: "cdn-value",
+          path: "/",
+        },
+      ]),
+      now: () => 1_779_428_739_178,
+    });
+
+    expect(instagram).toMatchObject({
+      id: "instagram",
+      loginUrl: "https://www.instagram.com/",
+      cookieDomains: ["instagram.com"],
+      requiredCookieKeys: [],
+      loginCookieKeys: ["sessionid"],
+    });
+
+    await manager.startCapture();
+    const state = await manager.confirmCapture();
+
+    expect(state).toMatchObject({
+      siteId: "instagram",
+      availability: "ready",
+      cookieCount: 2,
+      requiredKeys: [],
+      missingRequiredKeys: [],
+      lastError: null,
+    });
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
+    ) as { cookies: Record<string, string>; cookiesNetscape: string };
+    expect(stored.cookies).toMatchObject({
+      sessionid: "instagram-session",
+      csrftoken: "csrf-value",
+    });
+    expect(stored.cookies).not.toHaveProperty("ignored");
+    expect(stored.cookiesNetscape).toContain(".instagram.com");
+    expect(stored.cookiesNetscape).toContain("sessionid");
+  });
+
+  it("keeps Instagram missing when capture finds no Instagram cookies", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const close = vi.fn();
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 44,
+        close,
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".example.com",
+          name: "sessionid",
+          value: "wrong-site-session",
+          path: "/",
+        },
+      ]),
+      now: () => 1_779_428_739_179,
+    });
+
+    await manager.startCapture();
+    const state = await manager.confirmCapture();
+
+    expect(state).toMatchObject({
+      siteId: "instagram",
+      availability: "missing",
+      cookieCount: 0,
+      sessionFilePath: null,
+    });
+    expect(state.lastError).toContain("Instagram cookie capture finished without saving any cookies");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });
