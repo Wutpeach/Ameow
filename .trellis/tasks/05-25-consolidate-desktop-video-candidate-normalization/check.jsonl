@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check Electron/runtime boundary and behavior preservation."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Check protocol compatibility and field preservation."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Check typed payload handling and shared types."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer dependency direction and source-of-truth placement."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check consolidation stays focused and avoids unrelated abstraction."}
+{"file": ".trellis/tasks/05-25-consolidate-desktop-video-candidate-normalization/prd.md", "reason": "Task-specific acceptance criteria."}
+{"file": ".trellis/tasks/05-25-consolidate-desktop-video-candidate-normalization/info.md", "reason": "Task-specific plan and compatibility notes."}

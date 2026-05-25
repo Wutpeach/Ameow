@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend runtime and Electron boundary rules for download normalization."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Protocol compatibility requirements for video_selected_v2 and queue_video_download."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Typed command/event payload and shared type expectations."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Normalizer is shared across Electron adapter and runtime command router boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Task removes duplicated candidate normalization while keeping scope narrow."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/info.md", "reason": "Parent Phase 2 scope and stop conditions."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/research/architecture-boundary-audit.md", "reason": "Audit finding about distributed videoCandidates/video_selected_v2 normalization."}

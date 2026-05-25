@@ -1,9 +1,9 @@
 {
-  "id": "architecture-boundary-refactor",
-  "name": "architecture-boundary-refactor",
-  "title": "Architecture boundary refactor",
+  "id": "consolidate-desktop-video-candidate-normalization",
+  "name": "consolidate-desktop-video-candidate-normalization",
+  "title": "Consolidate desktop video candidate normalization",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,11 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-25-extract-app-download-view-helpers",
-    "05-25-consolidate-desktop-video-candidate-normalization"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "05-25-architecture-boundary-refactor",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

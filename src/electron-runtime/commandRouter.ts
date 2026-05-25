@@ -15,7 +15,11 @@ import {
   normalizeVideoQualityPreference,
 } from "../core/index.js";
 import { resolveSiteHint } from "../core/site-hints.js";
-import { orderVideoCandidatesForSite } from "../core/video-candidate-order.js";
+import {
+  normalizeHttpUrl,
+  normalizeVideoCandidates as normalizeCanonicalVideoCandidates,
+  normalizeVideoHintUrl,
+} from "../core/video-candidate-normalization.js";
 import { createInteractionCapabilityDiagnostic } from "../download-capabilities/runtime-interaction-capabilities.js";
 
 export type ElectronRuntimeCommand = Extract<
@@ -71,23 +75,6 @@ const asObject = (payload: unknown): Record<string, unknown> => (
     ? payload as Record<string, unknown>
     : {}
 );
-
-const normalizeHttpUrl = (value: string | undefined): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  if (/^(?:blob|data|file):/i.test(value)) {
-    return undefined;
-  }
-
-  try {
-    const normalized = new URL(value).toString();
-    return /^https?:\/\//i.test(normalized) ? normalized : undefined;
-  } catch {
-    return undefined;
-  }
-};
 
 const readOptionalTrimmedString = (
   payload: Record<string, unknown>,
@@ -152,32 +139,6 @@ const readRequiredTrimmedString = (
   throw new Error(`Missing required command payload field: ${keys[0]}`);
 };
 
-const normalizeOptionalLabel = (value: unknown): string | undefined => {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed || undefined;
-};
-
-const isDirectPinterestMp4Url = (value: string): boolean => (
-  /\.mp4(?:[?#]|$)/i.test(value) || /\/videos\/iht\/expmp4\//i.test(value)
-);
-
-const isPinterestManifestLikeUrl = (value: string): boolean => (
-  /\.m3u8(?:[?#]|$)/i.test(value)
-  || /\.cmfv(?:[?#]|$)/i.test(value)
-  || /\/videos\/iht\/hls\//i.test(value)
-);
-
-const isPinterestVideoHintUrl = (value: string): boolean => (
-  isDirectPinterestMp4Url(value) || isPinterestManifestLikeUrl(value)
-);
-
-const normalizeMediaType = (value: unknown): "video" | "image" | undefined => (
-  value === "video" || value === "image" ? value : undefined
-);
-
 const resolvePayloadSiteHint = (payload: Record<string, unknown>): string | undefined => resolveSiteHint(
   readOptionalTrimmedString(payload, "siteHint", "site_hint"),
   readOptionalTrimmedString(payload, "pageUrl", "page_url"),
@@ -189,74 +150,14 @@ const readOptionalVideoHintUrlString = (
   payload: Record<string, unknown>,
   siteHint: string | undefined,
   ...keys: string[]
-): string | undefined => {
-  const normalized = readOptionalHttpUrlString(payload, ...keys);
-  if (!normalized) {
-    return undefined;
-  }
-
-  const resolvedSiteHint = resolveSiteHint(siteHint, normalized);
-  if (resolvedSiteHint === "pinterest") {
-    return isPinterestVideoHintUrl(normalized) ? normalized : undefined;
-  }
-
-  return normalized;
-};
-
-const normalizeVideoCandidateForSite = (
-  candidate: unknown,
-  siteHint: string | undefined,
-): PinterestVideoCandidate | null => {
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-    return null;
-  }
-
-  const candidateRecord = candidate as Record<string, unknown>;
-  const url = readOptionalVideoHintUrlString(candidateRecord, siteHint, "url");
-  if (!url) {
-    return null;
-  }
-
-  return {
-    url,
-    type: normalizeOptionalLabel(candidateRecord.type),
-    source: normalizeOptionalLabel(candidateRecord.source),
-    confidence: normalizeOptionalLabel(candidateRecord.confidence),
-    mediaType: normalizeMediaType(candidateRecord.mediaType ?? candidateRecord.media_type),
-  };
-};
+): string | undefined => normalizeVideoHintUrl(readOptionalTrimmedString(payload, ...keys), siteHint);
 
 const normalizeVideoCandidates = (
   payload: Record<string, unknown>,
   siteHint: string | undefined,
 ): PinterestVideoCandidate[] => {
   const rawCandidates = payload.videoCandidates ?? payload.video_candidates;
-  if (!Array.isArray(rawCandidates)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-
-  const normalizedCandidates = rawCandidates
-    .map((candidate, index) => ({
-      candidate: normalizeVideoCandidateForSite(candidate, siteHint),
-      index,
-    }))
-    .filter(
-      (
-        item,
-      ): item is { candidate: PinterestVideoCandidate; index: number } => item.candidate !== null,
-    )
-    .filter((item) => {
-      if (seen.has(item.candidate.url)) {
-        return false;
-      }
-      seen.add(item.candidate.url);
-      return true;
-    })
-    .map((item) => item.candidate);
-
-  return orderVideoCandidatesForSite(normalizedCandidates, siteHint);
+  return normalizeCanonicalVideoCandidates(rawCandidates, siteHint) as PinterestVideoCandidate[];
 };
 
 const normalizeBoolean = (value: unknown): boolean => value === true;
@@ -346,9 +247,7 @@ const normalizeDragDiagnostic = (
   }
 
   const dragCandidates = Array.isArray(diagnostic.videoCandidates)
-    ? diagnostic.videoCandidates
-        .map((candidate) => normalizeVideoCandidateForSite(candidate, "pinterest"))
-        .filter((candidate): candidate is PinterestVideoCandidate => candidate !== null)
+    ? normalizeCanonicalVideoCandidates(diagnostic.videoCandidates, "pinterest") as PinterestVideoCandidate[]
     : normalizedVideoCandidates;
   const imageUrl = readOptionalHttpUrlString(diagnostic, "imageUrl", "image_url") ?? null;
   const videoUrl = readOptionalVideoHintUrlString(
