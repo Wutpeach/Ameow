@@ -30,6 +30,7 @@ import {
   desktopUpdater,
   desktopWindows,
 } from "../desktop/runtime";
+import { saveConfigPatch } from "../desktop/config";
 import {
   COMPACT_EASE,
   getContinuousCornerStyle,
@@ -884,10 +885,7 @@ function SettingsPage() {
     const newValue = !previousValue;
     try {
       setAePortalEnabled(newValue);
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config.aePortalEnabled = newValue;
-      await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({ aePortalEnabled: newValue });
     } catch (err) {
       setAePortalEnabled(previousValue);
       console.error("Failed to toggle AE Portal:", err);
@@ -899,10 +897,7 @@ function SettingsPage() {
     const newValue = !previousValue;
     try {
       setExtensionInjectionDebugEnabled(newValue);
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config.extensionInjectionDebugEnabled = newValue;
-      await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({ extensionInjectionDebugEnabled: newValue });
     } catch (err) {
       setExtensionInjectionDebugEnabled(previousValue);
       console.error("Failed to toggle extension injection debug mode:", err);
