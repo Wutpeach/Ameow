@@ -368,7 +368,7 @@ describe("builtin site providers", () => {
     });
   });
 
-  it("routes gallery-dl-supported sites through gallery-dl before the generic yt-dlp fallback", () => {
+  it("routes Instagram through yt-dlp before the gallery-dl fallback with a canonical site id", () => {
     const url = "https://www.instagram.com/p/C7example/";
     const plan = resolvePlan({
       url,
@@ -378,11 +378,26 @@ describe("builtin site providers", () => {
     const intent = expectVideoIntent(plan.intent);
 
     expect(plan.providerId).toBe("gallery-dl-supported");
-    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "gallery-dl"]);
     expect(plan.engines[0]).toMatchObject({
       sourceUrl: url,
     });
-    expect(intent.siteId).toBe("instagram.com");
+    expect(intent.siteId).toBe("instagram");
+  });
+
+  it("keeps non-Instagram gallery-dl-supported sites on gallery-dl before yt-dlp", () => {
+    const url = "https://www.flickr.com/photos/example/123456789";
+    const plan = resolvePlan({
+      url,
+      pageUrl: url,
+      title: "Gallery-dl supported page",
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("gallery-dl-supported");
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines.every((engine) => engine.sourceUrl === url)).toBe(true);
+    expect(intent.siteId).toBe("flickr.com");
   });
 
   it("prefers Instagram permalink evidence for gallery-dl-supported source selection", () => {
@@ -408,8 +423,9 @@ describe("builtin site providers", () => {
     const intent = expectVideoIntent(plan.intent);
 
     expect(plan.providerId).toBe("gallery-dl-supported");
-    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "gallery-dl"]);
     expect(plan.engines.every((engine) => engine.sourceUrl === permalink)).toBe(true);
+    expect(intent.siteId).toBe("instagram");
     expect(intent.extensionData).toMatchObject({
       ameowCapture: {
         canonicalUrl: permalink,
@@ -437,9 +453,11 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("gallery-dl-supported");
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "gallery-dl"]);
     expect(plan.engines.every((engine) => (
       engine.sourceUrl === "https://www.instagram.com/p/C7example_/"
     ))).toBe(true);
+    expect(expectVideoIntent(plan.intent).siteId).toBe("instagram");
   });
 
   it("normalizes Weibo layerid links to the canonical detail URL for gallery-dl", () => {

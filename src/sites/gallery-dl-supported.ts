@@ -12,6 +12,7 @@ import {
 
 const INSTAGRAM_SHORTCODE_PATTERN = /^[A-Za-z0-9_-]{5,}$/;
 const INSTAGRAM_PATH_PATTERN = /^(p|reel|tv)$/i;
+const INSTAGRAM_SITE_ID = "instagram";
 
 const isAcceptedInstagramPermalink = (value: string | undefined): boolean => {
   if (!value) {
@@ -52,6 +53,18 @@ const resolveGalleryDlSupportedSourceUrl = (input: RawDownloadInput): string => 
   resolveInstagramSourceFromCapture(input) ?? input.pageUrl ?? input.url
 );
 
+const isInstagramSite = (siteId: string, sourceUrl: string | undefined): boolean => (
+  siteId === INSTAGRAM_SITE_ID || resolveComparableUrlHost(sourceUrl) === "instagram.com"
+);
+
+const resolveCanonicalGalleryDlSupportedSiteId = (
+  sourceUrl: string | undefined,
+  siteHint?: string,
+): string => {
+  const siteId = resolveGalleryDlSiteId(sourceUrl, siteHint);
+  return isInstagramSite(siteId, sourceUrl) ? INSTAGRAM_SITE_ID : siteId;
+};
+
 export const galleryDlSupportedProvider: SiteProvider = {
   id: "gallery-dl-supported",
   matches(input: RawDownloadInput): boolean {
@@ -59,30 +72,50 @@ export const galleryDlSupportedProvider: SiteProvider = {
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
     const sourceUrl = resolveGalleryDlSupportedSourceUrl(input);
-    const siteId = resolveGalleryDlSiteId(sourceUrl, input.siteHint);
+    const siteId = resolveCanonicalGalleryDlSupportedSiteId(sourceUrl, input.siteHint);
+    const engines = isInstagramSite(siteId, sourceUrl)
+      ? [
+        {
+          engine: "yt-dlp" as const,
+          priority: 88,
+          when: "primary" as const,
+          reason: "Use yt-dlp first for Instagram video extraction",
+          sourceUrl,
+          fallbackOn: "any" as const,
+        },
+        {
+          engine: "gallery-dl" as const,
+          priority: 52,
+          when: "fallback" as const,
+          reason: "Use gallery-dl as the Instagram fallback when yt-dlp cannot complete the extraction",
+          sourceUrl,
+          fallbackOn: "any" as const,
+        },
+      ]
+      : [
+        {
+          engine: "gallery-dl" as const,
+          priority: 88,
+          when: "primary" as const,
+          reason: "This site is listed by gallery-dl and should use its maintained extractor first",
+          sourceUrl,
+          fallbackOn: "any" as const,
+        },
+        {
+          engine: "yt-dlp" as const,
+          priority: 52,
+          when: "fallback" as const,
+          reason: "Use yt-dlp as the generic fallback when gallery-dl cannot complete the extraction",
+          sourceUrl,
+          fallbackOn: "any" as const,
+        },
+      ];
 
     return {
       providerId: "gallery-dl-supported",
       label: input.title?.trim() || input.pageUrl || input.url,
       intent: buildGalleryDlVideoIntent(input, siteId),
-      engines: [
-        {
-          engine: "gallery-dl",
-          priority: 88,
-          when: "primary",
-          reason: "This site is listed by gallery-dl and should use its maintained extractor first",
-          sourceUrl,
-          fallbackOn: "any",
-        },
-        {
-          engine: "yt-dlp",
-          priority: 52,
-          when: "fallback",
-          reason: "Use yt-dlp as the generic fallback when gallery-dl cannot complete the extraction",
-          sourceUrl,
-          fallbackOn: "any",
-        },
-      ],
+      engines,
     };
   },
 };
