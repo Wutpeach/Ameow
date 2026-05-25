@@ -119,6 +119,27 @@ await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
 };
 ```
 
+### Renderer Config Patch Helper
+
+For new renderer code that needs to update one or a few fields in the raw desktop config object, prefer the typed renderer helper in `src/desktop/config.ts` over repeating `get_config` / parse / mutate / `save_config` inline.
+
+```tsx
+import { saveConfigPatch } from "../desktop/config";
+
+await saveConfigPatch({ aePortalEnabled: true });
+```
+
+The helper contract is intentionally narrow:
+
+- it still calls `get_config` and `save_config`; do not add a new desktop command for simple field patches
+- `get_config` remains a raw string and `save_config` still receives `{ json: JSON.stringify(config) }`
+- invalid, empty, array, null, or non-object config input falls back to `{}`
+- object patches must preserve unrelated fields in the loaded config object
+- save/load failures propagate to the caller so existing optimistic UI rollback and error messages stay caller-owned
+- do not use the helper when a handler needs different parse semantics, additional validation, event emission, or rollback behavior that cannot be proven equivalent
+
+Good candidates are small Settings toggles that already follow the raw-config blob pattern. Poor candidates include handlers that intentionally use direct `JSON.parse`, validate a derived config before saving, emit cross-window events after persistence, or need a behavior fix before extraction.
+
 ### Config-backed toggle rule
 
 For small Settings toggles backed by the raw config blob, keep one clear ownership pattern:
