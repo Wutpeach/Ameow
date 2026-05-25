@@ -1153,3 +1153,36 @@ Bounded browser-extension media scan background state, capped failed transcode r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 172: Compact window visible bounds
+
+**Date**: 2026-05-25
+**Task**: Compact window visible bounds
+**Branch**: `main`
+
+### Summary
+
+Added compact-collapse bounds clamping so the main icon remains visible inside the active monitor work area, with regression coverage and motion spec guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `679f999` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

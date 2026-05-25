@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 171
+- **Total Sessions**: 172
 - **Last Active**: 2026-05-25
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1155 | Active |
+| `journal-4.md` | ~1188 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 172 | 2026-05-25 | Compact window visible bounds | `679f999` | `main` |
 | 171 | 2026-05-25 | Bound resource lifecycle state in extension and runtime | `4558f53`, `5107910`, `077554e` | `main` |
 | 170 | 2026-05-24 | Repository root organization cleanup | `8fcfab6`, `7ddec28` | `main` |
 | 169 | 2026-05-24 | Browser extension popup chrome refinement | `22d087e`, `2cb306b` | `main` |
