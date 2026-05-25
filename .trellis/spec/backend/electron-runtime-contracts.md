@@ -2068,6 +2068,7 @@ type SupportedSiteSessionId =
   | "douyin"
   | "bilibili"
   | "xiaohongshu"
+  | "instagram"
   | "youtube";
 
 type SiteSessionAvailability = "missing" | "partial" | "ready";
@@ -2109,6 +2110,8 @@ type SiteSessionConfig = {
 - Stored sessions must include a Netscape cookie string because downloader execution consumes cookie files, not Electron cookie jars.
 - Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
 - Douyin `requiredCookieKeys` must track `douyin-dl`'s actual `CookieManager.validate_cookies()` contract: `ttwid`, `odin_tt`, and `passport_csrf_token` are required; `msToken` is optional because upstream can generate it when absent.
+- Instagram download intents must normalize `siteId` to `"instagram"` instead of host-derived `"instagram.com"` so saved `<userDataDir>/site-sessions/instagram.json` cookies are injected for both direct pasted URLs and extension-assisted requests.
+- Instagram session readiness uses `requiredCookieKeys: []` and `loginCookieKeys: ["sessionid"]`; visitor cookies such as `csrftoken` and `mid` are captured and passed through when present but must not be required login markers.
 - Settings badges are site-level pills whose primary visible content is icon, localized site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
 - Badge click behavior is unified for every site: start a manual capture/refresh flow. The app may label ready-state clicks as refresh, but they still open the same confirmation-based capture path.
 - `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Browser-extension video download payloads must not provide cookies as a fallback; users should capture site login state from Settings for managed downloader cookies.
@@ -2130,9 +2133,12 @@ type SiteSessionConfig = {
 ### 5. Good/Base/Bad Cases
 
 - Good: Adding another supported site means adding one `SITE_SESSION_CONFIGS` entry, one localized label, and one local icon mapping while reusing the same IPC commands and badge component behavior.
+- Good: Instagram provider planning emits `intent.siteId: "instagram"` even when the user pasted `https://www.instagram.com/...` without a `siteHint`, so app-owned cookies are discoverable during `buildExecutionContext(...)`.
 - Base: YouTube has no strict `requiredCookieKeys`; login marker cookies determine whether captured cookies are complete enough.
+- Base: Instagram public content can still download without a saved session; saved sessions only enrich downloader execution when available.
 - Bad: Adding `get_bilibili_session_state` or a Bilibili-only manager duplicates the Douyin migration surface instead of extending the site-scoped contract.
 - Bad: Storing only a `Cookie:` header breaks `yt-dlp` / `gallery-dl` cookie-file execution.
+- Bad: Letting Instagram retain host-derived `siteId: "instagram.com"` prevents `getSiteSessionManager(...)` from finding the saved `instagram` session.
 
 ### 6. Tests Required
 
