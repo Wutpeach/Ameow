@@ -29,7 +29,8 @@
     "05-26-plan-next-low-risk-electron-renderer-command-controller",
     "05-26-extract-electron-support-log-command-controller",
     "05-26-plan-electron-renderer-command-controller-registry",
-    "05-26-implement-electron-renderer-command-controller-registry"
+    "05-26-implement-electron-renderer-command-controller-registry",
+    "05-26-architecture-boundary-refactor-closeout"
   ],
   "parent": null,
   "relatedFiles": [],

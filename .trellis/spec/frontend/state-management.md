@@ -140,6 +140,21 @@ The helper contract is intentionally narrow:
 
 Good candidates are small Settings toggles that already follow the raw-config blob pattern. Poor candidates include handlers that intentionally use direct `JSON.parse`, validate a derived config before saving, emit cross-window events after persistence, or need a behavior fix before extraction.
 
+### App.tsx Pure Logic Boundary
+
+`src/App.tsx` may keep extracting pure helpers, reducers, and formatting functions when the logic can be proven side-effect free.
+
+Keep these in `App.tsx` or the adjacent bridge/component boundary:
+
+- event subscriptions
+- timers and timer cleanup
+- refs and synchronous interaction guards
+- optimistic rollback behavior
+- Electron bridge calls
+- window ownership and lifecycle side effects
+
+If an extraction needs any of the above, it is not a pure-logic helper and should stay with the component or the bridge layer.
+
 ### Config-backed toggle rule
 
 For small Settings toggles backed by the raw config blob, keep one clear ownership pattern:
