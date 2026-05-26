@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check frontend guideline compliance."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Check React state/ref ownership and event behavior remain unchanged."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check typed event payload handling."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check tests and code quality."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check extraction stays focused."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check event contract and boundary preservation."}
+{"file": ".trellis/tasks/05-26-isolate-app-download-event-reducer/prd.md", "reason": "Task-specific acceptance criteria."}
+{"file": ".trellis/tasks/05-26-isolate-app-download-event-reducer/info.md", "reason": "Task-specific scope and plan notes."}

@@ -235,6 +235,46 @@ Stop conditions:
 - The reducer must own timers, refs, or Electron calls.
 - Behavior around cancellation/outcome display cannot be proven equivalent.
 
+Status: completed in child task `05-26-isolate-app-download-event-reducer`.
+
+Files committed:
+
+- `src/App.tsx`
+- `src/utils/downloadEventReducers.ts`
+- `src/utils/downloadEventReducers.test.ts`
+
+Scope completed:
+
+- Added pure renderer-side event reducers for selected download/transcode runtime event folding.
+- Updated existing App listeners to delegate pure calculations while keeping subscriptions, side effects, timers, refs, and React state ownership in `App.tsx`.
+- Covered:
+  - `video-download-progress`
+  - `video-download-complete`
+  - `video-queue-count`
+  - `video-queue-detail`
+  - `video-transcode-queue-count`
+  - `video-transcode-progress`
+  - `video-transcode-complete`
+
+Compatibility preserved:
+
+- Event names and payloads were not changed.
+- UI copy and visible status semantics were not changed.
+- Cancellation/canceling, failure, completion, and transcode pending semantics were preserved.
+- Electron main, browser extension, SettingsPage, and Phase 5 controller work were not touched.
+
+Validation run before commit:
+
+- `npm test -- src/utils/downloadEventReducers.test.ts`: passed, 13 tests.
+- `npm run type-check`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed, 112 test files and 703 tests.
+- `git diff --check`: passed with only Windows LF-to-CRLF working-copy warnings.
+
+Commit:
+
+- `1ecaa6c refactor(ui): isolate download event reducer`
+
 ## Phase 5: Low-Risk Electron Main Controller Split
 
 Goal:

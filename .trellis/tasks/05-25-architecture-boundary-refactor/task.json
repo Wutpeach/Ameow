@@ -21,7 +21,8 @@
   "children": [
     "05-25-extract-app-download-view-helpers",
     "05-25-consolidate-desktop-video-candidate-normalization",
-    "05-25-add-typed-renderer-config-helper"
+    "05-25-add-typed-renderer-config-helper",
+    "05-26-isolate-app-download-event-reducer"
   ],
   "parent": null,
   "relatedFiles": [],
