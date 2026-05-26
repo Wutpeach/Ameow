@@ -221,3 +221,14 @@
   color: var(--ameow-site-accent);
   border-color: rgba(255, 255, 255, 0.18);
 }
+
+.ameow-injected-cat-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: currentColor;
+  mask: var(--ameow-injected-cat-icon-url) center / contain no-repeat;
+  -webkit-mask: var(--ameow-injected-cat-icon-url) center / contain no-repeat;
+  pointer-events: none;
+  user-select: none;
+}

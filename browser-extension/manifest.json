@@ -20,6 +20,7 @@
       "resources": [
         "floating-launcher.css",
         "mascot.svg",
+        "injected-cat-icon.svg",
         "locales/*/*.json",
         "protected-image-page-bridge.js",
         "xiaohongshu-page-bridge.js"

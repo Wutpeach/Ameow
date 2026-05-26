@@ -40,6 +40,8 @@
 
 /* Icon container */
 .ameow-bilibili-btn svg,
+.ameow-bilibili-btn img,
+.ameow-bilibili-btn .ameow-injected-cat-icon,
 .ameow-bilibili-screenshot-btn svg {
   display: block;
   width: 22px;
@@ -72,6 +74,8 @@
 
 /* Hover effect */
 .ameow-bilibili-btn:hover svg,
+.ameow-bilibili-btn:hover img,
+.ameow-bilibili-btn:hover .ameow-injected-cat-icon,
 .ameow-bilibili-set-in-btn:hover svg,
 .ameow-bilibili-set-out-btn:hover svg {
   color: var(--ameow-site-accent);
@@ -85,6 +89,8 @@
 
 /* Active effect */
 .ameow-bilibili-btn:active svg,
+.ameow-bilibili-btn:active img,
+.ameow-bilibili-btn:active .ameow-injected-cat-icon,
 .ameow-bilibili-set-in-btn:active svg {
   transform: scale(0.95);
 }
@@ -99,9 +105,17 @@
 
 /* Fullscreen mode - larger icons */
 body.player-mode-full .ameow-bilibili-btn svg,
+body.player-mode-full .ameow-bilibili-btn img,
+body.player-mode-full .ameow-bilibili-btn .ameow-injected-cat-icon,
 body.player-fullscreen-fix .ameow-bilibili-btn svg,
+body.player-fullscreen-fix .ameow-bilibili-btn img,
+body.player-fullscreen-fix .ameow-bilibili-btn .ameow-injected-cat-icon,
 body.player-mode-web .ameow-bilibili-btn svg,
-body.player-full-win .ameow-bilibili-btn svg {
+body.player-mode-web .ameow-bilibili-btn img,
+body.player-mode-web .ameow-bilibili-btn .ameow-injected-cat-icon,
+body.player-full-win .ameow-bilibili-btn svg,
+body.player-full-win .ameow-bilibili-btn img,
+body.player-full-win .ameow-bilibili-btn .ameow-injected-cat-icon {
   width: 28px;
   height: 28px;
 }

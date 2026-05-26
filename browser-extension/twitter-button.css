@@ -51,7 +51,8 @@
   background-color: rgba(29, 155, 240, 0.2);
 }
 
-.ameow-download-btn svg {
+.ameow-download-btn svg,
+.ameow-download-btn .ameow-injected-cat-icon {
   position: relative;
   z-index: 1;
   display: block;

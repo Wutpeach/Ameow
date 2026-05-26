@@ -44,6 +44,8 @@
 }
 
 .ameow-youtube-btn svg,
+.ameow-youtube-btn img,
+.ameow-youtube-btn .ameow-injected-cat-icon,
 .ameow-youtube-screenshot-btn svg {
   width: 24px;
   height: 24px;

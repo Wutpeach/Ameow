@@ -32,11 +32,18 @@
   transform: scale(0.96);
 }
 
-.ameow-pinterest-action-btn svg {
+.ameow-pinterest-action-btn svg,
+.ameow-pinterest-action-btn img,
+.ameow-pinterest-action-btn .ameow-injected-cat-icon {
   width: 16px;
   height: 16px;
   display: block;
   pointer-events: none;
+}
+
+.ameow-pinterest-detail-group-btn .ameow-injected-cat-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .ameow-pinterest-detail-group-slot {
