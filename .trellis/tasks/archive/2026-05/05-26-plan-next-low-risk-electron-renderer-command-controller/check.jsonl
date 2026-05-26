@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check that the planning output respects Electron runtime boundaries."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Check command/preload/WebSocket/startup contracts are explicitly preserved."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check error text and envelope preservation is included in the plan."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check the plan avoids broad or unrelated refactors."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check the recommendation follows existing controller patterns."}
