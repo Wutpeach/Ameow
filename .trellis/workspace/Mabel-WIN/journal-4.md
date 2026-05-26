@@ -1549,3 +1549,34 @@ Extracted export_support_log renderer command dispatch into electron/supportLogC
 ### Next Steps
 
 - None - task complete
+
+
+## Session 184: Plan Electron renderer command registry
+
+**Date**: 2026-05-26
+**Task**: Plan Electron renderer command registry
+**Branch**: `main`
+
+### Summary
+
+Planned Phase 5.3 renderer command controller registry. Recommended a minimal ordered lazy getter registry for existing video download, site session, and support log controllers; preserved main.mts as composition root and recorded Claude review.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
