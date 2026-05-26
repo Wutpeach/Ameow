@@ -407,6 +407,47 @@ Commit:
 
 - `5badc8f refactor(electron): extract site session command controller`
 
+Planning status: Phase 5.2 planning completed in child task `05-26-plan-next-low-risk-electron-renderer-command-controller`.
+
+Recommended Phase 5.2 target:
+
+- Extract only the `export_support_log` renderer command dispatch branch from `electron/main.mts` into a small support-log command controller, tentatively `electron/supportLogCommands.mts`.
+
+Why this is the lowest-risk next cut:
+
+- It is the only remaining `handleCommand(...)` renderer command with a clear string return value, no BrowserWindow interaction, no module-level state mutation, and no WebSocket/download/config-save coupling.
+- Support-log formatting and file output already live in `electron/supportLogExport.mts` and are covered by `electron/supportLogExport.test.mts`.
+- `main.mts` can keep the existing `exportSupportLog()` adapter that assembles Electron-specific environment/runtime/config/log dependencies, while the new controller only dispatches the stable command to an injected callable.
+- It continues the Phase 5.1 `supports()` / `invoke()` pattern without touching wider command families.
+
+Commands:
+
+- `export_support_log`
+
+Planned files for implementation:
+
+- Add `electron/supportLogCommands.mts`
+- Add `electron/supportLogCommands.test.mts`
+- Modify `electron/main.mts` narrowly to delegate `export_support_log`
+
+Phase 5.2 implementation constraints:
+
+- Do not move or rewrite `electron/supportLogExport.mts`.
+- Do not change support-log output text, filename, path format, or environment fields.
+- Do not catch or rewrap support-log errors.
+- Do not touch app updater IPC, WebSocket routing, BrowserWindow/current-window commands, startup/lifecycle, download commands, config save/proxy/broadcast behavior, file/path/image/clipboard commands, UI Lab, or Xiaohongshu drag resolution.
+- Keep `main.mts` as the composition root by injecting `exportSupportLog(): Promise<string>` into the controller.
+
+Required Phase 5.2 tests:
+
+- New `electron/supportLogCommands.test.mts`.
+- Assert `supports("export_support_log")` is true and neighboring commands are false.
+- Assert `invoke("export_support_log")` calls the injected function exactly once and returns the resolved path string unchanged.
+- Assert payload is ignored.
+- Assert injected function rejection passes through by error object identity.
+- Assert direct unsupported command invocation throws `Unsupported Electron command: <command>`.
+- Run existing `electron/supportLogExport.test.mts` with the new controller test.
+
 ## Phase 6: Browser Extension Background Low-Risk Helper Split
 
 Goal:

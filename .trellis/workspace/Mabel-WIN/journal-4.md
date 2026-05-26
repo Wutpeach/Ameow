@@ -1485,3 +1485,34 @@ Extracted site-session renderer command dispatch into electron/siteSessionComman
 ### Next Steps
 
 - None - task complete
+
+
+## Session 182: Plan next Electron renderer command controller
+
+**Date**: 2026-05-26
+**Task**: Plan next Electron renderer command controller
+**Branch**: `main`
+
+### Summary
+
+Planned Phase 5.2 for architecture-boundary-refactor and recommended export_support_log as the next low-risk renderer command controller extraction.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
