@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Review against Electron backend boundary ownership."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Verify IPC path, command contracts, and composition-root behavior remain unchanged."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify error identity passthrough and exact unknown command behavior."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review for scope creep, over-abstraction, hidden global state, and unnecessary diffs."}
+{"file":".trellis/tasks/archive/2026-05/05-26-plan-electron-renderer-command-controller-registry/design.md","reason":"Check implementation against the Phase 5.3 planning decision and dispatch-order map."}

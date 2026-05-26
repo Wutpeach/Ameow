@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/index.md","reason":"Electron main-process renderer command routing belongs to the backend/Electron boundary."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Renderer command bridge contracts, IPC path, and composition-root constraints must be preserved."}
+{"file":".trellis/spec/backend/type-safety.md","reason":"Command names, payloads, and return values must remain type-compatible across renderer/preload/main."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Registry dispatch must preserve error identity passthrough and unknown command text."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Implementation should stay narrowly scoped and avoid hidden global state or broad abstractions."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Registry is a small reuse refactor and must avoid over-abstraction."}
+{"file":".trellis/tasks/archive/2026-05/05-26-plan-electron-renderer-command-controller-registry/design.md","reason":"Phase 5.3 planning decision, dispatch map, and Claude plan guidance."}
+{"file":".trellis/tasks/archive/2026-05/05-26-plan-electron-renderer-command-controller-registry/implement.md","reason":"Phase 5.3 implementation draft, guardrails, and validation plan."}
