@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Electron main-process runtime boundary and backend guidance."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "IPC/preload/window/extension transport contracts and ESM initialization-order rules."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve command rejection and error behavior."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend testing and quality expectations."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Avoid changing diagnostics/logging side effects."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Renderer/preload/main contract preservation."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/info.md", "reason": "Parent Phase 5 scope and constraints."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-plan-low-risk-electron-controller-extraction/info.md", "reason": "Approved Phase 5.1 plan and Claude planning guidance."}

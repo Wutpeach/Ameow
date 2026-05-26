@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check backend guideline compliance."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Check command/preload/window/extension contracts remain unchanged."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check command error behavior and no wrapping."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check tests and code quality."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check diagnostics/logging behavior remains untouched."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer command contract preservation."}
+{"file": ".trellis/tasks/05-26-extract-electron-site-session-command-controller/prd.md", "reason": "Task-specific scope and acceptance criteria."}
+{"file": ".trellis/tasks/05-26-extract-electron-site-session-command-controller/design.md", "reason": "Controller boundary and compatibility rules."}
