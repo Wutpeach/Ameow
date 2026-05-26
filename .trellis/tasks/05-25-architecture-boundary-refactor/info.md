@@ -379,6 +379,34 @@ Required Phase 5.1 tests:
 - Assert exact unsupported site and unsupported command error messages.
 - Assert rejected manager promises pass through without wrapping.
 
+Status: Phase 5.1 completed in child task `05-26-extract-electron-site-session-command-controller`.
+
+Files committed:
+
+- `electron/main.mts`
+- `electron/siteSessionCommands.mts`
+- `electron/siteSessionCommands.test.mts`
+
+Scope completed:
+
+- Extracted all 10 site-session renderer command dispatch branches into `electron/siteSessionCommands.mts`.
+- Preserved generic site-id resolution, including fallback to `"douyin"` when `payload.siteId` is absent.
+- Preserved legacy Douyin alias behavior by hard-coding `"douyin"` and ignoring alias payload site ids.
+- Kept `electron/main.mts` as the composition root for `siteSessionManagers`, manager creation, capture-window creation, BrowserWindow/session hardening, app startup/shutdown, and IPC registration.
+- Left WebSocket routing, BrowserWindow creation, startup/lifecycle, download commands, and config save/proxy/broadcast behavior untouched.
+
+Validation run before commit:
+
+- `npm test -- electron/siteSessionCommands.test.mts electron/siteSessionManager.test.mts`: passed, 2 files and 16 tests.
+- `npm run type-check`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed, 113 files and 719 tests.
+- `git diff --check`: passed with only Windows LF-to-CRLF working-copy warnings.
+
+Commit:
+
+- `5badc8f refactor(electron): extract site session command controller`
+
 ## Phase 6: Browser Extension Background Low-Risk Helper Split
 
 Goal:

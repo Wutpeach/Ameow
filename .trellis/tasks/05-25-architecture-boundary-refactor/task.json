@@ -24,7 +24,8 @@
     "05-25-add-typed-renderer-config-helper",
     "05-26-isolate-app-download-event-reducer",
     "05-26-complete-app-transcode-event-reducer-follow-up",
-    "05-26-plan-low-risk-electron-controller-extraction"
+    "05-26-plan-low-risk-electron-controller-extraction",
+    "05-26-extract-electron-site-session-command-controller"
   ],
   "parent": null,
   "relatedFiles": [],

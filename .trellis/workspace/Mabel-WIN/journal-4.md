@@ -1452,3 +1452,36 @@ Planned Phase 5.1 for architecture-boundary-refactor. Recommended extracting the
 ### Next Steps
 
 - None - task complete
+
+
+## Session 181: Extract Electron site-session command controller
+
+**Date**: 2026-05-26
+**Task**: Extract Electron site-session command controller
+**Branch**: `main`
+
+### Summary
+
+Extracted site-session renderer command dispatch into electron/siteSessionCommands.mts, added characterization tests, and kept Electron main as the composition root.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5badc8f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
