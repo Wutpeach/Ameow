@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Electron main-process runtime boundaries and controller extraction conventions."}
+{"file": ".trellis/spec/backend/electron-runtime-contracts.md", "reason": "Renderer command and Electron composition-root contracts that must remain stable."}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Command contract guidance for preserving renderer-facing names, payloads, and return shapes."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error propagation guidance for preserving rejected promise behavior."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality rules and scope-control checklist."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse the existing supports/invoke controller pattern instead of inventing a new abstraction."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-plan-next-low-risk-electron-renderer-command-controller/design.md", "reason": "Phase 5.2 planning recommendation and constraints for support-log command extraction."}
