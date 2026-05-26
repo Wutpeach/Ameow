@@ -86,7 +86,6 @@ import {
   shouldHandleDroppedFolderResult,
 } from "./utils/folderDrop";
 import {
-  advanceDownloadStage,
   EMPTY_VIDEO_QUEUE_DETAIL,
   EMPTY_VIDEO_QUEUE_STATE,
   EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL,
@@ -97,14 +96,27 @@ import {
   getVideoTranscodeFormatLabel,
   getVideoTranscodeTaskProgressPercent,
   mergeVideoTranscodeTask,
-  normalizeVideoQueueDetail,
-  normalizeVideoQueueState,
   normalizeVideoTranscodeQueueDetail,
-  normalizeVideoTranscodeQueueState,
   normalizeVideoTranscodeTask,
   removeVideoTranscodeTask,
   upsertVideoTranscodeTask,
 } from "./utils/downloadViewHelpers";
+import {
+  applyDownloadProgressEvent,
+  applyNormalizedTranscodeProgressToDetail,
+  applyNormalizedTranscodeProgressToMap,
+  applyVideoQueueStateEvent,
+  applyVideoTranscodeQueueStateEvent,
+  clearTranscodeProgressWhenInactive,
+  normalizeVideoQueueDetailEvent,
+  pruneCancellingTraceIdsToQueueDetail,
+  pruneDownloadProgressToQueueDetail,
+  removeDownloadProgressTrace,
+  removeTranscodeProgressTraceForComplete,
+  removeTranscodeTaskFromDetail,
+  resolveDownloadCompleteOutcome,
+  summarizeDownloadError,
+} from "./utils/downloadEventReducers";
 import { extractEmbeddedProtectedImageDragPayload } from "./utils/protectedImageDrag";
 import {
   DEFERRED_STARTUP_IDLE_CALLBACK_TIMEOUT_MS,
@@ -174,22 +186,6 @@ const checkSequenceOverflow = (error: unknown): boolean => {
     return true;
   }
   return false;
-};
-
-const isCancelledDownloadError = (error?: string | null): boolean => {
-  if (!error) return false;
-  const normalized = error.toLowerCase();
-  return normalized.includes("cancelled") || normalized.includes("canceled");
-};
-
-const summarizeDownloadError = (error?: string | null): string | null => {
-  if (!error) return null;
-  const summary = error
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-  if (!summary) return null;
-  return summary.length > 96 ? `${summary.slice(0, 93)}...` : summary;
 };
 
 const summarizeAppUpdateError = (error: unknown): string | null => {
@@ -1866,17 +1862,7 @@ function App({
       async (event) => {
         const payload = event.payload;
         await prepareMainWindowForForegroundTask();
-        setDownloadProgressByTrace((current) => {
-          const previous = current[payload.traceId];
-          const nextStage = advanceDownloadStage(previous?.stage ?? null, payload.stage, payload.percent);
-          return {
-            ...current,
-            [payload.traceId]: {
-              ...payload,
-              stage: nextStage,
-            },
-          };
-        });
+        setDownloadProgressByTrace((current) => applyDownloadProgressEvent(current, payload));
         setDownloadErrorMessage(null);
       }
     );
@@ -1885,26 +1871,19 @@ function App({
       (event) => {
         console.log(">>> [Frontend] video-download-complete received:", event);
         const payload = event.payload;
-        setDownloadProgressByTrace((current) => {
-          if (!current[payload.traceId]) {
-            return current;
-          }
-          const next = { ...current };
-          delete next[payload.traceId];
-          return next;
-        });
-        const cancelled = cancellingTraceIdsRef.current.has(payload.traceId)
-          || isCancelledDownloadError(payload?.error);
+        setDownloadProgressByTrace((current) => removeDownloadProgressTrace(current, payload.traceId));
+        const outcome = resolveDownloadCompleteOutcome(
+          payload,
+          cancellingTraceIdsRef.current.has(payload.traceId),
+        );
         removeCancellingTraceId(payload.traceId);
-        const success = Boolean(payload?.success) && !cancelled;
-        const errorSummary = summarizeDownloadError(payload?.error);
 
         showForegroundTaskOutcome({
-          cancelled: !success,
-          error: success ? null : errorSummary,
+          cancelled: !outcome.success,
+          error: outcome.success ? null : outcome.errorSummary,
           durationMs: 1500,
         });
-        if (!success) {
+        if (!outcome.success) {
           console.error(">>> [Frontend] Video download failed:", payload?.error ?? "Unknown error");
         }
       }
@@ -2094,9 +2073,9 @@ function App({
 
   useEffect(() => {
     const unlisten = desktopEvents.on<VideoQueueStatePayload>("video-queue-count", (event) => {
-      const normalized = normalizeVideoQueueState(event.payload);
-      setVideoQueueState(normalized);
-      if (normalized.totalCount === 0) {
+      const { state, shouldClearCancellingTraceIds } = applyVideoQueueStateEvent(event.payload);
+      setVideoQueueState(state);
+      if (shouldClearCancellingTraceIds) {
         clearCancellingTraceIds();
       }
     });
@@ -2105,23 +2084,19 @@ function App({
 
   useEffect(() => {
     const unlisten = desktopEvents.on<VideoQueueDetailPayload>("video-queue-detail", (event) => {
-      const normalized = normalizeVideoQueueDetail(event.payload);
-      setVideoQueueDetail(normalized);
-      const liveTraceIds = new Set(normalized.tasks.map((task) => task.traceId));
+      const detail = normalizeVideoQueueDetailEvent(event.payload);
+      setVideoQueueDetail(detail);
       // Detail reflects the task list the UI is actually rendering, so reconcile progress here
       // instead of clearing it on count events that may arrive slightly earlier.
-      setDownloadProgressByTrace((current) => {
-        const nextEntries = Object.entries(current).filter(([traceId]) => liveTraceIds.has(traceId));
-        if (nextEntries.length === Object.keys(current).length) {
-          return current;
-        }
-        return Object.fromEntries(nextEntries);
-      });
+      setDownloadProgressByTrace((current) =>
+        pruneDownloadProgressToQueueDetail(current, detail)
+      );
       setCancellingTraceIds((current) => {
-        const next = current.filter((traceId) => liveTraceIds.has(traceId));
+        const next = pruneCancellingTraceIdsToQueueDetail(current, detail);
         if (next.length === current.length) {
           return current;
         }
+        // Keep the synchronous ref aligned with the pruned state; completion events read this ref.
         cancellingTraceIdsRef.current = new Set(next);
         return next;
       });
@@ -2131,10 +2106,12 @@ function App({
 
   useEffect(() => {
     const unlistenCount = desktopEvents.on<VideoTranscodeQueueStatePayload>("video-transcode-queue-count", (event) => {
-      const normalized = normalizeVideoTranscodeQueueState(event.payload);
-      setVideoTranscodeQueueState(normalized);
-      if (normalized.activeCount === 0) {
-        setTranscodeProgressByTrace((current) => (Object.keys(current).length === 0 ? current : {}));
+      const { state } = applyVideoTranscodeQueueStateEvent(event.payload, {});
+      setVideoTranscodeQueueState(state);
+      if (state.activeCount === 0) {
+        setTranscodeProgressByTrace((current) =>
+          clearTranscodeProgressWhenInactive(state, current)
+        );
       }
     });
 
@@ -2150,19 +2127,12 @@ function App({
       }
 
       await prepareMainWindowForForegroundTask();
-      setTranscodeProgressByTrace((current) => ({
-        ...current,
-        [normalized.traceId]: {
-          ...normalized,
-          status: "active",
-        },
-      }));
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: upsertVideoTranscodeTask(current.tasks, {
-          ...normalized,
-          status: "active",
-        }),
-      }));
+      setTranscodeProgressByTrace((current) =>
+        applyNormalizedTranscodeProgressToMap(current, normalized)
+      );
+      setVideoTranscodeQueueDetail((current) =>
+        applyNormalizedTranscodeProgressToDetail(current, normalized)
+      );
       setDownloadErrorMessage(null);
     });
 
@@ -2239,17 +2209,12 @@ function App({
     const unlistenComplete = desktopEvents.on<VideoTranscodeCompletePayload>("video-transcode-complete", (event) => {
       const payload = event.payload;
       removePendingTranscodeActionTraceId(payload.traceId);
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: removeVideoTranscodeTask(current.tasks, payload.traceId),
-      }));
-      setTranscodeProgressByTrace((current) => {
-        if (!current[payload.traceId]) {
-          return current;
-        }
-        const next = { ...current };
-        delete next[payload.traceId];
-        return next;
-      });
+      setVideoTranscodeQueueDetail((current) =>
+        removeTranscodeTaskFromDetail(current, payload.traceId)
+      );
+      setTranscodeProgressByTrace((current) =>
+        removeTranscodeProgressTraceForComplete(current, payload.traceId)
+      );
       showForegroundTaskOutcome({
         cancelled: false,
         error: null,
