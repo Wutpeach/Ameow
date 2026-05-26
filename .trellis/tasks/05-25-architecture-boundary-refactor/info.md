@@ -448,6 +448,42 @@ Required Phase 5.2 tests:
 - Assert direct unsupported command invocation throws `Unsupported Electron command: <command>`.
 - Run existing `electron/supportLogExport.test.mts` with the new controller test.
 
+Status: Phase 5.2 completed in child task `05-26-extract-electron-support-log-command-controller`.
+
+Files committed:
+
+- `electron/main.mts`
+- `electron/supportLogCommands.mts`
+- `electron/supportLogCommands.test.mts`
+
+Scope completed:
+
+- Extracted `export_support_log` renderer command dispatch into `electron/supportLogCommands.mts`.
+- Added a one-command `supports()` / `invoke()` controller that receives only `exportSupportLog(): Promise<string>`.
+- Kept `main.mts` as the composition root for app/config/runtime/log dependency assembly.
+- Removed only the inline `export_support_log` switch case from `handleCommand(...)`.
+
+Compatibility preserved:
+
+- Command name remains `export_support_log`.
+- Payload remains ignored.
+- Return value remains the generated support-log path string.
+- Errors from `exportSupportLog()` pass through without catch/rewrap.
+- Support-log output text, filename, path format, and environment fields were not changed.
+- WebSocket, BrowserWindow, startup/lifecycle, download, config save/proxy/broadcast, file/path, app updater IPC, and renderer/preload contracts were not touched.
+
+Validation run before commit:
+
+- `npm test -- electron/supportLogCommands.test.mts electron/supportLogExport.test.mts`: passed, 2 files and 8 tests.
+- `npm run type-check`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed, 114 files and 724 tests.
+- `git diff --check`: passed with only Windows LF-to-CRLF working-copy warnings.
+
+Commit:
+
+- `93f0cd1 refactor(electron): extract support log command controller`
+
 ## Phase 6: Browser Extension Background Low-Risk Helper Split
 
 Goal:

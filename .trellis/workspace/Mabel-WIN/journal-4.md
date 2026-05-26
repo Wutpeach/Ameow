@@ -1516,3 +1516,36 @@ Planned Phase 5.2 for architecture-boundary-refactor and recommended export_supp
 ### Next Steps
 
 - None - task complete
+
+
+## Session 183: Extract Electron support-log command controller
+
+**Date**: 2026-05-26
+**Task**: Extract Electron support-log command controller
+**Branch**: `main`
+
+### Summary
+
+Extracted export_support_log renderer command dispatch into electron/supportLogCommands.mts with characterization tests while keeping main.mts as the composition root.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `93f0cd1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

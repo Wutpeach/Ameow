@@ -26,7 +26,8 @@
     "05-26-complete-app-transcode-event-reducer-follow-up",
     "05-26-plan-low-risk-electron-controller-extraction",
     "05-26-extract-electron-site-session-command-controller",
-    "05-26-plan-next-low-risk-electron-renderer-command-controller"
+    "05-26-plan-next-low-risk-electron-renderer-command-controller",
+    "05-26-extract-electron-support-log-command-controller"
   ],
   "parent": null,
   "relatedFiles": [],
