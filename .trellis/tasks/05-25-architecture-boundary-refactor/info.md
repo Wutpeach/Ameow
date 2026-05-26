@@ -332,6 +332,53 @@ Stop conditions:
 - The split changes initialization order.
 - Electron packaged startup risk increases.
 
+Planning status: Phase 5.1 planning completed in child task `05-26-plan-low-risk-electron-controller-extraction`.
+
+Recommended Phase 5.1 target:
+
+- Extract only the site-session renderer command dispatch family from `electron/main.mts` into a small controller, tentatively `electron/siteSessionCommands.mts`.
+
+Commands:
+
+- `get_site_session_state`
+- `start_site_session_capture`
+- `complete_site_session_capture`
+- `cancel_site_session_capture`
+- `clear_site_session`
+- legacy Douyin aliases:
+  - `get_douyin_session_state`
+  - `start_douyin_session_capture`
+  - `complete_douyin_session_capture`
+  - `cancel_douyin_session_capture`
+  - `clear_douyin_session`
+
+Why this is the lowest-risk first cut:
+
+- The dispatch shape is uniform: resolve site id, require manager, call one manager method.
+- Domain behavior already lives in `electron/siteSessionManager.mts` and is covered by tests.
+- Main remains the composition root and keeps the `siteSessionManagers` map, `createSiteSessionManager(...)` wiring, capture-window creation, and BrowserWindow/session hardening.
+- No IPC command names, renderer/preload contract, WebSocket action names, payloads, or startup flow need to change.
+- It follows the existing `supports()` / `invoke()` pattern used by `electron/videoDownloadCommands.mts`.
+
+Phase 5.1 implementation constraints:
+
+- Do not move BrowserWindow creation or capture-window setup.
+- Do not touch `handleWsMessage(...)`, `registerWsServer(...)`, `bootstrap()`, or `will-quit`.
+- Do not touch download command dispatch or config save/proxy behavior.
+- Do not duplicate `resolveSiteSessionIdFromPayload`; move/export/reuse a single implementation.
+- Do not catch or rewrap manager errors; promise rejection behavior must pass through unchanged.
+- Preserve exact unsupported site and unsupported command error text.
+
+Required Phase 5.1 tests:
+
+- New `electron/siteSessionCommands.test.mts`.
+- Assert `supports()` truth table for all site-session commands and neighboring non-site-session commands.
+- Assert each generic command maps to the expected manager method.
+- Assert each legacy Douyin alias maps to `"douyin"` and ignores `payload.siteId`.
+- Assert missing generic `siteId` falls back to `"douyin"`.
+- Assert exact unsupported site and unsupported command error messages.
+- Assert rejected manager promises pass through without wrapping.
+
 ## Phase 6: Browser Extension Background Low-Risk Helper Split
 
 Goal:

@@ -1421,3 +1421,34 @@ Completed Phase 4.5 by extracting remaining pure transcode queued/retried/remove
 ### Next Steps
 
 - None - task complete
+
+
+## Session 180: Plan low-risk Electron controller extraction
+
+**Date**: 2026-05-26
+**Task**: Plan low-risk Electron controller extraction
+**Branch**: `main`
+
+### Summary
+
+Planned Phase 5.1 for architecture-boundary-refactor. Recommended extracting the site-session renderer command dispatch family into a small Electron command controller while keeping main.mts as composition root and preserving IPC names, legacy Douyin aliases, errors, startup, WebSocket, and BrowserWindow creation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
