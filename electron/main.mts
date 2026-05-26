@@ -109,6 +109,7 @@ import {
   createSiteSessionCommandController,
   resolveSiteSessionIdFromPayload,
 } from "./siteSessionCommands.mjs";
+import { createSupportLogCommandController } from "./supportLogCommands.mjs";
 import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaResult.mjs";
 import {
   currentManagedRuntimeTarget,
@@ -194,6 +195,7 @@ let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
 let siteSessionCommandController = null;
+let supportLogCommandController = null;
 const siteSessionManagers = new Map();
 const siteSessionSupplementalCookies = new Map();
 let nextOpaqueSequence = 1;
@@ -1433,6 +1435,17 @@ function getSiteSessionCommandController() {
   return siteSessionCommandController;
 }
 
+function getSupportLogCommandController() {
+  if (supportLogCommandController) {
+    return supportLogCommandController;
+  }
+
+  supportLogCommandController = createSupportLogCommandController({
+    exportSupportLog,
+  });
+  return supportLogCommandController;
+}
+
 function readyRuntimeEntry(entryPath, source) {
   return {
     state: "ready",
@@ -2641,6 +2654,11 @@ async function handleCommand(command, payload = {}) {
     return siteSessionCommands.invoke(command, payload);
   }
 
+  const supportLogCommands = getSupportLogCommandController();
+  if (supportLogCommands.supports(command)) {
+    return supportLogCommands.invoke(command, payload);
+  }
+
   switch (command) {
     case "get_config":
       return readConfigString();
@@ -2731,8 +2749,6 @@ async function handleCommand(command, payload = {}) {
       );
     case "get_clipboard_files":
       return getClipboardFilePaths();
-    case "export_support_log":
-      return exportSupportLog();
     case "resolve_xiaohongshu_drag_media": {
       const pageUrl = typeof payload.pageUrl === "string"
         ? payload.pageUrl
