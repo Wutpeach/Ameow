@@ -105,6 +105,7 @@ import {
   buildVideoSelectedV2QueuePayload,
   createVideoDownloadCommandBridge,
 } from "./videoDownloadCommands.mjs";
+import { dispatchRendererCommandToControllers } from "./rendererCommandControllerRegistry.mjs";
 import {
   createSiteSessionCommandController,
   resolveSiteSessionIdFromPayload,
@@ -1446,6 +1447,13 @@ function getSupportLogCommandController() {
   return supportLogCommandController;
 }
 
+// Order matters: first supporting controller wins.
+const rendererCommandControllerGetters = [
+  getVideoDownloadCommandBridge,
+  getSiteSessionCommandController,
+  getSupportLogCommandController,
+];
+
 function readyRuntimeEntry(entryPath, source) {
   return {
     state: "ready",
@@ -2644,19 +2652,13 @@ async function handleWsMessage(rawMessage) {
 }
 
 async function handleCommand(command, payload = {}) {
-  const videoDownloadCommands = getVideoDownloadCommandBridge();
-  if (videoDownloadCommands.supports(command)) {
-    return videoDownloadCommands.invoke(command, payload);
-  }
-
-  const siteSessionCommands = getSiteSessionCommandController();
-  if (siteSessionCommands.supports(command)) {
-    return siteSessionCommands.invoke(command, payload);
-  }
-
-  const supportLogCommands = getSupportLogCommandController();
-  if (supportLogCommands.supports(command)) {
-    return supportLogCommands.invoke(command, payload);
+  const controllerResult = await dispatchRendererCommandToControllers(
+    rendererCommandControllerGetters,
+    command,
+    payload,
+  );
+  if (controllerResult.handled) {
+    return controllerResult.value;
   }
 
   switch (command) {
