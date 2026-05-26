@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 178
+- **Total Sessions**: 179
 - **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1390 | Active |
+| `journal-4.md` | ~1423 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 179 | 2026-05-26 | Complete App transcode event reducer follow-up | `a8af286` | `main` |
 | 178 | 2026-05-26 | Isolate App download event reducer | `1ecaa6c` | `main` |
 | 177 | 2026-05-25 | Add typed renderer config helper | `8433fc7`, `799dfe9` | `main` |
 | 176 | 2026-05-25 | Consolidate desktop video candidate normalization | `b650868` | `main` |

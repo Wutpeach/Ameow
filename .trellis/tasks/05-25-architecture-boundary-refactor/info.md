@@ -275,6 +275,37 @@ Commit:
 
 - `1ecaa6c refactor(ui): isolate download event reducer`
 
+## Phase 4.5: App Transcode Event Reducer Follow-up
+
+Status: completed in child task `05-26-complete-app-transcode-event-reducer-follow-up`.
+
+Files changed:
+
+- `src/App.tsx`
+- `src/utils/downloadEventReducers.ts`
+- `src/utils/downloadEventReducers.test.ts`
+
+Scope completed:
+
+- Extracted remaining pure transcode queued/retried/removed/failed detail and progress update logic from `src/App.tsx`.
+- Reused setter-local reducer helpers so separate React state ownership remains unchanged.
+- Kept pending transcode action cleanup, foreground outcomes, queue notices, i18n fallback, event subscriptions, timers, refs, logging, and Electron bridge calls in `src/App.tsx`.
+
+Compatibility preserved:
+
+- Event names and payloads were not changed.
+- UI copy and visible failed outcome semantics were not changed.
+- `electron/main.mts`, `browser-extension/background.js`, and `src/pages/SettingsPage.tsx` were not touched.
+- Phase 5 was not started.
+
+Validation run before commit:
+
+- `npm test -- src/utils/downloadEventReducers.test.ts`: passed, 19 tests.
+- `npm run type-check`: passed.
+- `npm run lint`: passed.
+- `npm test`: passed, 112 files and 709 tests.
+- `git diff --check`: passed with only Windows LF-to-CRLF working-copy warnings.
+
 ## Phase 5: Low-Risk Electron Main Controller Split
 
 Goal:

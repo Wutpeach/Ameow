@@ -1388,3 +1388,36 @@ Completed architecture boundary Phase 4 by extracting pure download/transcode ev
 ### Next Steps
 
 - None - task complete
+
+
+## Session 179: Complete App transcode event reducer follow-up
+
+**Date**: 2026-05-26
+**Task**: Complete App transcode event reducer follow-up
+**Branch**: `main`
+
+### Summary
+
+Completed Phase 4.5 by extracting remaining pure transcode queued/retried/removed/failed detail and progress updates into download event reducer helpers while preserving App-owned side effects. Validation passed: focused reducer tests, type-check, lint, full test suite, and diff check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a8af286` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
