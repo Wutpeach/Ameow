@@ -105,6 +105,10 @@ import {
   buildVideoSelectedV2QueuePayload,
   createVideoDownloadCommandBridge,
 } from "./videoDownloadCommands.mjs";
+import {
+  createSiteSessionCommandController,
+  resolveSiteSessionIdFromPayload,
+} from "./siteSessionCommands.mjs";
 import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaResult.mjs";
 import {
   currentManagedRuntimeTarget,
@@ -189,6 +193,7 @@ let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
+let siteSessionCommandController = null;
 const siteSessionManagers = new Map();
 const siteSessionSupplementalCookies = new Map();
 let nextOpaqueSequence = 1;
@@ -1374,14 +1379,6 @@ function isHttpNavigationUrl(url) {
   }
 }
 
-function resolveSiteSessionIdFromPayload(payload, fallback = "douyin") {
-  const siteId = typeof payload?.siteId === "string" ? payload.siteId : fallback;
-  if (!isSupportedSiteSessionId(siteId)) {
-    throw new Error(`Unsupported site session: ${siteId}`);
-  }
-  return siteId;
-}
-
 function getExtensionRequestBridge() {
   if (extensionRequestBridge) {
     return extensionRequestBridge;
@@ -1422,6 +1419,18 @@ function getVideoDownloadCommandBridge() {
     logInjectedDebug: logInjectedVideoSelectionDebug,
   });
   return videoDownloadCommandBridge;
+}
+
+function getSiteSessionCommandController() {
+  if (siteSessionCommandController) {
+    return siteSessionCommandController;
+  }
+
+  siteSessionCommandController = createSiteSessionCommandController({
+    requireSiteSessionManager,
+    resolveSiteSessionIdFromPayload,
+  });
+  return siteSessionCommandController;
 }
 
 function readyRuntimeEntry(entryPath, source) {
@@ -2627,29 +2636,14 @@ async function handleCommand(command, payload = {}) {
     return videoDownloadCommands.invoke(command, payload);
   }
 
+  const siteSessionCommands = getSiteSessionCommandController();
+  if (siteSessionCommands.supports(command)) {
+    return siteSessionCommands.invoke(command, payload);
+  }
+
   switch (command) {
     case "get_config":
       return readConfigString();
-    case "get_site_session_state":
-      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).getState();
-    case "start_site_session_capture":
-      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).startCapture();
-    case "complete_site_session_capture":
-      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).confirmCapture();
-    case "cancel_site_session_capture":
-      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).cancelCapture();
-    case "clear_site_session":
-      return requireSiteSessionManager(resolveSiteSessionIdFromPayload(payload)).clearSession();
-    case "get_douyin_session_state":
-      return requireSiteSessionManager("douyin").getState();
-    case "start_douyin_session_capture":
-      return requireSiteSessionManager("douyin").startCapture();
-    case "complete_douyin_session_capture":
-      return requireSiteSessionManager("douyin").confirmCapture();
-    case "cancel_douyin_session_capture":
-      return requireSiteSessionManager("douyin").cancelCapture();
-    case "clear_douyin_session":
-      return requireSiteSessionManager("douyin").clearSession();
     case "save_config": {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
