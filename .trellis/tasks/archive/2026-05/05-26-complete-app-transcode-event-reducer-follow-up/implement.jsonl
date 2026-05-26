@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend renderer guidelines for App.tsx reducer helper extraction."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "React state/ref ownership and event side-effect boundaries."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed desktop event payload and renderer helper contracts."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend tests and code quality expectations."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing Phase 4 reducer module instead of new abstractions."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Preserve renderer/Electron event contract and payload boundary."}
+{"file": ".trellis/tasks/05-25-architecture-boundary-refactor/info.md", "reason": "Parent phase map, stop conditions, and compatibility rules."}
+{"file": ".trellis/tasks/archive/2026-05/05-26-isolate-app-download-event-reducer/info.md", "reason": "Phase 4 implementation notes and follow-up boundary."}

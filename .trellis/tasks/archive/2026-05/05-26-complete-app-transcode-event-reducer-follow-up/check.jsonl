@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check frontend guideline compliance."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Check React state/ref ownership and side effects remain in App.tsx."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check typed event payload handling."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Check tests and code quality."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check the extraction stays focused and reuses existing reducer patterns."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check event contract and payload boundary preservation."}
+{"file": ".trellis/tasks/05-26-complete-app-transcode-event-reducer-follow-up/prd.md", "reason": "Task-specific scope, non-goals, and acceptance criteria."}
+{"file": ".trellis/tasks/05-26-complete-app-transcode-event-reducer-follow-up/info.md", "reason": "Task-specific implementation boundary and validation plan."}
