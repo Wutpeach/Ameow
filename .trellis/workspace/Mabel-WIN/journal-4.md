@@ -1646,3 +1646,36 @@ Closed out the architecture-boundary-refactor batch: summarized Phases 0-5.3, up
 ### Next Steps
 
 - None - task complete
+
+
+## Session 187: Archive architecture boundary refactor milestone
+
+**Date**: 2026-05-26
+**Task**: Archive architecture boundary refactor milestone
+**Branch**: `main`
+
+### Summary
+
+Archived the parent architecture-boundary-refactor task after completing the Phase 0-5.3 milestone and closeout. Phase 6 browser-extension helper extraction will be handled as a separate future task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fdd4355` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
