@@ -1355,3 +1355,36 @@ Added renderer-side config patch helper, replaced two SettingsPage config toggle
 ### Next Steps
 
 - None - task complete
+
+
+## Session 178: Isolate App download event reducer
+
+**Date**: 2026-05-26
+**Task**: Isolate App download event reducer
+**Branch**: `main`
+
+### Summary
+
+Completed architecture boundary Phase 4 by extracting pure download/transcode event folding helpers from App.tsx, adding reducer tests, preserving event subscriptions and UI behavior, validating checks, and archiving the child task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1ecaa6c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
