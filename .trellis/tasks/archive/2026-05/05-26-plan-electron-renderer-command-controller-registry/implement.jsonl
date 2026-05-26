@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/index.md","reason":"Electron main-process command routing belongs to the backend/Electron runtime boundary."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Renderer command bridge contracts, Electron composition root constraints, and IPC/event compatibility rules."}
+{"file":".trellis/spec/backend/type-safety.md","reason":"Command names, payloads, and return contracts must remain type-compatible across renderer/preload/main."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Registry implementation must preserve error identity passthrough and unknown command error text."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Controller registry implementation should stay small, explicit, and avoid hidden global state."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Registry decision is motivated by repeated supports/invoke dispatch patterns and must avoid premature abstraction."}

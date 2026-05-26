@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/index.md","reason":"Check the implementation against Electron backend boundary ownership."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Verify renderer command names, payloads, returns, IPC path, and Electron composition root behavior remain unchanged."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify error identity passthrough and exact unsupported-command behavior are preserved."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review for over-abstraction, hidden global state, and unneeded business-code movement."}
