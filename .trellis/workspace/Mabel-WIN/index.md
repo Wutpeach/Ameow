@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 185
+- **Total Sessions**: 186
 - **Last Active**: 2026-05-26
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1615 | Active |
+| `journal-4.md` | ~1648 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 186 | 2026-05-26 | Architecture boundary refactor closeout | `fdd4355` | `main` |
 | 185 | 2026-05-26 | Implement Electron renderer command registry | `2849442` | `main` |
 | 184 | 2026-05-26 | Plan Electron renderer command registry | - | `main` |
 | 183 | 2026-05-26 | Extract Electron support-log command controller | `93f0cd1` | `main` |

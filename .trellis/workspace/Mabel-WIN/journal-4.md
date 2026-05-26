@@ -1613,3 +1613,36 @@ Implemented Phase 5.3 renderer command controller registry for existing video do
 ### Next Steps
 
 - None - task complete
+
+
+## Session 186: Architecture boundary refactor closeout
+
+**Date**: 2026-05-26
+**Task**: Architecture boundary refactor closeout
+**Branch**: `main`
+
+### Summary
+
+Closed out the architecture-boundary-refactor batch: summarized Phases 0-5.3, updated Trellis spec for App pure-logic boundaries, renderer config helper contract, runtime/core direction, and renderer command controller registry order, then archived the closeout task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fdd4355` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
