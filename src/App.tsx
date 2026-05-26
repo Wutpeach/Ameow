@@ -98,8 +98,6 @@ import {
   mergeVideoTranscodeTask,
   normalizeVideoTranscodeQueueDetail,
   normalizeVideoTranscodeTask,
-  removeVideoTranscodeTask,
-  upsertVideoTranscodeTask,
 } from "./utils/downloadViewHelpers";
 import {
   applyDownloadProgressEvent,
@@ -112,10 +110,11 @@ import {
   pruneCancellingTraceIdsToQueueDetail,
   pruneDownloadProgressToQueueDetail,
   removeDownloadProgressTrace,
-  removeTranscodeProgressTraceForComplete,
+  removeTranscodeProgressTrace,
   removeTranscodeTaskFromDetail,
   resolveDownloadCompleteOutcome,
   summarizeDownloadError,
+  upsertTranscodeTaskToDetail,
 } from "./utils/downloadEventReducers";
 import { extractEmbeddedProtectedImageDragPayload } from "./utils/protectedImageDrag";
 import {
@@ -2141,9 +2140,9 @@ function App({
       if (!normalized) {
         return;
       }
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: upsertVideoTranscodeTask(current.tasks, normalized),
-      }));
+      setVideoTranscodeQueueDetail((current) =>
+        upsertTranscodeTaskToDetail(current, normalized)
+      );
     });
 
     const unlistenRetried = desktopEvents.on<VideoTranscodeTaskPayload>("video-transcode-retried", (event) => {
@@ -2152,14 +2151,12 @@ function App({
         return;
       }
       removePendingTranscodeActionTraceId(normalized.traceId);
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: upsertVideoTranscodeTask(current.tasks, normalized),
-      }));
-      setTranscodeProgressByTrace((current) => {
-        const next = { ...current };
-        delete next[normalized.traceId];
-        return next;
-      });
+      setVideoTranscodeQueueDetail((current) =>
+        upsertTranscodeTaskToDetail(current, normalized)
+      );
+      setTranscodeProgressByTrace((current) =>
+        removeTranscodeProgressTrace(current, normalized.traceId)
+      );
     });
 
     const unlistenRemoved = desktopEvents.on<VideoTranscodeTaskPayload>("video-transcode-removed", (event) => {
@@ -2168,17 +2165,12 @@ function App({
         return;
       }
       removePendingTranscodeActionTraceId(normalized.traceId);
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: removeVideoTranscodeTask(current.tasks, normalized.traceId),
-      }));
-      setTranscodeProgressByTrace((current) => {
-        if (!current[normalized.traceId]) {
-          return current;
-        }
-        const next = { ...current };
-        delete next[normalized.traceId];
-        return next;
-      });
+      setVideoTranscodeQueueDetail((current) =>
+        removeTranscodeTaskFromDetail(current, normalized.traceId)
+      );
+      setTranscodeProgressByTrace((current) =>
+        removeTranscodeProgressTrace(current, normalized.traceId)
+      );
     });
 
     const unlistenFailed = desktopEvents.on<VideoTranscodeTaskPayload>("video-transcode-failed", (event) => {
@@ -2187,17 +2179,12 @@ function App({
         return;
       }
       removePendingTranscodeActionTraceId(normalized.traceId);
-      setVideoTranscodeQueueDetail((current) => ({
-        tasks: upsertVideoTranscodeTask(current.tasks, normalized),
-      }));
-      setTranscodeProgressByTrace((current) => {
-        if (!current[normalized.traceId]) {
-          return current;
-        }
-        const next = { ...current };
-        delete next[normalized.traceId];
-        return next;
-      });
+      setVideoTranscodeQueueDetail((current) =>
+        upsertTranscodeTaskToDetail(current, normalized)
+      );
+      setTranscodeProgressByTrace((current) =>
+        removeTranscodeProgressTrace(current, normalized.traceId)
+      );
       showForegroundTaskOutcome({
         cancelled: true,
         error: normalized.error ?? getTranscodeStageLabel(i18n.t, "failed"),
@@ -2213,7 +2200,7 @@ function App({
         removeTranscodeTaskFromDetail(current, payload.traceId)
       );
       setTranscodeProgressByTrace((current) =>
-        removeTranscodeProgressTraceForComplete(current, payload.traceId)
+        removeTranscodeProgressTrace(current, payload.traceId)
       );
       showForegroundTaskOutcome({
         cancelled: false,

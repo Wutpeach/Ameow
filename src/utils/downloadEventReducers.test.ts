@@ -19,7 +19,11 @@ import {
   pruneCancellingTraceIdsToQueueDetail,
   pruneDownloadProgressToQueueDetail,
   removeDownloadProgressTrace,
+  removeTranscodeProgressTrace,
+  removeTranscodeTaskFromDetail,
   resolveDownloadCompleteOutcome,
+  summarizeTranscodeFailureError,
+  upsertTranscodeTaskToDetail,
 } from "./downloadEventReducers";
 
 const progress = (
@@ -263,11 +267,133 @@ describe("transcode event reducers", () => {
     });
   });
 
+  it("upserts queued transcode detail without changing unrelated tasks", () => {
+    expect(upsertTranscodeTaskToDetail(
+      {
+        tasks: [
+          transcodeTask({ traceId: "other", status: "active" }),
+        ],
+      },
+      transcodeTask({ status: "pending", progressPercent: null }),
+    )).toEqual({
+      tasks: [
+        transcodeTask({ traceId: "other", status: "active" }),
+        transcodeTask({ status: "pending", progressPercent: null }),
+      ],
+    });
+  });
+
+  it("updates retried transcode detail and removes stale progress", () => {
+    const currentProgress = {
+      "trace-1": transcodeTask({ status: "failed", stage: "failed", error: "previous failure" }),
+      other: transcodeTask({ traceId: "other" }),
+    };
+
+    expect(upsertTranscodeTaskToDetail(
+      {
+        tasks: [
+          transcodeTask({ status: "failed", stage: "failed", error: "previous failure" }),
+          transcodeTask({ traceId: "other" }),
+        ],
+      },
+      transcodeTask({ status: "pending", stage: null, progressPercent: null, error: null }),
+    )).toEqual({
+      tasks: [
+        transcodeTask({ traceId: "other" }),
+        transcodeTask({ status: "pending", stage: null, progressPercent: null, error: null }),
+      ],
+    });
+    expect(removeTranscodeProgressTrace(currentProgress, "trace-1")).toEqual({
+      other: transcodeTask({ traceId: "other" }),
+    });
+  });
+
+  it("cleans transcode detail and progress when a task is removed", () => {
+    expect(removeTranscodeTaskFromDetail(
+      {
+        tasks: [
+          transcodeTask(),
+          transcodeTask({ traceId: "other" }),
+        ],
+      },
+      "trace-1",
+    )).toEqual({
+      tasks: [
+        transcodeTask({ traceId: "other" }),
+      ],
+    });
+    expect(removeTranscodeProgressTrace(
+      {
+        "trace-1": transcodeTask(),
+        other: transcodeTask({ traceId: "other" }),
+      },
+      "trace-1",
+    )).toEqual({
+      other: transcodeTask({ traceId: "other" }),
+    });
+  });
+
+  it("returns a new transcode progress map when a trace is removed", () => {
+    const progressByTrace = {
+      "trace-1": transcodeTask(),
+      other: transcodeTask({ traceId: "other" }),
+    };
+    const result = removeTranscodeProgressTrace(progressByTrace, "trace-1");
+
+    expect(result).not.toBe(progressByTrace);
+    expect(result).toEqual({
+      other: transcodeTask({ traceId: "other" }),
+    });
+  });
+
+  it("summarizes failed transcode detail and clears active progress", () => {
+    const failed = transcodeTask({
+      status: "failed",
+      stage: "failed",
+      progressPercent: null,
+      error: "\n  first failure line  \nsecond line",
+    });
+
+    expect(upsertTranscodeTaskToDetail(
+      {
+        tasks: [
+          transcodeTask({ status: "active" }),
+        ],
+      },
+      failed,
+    )).toEqual({
+      tasks: [
+        failed,
+      ],
+    });
+    expect(removeTranscodeProgressTrace(
+      {
+        "trace-1": transcodeTask({ status: "active" }),
+      },
+      "trace-1",
+    )).toEqual({});
+    expect(summarizeTranscodeFailureError(failed.error)).toBe("first failure line");
+  });
+
   it("ignores invalid transcode progress payloads", () => {
     expect(applyTranscodeProgressEvent({}, { tasks: [] }, {
       traceId: "missing-label",
       label: null as unknown as string,
     })).toBeNull();
+  });
+
+  it("preserves references for unchanged transcode detail and progress paths", () => {
+    const progressByTrace = {
+      "trace-1": transcodeTask(),
+    };
+    const detail = {
+      tasks: [
+        transcodeTask(),
+      ],
+    };
+
+    expect(removeTranscodeProgressTrace(progressByTrace, "missing")).toBe(progressByTrace);
+    expect(removeTranscodeTaskFromDetail(detail, "missing")).toEqual(detail);
   });
 
   it("applies transcode complete by removing progress and detail task", () => {

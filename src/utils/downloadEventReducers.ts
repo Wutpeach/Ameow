@@ -250,6 +250,13 @@ export const applyNormalizedTranscodeProgressToDetail = (
   tasks: upsertVideoTranscodeTask(currentDetail.tasks, toActiveTranscodeTask(normalized)),
 });
 
+export const upsertTranscodeTaskToDetail = (
+  currentDetail: VideoTranscodeQueueDetailPayload,
+  normalized: VideoTranscodeTaskPayload,
+): VideoTranscodeQueueDetailPayload => ({
+  tasks: upsertVideoTranscodeTask(currentDetail.tasks, normalized),
+});
+
 export const applyTranscodeCompleteEvent = (
   currentProgress: TranscodeProgressByTrace,
   currentDetail: VideoTranscodeQueueDetailPayload,
@@ -264,7 +271,7 @@ export const applyTranscodeCompleteEvent = (
   },
 });
 
-const removeTranscodeProgressTrace = (
+export const removeTranscodeProgressTrace = (
   current: TranscodeProgressByTrace,
   traceId: string,
 ): TranscodeProgressByTrace => {
@@ -277,7 +284,7 @@ const removeTranscodeProgressTrace = (
   return next;
 };
 
-export const removeTranscodeProgressTraceForComplete = removeTranscodeProgressTrace;
+export const summarizeTranscodeFailureError = summarizeDownloadError;
 
 export const removeTranscodeTaskFromDetail = (
   currentDetail: VideoTranscodeQueueDetailPayload,
