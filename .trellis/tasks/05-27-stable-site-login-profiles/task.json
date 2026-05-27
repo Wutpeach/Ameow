@@ -1,0 +1,28 @@
+{
+  "id": "stable-site-login-profiles",
+  "name": "stable-site-login-profiles",
+  "title": "Stable site login profiles",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-05-27",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-27-mvp-stable-site-login-profiles"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

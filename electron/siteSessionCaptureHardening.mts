@@ -2,6 +2,32 @@ export type SupplementalCookieRecord = Record<string, string>;
 
 type RequestHeaderMap = Record<string, string | string[] | undefined>;
 
+export type SiteSessionCapturePartitionSetupState = {
+  configuredPartitions: Set<string>;
+  supplementalCookiesByPartition: Map<string, SupplementalCookieRecord>;
+};
+
+export const prepareSiteSessionCapturePartition = (
+  state: SiteSessionCapturePartitionSetupState,
+  partition: string,
+): { supplementalCookies: SupplementalCookieRecord; shouldConfigureSession: boolean } => {
+  const supplementalCookies: SupplementalCookieRecord = {};
+  state.supplementalCookiesByPartition.set(partition, supplementalCookies);
+
+  if (state.configuredPartitions.has(partition)) {
+    return {
+      supplementalCookies,
+      shouldConfigureSession: false,
+    };
+  }
+
+  state.configuredPartitions.add(partition);
+  return {
+    supplementalCookies,
+    shouldConfigureSession: true,
+  };
+};
+
 export const shouldAllowSiteSessionCapturePermission = (): boolean => false;
 
 export const resolveSiteSessionCaptureUserAgent = (rawUserAgent: unknown): string => {
@@ -103,4 +129,3 @@ export const collectSupplementalCookiesFromRequest = (
     options.supplementalCookies.msToken = msToken;
   }
 };
-

@@ -51,6 +51,7 @@ import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
 import {
   collectSupplementalCookiesFromRequest,
+  prepareSiteSessionCapturePartition,
   resolveSiteSessionCaptureAcceptLanguages,
   resolveSiteSessionCaptureUserAgent,
   shouldAllowSiteSessionCapturePermission,
@@ -199,6 +200,7 @@ let siteSessionCommandController = null;
 let supportLogCommandController = null;
 const siteSessionManagers = new Map();
 const siteSessionSupplementalCookies = new Map();
+const configuredSiteSessionCapturePartitions = new Set();
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -1307,6 +1309,7 @@ function getSiteSessionManager(siteId) {
     },
     async destroyPartition(partition) {
       siteSessionSupplementalCookies.delete(partition);
+      configuredSiteSessionCapturePartitions.delete(partition);
       await session.fromPartition(partition).clearStorageData();
     },
     log(message, details) {
@@ -1321,8 +1324,15 @@ function configureSiteSessionCaptureSession({ site, partition }) {
   const captureSession = session.fromPartition(partition);
   const userAgent = resolveSiteSessionCaptureUserAgent(app.userAgentFallback);
   const acceptLanguages = resolveSiteSessionCaptureAcceptLanguages(app.getLocale());
-  const supplementalCookies = {};
-  siteSessionSupplementalCookies.set(partition, supplementalCookies);
+  const partitionSetup = prepareSiteSessionCapturePartition({
+    configuredPartitions: configuredSiteSessionCapturePartitions,
+    supplementalCookiesByPartition: siteSessionSupplementalCookies,
+  }, partition);
+
+  if (!partitionSetup.shouldConfigureSession) {
+    captureSession.setUserAgent(userAgent, acceptLanguages);
+    return;
+  }
 
   captureSession.setUserAgent(userAgent, acceptLanguages);
   captureSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
@@ -1348,6 +1358,8 @@ function configureSiteSessionCaptureSession({ site, partition }) {
     { urls: site.cookieDomains.flatMap((domain) => [`*://*.${domain}/*`, `*://${domain}/*`]) },
     (details, callback) => {
       try {
+        const supplementalCookies = siteSessionSupplementalCookies.get(partition) ?? {};
+        siteSessionSupplementalCookies.set(partition, supplementalCookies);
         collectSupplementalCookiesFromRequest({
           url: details.url,
           requestHeaders: details.requestHeaders,

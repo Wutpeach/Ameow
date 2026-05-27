@@ -4,6 +4,7 @@ import {
   collectSupplementalCookiesFromRequest,
   isUrlForSiteCookieDomains,
   parseCookieHeader,
+  prepareSiteSessionCapturePartition,
   resolveSiteSessionCaptureAcceptLanguages,
   resolveSiteSessionCaptureUserAgent,
   shouldAllowSiteSessionCapturePermission,
@@ -94,5 +95,28 @@ describe("site session capture hardening", () => {
       csrftoken: "csrf",
     });
   });
-});
 
+  it("configures capture session state once per partition while resetting supplemental cookies", () => {
+    const configuredPartitions = new Set<string>();
+    const supplementalCookiesByPartition = new Map<string, Record<string, string>>();
+    const state = {
+      configuredPartitions,
+      supplementalCookiesByPartition,
+    };
+
+    const first = prepareSiteSessionCapturePartition(state, "persist:ameow-site-session-instagram");
+    first.supplementalCookies.sessionid = "old-session";
+    const second = prepareSiteSessionCapturePartition(state, "persist:ameow-site-session-instagram");
+    const third = prepareSiteSessionCapturePartition(state, "persist:ameow-site-session-youtube");
+
+    expect(first.shouldConfigureSession).toBe(true);
+    expect(second.shouldConfigureSession).toBe(false);
+    expect(third.shouldConfigureSession).toBe(true);
+    expect(configuredPartitions).toEqual(new Set([
+      "persist:ameow-site-session-instagram",
+      "persist:ameow-site-session-youtube",
+    ]));
+    expect(supplementalCookiesByPartition.get("persist:ameow-site-session-instagram")).toEqual({});
+    expect(second.supplementalCookies).toBe(supplementalCookiesByPartition.get("persist:ameow-site-session-instagram"));
+  });
+});

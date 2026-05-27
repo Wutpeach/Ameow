@@ -181,6 +181,10 @@ const getSessionFilePath = (userDataDir: string, siteId: string): string => (
   join(userDataDir, "site-sessions", `${siteId}.json`)
 );
 
+export const resolveSiteSessionProfilePartition = (siteId: string): string => (
+  `persist:ameow-site-session-${siteId}`
+);
+
 const summarizeError = (error: unknown): string => (
   error instanceof Error && error.message ? error.message : String(error ?? "unknown error")
 );
@@ -223,6 +227,7 @@ export const createSiteSessionManager = (
   const now = options.now ?? defaultNow;
   const userDataDir = options.getUserDataDir();
   const sessionFilePath = getSessionFilePath(userDataDir, options.site.id);
+  const stableProfilePartition = resolveSiteSessionProfilePartition(options.site.id);
   const requiredCookieKeys = options.site.requiredCookieKeys ?? [];
   const loginCookieKeys = options.site.loginCookieKeys ?? [];
   let sessionCache: StoredSiteSession | null | undefined;
@@ -338,7 +343,7 @@ export const createSiteSessionManager = (
       lastError = null;
       capturePhase = "preparing";
       captureStartedAtMs = now();
-      const partition = `persist:ameow-site-session-${options.site.id}-${now()}`;
+      const partition = stableProfilePartition;
       capturePartition = partition;
 
       try {
@@ -351,7 +356,6 @@ export const createSiteSessionManager = (
             capturePhase = "idle";
             captureStartedAtMs = null;
             lastError = null;
-            void options.destroyPartition?.(partition).catch(() => undefined);
           },
         });
         capturePhase = "awaiting_confirmation";
@@ -363,9 +367,6 @@ export const createSiteSessionManager = (
         return currentState();
       } catch (error) {
         closeCaptureWindow();
-        if (partition) {
-          await options.destroyPartition?.(partition).catch(() => undefined);
-        }
         capturePartition = null;
         lastError = summarizeError(error);
         return currentState();
@@ -384,7 +385,6 @@ export const createSiteSessionManager = (
       } finally {
         closeCaptureWindow();
         capturePartition = null;
-        await options.destroyPartition?.(partition).catch(() => undefined);
       }
       return currentState();
     },
@@ -393,15 +393,13 @@ export const createSiteSessionManager = (
       closeCaptureWindow();
       capturePartition = null;
       lastError = null;
-      if (partition) {
-        await options.destroyPartition?.(partition).catch(() => undefined);
-      }
       return currentState();
     },
     async clearSession() {
       sessionCache = null;
       lastError = null;
       await rm(sessionFilePath, { force: true }).catch(() => {});
+      await options.destroyPartition?.(stableProfilePartition).catch(() => undefined);
       return currentState();
     },
     async shutdown() {
