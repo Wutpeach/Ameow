@@ -37,6 +37,7 @@ export type AmeowRendererCommand =
   | "queue_pasted_video_download"
   | "queue_video_download"
   | "refresh_runtime_dependency_gate_state"
+  | "refresh_site_session_credentials"
   | "resolve_xiaohongshu_drag_media"
   | "register_shortcut"
   | "clear_douyin_session"

@@ -7,7 +7,12 @@ type CommandPayload = Record<string, unknown> | undefined;
 
 type SiteSessionCommandManager = Pick<
   SiteSessionManager,
-  "getState" | "startCapture" | "confirmCapture" | "cancelCapture" | "clearSession"
+  | "getState"
+  | "startCapture"
+  | "confirmCapture"
+  | "cancelCapture"
+  | "refreshCredentials"
+  | "clearSession"
 >;
 
 type SiteSessionManagerMethod = keyof SiteSessionCommandManager;
@@ -46,6 +51,7 @@ const genericSiteSessionCommands: Partial<Record<AmeowRendererCommand, SiteSessi
   start_site_session_capture: "startCapture",
   complete_site_session_capture: "confirmCapture",
   cancel_site_session_capture: "cancelCapture",
+  refresh_site_session_credentials: "refreshCredentials",
   clear_site_session: "clearSession",
 };
 

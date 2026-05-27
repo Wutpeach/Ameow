@@ -562,4 +562,180 @@ describe("createSiteSessionManager", () => {
       sessionFilePath: null,
     });
   });
+
+  it("refreshes downloader credentials from the stable profile without opening a capture window", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const createCaptureWindow = vi.fn(async () => ({
+      id: 205,
+      close: vi.fn(),
+    }));
+    const destroyPartition = vi.fn(async () => {});
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow,
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "refreshed-session",
+          path: "/",
+        },
+      ]),
+      destroyPartition,
+      now: () => 1_779_428_739_190,
+    });
+
+    const state = await manager.refreshCredentials();
+
+    expect(createCaptureWindow).not.toHaveBeenCalled();
+    expect(destroyPartition).not.toHaveBeenCalled();
+    expect(state).toMatchObject({
+      availability: "ready",
+      cookieCount: 1,
+      lastError: null,
+    });
+    expect(manager.getDownloadCookies()).toContain("refreshed-session");
+  });
+
+  it("refreshes from the cookie jar only without merging stale supplemental cookies", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const douyin = getSiteSessionConfig("douyin");
+    const readSupplementalCookies = vi.fn(async () => ({
+      msToken: "stale-supplemental-ms-token",
+    }));
+    const manager = createSiteSessionManager({
+      site: douyin,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 206,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".douyin.com",
+          name: "ttwid",
+          value: "ttwid-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "odin_tt",
+          value: "odin-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "passport_csrf_token",
+          value: "csrf-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "sessionid",
+          value: "session-value",
+          path: "/",
+        },
+      ]),
+      readSupplementalCookies,
+      now: () => 1_779_428_739_191,
+    });
+
+    const state = await manager.refreshCredentials();
+
+    expect(state).toMatchObject({
+      availability: "ready",
+      cookieCount: 4,
+      missingRequiredKeys: [],
+    });
+    expect(readSupplementalCookies).not.toHaveBeenCalled();
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "douyin.json"), "utf8"),
+    ) as { cookies: Record<string, string> };
+    expect(stored.cookies).not.toHaveProperty("msToken");
+  });
+
+  it("preserves the previous downloader credential snapshot when refresh finds no valid site cookies", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    let shouldReturnValidCookies = true;
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 207,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => (
+        shouldReturnValidCookies
+          ? [
+              {
+                domain: ".instagram.com",
+                name: "sessionid",
+                value: "previous-session",
+                path: "/",
+              },
+            ]
+          : [
+              {
+                domain: ".example.com",
+                name: "sessionid",
+                value: "wrong-site",
+                path: "/",
+              },
+            ]
+      )),
+      now: () => 1_779_428_739_192,
+    });
+
+    await manager.refreshCredentials();
+    const before = await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8");
+    shouldReturnValidCookies = false;
+    const state = await manager.refreshCredentials();
+    const after = await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8");
+
+    expect(after).toBe(before);
+    expect(manager.getDownloadCookies()).toContain("previous-session");
+    expect(state).toMatchObject({
+      availability: "ready",
+      cookieCount: 1,
+    });
+    expect(state.lastError).toContain("Instagram cookie capture finished without saving any cookies");
+  });
+
+  it("does not refresh credentials while the same site's capture window is active", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const readCookies = vi.fn(async () => [
+      {
+        domain: ".instagram.com",
+        name: "sessionid",
+        value: "should-not-read",
+        path: "/",
+      },
+    ]);
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 208,
+        close: vi.fn(),
+      })),
+      readCookies,
+      now: () => 1_779_428_739_193,
+    });
+
+    await manager.startCapture();
+    const state = await manager.refreshCredentials();
+
+    expect(readCookies).not.toHaveBeenCalled();
+    expect(manager.getDownloadCookies()).toBeNull();
+    expect(state).toMatchObject({
+      availability: "missing",
+      capturePhase: "awaiting_confirmation",
+      capturePid: 208,
+    });
+  });
 });

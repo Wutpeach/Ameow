@@ -82,7 +82,7 @@ type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsPageId = "hub" | "appearance" | "saving" | "sites" | "plugins" | "system";
 type SettingsDetailPageId = Exclude<SettingsPageId, "hub">;
 type SiteLoginBadgeTone = "ready" | "danger" | "muted";
-type SiteSessionAction = "start" | "confirm" | "cancel" | "clear";
+type SiteSessionAction = "start" | "confirm" | "cancel" | "refresh" | "clear";
 type SettingsNavigationDirection = "forward" | "back";
 
 type SettingsHubDestination = {
@@ -102,6 +102,8 @@ type SiteLoginBadgeModel = {
   tone: SiteLoginBadgeTone;
   disabled: boolean;
   title: string;
+  canRefresh: boolean;
+  canClear: boolean;
   onClick: () => void;
 };
 
@@ -817,7 +819,9 @@ function SettingsPage() {
         ? "complete_site_session_capture"
         : action === "cancel"
           ? "cancel_site_session_capture"
-          : "clear_site_session";
+          : action === "refresh"
+            ? "refresh_site_session_credentials"
+            : "clear_site_session";
 
     setSiteSessionError(siteId, null);
     setBusySiteSessionAction({ siteId, action });
@@ -1118,13 +1122,6 @@ function SettingsPage() {
   const activeCaptureSiteId = activeCaptureSite?.id ?? null;
   const activeCaptureState = activeCaptureSiteId ? siteSessionStates[activeCaptureSiteId] ?? null : null;
   const activeCapturePhase = activeCaptureState?.capturePhase ?? "idle";
-  const canClearActiveCaptureSession = Boolean(
-    activeCaptureSiteId
-    && (
-      (activeCaptureState?.cookieCount ?? 0) > 0
-      || activeCaptureState?.updatedAtMs
-    ),
-  );
   const siteSessionError = SITE_SESSION_CONFIGS
     .map((site) => siteSessionErrors[site.id])
     .find((error): error is string => Boolean(error));
@@ -1146,6 +1143,8 @@ function SettingsPage() {
       title: disabled
         ? t("desktop:settings.siteSessions.busyHint")
         : t("desktop:settings.siteSessions.badgeActionHint", { site: t(site.labelKey) }),
+      canRefresh: !disabled,
+      canClear: !disabled,
       onClick: () => void invokeSiteSessionCommand(site.id, "start"),
     };
   });
@@ -1811,55 +1810,88 @@ function SettingsPage() {
         >
           <div style={{ display: "grid", gap: 7 }}>
             {siteLoginBadges.map((site) => (
-              <button
+              <div
                 key={site.id}
-                type="button"
-                onClick={() => {
-                  if (!site.disabled) {
-                    void site.onClick();
-                  }
-                }}
-                disabled={site.disabled}
-                title={site.title}
                 style={{
-                  ...getSiteLoginBadgeStyle(site.tone, site.disabled),
-                  ...WINDOW_NO_DRAG_REGION_STYLE,
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) auto",
+                  gap: 6,
+                  alignItems: "stretch",
                 }}
               >
-                <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ flexShrink: 0, color: colors.textPrimary }}>{site.icon}</span>
-                  <span style={getSiteLoginStatusDotStyle(site.tone)} aria-hidden="true" />
-                  <span
-                    style={{
-                      minWidth: 0,
-                      display: "grid",
-                      gap: 1,
-                    }}
-                  >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!site.disabled) {
+                      void site.onClick();
+                    }
+                  }}
+                  disabled={site.disabled}
+                  title={site.title}
+                  style={{
+                    ...getSiteLoginBadgeStyle(site.tone, site.disabled),
+                    ...WINDOW_NO_DRAG_REGION_STYLE,
+                  }}
+                >
+                  <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ flexShrink: 0, color: colors.textPrimary }}>{site.icon}</span>
+                    <span style={getSiteLoginStatusDotStyle(site.tone)} aria-hidden="true" />
                     <span
                       style={{
-                        fontSize: 12,
-                        fontWeight: 650,
-                        lineHeight: 1.1,
-                        color: colors.textPrimary,
-                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                        display: "grid",
+                        gap: 1,
                       }}
                     >
-                      {site.label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        lineHeight: 1.1,
-                        color: site.tone === "ready" ? colors.accentText : site.tone === "danger" ? colors.dangerText : colors.textSecondary,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {site.statusLabel}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 650,
+                          lineHeight: 1.1,
+                          color: colors.textPrimary,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {site.label}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 1.1,
+                          color: site.tone === "ready" ? colors.accentText : site.tone === "danger" ? colors.dangerText : colors.textSecondary,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {site.statusLabel}
+                      </span>
                     </span>
                   </span>
-                </span>
-              </button>
+                </button>
+                <div style={{ display: "flex", gap: 4, alignItems: "center", ...WINDOW_NO_DRAG_REGION_STYLE }}>
+                  <NeonButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void invokeSiteSessionCommand(site.id, "refresh")}
+                    disabled={isSiteSessionActionBusy || !site.canRefresh}
+                    title={t("desktop:settings.siteSessions.refreshButton")}
+                    style={{ minWidth: 46, padding: "4px 8px", fontSize: 10 }}
+                  >
+                    {t("desktop:settings.siteSessions.refreshShortButton")}
+                  </NeonButton>
+                  <NeonButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void invokeSiteSessionCommand(site.id, "clear")}
+                    disabled={isSiteSessionActionBusy || !site.canClear}
+                    title={t("desktop:settings.siteSessions.clearButton")}
+                    style={{ minWidth: 42, padding: "4px 8px", fontSize: 10 }}
+                  >
+                    {t("desktop:settings.siteSessions.clearButton")}
+                  </NeonButton>
+                </div>
+              </div>
             ))}
           </div>
 
@@ -1891,16 +1923,6 @@ function SettingsPage() {
               style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
             >
               {t("desktop:settings.siteSessions.cancelButton")}
-            </NeonButton>
-            <NeonButton
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "clear")}
-              disabled={isSiteSessionActionBusy || !canClearActiveCaptureSession}
-              style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
-            >
-              {t("desktop:settings.siteSessions.clearButton")}
             </NeonButton>
           </div>
         </NeonCard>

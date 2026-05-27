@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type {
@@ -58,6 +58,7 @@ export type SiteSessionManager = {
   startCapture(): Promise<SiteSessionState>;
   confirmCapture(): Promise<SiteSessionState>;
   cancelCapture(): Promise<SiteSessionState>;
+  refreshCredentials(): Promise<SiteSessionState>;
   clearSession(): Promise<SiteSessionState>;
   shutdown(): Promise<void>;
   getDownloadCookies(): string | null;
@@ -181,6 +182,10 @@ const getSessionFilePath = (userDataDir: string, siteId: string): string => (
   join(userDataDir, "site-sessions", `${siteId}.json`)
 );
 
+const getSessionTempFilePath = (sessionFilePath: string): string => (
+  `${sessionFilePath}.tmp`
+);
+
 export const resolveSiteSessionProfilePartition = (siteId: string): string => (
   `persist:ameow-site-session-${siteId}`
 );
@@ -285,7 +290,12 @@ export const createSiteSessionManager = (
     }
   };
 
-  const finalizeCaptureSuccess = async (partition: string): Promise<void> => {
+  const saveCredentialSnapshot = async (
+    partition: string,
+    options_: {
+      includeSupplementalCookies: boolean;
+    },
+  ): Promise<StoredSiteSession> => {
     const rawCookies = await options.readCookies(partition);
     const siteCookies = rawCookies
       .map((cookie) => ({
@@ -310,7 +320,7 @@ export const createSiteSessionManager = (
     const primaryCookies = sanitizeCookieRecord(Object.fromEntries(
       siteCookies.map((cookie) => [cookie.name, cookie.value]),
     ));
-    const supplementalCookies = options.readSupplementalCookies
+    const supplementalCookies = options_.includeSupplementalCookies && options.readSupplementalCookies
       ? await options.readSupplementalCookies(partition)
       : {};
     const cookies = mergeSupplementalCookies(primaryCookies, supplementalCookies);
@@ -326,8 +336,14 @@ export const createSiteSessionManager = (
     };
 
     await mkdir(dirname(sessionFilePath), { recursive: true });
-    await writeFile(sessionFilePath, `${JSON.stringify(session, null, 2)}\n`, "utf8");
-    sessionCache = session;
+    const tempFilePath = getSessionTempFilePath(sessionFilePath);
+    await writeFile(tempFilePath, `${JSON.stringify(session, null, 2)}\n`, "utf8");
+    await rename(tempFilePath, sessionFilePath);
+    return session;
+  };
+
+  const finalizeCaptureSuccess = async (partition: string): Promise<void> => {
+    sessionCache = await saveCredentialSnapshot(partition, { includeSupplementalCookies: true });
     lastError = null;
   };
 
@@ -389,10 +405,22 @@ export const createSiteSessionManager = (
       return currentState();
     },
     async cancelCapture() {
-      const partition = capturePartition;
       closeCaptureWindow();
       capturePartition = null;
       lastError = null;
+      return currentState();
+    },
+    async refreshCredentials() {
+      if (capturePhase !== "idle") {
+        return currentState();
+      }
+
+      try {
+        sessionCache = await saveCredentialSnapshot(stableProfilePartition, { includeSupplementalCookies: false });
+        lastError = null;
+      } catch (error) {
+        lastError = summarizeError(error);
+      }
       return currentState();
     },
     async clearSession() {

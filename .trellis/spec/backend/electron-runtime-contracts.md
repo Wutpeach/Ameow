@@ -2110,6 +2110,7 @@ type SiteSessionCommand =
   | "start_site_session_capture"
   | "complete_site_session_capture"
   | "cancel_site_session_capture"
+  | "refresh_site_session_credentials"
   | "clear_site_session";
 ```
 
@@ -2165,6 +2166,8 @@ type SiteSessionConfig = {
 - Site capture uses a stable app-owned profile partition per supported site: `persist:ameow-site-session-<siteId>`. Confirming, cancelling, or closing a capture window must preserve that partition so sites see a consistent app browser profile across manual refresh attempts.
 - Capture-session hardening for a stable partition must be idempotent. Repeated capture windows for the same site must not stack duplicate `webRequest` listeners, but each capture attempt should reset that partition's supplemental cookie collection state before loading the site.
 - Cookie-jar cookies remain the primary source for persisted site sessions and the generated Netscape cookie file. Supplemental cookie values may fill missing names in the stored JSON/header records, but must be filtered to the captured site's allowed cookie domains and must not store passwords, passkeys, authorization headers, or arbitrary storage blobs.
+- `refresh_site_session_credentials` re-reads cookie-jar cookies from the stable app-owned profile and rewrites the downloader credential snapshot without opening a login window. It must not merge supplemental cookies from previous capture windows, because those values are live-capture observations and may be stale during a no-window refresh.
+- Refreshing credentials while the same site's capture window is active must not rewrite the saved snapshot. Different-site refreshes may proceed because site managers are scoped per site.
 - Douyin `requiredCookieKeys` must track `douyin-dl`'s actual `CookieManager.validate_cookies()` contract: `ttwid`, `odin_tt`, and `passport_csrf_token` are required; `msToken` is optional because upstream can generate it when absent.
 - Instagram download intents must normalize `siteId` to `"instagram"` instead of host-derived `"instagram.com"` so saved `<userDataDir>/site-sessions/instagram.json` cookies are injected for both direct pasted URLs and extension-assisted requests.
 - Instagram session readiness uses `requiredCookieKeys: []` and `loginCookieKeys: ["sessionid"]`; visitor cookies such as `csrftoken` and `mid` are captured and passed through when present but must not be required login markers.
@@ -2183,6 +2186,8 @@ type SiteSessionConfig = {
 | Stored cookies satisfy required keys and at least one login marker key when configured | Return `availability: "ready"` |
 | Confirm capture finds no cookies for allowed domains | Keep prior session cache, set `lastError`, close the capture window, and preserve the stable profile partition |
 | User cancels/closes capture window | Return to `capturePhase: "idle"` and preserve the stable profile partition |
+| User refreshes credentials and profile cookie jar has valid site cookies | Rewrite the saved cookie snapshot, update readiness state, and preserve the stable profile partition |
+| User refreshes credentials and profile cookie jar has no valid site cookies | Preserve the previous saved snapshot/cache, set `lastError`, and preserve the stable profile partition |
 | User clears a site session | Remove the saved cookie snapshot and clear the stable app-owned profile partition for that site |
 | Downloader context has `siteId` with saved session | Inject saved Netscape cookies into `intent.cookies` |
 | Downloader context has no saved site session | Queue without app-owned cookies; extension video download payloads must not synthesize cookies |
@@ -2216,6 +2221,7 @@ await desktopCommands.invoke("start_bilibili_session_capture");
 
 ```ts
 await desktopCommands.invoke("start_site_session_capture", { siteId: "bilibili" });
+await desktopCommands.invoke("refresh_site_session_credentials", { siteId: "bilibili" });
 ```
 
 #### Wrong

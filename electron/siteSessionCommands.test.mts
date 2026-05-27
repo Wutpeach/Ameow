@@ -12,6 +12,7 @@ type SiteSessionMethod =
   | "startCapture"
   | "confirmCapture"
   | "cancelCapture"
+  | "refreshCredentials"
   | "clearSession";
 
 const genericCommandCases = [
@@ -19,6 +20,7 @@ const genericCommandCases = [
   ["start_site_session_capture", "startCapture"],
   ["complete_site_session_capture", "confirmCapture"],
   ["cancel_site_session_capture", "cancelCapture"],
+  ["refresh_site_session_credentials", "refreshCredentials"],
   ["clear_site_session", "clearSession"],
 ] as const satisfies readonly [AmeowRendererCommand, SiteSessionMethod][];
 
@@ -40,6 +42,7 @@ const createManager = (siteId: SupportedSiteSessionId) => ({
   startCapture: vi.fn(async () => ({ siteId, method: "startCapture" })),
   confirmCapture: vi.fn(async () => ({ siteId, method: "confirmCapture" })),
   cancelCapture: vi.fn(async () => ({ siteId, method: "cancelCapture" })),
+  refreshCredentials: vi.fn(async () => ({ siteId, method: "refreshCredentials" })),
   clearSession: vi.fn(async () => ({ siteId, method: "clearSession" })),
 });
 
@@ -134,6 +137,7 @@ describe("createSiteSessionCommandController", () => {
     expect(managers.youtube.startCapture).not.toHaveBeenCalled();
     expect(managers.youtube.confirmCapture).not.toHaveBeenCalled();
     expect(managers.youtube.cancelCapture).not.toHaveBeenCalled();
+    expect(managers.youtube.refreshCredentials).not.toHaveBeenCalled();
     expect(managers.youtube.clearSession).not.toHaveBeenCalled();
   });
 

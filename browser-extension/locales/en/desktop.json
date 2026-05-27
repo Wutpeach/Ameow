@@ -202,6 +202,8 @@
       },
       "confirmButton": "Save session",
       "cancelButton": "Cancel",
+      "refreshButton": "Refresh credentials",
+      "refreshShortButton": "Refresh",
       "clearButton": "Clear",
       "sites": {
         "douyin": "Douyin",
@@ -215,6 +217,7 @@
         "start": "Failed to start the site login flow",
         "confirm": "Failed to save the site session",
         "cancel": "Failed to cancel the site login flow",
+        "refresh": "Failed to refresh site download credentials",
         "clear": "Failed to clear the site session"
       }
     },
