@@ -1679,3 +1679,36 @@ Archived the parent architecture-boundary-refactor task after completing the Pha
 ### Next Steps
 
 - None - task complete
+
+
+## Session 188: Editing-friendly download mux strategy
+
+**Date**: 2026-05-27
+**Task**: Editing-friendly download mux strategy
+**Branch**: `main`
+
+### Summary
+
+Researched editing-friendly video download format strategy, accepted necessary yt-dlp muxing, added regression coverage for MP4/H.264/AAC compatibility decisions, clarified mux-stage UI copy, synced locale resources, and aligned the video download spec with current source-complete event semantics.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9dfd356` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
