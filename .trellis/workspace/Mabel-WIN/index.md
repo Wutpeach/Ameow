@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 193
+- **Total Sessions**: 194
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1880 | Active |
+| `journal-4.md` | ~1914 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 194 | 2026-05-27 | Polish site login row layout | `1309b5a`, `0bf64b2` | `main` |
 | 193 | 2026-05-27 | Site profile diagnostics and policy hooks | `06d31d7` | `main` |
 | 192 | 2026-05-27 | Auth failure assisted credential refresh | `150599a` | `main` |
 | 191 | 2026-05-27 | Stable site login profiles phase 1 and 2 | `c58bc3a`, `8d6bd0f` | `main` |

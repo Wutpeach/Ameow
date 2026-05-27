@@ -1878,3 +1878,37 @@ Added per-site session diagnostics, policy hook extraction, Settings inline diag
 ### Next Steps
 
 - None - task complete
+
+
+## Session 194: Polish site login row layout
+
+**Date**: 2026-05-27
+**Task**: Polish site login row layout
+**Branch**: `main`
+
+### Summary
+
+Aligned Settings site-login row actions, moved capture controls into the active row, simplified visible status to a dot, removed row tooltips and diagnostic sublines.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1309b5a` | (see git log) |
+| `0bf64b2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
