@@ -1845,3 +1845,36 @@ Implemented Phase 3 site-session assisted auth recovery: auth-required download 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 193: Site profile diagnostics and policy hooks
+
+**Date**: 2026-05-27
+**Task**: Site profile diagnostics and policy hooks
+**Branch**: `main`
+
+### Summary
+
+Added per-site session diagnostics, policy hook extraction, Settings inline diagnostics, locale sync, tests, and backend spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `06d31d7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
