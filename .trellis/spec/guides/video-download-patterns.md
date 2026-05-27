@@ -243,11 +243,11 @@ Audio/container rule:
   - does not change the browser extension quality UI or the meaning of `best` / `balanced` / `data_saver`
 - Goal:
   - keep current quality-tier selection behavior
-  - hide container/codec complexity from users by producing a final AE-friendly file when needed
+  - hide container/codec complexity from users by producing an editing-compatible follow-up MP4 when needed
 - Probe-first rule:
-  - backend runs `ffprobe` on the completed yt-dlp output before emitting terminal success
+  - backend runs `ffprobe` on the completed yt-dlp output after the source media download finishes
   - if probe shows `mp4 + h264 + aac` (or no audio stream), backend skips extra work
-  - if probe fails, backend logs the warning and falls back to the safest normalization path instead of exposing the raw file immediately
+  - if probe fails, backend logs the warning and falls back to the safest normalization path instead of silently skipping compatibility work
 - Normalization rule:
   - `h264` video + `aac` audio in a non-`mp4` container -> remux to `mp4`
   - `h264` video + non-`aac` audio -> keep video, transcode audio to `aac`, output `mp4`
@@ -258,11 +258,12 @@ Audio/container rule:
   - macOS: `h264_videotoolbox`
   - if hardware transcode fails at runtime, backend retries automatically with `libx264`
 - Output rule:
-  - final user-visible file path must point to the normalized `mp4`
+  - `video-download-complete` success reports the completed source media path
+  - when follow-up compatibility conversion is needed, `video-transcode-complete.filePath` reports the normalized MP4 path
   - intermediate `mkv`/temporary files should be removed or kept out of the final returned path
-  - `video-download-complete` success must only emit after normalization is done
 - Progress rule:
-  - normalization continues to use `video-download-progress` with `post_processing` stage so frontend queue/progress state stays stable
+  - required yt-dlp muxing remains part of download progress and may surface as `stage="merging"`
+  - compatibility conversion after source completion uses the transcode queue/progress events, not a delayed `video-download-complete`
 
 Backend touchpoints:
 - browser extension / desktop bridge preserves `clipStartSec`, `clipEndSec`, and `ytdlpQualityPreference` on `video_selected_v2`
@@ -360,7 +361,7 @@ resolvePlan({ url });
   - Slice cache reuses a full-source download generated for `best` while current request is `data_saver`.
   - `best` is still constrained to MP4-friendly selectors and silently tops out at `1080p` even though the account can access higher tiers.
   - conservative tiers use arbitrary `+ba` audio while still forcing MP4 output, producing a file that some players treat as silent.
-  - backend emits terminal success before AE-safe normalization finishes, so frontend/AE still receives the raw `mkv` or incompatible codec output.
+  - frontend treats `video-download-complete.file_path` as the final editing-compatible output when a `video-transcode-queued` follow-up exists for the same trace.
   - hardware transcode fails and backend does not retry with CPU, causing unnecessary terminal failure.
   - Provider planning creates a `direct` engine plan from a browser-discovered media candidate.
 

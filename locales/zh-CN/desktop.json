@@ -7,7 +7,7 @@
     "downloadStage": {
       "preparing": "准备中...",
       "downloading": "下载中...",
-      "merging": "合并中...",
+      "merging": "合并音视频中...",
       "postProcessing": "后处理中..."
     },
     "downloadActivity": {

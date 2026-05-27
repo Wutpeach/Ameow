@@ -8,6 +8,7 @@ import type {
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
 } from "../types/videoRuntime";
+import { parseYtDlpProgressLine } from "../electron-runtime/ytDlpProgress";
 import {
   applyDownloadProgressEvent,
   applyTranscodeCompleteEvent,
@@ -78,6 +79,46 @@ describe("download event reducers", () => {
           stage: "downloading",
           speed: "Resolving media...",
         }),
+      },
+    });
+  });
+
+  it("keeps a realistic yt-dlp download to mux flow coherent", () => {
+    const lines = [
+      "[download] Destination: output.f137.mp4",
+      "[download]  37.5% of 12.34MiB at 1.23MiB/s ETA 00:12",
+      "[Merger] Merging formats into \"output.mp4\"",
+      "[Metadata] Embedding metadata in \"output.mp4\"",
+    ];
+    const parsed = lines.map((line) => parseYtDlpProgressLine("trace-yt", line));
+
+    expect(parsed.map((payload) => payload?.stage)).toEqual([
+      "downloading",
+      "downloading",
+      "merging",
+      "post_processing",
+    ]);
+    expect(parsed.map((payload) => payload?.percent)).toEqual([
+      -1,
+      37.5,
+      100,
+      100,
+    ]);
+
+    const finalProgress = parsed.reduce(
+      (current, payload) => (
+        payload ? applyDownloadProgressEvent(current, payload) : current
+      ),
+      {},
+    );
+
+    expect(finalProgress).toEqual({
+      "trace-yt": {
+        traceId: "trace-yt",
+        percent: 100,
+        stage: "post_processing",
+        speed: expect.any(String),
+        eta: expect.any(String),
       },
     });
   });

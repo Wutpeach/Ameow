@@ -25,6 +25,8 @@ describe("parseYtDlpProgressLine", () => {
     expect(payload).not.toBeNull();
     expect(payload?.stage).toBe("merging");
     expect(payload?.percent).toBe(100);
+    expect(payload?.speed).toBe("merging");
+    expect(payload?.eta).toBe("");
   });
 
   it("maps metadata finalization lines into post-processing stage", () => {

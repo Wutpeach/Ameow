@@ -7,7 +7,7 @@
     "downloadStage": {
       "preparing": "Preparing...",
       "downloading": "Downloading...",
-      "merging": "Merging...",
+      "merging": "Merging audio and video...",
       "postProcessing": "Post-processing..."
     },
     "downloadActivity": {

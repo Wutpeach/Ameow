@@ -116,6 +116,15 @@ describe("getDownloadStatusText", () => {
     }), "merging")).toBe("desktop:app.downloadStage.merging");
   });
 
+  it("does not leak merge speed or ETA into muxing status", () => {
+    expect(getDownloadStatusText(t, progress({
+      stage: "merging",
+      percent: 100,
+      speed: "merging",
+      eta: "0:01",
+    }), null)).toBe("desktop:app.downloadStage.merging");
+  });
+
   it("short-circuits non-downloading stages to stage labels", () => {
     expect(getDownloadStatusText(t, progress({
       stage: "merging",
