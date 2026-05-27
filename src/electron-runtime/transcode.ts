@@ -16,6 +16,23 @@ export type PreparedVideoTranscodeTask = {
   finalPath: string;
 };
 
+export type VideoCompatibilityDecision =
+  | "skip_compatible"
+  | "remux_only"
+  | "audio_transcode"
+  | "full_transcode"
+  | "probe_failure_full_transcode";
+
+export type VideoCompatibilityAnalysis = {
+  sourceExtension: string | null;
+  containerNames: string[];
+  videoCodec: string | null;
+  audioCodec: string | null;
+  decision: VideoCompatibilityDecision;
+  probeFailed: boolean;
+  probeErrorSummary: string | null;
+};
+
 type MediaProbeStream = {
   codec_type?: string;
   codec_name?: string;
@@ -93,6 +110,29 @@ const inferMediaFormatFromPath = (targetPath: string): string | null => {
   return extension.length > 0 ? extension : null;
 };
 
+const boundedProbeErrorSummary = (error: unknown): string => {
+  const summary = summarizeError(error);
+  return summary.length > 240 ? `${summary.slice(0, 237)}...` : summary;
+};
+
+const boundedProbeToken = (
+  value: string | null,
+  maxLength = 32,
+): string | null => {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+};
+
+const boundedContainerNames = (values: string[]): string[] => (
+  values
+    .map((value) => boundedProbeToken(value))
+    .filter((value): value is string => value !== null)
+    .slice(0, 16)
+);
+
 export const summarizeMediaProbe = (summary: MediaProbeSummary): {
   isAeSafe: boolean;
   plan: PreparedVideoTranscodeTask["plan"] | null;
@@ -122,6 +162,47 @@ export const summarizeMediaProbe = (summary: MediaProbeSummary): {
     isAeSafe: false,
     plan: "full_transcode",
   };
+};
+
+export const createVideoCompatibilityAnalysis = (
+  sourcePath: string,
+  summary: MediaProbeSummary,
+): VideoCompatibilityAnalysis => {
+  const decision = summarizeMediaProbe(summary);
+
+  return {
+    sourceExtension: boundedProbeToken(inferMediaFormatFromPath(sourcePath), 16),
+    containerNames: boundedContainerNames(summary.containerNames),
+    videoCodec: boundedProbeToken(summary.videoCodec),
+    audioCodec: boundedProbeToken(summary.audioCodec),
+    decision: decision.isAeSafe || !decision.plan ? "skip_compatible" : decision.plan,
+    probeFailed: false,
+    probeErrorSummary: null,
+  };
+};
+
+export const createProbeFailureVideoCompatibilityAnalysis = (
+  sourcePath: string,
+  error: unknown,
+): VideoCompatibilityAnalysis => ({
+  sourceExtension: boundedProbeToken(inferMediaFormatFromPath(sourcePath), 16),
+  containerNames: [],
+  videoCodec: null,
+  audioCodec: null,
+  decision: "probe_failure_full_transcode",
+  probeFailed: true,
+  probeErrorSummary: boundedProbeErrorSummary(error),
+});
+
+const notifyCompatibilityAnalysis = async (
+  callback: ((analysis: VideoCompatibilityAnalysis) => void | Promise<void>) | undefined,
+  analysis: VideoCompatibilityAnalysis,
+): Promise<void> => {
+  try {
+    await callback?.(analysis);
+  } catch {
+    // Telemetry callbacks must not alter compatibility conversion behavior.
+  }
 };
 
 export const parseFfmpegProbeSummaryOutput = (
@@ -362,6 +443,7 @@ export const prepareVideoTranscodeTaskFromDownload = async (
     ffprobePath: string;
     ffmpegPath: string;
     signal?: AbortSignal;
+    onCompatibilityAnalysis?: (analysis: VideoCompatibilityAnalysis) => void | Promise<void>;
   },
 ): Promise<PreparedVideoTranscodeTask | null> => {
   await fs.access(input.sourcePath);
@@ -381,12 +463,20 @@ export const prepareVideoTranscodeTaskFromDownload = async (
     if (!sourceFormat) {
       sourceFormat = summary.containerNames[0] ?? null;
     }
+    await notifyCompatibilityAnalysis(
+      input.onCompatibilityAnalysis,
+      createVideoCompatibilityAnalysis(input.sourcePath, summary),
+    );
     const next = summarizeMediaProbe(summary);
     if (next.isAeSafe || !next.plan) {
       return null;
     }
     plan = next.plan;
-  } catch {
+  } catch (error) {
+    await notifyCompatibilityAnalysis(
+      input.onCompatibilityAnalysis,
+      createProbeFailureVideoCompatibilityAnalysis(input.sourcePath, error),
+    );
     // Keep the conservative full-transcode fallback when the probe is unavailable.
   }
 

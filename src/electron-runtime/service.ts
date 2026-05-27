@@ -51,6 +51,7 @@ import {
   prepareVideoTranscodeTaskFromDownload,
   runPreparedVideoTranscodeTask,
   type PreparedVideoTranscodeTask,
+  type VideoCompatibilityAnalysis,
 } from "./transcode.js";
 import {
   createDownloadTelemetryEvent,
@@ -58,6 +59,8 @@ import {
   type DownloadTelemetrySink,
 } from "./downloadTelemetry.js";
 import { DownloadRuntimeError } from "../core/index.js";
+import { resolveYtdlpFormatProfile } from "./engineManifest.js";
+import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 
 type PendingTask = {
   traceId: string;
@@ -67,6 +70,12 @@ type PendingTask = {
 
 type ActiveTask = PendingTask & {
   abortController: AbortController;
+};
+
+type DownloadTelemetryContext = {
+  request: RawDownloadInput;
+  plan: ResolvedDownloadPlan | null;
+  chosenEngine: EnginePlan["engine"] | null;
 };
 
 type TranscodeTaskState = PreparedVideoTranscodeTask & {
@@ -99,6 +108,45 @@ const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
 export const FAILED_TRANSCODE_RETENTION_LIMIT = 20;
 
 const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - startedAtMs}ms`;
+
+const hasYtDlpEngine = (plan: ResolvedDownloadPlan | null): boolean => (
+  plan?.engines.some((enginePlan) => enginePlan.engine === "yt-dlp") ?? false
+);
+
+const resolveYtdlpTelemetryProfileKey = (
+  plan: ResolvedDownloadPlan | null,
+): string | null => {
+  if (!hasYtDlpEngine(plan)) {
+    return null;
+  }
+  return plan?.intent.siteId === "youtube" ? "youtube" : "default";
+};
+
+const resolveDownloadTelemetryProfile = (
+  plan: ResolvedDownloadPlan | null,
+): DownloadTelemetryProfile | null => {
+  if (!hasYtDlpEngine(plan)) {
+    return null;
+  }
+
+  const qualityPreference = plan?.intent.videoQuality ?? "best";
+  const ytdlpProfileKey = resolveYtdlpTelemetryProfileKey(plan);
+  const formatProfile = resolveYtdlpFormatProfile(
+    qualityPreference,
+    true,
+    {
+      isYouTube: ytdlpProfileKey === "youtube",
+      siteId: plan?.intent.siteId,
+    },
+  );
+
+  return {
+    qualityPreference,
+    ytdlpProfileKey,
+    ytdlpMergeOutputFormat: formatProfile.mergeOutputFormat,
+    ytdlpFormatSort: formatProfile.sort,
+  };
+};
 
 export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
@@ -227,9 +275,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       );
       await this.recordDownloadTelemetry(
         traceId,
-        cancelledTask.request,
-        this.siteRegistry.resolve(cancelledTask.request),
-        null,
+        {
+          request: cancelledTask.request,
+          plan: this.siteRegistry.resolve(cancelledTask.request),
+          chosenEngine: null,
+        },
         cancellationError,
       );
       await this.options.eventSink.emit("video-download-complete", {
@@ -442,7 +492,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     label: string,
     sourcePath: string,
     binaries: ReturnType<typeof resolveRuntimeBinaryPaths>,
+    telemetry?: DownloadTelemetryContext,
   ): Promise<void> {
+    let compatibility: VideoCompatibilityAnalysis | null = null;
     try {
       const prepared = await prepareVideoTranscodeTaskFromDownload({
         traceId,
@@ -450,6 +502,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         sourcePath,
         ffprobePath: binaries.ffprobe,
         ffmpegPath: binaries.ffmpeg,
+        onCompatibilityAnalysis(analysis) {
+          compatibility = analysis;
+        },
       });
       if (!prepared) {
         return;
@@ -459,6 +514,15 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       this.logger.log(
         `>>> [ElectronRuntime] transcode follow-up for ${traceId} failed: ${summarizeError(error)}`,
       );
+    } finally {
+      if (telemetry) {
+        await this.recordDownloadTelemetry(
+          traceId,
+          telemetry,
+          null,
+          compatibility,
+        );
+      }
     }
   }
 
@@ -795,19 +859,27 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         elapsedMs: formatElapsedMs(taskStartedAtMs),
         success: result.success,
       })}`);
-      await this.recordDownloadTelemetry(
-        traceId,
-        activeTask.request,
-        telemetryPlan,
-        executedEngineId,
-        null,
-      );
       if (result.success && result.file_path) {
         void this.handleCompletedVideoSource(
           traceId,
           activeTask.label,
           result.file_path,
           binaries,
+          {
+            request: activeTask.request,
+            plan: telemetryPlan,
+            chosenEngine: executedEngineId,
+          },
+        );
+      } else {
+        await this.recordDownloadTelemetry(
+          traceId,
+          {
+            request: activeTask.request,
+            plan: telemetryPlan,
+            chosenEngine: executedEngineId,
+          },
+          null,
         );
       }
     } catch (error) {
@@ -820,9 +892,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       })}`);
       await this.recordDownloadTelemetry(
         traceId,
-        activeTask.request,
-        telemetryPlan,
-        executedEngineId,
+        {
+          request: activeTask.request,
+          plan: telemetryPlan,
+          chosenEngine: executedEngineId,
+        },
         runtimeError,
       );
       await this.options.eventSink.emit("video-download-complete", {
@@ -873,17 +947,18 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
   private async recordDownloadTelemetry(
     traceId: string,
-    request: RawDownloadInput,
-    plan: ResolvedDownloadPlan | null,
-    chosenEngine: EnginePlan["engine"] | null,
+    telemetry: DownloadTelemetryContext,
     error: DownloadRuntimeError | null,
+    compatibility?: VideoCompatibilityAnalysis | null,
   ): Promise<void> {
     await this.telemetrySink.record(createDownloadTelemetryEvent({
       traceId,
-      request,
-      plan,
-      chosenEngine,
+      request: telemetry.request,
+      plan: telemetry.plan,
+      chosenEngine: telemetry.chosenEngine,
       error,
+      downloadProfile: resolveDownloadTelemetryProfile(telemetry.plan),
+      compatibility,
     }));
   }
 }

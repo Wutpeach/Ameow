@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  createProbeFailureVideoCompatibilityAnalysis,
+  createVideoCompatibilityAnalysis,
   parseFfmpegProbeSummaryOutput,
   summarizeMediaProbe,
 } from "./transcode.js";
@@ -20,6 +22,15 @@ describe("electron transcode helpers", () => {
       isAeSafe: true,
       plan: null,
     });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/sample.mp4", summary)).toEqual({
+      sourceExtension: "mp4",
+      containerNames: ["mov", "mp4", "m4a", "3gp", "3g2", "mj2"],
+      videoCodec: "h264",
+      audioCodec: "aac",
+      decision: "skip_compatible",
+      probeFailed: false,
+      probeErrorSummary: null,
+    });
   });
 
   it("detects AE-safe mp4 h264 sources without audio", () => {
@@ -35,6 +46,15 @@ describe("electron transcode helpers", () => {
     expect(summarizeMediaProbe(summary)).toEqual({
       isAeSafe: true,
       plan: null,
+    });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/silent.mp4", summary)).toEqual({
+      sourceExtension: "mp4",
+      containerNames: ["mov", "mp4", "m4a", "3gp", "3g2", "mj2"],
+      videoCodec: "h264",
+      audioCodec: null,
+      decision: "skip_compatible",
+      probeFailed: false,
+      probeErrorSummary: null,
     });
   });
 
@@ -53,6 +73,13 @@ describe("electron transcode helpers", () => {
       isAeSafe: false,
       plan: "audio_transcode",
     });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/opus-audio.mp4", summary)).toMatchObject({
+      sourceExtension: "mp4",
+      videoCodec: "h264",
+      audioCodec: "opus",
+      decision: "audio_transcode",
+      probeFailed: false,
+    });
   });
 
   it("uses remux-only when video is already h264/aac but the container is not mp4", () => {
@@ -69,6 +96,14 @@ describe("electron transcode helpers", () => {
     expect(summarizeMediaProbe(summary)).toEqual({
       isAeSafe: false,
       plan: "remux_only",
+    });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/archive.mkv", summary)).toMatchObject({
+      sourceExtension: "mkv",
+      containerNames: ["matroska", "webm"],
+      videoCodec: "h264",
+      audioCodec: "aac",
+      decision: "remux_only",
+      probeFailed: false,
     });
   });
 
@@ -87,6 +122,13 @@ describe("electron transcode helpers", () => {
       isAeSafe: false,
       plan: "full_transcode",
     });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/hevc.mp4", summary)).toMatchObject({
+      sourceExtension: "mp4",
+      videoCodec: "hevc",
+      audioCodec: "aac",
+      decision: "full_transcode",
+      probeFailed: false,
+    });
   });
 
   it("uses full transcode when codecs are not AE-safe", () => {
@@ -104,5 +146,23 @@ describe("electron transcode helpers", () => {
       isAeSafe: false,
       plan: "full_transcode",
     });
+  });
+
+  it("summarizes probe failure as conservative full-transcode telemetry", () => {
+    const analysis = createProbeFailureVideoCompatibilityAnalysis(
+      "C:/Temp/broken.mp4",
+      new Error("ffprobe failed with an extremely long diagnostic ".repeat(20)),
+    );
+
+    expect(analysis).toEqual({
+      sourceExtension: "mp4",
+      containerNames: [],
+      videoCodec: null,
+      audioCodec: null,
+      decision: "probe_failure_full_transcode",
+      probeFailed: true,
+      probeErrorSummary: expect.stringMatching(/^ffprobe failed/),
+    });
+    expect(analysis.probeErrorSummary?.length).toBeLessThanOrEqual(240);
   });
 });

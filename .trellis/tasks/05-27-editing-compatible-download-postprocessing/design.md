@@ -34,9 +34,25 @@ The prior task improved tests and UI copy, but it did not provide enough runtime
 - whether the slow local step was required mux, remux, audio transcode, full transcode, or probe failure;
 - how often `balanced` already lands on `MP4 + H.264 + AAC` and skips downstream work.
 
+## Existing Evidence Surface
+
+Repository inspection found an existing structured telemetry path:
+
+- `src/download-capabilities/telemetry.ts` defines `downloadTelemetryEventSchema`.
+- `src/electron-runtime/downloadTelemetry.ts` writes JSONL events to `telemetry/download-outcomes.jsonl`.
+- `src/electron-runtime/service.ts` records one `download_outcome` event per terminal download through `recordDownloadTelemetry(...)`.
+- `docs/download-telemetry-schema.md` says adding optional fields is backward-compatible without a schema-version bump.
+
+There are also timing logs:
+
+- `>>> [ElectronRuntimeTiming]` in `src/electron-runtime/service.ts`.
+- `>>> [yt-dlp timing]` in `src/electron-runtime/ytDlpDownload.ts`.
+
+Those logs are useful during development, but several currently include raw URLs or final paths. For the compatibility evidence needed here, structured telemetry with bounded optional fields is the better default surface.
+
 ## Candidate Evidence Points
 
-Prefer existing runtime logging or `DownloadTrace` style infrastructure if available. If no structured trace path exists for this exact data, add compact log events with the existing backend log style.
+Prefer adding optional fields to the existing `download_outcome` telemetry event. Use compact logs only for transient warnings or developer timing details that should not be part of the stable reporting schema.
 
 Suggested evidence fields:
 
@@ -57,6 +73,35 @@ Avoid:
 - long raw URLs;
 - large ffprobe JSON blobs.
 
+Recommended optional telemetry shape:
+
+```ts
+type CompatibilityDecision =
+  | "skip_compatible"
+  | "remux_only"
+  | "audio_transcode"
+  | "full_transcode"
+  | "probe_failure_full_transcode"
+  | null;
+
+type DownloadTelemetryCompatibility = {
+  sourceExtension?: string | null;
+  containerNames?: string[];
+  videoCodec?: string | null;
+  audioCodec?: string | null;
+  decision?: CompatibilityDecision;
+  probeFailed?: boolean;
+  probeErrorSummary?: string | null;
+};
+```
+
+The final field names can differ during implementation, but they should keep these constraints:
+
+- optional fields only;
+- no raw paths;
+- bounded arrays/strings;
+- compatible with the current schema-version-1 extension rule.
+
 ## Probe-Failure Policy
 
 Current behavior:
@@ -66,8 +111,10 @@ Current behavior:
 Recommended first implementation:
 
 - Preserve the conservative fallback.
-- Add a bounded warning/evidence event that clearly labels it as `probe_failure_full_transcode`.
+- Add bounded telemetry that clearly labels it as `probe_failure_full_transcode`.
 - Do not introduce extension-based skip heuristics yet. A `.mp4` extension does not prove codec compatibility.
+
+To make this testable without spawning broken ffprobe binaries, prefer extracting a pure decision helper from `prepareVideoTranscodeTaskFromDownload(...)` or returning a small internal analysis object from the probe path that service telemetry can consume.
 
 ## Validation Strategy
 
@@ -75,6 +122,7 @@ Recommended first implementation:
 - Existing service tests can be extended only if the instrumentation crosses the service boundary.
 - Avoid tests that rely on exact wall-clock duration.
 - If elapsed-time evidence is added, inject a clock or assert only presence/classification, not exact values.
+- Update `docs/download-telemetry-schema.md` when optional fields are added.
 
 ## Risks
 

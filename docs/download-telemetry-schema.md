@@ -26,6 +26,19 @@ Each JSONL line is one `download_outcome` event with:
 - `errorCode`: runtime error code, or `null`
 - `errorClassification`: classified failure category, or `null`
 - `errorMessage`: human-readable error summary, or `null`
+- `downloadProfile` (optional): downloader-side format evidence for yt-dlp-backed plans
+  - `qualityPreference`: requested quality tier, normalized to `best | balanced | data_saver`
+  - `ytdlpProfileKey`: bounded profile key such as `default` or `youtube`, or `null`
+  - `ytdlpMergeOutputFormat`: merge output profile such as `mp4` or `mp4/mkv`, or `null`
+  - `ytdlpFormatSort`: bounded yt-dlp format-sort profile, or `null`
+- `compatibility` (optional): post-download editing-compatibility evidence for successful source media when available
+  - `sourceExtension`: source file extension without a path, or `null`
+  - `containerNames`: bounded list of probed container names
+  - `videoCodec`: probed video codec, or `null`
+  - `audioCodec`: probed audio codec, or `null`
+  - `decision`: `skip_compatible | remux_only | audio_transcode | full_transcode | probe_failure_full_transcode | null`
+  - `probeFailed`: whether media probing failed before the conservative fallback
+  - `probeErrorSummary`: bounded probe failure summary, or `null`
 
 ## Stability Rules
 

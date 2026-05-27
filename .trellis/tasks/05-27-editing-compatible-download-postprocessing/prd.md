@@ -32,15 +32,22 @@ This task follows `.trellis/tasks/archive/2026-05/05-27-editing-friendly-downloa
   - no raw cookies;
   - no long unbounded URLs;
   - no full local paths in high-level telemetry unless an existing debug trace already includes them for support purposes.
+- Prefer extending the existing structured download telemetry path over adding a separate ad-hoc log stream:
+  - existing source: `src/download-capabilities/telemetry.ts`;
+  - existing sink: `src/electron-runtime/downloadTelemetry.ts`;
+  - existing runtime hook: `AmeowElectronDownloadRuntime.recordDownloadTelemetry(...)`.
+- Audit existing timing/debug logs in `src/electron-runtime/service.ts` and `src/electron-runtime/ytDlpDownload.ts` for raw URL/path exposure, and tighten only where it is directly related to this task's evidence surface.
 
 ## Acceptance Criteria
 
-- [ ] Runtime logs or telemetry can show whether a completed source skipped conversion because it probed as editing-compatible.
-- [ ] Runtime logs or telemetry can show when a file entered remux-only, audio-transcode, full-transcode, or probe-failure fallback.
-- [ ] Probe-failure behavior is explicitly tested or documented with the chosen conservative behavior.
-- [ ] No yt-dlp format selector changes are made.
-- [ ] No `video-download-complete` event-ordering changes are made.
-- [ ] Focused tests, `npm run type-check`, and `npm run lint` pass before implementation is reported complete.
+- [x] Runtime logs or telemetry can show whether a completed source skipped conversion because it probed as editing-compatible.
+- [x] Runtime logs or telemetry can show when a file entered remux-only, audio-transcode, full-transcode, or probe-failure fallback.
+- [x] The evidence surface is structured enough to support later local reports without scraping free-form status text.
+- [x] Probe-failure behavior is explicitly tested or documented with the chosen conservative behavior.
+- [x] Existing raw URL/path logging touched by this work is bounded or replaced with safer identifiers where practical.
+- [x] No yt-dlp format selector changes are made.
+- [x] No `video-download-complete` event-ordering changes are made.
+- [x] Focused tests, `npm run type-check`, and `npm run lint` pass before implementation is reported complete.
 
 ## Notes
 

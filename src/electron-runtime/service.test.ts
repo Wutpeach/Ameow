@@ -285,6 +285,21 @@ describe("AmeowElectronDownloadRuntime", () => {
 
   it("records success telemetry with site, interaction mode, engine chain, and chosen engine", async () => {
     const telemetry: DownloadTelemetryEvent[] = [];
+    prepareVideoTranscodeTaskFromDownloadMock.mockImplementation(async (...args: unknown[]) => {
+      const input = args[0] as {
+        onCompatibilityAnalysis?: (analysis: unknown) => void;
+      };
+      input.onCompatibilityAnalysis?.({
+        sourceExtension: "mp4",
+        containerNames: ["mov", "mp4"],
+        videoCodec: "h264",
+        audioCodec: "aac",
+        decision: "skip_compatible",
+        probeFailed: false,
+        probeErrorSummary: null,
+      });
+      return null;
+    });
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
       engines: [
@@ -305,6 +320,7 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     await waitFor(() => telemetry.length === 1);
+    expect(prepareVideoTranscodeTaskFromDownloadMock).toHaveBeenCalledTimes(1);
     expect(telemetry[0]).toMatchObject({
       eventType: "download_outcome",
       outcome: "success",
@@ -315,6 +331,21 @@ describe("AmeowElectronDownloadRuntime", () => {
       chosenEngine: "yt-dlp",
       errorCode: null,
       errorClassification: null,
+      downloadProfile: {
+        qualityPreference: "best",
+        ytdlpProfileKey: "youtube",
+        ytdlpMergeOutputFormat: "mp4/mkv",
+        ytdlpFormatSort: "res,codec:h264,acodec:aac,ext",
+      },
+      compatibility: {
+        sourceExtension: "mp4",
+        containerNames: ["mov", "mp4"],
+        videoCodec: "h264",
+        audioCodec: "aac",
+        decision: "skip_compatible",
+        probeFailed: false,
+        probeErrorSummary: null,
+      },
     });
   });
 
@@ -845,6 +876,71 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(events).toContain("video-transcode-queued");
   });
 
+  it("records probe-failure compatibility telemetry while preserving full-transcode fallback", async () => {
+    const events: RuntimeEmitterEvent[] = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
+    prepareVideoTranscodeTaskFromDownloadMock.mockImplementation(async (...args: unknown[]) => {
+      const input = args[0] as {
+        traceId: string;
+        label: string;
+        sourcePath: string;
+        onCompatibilityAnalysis?: (analysis: unknown) => void;
+      };
+      input.onCompatibilityAnalysis?.({
+        sourceExtension: "mp4",
+        containerNames: [],
+        videoCodec: null,
+        audioCodec: null,
+        decision: "probe_failure_full_transcode",
+        probeFailed: true,
+        probeErrorSummary: "ffprobe failed before fallback",
+      });
+      return {
+        traceId: input.traceId,
+        label: input.label,
+        sourcePath: input.sourcePath,
+        sourceFormat: "mp4",
+        targetFormat: "mp4",
+        plan: "full_transcode",
+        durationSeconds: null,
+        finalPath: "D:/downloads/Probe Failure.mp4",
+      };
+    });
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: "D:/downloads/Probe Failure Source.mp4",
+        })),
+      ],
+      onEmit(event) {
+        events.push(event);
+      },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=probe-failure",
+      pageUrl: "https://www.youtube.com/watch?v=probe-failure",
+      siteHint: "youtube",
+      title: "Probe Failure",
+    });
+
+    await waitFor(() => runtime.getTranscodeQueueState().totalCount === 1);
+    await waitFor(() => events.includes("video-transcode-queued"));
+    await waitFor(() => telemetry.length === 1);
+    expect(telemetry[0]?.compatibility).toMatchObject({
+      sourceExtension: "mp4",
+      decision: "probe_failure_full_transcode",
+      probeFailed: true,
+      probeErrorSummary: "ffprobe failed before fallback",
+    });
+  });
+
   it("surfaces a Pinterest gallery-dl failure without falling back to yt-dlp", async () => {
     const routes: string[] = [];
     const completions: Array<{ traceId: string; success: boolean; error?: string }> = [];
@@ -1174,10 +1270,25 @@ describe("AmeowElectronDownloadRuntime", () => {
 
   it("queues downstream transcode after a highest-quality YouTube download completes with MKV output", async () => {
     const events: RuntimeEmitterEvent[] = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
     const transcodeCompletions: Array<() => void> = [];
 
     prepareVideoTranscodeTaskFromDownloadMock.mockImplementation(async (...args: unknown[]) => {
-      const input = args[0] as { traceId: string; label: string; sourcePath: string };
+      const input = args[0] as {
+        traceId: string;
+        label: string;
+        sourcePath: string;
+        onCompatibilityAnalysis?: (analysis: unknown) => void;
+      };
+      input.onCompatibilityAnalysis?.({
+        sourceExtension: "mkv",
+        containerNames: ["matroska", "webm"],
+        videoCodec: "vp9",
+        audioCodec: "opus",
+        decision: "full_transcode",
+        probeFailed: false,
+        probeErrorSummary: null,
+      });
       return {
         traceId: input.traceId,
         label: input.label,
@@ -1208,6 +1319,9 @@ describe("AmeowElectronDownloadRuntime", () => {
       onEmit(event) {
         events.push(event);
       },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
     });
 
     try {
@@ -1226,6 +1340,17 @@ describe("AmeowElectronDownloadRuntime", () => {
       expect(prepareVideoTranscodeTaskFromDownloadMock).toHaveBeenCalledWith(expect.objectContaining({
         sourcePath: "D:/downloads/Recovered YouTube Title.mkv",
       }));
+      await waitFor(() => telemetry.length === 1);
+      expect(telemetry[0]?.compatibility).toMatchObject({
+        sourceExtension: "mkv",
+        decision: "full_transcode",
+        probeFailed: false,
+      });
+      expect(telemetry[0]?.downloadProfile).toMatchObject({
+        qualityPreference: "best",
+        ytdlpProfileKey: "youtube",
+        ytdlpMergeOutputFormat: "mp4/mkv",
+      });
     } finally {
       transcodeCompletions.splice(0).forEach((complete) => complete());
       await waitFor(() => runtime.getTranscodeQueueState().totalCount === 0);
@@ -1293,6 +1418,22 @@ describe("AmeowElectronDownloadRuntime", () => {
 
   it("skips downstream transcode when a highest-quality Bilibili download already lands as MP4", async () => {
     const events: RuntimeEmitterEvent[] = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
+    prepareVideoTranscodeTaskFromDownloadMock.mockImplementation(async (...args: unknown[]) => {
+      const input = args[0] as {
+        onCompatibilityAnalysis?: (analysis: unknown) => void;
+      };
+      input.onCompatibilityAnalysis?.({
+        sourceExtension: "mp4",
+        containerNames: ["mov", "mp4"],
+        videoCodec: "h264",
+        audioCodec: "aac",
+        decision: "skip_compatible",
+        probeFailed: false,
+        probeErrorSummary: null,
+      });
+      return null;
+    });
 
     const runtime = createRuntime({
       providers: [bilibiliProvider, genericProvider],
@@ -1305,6 +1446,9 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event) {
         events.push(event);
+      },
+      onTelemetry(event) {
+        telemetry.push(event);
       },
     });
 
@@ -1324,6 +1468,19 @@ describe("AmeowElectronDownloadRuntime", () => {
     }));
     expect(events).not.toContain("video-transcode-queued");
     expect(runtime.getTranscodeQueueState().totalCount).toBe(0);
+    await waitFor(() => telemetry.length === 1);
+    expect(telemetry[0]?.compatibility).toMatchObject({
+      sourceExtension: "mp4",
+      videoCodec: "h264",
+      audioCodec: "aac",
+      decision: "skip_compatible",
+      probeFailed: false,
+    });
+    expect(telemetry[0]?.downloadProfile).toMatchObject({
+      qualityPreference: "best",
+      ytdlpProfileKey: "default",
+      ytdlpMergeOutputFormat: "mp4/mkv",
+    });
   });
 
   it("supports retrying and removing failed transcode rows", async () => {

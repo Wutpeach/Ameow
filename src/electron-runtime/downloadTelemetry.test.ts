@@ -33,6 +33,21 @@ describe("download telemetry sink", () => {
       errorCode: null,
       errorClassification: null,
       errorMessage: null,
+      downloadProfile: {
+        qualityPreference: "balanced",
+        ytdlpProfileKey: "default",
+        ytdlpMergeOutputFormat: "mp4",
+        ytdlpFormatSort: "ext:mp4:m4a",
+      },
+      compatibility: {
+        sourceExtension: "mp4",
+        containerNames: ["mov", "mp4"],
+        videoCodec: "h264",
+        audioCodec: "aac",
+        decision: "skip_compatible",
+        probeFailed: false,
+        probeErrorSummary: null,
+      },
     });
 
     await sink.record({
@@ -56,6 +71,14 @@ describe("download telemetry sink", () => {
     expect(JSON.parse(lines[0])).toMatchObject({
       traceId: "trace-1",
       outcome: "success",
+      downloadProfile: {
+        qualityPreference: "balanced",
+        ytdlpMergeOutputFormat: "mp4",
+      },
+      compatibility: {
+        decision: "skip_compatible",
+        videoCodec: "h264",
+      },
     });
     expect(JSON.parse(lines[1])).toMatchObject({
       traceId: "trace-2",

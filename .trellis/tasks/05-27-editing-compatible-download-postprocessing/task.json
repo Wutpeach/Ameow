@@ -3,7 +3,7 @@
   "name": "editing-compatible-download-postprocessing",
   "title": "Optimize editing-compatible video download post-processing",
   "description": "Follow-up implementation task for download-chain observability and probe-failure audit before changing yt-dlp format selectors.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

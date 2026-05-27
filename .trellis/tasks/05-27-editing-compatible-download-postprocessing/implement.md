@@ -11,7 +11,7 @@
 
 ## Checklist
 
-1. Baseline audit:
+1. Baseline audit: Done.
    - `src/electron-runtime/engineManifest.ts`
    - `src/electron-runtime/ytDlpCommandPlan.ts`
    - `src/electron-runtime/ytDlpDownload.ts`
@@ -19,28 +19,34 @@
    - `src/electron-runtime/transcode.ts`
    - existing trace/log helpers.
 
-2. Decide evidence surface:
-   - Reuse `DownloadTrace` if it already has a suitable event shape.
-   - Otherwise add compact backend logs with safe bounded fields.
+2. Decide evidence surface: Done.
+   - Extend the existing `download_outcome` telemetry event with optional compatibility/post-processing fields.
+   - Keep schema version `1` if fields are optional, consistent with `docs/download-telemetry-schema.md`.
+   - Use compact backend logs only for warnings or transient timing details.
    - Do not add UI-visible copy in this task unless needed for debug surfaces.
 
-3. Implement instrumentation:
-   - yt-dlp command/profile start evidence.
-   - completed source probe summary evidence.
-   - compatibility decision evidence.
-   - probe failure fallback evidence.
+3. Implement instrumentation: Done.
+   - Add a bounded compatibility summary type/helper.
+   - Record yt-dlp profile evidence where it is already known without adding a second yt-dlp probe.
+   - Record completed source probe summary evidence.
+   - Record compatibility decision evidence.
+   - Record probe failure fallback evidence as `probe_failure_full_transcode` or an equivalent explicit token.
+   - Update `docs/download-telemetry-schema.md` for added optional fields.
 
-4. Tests:
-   - helper/unit tests for evidence payload construction if a helper is added.
-   - transcode tests for probe failure policy if practical with mocked process runner or a narrow helper extraction.
-   - service-level tests only if the evidence is emitted from service boundaries.
+4. Tests: Done.
+   - `src/download-capabilities/telemetry.test.ts` or nearest existing tests for optional schema fields if needed.
+   - `src/electron-runtime/downloadTelemetry.test.ts` for JSONL preservation of optional fields if needed.
+   - `src/electron-runtime/transcode.test.ts` for compatibility decision summaries and probe-failure policy.
+   - `src/electron-runtime/service.test.ts` if service is responsible for attaching compatibility evidence to terminal telemetry.
 
-5. Validation:
+5. Validation: Done.
 
 ```powershell
 npm test -- src/electron-runtime/transcode.test.ts
+npm test -- src/electron-runtime/downloadTelemetry.test.ts
 npm test -- src/electron-runtime/ytDlpCommandPlan.test.ts
 npm test -- src/electron-runtime/ytDlpDownload.test.ts
+npm test -- src/electron-runtime/engineManifest.test.ts
 npm test -- src/electron-runtime/service.test.ts
 npm run type-check
 npm run lint
@@ -48,6 +54,21 @@ git diff --check
 ```
 
 Run only the focused tests that apply to the touched files, then the required type/lint gates.
+
+## Implementation Result
+
+- Added optional `downloadProfile` and `compatibility` fields to `download_outcome` telemetry.
+- `downloadProfile` records the normalized quality tier plus bounded yt-dlp profile evidence (`ytdlpProfileKey`, merge output format, format sort), without logging raw selectors.
+- `compatibility` records bounded source extension/container/codec evidence plus the decision token: `skip_compatible`, `remux_only`, `audio_transcode`, `full_transcode`, or `probe_failure_full_transcode`.
+- `prepareVideoTranscodeTaskFromDownload(...)` now reports a `VideoCompatibilityAnalysis` callback after probe success or probe failure. Callback errors are swallowed so telemetry cannot change conversion behavior.
+- `service.ts` records successful file-download telemetry after compatibility analysis while preserving `video-download-complete` emission before transcode follow-up work.
+- Probe failure still conservatively falls back to full transcode and is visible in service-level telemetry as `probe_failure_full_transcode`.
+
+## Review Notes
+
+- Claude Code reviewed the implementation as a second-opinion reviewer.
+- The review agreed with the telemetry approach and identified one missing integration test: service-level `probe_failure_full_transcode` telemetry.
+- Added that regression test before final validation.
 
 ## Non-Goals
 
