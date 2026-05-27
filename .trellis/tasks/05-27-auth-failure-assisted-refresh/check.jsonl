@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Check assisted refresh/retry against existing site-session contracts and complete-event guarantees."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check implementation quality, testing expectations, and scope control."}

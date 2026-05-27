@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Defines the site-session and downloader runtime contracts that Phase 3 extends."}
+{"file":".trellis/spec/backend/index.md","reason":"Defines Electron runtime boundaries and video download cookie flow."}

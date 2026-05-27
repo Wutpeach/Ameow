@@ -2168,6 +2168,11 @@ type SiteSessionConfig = {
 - Cookie-jar cookies remain the primary source for persisted site sessions and the generated Netscape cookie file. Supplemental cookie values may fill missing names in the stored JSON/header records, but must be filtered to the captured site's allowed cookie domains and must not store passwords, passkeys, authorization headers, or arbitrary storage blobs.
 - `refresh_site_session_credentials` re-reads cookie-jar cookies from the stable app-owned profile and rewrites the downloader credential snapshot without opening a login window. It must not merge supplemental cookies from previous capture windows, because those values are live-capture observations and may be stale during a no-window refresh.
 - Refreshing credentials while the same site's capture window is active must not rewrite the saved snapshot. Different-site refreshes may proceed because site managers are scoped per site.
+- When a runtime download fails with `auth_required`, `src/electron-runtime/service.ts` may call an optional `refreshSiteSessionCredentials({ siteId, traceId, reason: "auth_required_retry" })` callback for supported site-session IDs and retry the same task once if the refreshed state is `ready` or `partial`.
+- Auth-failure assisted refresh must stay silent and profile-owned: it must not open a login window, must not reuse the user's default browser profile, must not merge stale supplemental cookies, and must not synthesize cookies from browser-extension video download payloads.
+- Auth-failure assisted retry must rebuild the engine execution context after refresh so `buildExecutionContext(...)` can inject the latest saved Netscape cookie snapshot. It must not reuse stale `intent.cookies` from the failed attempt.
+- Auth-failure assisted retry must preserve the original `traceId`, output stem reservation, queue row, and final-completion contract. The first auth failure must not emit an intermediate `video-download-complete`; the task still emits exactly one terminal completion event.
+- Auth-failure assisted retry must be guarded to one refresh/retry attempt per task. It must not run for cancelled, input-invalid, unsupported-site, missing-site, or non-auth failures, and retry failures must not re-enter the refresh branch.
 - Douyin `requiredCookieKeys` must track `douyin-dl`'s actual `CookieManager.validate_cookies()` contract: `ttwid`, `odin_tt`, and `passport_csrf_token` are required; `msToken` is optional because upstream can generate it when absent.
 - Instagram download intents must normalize `siteId` to `"instagram"` instead of host-derived `"instagram.com"` so saved `<userDataDir>/site-sessions/instagram.json` cookies are injected for both direct pasted URLs and extension-assisted requests.
 - Instagram session readiness uses `requiredCookieKeys: []` and `loginCookieKeys: ["sessionid"]`; visitor cookies such as `csrftoken` and `mid` are captured and passed through when present but must not be required login markers.
@@ -2191,6 +2196,8 @@ type SiteSessionConfig = {
 | User clears a site session | Remove the saved cookie snapshot and clear the stable app-owned profile partition for that site |
 | Downloader context has `siteId` with saved session | Inject saved Netscape cookies into `intent.cookies` |
 | Downloader context has no saved site session | Queue without app-owned cookies; extension video download payloads must not synthesize cookies |
+| Downloader fails with `auth_required` for a supported site and silent refresh returns `ready` or `partial` | Rebuild execution context and retry the same task once before emitting terminal completion |
+| Silent auth refresh returns `missing`, throws, or the retry also fails | Emit one final failure completion and leave manual Settings login/refresh as the recovery path |
 
 ### 5. Good/Base/Bad Cases
 

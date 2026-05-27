@@ -1213,8 +1213,23 @@ function getElectronDownloadRuntime() {
               ...context.intent,
               cookies: appOwnedCookies,
             }
-          : context.intent,
+            : context.intent,
         userDataDir: getUserDataDir(),
+      };
+    },
+    async refreshSiteSessionCredentials({ siteId }) {
+      const manager = getSiteSessionManager(siteId);
+      if (!manager) {
+        return null;
+      }
+      const state = await manager.refreshCredentials();
+      if (state.capturePhase !== "idle") {
+        return null;
+      }
+      return {
+        availability: state.availability,
+        cookieCount: state.cookieCount,
+        lastError: state.lastError,
       };
     },
   });

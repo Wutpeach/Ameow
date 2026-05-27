@@ -1,9 +1,9 @@
 {
-  "id": "stable-site-login-profiles",
-  "name": "stable-site-login-profiles",
-  "title": "Stable site login profiles",
+  "id": "auth-failure-assisted-refresh",
+  "name": "auth-failure-assisted-refresh",
+  "title": "Auth failure assisted credential refresh",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,12 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "05-27-mvp-stable-site-login-profiles",
-    "05-27-refresh-downloader-credentials",
-    "05-27-auth-failure-assisted-refresh"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "05-27-stable-site-login-profiles",
   "relatedFiles": [],
   "notes": "",
   "meta": {}
