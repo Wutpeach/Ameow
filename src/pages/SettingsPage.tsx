@@ -74,7 +74,6 @@ import {
   YouTubeLogo,
 } from "../site-session-icons";
 import type {
-  SiteSessionDiagnostics,
   SiteSessionState,
   SupportedSiteSessionId,
 } from "../types/siteSession";
@@ -100,10 +99,8 @@ type SiteLoginBadgeModel = {
   icon: ReactNode;
   label: string;
   statusLabel: string;
-  diagnosticLabel: string;
   tone: SiteLoginBadgeTone;
   disabled: boolean;
-  title: string;
   capturePhase: SiteSessionState["capturePhase"];
   canRefresh: boolean;
   canClear: boolean;
@@ -282,8 +279,6 @@ function SettingsPage() {
   const [globalProxyError, setGlobalProxyError] = useState<string | null>(null);
   const [siteSessionStates, setSiteSessionStates] =
     useState<Partial<Record<SupportedSiteSessionId, SiteSessionState>>>({});
-  const [siteSessionDiagnostics, setSiteSessionDiagnostics] =
-    useState<Partial<Record<SupportedSiteSessionId, SiteSessionDiagnostics | null>>>({});
   const [siteSessionErrors, setSiteSessionErrors] =
     useState<Partial<Record<SupportedSiteSessionId, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
@@ -749,20 +744,6 @@ function SettingsPage() {
     }));
   }, []);
 
-  const loadSiteSessionDiagnostics = useCallback(async (
-    siteId: SupportedSiteSessionId,
-  ): Promise<SiteSessionDiagnostics | null> => {
-    try {
-      return await desktopCommands.invoke<SiteSessionDiagnostics>(
-        "get_site_session_diagnostics",
-        { siteId },
-      );
-    } catch (err) {
-      console.error(`Failed to load ${siteId} site session diagnostics:`, err);
-      return null;
-    }
-  }, []);
-
   const loadSiteSessionPanelState = useCallback(async () => {
     const sessionResults = await Promise.all(
       SITE_SESSION_CONFIGS.map(async (site) => {
@@ -771,14 +752,12 @@ function SettingsPage() {
             "get_site_session_state",
             { siteId: site.id },
           );
-          const diagnostics = await loadSiteSessionDiagnostics(site.id);
-          return { siteId: site.id, state, diagnostics, error: null };
+          return { siteId: site.id, state, error: null };
         } catch (err) {
           console.error(`Failed to load ${site.id} site session status:`, err);
           return {
             siteId: site.id,
             state: null,
-            diagnostics: null,
             error: summarizeAppUpdateError(err) ?? t("desktop:settings.siteSessions.errors.load"),
           };
         }
@@ -794,13 +773,6 @@ function SettingsPage() {
       }
       return next;
     });
-    setSiteSessionDiagnostics((current) => {
-      const next = { ...current };
-      for (const result of sessionResults) {
-        next[result.siteId] = result.diagnostics;
-      }
-      return next;
-    });
     setSiteSessionErrors((current) => {
       const next = { ...current };
       for (const result of sessionResults) {
@@ -808,7 +780,7 @@ function SettingsPage() {
       }
       return next;
     });
-  }, [loadSiteSessionDiagnostics, t]);
+  }, [t]);
 
   useEffect(() => {
     void loadSiteSessionPanelState();
@@ -859,11 +831,6 @@ function SettingsPage() {
         ...current,
         [siteId]: sessionState,
       }));
-      const diagnostics = await loadSiteSessionDiagnostics(siteId);
-      setSiteSessionDiagnostics((current) => ({
-        ...current,
-        [siteId]: diagnostics,
-      }));
       setSiteSessionError(siteId, null);
     } catch (err) {
       console.error(`Failed to ${action} site session capture:`, err);
@@ -875,7 +842,7 @@ function SettingsPage() {
     } finally {
       setBusySiteSessionAction(null);
     }
-  }, [busySiteSessionAction, loadSiteSessionDiagnostics, loadSiteSessionPanelState, setSiteSessionError, t]);
+  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionError, t]);
 
   const handleAppUpdateCheck = useCallback(async () => {
     if (appUpdatePhase === "checking" || appUpdatePhase === "downloading" || appUpdatePhase === "installing") {
@@ -1111,7 +1078,7 @@ function SettingsPage() {
     const toneColors = getSiteLoginToneColors(tone);
     return {
       width: "100%",
-      minHeight: 58,
+      minHeight: 52,
       padding: "8px 10px",
       display: "grid",
       gridTemplateColumns: "minmax(0, 1fr) auto",
@@ -1174,41 +1141,6 @@ function SettingsPage() {
     };
   };
 
-  const formatSiteSessionSnapshotTime = (updatedAtMs: number | null | undefined): string => {
-    if (!updatedAtMs) {
-      return t("desktop:settings.siteSessions.diagnostics.never");
-    }
-
-    try {
-      return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(updatedAtMs));
-    } catch {
-      return t("desktop:settings.siteSessions.diagnostics.updated");
-    }
-  };
-
-  const buildSiteSessionDiagnosticLabel = (
-    diagnostics: SiteSessionDiagnostics | null | undefined,
-  ): string => {
-    const profileState = diagnostics?.profileState ?? "unknown";
-    const snapshotAvailability = diagnostics?.snapshotAvailability ?? "missing";
-    const snapshotCookieCount = diagnostics?.snapshotCookieCount ?? 0;
-    const profileLabel = t(`desktop:settings.siteSessions.diagnostics.profile.${profileState}`);
-    const snapshotLabel = t(`desktop:settings.siteSessions.diagnostics.snapshot.${snapshotAvailability}`);
-    const updatedLabel = formatSiteSessionSnapshotTime(diagnostics?.snapshotUpdatedAtMs);
-
-    return t("desktop:settings.siteSessions.diagnostics.line", {
-      profile: profileLabel,
-      snapshot: snapshotLabel,
-      count: snapshotCookieCount,
-      updated: updatedLabel,
-    });
-  };
-
   const activeCaptureSite = SITE_SESSION_CONFIGS.find((site) => {
     const phase = siteSessionStates[site.id]?.capturePhase ?? "idle";
     return phase === "preparing" || phase === "awaiting_confirmation";
@@ -1221,24 +1153,21 @@ function SettingsPage() {
     .find((error): error is string => Boolean(error));
   const siteLoginBadges: SiteLoginBadgeModel[] = SITE_SESSION_CONFIGS.map((site) => {
     const state = siteSessionStates[site.id];
-    const diagnostics = siteSessionDiagnostics[site.id];
     const error = siteSessionErrors[site.id];
     const availability = state?.availability ?? "missing";
     const phase = state?.capturePhase ?? "idle";
     const Logo = SITE_SESSION_LOGOS[site.id];
     const statusKey = error ? "expired" : availability === "ready" ? "ready" : "missing";
+    const statusLabel = t(`desktop:settings.siteSessions.status.${statusKey}`);
+    const siteLabel = t(site.labelKey);
     const disabled = isSiteSessionActionBusy || phase === "preparing" || phase === "awaiting_confirmation";
     return {
       id: site.id,
       icon: <Logo size={15} />,
-      label: t(site.labelKey),
-      statusLabel: t(`desktop:settings.siteSessions.status.${statusKey}`),
-      diagnosticLabel: buildSiteSessionDiagnosticLabel(diagnostics),
+      label: siteLabel,
+      statusLabel,
       tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
       disabled,
-      title: disabled
-        ? t("desktop:settings.siteSessions.busyHint")
-        : t("desktop:settings.siteSessions.badgeActionHint", { site: t(site.labelKey) }),
       capturePhase: phase,
       canRefresh: !disabled,
       canClear: !disabled,
@@ -1925,12 +1854,10 @@ function SettingsPage() {
                     }
                   }}
                   disabled={site.disabled}
-                  title={site.title}
                   style={getSiteLoginMainButtonStyle(site.disabled)}
                 >
                   <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ flexShrink: 0, color: colors.textPrimary }}>{site.icon}</span>
-                    <span style={getSiteLoginStatusDotStyle(site.tone)} aria-hidden="true" />
                     <span
                       style={{
                         minWidth: 0,
@@ -1940,6 +1867,10 @@ function SettingsPage() {
                     >
                       <span
                         style={{
+                          minWidth: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
                           fontSize: 12,
                           fontWeight: 650,
                           lineHeight: 1.1,
@@ -1947,32 +1878,19 @@ function SettingsPage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {site.label}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          lineHeight: 1.1,
-                          color: site.tone === "ready" ? colors.accentText : site.tone === "danger" ? colors.dangerText : colors.textSecondary,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {site.statusLabel}
-                      </span>
-                      <span
-                        style={{
-                          maxWidth: "100%",
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          fontSize: 9.5,
-                          lineHeight: 1.1,
-                          color: colors.textSecondary,
-                          opacity: 0.82,
-                        }}
-                      >
-                        {site.diagnosticLabel}
+                        <span
+                          style={getSiteLoginStatusDotStyle(site.tone)}
+                          aria-label={site.statusLabel}
+                        />
+                        <span
+                          style={{
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {site.label}
+                        </span>
                       </span>
                     </span>
                   </span>
