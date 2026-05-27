@@ -206,6 +206,18 @@
     }
   }
 
+  function clearFeedback() {
+    if (feedbackTimer !== null) {
+      window.clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
+    const feedback = launcher?.querySelector(".ameow-launcher-feedback");
+    if (!feedback) {
+      return;
+    }
+    feedback.dataset.visible = "false";
+  }
+
   function responseFeedback(response) {
     if (response?.success) {
       return {
@@ -259,6 +271,11 @@
       type: DOWNLOAD_CURRENT_MESSAGE,
       payload,
     });
+    if (response?.success) {
+      clearFeedback();
+      closeMenu();
+      return;
+    }
     const feedback = responseFeedback(response);
     setFeedback(feedback.kind, feedback.message);
     closeMenu();
