@@ -1812,3 +1812,36 @@ Implemented stable app-owned site login profiles and manual downloader credentia
 ### Next Steps
 
 - None - task complete
+
+
+## Session 192: Auth failure assisted credential refresh
+
+**Date**: 2026-05-27
+**Task**: Auth failure assisted credential refresh
+**Branch**: `main`
+
+### Summary
+
+Implemented Phase 3 site-session assisted auth recovery: auth-required download failures refresh supported site credentials from stable app-owned profiles and retry once with guarded completion semantics.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `150599a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
