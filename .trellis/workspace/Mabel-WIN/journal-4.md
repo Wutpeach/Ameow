@@ -1778,3 +1778,37 @@ Removed the misleading folder-drop processing feedback by routing folder outcome
 ### Next Steps
 
 - None - task complete
+
+
+## Session 191: Stable site login profiles phase 1 and 2
+
+**Date**: 2026-05-27
+**Task**: Stable site login profiles phase 1 and 2
+**Branch**: `main`
+
+### Summary
+
+Implemented stable app-owned site login profiles and manual downloader credential refresh. Phase 1 replaced disposable login capture partitions with per-site stable profiles and clear-profile cleanup. Phase 2 added refresh_site_session_credentials, preserved old snapshots on refresh failure, and added per-site refresh and clear actions in Settings.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c58bc3a` | (see git log) |
+| `8d6bd0f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

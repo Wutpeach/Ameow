@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 190
+- **Total Sessions**: 191
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1780 | Active |
+| `journal-4.md` | ~1814 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 191 | 2026-05-27 | Stable site login profiles phase 1 and 2 | `c58bc3a`, `8d6bd0f` | `main` |
 | 190 | 2026-05-27 | Center outcome folder drop feedback | `738b88c` | `main` |
 | 189 | 2026-05-27 | Download compatibility telemetry audit | `14a9ca6` | `main` |
 | 188 | 2026-05-27 | Editing-friendly download mux strategy | `9dfd356` | `main` |
