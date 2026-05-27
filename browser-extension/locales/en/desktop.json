@@ -200,6 +200,21 @@
         "expired": "Expired",
         "missing": "Not logged in"
       },
+      "diagnostics": {
+        "line": "Profile {{profile}} · Snapshot {{snapshot}} · {{count}} cookies · {{updated}}",
+        "never": "Never",
+        "updated": "Updated",
+        "profile": {
+          "present": "present",
+          "missing": "missing",
+          "unknown": "unknown"
+        },
+        "snapshot": {
+          "ready": "ready",
+          "partial": "partial",
+          "missing": "missing"
+        }
+      },
       "confirmButton": "Save session",
       "cancelButton": "Cancel",
       "refreshButton": "Refresh credentials",

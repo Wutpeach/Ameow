@@ -23,6 +23,7 @@ export type AmeowRendererCommand =
   | "complete_site_session_capture"
   | "export_support_log"
   | "get_douyin_session_state"
+  | "get_site_session_diagnostics"
   | "get_site_session_state"
   | "get_autostart"
   | "get_clipboard_files"

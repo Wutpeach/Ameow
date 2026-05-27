@@ -7,6 +7,7 @@ type CommandPayload = Record<string, unknown> | undefined;
 
 type SiteSessionCommandManager = Pick<
   SiteSessionManager,
+  | "getDiagnostics"
   | "getState"
   | "startCapture"
   | "confirmCapture"
@@ -47,6 +48,7 @@ export const resolveSiteSessionIdFromPayload = (
 };
 
 const genericSiteSessionCommands: Partial<Record<AmeowRendererCommand, SiteSessionManagerMethod>> = {
+  get_site_session_diagnostics: "getDiagnostics",
   get_site_session_state: "getState",
   start_site_session_capture: "startCapture",
   complete_site_session_capture: "confirmCapture",

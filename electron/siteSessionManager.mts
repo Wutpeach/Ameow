@@ -4,8 +4,12 @@ import { dirname, join } from "node:path";
 
 import type {
   SiteSessionCapturePhase,
+  SiteSessionDiagnostics,
   SiteSessionState,
 } from "../src/types/siteSession.js";
+import {
+  evaluateSiteSessionPolicy,
+} from "./siteSessionPolicy.mjs";
 
 type StoredSiteSession = {
   capturedAtMs: number;
@@ -55,6 +59,7 @@ type SiteSessionManagerOptions = {
 
 export type SiteSessionManager = {
   getState(): Promise<SiteSessionState>;
+  getDiagnostics(): Promise<SiteSessionDiagnostics>;
   startCapture(): Promise<SiteSessionState>;
   confirmCapture(): Promise<SiteSessionState>;
   cancelCapture(): Promise<SiteSessionState>;
@@ -168,16 +173,6 @@ const buildNetscapeCookies = (
   return `${lines.join("\n")}\n`;
 };
 
-const listMissingRequiredKeys = (
-  cookies: Record<string, string>,
-  requiredKeys: readonly string[],
-): string[] => requiredKeys.filter((key) => !normalizeCookieValue(cookies[key]));
-
-const hasLoginCookie = (
-  cookies: Record<string, string>,
-  loginKeys: readonly string[],
-): boolean => loginKeys.length === 0 || loginKeys.some((key) => Boolean(normalizeCookieValue(cookies[key])));
-
 const getSessionFilePath = (userDataDir: string, siteId: string): string => (
   join(userDataDir, "site-sessions", `${siteId}.json`)
 );
@@ -252,27 +247,66 @@ export const createSiteSessionManager = (
   const currentState = (): SiteSessionState => {
     ensureSessionCacheLoaded();
     const cookies = sessionCache?.cookies ?? {};
-    const missingRequiredKeys = listMissingRequiredKeys(cookies, requiredCookieKeys);
+    const policy = evaluateSiteSessionPolicy({
+      cookies,
+      requiredKeys: requiredCookieKeys,
+      loginKeys: loginCookieKeys,
+    });
     const cookieCount = Object.keys(cookies).length;
-    const completeEnough = missingRequiredKeys.length === 0 && hasLoginCookie(cookies, loginCookieKeys);
 
     return {
       siteId: options.site.id,
-      availability:
-        cookieCount === 0
-          ? "missing"
-          : completeEnough
-            ? "ready"
-            : "partial",
+      availability: policy.availability,
       updatedAtMs: sessionCache?.capturedAtMs ?? null,
       cookieCount,
       requiredKeys: [...requiredCookieKeys],
-      missingRequiredKeys,
+      missingRequiredKeys: policy.missingRequiredKeys,
       lastError,
       sessionFilePath: existsSync(sessionFilePath) ? sessionFilePath : null,
       capturePhase,
       captureStartedAtMs,
       capturePid: captureWindow?.id ?? null,
+    };
+  };
+
+  const profileDiagnostics = async (): Promise<Pick<SiteSessionDiagnostics, "profileState" | "lastError">> => {
+    try {
+      const rawCookies = await options.readCookies(stableProfilePartition);
+      const hasSiteProfileCookie = rawCookies.some((cookie) => (
+        isCookieForSite(cookie.domain ?? null, options.site.cookieDomains)
+        && Boolean(normalizeCookieValue(cookie.name))
+        && normalizeCookieValue(cookie.value) !== null
+      ));
+      return {
+        profileState: hasSiteProfileCookie ? "present" : "missing",
+        lastError: null,
+      };
+    } catch (error) {
+      return {
+        profileState: "unknown",
+        lastError: summarizeError(error),
+      };
+    }
+  };
+
+  const currentDiagnostics = async (): Promise<SiteSessionDiagnostics> => {
+    const state = currentState();
+    const profile = await profileDiagnostics();
+    const policy = evaluateSiteSessionPolicy({
+      cookies: sessionCache?.cookies ?? {},
+      requiredKeys: requiredCookieKeys,
+      loginKeys: loginCookieKeys,
+    });
+
+    return {
+      siteId: options.site.id,
+      profileState: profile.profileState,
+      snapshotAvailability: state.availability,
+      snapshotUpdatedAtMs: state.updatedAtMs,
+      snapshotCookieCount: state.cookieCount,
+      missingRequiredKeys: state.missingRequiredKeys,
+      lastError: profile.lastError ?? state.lastError,
+      policy,
     };
   };
 
@@ -350,6 +384,9 @@ export const createSiteSessionManager = (
   return {
     async getState() {
       return currentState();
+    },
+    async getDiagnostics() {
+      return currentDiagnostics();
     },
     async startCapture() {
       if (captureWindow) {

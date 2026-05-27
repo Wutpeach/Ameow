@@ -599,6 +599,120 @@ describe("createSiteSessionManager", () => {
     expect(manager.getDownloadCookies()).toContain("refreshed-session");
   });
 
+  it("reports diagnostics for a present profile and ready downloader snapshot", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 209,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "instagram-session",
+          path: "/",
+        },
+        {
+          domain: ".instagram.com",
+          name: "csrftoken",
+          value: "csrf-value",
+          path: "/",
+        },
+      ]),
+      now: () => 1_779_428_739_194,
+    });
+
+    await manager.refreshCredentials();
+    const diagnostics = await manager.getDiagnostics();
+
+    expect(diagnostics).toMatchObject({
+      siteId: "instagram",
+      profileState: "present",
+      snapshotAvailability: "ready",
+      snapshotUpdatedAtMs: 1_779_428_739_194,
+      snapshotCookieCount: 2,
+      missingRequiredKeys: [],
+      lastError: null,
+      policy: {
+        availability: "ready",
+        reason: "ready",
+        missingRequiredKeys: [],
+      },
+    });
+  });
+
+  it("reports diagnostics for a present profile but missing downloader snapshot", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const instagram = getSiteSessionConfig("instagram");
+    const manager = createSiteSessionManager({
+      site: instagram,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 210,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "profile-only-session",
+          path: "/",
+        },
+      ]),
+    });
+
+    const diagnostics = await manager.getDiagnostics();
+
+    expect(diagnostics).toMatchObject({
+      siteId: "instagram",
+      profileState: "present",
+      snapshotAvailability: "missing",
+      snapshotUpdatedAtMs: null,
+      snapshotCookieCount: 0,
+      missingRequiredKeys: [],
+      lastError: null,
+      policy: {
+        availability: "missing",
+        reason: "no_snapshot",
+      },
+    });
+  });
+
+  it("degrades profile diagnostics to unknown without failing state reads", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const bilibili = getSiteSessionConfig("bilibili");
+    const manager = createSiteSessionManager({
+      site: bilibili,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 211,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => {
+        throw new Error("profile jar unavailable");
+      }),
+    });
+
+    const state = await manager.getState();
+    const diagnostics = await manager.getDiagnostics();
+
+    expect(state).toMatchObject({
+      siteId: "bilibili",
+      availability: "missing",
+      lastError: null,
+    });
+    expect(diagnostics).toMatchObject({
+      siteId: "bilibili",
+      profileState: "unknown",
+      snapshotAvailability: "missing",
+      lastError: "profile jar unavailable",
+    });
+  });
+
   it("refreshes from the cookie jar only without merging stale supplemental cookies", async () => {
     const userDataDir = await createTempUserDataDir();
     const douyin = getSiteSessionConfig("douyin");

@@ -8,6 +8,7 @@ import {
 } from "./siteSessionCommands.mjs";
 
 type SiteSessionMethod =
+  | "getDiagnostics"
   | "getState"
   | "startCapture"
   | "confirmCapture"
@@ -16,6 +17,7 @@ type SiteSessionMethod =
   | "clearSession";
 
 const genericCommandCases = [
+  ["get_site_session_diagnostics", "getDiagnostics"],
   ["get_site_session_state", "getState"],
   ["start_site_session_capture", "startCapture"],
   ["complete_site_session_capture", "confirmCapture"],
@@ -38,6 +40,7 @@ const allSiteSessionCommands = [
 ];
 
 const createManager = (siteId: SupportedSiteSessionId) => ({
+  getDiagnostics: vi.fn(async () => ({ siteId, method: "getDiagnostics" })),
   getState: vi.fn(async () => ({ siteId, method: "getState" })),
   startCapture: vi.fn(async () => ({ siteId, method: "startCapture" })),
   confirmCapture: vi.fn(async () => ({ siteId, method: "confirmCapture" })),
@@ -135,6 +138,7 @@ describe("createSiteSessionCommandController", () => {
 
     expect(managers.youtube.getState).not.toHaveBeenCalled();
     expect(managers.youtube.startCapture).not.toHaveBeenCalled();
+    expect(managers.youtube.getDiagnostics).not.toHaveBeenCalled();
     expect(managers.youtube.confirmCapture).not.toHaveBeenCalled();
     expect(managers.youtube.cancelCapture).not.toHaveBeenCalled();
     expect(managers.youtube.refreshCredentials).not.toHaveBeenCalled();

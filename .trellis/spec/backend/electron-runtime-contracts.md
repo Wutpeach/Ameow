@@ -2106,6 +2106,7 @@ Renderer command names:
 
 ```ts
 type SiteSessionCommand =
+  | "get_site_session_diagnostics"
   | "get_site_session_state"
   | "start_site_session_capture"
   | "complete_site_session_capture"
@@ -2125,6 +2126,12 @@ type SupportedSiteSessionId =
   | "youtube";
 
 type SiteSessionAvailability = "missing" | "partial" | "ready";
+type SiteSessionProfileState = "unknown" | "missing" | "present";
+type SiteSessionPolicyReason =
+  | "ready"
+  | "missing_required_cookie"
+  | "missing_login_cookie"
+  | "no_snapshot";
 type SiteSessionCapturePhase = "idle" | "preparing" | "awaiting_confirmation";
 
 type SiteSessionState = {
@@ -2139,6 +2146,23 @@ type SiteSessionState = {
   capturePhase: SiteSessionCapturePhase;
   captureStartedAtMs: number | null;
   capturePid: number | null;
+};
+
+type SiteSessionPolicyEvaluation = {
+  availability: SiteSessionAvailability;
+  reason: SiteSessionPolicyReason;
+  missingRequiredKeys: string[];
+};
+
+type SiteSessionDiagnostics = {
+  siteId: SupportedSiteSessionId | string;
+  profileState: SiteSessionProfileState;
+  snapshotAvailability: SiteSessionAvailability;
+  snapshotUpdatedAtMs: number | null;
+  snapshotCookieCount: number;
+  missingRequiredKeys: string[];
+  lastError: string | null;
+  policy: SiteSessionPolicyEvaluation;
 };
 ```
 
@@ -2160,10 +2184,14 @@ type SiteSessionConfig = {
 
 - `src/site-sessions.ts` owns the supported site list, login URL, allowed cookie domains, and required/login cookie keys.
 - `electron/siteSessionManager.mts` owns persisted session files under `<userDataDir>/site-sessions/<siteId>.json`.
+- `get_site_session_state` remains the fast operational state command for capture/control UI. Do not add profile inspection or diagnostics-only fields to this return shape.
+- `get_site_session_diagnostics` is the explicit read-only diagnostics command for Settings and support workflows. It may inspect the stable app-owned profile partition and must tolerate inspection failures.
 - Stored sessions must include a Netscape cookie string because downloader execution consumes cookie files, not Electron cookie jars.
 - Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
 - Electron capture windows use an app-owned Chromium session, not the user's default browser profile. Capture sessions may harden unneeded permissions, set a browser-like user agent / accept-language, and collect same-site supplemental cookie values observed during capture.
 - Site capture uses a stable app-owned profile partition per supported site: `persist:ameow-site-session-<siteId>`. Confirming, cancelling, or closing a capture window must preserve that partition so sites see a consistent app browser profile across manual refresh attempts.
+- Site profile diagnostics report only lightweight profile evidence, not account identity or arbitrary storage contents. A profile is `present` when the stable partition has at least one cookie for the site's allowed domains, `missing` when inspection succeeds with no matching cookies, and `unknown` with `lastError` when inspection fails.
+- Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. The first policy layer wraps the current config-driven required-cookie and login-marker checks; do not add speculative site-specific rules without current downloader evidence.
 - Capture-session hardening for a stable partition must be idempotent. Repeated capture windows for the same site must not stack duplicate `webRequest` listeners, but each capture attempt should reset that partition's supplemental cookie collection state before loading the site.
 - Cookie-jar cookies remain the primary source for persisted site sessions and the generated Netscape cookie file. Supplemental cookie values may fill missing names in the stored JSON/header records, but must be filtered to the captured site's allowed cookie domains and must not store passwords, passkeys, authorization headers, or arbitrary storage blobs.
 - `refresh_site_session_credentials` re-reads cookie-jar cookies from the stable app-owned profile and rewrites the downloader credential snapshot without opening a login window. It must not merge supplemental cookies from previous capture windows, because those values are live-capture observations and may be stale during a no-window refresh.
