@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 188
+- **Total Sessions**: 189
 - **Last Active**: 2026-05-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1714 | Active |
+| `journal-4.md` | ~1747 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 189 | 2026-05-27 | Download compatibility telemetry audit | `14a9ca6` | `main` |
 | 188 | 2026-05-27 | Editing-friendly download mux strategy | `9dfd356` | `main` |
 | 187 | 2026-05-26 | Archive architecture boundary refactor milestone | `fdd4355` | `main` |
 | 186 | 2026-05-26 | Architecture boundary refactor closeout | `fdd4355` | `main` |

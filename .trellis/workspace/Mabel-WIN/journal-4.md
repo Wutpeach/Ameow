@@ -1712,3 +1712,36 @@ Researched editing-friendly video download format strategy, accepted necessary y
 ### Next Steps
 
 - None - task complete
+
+
+## Session 189: Download compatibility telemetry audit
+
+**Date**: 2026-05-27
+**Task**: Download compatibility telemetry audit
+**Branch**: `main`
+
+### Summary
+
+Added structured download outcome telemetry for yt-dlp profile evidence and editing-compatibility probe decisions, preserved source-complete event ordering, and covered conservative probe-failure full-transcode fallback with tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `14a9ca6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
