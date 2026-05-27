@@ -22,7 +22,8 @@
     "05-27-mvp-stable-site-login-profiles",
     "05-27-refresh-downloader-credentials",
     "05-27-auth-failure-assisted-refresh",
-    "05-27-site-profile-diagnostics-policy-hooks"
+    "05-27-site-profile-diagnostics-policy-hooks",
+    "05-27-05-27-polish-site-login-row-layout"
   ],
   "parent": null,
   "relatedFiles": [],

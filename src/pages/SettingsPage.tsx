@@ -104,6 +104,7 @@ type SiteLoginBadgeModel = {
   tone: SiteLoginBadgeTone;
   disabled: boolean;
   title: string;
+  capturePhase: SiteSessionState["capturePhase"];
   canRefresh: boolean;
   canClear: boolean;
   onClick: () => void;
@@ -1103,19 +1104,19 @@ function SettingsPage() {
     };
   };
 
-  const getSiteLoginBadgeStyle = (
+  const getSiteLoginRowStyle = (
     tone: SiteLoginBadgeTone,
     disabled: boolean,
   ): CSSProperties => {
     const toneColors = getSiteLoginToneColors(tone);
     return {
       width: "100%",
-      minHeight: 52,
+      minHeight: 58,
       padding: "8px 10px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr) auto",
       gap: 10,
+      alignItems: "center",
       ...getContinuousCornerStyle(13),
       border: `1px solid ${toneColors.border}`,
       background: `linear-gradient(180deg, ${toneColors.surfaceStart} 0%, ${toneColors.surfaceEnd} 100%)`,
@@ -1123,9 +1124,7 @@ function SettingsPage() {
         ? `inset 0 1px 0 ${colors.fieldInset}`
         : `inset 0 1px 0 ${colors.fieldInset}, 0 10px 20px -14px ${toneColors.glow}`,
       color: toneColors.text,
-      cursor: disabled ? "not-allowed" : "pointer",
-      opacity: disabled ? 0.62 : 1,
-      textAlign: "left",
+      opacity: disabled ? 0.72 : 1,
       transition: [
         `background 0.18s ${COMPACT_EASE}`,
         `border-color 0.18s ${COMPACT_EASE}`,
@@ -1133,6 +1132,34 @@ function SettingsPage() {
         `opacity 0.18s ${COMPACT_EASE}`,
       ].join(", "),
     };
+  };
+
+  const getSiteLoginMainButtonStyle = (
+    disabled: boolean,
+  ): CSSProperties => ({
+    minWidth: 0,
+    width: "100%",
+    padding: 0,
+    border: 0,
+    background: "transparent",
+    color: "inherit",
+    cursor: disabled ? "not-allowed" : "pointer",
+    textAlign: "left",
+    opacity: disabled ? 0.72 : 1,
+  });
+
+  const siteLoginInlineActionStyle: CSSProperties = {
+    minWidth: 44,
+    height: 26,
+    padding: "4px 8px",
+    fontSize: 10,
+  };
+
+  const siteLoginConfirmActionStyle: CSSProperties = {
+    minWidth: 76,
+    height: 26,
+    padding: "4px 8px",
+    fontSize: 10,
   };
 
   const getSiteLoginStatusDotStyle = (tone: SiteLoginBadgeTone): CSSProperties => {
@@ -1212,6 +1239,7 @@ function SettingsPage() {
       title: disabled
         ? t("desktop:settings.siteSessions.busyHint")
         : t("desktop:settings.siteSessions.badgeActionHint", { site: t(site.labelKey) }),
+      capturePhase: phase,
       canRefresh: !disabled,
       canClear: !disabled,
       onClick: () => void invokeSiteSessionCommand(site.id, "start"),
@@ -1882,10 +1910,11 @@ function SettingsPage() {
               <div
                 key={site.id}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr) auto",
-                  gap: 6,
-                  alignItems: "stretch",
+                  ...getSiteLoginRowStyle(
+                    site.tone,
+                    site.disabled && site.capturePhase !== "awaiting_confirmation",
+                  ),
+                  ...WINDOW_NO_DRAG_REGION_STYLE,
                 }}
               >
                 <button
@@ -1897,10 +1926,7 @@ function SettingsPage() {
                   }}
                   disabled={site.disabled}
                   title={site.title}
-                  style={{
-                    ...getSiteLoginBadgeStyle(site.tone, site.disabled),
-                    ...WINDOW_NO_DRAG_REGION_STYLE,
-                  }}
+                  style={getSiteLoginMainButtonStyle(site.disabled)}
                 >
                   <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ flexShrink: 0, color: colors.textPrimary }}>{site.icon}</span>
@@ -1951,29 +1977,64 @@ function SettingsPage() {
                     </span>
                   </span>
                 </button>
-                <div style={{ display: "flex", gap: 4, alignItems: "center", ...WINDOW_NO_DRAG_REGION_STYLE }}>
-                  <NeonButton
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void invokeSiteSessionCommand(site.id, "refresh")}
-                    disabled={isSiteSessionActionBusy || !site.canRefresh}
-                    title={t("desktop:settings.siteSessions.refreshButton")}
-                    style={{ minWidth: 46, padding: "4px 8px", fontSize: 10 }}
-                  >
-                    {t("desktop:settings.siteSessions.refreshShortButton")}
-                  </NeonButton>
-                  <NeonButton
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void invokeSiteSessionCommand(site.id, "clear")}
-                    disabled={isSiteSessionActionBusy || !site.canClear}
-                    title={t("desktop:settings.siteSessions.clearButton")}
-                    style={{ minWidth: 42, padding: "4px 8px", fontSize: 10 }}
-                  >
-                    {t("desktop:settings.siteSessions.clearButton")}
-                  </NeonButton>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 4,
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    flexWrap: "nowrap",
+                  }}
+                >
+                  {site.capturePhase === "awaiting_confirmation" ? (
+                    <>
+                      <NeonButton
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={() => void invokeSiteSessionCommand(site.id, "confirm")}
+                        disabled={isSiteSessionActionBusy}
+                        style={siteLoginConfirmActionStyle}
+                      >
+                        {t("desktop:settings.siteSessions.confirmButton")}
+                      </NeonButton>
+                      <NeonButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void invokeSiteSessionCommand(site.id, "cancel")}
+                        disabled={isSiteSessionActionBusy}
+                        style={siteLoginInlineActionStyle}
+                      >
+                        {t("desktop:settings.siteSessions.cancelButton")}
+                      </NeonButton>
+                    </>
+                  ) : (
+                    <>
+                      <NeonButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void invokeSiteSessionCommand(site.id, "refresh")}
+                        disabled={isSiteSessionActionBusy || !site.canRefresh}
+                        title={t("desktop:settings.siteSessions.refreshButton")}
+                        style={siteLoginInlineActionStyle}
+                      >
+                        {t("desktop:settings.siteSessions.refreshShortButton")}
+                      </NeonButton>
+                      <NeonButton
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void invokeSiteSessionCommand(site.id, "clear")}
+                        disabled={isSiteSessionActionBusy || !site.canClear}
+                        title={t("desktop:settings.siteSessions.clearButton")}
+                        style={siteLoginInlineActionStyle}
+                      >
+                        {t("desktop:settings.siteSessions.clearButton")}
+                      </NeonButton>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -1984,31 +2045,6 @@ function SettingsPage() {
               {siteSessionError}
             </NeonHint>
           ) : null}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            {activeCapturePhase === "awaiting_confirmation" ? (
-              <NeonButton
-                type="button"
-                variant="default"
-                size="sm"
-                onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "confirm")}
-                disabled={isSiteSessionActionBusy}
-                style={{ minWidth: 88, padding: "4px 10px", fontSize: 10.5 }}
-              >
-                {t("desktop:settings.siteSessions.confirmButton")}
-              </NeonButton>
-            ) : null}
-            <NeonButton
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => void invokeSiteSessionCommand(activeCaptureSiteId ?? "douyin", "cancel")}
-              disabled={isSiteSessionActionBusy || activeCapturePhase !== "awaiting_confirmation"}
-              style={{ minWidth: 76, padding: "4px 10px", fontSize: 10.5 }}
-            >
-              {t("desktop:settings.siteSessions.cancelButton")}
-            </NeonButton>
-          </div>
         </NeonCard>
       </NeonSection>
     </>
