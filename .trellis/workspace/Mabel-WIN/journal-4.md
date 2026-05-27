@@ -1745,3 +1745,36 @@ Added structured download outcome telemetry for yt-dlp profile evidence and edit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 190: Center outcome folder drop feedback
+
+**Date**: 2026-05-27
+**Task**: Center outcome folder drop feedback
+**Branch**: `main`
+
+### Summary
+
+Removed the misleading folder-drop processing feedback by routing folder outcomes through the centered outcome overlay, added a local FolderCheck icon, and kept the main window shell locked until center outcome animations finish so the panel collapses cleanly afterward.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `738b88c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
