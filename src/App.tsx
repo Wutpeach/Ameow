@@ -10,6 +10,7 @@ import {
 import {
   ForegroundOutcomeOverlay,
 } from "./components/ForegroundOutcomeOverlay";
+import { FolderCheckIcon } from "./components/icons/AppIcons";
 import { NeonIconButton } from "./components/ui";
 import {
   COMPACT_EASE,
@@ -451,6 +452,7 @@ function App({
   const [downloadCancelled, setDownloadCancelled] = useState(false);
   const [downloadErrorMessage, setDownloadErrorMessage] = useState<string | null>(null);
   const [isForegroundTaskOutcomeVisible, setIsForegroundTaskOutcomeVisible] = useState(false);
+  const [centerOutcome, setCenterOutcome] = useState<"folder-success" | "folder-error" | null>(null);
   const [outputPath, setOutputPath] = useState("");
   const [renameMediaOnDownload, setRenameMediaOnDownload] = useState(false);
   const [isPanelHovered, setIsPanelHovered] = useState(false);
@@ -499,6 +501,7 @@ function App({
   const deferredStartupInitializationTimerRef = useRef<number | null>(null);
   const deferredStartupInitializationIdleRef = useRef<number | null>(null);
   const foregroundTaskOutcomeTimerRef = useRef<number | null>(null);
+  const centerOutcomeTimerRef = useRef<number | null>(null);
   const foregroundOutcomeRequestIdRef = useRef(0);
   const isForegroundTaskOutcomeVisibleRef = useRef(false);
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
@@ -518,6 +521,7 @@ function App({
   const lastKnownWindowPositionRef = useRef<{ x: number; y: number } | null>(null);
   const lastPanelOutputFolderShortcutAtRef = useRef(0);
   const isDropHoveringRef = useRef(false);
+  const suppressNextPanelDragLeaveRef = useRef(false);
   const shellPhaseRef = useRef(shellPhase);
   const shellMachineRef = useRef<MainWindowShellState>(createMainWindowShellState({
     startsCompact: startsInNativeCompactStartupWindow,
@@ -642,6 +646,13 @@ function App({
     }
   }, []);
 
+  const clearCenterOutcomeTimer = useCallback(() => {
+    if (centerOutcomeTimerRef.current !== null) {
+      clearTimeout(centerOutcomeTimerRef.current);
+      centerOutcomeTimerRef.current = null;
+    }
+  }, []);
+
   const waitForForegroundOutcomeStableFrame = useCallback(async () => {
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
@@ -654,12 +665,14 @@ function App({
   const resetDownloadOutcome = useCallback(() => {
     foregroundOutcomeRequestIdRef.current += 1;
     clearForegroundTaskOutcomeTimer();
+    clearCenterOutcomeTimer();
     isForegroundTaskOutcomeVisibleRef.current = false;
     setIsForegroundTaskOutcomeVisible(false);
+    setCenterOutcome(null);
     setIsProcessing(false);
     setDownloadCancelled(false);
     setDownloadErrorMessage(null);
-  }, [clearForegroundTaskOutcomeTimer]);
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
 
   const clearDeferredStartupInitializationIdle = useCallback(() => {
     if (
@@ -1016,12 +1029,43 @@ function App({
     setIsPanelHovered(isPointerInsidePanelRef.current);
   }, []);
 
-  const clearPanelDropInteractionState = useCallback(() => {
+  const clearPanelDropInteractionState = useCallback(({
+    pointerInside = false,
+  }: {
+    pointerInside?: boolean;
+  } = {}) => {
     setIsHovering(false);
-    isPointerInsidePanelRef.current = false;
+    isPointerInsidePanelRef.current = pointerInside;
     updateDropHoverState(false);
-    dispatchShellEvent({ type: "dropLeave" });
+    dispatchShellEvent(pointerInside
+      ? { type: "setLock", lock: "drop", active: false }
+      : { type: "dropLeave" });
   }, [dispatchShellEvent, updateDropHoverState]);
+
+  const isPointInsidePanel = useCallback((clientX: number, clientY: number) => {
+    const container = containerRef.current;
+    if (!container) {
+      return false;
+    }
+    const elementAtPoint = document.elementFromPoint(clientX, clientY);
+    if (elementAtPoint && container.contains(elementAtPoint)) {
+      return true;
+    }
+    const rect = container.getBoundingClientRect();
+    return (
+      clientX >= rect.left
+      && clientX <= rect.right
+      && clientY >= rect.top
+      && clientY <= rect.bottom
+    );
+  }, []);
+
+  const suppressNextPanelDragLeave = useCallback(() => {
+    suppressNextPanelDragLeaveRef.current = true;
+    window.setTimeout(() => {
+      suppressNextPanelDragLeaveRef.current = false;
+    }, 100);
+  }, []);
 
   const scheduleMainWindowPointerLeaveCollapse = useCallback(() => {
     isPointerInsidePanelRef.current = false;
@@ -1124,6 +1168,38 @@ function App({
     prepareMainWindowForForegroundTask,
     waitForForegroundOutcomeStableFrame,
   ]);
+
+  const showFolderDropOutcome = useCallback(() => {
+    clearForegroundTaskOutcomeTimer();
+    clearCenterOutcomeTimer();
+    isForegroundTaskOutcomeVisibleRef.current = false;
+    setIsForegroundTaskOutcomeVisible(false);
+    setDownloadCancelled(false);
+    setDownloadErrorMessage(null);
+    setIsProcessing(false);
+    setCenterOutcome("folder-success");
+    centerOutcomeTimerRef.current = window.setTimeout(() => {
+      centerOutcomeTimerRef.current = null;
+      setCenterOutcome(null);
+    }, 1400);
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
+
+  const showFolderDropErrorOutcome = useCallback((error: string) => {
+    clearForegroundTaskOutcomeTimer();
+    clearCenterOutcomeTimer();
+    isForegroundTaskOutcomeVisibleRef.current = false;
+    setIsForegroundTaskOutcomeVisible(false);
+    setDownloadCancelled(true);
+    setDownloadErrorMessage(error);
+    setIsProcessing(false);
+    setCenterOutcome("folder-error");
+    centerOutcomeTimerRef.current = window.setTimeout(() => {
+      centerOutcomeTimerRef.current = null;
+      setCenterOutcome(null);
+      setDownloadCancelled(false);
+      setDownloadErrorMessage(null);
+    }, 1800);
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
 
   const startForegroundProcessing = useCallback(async () => {
     await prepareMainWindowForForegroundTask();
@@ -1917,7 +1993,8 @@ function App({
 
   useEffect(() => () => {
     clearForegroundTaskOutcomeTimer();
-  }, [clearForegroundTaskOutcomeTimer]);
+    clearCenterOutcomeTimer();
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
 
   // Listen for devMode changes from settings window
   useEffect(() => {
@@ -2330,10 +2407,10 @@ function App({
   useEffect(() => {
     dispatchShellEvent({
       type: "setLock",
-      lock: "foregroundOutcome",
-      active: isForegroundTaskOutcomeVisible,
+      lock: "centerOutcome",
+      active: isForegroundTaskOutcomeVisible || centerOutcome !== null,
     });
-  }, [dispatchShellEvent, isForegroundTaskOutcomeVisible]);
+  }, [centerOutcome, dispatchShellEvent, isForegroundTaskOutcomeVisible]);
 
   useEffect(() => {
     dispatchShellEvent({ type: "setLock", lock: "contextMenu", active: isContextMenuOpen });
@@ -2975,7 +3052,10 @@ function App({
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsHovering(false);
+    const pointerInsideAfterDrop = isPointInsidePanel(e.clientX, e.clientY);
+    isPointerInsidePanelRef.current = pointerInsideAfterDrop;
     updateDropHoverState(true);
+    dispatchShellEvent({ type: "dropEnter" });
 
     try {
     const droppedFolderResult = await desktopDrop.consumePendingFolderDrop();
@@ -2984,25 +3064,22 @@ function App({
         await saveOutputPath(droppedFolderResult.path);
         setOutputPath(droppedFolderResult.path);
         resetDownloadOutcome();
+        showFolderDropOutcome();
       } catch (err) {
         console.error("Failed to save dropped folder path:", err);
-        setDownloadCancelled(true);
-        setDownloadErrorMessage(t("app.drop.errors.saveFailed"));
+        showFolderDropErrorOutcome(t("app.drop.errors.saveFailed"));
       }
 
-      await startForegroundProcessing();
-      setTimeout(() => setIsProcessing(false), 1000);
+      suppressNextPanelDragLeave();
+      clearPanelDropInteractionState({ pointerInside: pointerInsideAfterDrop });
       return;
     }
 
     if (droppedFolderResult && shouldHandleDroppedFolderResult(droppedFolderResult)) {
       console.error("Failed to resolve dropped folder:", droppedFolderResult);
-      setDownloadCancelled(true);
-      setDownloadErrorMessage(
-        t(getDroppedFolderErrorTranslationKey(droppedFolderResult.reason)),
-      );
-      await startForegroundProcessing();
-      setTimeout(() => setIsProcessing(false), 1000);
+      showFolderDropErrorOutcome(t(getDroppedFolderErrorTranslationKey(droppedFolderResult.reason)));
+      suppressNextPanelDragLeave();
+      clearPanelDropInteractionState({ pointerInside: pointerInsideAfterDrop });
       return;
     }
 
@@ -3450,7 +3527,7 @@ function App({
     // If not a URL and no files, let the desktop runtime handle it
     console.log("Not an image URL and no files, letting the desktop runtime handle it");
     } finally {
-      clearPanelDropInteractionState();
+      clearPanelDropInteractionState({ pointerInside: pointerInsideAfterDrop });
     }
   };
 
@@ -3927,6 +4004,10 @@ function App({
       }}
       onDrop={handleDrop}
       onDragLeave={() => {
+        if (suppressNextPanelDragLeaveRef.current) {
+          suppressNextPanelDragLeaveRef.current = false;
+          return;
+        }
         clearPanelDropInteractionState();
       }}
       onMouseEnter={(e) => {
@@ -4759,6 +4840,19 @@ function App({
           loadingStrokeColor={colors.accentSolid}
           loadingTrackColor={colors.borderStart}
           loadingTextColor={colors.textSecondary}
+        />
+        <ForegroundOutcomeOverlay
+          visible={centerOutcome !== null}
+          outcomeVisible={centerOutcome !== null}
+          cancelled={centerOutcome === "folder-error"}
+          errorMessage={centerOutcome === "folder-error" ? downloadErrorMessage : null}
+          successColor={colors.successIcon}
+          errorColor={colors.errorIcon}
+          loadingStrokeColor={colors.accentSolid}
+          loadingTrackColor={colors.borderStart}
+          loadingTextColor={colors.textSecondary}
+          SuccessIcon={FolderCheckIcon}
+          successIconStrokeWidth={2}
         />
 
         <AnimatePresence>

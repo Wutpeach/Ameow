@@ -6,7 +6,7 @@ export type MainWindowShellLock =
   | "task"
   | "drop"
   | "startup"
-  | "foregroundOutcome"
+  | "centerOutcome"
   | "uiLab"
   | "appUpdate";
 
@@ -47,7 +47,7 @@ const EMPTY_LOCKS: Record<MainWindowShellLock, boolean> = {
   task: false,
   drop: false,
   startup: false,
-  foregroundOutcome: false,
+  centerOutcome: false,
   uiLab: false,
   appUpdate: false,
 };

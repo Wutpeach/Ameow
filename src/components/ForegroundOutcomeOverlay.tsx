@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { ComponentType, CSSProperties, SVGProps } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { CircularProgressIndicator } from "./CircularProgressIndicator";
@@ -17,6 +17,10 @@ const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
   pointerEvents: "none",
 };
 
+type OutcomeIconProps = SVGProps<SVGSVGElement> & {
+  size?: number;
+};
+
 export type ForegroundOutcomeOverlayProps = {
   visible: boolean;
   outcomeVisible: boolean;
@@ -27,6 +31,8 @@ export type ForegroundOutcomeOverlayProps = {
   loadingStrokeColor: string;
   loadingTrackColor: string;
   loadingTextColor: string;
+  SuccessIcon?: ComponentType<OutcomeIconProps>;
+  successIconStrokeWidth?: number;
 };
 
 export const ForegroundOutcomeOverlay = ({
@@ -39,6 +45,8 @@ export const ForegroundOutcomeOverlay = ({
   loadingStrokeColor,
   loadingTrackColor,
   loadingTextColor,
+  SuccessIcon = CheckIcon,
+  successIconStrokeWidth = 3,
 }: ForegroundOutcomeOverlayProps) => {
   const shouldReduceMotion = useReducedMotion();
 
@@ -148,7 +156,7 @@ export const ForegroundOutcomeOverlay = ({
                 {cancelled ? (
                   <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
                 ) : (
-                  <CheckIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={3} />
+                  <SuccessIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={successIconStrokeWidth} />
                 )}
               </motion.div>
             </div>

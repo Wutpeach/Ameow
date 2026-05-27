@@ -106,6 +106,56 @@ describe("mainWindowShellMachine", () => {
     ]);
   });
 
+  it("blocks collapse for center outcome and collapses after the outcome finishes outside", () => {
+    const lockedOutside = apply(
+      createMainWindowShellState({ startsCompact: false }),
+      { type: "setLock", lock: "centerOutcome", active: true },
+      { type: "pointerLeave" },
+    );
+
+    expect(lockedOutside.state.phase).toBe("full");
+    expect(lockedOutside.state.pointerInside).toBe(false);
+    expect(lockedOutside.state.locks.centerOutcome).toBe(true);
+    expect(lockedOutside.effects).toEqual([]);
+
+    const released = apply(lockedOutside.state, { type: "setLock", lock: "centerOutcome", active: false });
+    expect(released.state.phase).toBe("collapsePending");
+    expect(released.effects).toEqual([
+      { type: "startCollapseTimer", token: released.state.collapseTimerToken },
+    ]);
+  });
+
+  it("keeps full mode when center outcome finishes while pointer remains inside", () => {
+    const lockedInside = apply(
+      createMainWindowShellState({ startsCompact: false }),
+      { type: "pointerEnter" },
+      { type: "setLock", lock: "centerOutcome", active: true },
+    );
+
+    const released = apply(lockedInside.state, { type: "setLock", lock: "centerOutcome", active: false });
+
+    expect(released.state.phase).toBe("full");
+    expect(released.state.pointerInside).toBe(true);
+    expect(released.state.locks.centerOutcome).toBe(false);
+    expect(released.effects).toEqual([]);
+  });
+
+  it("cancels pending collapse when center outcome starts", () => {
+    const pending = apply(
+      createMainWindowShellState({ startsCompact: false }),
+      { type: "pointerLeave" },
+    );
+    const token = pending.state.collapseTimerToken;
+
+    const locked = apply(pending.state, { type: "setLock", lock: "centerOutcome", active: true });
+
+    expect(locked.state.phase).toBe("full");
+    expect(locked.state.locks.centerOutcome).toBe(true);
+    expect(locked.effects).toEqual([{ type: "cancelCollapseTimer" }]);
+    expect(apply(locked.state, { type: "collapseTimerFired", token }).state.phase)
+      .toBe("full");
+  });
+
   it("keeps drop hover full until drop lock clears", () => {
     const dropped = apply(
       createMainWindowShellState({ startsCompact: true }),
@@ -121,6 +171,27 @@ describe("mainWindowShellMachine", () => {
     expect(cleared.state.phase).toBe("collapsePending");
     expect(cleared.effects).toEqual([
       { type: "startCollapseTimer", token: cleared.state.collapseTimerToken },
+    ]);
+  });
+
+  it("keeps controls available when drop lock clears while pointer remains inside", () => {
+    const dropped = apply(
+      createMainWindowShellState({ startsCompact: true }),
+      { type: "dropEnter" },
+      { type: "expandAnimationComplete" },
+    );
+
+    const unlockedInside = apply(dropped.state, { type: "setLock", lock: "drop", active: false });
+
+    expect(unlockedInside.state.phase).toBe("full");
+    expect(unlockedInside.state.pointerInside).toBe(true);
+    expect(unlockedInside.state.locks.drop).toBe(false);
+    expect(unlockedInside.effects).toEqual([]);
+
+    const left = apply(unlockedInside.state, { type: "pointerLeave" });
+    expect(left.state.phase).toBe("collapsePending");
+    expect(left.effects).toEqual([
+      { type: "startCollapseTimer", token: left.state.collapseTimerToken },
     ]);
   });
 
