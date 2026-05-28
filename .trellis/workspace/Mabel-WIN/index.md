@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 194
-- **Last Active**: 2026-05-27
+- **Total Sessions**: 195
+- **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1914 | Active |
+| `journal-4.md` | ~1950 | Active |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +32,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 195 | 2026-05-28 | Fix floating window collapse and browser cat icon flash | `77bc2ba`, `71202b1`, `17cd978`, `a59c4ed` | `main` |
 | 194 | 2026-05-27 | Polish site login row layout | `1309b5a`, `0bf64b2` | `main` |
 | 193 | 2026-05-27 | Site profile diagnostics and policy hooks | `06d31d7` | `main` |
 | 192 | 2026-05-27 | Auth failure assisted credential refresh | `150599a` | `main` |

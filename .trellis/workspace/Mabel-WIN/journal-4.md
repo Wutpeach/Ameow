@@ -1912,3 +1912,39 @@ Aligned Settings site-login row actions, moved capture controls into the active 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 195: Fix floating window collapse and browser cat icon flash
+
+**Date**: 2026-05-28
+**Task**: Fix floating window collapse and browser cat icon flash
+**Branch**: `main`
+
+### Summary
+
+Fixed compact/full shell pointer-state drift after programmatic full-mode download completion; added a shared browser-extension cat icon helper to bound first-frame injected icon sizing; recorded related frontend specs and task artifacts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `77bc2ba` | (see git log) |
+| `71202b1` | (see git log) |
+| `17cd978` | (see git log) |
+| `a59c4ed` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
