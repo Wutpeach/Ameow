@@ -135,6 +135,7 @@ const pageUrl = resolveSubmissionUrlFromLocalCardOrDialog(mountTarget.referenceB
 Third-party DOM injection contract:
 - For browser extension site detectors, treat the target site DOM as an unstable contract. Match the local action group/container, not only a globally labeled icon.
 - Injection must be scoped by page mode when the same icon exists in multiple layouts. Example: a reels-only button may mount only on `/reel/...` routes, not on feed/detail pages that also expose a like icon.
+- Shared injected icon DOM must be safe before page CSS settles. For cat-mask controls, create icons through the shared browser-extension helper so the first rendered frame has bounded inline dimensions, then release sizing back to site CSS after the mount frames.
 - When native UI uses outer wrappers for spacing/count labels, clone only the DOM path that leads to the button shell. Do not deep-clone the entire slot if it also contains counts, duplicate icon states, or auxiliary text.
 - Submission URL resolution must prefer the current card/dialog/article permalink over `location.href` or page-level canonical tags. Feed pages often expose `https://www.instagram.com/` as the global URL even though the actionable media lives in a nested `/p/.../` or `/reel/.../` anchor.
 - SPA route changes must remove all prior FlowSelect-injected nodes and recompute mount targets from the new DOM. Reusing stale anchors is a common source of duplicate buttons and broken spacing.

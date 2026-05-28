@@ -192,6 +192,7 @@ Contracts:
 - When multiple transitions can hand off between each other, decide the next shell state at the handoff point instead of letting one effect finish and a second effect immediately undo it.
 - If a foreground success/error outcome is rendered briefly in the main panel, treat that outcome visibility as its own synchronous guard, typically via a ref that collapse callbacks can read immediately. Do not rely on React state alone to lock compact-mode collapse for the completion checkmark/error state, because async completion callbacks can race pointer-leave or post-task collapse handoff by one frame.
 - When showing a foreground task outcome after download/transcode completion, request full-mode ownership before or alongside flipping the visible outcome state. The completion glyph/message must not first appear inside the compact icon shell and then recover back to the full panel.
+- Programmatic full-mode requests must not fabricate pointer ownership. If a reducer event such as `forceFull` expands the compact window for download progress or another app-owned flow, preserve the current `pointerInside` value instead of setting it to `true`. Otherwise task/outcome lock release can believe the pointer is still inside and skip the normal collapse path until the next real enter/leave event.
 
 Common compact-window mistakes:
 
