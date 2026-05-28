@@ -64,6 +64,7 @@
         "https://x.com/*"
       ],
       "js": [
+        "injected-cat-icon.js",
         "twitter-detector.js"
       ],
       "css": [
@@ -80,6 +81,7 @@
       "js": [
         "locale-utils.js",
         "control-style-utils.js",
+        "injected-cat-icon.js",
         "youtube-detector.js"
       ],
       "css": [
@@ -96,6 +98,7 @@
       "js": [
         "locale-utils.js",
         "control-style-utils.js",
+        "injected-cat-icon.js",
         "bilibili-detector.js"
       ],
       "css": [
@@ -124,6 +127,7 @@
         "https://xhslink.com/*"
       ],
       "js": [
+        "injected-cat-icon.js",
         "xiaohongshu-detector.js"
       ],
       "css": [
@@ -138,6 +142,7 @@
         "https://pinterest.com/*"
       ],
       "js": [
+        "injected-cat-icon.js",
         "pinterest-detector.js"
       ],
       "css": [

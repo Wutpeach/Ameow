@@ -20,7 +20,7 @@
   const VIDEO_HINT_RE =
     /(?:video_list|story_pin_data|carousel_data|v\d+\.pinimg\.com\/videos|\/videos\/iht\/hls\/|\.m3u8\b|\.mp4\b|\.cmfv\b)/i;
   const DETECT_DELAY_MS = 96;
-  const CAT_ICON_CLASS = "ameow-injected-cat-icon";
+  const injectedCatIcon = window.AmeowInjectedCatIcon;
 
   let lastUrl = window.location.href;
   let observer = null;
@@ -747,11 +747,7 @@
   }
 
   function createCatIconElement() {
-    const icon = document.createElement("span");
-    icon.setAttribute("aria-hidden", "true");
-    icon.className = CAT_ICON_CLASS;
-    icon.style.setProperty("--ameow-injected-cat-icon-url", `url("${chrome.runtime.getURL("injected-cat-icon.svg")}")`);
-    return icon;
+    return injectedCatIcon.createCatIconElement({ fallbackSizePx: 20 });
   }
 
   function extractControlLabel(element) {

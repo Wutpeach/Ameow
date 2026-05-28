@@ -9,6 +9,15 @@ function findContentScript(match) {
   return manifest.content_scripts.find((entry) => Array.isArray(entry.matches) && entry.matches.includes(match));
 }
 
+function findContentScriptWithJs(match, scriptName) {
+  return manifest.content_scripts.find((entry) => (
+    Array.isArray(entry.matches)
+    && entry.matches.includes(match)
+    && Array.isArray(entry.js)
+    && entry.js.includes(scriptName)
+  ));
+}
+
 describe("browser extension manifest", () => {
   it("keeps the global context menu permission enabled", () => {
     expect(manifest.permissions).toContain("contextMenus");
@@ -20,7 +29,7 @@ describe("browser extension manifest", () => {
 
   it("registers the Twitter/X injected detector", () => {
     expect(findContentScript("https://x.com/*")).toMatchObject({
-      js: ["twitter-detector.js"],
+      js: ["injected-cat-icon.js", "twitter-detector.js"],
       css: ["ameow-shared.css", "twitter-button.css"],
       run_at: "document_idle",
     });
@@ -28,9 +37,21 @@ describe("browser extension manifest", () => {
 
   it("keeps the Bilibili injected detector registered", () => {
     expect(findContentScript("https://www.bilibili.com/*")).toMatchObject({
-      js: ["locale-utils.js", "control-style-utils.js", "bilibili-detector.js"],
+      js: ["locale-utils.js", "control-style-utils.js", "injected-cat-icon.js", "bilibili-detector.js"],
       css: ["ameow-shared.css", "bilibili-button.css"],
       run_at: "document_idle",
+    });
+  });
+
+  it("loads the injected cat icon helper before site detectors that render cat controls", () => {
+    expect(findContentScript("https://www.youtube.com/*")).toMatchObject({
+      js: ["locale-utils.js", "control-style-utils.js", "injected-cat-icon.js", "youtube-detector.js"],
+    });
+    expect(findContentScriptWithJs("https://*.xiaohongshu.com/*", "xiaohongshu-detector.js")).toMatchObject({
+      js: ["injected-cat-icon.js", "xiaohongshu-detector.js"],
+    });
+    expect(findContentScript("https://www.pinterest.com/*")).toMatchObject({
+      js: ["injected-cat-icon.js", "pinterest-detector.js"],
     });
   });
 });

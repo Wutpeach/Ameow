@@ -6,7 +6,7 @@
 
   const PROCESSED_ATTR = 'data-ameow-processed';
   const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
-  const CAT_ICON_CLASS = 'ameow-injected-cat-icon';
+  const injectedCatIcon = window.AmeowInjectedCatIcon;
 
   function normalizeStatusUrl(rawUrl) {
     if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
@@ -97,11 +97,7 @@
   }
 
   function createCatIconElement() {
-    const icon = document.createElement('span');
-    icon.setAttribute('aria-hidden', 'true');
-    icon.className = CAT_ICON_CLASS;
-    icon.style.setProperty('--ameow-injected-cat-icon-url', `url("${chrome.runtime.getURL('injected-cat-icon.svg')}")`);
-    return icon;
+    return injectedCatIcon.createCatIconElement({ fallbackSizePx: 20 });
   }
 
   // 发送下载请求

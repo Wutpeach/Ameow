@@ -22,6 +22,7 @@
   const localeUtils = window.AmeowLocaleUtils || null;
   const controlStyleUtils = window.AmeowControlStyleUtils || null;
   const injectionDebugConfig = window.AmeowInjectionDebugConfig || null;
+  const injectedCatIcon = window.AmeowInjectedCatIcon;
   const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || 'en';
   const RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE = 'ameow_resolve_pasted_video_selection';
   let currentBundle = {
@@ -326,11 +327,7 @@
   }
 
   function createCatIconElement() {
-    const icon = document.createElement('span');
-    icon.setAttribute('aria-hidden', 'true');
-    icon.className = CAT_ICON_CLASS;
-    icon.style.setProperty('--ameow-injected-cat-icon-url', `url("${chrome.runtime.getURL('injected-cat-icon.svg')}")`);
-    return icon;
+    return injectedCatIcon.createCatIconElement({ fallbackSizePx: 24 });
   }
 
   function getClipPointButtonTitle(pointLabel, seconds) {

@@ -18,7 +18,7 @@
   const XIAOHONGSHU_FEED_API_PATH = '/api/sns/web/v1/feed';
   const XIAOHONGSHU_NOTE_DETAIL_PATH = '/api/sns/web/v1/note';
   const XIAOHONGSHU_IMAGE_SCENES = ['CRD_PRV_WEBP', 'CRD_WM_WEBP', 'CRD_WM_JPG'];
-  const CAT_ICON_CLASS = 'ameow-injected-cat-icon';
+  const injectedCatIcon = window.AmeowInjectedCatIcon;
   let lastContextPayload = null;
   const NOTE_LINK_SELECTOR = 'a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/user/profile/"]';
 
@@ -51,11 +51,7 @@
   }
 
   function createCatIconElement() {
-    const icon = document.createElement('span');
-    icon.setAttribute('aria-hidden', 'true');
-    icon.className = CAT_ICON_CLASS;
-    icon.style.setProperty('--ameow-injected-cat-icon-url', `url("${chrome.runtime.getURL('injected-cat-icon.svg')}")`);
-    return icon;
+    return injectedCatIcon.createCatIconElement({ fallbackSizePx: 24 });
   }
 
   function normalizeNoteUrl(url) {
