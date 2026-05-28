@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-4.md`
-- **Total Sessions**: 196
+- **Active File**: `journal-5.md`
+- **Total Sessions**: 197
 - **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~1983 | Active |
+| `journal-5.md` | ~41 | Active |
+| `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
 | `journal-1.md` | ~1976 | Archived |
@@ -32,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 197 | 2026-05-28 | Complete Ameow site Chinese docs | `336404e`, `8e79879` | `main` |
 | 196 | 2026-05-28 | Astro Starlight docs site | `08906b1` | `main` |
 | 195 | 2026-05-28 | Fix floating window collapse and browser cat icon flash | `77bc2ba`, `71202b1`, `17cd978`, `a59c4ed` | `main` |
 | 194 | 2026-05-27 | Polish site login row layout | `1309b5a`, `0bf64b2` | `main` |
