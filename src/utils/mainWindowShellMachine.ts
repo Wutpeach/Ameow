@@ -246,7 +246,6 @@ export const reduceMainWindowShell = (
       }
       return beginExpand({
         ...state,
-        pointerInside: true,
       });
     }
 

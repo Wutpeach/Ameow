@@ -89,6 +89,63 @@ describe("mainWindowShellMachine", () => {
       .toBe("full");
   });
 
+  it("preserves pointer-outside truth when forceFull expands from compact", () => {
+    const result = apply(
+      createMainWindowShellState({ startsCompact: true }),
+      { type: "forceFull" },
+    );
+
+    expect(result.state.phase).toBe("expanding");
+    expect(result.state.pointerInside).toBe(false);
+    expect(result.effects).toEqual([
+      { type: "cancelCollapseTimer" },
+      { type: "setInteractionMode", mode: "interactive" },
+      { type: "requestExpand" },
+    ]);
+  });
+
+  it("collapses after programmatic forceFull work finishes while pointer is outside", () => {
+    const expandedForTask = apply(
+      createMainWindowShellState({ startsCompact: true }),
+      { type: "setLock", lock: "task", active: true },
+      { type: "forceFull" },
+      { type: "expandAnimationComplete" },
+      { type: "setLock", lock: "centerOutcome", active: true },
+    );
+
+    expect(expandedForTask.state.phase).toBe("full");
+    expect(expandedForTask.state.pointerInside).toBe(false);
+    expect(expandedForTask.state.locks.task).toBe(true);
+    expect(expandedForTask.state.locks.centerOutcome).toBe(true);
+
+    const taskReleased = apply(expandedForTask.state, { type: "setLock", lock: "task", active: false });
+    expect(taskReleased.state.phase).toBe("full");
+    expect(taskReleased.effects).toEqual([]);
+
+    const outcomeReleased = apply(taskReleased.state, { type: "setLock", lock: "centerOutcome", active: false });
+    expect(outcomeReleased.state.phase).toBe("collapsePending");
+    expect(outcomeReleased.effects).toEqual([
+      { type: "startCollapseTimer", token: outcomeReleased.state.collapseTimerToken },
+    ]);
+  });
+
+  it("keeps programmatic forceFull open after locks clear while pointer is inside", () => {
+    const expandedInside = apply(
+      createMainWindowShellState({ startsCompact: true }),
+      { type: "pointerEnter" },
+      { type: "setLock", lock: "task", active: true },
+      { type: "forceFull" },
+      { type: "expandAnimationComplete" },
+      { type: "setLock", lock: "centerOutcome", active: true },
+      { type: "setLock", lock: "task", active: false },
+      { type: "setLock", lock: "centerOutcome", active: false },
+    );
+
+    expect(expandedInside.state.phase).toBe("full");
+    expect(expandedInside.state.pointerInside).toBe(true);
+    expect(expandedInside.effects).not.toContainEqual(expect.objectContaining({ type: "startCollapseTimer" }));
+  });
+
   it("blocks collapse while locked and collapses after lock release outside", () => {
     const lockedOutside = apply(
       createMainWindowShellState({ startsCompact: false }),
