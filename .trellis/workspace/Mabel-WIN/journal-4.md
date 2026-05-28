@@ -1948,3 +1948,36 @@ Fixed compact/full shell pointer-state drift after programmatic full-mode downlo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 196: Astro Starlight docs site
+
+**Date**: 2026-05-28
+**Task**: Astro Starlight docs site
+**Branch**: `main`
+
+### Summary
+
+Initialized and deployed the public ameow-site Astro/Starlight documentation site, enabled GitHub Pages workflow deployment, added the site as a main-repo submodule, and verified lint, type-check, tests, site build, and public URLs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08906b1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
