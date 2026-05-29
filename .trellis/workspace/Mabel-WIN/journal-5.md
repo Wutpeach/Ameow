@@ -39,3 +39,37 @@ Filled Ameow Starlight docs with Chinese user guides, migrated release notes, up
 ### Next Steps
 
 - None - task complete
+
+
+## Session 198: Rewrite Ameow site docs for task completion
+
+**Date**: 2026-05-29
+**Task**: Rewrite Ameow site docs for task completion
+**Branch**: `main`
+
+### Summary
+
+Reworked the Ameow Starlight documentation so pages answer user tasks directly, moved FAQ into onboarding navigation, added screenshot placeholder conventions and validation checks, and updated the site submodule pointer.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `462396d` | (see git log) |
+| `7095d2f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
