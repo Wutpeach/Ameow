@@ -106,3 +106,36 @@ Applied configured desktop proxy settings to Settings-owned site login capture p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 200: YouTube extension site-session sync
+
+**Date**: 2026-06-03
+**Task**: YouTube extension site-session sync
+**Branch**: `main`
+
+### Summary
+
+Implemented YouTube-only Settings login-state sync through the browser extension, including desktop import validation, extension cookie whitelist/filtering, Settings UI copy, tests, and backend spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `42a7d5a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
