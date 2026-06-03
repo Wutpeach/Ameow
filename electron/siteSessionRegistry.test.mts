@@ -216,6 +216,61 @@ describe("createSiteSessionRegistry", () => {
     expect(registry.listVisibleEntries().filter((item) => item.siteId === "patreon")).toHaveLength(1);
   });
 
+  it("upserts an auto-discovered auth-required site with exact-host scope and no auto sync", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_306,
+    });
+
+    const entry = registry.upsertAuthRequiredSite({
+      pageUrl: "https://members.example.com/video/1",
+      siteHint: "generic",
+      displayName: "Protected Example",
+      engineHint: "yt-dlp",
+    });
+
+    expect(entry).toMatchObject({
+      siteId: "site-members-example-com",
+      displayName: "Protected Example",
+      primaryHost: "members.example.com",
+      cookieDomains: ["members.example.com"],
+      syncAuthorization: "auto_discovered",
+      autoSyncAllowed: false,
+      discoverySources: ["auth_required"],
+      engineHints: ["yt-dlp"],
+      visibility: "visible",
+      icon: { kind: "placeholder" },
+    });
+    expect(registry.requireEntry(entry?.siteId ?? "")).toMatchObject({
+      cookieDomains: ["members.example.com"],
+    });
+  });
+
+  it("marks seeded auth-required matches without downgrading auto sync authorization", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_307,
+    });
+
+    const entry = registry.upsertAuthRequiredSite({
+      pageUrl: "https://www.youtube.com/watch?v=abc",
+      siteId: "youtube",
+      engineHint: "yt-dlp",
+    });
+
+    expect(entry).toMatchObject({
+      siteId: "youtube",
+      cookieDomains: ["youtube.com", "google.com"],
+      syncAuthorization: "seeded",
+      autoSyncAllowed: true,
+      discoverySources: expect.arrayContaining(["seed", "auth_required"]),
+      engineHints: expect.arrayContaining(["yt-dlp"]),
+      visibility: "visible",
+    });
+  });
+
   it("rejects non-web current-tab URLs", async () => {
     const userDataDir = await createTempUserDataDir();
     const registry = createSiteSessionRegistry({

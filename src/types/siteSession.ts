@@ -88,3 +88,14 @@ export type SiteSessionDiagnostics = {
   lastError: string | null;
   policy: SiteSessionPolicyEvaluation;
 };
+
+export type SiteSessionPendingAction = {
+  siteId: string;
+  displayName: string;
+  primaryHost: string;
+};
+
+export type SiteSessionPendingActionsPayload = {
+  count: number;
+  entries: SiteSessionPendingAction[];
+};

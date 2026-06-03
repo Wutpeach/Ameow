@@ -17,6 +17,13 @@ export type SiteSessionRegistry = {
   getEntry(siteId: string): SiteSessionRegistryEntry | null;
   requireEntry(siteId: string): SiteSessionRegistryEntry;
   matchEntryForUrl(url: string): SiteSessionRegistryEntry | null;
+  upsertAuthRequiredSite(options: {
+    pageUrl?: string | null;
+    siteId?: string | null;
+    siteHint?: string | null;
+    displayName?: string | null;
+    engineHint?: SiteSessionRegistryEntry["engineHints"][number] | null;
+  }): SiteSessionRegistryEntry | null;
   enableCurrentTabSite(options: {
     pageUrl: string;
     displayName?: string | null;
@@ -92,6 +99,14 @@ const deriveSiteIdFromHost = (host: string): string => (
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")}`
+);
+
+const normalizeEngineHint = (
+  value: unknown,
+): SiteSessionRegistryEntry["engineHints"][number] | null => (
+  value === "yt-dlp" || value === "gallery-dl" || value === "douyin-dl"
+    ? value
+    : null
 );
 
 const normalizeEntry = (value: unknown): SiteSessionRegistryEntry | null => {
@@ -223,6 +238,52 @@ const createUserEnabledEntry = (
   };
 };
 
+const createAutoDiscoveredEntry = (
+  options: {
+    pageUrl: string;
+    host: string;
+    siteId?: string | null;
+    siteHint?: string | null;
+    displayName?: string | null;
+    engineHint?: SiteSessionRegistryEntry["engineHints"][number] | null;
+    nowMs: number;
+    existingSiteIds: Set<string>;
+  },
+): SiteSessionRegistryEntry => {
+  const requestedId = normalizeString(options.siteId)
+    ?? normalizeString(options.siteHint);
+  const baseSiteId = requestedId && requestedId !== "generic"
+    ? requestedId.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    : deriveSiteIdFromHost(options.host);
+  let siteId = baseSiteId || deriveSiteIdFromHost(options.host);
+  let suffix = 2;
+  while (options.existingSiteIds.has(siteId)) {
+    siteId = `${baseSiteId}-${suffix}`;
+    suffix += 1;
+  }
+  const engineHint = normalizeEngineHint(options.engineHint);
+
+  return {
+    siteId,
+    displayName: normalizeString(options.displayName) ?? normalizeString(options.siteHint) ?? options.host,
+    primaryUrl: options.pageUrl,
+    primaryHost: options.host,
+    cookieDomains: [options.host],
+    requiredCookieKeys: [],
+    loginCookieKeys: [],
+    syncAuthorization: "auto_discovered",
+    autoSyncAllowed: false,
+    discoverySources: ["auth_required"],
+    engineHints: engineHint ? [engineHint] : [],
+    visibility: "visible",
+    icon: {
+      kind: "placeholder",
+    },
+    createdAtMs: options.nowMs,
+    updatedAtMs: options.nowMs,
+  };
+};
+
 export const createSiteSessionRegistry = (
   options: SiteSessionRegistryOptions,
 ): SiteSessionRegistry => {
@@ -293,6 +354,55 @@ export const createSiteSessionRegistry = (
         domainMatches(host, entry.primaryHost)
         || entry.cookieDomains.some((domain) => domainMatches(host, domain))
       )) ?? null;
+    },
+    upsertAuthRequiredSite(options_) {
+      const pageUrl = normalizeString(options_.pageUrl);
+      const host = pageUrl ? normalizeHostFromUrl(pageUrl) : null;
+      if (!pageUrl || !host) {
+        return null;
+      }
+
+      const currentEntries = loadEntries();
+      const matchedEntry = this.matchEntryForUrl(pageUrl)
+        ?? (normalizeString(options_.siteId)
+          ? this.getEntry(normalizeString(options_.siteId) as string)
+          : null);
+      if (matchedEntry) {
+        const engineHint = normalizeEngineHint(options_.engineHint);
+        const nextEntry: SiteSessionRegistryEntry = {
+          ...matchedEntry,
+          discoverySources: Array.from(new Set([
+            ...matchedEntry.discoverySources,
+            "auth_required" as const,
+          ])),
+          engineHints: engineHint
+            ? Array.from(new Set([...matchedEntry.engineHints, engineHint]))
+            : matchedEntry.engineHints,
+          visibility: "visible",
+          updatedAtMs: now(),
+        };
+        entries = currentEntries.map((entry) => (
+          entry.siteId === nextEntry.siteId ? nextEntry : entry
+        ));
+        persistEntries(entries);
+        return nextEntry;
+      }
+
+      const nextEntry = createAutoDiscoveredEntry({
+        pageUrl,
+        host,
+        siteId: options_.siteId,
+        siteHint: options_.siteHint,
+        displayName: options_.displayName,
+        engineHint: options_.engineHint,
+        nowMs: now(),
+        existingSiteIds: new Set(currentEntries.map((entry) => entry.siteId)),
+      });
+      entries = [...currentEntries, nextEntry].sort((left, right) => (
+        left.displayName.localeCompare(right.displayName)
+      ));
+      persistEntries(entries);
+      return nextEntry;
     },
     enableCurrentTabSite(options_) {
       const pageUrl = normalizeString(options_.pageUrl);

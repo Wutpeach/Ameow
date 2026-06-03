@@ -42,6 +42,7 @@ import type {
   RuntimeDependencyGateStatePayload,
   RuntimeDependencyStatusSnapshot,
 } from "./types/runtimeDependencies";
+import type { SiteSessionPendingActionsPayload } from "./types/siteSession";
 import type {
   DownloadProgressPayload,
   DownloadResultPayload as DownloadResult,
@@ -472,7 +473,10 @@ function App({
   const [runtimeDependencyStatus, setRuntimeDependencyStatus] = useState<RuntimeDependencyStatusSnapshot | null>(null);
   const [runtimeDependencyGateState, setRuntimeDependencyGateState] =
     useState<RuntimeDependencyGateStatePayload | null>(null);
+  const [siteSessionPendingActions, setSiteSessionPendingActions] =
+    useState<SiteSessionPendingActionsPayload>({ count: 0, entries: [] });
   const [isRuntimeIndicatorHovered, setIsRuntimeIndicatorHovered] = useState(false);
+  const [isSiteSessionIndicatorHovered, setIsSiteSessionIndicatorHovered] = useState(false);
   const [isRuntimeRetryFeedbackVisible, setIsRuntimeRetryFeedbackVisible] = useState(false);
   const [isRuntimeRetryInFlight, setIsRuntimeRetryInFlight] = useState(false);
   const [showRuntimeSuccessIndicator, setShowRuntimeSuccessIndicator] = useState(false);
@@ -2106,6 +2110,30 @@ function App({
       unlisten.then((fn) => fn());
     };
   }, [refreshRuntimeDependencyStatus]);
+
+  useEffect(() => {
+    let mounted = true;
+    void desktopCommands.invoke<SiteSessionPendingActionsPayload>(
+      "get_site_session_pending_actions",
+    ).then((payload) => {
+      if (mounted) {
+        setSiteSessionPendingActions(payload);
+      }
+    }).catch((error) => {
+      console.error("Failed to load pending site-session actions:", error);
+    });
+
+    const unlisten = desktopEvents.on<SiteSessionPendingActionsPayload>(
+      "site-session-pending-actions-changed",
+      (event) => {
+        setSiteSessionPendingActions(event.payload);
+      },
+    );
+    return () => {
+      mounted = false;
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
   useEffect(() => {
     const previousPhase = previousRuntimeGatePhaseRef.current;
@@ -3821,6 +3849,18 @@ function App({
     showRuntimeSuccessIndicator
     || hasRuntimeGateIssue
   );
+  const shouldShowSiteSessionPendingIndicator = !visualIsMinimized
+    && !isQueuePopoverOpen
+    && siteSessionPendingActions.count > 0;
+  const siteSessionPendingPrimary = siteSessionPendingActions.entries[0] ?? null;
+  const siteSessionPendingTitle = siteSessionPendingPrimary
+    ? t("app.siteSessionPending.titleWithSite", {
+        site: siteSessionPendingPrimary.displayName || siteSessionPendingPrimary.primaryHost,
+      })
+    : t("app.siteSessionPending.title");
+  const siteSessionPendingHint = t("app.siteSessionPending.hint", {
+    count: siteSessionPendingActions.count,
+  });
   const runtimeIndicatorHeadline = getRuntimeGateHeadline(t, runtimeDependencyGateState);
   const runtimeIndicatorProgressLabel = getRuntimeGateProgressLabel(t, runtimeDependencyGateState);
   const runtimeIndicatorNextLabel = getRuntimeGateNextLabel(t, runtimeDependencyGateState);
@@ -3932,6 +3972,22 @@ function App({
     animation: runtimeIndicatorIsIndeterminate ? "shimmer 1.2s ease-in-out infinite" : "none",
     transformOrigin: "left center",
     transition: runtimeIndicatorIsIndeterminate ? "none" : "width 0.22s ease",
+  };
+  const siteSessionPendingPopoverStyle: CSSProperties = {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    marginBottom: 24,
+    width: 158,
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    padding: "9px 10px 8px",
+    ...getPanelShellStyle(colors, {
+      radius: 12,
+      boxShadow: `inset 0 0 0 1px ${colors.warningBorder}, inset 0 1px 0 ${colors.fieldInset}, ${colors.panelShadowStrong}`,
+    }),
+    transformOrigin: "bottom left",
   };
 
   return (
@@ -5123,6 +5179,157 @@ function App({
               </motion.button>
             )}
           </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {shouldShowSiteSessionPendingIndicator ? (
+            <motion.div
+              key="site-session-pending-indicator"
+              initial={shouldReduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, scale: 0.9, y: 6, filter: "blur(1.5px)" }}
+              animate={shouldReduceMotion
+                ? { opacity: 1 }
+                : { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+              exit={shouldReduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, scale: 0.78, y: 8, filter: "blur(1.5px)" }}
+              transition={runtimeIndicatorPresenceTransition}
+              style={{
+                position: "absolute",
+                left: shouldShowRuntimeIndicator ? 42 : 12,
+                bottom: 12,
+                zIndex: 12,
+                transformOrigin: "bottom left",
+              }}
+              data-panel-double-click="ignore"
+              onMouseEnter={() => setIsSiteSessionIndicatorHovered(true)}
+              onMouseLeave={() => setIsSiteSessionIndicatorHovered(false)}
+            >
+              <AnimatePresence>
+                {isSiteSessionIndicatorHovered ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 4 }}
+                    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                    style={siteSessionPendingPopoverStyle}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={runtimeIndicatorStatusDotStyle} />
+                      <span
+                        style={{
+                          minWidth: 0,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                          lineHeight: 1.1,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          userSelect: "none",
+                        }}
+                      >
+                        {siteSessionPendingTitle}
+                      </span>
+                    </div>
+                    <span
+                      title={siteSessionPendingHint}
+                      style={{
+                        fontSize: 9,
+                        lineHeight: 1.24,
+                        color: colors.warningText,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {siteSessionPendingHint}
+                    </span>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <motion.button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  setIsSiteSessionIndicatorHovered(false);
+                  void openSettings();
+                }}
+                title={siteSessionPendingTitle}
+                style={{
+                  position: "relative",
+                  width: 24,
+                  height: 24,
+                  padding: 0,
+                  border: "none",
+                  borderRadius: 999,
+                  background: "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+                whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 4,
+                    borderRadius: "50%",
+                    border: `1px solid ${colors.warningBorder}`,
+                    opacity: 0.72,
+                    pointerEvents: "none",
+                  }}
+                />
+                <motion.span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 4,
+                    borderRadius: "50%",
+                    border: `1px solid ${colors.warningBorder}`,
+                    boxShadow: `0 0 10px ${colors.warningGlow}`,
+                    pointerEvents: "none",
+                  }}
+                  animate={shouldReduceMotion
+                    ? { scale: 1, opacity: 0.64 }
+                    : {
+                        scale: [1, 1.14, 1.32],
+                        opacity: [0.82, 0.3, 0],
+                      }}
+                  transition={shouldReduceMotion
+                    ? { duration: 0.16 }
+                    : {
+                        duration: 1.45,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                />
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: "50%",
+                    width: 8,
+                    height: 8,
+                    marginLeft: -4,
+                    marginTop: -4,
+                    borderRadius: "50%",
+                    backgroundColor: colors.warningSolid,
+                    display: "block",
+                    pointerEvents: "none",
+                    boxShadow: `0 0 6px ${colors.warningGlow}`,
+                  }}
+                />
+              </motion.button>
+            </motion.div>
           ) : null}
         </AnimatePresence>
 

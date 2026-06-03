@@ -96,6 +96,11 @@
       "taskCountSingle": "1 个任务",
       "taskCountPlural": "{{count}} 个任务"
     },
+    "siteSessionPending": {
+      "title": "需要同步登录态",
+      "titleWithSite": "{{site}} 登录态",
+      "hint": "{{count}} 个站点需要从浏览器同步登录态，可在设置或扩展中处理。"
+    },
     "actions": {
       "hideWindow": "隐藏窗口",
       "cancelCurrentTask": "取消当前任务",

@@ -70,6 +70,7 @@ import {
   createElectronDownloadRuntime,
 } from "./service";
 import type {
+  RuntimeAuthFailureRecoveryContext,
   RuntimeEmitterEvent,
 } from "./contracts";
 import { resetRenameSequenceState } from "./renameRules";
@@ -120,6 +121,9 @@ const createRuntime = (options: {
   };
   onEmit?(event: RuntimeEmitterEvent, payload: unknown): void;
   onTelemetry?(event: DownloadTelemetryEvent): void;
+  handleAuthRequiredFailure?(
+    context: RuntimeAuthFailureRecoveryContext,
+  ): Promise<{ shouldRetry: boolean } | void>;
 }) => createElectronDownloadRuntime({
   environment: {
     repoRoot: options.environment?.repoRoot ?? process.cwd(),
@@ -146,6 +150,7 @@ const createRuntime = (options: {
   },
   ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   buildExecutionContext: options.buildExecutionContext,
+  handleAuthRequiredFailure: options.handleAuthRequiredFailure,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -471,6 +476,95 @@ describe("AmeowElectronDownloadRuntime", () => {
           throw new Error("cookies required for this resource");
         }),
       ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; error?: string });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => completed.length === 1);
+    expect(attempts).toBe(1);
+    expect(completed[0]).toMatchObject({
+      success: false,
+      error: "cookies required for this resource",
+    });
+  });
+
+  it("retries an auth-required failure once when extension site-session recovery succeeds", async () => {
+    const completed: Array<{ success: boolean; error?: string }> = [];
+    const recoveryContexts: RuntimeAuthFailureRecoveryContext[] = [];
+    let attempts = 0;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new Error("cookies required for this resource");
+          }
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      async handleAuthRequiredFailure(context) {
+        recoveryContexts.push(context);
+        return { shouldRetry: true };
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; error?: string });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => completed.length === 1);
+    expect(attempts).toBe(2);
+    expect(recoveryContexts).toHaveLength(1);
+    expect(recoveryContexts[0]).toMatchObject({
+      plan: {
+        providerId: "youtube",
+        intent: {
+          siteId: "youtube",
+        },
+      },
+      chosenEngine: "yt-dlp",
+      error: {
+        classification: "auth_required",
+      },
+    });
+    expect(completed[0]).toMatchObject({
+      success: true,
+    });
+  });
+
+  it("does not retry an auth-required failure when extension recovery declines", async () => {
+    const completed: Array<{ success: boolean; error?: string }> = [];
+    let attempts = 0;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async () => {
+          attempts += 1;
+          throw new Error("cookies required for this resource");
+        }),
+      ],
+      async handleAuthRequiredFailure() {
+        return { shouldRetry: false };
+      },
       onEmit(event, payload) {
         if (event === "video-download-complete") {
           completed.push(payload as { success: boolean; error?: string });

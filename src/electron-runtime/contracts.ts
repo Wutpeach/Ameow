@@ -13,11 +13,13 @@ import type {
   VideoQueueStatePayload,
 } from "../types/videoRuntime.js";
 import type {
+  DownloadRuntimeError,
   DownloadEngine,
   EngineId,
   EngineExecutionContext,
   RawDownloadInput,
   RuntimeBinaryPaths as CoreRuntimeBinaryPaths,
+  ResolvedDownloadPlan,
   SiteProvider,
 } from "../core/index.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
@@ -57,6 +59,18 @@ export interface RuntimeLogger {
 export interface DownloadTelemetrySink {
   record(event: DownloadTelemetryEvent): Promise<void>;
 }
+
+export type RuntimeAuthFailureRecoveryContext = {
+  traceId: string;
+  request: RawDownloadInput;
+  plan: ResolvedDownloadPlan | null;
+  chosenEngine: EngineId | null;
+  error: DownloadRuntimeError;
+};
+
+export type RuntimeAuthFailureRecoveryResult = {
+  shouldRetry: boolean;
+};
 
 export interface ElectronRuntimeEnvironment {
   repoRoot: string;
@@ -98,6 +112,9 @@ export interface ElectronDownloadRuntimeOptions {
   bootstrapManagedComponents?(
     context: RuntimeBootstrapContext,
   ): Promise<RuntimeDependencyStatusSnapshot | void>;
+  handleAuthRequiredFailure?(
+    context: RuntimeAuthFailureRecoveryContext,
+  ): Promise<RuntimeAuthFailureRecoveryResult | void>;
 }
 
 export interface RuntimeDependencyResolver {

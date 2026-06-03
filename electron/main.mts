@@ -116,6 +116,7 @@ import {
 } from "./managedRuntimeBootstrap.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { createSiteSessionRegistry } from "./siteSessionRegistry.mjs";
+import { handleAuthRequiredSiteSessionRecovery } from "./siteSessionAuthRecovery.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import {
@@ -1356,6 +1357,21 @@ function getElectronDownloadRuntime() {
         userDataDir: getUserDataDir(),
       };
     },
+    handleAuthRequiredFailure(context) {
+      return handleAuthRequiredSiteSessionRecovery(context, {
+        registry: getSiteSessionRegistry(),
+        syncSiteSession(siteId) {
+          return syncSiteSessionFromExtension(siteId, requireSiteSessionManager(siteId));
+        },
+        onRegistryChanged() {
+          broadcastSiteSessionRegistryUpdate();
+          void broadcastSiteSessionPendingActions();
+        },
+        log(message, details) {
+          logInfo("SiteSessionAuth", message, details ?? null);
+        },
+      });
+    },
   });
   return electronDownloadRuntime;
 }
@@ -1457,7 +1473,34 @@ async function syncSiteSessionFromExtension(siteId, manager) {
   }
 
   broadcastSiteSessionRegistryUpdate();
+  void broadcastSiteSessionPendingActions();
   return nextState;
+}
+
+async function buildSiteSessionPendingActionsPayload() {
+  const entries = [];
+  for (const entry of getSiteSessionRegistry().listVisibleEntries()) {
+    if (entry.syncAuthorization !== "auto_discovered") {
+      continue;
+    }
+    const state = await requireSiteSessionManager(entry.siteId).getState();
+    if (state.availability === "ready") {
+      continue;
+    }
+    entries.push({
+      siteId: entry.siteId,
+      displayName: entry.displayName,
+      primaryHost: entry.primaryHost,
+    });
+  }
+  return {
+    count: entries.length,
+    entries,
+  };
+}
+
+async function broadcastSiteSessionPendingActions() {
+  emitAppEvent("site-session-pending-actions-changed", await buildSiteSessionPendingActionsPayload());
 }
 
 function getVideoDownloadCommandBridge() {
@@ -2627,6 +2670,7 @@ async function handleWsMessage(rawMessage) {
           displayName: normalizeOptionalString(data?.displayName ?? data?.display_name),
         });
         broadcastSiteSessionRegistryUpdate();
+        void broadcastSiteSessionPendingActions();
         return {
           success: true,
           message: "site_session_current_tab_enabled",
@@ -2665,6 +2709,7 @@ async function handleWsMessage(rawMessage) {
           throw new Error(nextState.lastError);
         }
         broadcastSiteSessionRegistryUpdate();
+        void broadcastSiteSessionPendingActions();
         return {
           success: true,
           message: "site_session_cookie_sync_direct_received",
@@ -2811,6 +2856,9 @@ async function handleCommand(command, payload = {}) {
     payload,
   );
   if (controllerResult.handled) {
+    if (command === "clear_site_session" || command === "clear_douyin_session") {
+      void broadcastSiteSessionPendingActions();
+    }
     return controllerResult.value;
   }
 
@@ -2844,6 +2892,8 @@ async function handleCommand(command, payload = {}) {
       const config = await readConfigObject();
       return typeof config.shortcut === "string" ? config.shortcut : "";
     }
+    case "get_site_session_pending_actions":
+      return buildSiteSessionPendingActionsPayload();
     case "register_shortcut":
       await registerShortcut(String(payload.shortcut ?? ""));
       return;

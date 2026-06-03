@@ -79,18 +79,26 @@ Phase 2 review checkpoint:
 
 ### Phase 3: Auth-failure discovery and bounded auto-sync
 
-- [ ] Update runtime auth-required handling:
+- [x] Update runtime auth-required handling:
   - remove silent `refreshSiteSessionCredentials`
   - add/upsert dynamic site-session candidate on auth-required failure
   - automatically request extension sync only for seeded or user-enabled entries with auto-sync allowed, using a short bounded timeout
   - retry the failed download at most once after successful sync
   - emit/update pending login-state reminder state for discovered-but-unsynced entries
   - keep download failure terminal behavior otherwise
-- [ ] Update main full-window UI:
+- [x] Update main full-window UI:
   - lower-left yellow-dot reminder for pending login-state action
   - click/hover route or copy that directs users to Settings/extension sync
   - keep visual language aligned with existing bootstrap warning-dot indicator
-- [ ] Run Phase 3 runtime/reminder tests.
+- [x] Run Phase 3 runtime/reminder tests.
+
+Phase 3 review checkpoint:
+
+- Local validation passed: `npm run type-check`, `npm run lint`, focused Phase 3 tests (`electron/siteSessionAuthRecovery.test.mts`, `electron/siteSessionRegistry.test.mts`, `src/electron-runtime/service.test.ts`, `electron/siteSessionCommands.test.mts`), full `npm test`, and `git diff --check`.
+- Auth-required failures now upsert dynamic registry entries, auto-sync only seeded/user-enabled entries through extension-backed snapshots, and retry the failed download at most once after valid cookies are saved.
+- Pure auto-discovered entries remain exact-host scoped, visible, placeholder-icon entries with `autoSyncAllowed: false`; they surface desktop pending reminders but do not read cookies automatically.
+- Desktop pending-action broadcasts are wired for auth recovery, desktop-initiated sync, extension direct sync, extension current-tab enablement, and Settings clear actions so the lower-left yellow-dot state does not remain stale.
+- Claude pre-review must-fix feedback about missing extension direct-sync/current-tab pending broadcasts was addressed before the final Phase 3 review.
 
 ### Phase 4: Local icon handling
 

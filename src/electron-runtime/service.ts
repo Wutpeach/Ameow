@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   ElectronDownloadRuntime,
   ElectronDownloadRuntimeOptions,
+  RuntimeAuthFailureRecoveryContext,
   RuntimeManagedComponent,
 } from "./contracts.js";
 import { inspectRuntimeDependencyStatus, resolveRuntimeBinaryPaths } from "./runtimePaths.js";
@@ -76,6 +77,11 @@ type DownloadTelemetryContext = {
   request: RawDownloadInput;
   plan: ResolvedDownloadPlan | null;
   chosenEngine: EnginePlan["engine"] | null;
+};
+
+type DownloadExecutionAttempt = {
+  result: DownloadResultPayload;
+  retriedAfterAuthSync: boolean;
 };
 
 type TranscodeTaskState = PreparedVideoTranscodeTask & {
@@ -784,13 +790,19 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             : context;
         },
       );
-      let result: DownloadResultPayload;
-      try {
-        result = await executeDownloadAttempt();
-      } catch (error) {
-        const firstError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
-        throw firstError;
-      }
+      const execution = await this.executeDownloadWithAuthRecovery({
+        activeTask,
+        traceId,
+        executeDownloadAttempt,
+        getRecoveryContext: (error) => ({
+          traceId,
+          request: activeTask.request,
+          plan: telemetryPlan,
+          chosenEngine: executedEngineId,
+          error,
+        }),
+      });
+      let result = execution.result;
       this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
@@ -950,6 +962,52 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         cause: error,
       },
     );
+  }
+
+  private async executeDownloadWithAuthRecovery(options: {
+    activeTask: ActiveTask;
+    traceId: string;
+    executeDownloadAttempt(): Promise<DownloadResultPayload>;
+    getRecoveryContext(error: DownloadRuntimeError): RuntimeAuthFailureRecoveryContext;
+  }): Promise<DownloadExecutionAttempt> {
+    try {
+      return {
+        result: await options.executeDownloadAttempt(),
+        retriedAfterAuthSync: false,
+      };
+    } catch (error) {
+      const firstError = this.toTaskRuntimeError(
+        error,
+        options.activeTask.abortController.signal.aborted,
+      );
+      if (
+        firstError.classification !== "auth_required"
+        || options.activeTask.abortController.signal.aborted
+        || !this.options.handleAuthRequiredFailure
+      ) {
+        throw firstError;
+      }
+
+      const recovery = await this.options.handleAuthRequiredFailure(
+        options.getRecoveryContext(firstError),
+      );
+      if (recovery?.shouldRetry !== true || options.activeTask.abortController.signal.aborted) {
+        throw firstError;
+      }
+
+      this.logger.log(`>>> [ElectronRuntime] retrying ${options.traceId} after site-session sync`);
+      try {
+        return {
+          result: await options.executeDownloadAttempt(),
+          retriedAfterAuthSync: true,
+        };
+      } catch (retryError) {
+        throw this.toTaskRuntimeError(
+          retryError,
+          options.activeTask.abortController.signal.aborted,
+        );
+      }
+    }
   }
 
   private async recordDownloadTelemetry(
