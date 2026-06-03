@@ -1472,6 +1472,7 @@ async function syncSiteSessionFromExtension(siteId, manager) {
     throw new Error(nextState.lastError);
   }
 
+  getSiteSessionRegistry().activateEntry(siteId, "user_sync");
   broadcastSiteSessionRegistryUpdate();
   void broadcastSiteSessionPendingActions();
   return nextState;
@@ -2708,6 +2709,7 @@ async function handleWsMessage(rawMessage) {
         if (nextState.lastError) {
           throw new Error(nextState.lastError);
         }
+        getSiteSessionRegistry().activateEntry(siteId, "user_sync");
         broadcastSiteSessionRegistryUpdate();
         void broadcastSiteSessionPendingActions();
         return {

@@ -1,3 +1,6 @@
+import {
+  createGalleryDlCookieCatalogEntries,
+} from "./site-session-gallery-dl-catalog.js";
 import { SITE_SESSION_CONFIGS } from "./site-sessions.js";
 import type {
   SiteSessionEngineHint,
@@ -47,6 +50,9 @@ export const createSeedSiteSessionRegistryEntry = (
 
 export const createSeedSiteSessionRegistryEntries = (
   nowMs: number,
-): SiteSessionRegistryEntry[] => SITE_SESSION_CONFIGS.map((config) => (
-  createSeedSiteSessionRegistryEntry(config, nowMs)
-));
+): SiteSessionRegistryEntry[] => [
+  ...createGalleryDlCookieCatalogEntries(nowMs),
+  ...SITE_SESSION_CONFIGS.map((config) => (
+    createSeedSiteSessionRegistryEntry(config, nowMs)
+  )),
+];

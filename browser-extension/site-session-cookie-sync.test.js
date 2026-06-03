@@ -139,6 +139,35 @@ describe("site session cookie sync helper", () => {
     expect(helper.findRegistryEntryForUrl("chrome://extensions")).toBeNull();
   });
 
+  it("uses hidden catalog registry entries for current-tab sync eligibility", () => {
+    const helper = loadHelper();
+
+    helper.setRegistryEntries([
+      {
+        siteId: "patreon",
+        displayName: "Patreon",
+        primaryUrl: "https://www.patreon.com/",
+        primaryHost: "www.patreon.com",
+        cookieDomains: ["patreon.com"],
+        syncAuthorization: "seeded",
+        autoSyncAllowed: true,
+        discoverySources: ["gallery-dl-supported-sites"],
+        engineHints: ["gallery-dl"],
+        visibility: "hidden_catalog",
+        icon: { kind: "placeholder" },
+      },
+    ]);
+
+    const entry = helper.findRegistryEntryForUrl("https://creator.patreon.com/posts/123");
+    expect(entry).toMatchObject({
+      siteId: "patreon",
+      visibility: "hidden_catalog",
+    });
+    expect(helper.buildCookieQueries(entry)).toEqual([
+      { domain: "patreon.com" },
+    ]);
+  });
+
   it("builds cookie queries only from registry-approved domains", () => {
     const helper = loadHelper();
 

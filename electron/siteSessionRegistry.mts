@@ -17,6 +17,7 @@ export type SiteSessionRegistry = {
   getEntry(siteId: string): SiteSessionRegistryEntry | null;
   requireEntry(siteId: string): SiteSessionRegistryEntry;
   matchEntryForUrl(url: string): SiteSessionRegistryEntry | null;
+  activateEntry(siteId: string, source: SiteSessionRegistryEntry["discoverySources"][number]): SiteSessionRegistryEntry;
   upsertAuthRequiredSite(options: {
     pageUrl?: string | null;
     siteId?: string | null;
@@ -186,10 +187,10 @@ const mergeSeedEntries = (
           cookieDomains: seed.cookieDomains,
           requiredCookieKeys: seed.requiredCookieKeys,
           loginCookieKeys: seed.loginCookieKeys,
-          syncAuthorization: "seeded",
-          autoSyncAllowed: true,
-          discoverySources: Array.from(new Set(["seed", ...existing.discoverySources])),
-          visibility: "visible",
+          syncAuthorization: seed.syncAuthorization,
+          autoSyncAllowed: seed.autoSyncAllowed,
+          discoverySources: Array.from(new Set([...seed.discoverySources, ...existing.discoverySources])),
+          visibility: seed.discoverySources.includes("seed") ? "visible" : existing.visibility,
           icon: existing.icon.kind === "placeholder" ? seed.icon : existing.icon,
           updatedAtMs: Math.max(existing.updatedAtMs, seed.updatedAtMs),
         }
@@ -345,6 +346,27 @@ export const createSiteSessionRegistry = (
       }
       return entry;
     },
+    activateEntry(siteId, source) {
+      const currentEntries = loadEntries();
+      const matchedEntry = currentEntries.find((entry) => entry.siteId === siteId);
+      if (!matchedEntry) {
+        throw new Error(`Unsupported site session: ${siteId}`);
+      }
+      const nextEntry: SiteSessionRegistryEntry = {
+        ...matchedEntry,
+        visibility: "visible",
+        discoverySources: Array.from(new Set([
+          ...matchedEntry.discoverySources,
+          source,
+        ])),
+        updatedAtMs: now(),
+      };
+      entries = currentEntries.map((entry) => (
+        entry.siteId === nextEntry.siteId ? nextEntry : entry
+      ));
+      persistEntries(entries);
+      return nextEntry;
+    },
     matchEntryForUrl(url) {
       const host = normalizeHostFromUrl(url);
       if (!host) {
@@ -369,23 +391,19 @@ export const createSiteSessionRegistry = (
           : null);
       if (matchedEntry) {
         const engineHint = normalizeEngineHint(options_.engineHint);
-        const nextEntry: SiteSessionRegistryEntry = {
-          ...matchedEntry,
-          discoverySources: Array.from(new Set([
-            ...matchedEntry.discoverySources,
-            "auth_required" as const,
-          ])),
+        const nextEntry = this.activateEntry(matchedEntry.siteId, "auth_required");
+        const nextEntryWithEngineHint: SiteSessionRegistryEntry = {
+          ...nextEntry,
           engineHints: engineHint
-            ? Array.from(new Set([...matchedEntry.engineHints, engineHint]))
-            : matchedEntry.engineHints,
-          visibility: "visible",
+            ? Array.from(new Set([...nextEntry.engineHints, engineHint]))
+            : nextEntry.engineHints,
           updatedAtMs: now(),
         };
-        entries = currentEntries.map((entry) => (
-          entry.siteId === nextEntry.siteId ? nextEntry : entry
+        entries = loadEntries().map((entry) => (
+          entry.siteId === nextEntryWithEngineHint.siteId ? nextEntryWithEngineHint : entry
         ));
         persistEntries(entries);
-        return nextEntry;
+        return nextEntryWithEngineHint;
       }
 
       const nextEntry = createAutoDiscoveredEntry({

@@ -47,6 +47,13 @@ describe("createSiteSessionRegistry", () => {
       autoSyncAllowed: true,
       visibility: "visible",
     });
+    expect(registry.requireEntry("instagram")).toMatchObject({
+      siteId: "instagram",
+      cookieDomains: ["instagram.com"],
+      loginCookieKeys: ["sessionid"],
+      discoverySources: expect.arrayContaining(["seed", "gallery-dl-supported-sites"]),
+      visibility: "visible",
+    });
 
     const stored = JSON.parse(await readFile(registryPath(userDataDir), "utf8")) as {
       version: number;
@@ -54,6 +61,88 @@ describe("createSiteSessionRegistry", () => {
     };
     expect(stored.version).toBe(1);
     expect(stored.entries.some((entry) => entry.siteId === "youtube")).toBe(true);
+  });
+
+  it("seeds gallery-dl cookie catalog entries as hidden recognition metadata", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_308,
+    });
+
+    expect(registry.listVisibleEntries().map((entry) => entry.siteId)).not.toContain("patreon");
+    expect(registry.requireEntry("patreon")).toMatchObject({
+      siteId: "patreon",
+      displayName: "Patreon",
+      primaryHost: "www.patreon.com",
+      cookieDomains: ["patreon.com"],
+      syncAuthorization: "seeded",
+      autoSyncAllowed: true,
+      discoverySources: ["gallery-dl-supported-sites"],
+      engineHints: ["gallery-dl"],
+      visibility: "hidden_catalog",
+      icon: { kind: "placeholder" },
+    });
+    expect(registry.requireEntry("twitter")).toMatchObject({
+      primaryUrl: "https://x.com/",
+      cookieDomains: ["x.com", "twitter.com"],
+      visibility: "hidden_catalog",
+    });
+  });
+
+  it("matches hidden catalog entries for current-tab relevance without activating them", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_309,
+    });
+
+    expect(registry.matchEntryForUrl("https://creator.patreon.com/posts/1")).toMatchObject({
+      siteId: "patreon",
+      visibility: "hidden_catalog",
+    });
+    expect(registry.listVisibleEntries().map((entry) => entry.siteId)).not.toContain("patreon");
+  });
+
+  it("activates hidden catalog entries after user sync without changing cookie domains", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_310,
+    });
+
+    const entry = registry.activateEntry("patreon", "user_sync");
+
+    expect(entry).toMatchObject({
+      siteId: "patreon",
+      visibility: "visible",
+      cookieDomains: ["patreon.com"],
+      discoverySources: expect.arrayContaining(["gallery-dl-supported-sites", "user_sync"]),
+    });
+    expect(registry.listVisibleEntries().filter((item) => item.siteId === "patreon")).toHaveLength(1);
+  });
+
+  it("promotes hidden catalog entries on auth-required discovery", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_311,
+    });
+
+    const entry = registry.upsertAuthRequiredSite({
+      pageUrl: "https://www.patreon.com/posts/123",
+      engineHint: "gallery-dl",
+    });
+
+    expect(entry).toMatchObject({
+      siteId: "patreon",
+      visibility: "visible",
+      cookieDomains: ["patreon.com"],
+      syncAuthorization: "seeded",
+      autoSyncAllowed: true,
+      discoverySources: expect.arrayContaining(["gallery-dl-supported-sites", "auth_required"]),
+      engineHints: ["gallery-dl"],
+    });
   });
 
   it("keeps hidden catalog entries out of the visible list while retaining lookup metadata", async () => {

@@ -117,18 +117,28 @@ Phase 4 review checkpoint:
 
 ### Phase 5: gallery-dl catalog import
 
-- [ ] Add a checked-in/generated gallery-dl cookie-needed seed catalog.
-- [ ] Map safe site ids, names, primary hosts, cookie domains, engine hints, and icons.
-- [ ] Mark catalog-only entries hidden by default.
-- [ ] Keep catalog metadata separate from visible login-state rows, either through `visibility: "hidden_catalog" | "visible"` or an equivalent explicit state.
-- [ ] Ensure Settings and extension lists exclude hidden catalog-only entries unless activated.
-- [ ] Ensure current-tab relevance does not activate hidden catalog entries by itself; opening a matching tab may show a temporary extension CTA, but must not add the site to the desktop/extension visible list.
-- [ ] Ensure current-tab matching can use hidden catalog metadata to enable sync for a matching site.
-- [ ] Promote hidden catalog entries to visible registry entries after successful sync, user manual enablement, or auth-required discovery that needs a user reminder.
-- [ ] Allow hidden catalog entries to participate in bounded auth-failure auto-sync only after an `auth_required` failure matches the catalog metadata; ordinary browsing/current-tab relevance must not auto-read cookies.
-- [ ] Ensure catalog import does not fetch live GitHub data at runtime.
-- [ ] Keep yt-dlp support discovery-based.
-- [ ] Run catalog seed tests.
+- [x] Add a checked-in/generated gallery-dl cookie-needed seed catalog.
+- [x] Map safe site ids, names, primary hosts, cookie domains, engine hints, and icons.
+- [x] Mark catalog-only entries hidden by default.
+- [x] Keep catalog metadata separate from visible login-state rows, either through `visibility: "hidden_catalog" | "visible"` or an equivalent explicit state.
+- [x] Ensure Settings and extension lists exclude hidden catalog-only entries unless activated.
+- [x] Ensure current-tab relevance does not activate hidden catalog entries by itself; opening a matching tab may show a temporary extension CTA, but must not add the site to the desktop/extension visible list.
+- [x] Ensure current-tab matching can use hidden catalog metadata to enable sync for a matching site.
+- [x] Promote hidden catalog entries to visible registry entries after successful sync, user manual enablement, or auth-required discovery that needs a user reminder.
+- [x] Allow hidden catalog entries to participate in bounded auth-failure auto-sync only after an `auth_required` failure matches the catalog metadata; ordinary browsing/current-tab relevance must not auto-read cookies.
+- [x] Ensure catalog import does not fetch live GitHub data at runtime.
+- [x] Keep yt-dlp support discovery-based.
+- [x] Run catalog seed tests.
+
+Phase 5 review checkpoint:
+
+- Local validation passed: `npm run type-check`, focused Phase 5 tests (`electron/siteSessionRegistry.test.mts`, `browser-extension/site-session-cookie-sync.test.js`), `npm run lint`, full `npm test`, and `git diff --check`.
+- Added a checked-in gallery-dl cookie-auth catalog seed derived from gallery-dl supported-sites rows whose Authentication column is `Cookies`: Boosty, Facebook, Fantia, Fur Affinity, Instagram, Patreon, Pinterest, pixivFANBOX, Poipiku, TikTok, and Twitter/X.
+- Catalog entries are seeded as `visibility: "hidden_catalog"` with `discoverySources: ["gallery-dl-supported-sites"]`, `engineHints: ["gallery-dl"]`, safe first-party cookie domains, and placeholder/known icon metadata.
+- Existing first-party seeds remain visible and keep stronger per-site policy metadata; Instagram keeps its login-cookie marker while also recording the gallery-dl catalog source.
+- Hidden catalog entries are sent to the extension for current-tab matching and cookie-domain authorization, but Settings still reads `listVisibleEntries()` and does not show catalog-only rows until activation.
+- Hidden entries are promoted to visible after user sync, current-tab enablement, or `auth_required` discovery. Ordinary current-tab relevance only enables the extension CTA and does not mutate desktop registry visibility.
+- No runtime fetch of gallery-dl's GitHub document is used; yt-dlp support remains dynamic/auth-failure discovery based.
 
 ### Final verification
 
