@@ -2121,6 +2121,7 @@ type SiteSessionCommand =
   | "get_site_session_registry"
   | "get_site_session_diagnostics"
   | "get_site_session_state"
+  | "get_site_session_pending_actions"
   | "sync_site_session_from_extension"
   | "clear_site_session"
   | "get_douyin_session_state"
@@ -2182,13 +2183,24 @@ type SiteSessionState = {
     extensionId: string | null;
   } | null;
 };
+
+type SiteSessionPendingActionsPayload = {
+  count: number;
+  entries: Array<{
+    siteId: string;
+    displayName: string;
+    primaryHost: string;
+  }>;
+};
 ```
 
 ### 3. Contracts
 
 - `electron/siteSessionRegistry.mts` is the desktop authority for valid site-session ids, visible login-state rows, allowed cookie domains, required/login cookie markers, sync authorization, and icon metadata.
 - `src/site-sessions.ts` remains the seed source for current first-party known entries, but it is not the runtime authority for every valid site id.
-- Registry entries may be `hidden_catalog`; Settings and extension lists must not render hidden catalog-only entries until a later activation flow promotes them.
+- `src/site-session-gallery-dl-catalog.ts` owns the checked-in gallery-dl cookie-auth catalog seed. It must be static build-time data derived from gallery-dl supported-sites metadata; the app must not fetch the gallery-dl GitHub document at runtime.
+- Registry entries may be `hidden_catalog`; Settings must not render hidden catalog-only entries until activation promotes them. The extension may receive hidden entries for current-tab matching and approved cookie-domain sync, but it must not render unrelated hidden catalog rows as a default list.
+- Hidden catalog activation is explicit: successful user sync, current-tab enablement, or `auth_required` discovery may promote an entry to `visibility: "visible"`. Ordinary current-tab relevance must not mutate registry visibility.
 - `electron/siteSessionManager.mts` is snapshot-only. It owns persisted files under `<userDataDir>/site-sessions/<siteId>.json`, `importSnapshot(...)`, `clearSession()`, diagnostics from the saved snapshot, and `getDownloadCookies()`.
 - App-owned Electron login/capture windows, capture phases, stable profile partitions, supplemental cookie capture, and profile refresh are removed. Do not reintroduce `start_site_session_capture`, `complete_site_session_capture`, `cancel_site_session_capture`, `refresh_site_session_credentials`, or Douyin capture aliases.
 - Browser-extension site-session sync persists into the same saved snapshot shape, including `cookies`, `cookieHeader`, and `cookiesNetscape`; extension cookies must not be attached directly to `video_selected_v2` or pasted-video download payloads.
@@ -2198,6 +2210,9 @@ type SiteSessionState = {
 - Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. Do not add speculative site-specific rules without current downloader evidence.
 - `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site-session snapshot. Browser-extension video download payloads must not provide cookies as a fallback.
 - Runtime auth-failure profile refresh is removed with the app-owned capture profile. Auth-failure discovery and bounded extension auto-sync belong to the dynamic registry flow, not to silent profile refresh.
+- `auth_required` recovery may retry a failed download at most once after extension sync succeeds and a validated saved snapshot contains cookies. Pure `auto_discovered` entries must not trigger automatic cookie reads.
+- Desktop pending-action state is derived from visible `auto_discovered` entries whose saved snapshot is not ready. `get_site_session_pending_actions` and `site-session-pending-actions-changed` expose that state to the main window warning-dot UI.
+- Pending-action broadcasts must run after every mutation that can change the count: auth-required discovery, desktop-initiated extension sync, extension-direct sync, current-tab enablement, and clear-session commands.
 - Settings badges are registry-driven site-level pills whose primary visible content is icon, localized/display site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
 - Settings badge click behavior is unified for every visible registry entry: user-initiated `sync_site_session_from_extension`. The secondary action is `clear_site_session`.
 - Legacy Douyin read/clear aliases may remain temporarily for compatibility, but Douyin capture aliases must be removed.
@@ -2211,6 +2226,11 @@ type SiteSessionState = {
 | Stored cookies miss required keys or login marker keys | Return `availability: "partial"` |
 | Stored cookies satisfy required keys and at least one login marker key when configured | Return `availability: "ready"` |
 | User syncs a visible registry entry from Settings | Desktop requests extension cookies for registry-approved domains and persists a validated snapshot |
+| User syncs a hidden catalog entry from the extension current-tab CTA | Desktop validates the registry entry, persists filtered cookies, and promotes the entry to visible with `user_sync` |
+| User merely opens a page matching a hidden catalog entry | Extension may show a current-site sync CTA; Settings remains unchanged and the entry stays hidden |
+| `auth_required` matches a hidden gallery-dl catalog entry | Desktop promotes the entry to visible, preserves catalog cookie domains, and may perform bounded auto-sync because catalog entries are seeded metadata |
+| `auth_required` discovers a non-catalog unknown site | Desktop creates a visible exact-host `auto_discovered` entry and emits pending-action state, but does not read cookies automatically |
+| Pending-action count changes | Main window receives `site-session-pending-actions-changed` with `{ count, entries }` |
 | Extension is disconnected | Settings command rejects with an actionable browser-extension connection error |
 | Browser/profile has no matching cookies | Settings command rejects without crashing and leaves prior snapshot behavior intact |
 | User clears a site session | Remove only the saved downloader cookie snapshot |
@@ -2221,18 +2241,21 @@ type SiteSessionState = {
 
 - Good: A Settings sync for Bilibili requests extension cookies for `bilibili.com` and `b23.tv`, saves `bilibili.json`, and downloader execution later injects the saved Netscape cookie file.
 - Good: Existing `site-sessions/youtube.json` remains readable after the registry migration because the snapshot filename and JSON shape are unchanged.
-- Good: A hidden catalog entry can be used as metadata in later phases without appearing as a Settings row before activation.
+- Good: A hidden Patreon catalog entry is sent to the extension for current-tab matching and `patreon.com` cookie authorization, but Settings does not show it until user sync or auth-required discovery activates it.
+- Good: A non-catalog unknown site discovered by auth failure uses the exact request host as its only cookie domain and appears as a pending login-state action.
 - Base: YouTube has no strict `requiredCookieKeys`; login marker cookies determine whether synced cookies are complete enough.
 - Base: Instagram public content can still download without a saved session; saved sessions only enrich downloader execution when available.
 - Bad: Reintroducing an app-owned login BrowserWindow, stable capture partition, or profile refresh path.
 - Bad: Letting the extension read cookies for arbitrary desktop-provided domains that are not registry-approved.
+- Bad: Rendering the full hidden gallery-dl catalog in Settings or in the extension popup as a default management list.
+- Bad: Treating ordinary browsing/current-tab relevance as user consent to read cookies or activate a hidden catalog entry.
 - Bad: Storing only a `Cookie:` header breaks `yt-dlp` / `gallery-dl` cookie-file execution.
 
 ### 6. Tests Required
 
 - `npm run type-check`: bridge command names, registry payloads, Settings command payloads, and Electron manager/controller contracts compile.
 - `npm run lint`: Settings badge rendering and dynamic icon fallback remain lint-clean.
-- Focused tests for registry seeding, snapshot import/filter/clear, command routing, removed-command rejection, extension domain approval/filtering, and extension request bridge behavior.
+- Focused tests for registry seeding, hidden catalog visibility/promotion, auth-required discovery/retry gating, pending-action payloads, snapshot import/filter/clear, command routing, removed-command rejection, extension domain approval/filtering, and extension request bridge behavior.
 - Full `npm test`: existing Electron runtime downloader cookie-file behavior remains green.
 
 ### 7. Wrong vs Correct

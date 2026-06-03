@@ -142,9 +142,9 @@ Phase 5 review checkpoint:
 
 ### Final verification
 
-- [ ] Update locales and mirrored browser-extension locales.
-- [ ] Update backend/frontend specs for dynamic registry and removed capture path.
-- [ ] Add/update tests:
+- [x] Update locales and mirrored browser-extension locales.
+- [x] Update backend/frontend specs for dynamic registry and removed capture path.
+- [x] Add/update tests:
   - registry seed/discovery/persistence
   - user-enabled unknown current-tab entries
   - exact-host-only cookie scope for unknown manually enabled sites
@@ -162,11 +162,17 @@ Phase 5 review checkpoint:
   - extension domain approval/filtering
   - popup helper/UI logic where practical
   - Settings type/lint coverage
-- [ ] Run focused tests.
-- [ ] Run `npm run type-check`.
-- [ ] Run `npm run lint`.
-- [ ] Run full `npm run test`.
+- [x] Run focused tests.
+- [x] Run `npm run type-check`.
+- [x] Run `npm run lint`.
+- [x] Run full `npm run test`.
 - [ ] Commit, archive task, and record journal.
+
+Final verification checkpoint:
+
+- Final focused validation passed: `npm run test -- electron/siteSessionManager.test.mts electron/siteSessionCommands.test.mts electron/extensionRequestBridge.test.mts`, `npm run test -- src/electron-runtime/service.test.ts`, and `npm run test -- browser-extension/site-session-cookie-sync.test.js browser-extension/manifest.test.js browser-extension/site-session-icons.test.js`.
+- Final full validation passed: `npm run type-check`, `npm run lint`, full `npm test`, and `git diff --check`.
+- Backend and frontend specs now document dynamic registry command/event contracts, pending login-state reminders, hidden gallery-dl catalog activation rules, and extension cookie-domain authorization boundaries.
 
 ## Validation Commands
 
