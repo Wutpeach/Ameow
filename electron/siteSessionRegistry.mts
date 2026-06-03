@@ -12,9 +12,15 @@ type StoredSiteSessionRegistry = {
 };
 
 export type SiteSessionRegistry = {
+  listEntries(): SiteSessionRegistryEntry[];
   listVisibleEntries(): SiteSessionRegistryEntry[];
   getEntry(siteId: string): SiteSessionRegistryEntry | null;
   requireEntry(siteId: string): SiteSessionRegistryEntry;
+  matchEntryForUrl(url: string): SiteSessionRegistryEntry | null;
+  enableCurrentTabSite(options: {
+    pageUrl: string;
+    displayName?: string | null;
+  }): SiteSessionRegistryEntry;
 };
 
 export type SiteSessionRegistryOptions = {
@@ -42,6 +48,50 @@ const normalizeStringArray = (value: unknown): string[] => (
   Array.isArray(value)
     ? value.map(normalizeString).filter((item): item is string => item !== null)
     : []
+);
+
+const normalizeHost = (value: unknown): string | null => {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return null;
+  }
+  return normalized.replace(/^\.+/, "").toLowerCase();
+};
+
+const normalizeHostFromUrl = (url: string): string | null => {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return normalizeHost(parsed.hostname);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeCookieDomain = (value: unknown): string | null => (
+  normalizeHost(value)
+);
+
+const domainMatches = (host: string, domain: string): boolean => {
+  const normalizedHost = normalizeHost(host);
+  const normalizedDomain = normalizeCookieDomain(domain);
+  return Boolean(
+    normalizedHost
+    && normalizedDomain
+    && (
+      normalizedHost === normalizedDomain
+      || normalizedHost.endsWith(`.${normalizedDomain}`)
+    ),
+  );
+};
+
+const deriveSiteIdFromHost = (host: string): string => (
+  `site-${host
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`
 );
 
 const normalizeEntry = (value: unknown): SiteSessionRegistryEntry | null => {
@@ -135,6 +185,44 @@ const mergeSeedEntries = (
   ));
 };
 
+const createUserEnabledEntry = (
+  options: {
+    pageUrl: string;
+    host: string;
+    displayName?: string | null;
+    nowMs: number;
+    existingSiteIds: Set<string>;
+  },
+): SiteSessionRegistryEntry => {
+  const baseSiteId = deriveSiteIdFromHost(options.host);
+  let siteId = baseSiteId;
+  let suffix = 2;
+  while (options.existingSiteIds.has(siteId)) {
+    siteId = `${baseSiteId}-${suffix}`;
+    suffix += 1;
+  }
+
+  return {
+    siteId,
+    displayName: normalizeString(options.displayName) ?? options.host,
+    primaryUrl: options.pageUrl,
+    primaryHost: options.host,
+    cookieDomains: [options.host],
+    requiredCookieKeys: [],
+    loginCookieKeys: [],
+    syncAuthorization: "user_enabled",
+    autoSyncAllowed: true,
+    discoverySources: ["extension_current_tab"],
+    engineHints: [],
+    visibility: "visible",
+    icon: {
+      kind: "placeholder",
+    },
+    createdAtMs: options.nowMs,
+    updatedAtMs: options.nowMs,
+  };
+};
+
 export const createSiteSessionRegistry = (
   options: SiteSessionRegistryOptions,
 ): SiteSessionRegistry => {
@@ -180,6 +268,9 @@ export const createSiteSessionRegistry = (
   };
 
   return {
+    listEntries() {
+      return loadEntries();
+    },
     listVisibleEntries() {
       return loadEntries().filter((entry) => entry.visibility === "visible");
     },
@@ -192,6 +283,59 @@ export const createSiteSessionRegistry = (
         throw new Error(`Unsupported site session: ${siteId}`);
       }
       return entry;
+    },
+    matchEntryForUrl(url) {
+      const host = normalizeHostFromUrl(url);
+      if (!host) {
+        return null;
+      }
+      return loadEntries().find((entry) => (
+        domainMatches(host, entry.primaryHost)
+        || entry.cookieDomains.some((domain) => domainMatches(host, domain))
+      )) ?? null;
+    },
+    enableCurrentTabSite(options_) {
+      const pageUrl = normalizeString(options_.pageUrl);
+      const host = pageUrl ? normalizeHostFromUrl(pageUrl) : null;
+      if (!pageUrl || !host) {
+        throw new Error("Cannot enable login state for a non-HTTP site");
+      }
+
+      const currentEntries = loadEntries();
+      const matchedEntry = this.matchEntryForUrl(pageUrl);
+      if (matchedEntry) {
+        const nextEntry: SiteSessionRegistryEntry = {
+          ...matchedEntry,
+          syncAuthorization: matchedEntry.syncAuthorization === "seeded"
+            ? matchedEntry.syncAuthorization
+            : "user_enabled",
+          autoSyncAllowed: true,
+          discoverySources: Array.from(new Set([
+            ...matchedEntry.discoverySources,
+            "extension_current_tab" as const,
+          ])),
+          visibility: "visible",
+          updatedAtMs: now(),
+        };
+        entries = currentEntries.map((entry) => (
+          entry.siteId === nextEntry.siteId ? nextEntry : entry
+        ));
+        persistEntries(entries);
+        return nextEntry;
+      }
+
+      const nextEntry = createUserEnabledEntry({
+        pageUrl,
+        host,
+        displayName: options_.displayName,
+        nowMs: now(),
+        existingSiteIds: new Set(currentEntries.map((entry) => entry.siteId)),
+      });
+      entries = [...currentEntries, nextEntry].sort((left, right) => (
+        left.displayName.localeCompare(right.displayName)
+      ));
+      persistEntries(entries);
+      return nextEntry;
     },
   };
 };

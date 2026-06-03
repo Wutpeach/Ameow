@@ -315,6 +315,91 @@ body::-webkit-scrollbar-thumb:hover {
   opacity: 0.62;
 }
 
+.ameow-login-state-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border: 1px solid var(--ameow-accent-border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--ameow-accent-soft) 0%, rgba(255, 255, 255, 0.025) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-login-state-panel[hidden] {
+  display: none;
+}
+
+.ameow-login-state-panel[data-state="enable"] {
+  border-color: rgba(245, 158, 11, 0.46);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.13) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.ameow-login-state-panel[data-state="success"] {
+  border-color: rgba(52, 211, 153, 0.42);
+  background: linear-gradient(180deg, var(--ameow-success-soft) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.ameow-login-state-panel[data-state="error"] {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: linear-gradient(180deg, var(--ameow-danger-soft) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.ameow-login-state-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ameow-login-state-title {
+  min-width: 0;
+  color: var(--ameow-text-primary);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-login-state-hint {
+  min-width: 0;
+  color: var(--ameow-text-secondary);
+  font-size: 10px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-login-state-button {
+  appearance: none;
+  min-width: 68px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ameow-accent-border);
+  border-radius: 9px;
+  background: linear-gradient(180deg, var(--ameow-accent-strong) 0%, var(--ameow-accent) 100%);
+  color: var(--ameow-surface-elevated-start);
+  box-shadow: var(--ameow-card-shadow);
+  cursor: pointer;
+  font: 750 11px/1.2 "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+.ameow-login-state-button:hover,
+.ameow-login-state-button:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.ameow-login-state-button[disabled] {
+  cursor: default;
+  opacity: 0.64;
+  transform: none;
+}
+
 .ameow-disclosure {
   border: 1px solid var(--ameow-card-border);
   border-radius: 10px;

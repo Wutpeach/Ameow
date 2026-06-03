@@ -1456,6 +1456,7 @@ async function syncSiteSessionFromExtension(siteId, manager) {
     throw new Error(nextState.lastError);
   }
 
+  broadcastSiteSessionRegistryUpdate();
   return nextState;
 }
 
@@ -1735,6 +1736,25 @@ function broadcastWsMessage(message) {
     if (client.readyState === client.OPEN) {
       client.send(serialized);
     }
+  }
+}
+
+function buildSiteSessionRegistryPayload() {
+  return {
+    action: "site_session_registry_update",
+    data: {
+      entries: getSiteSessionRegistry().listEntries(),
+    },
+  };
+}
+
+function broadcastSiteSessionRegistryUpdate() {
+  broadcastWsMessage(buildSiteSessionRegistryPayload());
+}
+
+function sendSiteSessionRegistryUpdate(client) {
+  if (client.readyState === client.OPEN) {
+    client.send(JSON.stringify(buildSiteSessionRegistryPayload()));
   }
 }
 
@@ -2592,6 +2612,72 @@ async function handleWsMessage(rawMessage) {
         data: withRequest(result.success ? null : result.code),
       };
     }
+    case "site_session_enable_current_tab": {
+      const pageUrl = normalizeOptionalString(data?.pageUrl ?? data?.page_url);
+      if (!pageUrl) {
+        return {
+          success: false,
+          message: "Missing pageUrl",
+          data: withRequest("missing_page_url"),
+        };
+      }
+      try {
+        const entry = getSiteSessionRegistry().enableCurrentTabSite({
+          pageUrl,
+          displayName: normalizeOptionalString(data?.displayName ?? data?.display_name),
+        });
+        broadcastSiteSessionRegistryUpdate();
+        return {
+          success: true,
+          message: "site_session_current_tab_enabled",
+          data: withRequest(null, { entry }),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : String(error),
+          data: withRequest("site_session_enable_failed"),
+        };
+      }
+    }
+    case "site_session_cookie_sync_direct": {
+      const siteId = normalizeOptionalString(data?.siteId ?? data?.site_id);
+      if (!siteId) {
+        return {
+          success: false,
+          message: "Missing siteId",
+          data: withRequest("missing_site_id"),
+        };
+      }
+      try {
+        const manager = requireSiteSessionManager(siteId);
+        const nextState = await manager.importSnapshot({
+          cookies: Array.isArray(data?.cookies) ? data.cookies : [],
+          source: data?.source && typeof data.source === "object"
+            ? {
+                browser: normalizeOptionalString(data.source.browser) ?? null,
+                profileLabel: normalizeOptionalString(data.source.profileLabel ?? data.source.profile_label) ?? null,
+                extensionId: normalizeOptionalString(data.source.extensionId ?? data.source.extension_id) ?? null,
+              }
+            : null,
+        });
+        if (nextState.lastError) {
+          throw new Error(nextState.lastError);
+        }
+        broadcastSiteSessionRegistryUpdate();
+        return {
+          success: true,
+          message: "site_session_cookie_sync_direct_received",
+          data: withRequest(null, { state: nextState }),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : String(error),
+          data: withRequest("site_session_cookie_sync_direct_failed"),
+        };
+      }
+    }
     case "xiaohongshu_drag_resolution_result": {
       const correlationRequestId = normalizeOptionalString(
         data?.correlationRequestId ?? data?.correlation_request_id,
@@ -3197,6 +3283,7 @@ function registerWsServer() {
   server.on("connection", (client) => {
     wsClients.add(client);
     client.send(JSON.stringify({ action: "request_download_preferences" }));
+    sendSiteSessionRegistryUpdate(client);
 
     client.on("message", async (message) => {
       const response = await handleWsMessage(message);

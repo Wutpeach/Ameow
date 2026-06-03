@@ -21,6 +21,7 @@
     "sections": {
       "quality": "Quality",
       "launcher": "Launcher",
+      "loginState": "Login state",
       "hiddenSites": "Hidden sites"
     },
     "footer": {
@@ -123,6 +124,20 @@
       "launcherHidden": "Launcher hidden on this site",
       "launcherDisabled": "Launcher hidden globally",
       "launcherActive": "Launcher active"
+    },
+    "loginState": {
+      "syncTitle": "Sync {site}",
+      "enableTitle": "Enable {host}",
+      "syncHint": "Use this browser's login cookies for future downloads.",
+      "enableHint": "Allow Ameow to use cookies for this exact host.",
+      "working": "Syncing",
+      "syncButton": "Sync",
+      "enableButton": "Enable",
+      "syncedTitle": "Login state synced",
+      "syncedHint": "Ameow saved cookies for future downloads.",
+      "failedTitle": "Sync failed",
+      "offlineHint": "Open the desktop app, then try again.",
+      "failedHint": "Log in to this site in the browser, then retry."
     },
     "sites": {
       "count": "{count} hidden sites",

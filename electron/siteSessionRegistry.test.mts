@@ -93,6 +93,10 @@ describe("createSiteSessionRegistry", () => {
       visibility: "hidden_catalog",
       cookieDomains: ["patreon.com"],
     });
+    expect(registry.matchEntryForUrl("https://creator.patreon.com/posts/1")).toMatchObject({
+      siteId: "patreon",
+      visibility: "hidden_catalog",
+    });
   });
 
   it("refreshes stored seed entries from current seed domain and policy metadata", async () => {
@@ -135,5 +139,92 @@ describe("createSiteSessionRegistry", () => {
       visibility: "visible",
       discoverySources: expect.arrayContaining(["seed", "auth_required"]),
     });
+  });
+
+  it("enables an unknown current-tab site with exact-host cookie scope", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_303,
+    });
+
+    const entry = registry.enableCurrentTabSite({
+      pageUrl: "https://sub.example.com/watch/1",
+      displayName: "Example Page",
+    });
+
+    expect(entry).toMatchObject({
+      siteId: "site-sub-example-com",
+      displayName: "Example Page",
+      primaryHost: "sub.example.com",
+      cookieDomains: ["sub.example.com"],
+      syncAuthorization: "user_enabled",
+      autoSyncAllowed: true,
+      discoverySources: ["extension_current_tab"],
+      visibility: "visible",
+      icon: { kind: "placeholder" },
+    });
+    expect(registry.requireEntry(entry.siteId)).toMatchObject({
+      cookieDomains: ["sub.example.com"],
+    });
+    expect(registry.matchEntryForUrl("https://child.sub.example.com/path")).toMatchObject({
+      siteId: entry.siteId,
+    });
+    expect(registry.matchEntryForUrl("https://example.com/path")).toBeNull();
+  });
+
+  it("promotes a matched hidden catalog entry instead of creating a duplicate", async () => {
+    const userDataDir = await createTempUserDataDir();
+    await mkdir(join(userDataDir, "site-sessions"), { recursive: true });
+    await writeFile(registryPath(userDataDir), JSON.stringify({
+      version: 1,
+      entries: [
+        {
+          siteId: "patreon",
+          displayName: "Patreon",
+          primaryUrl: "https://www.patreon.com/",
+          primaryHost: "www.patreon.com",
+          cookieDomains: ["patreon.com"],
+          requiredCookieKeys: [],
+          loginCookieKeys: [],
+          syncAuthorization: "seeded",
+          autoSyncAllowed: false,
+          discoverySources: ["gallery-dl-supported-sites"],
+          engineHints: ["gallery-dl"],
+          visibility: "hidden_catalog",
+          icon: { kind: "placeholder" },
+          createdAtMs: 1,
+          updatedAtMs: 1,
+        },
+      ],
+    }, null, 2), "utf8");
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_304,
+    });
+
+    const entry = registry.enableCurrentTabSite({
+      pageUrl: "https://www.patreon.com/posts/123",
+    });
+
+    expect(entry).toMatchObject({
+      siteId: "patreon",
+      visibility: "visible",
+      autoSyncAllowed: true,
+      discoverySources: expect.arrayContaining(["gallery-dl-supported-sites", "extension_current_tab"]),
+    });
+    expect(registry.listVisibleEntries().filter((item) => item.siteId === "patreon")).toHaveLength(1);
+  });
+
+  it("rejects non-web current-tab URLs", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_305,
+    });
+
+    expect(() => registry.enableCurrentTabSite({
+      pageUrl: "chrome://extensions",
+    })).toThrow("Cannot enable login state for a non-HTTP site");
   });
 });

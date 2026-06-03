@@ -45,6 +45,8 @@
     },
   };
 
+  let registryEntries = [];
+
   function isRecord(value) {
     return Boolean(value && typeof value === "object" && !Array.isArray(value));
   }
@@ -62,6 +64,59 @@
     return domain ? domain.replace(/^\./, "").toLowerCase() : null;
   }
 
+  function normalizeUrl(value) {
+    const url = normalizeString(value);
+    if (!url) {
+      return null;
+    }
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:"
+        ? parsed.toString()
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeRegistryEntry(value) {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const siteId = normalizeString(value.siteId || value.site_id);
+    const displayName = normalizeString(value.displayName || value.display_name) || siteId;
+    const primaryUrl = normalizeUrl(value.primaryUrl || value.primary_url);
+    const primaryHost = normalizeDomain(value.primaryHost || value.primary_host);
+    const cookieDomains = Array.isArray(value.cookieDomains || value.cookie_domains)
+      ? (value.cookieDomains || value.cookie_domains).map(normalizeDomain).filter(Boolean)
+      : [];
+    if (!siteId || cookieDomains.length === 0) {
+      return null;
+    }
+
+    return {
+      siteId,
+      displayName,
+      primaryUrl,
+      primaryHost,
+      cookieDomains: Array.from(new Set(cookieDomains)),
+      requiredCookieKeys: Array.isArray(value.requiredCookieKeys || value.required_cookie_keys)
+        ? (value.requiredCookieKeys || value.required_cookie_keys).map(normalizeString).filter(Boolean)
+        : [],
+      loginCookieKeys: Array.isArray(value.loginCookieKeys || value.login_cookie_keys)
+        ? (value.loginCookieKeys || value.login_cookie_keys).map(normalizeString).filter(Boolean)
+        : [],
+      syncAuthorization: normalizeString(value.syncAuthorization || value.sync_authorization) || "seeded",
+      autoSyncAllowed: value.autoSyncAllowed === true || value.auto_sync_allowed === true,
+      discoverySources: Array.isArray(value.discoverySources || value.discovery_sources)
+        ? (value.discoverySources || value.discovery_sources).map(normalizeString).filter(Boolean)
+        : [],
+      visibility: normalizeString(value.visibility) || "visible",
+      icon: isRecord(value.icon) ? value.icon : { kind: "placeholder" },
+    };
+  }
+
   function domainMatches(cookieDomain, allowedDomain) {
     const normalizedCookieDomain = normalizeDomain(cookieDomain);
     const normalizedAllowedDomain = normalizeDomain(allowedDomain);
@@ -73,6 +128,57 @@
         || normalizedCookieDomain.endsWith(`.${normalizedAllowedDomain}`)
       ),
     );
+  }
+
+  function hostMatchesDomain(host, domain) {
+    return domainMatches(host, domain);
+  }
+
+  function setRegistryEntries(entries) {
+    registryEntries = Array.isArray(entries)
+      ? entries.map(normalizeRegistryEntry).filter(Boolean)
+      : [];
+    return registryEntries;
+  }
+
+  function upsertRegistryEntry(entry) {
+    const normalized = normalizeRegistryEntry(entry);
+    if (!normalized) {
+      return null;
+    }
+    registryEntries = [
+      ...registryEntries.filter((item) => item.siteId !== normalized.siteId),
+      normalized,
+    ];
+    return normalized;
+  }
+
+  function getRegistryEntries() {
+    return registryEntries.slice();
+  }
+
+  function findRegistryEntryBySiteId(siteId) {
+    const normalizedSiteId = normalizeString(siteId);
+    if (!normalizedSiteId) {
+      return null;
+    }
+    return registryEntries.find((entry) => entry.siteId === normalizedSiteId) || null;
+  }
+
+  function findRegistryEntryForUrl(rawUrl) {
+    const normalizedUrl = normalizeUrl(rawUrl);
+    if (!normalizedUrl) {
+      return null;
+    }
+    try {
+      const host = new URL(normalizedUrl).hostname.toLowerCase();
+      return registryEntries.find((entry) => (
+        hostMatchesDomain(host, entry.primaryHost)
+        || entry.cookieDomains.some((domain) => hostMatchesDomain(host, domain))
+      )) || null;
+    } catch {
+      return null;
+    }
   }
 
   function isCookieForAllowedDomains(cookie, allowedDomains) {
@@ -93,6 +199,15 @@
         error: "Missing site session cookie sync request id",
       };
     }
+    const registrySite = findRegistryEntryBySiteId(siteId);
+    if (registrySite) {
+      return {
+        success: true,
+        requestId,
+        site: registrySite,
+      };
+    }
+
     if (!siteId || !SUPPORTED_SITES[siteId]) {
       return {
         success: false,
@@ -183,7 +298,12 @@
     SUPPORTED_SITES,
     buildCookieQueries,
     domainMatches,
+    findRegistryEntryBySiteId,
+    findRegistryEntryForUrl,
+    getRegistryEntries,
     normalizeCookieRecords,
+    setRegistryEntries,
+    upsertRegistryEntry,
     resolveSiteSessionCookieSyncRequest,
   };
 })(typeof self !== "undefined" ? self : globalThis);

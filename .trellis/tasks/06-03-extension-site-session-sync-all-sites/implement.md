@@ -49,19 +49,19 @@ Phase 1 review checkpoint:
 
 ### Phase 2: Browser-extension registry UI and unknown-site enablement
 
-- [ ] Update extension request/response bridge:
+- [x] Update extension request/response bridge:
   - desktop-to-extension sync by registry entry
   - desktop-to-extension registry push on connect and registry change
   - extension-initiated popup sync if adopted
   - current-tab eligibility query if needed
-- [ ] Update browser extension background:
+- [x] Update browser extension background:
   - receive/cache registry-approved site entries
   - read cookies only for approved domains
   - support current-tab sync
   - support unknown current-tab "enable login-state sync" requests
   - expose current-tab discovered/unsynced state for popup and action badge/dot
   - avoid cookie-value logging
-- [ ] Update browser extension popup:
+- [x] Update browser extension popup:
   - add compact login-state/sync panel
   - current-site sync button state
   - top CTA for discovered-but-unsynced active tab
@@ -69,7 +69,13 @@ Phase 1 review checkpoint:
   - manual enable/sync entry for unknown current tab
   - placeholder/known icon display
   - localized copy
-- [ ] Run Phase 2 focused extension/bridge tests.
+- [x] Run Phase 2 focused extension/bridge tests.
+
+Phase 2 review checkpoint:
+
+- Local validation passed: `npm run type-check`, `npm run lint`, focused Phase 2 tests, full `npm test`, extension JS syntax checks, and `git diff --check`.
+- Phase 2 intentionally keeps auth-failure discovery/pending desktop reminder for Phase 3. The extension action badge/popup CTA currently highlights registry-matched current sites and unknown-site enablement; true discovered-but-unsynced state will narrow/augment this once Phase 3 adds pending registry entries.
+- Claude review passed with no must-fix issues. Optional follow-up: cookie dedup in the extension helper could merge duplicate records defensively instead of last-write-wins, but this is not blocking because Chrome returns equivalent cookie objects for overlapping approved queries.
 
 ### Phase 3: Auth-failure discovery and bounded auto-sync
 

@@ -118,6 +118,11 @@ document.addEventListener("DOMContentLoaded", () => {
     contextStatus: document.getElementById("contextStatus"),
     contextCounts: document.getElementById("contextCounts"),
     contextFallbackDownloadButton: document.getElementById("contextFallbackDownloadButton"),
+    loginStatePanel: document.getElementById("loginStatePanel"),
+    loginStateLabel: document.getElementById("loginStateLabel"),
+    loginStateTitle: document.getElementById("loginStateTitle"),
+    loginStateHint: document.getElementById("loginStateHint"),
+    loginStateButton: document.getElementById("loginStateButton"),
     refreshMediaButton: document.getElementById("refreshMediaButton"),
     refreshMediaText: document.getElementById("refreshMediaText"),
     mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
@@ -154,6 +159,8 @@ document.addEventListener("DOMContentLoaded", () => {
     extension: {},
   };
   let currentStatusState = STATUS_STATE_OFFLINE;
+  let currentSiteSessionStatus = null;
+  let loginStateBusy = false;
   let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
   let currentLauncherStatus = null;
   let currentLauncherConfig = null;
@@ -210,6 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderStaticCopy() {
     renderMediaTabs();
+    elements.loginStateLabel.textContent = t("popup.sections.loginState", "Login state");
     elements.refreshMediaText.textContent = t("popup.media.refresh", "Refresh");
     elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
     elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
@@ -264,11 +272,52 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.headerStatus.title = copy.hint;
     elements.statusText.textContent = copy.label;
     renderContextCard();
+    renderLoginStatePanel();
   }
 
   async function checkStatus() {
     const response = await sendRuntimeMessage({ type: "get_status" });
+    currentSiteSessionStatus = response?.siteSession || null;
     updateStatus(normalizeConnectionState(response));
+  }
+
+  function currentSiteSessionName() {
+    const site = currentSiteSessionStatus?.currentSiteSession;
+    return safeText(site?.displayName, site?.siteId || shortHost(currentSiteSessionStatus?.currentTabUrl));
+  }
+
+  function renderLoginStatePanel(feedback = null) {
+    const siteSession = currentSiteSessionStatus || {};
+    const site = siteSession.currentSiteSession || null;
+    const pageHost = shortHost(siteSession.currentTabUrl);
+    const connected = currentStatusState === STATUS_STATE_CONNECTED;
+    const canSync = connected && siteSession.canSyncCurrentSite === true && site;
+    const canEnable = connected && siteSession.canEnableCurrentSite === true;
+    const shouldShow = Boolean(canSync || canEnable || feedback);
+
+    elements.loginStatePanel.hidden = !shouldShow;
+    if (!shouldShow) {
+      return;
+    }
+
+    const siteName = currentSiteSessionName();
+    elements.loginStatePanel.dataset.state = feedback?.tone || (canSync ? "sync" : "enable");
+    elements.loginStateTitle.textContent = feedback?.title || (
+      canSync
+        ? tt("popup.loginState.syncTitle", { site: siteName }, `Sync ${siteName}`)
+        : tt("popup.loginState.enableTitle", { host: pageHost }, `Enable ${pageHost}`)
+    );
+    elements.loginStateHint.textContent = feedback?.hint || (
+      canSync
+        ? t("popup.loginState.syncHint", "Use this browser's login cookies for future downloads.")
+        : t("popup.loginState.enableHint", "Allow Ameow to use cookies for this exact host.")
+    );
+    elements.loginStateButton.textContent = loginStateBusy
+      ? t("popup.loginState.working", "Syncing")
+      : canSync
+        ? t("popup.loginState.syncButton", "Sync")
+        : t("popup.loginState.enableButton", "Enable");
+    elements.loginStateButton.disabled = loginStateBusy || (!canSync && !canEnable);
   }
 
   function mediaTabLabel(mediaType) {
@@ -743,6 +792,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderStaticCopy();
     renderQualityOptions(currentQualityPreference);
     updateStatus(currentStatusState);
+    renderLoginStatePanel();
     renderLauncherStatus(currentLauncherStatus, currentLauncherConfig);
     renderMediaState();
   }
@@ -759,6 +809,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (message.type === "connection_update") {
       updateStatus(normalizeConnectionState(message));
+      return;
+    }
+
+    if (message.type === "site_session_registry_update") {
+      void checkStatus();
       return;
     }
 
@@ -816,6 +871,43 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.contextFallbackDownloadButton.addEventListener("click", async () => {
     await sendRuntimeMessage({ type: "download_current_content" });
     window.close();
+  });
+  elements.loginStateButton.addEventListener("click", async () => {
+    if (loginStateBusy) {
+      return;
+    }
+    const canSync = currentSiteSessionStatus?.canSyncCurrentSite === true;
+    const canEnable = currentSiteSessionStatus?.canEnableCurrentSite === true;
+    if (!canSync && !canEnable) {
+      return;
+    }
+
+    loginStateBusy = true;
+    renderLoginStatePanel();
+    const response = await sendRuntimeMessage({
+      type: canSync ? "sync_current_site_session" : "enable_current_site_session",
+    });
+    loginStateBusy = false;
+
+    if (response?.success) {
+      renderLoginStatePanel({
+        tone: "success",
+        title: t("popup.loginState.syncedTitle", "Login state synced"),
+        hint: t("popup.loginState.syncedHint", "Ameow saved cookies for future downloads."),
+      });
+      window.setTimeout(() => {
+        void checkStatus();
+      }, 900);
+      return;
+    }
+
+    renderLoginStatePanel({
+      tone: "error",
+      title: t("popup.loginState.failedTitle", "Sync failed"),
+      hint: response?.connected === false
+        ? t("popup.loginState.offlineHint", "Open the desktop app, then try again.")
+        : t("popup.loginState.failedHint", "Log in to this site in the browser, then retry."),
+    });
   });
   elements.launcherSettingsButton.addEventListener("click", openOptionsPage);
   elements.openOptionsButton.addEventListener("click", openOptionsPage);

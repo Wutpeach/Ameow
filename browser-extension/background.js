@@ -64,6 +64,7 @@ const xiaohongshuDragRegistry = new Map();
 const mediaScanInFlight = new Map();
 let requestCounter = 0;
 let lastConnectionIssue = OFFLINE_STATUS_TEXT;
+let actionBadgeSiteId = null;
 
 // Store current theme from desktop app
 let currentTheme = 'black';
@@ -333,6 +334,7 @@ function notifyConnectionStatus() {
     state: connectionState(),
     statusText: connectionStatusText(),
   }).catch(() => {});
+  void updateActionBadgeForActiveTab();
 }
 
 function normalizeMediaSelectionPayload(message) {
@@ -1150,6 +1152,191 @@ async function collectSiteSessionCookies(site) {
   return siteSessionCookieSync.normalizeCookieRecords(collected, site.cookieDomains);
 }
 
+function normalizeSiteSessionRegistryEntry(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const siteId = typeof value.siteId === 'string' && value.siteId.trim()
+    ? value.siteId.trim()
+    : null;
+  const cookieDomains = Array.isArray(value.cookieDomains)
+    ? value.cookieDomains.filter((domain) => typeof domain === 'string' && domain.trim())
+    : [];
+  if (!siteId || cookieDomains.length === 0) {
+    return null;
+  }
+  return {
+    ...value,
+    siteId,
+    displayName: typeof value.displayName === 'string' && value.displayName.trim()
+      ? value.displayName.trim()
+      : siteId,
+    cookieDomains,
+  };
+}
+
+function applySiteSessionRegistryUpdate(data) {
+  const entries = siteSessionCookieSync.setRegistryEntries(data?.entries || []);
+  chrome.runtime.sendMessage({
+    type: 'site_session_registry_update',
+    entries,
+  }).catch(() => {});
+  void updateActionBadgeForActiveTab();
+}
+
+function findCurrentSiteSessionForUrl(url) {
+  return siteSessionCookieSync.findRegistryEntryForUrl(url);
+}
+
+async function buildSiteSessionStatusForActiveTab() {
+  const tab = await getActiveTab().catch(() => null);
+  const pageUrl = normalizeHttpUrl(tab?.url);
+  const currentSiteSession = pageUrl
+    ? findCurrentSiteSessionForUrl(pageUrl)
+    : null;
+  const canEnableCurrentSite = Boolean(
+    isConnected()
+    && pageUrl
+    && !currentSiteSession,
+  );
+
+  return {
+    currentTabUrl: pageUrl,
+    currentTabTitle: typeof tab?.title === 'string' ? tab.title : null,
+    currentSiteSession,
+    canSyncCurrentSite: Boolean(isConnected() && currentSiteSession),
+    canEnableCurrentSite,
+    registryEntryCount: siteSessionCookieSync.getRegistryEntries().length,
+  };
+}
+
+async function updateActionBadgeForActiveTab() {
+  if (!chrome?.action?.setBadgeText) {
+    return;
+  }
+
+  const status = await buildSiteSessionStatusForActiveTab().catch(() => null);
+  const nextSiteId = status?.currentSiteSession?.siteId || null;
+  const shouldShow = Boolean(isConnected() && nextSiteId);
+  if (actionBadgeSiteId === nextSiteId && shouldShow) {
+    return;
+  }
+  actionBadgeSiteId = shouldShow ? nextSiteId : null;
+
+  try {
+    chrome.action.setBadgeText({ text: shouldShow ? '•' : '' });
+    chrome.action.setBadgeBackgroundColor?.({ color: '#f59e0b' });
+    chrome.action.setTitle?.({
+      title: shouldShow
+        ? `Ameow: sync login state for ${status.currentSiteSession.displayName || nextSiteId}`
+        : 'Ameow',
+    });
+  } catch (error) {
+    console.warn('[Ameow] Failed to update action badge:', error);
+  }
+}
+
+async function syncSiteSessionEntryDirect(entry) {
+  const normalizedEntry = normalizeSiteSessionRegistryEntry(entry);
+  if (!normalizedEntry) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'unsupported_site_session',
+    };
+  }
+
+  const cookies = await collectSiteSessionCookies(normalizedEntry);
+  if (cookies.length === 0) {
+    return {
+      success: false,
+      connected: isConnected(),
+      siteId: normalizedEntry.siteId,
+      reason: 'no_site_session_cookies',
+    };
+  }
+
+  const response = await sendRequestToApp(
+    'site_session_cookie_sync_direct',
+    {
+      siteId: normalizedEntry.siteId,
+      cookies,
+      source: {
+        browser: resolveExtensionSyncBrowserLabel(),
+        profileLabel: null,
+        extensionId: chrome.runtime?.id || null,
+      },
+    },
+    REQUEST_TIMEOUT_MS,
+    {
+      forceConnect: true,
+    },
+  );
+
+  return {
+    success: response?.success === true,
+    connected: isConnected(),
+    siteId: normalizedEntry.siteId,
+    reason: response?.success === true
+      ? null
+      : response?.data?.code || response?.message || 'site_session_sync_failed',
+  };
+}
+
+async function syncCurrentSiteSessionFromActiveTab() {
+  const status = await buildSiteSessionStatusForActiveTab();
+  if (!status.currentSiteSession) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: status.currentTabUrl ? 'site_session_not_enabled' : 'unsupported_page',
+    };
+  }
+  const result = await syncSiteSessionEntryDirect(status.currentSiteSession);
+  void updateActionBadgeForActiveTab();
+  return result;
+}
+
+async function enableCurrentSiteSessionFromActiveTab() {
+  const tab = await getActiveTab();
+  const pageUrl = normalizeHttpUrl(tab?.url);
+  if (!pageUrl) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'unsupported_page',
+    };
+  }
+
+  const response = await sendRequestToApp(
+    'site_session_enable_current_tab',
+    {
+      pageUrl,
+      displayName: typeof tab?.title === 'string' ? tab.title : undefined,
+    },
+    REQUEST_TIMEOUT_MS,
+    {
+      forceConnect: true,
+    },
+  );
+  const entry = normalizeSiteSessionRegistryEntry(response?.data?.entry);
+  if (!response?.success || !entry) {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: response?.data?.code || response?.message || 'site_session_enable_failed',
+    };
+  }
+
+  siteSessionCookieSync.upsertRegistryEntry(entry);
+  chrome.runtime.sendMessage({
+    type: 'site_session_registry_update',
+    entries: siteSessionCookieSync.getRegistryEntries(),
+  }).catch(() => {});
+  void updateActionBadgeForActiveTab();
+  return syncSiteSessionEntryDirect(entry);
+}
+
 async function handleSiteSessionCookieSyncRequest(data) {
   const resolvedRequest = siteSessionCookieSync.resolveSiteSessionCookieSyncRequest(data);
   if (!resolvedRequest.success) {
@@ -1731,6 +1918,9 @@ function handleMessage(message) {
       break;
     case 'request_download_preferences':
       void bootstrapDownloadPreferencesSync();
+      break;
+    case 'site_session_registry_update':
+      applySiteSessionRegistryUpdate(message.data || {});
       break;
     case 'resolve_protected_image':
       void handleProtectedImageResolveRequest(message.data || {});
@@ -3217,12 +3407,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   } else if (message.type === 'get_status') {
-    sendResponse({
-      connected: isConnected(),
-      connecting: isConnecting() || reconnectTimer !== null,
-      state: connectionState(),
-      statusText: connectionStatusText(),
+    buildSiteSessionStatusForActiveTab().then((siteSession) => {
+      sendResponse({
+        connected: isConnected(),
+        connecting: isConnecting() || reconnectTimer !== null,
+        state: connectionState(),
+        statusText: connectionStatusText(),
+        siteSession,
+      });
     });
+    return true;
+  } else if (message.type === 'sync_current_site_session') {
+    syncCurrentSiteSessionFromActiveTab().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to sync current site session:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'site_session_sync_failed',
+      });
+    });
+    return true;
+  } else if (message.type === 'enable_current_site_session') {
+    enableCurrentSiteSessionFromActiveTab().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to enable current site session:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'site_session_enable_failed',
+      });
+    });
+    return true;
   } else if (message.type === 'get_launcher_status') {
     pingLauncherForActiveTab().then(sendResponse);
     return true;
@@ -3426,6 +3640,26 @@ if (chrome?.contextMenus?.onClicked) {
     }).catch((error) => {
       console.error('[Ameow] Failed to queue context-menu media selection:', error);
     });
+  });
+}
+
+if (chrome?.tabs?.onActivated) {
+  chrome.tabs.onActivated.addListener(() => {
+    void updateActionBadgeForActiveTab();
+  });
+}
+
+if (chrome?.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+    if (changeInfo?.url || changeInfo?.status === 'complete') {
+      void updateActionBadgeForActiveTab();
+    }
+  });
+}
+
+if (chrome?.windows?.onFocusChanged) {
+  chrome.windows.onFocusChanged.addListener(() => {
+    void updateActionBadgeForActiveTab();
   });
 }
 

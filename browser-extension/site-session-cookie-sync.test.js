@@ -8,6 +8,7 @@ const helperSource = readFileSync(helperPath, "utf8");
 
 const loadHelper = () => {
   const context = {
+    URL,
     self: {},
     globalThis: {},
   };
@@ -67,6 +68,125 @@ describe("site session cookie sync helper", () => {
       { url: "https://accounts.google.com/" },
       { url: "https://www.google.com/" },
     ]);
+  });
+
+  it("uses desktop-pushed registry entries before the local fallback whitelist", () => {
+    const helper = loadHelper();
+
+    helper.setRegistryEntries([
+      {
+        siteId: "site-sub-example-com",
+        displayName: "Example",
+        primaryUrl: "https://sub.example.com/watch",
+        primaryHost: "sub.example.com",
+        cookieDomains: ["sub.example.com"],
+        requiredCookieKeys: [],
+        loginCookieKeys: [],
+        syncAuthorization: "user_enabled",
+        autoSyncAllowed: true,
+        discoverySources: ["extension_current_tab"],
+        visibility: "visible",
+        icon: { kind: "placeholder" },
+      },
+      {
+        siteId: "youtube",
+        displayName: "YouTube Override",
+        primaryUrl: "https://www.youtube.com/",
+        primaryHost: "www.youtube.com",
+        cookieDomains: ["studio.youtube.com"],
+      },
+    ]);
+
+    expect(helper.resolveSiteSessionCookieSyncRequest({
+      requestId: "sync-registry-1",
+      siteId: "site-sub-example-com",
+    })).toMatchObject({
+      success: true,
+      site: {
+        siteId: "site-sub-example-com",
+        cookieDomains: ["sub.example.com"],
+      },
+    });
+    expect(helper.resolveSiteSessionCookieSyncRequest({
+      requestId: "sync-registry-2",
+      siteId: "youtube",
+    })).toMatchObject({
+      success: true,
+      site: {
+        siteId: "youtube",
+        cookieDomains: ["studio.youtube.com"],
+      },
+    });
+  });
+
+  it("matches current tab URLs against registry primary hosts and cookie domains", () => {
+    const helper = loadHelper();
+
+    helper.setRegistryEntries([
+      {
+        siteId: "patreon",
+        displayName: "Patreon",
+        primaryUrl: "https://www.patreon.com/",
+        primaryHost: "www.patreon.com",
+        cookieDomains: ["patreon.com"],
+      },
+    ]);
+
+    expect(helper.findRegistryEntryForUrl("https://creator.patreon.com/posts/123")).toMatchObject({
+      siteId: "patreon",
+    });
+    expect(helper.findRegistryEntryForUrl("https://example.com/posts/123")).toBeNull();
+    expect(helper.findRegistryEntryForUrl("chrome://extensions")).toBeNull();
+  });
+
+  it("builds cookie queries only from registry-approved domains", () => {
+    const helper = loadHelper();
+
+    helper.setRegistryEntries([
+      {
+        siteId: "site-sub-example-com",
+        displayName: "Example",
+        primaryUrl: "https://sub.example.com/watch",
+        primaryHost: "sub.example.com",
+        cookieDomains: ["sub.example.com", "evil.example", "sub.example.com"],
+      },
+    ]);
+    const resolved = helper.resolveSiteSessionCookieSyncRequest({
+      requestId: "sync-registry-query",
+      siteId: "site-sub-example-com",
+      cookieDomains: ["desktop-injected.example"],
+      cookieUrls: ["https://desktop-injected.example/"],
+    });
+
+    expect(resolved).toMatchObject({
+      success: true,
+      site: {
+        cookieDomains: ["sub.example.com", "evil.example"],
+      },
+    });
+    expect(helper.buildCookieQueries(resolved.site)).toEqual([
+      { domain: "sub.example.com" },
+      { domain: "evil.example" },
+    ]);
+  });
+
+  it("rejects unsupported ids before any desktop-provided domains can be used", () => {
+    const helper = loadHelper();
+
+    const resolved = helper.resolveSiteSessionCookieSyncRequest({
+      requestId: "sync-unsupported",
+      siteId: "unknown",
+      cookieDomains: ["example.com"],
+      cookieUrls: ["https://example.com/"],
+    });
+
+    expect(resolved).toEqual({
+      success: false,
+      requestId: "sync-unsupported",
+      siteId: "unknown",
+      code: "unsupported_site_session",
+      error: "Unsupported site session cookie sync: unknown",
+    });
   });
 
   it("filters cross-site cookies and deduplicates by domain path and name", () => {
