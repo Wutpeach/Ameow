@@ -139,3 +139,41 @@ Implemented YouTube-only Settings login-state sync through the browser extension
 ### Next Steps
 
 - None - task complete
+
+
+## Session 201: Dynamic site-session sync
+
+**Date**: 2026-06-04
+**Task**: Dynamic site-session sync
+**Branch**: `main`
+
+### Summary
+
+Implemented dynamic extension-driven site-session sync across all planned phases: registry migration and old capture removal, extension current-tab sync, auth-required discovery and retry, local icons, hidden gallery-dl cookie catalog, final specs and validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cf86db7` | (see git log) |
+| `568f711` | (see git log) |
+| `dadfc90` | (see git log) |
+| `208c19a` | (see git log) |
+| `6b1bed2` | (see git log) |
+| `6b70b43` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
