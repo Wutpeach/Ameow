@@ -16,7 +16,7 @@ const loadHelper = () => {
 };
 
 describe("site session cookie sync helper", () => {
-  it("allows only hardcoded supported site ids", () => {
+  it("allows current seeded site ids and rejects unsupported ids", () => {
     const helper = loadHelper();
 
     expect(helper.resolveSiteSessionCookieSyncRequest({
@@ -35,12 +35,24 @@ describe("site session cookie sync helper", () => {
     expect(helper.resolveSiteSessionCookieSyncRequest({
       requestId: "sync-2",
       siteId: "bilibili",
+    })).toMatchObject({
+      success: true,
+      requestId: "sync-2",
+      site: {
+        siteId: "bilibili",
+        cookieDomains: ["bilibili.com", "b23.tv"],
+      },
+    });
+
+    expect(helper.resolveSiteSessionCookieSyncRequest({
+      requestId: "sync-3",
+      siteId: "unknown",
     })).toEqual({
       success: false,
-      requestId: "sync-2",
-      siteId: "bilibili",
+      requestId: "sync-3",
+      siteId: "unknown",
       code: "unsupported_site_session",
-      error: "Unsupported site session cookie sync: bilibili",
+      error: "Unsupported site session cookie sync: unknown",
     });
   });
 

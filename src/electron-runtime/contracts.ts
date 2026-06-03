@@ -21,7 +21,6 @@ import type {
   SiteProvider,
 } from "../core/index.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
-import type { SiteSessionAvailability } from "../types/siteSession.js";
 
 export type RuntimeManagedComponent = RuntimeDependencyManagedComponent;
 
@@ -79,20 +78,6 @@ export interface RuntimeBootstrapContext {
   environment: ElectronRuntimeEnvironment;
 }
 
-export type SiteSessionCredentialRefreshReason = "auth_required_retry";
-
-export interface SiteSessionCredentialRefreshContext {
-  siteId: string;
-  traceId: string;
-  reason: SiteSessionCredentialRefreshReason;
-}
-
-export interface SiteSessionCredentialRefreshResult {
-  availability: SiteSessionAvailability;
-  cookieCount: number;
-  lastError: string | null;
-}
-
 export interface ElectronDownloadRuntimeOptions {
   environment: ElectronRuntimeEnvironment;
   configStore: RuntimeConfigStore;
@@ -110,9 +95,6 @@ export interface ElectronDownloadRuntimeOptions {
     engineId: EngineId,
     reason: string,
   ): Promise<void>;
-  refreshSiteSessionCredentials?(
-    context: SiteSessionCredentialRefreshContext,
-  ): Promise<SiteSessionCredentialRefreshResult | null>;
   bootstrapManagedComponents?(
     context: RuntimeBootstrapContext,
   ): Promise<RuntimeDependencyStatusSnapshot | void>;

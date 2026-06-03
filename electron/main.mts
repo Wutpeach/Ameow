@@ -49,9 +49,6 @@ import {
 } from "../src/core/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
-import {
-  resolveSiteSessionCaptureUserAgent,
-} from "./siteSessionCaptureHardening.mjs";
 import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
 import {
   normalizeVideoCandidates,
@@ -79,9 +76,6 @@ import {
   resolveMainWindowStartupMode,
 } from "./startupWindowMode.mjs";
 import { applyConfiguredProxyToSession } from "./desktopProxy.mjs";
-import {
-  configureSiteSessionCaptureSession as configureCaptureSession,
-} from "./siteSessionCaptureSession.mjs";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -121,7 +115,7 @@ import {
   resolvePinnedManagedPythonPackage,
 } from "./managedRuntimeBootstrap.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
-import { getSiteSessionConfig, isSupportedSiteSessionId } from "../src/site-sessions.js";
+import { createSiteSessionRegistry } from "./siteSessionRegistry.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import {
@@ -207,8 +201,7 @@ let videoDownloadCommandBridge = null;
 let siteSessionCommandController = null;
 let supportLogCommandController = null;
 const siteSessionManagers = new Map();
-const siteSessionSupplementalCookies = new Map();
-const configuredSiteSessionCapturePartitions = new Set();
+let siteSessionRegistry = null;
 let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
@@ -1363,141 +1356,42 @@ function getElectronDownloadRuntime() {
         userDataDir: getUserDataDir(),
       };
     },
-    async refreshSiteSessionCredentials({ siteId }) {
-      const manager = getSiteSessionManager(siteId);
-      if (!manager) {
-        return null;
-      }
-      const state = await manager.refreshCredentials();
-      if (state.capturePhase !== "idle") {
-        return null;
-      }
-      return {
-        availability: state.availability,
-        cookieCount: state.cookieCount,
-        lastError: state.lastError,
-      };
-    },
   });
   return electronDownloadRuntime;
 }
 
+function getSiteSessionRegistry() {
+  if (siteSessionRegistry) {
+    return siteSessionRegistry;
+  }
+  siteSessionRegistry = createSiteSessionRegistry({
+    getUserDataDir,
+  });
+  return siteSessionRegistry;
+}
+
 function getSiteSessionManager(siteId) {
-  if (!isSupportedSiteSessionId(siteId)) {
+  const entry = getSiteSessionRegistry().getEntry(siteId);
+  if (!entry) {
     return null;
   }
-
   const cachedManager = siteSessionManagers.get(siteId);
   if (cachedManager) {
     return cachedManager;
   }
 
-  const config = getSiteSessionConfig(siteId);
   const manager = createSiteSessionManager({
     site: {
-      id: config.id,
-      displayName: config.displayName,
-      loginUrl: config.loginUrl,
-      cookieDomains: [...config.cookieDomains],
-      requiredCookieKeys: [...config.requiredCookieKeys],
-      loginCookieKeys: [...config.loginCookieKeys],
+      id: entry.siteId,
+      displayName: entry.displayName,
+      cookieDomains: [...entry.cookieDomains],
+      requiredCookieKeys: [...entry.requiredCookieKeys],
+      loginCookieKeys: [...entry.loginCookieKeys],
     },
     getUserDataDir,
-    async createCaptureWindow({ site, partition, onClosed }) {
-      await configureSiteSessionCaptureSession({ site, partition });
-      const captureWindow = new BrowserWindow({
-        width: 1180,
-        height: 860,
-        title: `${site.displayName} Login`,
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: {
-          partition,
-          contextIsolation: true,
-          sandbox: false,
-          nodeIntegration: false,
-        },
-      });
-
-      captureWindow.setMenuBarVisibility(false);
-      captureWindow.webContents.setUserAgent(resolveSiteSessionCaptureUserAgent(captureWindow.webContents.getUserAgent()));
-      captureWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (!isHttpNavigationUrl(url)) {
-          logInfo("SiteSession", "Blocked non-web popup URL", JSON.stringify({
-            siteId: site.id,
-            url,
-          }));
-          return { action: "deny" };
-        }
-        captureWindow.loadURL(url).catch((error) => {
-          logInfo("SiteSession", "Failed to load popup URL", JSON.stringify({
-            siteId: site.id,
-            url,
-            error: String(error),
-          }));
-        });
-        return { action: "deny" };
-      });
-      captureWindow.webContents.on("will-navigate", (event, url) => {
-        if (isHttpNavigationUrl(url)) {
-          return;
-        }
-        event.preventDefault();
-        logInfo("SiteSession", "Blocked non-web navigation URL", JSON.stringify({
-          siteId: site.id,
-          url,
-        }));
-      });
-      captureWindow.on("closed", () => {
-        logInfo("SiteSession", "Site capture window closed", JSON.stringify({ siteId: site.id, partition }));
-        onClosed();
-      });
-      await captureWindow.loadURL(site.loginUrl);
-      return {
-        id: captureWindow.id,
-        close() {
-          if (!captureWindow.isDestroyed()) {
-            captureWindow.close();
-          }
-        },
-      };
-    },
-    async readSupplementalCookies(partition) {
-      return siteSessionSupplementalCookies.get(partition) ?? {};
-    },
-    async readCookies(partition) {
-      return session.fromPartition(partition).cookies.get({});
-    },
-    async destroyPartition(partition) {
-      siteSessionSupplementalCookies.delete(partition);
-      configuredSiteSessionCapturePartitions.delete(partition);
-      await session.fromPartition(partition).clearStorageData();
-    },
-    log(message, details) {
-      logInfo("SiteSession", message, details ? JSON.stringify(details) : undefined);
-    },
   });
   siteSessionManagers.set(siteId, manager);
   return manager;
-}
-
-async function configureSiteSessionCaptureSession({ site, partition }) {
-  const captureSession = session.fromPartition(partition);
-  await configureCaptureSession({
-    site,
-    partition,
-    captureSession,
-    proxyConfig: await readConfigObject(),
-    locale: app.getLocale(),
-    rawUserAgent: app.userAgentFallback,
-    state: {
-      configuredPartitions: configuredSiteSessionCapturePartitions,
-      supplementalCookiesByPartition: siteSessionSupplementalCookies,
-    },
-    log(message, details) {
-      logInfo("SiteSession", message, details ? JSON.stringify(details) : undefined);
-    },
-  });
 }
 
 function requireSiteSessionManager(siteId) {
@@ -1540,14 +1434,10 @@ function getExtensionRequestBridge() {
 }
 
 async function syncSiteSessionFromExtension(siteId, manager) {
-  if (siteId !== "youtube") {
-    throw new Error("Extension site session sync is currently only supported for YouTube");
-  }
-
-  const siteConfig = getSiteSessionConfig(siteId);
+  const entry = getSiteSessionRegistry().requireEntry(siteId);
   const resolution = await getExtensionRequestBridge().requestSiteSessionCookieSync({
     siteId,
-    cookieDomains: siteConfig.cookieDomains,
+    cookieDomains: entry.cookieDomains,
   });
 
   if (!resolution.success) {
@@ -1595,6 +1485,9 @@ function getSiteSessionCommandController() {
   }
 
   siteSessionCommandController = createSiteSessionCommandController({
+    listSiteSessionRegistryEntries() {
+      return getSiteSessionRegistry().listVisibleEntries();
+    },
     requireSiteSessionManager,
     resolveSiteSessionIdFromPayload,
     syncSiteSessionFromExtension,

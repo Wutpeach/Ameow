@@ -61,7 +61,6 @@ import {
 import { DownloadRuntimeError } from "../core/index.js";
 import { resolveYtdlpFormatProfile } from "./engineManifest.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
-import { isSupportedSiteSessionId } from "../site-sessions.js";
 
 type PendingTask = {
   traceId: string;
@@ -790,61 +789,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         result = await executeDownloadAttempt();
       } catch (error) {
         const firstError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
-        const retrySiteId = this.resolveAuthRetrySiteId(telemetryPlan);
-        if (
-          firstError.classification !== "auth_required"
-          || activeTask.abortController.signal.aborted
-          || !retrySiteId
-          || !this.options.refreshSiteSessionCredentials
-        ) {
-          throw firstError;
-        }
-
-        this.logger.log(`>>> [ElectronRuntime] auth-required failure for ${traceId}; refreshing ${retrySiteId} credentials before one retry`);
-        let refreshResult;
-        try {
-          refreshResult = await this.options.refreshSiteSessionCredentials({
-            siteId: retrySiteId,
-            traceId,
-            reason: "auth_required_retry",
-          });
-        } catch (refreshError) {
-          this.logger.log(`>>> [ElectronRuntime] auth retry credential refresh failed for ${traceId}: ${summarizeError(refreshError)}`);
-          throw firstError;
-        }
-
-        if (activeTask.abortController.signal.aborted) {
-          throw new DownloadRuntimeError(
-            "E_ABORTED",
-            "Download cancelled",
-            {
-              classification: "cancelled",
-              cause: firstError,
-            },
-          );
-        }
-
-        if (!refreshResult || refreshResult.availability === "missing") {
-          this.logger.log(`>>> [ElectronRuntime] auth retry skipped for ${traceId}: ${JSON.stringify({
-            siteId: retrySiteId,
-            availability: refreshResult?.availability ?? null,
-            cookieCount: refreshResult?.cookieCount ?? null,
-            lastError: refreshResult?.lastError ?? null,
-          })}`);
-          throw firstError;
-        }
-
-        executedProviderId = null;
-        executedEngineId = null;
-        await this.options.eventSink.emit("video-download-progress", {
-          traceId,
-          ...EARLY_VIDEO_ACTIVITY_PAYLOAD,
-        });
-        this.logger.log(`>>> [ElectronRuntime] retrying ${traceId} after ${retrySiteId} credential refresh: ${JSON.stringify({
-          availability: refreshResult.availability,
-          cookieCount: refreshResult.cookieCount,
-        })}`);
-        result = await executeDownloadAttempt();
+        throw firstError;
       }
       this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
         traceId,
@@ -1005,14 +950,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         cause: error,
       },
     );
-  }
-
-  private resolveAuthRetrySiteId(plan: ResolvedDownloadPlan | null): string | null {
-    const siteId = plan?.intent.siteId;
-    if (!isSupportedSiteSessionId(siteId)) {
-      return null;
-    }
-    return siteId;
   }
 
   private async recordDownloadTelemetry(

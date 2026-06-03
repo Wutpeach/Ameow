@@ -2105,12 +2105,12 @@ const configStore = createConfigStore({
 const updateTrayMenu = trayMenuController.updateTrayMenu;
 ```
 
-## Scenario: Site Session Badge Cookie Capture Contract
+## Scenario: Dynamic Site Session Registry And Extension Cookie Sync Contract
 
 ### 1. Scope / Trigger
 
-- Trigger: Any task that adds a login badge site, changes site session IPC, changes app-owned cookie storage, or routes stored cookies into downloader execution.
-- Why this needs code-spec depth: The flow crosses Settings UI, typed preload commands, Electron `BrowserWindow` login capture, persisted app data, and `yt-dlp` / `gallery-dl` cookie-file execution.
+- Trigger: Any task that changes Settings site login state, site-session IPC, browser-extension cookie sync, saved cookie snapshots, or downloader cookie injection.
+- Why this needs code-spec depth: The flow crosses Settings UI, typed preload commands, Electron main, browser-extension WebSocket transport, persisted app data, and `yt-dlp` / `gallery-dl` cookie-file execution.
 
 ### 2. Signatures
 
@@ -2118,37 +2118,57 @@ Renderer command names:
 
 ```ts
 type SiteSessionCommand =
+  | "get_site_session_registry"
   | "get_site_session_diagnostics"
   | "get_site_session_state"
-  | "start_site_session_capture"
-  | "complete_site_session_capture"
-  | "cancel_site_session_capture"
-  | "refresh_site_session_credentials"
   | "sync_site_session_from_extension"
-  | "clear_site_session";
+  | "clear_site_session"
+  | "get_douyin_session_state"
+  | "clear_douyin_session";
 ```
 
-Payload and state:
+State and registry payloads:
 
 ```ts
-type SupportedSiteSessionId =
-  | "douyin"
-  | "bilibili"
-  | "xiaohongshu"
-  | "instagram"
-  | "youtube";
-
 type SiteSessionAvailability = "missing" | "partial" | "ready";
-type SiteSessionProfileState = "unknown" | "missing" | "present";
 type SiteSessionPolicyReason =
   | "ready"
   | "missing_required_cookie"
   | "missing_login_cookie"
   | "no_snapshot";
-type SiteSessionCapturePhase = "idle" | "preparing" | "awaiting_confirmation";
+
+type SiteSessionRegistryEntry = {
+  siteId: string;
+  displayName: string;
+  labelKey?: string;
+  primaryUrl: string;
+  primaryHost: string;
+  cookieDomains: string[];
+  requiredCookieKeys: string[];
+  loginCookieKeys: string[];
+  syncAuthorization: "seeded" | "user_enabled" | "auto_discovered";
+  autoSyncAllowed: boolean;
+  discoverySources: Array<
+    | "seed"
+    | "gallery-dl-supported-sites"
+    | "auth_required"
+    | "extension_current_tab"
+    | "user_sync"
+  >;
+  engineHints: Array<"yt-dlp" | "gallery-dl" | "douyin-dl">;
+  visibility: "visible" | "hidden_catalog";
+  icon: {
+    kind: "known" | "favicon" | "placeholder";
+    key?: string;
+    url?: string;
+    localPath?: string;
+  };
+  createdAtMs: number;
+  updatedAtMs: number;
+};
 
 type SiteSessionState = {
-  siteId: SupportedSiteSessionId | string;
+  siteId: string;
   availability: SiteSessionAvailability;
   updatedAtMs: number | null;
   cookieCount: number;
@@ -2156,130 +2176,78 @@ type SiteSessionState = {
   missingRequiredKeys: string[];
   lastError: string | null;
   sessionFilePath: string | null;
-  capturePhase: SiteSessionCapturePhase;
-  captureStartedAtMs: number | null;
-  capturePid: number | null;
   lastSyncSource: {
     browser: string | null;
     profileLabel: string | null;
     extensionId: string | null;
   } | null;
 };
-
-type SiteSessionPolicyEvaluation = {
-  availability: SiteSessionAvailability;
-  reason: SiteSessionPolicyReason;
-  missingRequiredKeys: string[];
-};
-
-type SiteSessionDiagnostics = {
-  siteId: SupportedSiteSessionId | string;
-  profileState: SiteSessionProfileState;
-  snapshotAvailability: SiteSessionAvailability;
-  snapshotUpdatedAtMs: number | null;
-  snapshotCookieCount: number;
-  missingRequiredKeys: string[];
-  lastError: string | null;
-  policy: SiteSessionPolicyEvaluation;
-};
-```
-
-Site config source of truth:
-
-```ts
-type SiteSessionConfig = {
-  id: SupportedSiteSessionId;
-  displayName: string;
-  labelKey: string;
-  loginUrl: string;
-  cookieDomains: string[];
-  requiredCookieKeys: string[];
-  loginCookieKeys: string[];
-};
 ```
 
 ### 3. Contracts
 
-- `src/site-sessions.ts` owns the supported site list, login URL, allowed cookie domains, and required/login cookie keys.
-- `electron/siteSessionManager.mts` owns persisted session files under `<userDataDir>/site-sessions/<siteId>.json`.
-- `get_site_session_state` remains the fast operational state command for capture/control UI. Do not add profile inspection or diagnostics-only fields to this return shape.
-- `get_site_session_diagnostics` is the explicit read-only diagnostics command for Settings and support workflows. It may inspect the stable app-owned profile partition and must tolerate inspection failures.
-- Stored sessions must include a Netscape cookie string because downloader execution consumes cookie files, not Electron cookie jars.
-- Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
-- Electron capture windows use an app-owned Chromium session, not the user's default browser profile. Capture sessions may harden unneeded permissions, set a browser-like user agent / accept-language, and collect same-site supplemental cookie values observed during capture.
-- Site capture uses a stable app-owned profile partition per supported site: `persist:ameow-site-session-<siteId>`. Confirming, cancelling, or closing a capture window must preserve that partition so sites see a consistent app browser profile across manual refresh attempts.
-- Site capture partitions must re-apply the current global proxy config before each capture window's first navigation. Persisted Electron partitions preserve cookie/storage state, not the app's runtime proxy configuration, and listener-registration deduplication must not skip proxy re-application.
-- YouTube capture must use user-initiated `sync_site_session_from_extension` instead of the Electron embedded login window while Google blocks embedded/app-controlled login with the insecure-browser prompt.
-- `sync_site_session_from_extension` is currently YouTube-only. Settings may expose it as the YouTube badge's login/refresh action, while other sites keep the existing confirmation-based Electron capture flow.
-- Browser-extension site-session sync must persist into the same `<userDataDir>/site-sessions/<siteId>.json` shape as Electron capture, including `cookies`, `cookieHeader`, and `cookiesNetscape`; extension cookies must not be attached directly to `video_selected_v2` or pasted-video download payloads.
+- `electron/siteSessionRegistry.mts` is the desktop authority for valid site-session ids, visible login-state rows, allowed cookie domains, required/login cookie markers, sync authorization, and icon metadata.
+- `src/site-sessions.ts` remains the seed source for current first-party known entries, but it is not the runtime authority for every valid site id.
+- Registry entries may be `hidden_catalog`; Settings and extension lists must not render hidden catalog-only entries until a later activation flow promotes them.
+- `electron/siteSessionManager.mts` is snapshot-only. It owns persisted files under `<userDataDir>/site-sessions/<siteId>.json`, `importSnapshot(...)`, `clearSession()`, diagnostics from the saved snapshot, and `getDownloadCookies()`.
+- App-owned Electron login/capture windows, capture phases, stable profile partitions, supplemental cookie capture, and profile refresh are removed. Do not reintroduce `start_site_session_capture`, `complete_site_session_capture`, `cancel_site_session_capture`, `refresh_site_session_credentials`, or Douyin capture aliases.
+- Browser-extension site-session sync persists into the same saved snapshot shape, including `cookies`, `cookieHeader`, and `cookiesNetscape`; extension cookies must not be attached directly to `video_selected_v2` or pasted-video download payloads.
+- Desktop must validate the requested `siteId` against the registry before syncing, pass only registry-approved cookie domains to the extension, and filter returned cookies against the same domains before saving.
+- Extension-side sync must reject unsupported site ids before calling `chrome.cookies.getAll(...)`. Phase 1 supports the current seeded site set; later phases replace the extension-local allowlist with desktop-pushed registry validation.
 - Browser-extension site-session sync source metadata must be recorded in `lastSyncSource` so Settings can show which browser/extension profile answered the sync request when available.
-- Site profile diagnostics report only lightweight profile evidence, not account identity or arbitrary storage contents. A profile is `present` when the stable partition has at least one cookie for the site's allowed domains, `missing` when inspection succeeds with no matching cookies, and `unknown` with `lastError` when inspection fails.
-- Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. The first policy layer wraps the current config-driven required-cookie and login-marker checks; do not add speculative site-specific rules without current downloader evidence.
-- Capture-session hardening for a stable partition must be idempotent. Repeated capture windows for the same site must not stack duplicate `webRequest` listeners, but each capture attempt should reset that partition's supplemental cookie collection state before loading the site.
-- Cookie-jar cookies remain the primary source for persisted site sessions and the generated Netscape cookie file. Supplemental cookie values may fill missing names in the stored JSON/header records, but must be filtered to the captured site's allowed cookie domains and must not store passwords, passkeys, authorization headers, or arbitrary storage blobs.
-- `refresh_site_session_credentials` re-reads cookie-jar cookies from the stable app-owned profile and rewrites the downloader credential snapshot without opening a login window. It must not merge supplemental cookies from previous capture windows, because those values are live-capture observations and may be stale during a no-window refresh.
-- Refreshing credentials while the same site's capture window is active must not rewrite the saved snapshot. Different-site refreshes may proceed because site managers are scoped per site.
-- When a runtime download fails with `auth_required`, `src/electron-runtime/service.ts` may call an optional `refreshSiteSessionCredentials({ siteId, traceId, reason: "auth_required_retry" })` callback for supported site-session IDs and retry the same task once if the refreshed state is `ready` or `partial`.
-- Auth-failure assisted refresh must stay silent and profile-owned: it must not open a login window, must not reuse the user's default browser profile, must not merge stale supplemental cookies, and must not synthesize cookies from browser-extension video download payloads.
-- Auth-failure assisted retry must rebuild the engine execution context after refresh so `buildExecutionContext(...)` can inject the latest saved Netscape cookie snapshot. It must not reuse stale `intent.cookies` from the failed attempt.
-- Auth-failure assisted retry must preserve the original `traceId`, output stem reservation, queue row, and final-completion contract. The first auth failure must not emit an intermediate `video-download-complete`; the task still emits exactly one terminal completion event.
-- Auth-failure assisted retry must be guarded to one refresh/retry attempt per task. It must not run for cancelled, input-invalid, unsupported-site, missing-site, or non-auth failures, and retry failures must not re-enter the refresh branch.
-- Douyin `requiredCookieKeys` must track `douyin-dl`'s actual `CookieManager.validate_cookies()` contract: `ttwid`, `odin_tt`, and `passport_csrf_token` are required; `msToken` is optional because upstream can generate it when absent.
-- Instagram download intents must normalize `siteId` to `"instagram"` instead of host-derived `"instagram.com"` so saved `<userDataDir>/site-sessions/instagram.json` cookies are injected for both direct pasted URLs and extension-assisted requests.
-- Instagram session readiness uses `requiredCookieKeys: []` and `loginCookieKeys: ["sessionid"]`; visitor cookies such as `csrftoken` and `mid` are captured and passed through when present but must not be required login markers.
-- Settings badges are site-level pills whose primary visible content is icon, localized site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
-- Badge click behavior is unified for every site: start a manual capture/refresh flow. The app may label ready-state clicks as refresh, but they still open the same confirmation-based capture path.
-- `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site session. Browser-extension video download payloads must not provide cookies as a fallback; users should capture site login state from Settings for managed downloader cookies.
-- Legacy Douyin IPC commands must remain backward-compatible aliases to the site-session manager for `douyin`.
+- Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. Do not add speculative site-specific rules without current downloader evidence.
+- `buildExecutionContext(...)` may replace `intent.cookies` with the app-owned Netscape cookie string when `context.intent.siteId` has a saved site-session snapshot. Browser-extension video download payloads must not provide cookies as a fallback.
+- Runtime auth-failure profile refresh is removed with the app-owned capture profile. Auth-failure discovery and bounded extension auto-sync belong to the dynamic registry flow, not to silent profile refresh.
+- Settings badges are registry-driven site-level pills whose primary visible content is icon, localized/display site name, and one status: `已登录` / `失效` / `未登录` in Chinese or the localized equivalent.
+- Settings badge click behavior is unified for every visible registry entry: user-initiated `sync_site_session_from_extension`. The secondary action is `clear_site_session`.
+- Legacy Douyin read/clear aliases may remain temporarily for compatibility, but Douyin capture aliases must be removed.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Expected Behavior |
 |---|---|
-| Unsupported `siteId` in a site-session command | Reject with `Unsupported site session: <siteId>` |
+| Unsupported `siteId` in a site-session command | Reject with `Unsupported site session: <siteId>` through registry-backed manager lookup |
 | No stored file or invalid stored JSON | Return `availability: "missing"` and `sessionFilePath: null` |
 | Stored cookies miss required keys or login marker keys | Return `availability: "partial"` |
 | Stored cookies satisfy required keys and at least one login marker key when configured | Return `availability: "ready"` |
-| Confirm capture finds no cookies for allowed domains | Keep prior session cache, set `lastError`, close the capture window, and preserve the stable profile partition |
-| User cancels/closes capture window | Return to `capturePhase: "idle"` and preserve the stable profile partition |
-| User refreshes credentials and profile cookie jar has valid site cookies | Rewrite the saved cookie snapshot, update readiness state, and preserve the stable profile partition |
-| User refreshes credentials and profile cookie jar has no valid site cookies | Preserve the previous saved snapshot/cache, set `lastError`, and preserve the stable profile partition |
-| User clears a site session | Remove the saved cookie snapshot and clear the stable app-owned profile partition for that site |
+| User syncs a visible registry entry from Settings | Desktop requests extension cookies for registry-approved domains and persists a validated snapshot |
+| Extension is disconnected | Settings command rejects with an actionable browser-extension connection error |
+| Browser/profile has no matching cookies | Settings command rejects without crashing and leaves prior snapshot behavior intact |
+| User clears a site session | Remove only the saved downloader cookie snapshot |
 | Downloader context has `siteId` with saved session | Inject saved Netscape cookies into `intent.cookies` |
 | Downloader context has no saved site session | Queue without app-owned cookies; extension video download payloads must not synthesize cookies |
-| Downloader fails with `auth_required` for a supported site and silent refresh returns `ready` or `partial` | Rebuild execution context and retry the same task once before emitting terminal completion |
-| Silent auth refresh returns `missing`, throws, or the retry also fails | Emit one final failure completion and leave manual Settings login/refresh as the recovery path |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: Adding another supported site means adding one `SITE_SESSION_CONFIGS` entry, one localized label, and one local icon mapping while reusing the same IPC commands and badge component behavior.
-- Good: Instagram provider planning emits `intent.siteId: "instagram"` even when the user pasted `https://www.instagram.com/...` without a `siteHint`, so app-owned cookies are discoverable during `buildExecutionContext(...)`.
-- Base: YouTube has no strict `requiredCookieKeys`; login marker cookies determine whether captured cookies are complete enough.
+- Good: A Settings sync for Bilibili requests extension cookies for `bilibili.com` and `b23.tv`, saves `bilibili.json`, and downloader execution later injects the saved Netscape cookie file.
+- Good: Existing `site-sessions/youtube.json` remains readable after the registry migration because the snapshot filename and JSON shape are unchanged.
+- Good: A hidden catalog entry can be used as metadata in later phases without appearing as a Settings row before activation.
+- Base: YouTube has no strict `requiredCookieKeys`; login marker cookies determine whether synced cookies are complete enough.
 - Base: Instagram public content can still download without a saved session; saved sessions only enrich downloader execution when available.
-- Bad: Adding `get_bilibili_session_state` or a Bilibili-only manager duplicates the Douyin migration surface instead of extending the site-scoped contract.
+- Bad: Reintroducing an app-owned login BrowserWindow, stable capture partition, or profile refresh path.
+- Bad: Letting the extension read cookies for arbitrary desktop-provided domains that are not registry-approved.
 - Bad: Storing only a `Cookie:` header breaks `yt-dlp` / `gallery-dl` cookie-file execution.
-- Bad: Letting Instagram retain host-derived `siteId: "instagram.com"` prevents `getSiteSessionManager(...)` from finding the saved `instagram` session.
 
 ### 6. Tests Required
 
-- `npm run type-check`: `SupportedSiteSessionId`, bridge command names, and Settings command payloads compile.
-- `npm run lint`: Settings badge rendering and icon mappings remain lint-clean.
-- `npm test`: existing Electron runtime downloader cookie-file behavior remains green.
-- Manual Electron assertion: start capture for each supported site, confirm after logging in, and verify the badge moves to ready or partial based on configured cookie keys.
+- `npm run type-check`: bridge command names, registry payloads, Settings command payloads, and Electron manager/controller contracts compile.
+- `npm run lint`: Settings badge rendering and dynamic icon fallback remain lint-clean.
+- Focused tests for registry seeding, snapshot import/filter/clear, command routing, removed-command rejection, extension domain approval/filtering, and extension request bridge behavior.
+- Full `npm test`: existing Electron runtime downloader cookie-file behavior remains green.
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
 ```ts
-await desktopCommands.invoke("start_bilibili_session_capture");
+await desktopCommands.invoke("start_site_session_capture", { siteId: "bilibili" });
+await desktopCommands.invoke("refresh_site_session_credentials", { siteId: "bilibili" });
 ```
 
 #### Correct
 
 ```ts
-await desktopCommands.invoke("start_site_session_capture", { siteId: "bilibili" });
-await desktopCommands.invoke("refresh_site_session_credentials", { siteId: "bilibili" });
+await desktopCommands.invoke("sync_site_session_from_extension", { siteId: "bilibili" });
 ```
 
 #### Wrong

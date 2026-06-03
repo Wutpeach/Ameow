@@ -3,7 +3,6 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type {
-  SiteSessionCapturePhase,
   SiteSessionDiagnostics,
   SiteSessionState,
   SiteSessionSyncSource,
@@ -23,39 +22,14 @@ type StoredSiteSession = {
 export type SiteSessionDefinition = {
   id: string;
   displayName: string;
-  loginUrl: string;
   cookieDomains: string[];
   requiredCookieKeys?: string[];
   loginCookieKeys?: string[];
 };
 
-type CaptureWindow = {
-  id: number;
-  close(): void;
-};
-
-type CreateCaptureWindowOptions = {
-  site: SiteSessionDefinition;
-  partition: string;
-  onClosed(): void;
-};
-
 type SiteSessionManagerOptions = {
   site: SiteSessionDefinition;
   getUserDataDir(): string;
-  createCaptureWindow(options: CreateCaptureWindowOptions): Promise<CaptureWindow>;
-  readSupplementalCookies?(partition: string): Promise<Record<string, string>>;
-  readCookies(partition: string): Promise<Array<{
-    domain?: string;
-    expirationDate?: number;
-    httpOnly?: boolean;
-    name?: string;
-    path?: string;
-    secure?: boolean;
-    value?: string;
-  }>>;
-  destroyPartition?(partition: string): Promise<void>;
-  log?(message: string, details?: unknown): void;
   now?(): number;
 };
 
@@ -77,10 +51,6 @@ export type ImportSiteSessionSnapshotOptions = {
 export type SiteSessionManager = {
   getState(): Promise<SiteSessionState>;
   getDiagnostics(): Promise<SiteSessionDiagnostics>;
-  startCapture(): Promise<SiteSessionState>;
-  confirmCapture(): Promise<SiteSessionState>;
-  cancelCapture(): Promise<SiteSessionState>;
-  refreshCredentials(): Promise<SiteSessionState>;
   importSnapshot(options: ImportSiteSessionSnapshotOptions): Promise<SiteSessionState>;
   clearSession(): Promise<SiteSessionState>;
   shutdown(): Promise<void>;
@@ -116,20 +86,6 @@ const buildCookieHeader = (
 ): string => Object.entries(cookies)
   .map(([name, value]) => `${name}=${value}`)
   .join("; ");
-
-const mergeSupplementalCookies = (
-  primaryCookies: Record<string, string>,
-  supplementalCookies: Record<string, string>,
-): Record<string, string> => {
-  const merged = { ...primaryCookies };
-  const supplemental = sanitizeCookieRecord(supplementalCookies);
-  for (const [name, value] of Object.entries(supplemental)) {
-    if (!normalizeCookieValue(merged[name])) {
-      merged[name] = value;
-    }
-  }
-  return merged;
-};
 
 const normalizeCookieDomain = (domain: string): string => domain.trim().replace(/^\./, "").toLowerCase();
 
@@ -248,10 +204,6 @@ const getSessionTempFilePath = (sessionFilePath: string): string => (
   `${sessionFilePath}.tmp`
 );
 
-export const resolveSiteSessionProfilePartition = (siteId: string): string => (
-  `persist:ameow-site-session-${siteId}`
-);
-
 const summarizeError = (error: unknown): string => (
   error instanceof Error && error.message ? error.message : String(error ?? "unknown error")
 );
@@ -295,14 +247,9 @@ export const createSiteSessionManager = (
   const now = options.now ?? defaultNow;
   const userDataDir = options.getUserDataDir();
   const sessionFilePath = getSessionFilePath(userDataDir, options.site.id);
-  const stableProfilePartition = resolveSiteSessionProfilePartition(options.site.id);
   const requiredCookieKeys = options.site.requiredCookieKeys ?? [];
   const loginCookieKeys = options.site.loginCookieKeys ?? [];
   let sessionCache: StoredSiteSession | null | undefined;
-  let capturePhase: SiteSessionCapturePhase = "idle";
-  let captureStartedAtMs: number | null = null;
-  let captureWindow: CaptureWindow | null = null;
-  let capturePartition: string | null = null;
   let lastError: string | null = null;
 
   const ensureSessionCacheLoaded = (): void => {
@@ -331,36 +278,12 @@ export const createSiteSessionManager = (
       missingRequiredKeys: policy.missingRequiredKeys,
       lastError,
       sessionFilePath: existsSync(sessionFilePath) ? sessionFilePath : null,
-      capturePhase,
-      captureStartedAtMs,
-      capturePid: captureWindow?.id ?? null,
       lastSyncSource: sessionCache?.source ?? null,
     };
   };
 
-  const profileDiagnostics = async (): Promise<Pick<SiteSessionDiagnostics, "profileState" | "lastError">> => {
-    try {
-      const rawCookies = await options.readCookies(stableProfilePartition);
-      const hasSiteProfileCookie = rawCookies.some((cookie) => (
-        isCookieForSite(cookie.domain ?? null, options.site.cookieDomains)
-        && Boolean(normalizeCookieValue(cookie.name))
-        && normalizeCookieValue(cookie.value) !== null
-      ));
-      return {
-        profileState: hasSiteProfileCookie ? "present" : "missing",
-        lastError: null,
-      };
-    } catch (error) {
-      return {
-        profileState: "unknown",
-        lastError: summarizeError(error),
-      };
-    }
-  };
-
-  const currentDiagnostics = async (): Promise<SiteSessionDiagnostics> => {
+  const currentDiagnostics = (): SiteSessionDiagnostics => {
     const state = currentState();
-    const profile = await profileDiagnostics();
     const policy = evaluateSiteSessionPolicy({
       cookies: sessionCache?.cookies ?? {},
       requiredKeys: requiredCookieKeys,
@@ -369,47 +292,13 @@ export const createSiteSessionManager = (
 
     return {
       siteId: options.site.id,
-      profileState: profile.profileState,
       snapshotAvailability: state.availability,
       snapshotUpdatedAtMs: state.updatedAtMs,
       snapshotCookieCount: state.cookieCount,
       missingRequiredKeys: state.missingRequiredKeys,
-      lastError: profile.lastError ?? state.lastError,
+      lastError: state.lastError,
       policy,
     };
-  };
-
-  const closeCaptureWindow = (): void => {
-    const window = captureWindow;
-    captureWindow = null;
-    capturePhase = "idle";
-    captureStartedAtMs = null;
-    if (window) {
-      try {
-        window.close();
-      } catch {
-        // Ignore close races when the user already closed the window.
-      }
-    }
-  };
-
-  const saveCredentialSnapshot = async (
-    partition: string,
-    options_: {
-      includeSupplementalCookies: boolean;
-    },
-  ): Promise<StoredSiteSession> => {
-    const rawCookies = await options.readCookies(partition);
-    const siteCookies = normalizeSiteCookies(rawCookies, options.site.cookieDomains);
-
-    return await saveCredentialSnapshotFromSiteCookies({
-      siteCookies,
-      supplementalCookies: options_.includeSupplementalCookies && options.readSupplementalCookies
-        ? await options.readSupplementalCookies(partition)
-        : {},
-      emptyErrorMessage: `${options.site.displayName} cookie capture finished without saving any cookies.`,
-      source: null,
-    });
   };
 
   const saveCredentialSnapshotFromSiteCookies = async (
@@ -422,7 +311,6 @@ export const createSiteSessionManager = (
         secure?: boolean;
         value: string;
       }>;
-      supplementalCookies: Record<string, string>;
       emptyErrorMessage: string;
       source: SiteSessionSyncSource | null;
     },
@@ -430,7 +318,7 @@ export const createSiteSessionManager = (
     const primaryCookies = sanitizeCookieRecord(Object.fromEntries(
       options_.siteCookies.map((cookie) => [cookie.name, cookie.value]),
     ));
-    const cookies = mergeSupplementalCookies(primaryCookies, options_.supplementalCookies);
+    const cookies = primaryCookies;
     if (Object.keys(cookies).length === 0) {
       throw new Error(options_.emptyErrorMessage);
     }
@@ -456,15 +344,9 @@ export const createSiteSessionManager = (
     const siteCookies = normalizeSiteCookies(importOptions.cookies, options.site.cookieDomains);
     sessionCache = await saveCredentialSnapshotFromSiteCookies({
       siteCookies,
-      supplementalCookies: {},
       emptyErrorMessage: `${options.site.displayName} browser sync finished without saving any cookies.`,
       source: normalizeSyncSource(importOptions.source),
     });
-    lastError = null;
-  };
-
-  const finalizeCaptureSuccess = async (partition: string): Promise<void> => {
-    sessionCache = await saveCredentialSnapshot(partition, { includeSupplementalCookies: true });
     lastError = null;
   };
 
@@ -474,78 +356,6 @@ export const createSiteSessionManager = (
     },
     async getDiagnostics() {
       return currentDiagnostics();
-    },
-    async startCapture() {
-      if (captureWindow) {
-        return currentState();
-      }
-
-      lastError = null;
-      capturePhase = "preparing";
-      captureStartedAtMs = now();
-      const partition = stableProfilePartition;
-      capturePartition = partition;
-
-      try {
-        captureWindow = await options.createCaptureWindow({
-          site: options.site,
-          partition,
-          onClosed: () => {
-            captureWindow = null;
-            capturePartition = null;
-            capturePhase = "idle";
-            captureStartedAtMs = null;
-            lastError = null;
-          },
-        });
-        capturePhase = "awaiting_confirmation";
-        options.log?.("Started site session capture", {
-          siteId: options.site.id,
-          windowId: captureWindow.id,
-          partition,
-        });
-        return currentState();
-      } catch (error) {
-        closeCaptureWindow();
-        capturePartition = null;
-        lastError = summarizeError(error);
-        return currentState();
-      }
-    },
-    async confirmCapture() {
-      if (!captureWindow || capturePhase !== "awaiting_confirmation" || !capturePartition) {
-        return currentState();
-      }
-
-      const partition = capturePartition;
-      try {
-        await finalizeCaptureSuccess(partition);
-      } catch (error) {
-        lastError = summarizeError(error);
-      } finally {
-        closeCaptureWindow();
-        capturePartition = null;
-      }
-      return currentState();
-    },
-    async cancelCapture() {
-      closeCaptureWindow();
-      capturePartition = null;
-      lastError = null;
-      return currentState();
-    },
-    async refreshCredentials() {
-      if (capturePhase !== "idle") {
-        return currentState();
-      }
-
-      try {
-        sessionCache = await saveCredentialSnapshot(stableProfilePartition, { includeSupplementalCookies: false });
-        lastError = null;
-      } catch (error) {
-        lastError = summarizeError(error);
-      }
-      return currentState();
     },
     async importSnapshot(importOptions) {
       try {
@@ -559,11 +369,10 @@ export const createSiteSessionManager = (
       sessionCache = null;
       lastError = null;
       await rm(sessionFilePath, { force: true }).catch(() => {});
-      await options.destroyPartition?.(stableProfilePartition).catch(() => undefined);
       return currentState();
     },
     async shutdown() {
-      closeCaptureWindow();
+      // Snapshot-only manager has no active window or browser profile to close.
     },
     getDownloadCookies() {
       ensureSessionCacheLoaded();

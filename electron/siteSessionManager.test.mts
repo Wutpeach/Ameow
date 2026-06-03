@@ -1,14 +1,11 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { getSiteSessionConfig } from "../src/site-sessions.js";
-import {
-  createSiteSessionManager,
-  resolveSiteSessionProfilePartition,
-} from "./siteSessionManager.mjs";
+import { createSiteSessionManager } from "./siteSessionManager.mjs";
 
 const tempDirs: string[] = [];
 
@@ -22,848 +19,43 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+const createManager = async (
+  siteId: string,
+  options: { now?: () => number } = {},
+) => {
+  const userDataDir = await createTempUserDataDir();
+  return createSiteSessionManager({
+    site: getSiteSessionConfig(siteId),
+    getUserDataDir: () => userDataDir,
+    now: options.now,
+  });
+};
+
 describe("createSiteSessionManager", () => {
-  it("resolves deterministic stable profile partitions per site", () => {
-    expect(resolveSiteSessionProfilePartition("instagram")).toBe("persist:ameow-site-session-instagram");
-    expect(resolveSiteSessionProfilePartition("bilibili")).toBe("persist:ameow-site-session-bilibili");
-  });
+  it("starts as a snapshot-only missing state without capture fields", async () => {
+    const manager = await createManager("youtube");
 
-  it("marks Douyin login ready without msToken when douyin-dl required cookies are present", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const douyin = getSiteSessionConfig("douyin");
-    const manager = createSiteSessionManager({
-      site: douyin,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 42,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".douyin.com",
-          name: "ttwid",
-          value: "ttwid-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "odin_tt",
-          value: "odin-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "passport_csrf_token",
-          value: "csrf-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "sessionid",
-          value: "session-value",
-          path: "/",
-        },
-      ]),
-      now: () => 1_779_428_739_177,
-    });
-
-    await manager.startCapture();
-    const state = await manager.confirmCapture();
-
-    expect(state).toMatchObject({
-      availability: "ready",
-      cookieCount: 4,
-      missingRequiredKeys: [],
-      lastError: null,
-    });
-    expect(state.requiredKeys).not.toContain("msToken");
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "douyin.json"), "utf8"),
-    ) as { cookies: Record<string, string> };
-    expect(stored.cookies).toMatchObject({
-      ttwid: "ttwid-value",
-      odin_tt: "odin-value",
-      passport_csrf_token: "csrf-value",
-      sessionid: "session-value",
-    });
-    expect(stored.cookies).not.toHaveProperty("msToken");
-  });
-
-  it("marks Instagram login ready when a sessionid cookie is captured", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 43,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "instagram-session",
-          path: "/",
-        },
-        {
-          domain: ".instagram.com",
-          name: "csrftoken",
-          value: "csrf-value",
-          path: "/",
-        },
-        {
-          domain: ".cdninstagram.com",
-          name: "ignored",
-          value: "cdn-value",
-          path: "/",
-        },
-      ]),
-      now: () => 1_779_428_739_178,
-    });
-
-    expect(instagram).toMatchObject({
-      id: "instagram",
-      loginUrl: "https://www.instagram.com/",
-      cookieDomains: ["instagram.com"],
-      requiredCookieKeys: [],
-      loginCookieKeys: ["sessionid"],
-    });
-
-    await manager.startCapture();
-    const state = await manager.confirmCapture();
-
-    expect(state).toMatchObject({
-      siteId: "instagram",
-      availability: "ready",
-      cookieCount: 2,
+    await expect(manager.getState()).resolves.toMatchObject({
+      siteId: "youtube",
+      availability: "missing",
+      updatedAtMs: null,
+      cookieCount: 0,
       requiredKeys: [],
       missingRequiredKeys: [],
       lastError: null,
-    });
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
-    ) as { cookies: Record<string, string>; cookiesNetscape: string };
-    expect(stored.cookies).toMatchObject({
-      sessionid: "instagram-session",
-      csrftoken: "csrf-value",
-    });
-    expect(stored.cookies).not.toHaveProperty("ignored");
-    expect(stored.cookiesNetscape).toContain(".instagram.com");
-    expect(stored.cookiesNetscape).toContain("sessionid");
-  });
-
-  it("keeps Instagram missing when capture finds no Instagram cookies", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const close = vi.fn();
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 44,
-        close,
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".example.com",
-          name: "sessionid",
-          value: "wrong-site-session",
-          path: "/",
-        },
-      ]),
-      now: () => 1_779_428_739_179,
-    });
-
-    await manager.startCapture();
-    const state = await manager.confirmCapture();
-
-    expect(state).toMatchObject({
-      siteId: "instagram",
-      availability: "missing",
-      cookieCount: 0,
       sessionFilePath: null,
-    });
-    expect(state.lastError).toContain("Instagram cookie capture finished without saving any cookies");
-    expect(close).toHaveBeenCalledTimes(1);
-  });
-
-  it("saves supplemental cookies when the cookie jar is missing that cookie name", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const douyin = getSiteSessionConfig("douyin");
-    const manager = createSiteSessionManager({
-      site: douyin,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 45,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".douyin.com",
-          name: "ttwid",
-          value: "ttwid-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "odin_tt",
-          value: "odin-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "passport_csrf_token",
-          value: "csrf-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "sessionid",
-          value: "session-value",
-          path: "/",
-        },
-      ]),
-      readSupplementalCookies: vi.fn(async () => ({
-        msToken: "supplemental-ms-token",
-      })),
-      now: () => 1_779_428_739_180,
+      lastSyncSource: null,
     });
 
-    await manager.startCapture();
-    const state = await manager.confirmCapture();
-
-    expect(state).toMatchObject({
-      availability: "ready",
-      cookieCount: 5,
-      missingRequiredKeys: [],
-    });
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "douyin.json"), "utf8"),
-    ) as { cookies: Record<string, string>; cookieHeader: string; cookiesNetscape: string };
-    expect(stored.cookies).toMatchObject({
-      ttwid: "ttwid-value",
-      msToken: "supplemental-ms-token",
-    });
-    expect(stored.cookieHeader).toContain("msToken=supplemental-ms-token");
-    expect(stored.cookiesNetscape).not.toContain("msToken");
-  });
-
-  it("keeps cookie jar values when supplemental cookies conflict by name", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 46,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "jar-session",
-          path: "/",
-        },
-      ]),
-      readSupplementalCookies: vi.fn(async () => ({
-        sessionid: "supplemental-session",
-        csrftoken: "supplemental-csrf",
-      })),
-      now: () => 1_779_428_739_181,
-    });
-
-    await manager.startCapture();
-    await manager.confirmCapture();
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
-    ) as { cookies: Record<string, string> };
-    expect(stored.cookies).toMatchObject({
-      sessionid: "jar-session",
-      csrftoken: "supplemental-csrf",
-    });
-  });
-
-  it("ignores invalid supplemental cookie names and empty values", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 47,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "jar-session",
-          path: "/",
-        },
-      ]),
-      readSupplementalCookies: vi.fn(async () => ({
-        " ": "blank-name",
-        empty: " ",
-        valid: "supplemental-value",
-      })),
-      now: () => 1_779_428_739_182,
-    });
-
-    await manager.startCapture();
-    await manager.confirmCapture();
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
-    ) as { cookies: Record<string, string> };
-    expect(stored.cookies).toMatchObject({
-      sessionid: "jar-session",
-      valid: "supplemental-value",
-    });
-    expect(Object.hasOwn(stored.cookies, "")).toBe(false);
-    expect(Object.hasOwn(stored.cookies, "empty")).toBe(false);
-  });
-
-  it("uses the same stable partition across separate capture attempts", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const createCaptureWindow = vi.fn(async () => ({
-      id: createCaptureWindow.mock.calls.length + 100,
-      close: vi.fn(),
-    }));
-    let cookieReadCount = 0;
-    const readCookies = vi.fn(async () => {
-      cookieReadCount += 1;
-      return [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: `session-${cookieReadCount}`,
-          path: "/",
-        },
-      ];
-    });
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow,
-      readCookies,
-      destroyPartition,
-      now: () => 1_779_428_739_183,
-    });
-
-    await manager.startCapture();
-    await manager.confirmCapture();
-    await manager.startCapture();
-    await manager.confirmCapture();
-
-    const stablePartition = "persist:ameow-site-session-instagram";
-    expect(createCaptureWindow).toHaveBeenCalledTimes(2);
-    expect(createCaptureWindow.mock.calls.map(([options]) => options.partition)).toEqual([
-      stablePartition,
-      stablePartition,
-    ]);
-    expect(readCookies.mock.calls.map(([partition]) => partition)).toEqual([
-      stablePartition,
-      stablePartition,
-    ]);
-    expect(destroyPartition).not.toHaveBeenCalled();
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"),
-    ) as { cookies: Record<string, string> };
-    expect(stored.cookies.sessionid).toBe("session-2");
-  });
-
-  it("does not destroy the stable profile after successful confirmation", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 200,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "instagram-session",
-          path: "/",
-        },
-      ]),
-      destroyPartition,
-      now: () => 1_779_428_739_184,
-    });
-
-    await manager.startCapture();
-    await manager.confirmCapture();
-
-    expect(destroyPartition).not.toHaveBeenCalled();
-  });
-
-  it("does not destroy the stable profile when capture is cancelled", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const close = vi.fn();
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 201,
-        close,
-      })),
-      readCookies: vi.fn(async () => []),
-      destroyPartition,
-      now: () => 1_779_428_739_185,
-    });
-
-    await manager.startCapture();
-    const state = await manager.cancelCapture();
-
-    expect(close).toHaveBeenCalledTimes(1);
-    expect(destroyPartition).not.toHaveBeenCalled();
-    expect(state).toMatchObject({
-      capturePhase: "idle",
-      capturePid: null,
-      lastError: null,
-    });
-  });
-
-  it("does not destroy the stable profile when the user closes the capture window", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    let onClosed: (() => void) | null = null;
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async (options) => {
-        onClosed = options.onClosed;
-        return {
-          id: 202,
-          close: vi.fn(),
-        };
-      }),
-      readCookies: vi.fn(async () => []),
-      destroyPartition,
-      now: () => 1_779_428_739_186,
-    });
-
-    await manager.startCapture();
-    onClosed?.();
-    const state = await manager.getState();
-
-    expect(destroyPartition).not.toHaveBeenCalled();
-    expect(state).toMatchObject({
-      capturePhase: "idle",
-      capturePid: null,
-    });
-  });
-
-  it("does not destroy the stable profile when capture window creation fails", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => {
-        throw new Error("window failed");
-      }),
-      readCookies: vi.fn(async () => []),
-      destroyPartition,
-      now: () => 1_779_428_739_187,
-    });
-
-    const state = await manager.startCapture();
-
-    expect(destroyPartition).not.toHaveBeenCalled();
-    expect(state).toMatchObject({
-      capturePhase: "idle",
-      lastError: "window failed",
-    });
-  });
-
-  it("clears both the saved downloader cookies and the stable profile", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 203,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "instagram-session",
-          path: "/",
-        },
-      ]),
-      destroyPartition,
-      now: () => 1_779_428_739_188,
-    });
-
-    await manager.startCapture();
-    await manager.confirmCapture();
-    expect(manager.getDownloadCookies()).toContain("sessionid");
-
-    const state = await manager.clearSession();
-
-    await expect(readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8"))
-      .rejects.toThrow();
-    expect(manager.getDownloadCookies()).toBeNull();
-    expect(destroyPartition).toHaveBeenCalledTimes(1);
-    expect(destroyPartition).toHaveBeenCalledWith("persist:ameow-site-session-instagram");
-    expect(state).toMatchObject({
-      availability: "missing",
-      cookieCount: 0,
-      lastError: null,
-      sessionFilePath: null,
-    });
-  });
-
-  it("clears the stable profile even when no saved downloader cookie file exists", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const bilibili = getSiteSessionConfig("bilibili");
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: bilibili,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 204,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => []),
-      destroyPartition,
-      now: () => 1_779_428_739_189,
-    });
-
-    const state = await manager.clearSession();
-
-    expect(destroyPartition).toHaveBeenCalledTimes(1);
-    expect(destroyPartition).toHaveBeenCalledWith("persist:ameow-site-session-bilibili");
-    expect(state).toMatchObject({
-      availability: "missing",
-      capturePhase: "idle",
-      sessionFilePath: null,
-    });
-  });
-
-  it("refreshes downloader credentials from the stable profile without opening a capture window", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const createCaptureWindow = vi.fn(async () => ({
-      id: 205,
-      close: vi.fn(),
-    }));
-    const destroyPartition = vi.fn(async () => {});
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow,
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "refreshed-session",
-          path: "/",
-        },
-      ]),
-      destroyPartition,
-      now: () => 1_779_428_739_190,
-    });
-
-    const state = await manager.refreshCredentials();
-
-    expect(createCaptureWindow).not.toHaveBeenCalled();
-    expect(destroyPartition).not.toHaveBeenCalled();
-    expect(state).toMatchObject({
-      availability: "ready",
-      cookieCount: 1,
-      lastError: null,
-    });
-    expect(manager.getDownloadCookies()).toContain("refreshed-session");
-  });
-
-  it("reports diagnostics for a present profile and ready downloader snapshot", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 209,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "instagram-session",
-          path: "/",
-        },
-        {
-          domain: ".instagram.com",
-          name: "csrftoken",
-          value: "csrf-value",
-          path: "/",
-        },
-      ]),
-      now: () => 1_779_428_739_194,
-    });
-
-    await manager.refreshCredentials();
-    const diagnostics = await manager.getDiagnostics();
-
-    expect(diagnostics).toMatchObject({
-      siteId: "instagram",
-      profileState: "present",
-      snapshotAvailability: "ready",
-      snapshotUpdatedAtMs: 1_779_428_739_194,
-      snapshotCookieCount: 2,
-      missingRequiredKeys: [],
-      lastError: null,
-      policy: {
-        availability: "ready",
-        reason: "ready",
-        missingRequiredKeys: [],
-      },
-    });
-  });
-
-  it("reports diagnostics for a present profile but missing downloader snapshot", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 210,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".instagram.com",
-          name: "sessionid",
-          value: "profile-only-session",
-          path: "/",
-        },
-      ]),
-    });
-
-    const diagnostics = await manager.getDiagnostics();
-
-    expect(diagnostics).toMatchObject({
-      siteId: "instagram",
-      profileState: "present",
-      snapshotAvailability: "missing",
-      snapshotUpdatedAtMs: null,
-      snapshotCookieCount: 0,
-      missingRequiredKeys: [],
-      lastError: null,
-      policy: {
-        availability: "missing",
-        reason: "no_snapshot",
-      },
-    });
-  });
-
-  it("degrades profile diagnostics to unknown without failing state reads", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const bilibili = getSiteSessionConfig("bilibili");
-    const manager = createSiteSessionManager({
-      site: bilibili,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 211,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => {
-        throw new Error("profile jar unavailable");
-      }),
-    });
-
-    const state = await manager.getState();
-    const diagnostics = await manager.getDiagnostics();
-
-    expect(state).toMatchObject({
-      siteId: "bilibili",
-      availability: "missing",
-      lastError: null,
-    });
-    expect(diagnostics).toMatchObject({
-      siteId: "bilibili",
-      profileState: "unknown",
-      snapshotAvailability: "missing",
-      lastError: "profile jar unavailable",
-    });
-  });
-
-  it("refreshes from the cookie jar only without merging stale supplemental cookies", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const douyin = getSiteSessionConfig("douyin");
-    const readSupplementalCookies = vi.fn(async () => ({
-      msToken: "stale-supplemental-ms-token",
-    }));
-    const manager = createSiteSessionManager({
-      site: douyin,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 206,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => [
-        {
-          domain: ".douyin.com",
-          name: "ttwid",
-          value: "ttwid-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "odin_tt",
-          value: "odin-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "passport_csrf_token",
-          value: "csrf-value",
-          path: "/",
-        },
-        {
-          domain: ".douyin.com",
-          name: "sessionid",
-          value: "session-value",
-          path: "/",
-        },
-      ]),
-      readSupplementalCookies,
-      now: () => 1_779_428_739_191,
-    });
-
-    const state = await manager.refreshCredentials();
-
-    expect(state).toMatchObject({
-      availability: "ready",
-      cookieCount: 4,
-      missingRequiredKeys: [],
-    });
-    expect(readSupplementalCookies).not.toHaveBeenCalled();
-
-    const stored = JSON.parse(
-      await readFile(join(userDataDir, "site-sessions", "douyin.json"), "utf8"),
-    ) as { cookies: Record<string, string> };
-    expect(stored.cookies).not.toHaveProperty("msToken");
-  });
-
-  it("preserves the previous downloader credential snapshot when refresh finds no valid site cookies", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    let shouldReturnValidCookies = true;
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 207,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => (
-        shouldReturnValidCookies
-          ? [
-              {
-                domain: ".instagram.com",
-                name: "sessionid",
-                value: "previous-session",
-                path: "/",
-              },
-            ]
-          : [
-              {
-                domain: ".example.com",
-                name: "sessionid",
-                value: "wrong-site",
-                path: "/",
-              },
-            ]
-      )),
-      now: () => 1_779_428_739_192,
-    });
-
-    await manager.refreshCredentials();
-    const before = await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8");
-    shouldReturnValidCookies = false;
-    const state = await manager.refreshCredentials();
-    const after = await readFile(join(userDataDir, "site-sessions", "instagram.json"), "utf8");
-
-    expect(after).toBe(before);
-    expect(manager.getDownloadCookies()).toContain("previous-session");
-    expect(state).toMatchObject({
-      availability: "ready",
-      cookieCount: 1,
-    });
-    expect(state.lastError).toContain("Instagram cookie capture finished without saving any cookies");
-  });
-
-  it("does not refresh credentials while the same site's capture window is active", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const instagram = getSiteSessionConfig("instagram");
-    const readCookies = vi.fn(async () => [
-      {
-        domain: ".instagram.com",
-        name: "sessionid",
-        value: "should-not-read",
-        path: "/",
-      },
-    ]);
-    const manager = createSiteSessionManager({
-      site: instagram,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 208,
-        close: vi.fn(),
-      })),
-      readCookies,
-      now: () => 1_779_428_739_193,
-    });
-
-    await manager.startCapture();
-    const state = await manager.refreshCredentials();
-
-    expect(readCookies).not.toHaveBeenCalled();
-    expect(manager.getDownloadCookies()).toBeNull();
-    expect(state).toMatchObject({
-      availability: "missing",
-      capturePhase: "awaiting_confirmation",
-      capturePid: 208,
-    });
+    expect(await manager.getState()).not.toHaveProperty("capturePhase");
+    expect(await manager.getState()).not.toHaveProperty("capturePid");
   });
 
   it("imports browser-extension cookie snapshots while filtering cross-site records", async () => {
     const userDataDir = await createTempUserDataDir();
-    const youtube = getSiteSessionConfig("youtube");
     const manager = createSiteSessionManager({
-      site: youtube,
+      site: getSiteSessionConfig("youtube"),
       getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 300,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => []),
       now: () => 1_779_428_739_194,
     });
 
@@ -922,32 +114,17 @@ describe("createSiteSessionManager", () => {
     expect(stored.cookiesNetscape).toContain(".youtube.com");
     expect(stored.cookiesNetscape).toContain(".google.com");
     expect(stored.cookiesNetscape).not.toContain(".evil.com");
-    expect(stored.source).toMatchObject({
-      browser: "chrome",
-      profileLabel: "Default",
-      extensionId: "ameow-extension",
-    });
+    expect(manager.getDownloadCookies()).toContain("LOGIN_INFO");
   });
 
   it("reports an error when imported browser cookies contain no supported site records", async () => {
-    const userDataDir = await createTempUserDataDir();
-    const youtube = getSiteSessionConfig("youtube");
-    const manager = createSiteSessionManager({
-      site: youtube,
-      getUserDataDir: () => userDataDir,
-      createCaptureWindow: vi.fn(async () => ({
-        id: 301,
-        close: vi.fn(),
-      })),
-      readCookies: vi.fn(async () => []),
-      now: () => 1_779_428_739_195,
-    });
+    const manager = await createManager("instagram");
 
     const state = await manager.importSnapshot({
       cookies: [
         {
           domain: ".evil.com",
-          name: "SID",
+          name: "sessionid",
           value: "evil",
           path: "/",
         },
@@ -959,6 +136,120 @@ describe("createSiteSessionManager", () => {
       cookieCount: 0,
       sessionFilePath: null,
     });
-    expect(state.lastError).toContain("YouTube browser sync finished without saving any cookies");
+    expect(state.lastError).toContain("Instagram browser sync finished without saving any cookies");
+    expect(manager.getDownloadCookies()).toBeNull();
+  });
+
+  it("keeps existing saved session snapshots readable across manager instances", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const firstManager = createSiteSessionManager({
+      site: getSiteSessionConfig("instagram"),
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_200,
+    });
+
+    await firstManager.importSnapshot({
+      cookies: [
+        {
+          domain: ".instagram.com",
+          name: "sessionid",
+          value: "instagram-session",
+          path: "/",
+        },
+      ],
+    });
+
+    const secondManager = createSiteSessionManager({
+      site: getSiteSessionConfig("instagram"),
+      getUserDataDir: () => userDataDir,
+    });
+
+    expect(secondManager.getDownloadCookies()).toContain("instagram-session");
+    await expect(secondManager.getState()).resolves.toMatchObject({
+      availability: "ready",
+      cookieCount: 1,
+      updatedAtMs: 1_779_428_739_200,
+    });
+  });
+
+  it("clears only the saved downloader cookie snapshot", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const manager = createSiteSessionManager({
+      site: getSiteSessionConfig("bilibili"),
+      getUserDataDir: () => userDataDir,
+    });
+
+    await manager.importSnapshot({
+      cookies: [
+        {
+          domain: ".bilibili.com",
+          name: "SESSDATA",
+          value: "bili-session",
+          path: "/",
+        },
+      ],
+    });
+    expect(manager.getDownloadCookies()).toContain("SESSDATA");
+
+    const state = await manager.clearSession();
+
+    await expect(readFile(join(userDataDir, "site-sessions", "bilibili.json"), "utf8"))
+      .rejects.toThrow();
+    expect(manager.getDownloadCookies()).toBeNull();
+    expect(state).toMatchObject({
+      availability: "missing",
+      cookieCount: 0,
+      lastError: null,
+      sessionFilePath: null,
+    });
+  });
+
+  it("reports diagnostics from the saved snapshot only", async () => {
+    const manager = await createManager("douyin", {
+      now: () => 1_779_428_739_201,
+    });
+
+    await manager.importSnapshot({
+      cookies: [
+        {
+          domain: ".douyin.com",
+          name: "ttwid",
+          value: "ttwid-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "odin_tt",
+          value: "odin-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "passport_csrf_token",
+          value: "csrf-value",
+          path: "/",
+        },
+        {
+          domain: ".douyin.com",
+          name: "sessionid",
+          value: "session-value",
+          path: "/",
+        },
+      ],
+    });
+
+    await expect(manager.getDiagnostics()).resolves.toMatchObject({
+      siteId: "douyin",
+      snapshotAvailability: "ready",
+      snapshotUpdatedAtMs: 1_779_428_739_201,
+      snapshotCookieCount: 4,
+      missingRequiredKeys: [],
+      lastError: null,
+      policy: {
+        availability: "ready",
+        reason: "ready",
+        missingRequiredKeys: [],
+      },
+    });
   });
 });

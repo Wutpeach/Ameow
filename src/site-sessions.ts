@@ -1,7 +1,5 @@
-import type { SupportedSiteSessionId } from "./types/siteSession.js";
-
 export type SiteSessionConfig = {
-  id: SupportedSiteSessionId;
+  id: string;
   displayName: string;
   labelKey: string;
   loginUrl: string;
@@ -71,16 +69,16 @@ export const SITE_SESSION_CONFIGS = [
   },
 ] as const satisfies readonly SiteSessionConfig[];
 
-export const SUPPORTED_SITE_SESSION_IDS = SITE_SESSION_CONFIGS.map((site) => site.id);
+export const SUPPORTED_SITE_SESSION_IDS: readonly string[] = SITE_SESSION_CONFIGS.map((site) => site.id);
 
 export const isSupportedSiteSessionId = (
   value: unknown,
-): value is SupportedSiteSessionId => (
-  typeof value === "string" && SUPPORTED_SITE_SESSION_IDS.includes(value as SupportedSiteSessionId)
+): value is string => (
+  typeof value === "string" && SUPPORTED_SITE_SESSION_IDS.includes(value)
 );
 
 export const getSiteSessionConfig = (
-  siteId: SupportedSiteSessionId,
+  siteId: string,
 ): SiteSessionConfig => {
   const config = SITE_SESSION_CONFIGS.find((site) => site.id === siteId);
   if (!config) {

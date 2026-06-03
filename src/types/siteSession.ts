@@ -1,19 +1,10 @@
 export type SiteSessionAvailability = "missing" | "partial" | "ready";
 
-// `unknown` means the app attempted or skipped profile inspection without a
-// trustworthy answer; check `lastError` to distinguish an inspection failure.
-export type SiteSessionProfileState = "unknown" | "missing" | "present";
-
 export type SiteSessionPolicyReason =
   | "ready"
   | "missing_required_cookie"
   | "missing_login_cookie"
   | "no_snapshot";
-
-export type SiteSessionCapturePhase =
-  | "idle"
-  | "preparing"
-  | "awaiting_confirmation";
 
 export type SiteSessionSyncSource = {
   browser: string | null;
@@ -21,15 +12,57 @@ export type SiteSessionSyncSource = {
   extensionId: string | null;
 };
 
-export type SupportedSiteSessionId =
-  | "douyin"
-  | "bilibili"
-  | "xiaohongshu"
-  | "instagram"
-  | "youtube";
+export type SupportedSiteSessionId = string;
+
+export type SiteSessionSyncAuthorization =
+  | "seeded"
+  | "user_enabled"
+  | "auto_discovered";
+
+export type SiteSessionDiscoverySource =
+  | "seed"
+  | "gallery-dl-supported-sites"
+  | "auth_required"
+  | "extension_current_tab"
+  | "user_sync";
+
+export type SiteSessionEngineHint =
+  | "yt-dlp"
+  | "gallery-dl"
+  | "douyin-dl";
+
+export type SiteSessionRegistryVisibility =
+  | "visible"
+  | "hidden_catalog";
+
+export type SiteSessionIconMetadata = {
+  kind: "known" | "favicon" | "placeholder";
+  key?: string;
+  url?: string;
+  localPath?: string;
+};
+
+export type SiteSessionRegistryEntry = {
+  siteId: string;
+  displayName: string;
+  labelKey?: string;
+  primaryUrl: string;
+  primaryHost: string;
+  cookieDomains: string[];
+  requiredCookieKeys: string[];
+  loginCookieKeys: string[];
+  syncAuthorization: SiteSessionSyncAuthorization;
+  autoSyncAllowed: boolean;
+  discoverySources: SiteSessionDiscoverySource[];
+  engineHints: SiteSessionEngineHint[];
+  visibility: SiteSessionRegistryVisibility;
+  icon: SiteSessionIconMetadata;
+  createdAtMs: number;
+  updatedAtMs: number;
+};
 
 export type SiteSessionState = {
-  siteId: SupportedSiteSessionId | string;
+  siteId: string;
   availability: SiteSessionAvailability;
   updatedAtMs: number | null;
   cookieCount: number;
@@ -37,9 +70,6 @@ export type SiteSessionState = {
   missingRequiredKeys: string[];
   lastError: string | null;
   sessionFilePath: string | null;
-  capturePhase: SiteSessionCapturePhase;
-  captureStartedAtMs: number | null;
-  capturePid: number | null;
   lastSyncSource: SiteSessionSyncSource | null;
 };
 
@@ -50,8 +80,7 @@ export type SiteSessionPolicyEvaluation = {
 };
 
 export type SiteSessionDiagnostics = {
-  siteId: SupportedSiteSessionId | string;
-  profileState: SiteSessionProfileState;
+  siteId: string;
   snapshotAvailability: SiteSessionAvailability;
   snapshotUpdatedAtMs: number | null;
   snapshotCookieCount: number;

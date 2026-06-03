@@ -65,7 +65,6 @@ import {
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
 import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
-import { SITE_SESSION_CONFIGS } from "../site-sessions";
 import {
   BilibiliLogo,
   DouyinLogo,
@@ -74,15 +73,15 @@ import {
   YouTubeLogo,
 } from "../site-session-icons";
 import type {
+  SiteSessionRegistryEntry,
   SiteSessionState,
-  SupportedSiteSessionId,
 } from "../types/siteSession";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsPageId = "hub" | "appearance" | "saving" | "sites" | "plugins" | "system";
 type SettingsDetailPageId = Exclude<SettingsPageId, "hub">;
 type SiteLoginBadgeTone = "ready" | "danger" | "muted";
-type SiteSessionAction = "start" | "sync" | "confirm" | "cancel" | "refresh" | "clear";
+type SiteSessionAction = "sync" | "clear";
 type SettingsNavigationDirection = "forward" | "back";
 
 type SettingsHubDestination = {
@@ -95,16 +94,14 @@ type SettingsHubDestination = {
 };
 
 type SiteLoginBadgeModel = {
-  id: SupportedSiteSessionId;
+  id: string;
   icon: ReactNode;
   label: string;
   statusLabel: string;
   detailLabel: string | null;
   tone: SiteLoginBadgeTone;
   disabled: boolean;
-  capturePhase: SiteSessionState["capturePhase"];
-  syncsFromExtension: boolean;
-  canRefresh: boolean;
+  canSync: boolean;
   canClear: boolean;
   onClick: () => void;
 };
@@ -131,7 +128,7 @@ const SETTINGS_HUB_SEARCH_TO_LIST_GAP = 14;
 const SETTINGS_HUB_DESTINATION_GAP = 9;
 const UI_LAB_WINDOW_WIDTH = 420;
 const UI_LAB_WINDOW_HEIGHT = 560;
-const SITE_SESSION_LOGOS: Record<SupportedSiteSessionId, ComponentType<{ size?: number }>> = {
+const SITE_SESSION_LOGOS: Partial<Record<string, ComponentType<{ size?: number }>>> = {
   douyin: DouyinLogo,
   bilibili: BilibiliLogo,
   xiaohongshu: XiaohongshuLogo,
@@ -319,12 +316,14 @@ function SettingsPage() {
   const [globalProxyEnabled, setGlobalProxyEnabled] = useState(false);
   const [globalProxyUrl, setGlobalProxyUrl] = useState("");
   const [globalProxyError, setGlobalProxyError] = useState<string | null>(null);
+  const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
+    useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
-    useState<Partial<Record<SupportedSiteSessionId, SiteSessionState>>>({});
+    useState<Partial<Record<string, SiteSessionState>>>({});
   const [siteSessionErrors, setSiteSessionErrors] =
-    useState<Partial<Record<SupportedSiteSessionId, string | null>>>({});
+    useState<Partial<Record<string, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
-    useState<{ siteId: SupportedSiteSessionId; action: SiteSessionAction } | null>(null);
+    useState<{ siteId: string; action: SiteSessionAction } | null>(null);
   const [activePage, setActivePage] = useState<SettingsPageId>(resolveInitialSettingsPage);
   const [settingsNavigationDirection, setSettingsNavigationDirection] =
     useState<SettingsNavigationDirection>("forward");
@@ -779,7 +778,7 @@ function SettingsPage() {
     setActivePage(nextPage);
   }, []);
 
-  const setSiteSessionError = useCallback((siteId: SupportedSiteSessionId, error: string | null) => {
+  const setSiteSessionError = useCallback((siteId: string, error: string | null) => {
     setSiteSessionErrors((current) => ({
       ...current,
       [siteId]: error,
@@ -787,18 +786,28 @@ function SettingsPage() {
   }, []);
 
   const loadSiteSessionPanelState = useCallback(async () => {
+    let registryEntries: SiteSessionRegistryEntry[] = [];
+    try {
+      registryEntries = await desktopCommands.invoke<SiteSessionRegistryEntry[]>("get_site_session_registry");
+      setSiteSessionRegistryEntries(registryEntries);
+    } catch (err) {
+      console.error("Failed to load site session registry:", err);
+      setSiteSessionRegistryEntries([]);
+      return;
+    }
+
     const sessionResults = await Promise.all(
-      SITE_SESSION_CONFIGS.map(async (site) => {
+      registryEntries.map(async (site) => {
         try {
           const state = await desktopCommands.invoke<SiteSessionState>(
             "get_site_session_state",
-            { siteId: site.id },
+            { siteId: site.siteId },
           );
-          return { siteId: site.id, state, error: null };
+          return { siteId: site.siteId, state, error: null };
         } catch (err) {
-          console.error(`Failed to load ${site.id} site session status:`, err);
+          console.error(`Failed to load ${site.siteId} site session status:`, err);
           return {
-            siteId: site.id,
+            siteId: site.siteId,
             state: null,
             error: summarizeAppUpdateError(err) ?? t("desktop:settings.siteSessions.errors.load"),
           };
@@ -828,44 +837,19 @@ function SettingsPage() {
     void loadSiteSessionPanelState();
   }, [loadSiteSessionPanelState]);
 
-  useEffect(() => {
-    const hasActiveCapture = SITE_SESSION_CONFIGS.some((site) => (
-      (siteSessionStates[site.id]?.capturePhase ?? "idle") !== "idle"
-    ));
-    const shouldPoll = hasActiveCapture;
-    if (!shouldPoll) {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      void loadSiteSessionPanelState();
-    }, 1500);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [loadSiteSessionPanelState, siteSessionStates]);
-
   const isSiteSessionActionBusy = Boolean(busySiteSessionAction);
 
   const invokeSiteSessionCommand = useCallback(async (
-    siteId: SupportedSiteSessionId,
+    siteId: string,
     action: SiteSessionAction,
   ) => {
     if (busySiteSessionAction) {
       return;
     }
 
-    const command = action === "start"
-      ? "start_site_session_capture"
-      : action === "sync"
-        ? "sync_site_session_from_extension"
-      : action === "confirm"
-        ? "complete_site_session_capture"
-        : action === "cancel"
-          ? "cancel_site_session_capture"
-          : action === "refresh"
-            ? "refresh_site_session_credentials"
-            : "clear_site_session";
+    const command = action === "sync"
+      ? "sync_site_session_from_extension"
+      : "clear_site_session";
 
     setSiteSessionError(siteId, null);
     setBusySiteSessionAction({ siteId, action });
@@ -1166,13 +1150,6 @@ function SettingsPage() {
     fontSize: 10,
   };
 
-  const siteLoginConfirmActionStyle: CSSProperties = {
-    minWidth: 76,
-    height: 26,
-    padding: "4px 8px",
-    fontSize: 10,
-  };
-
   const getSiteLoginStatusDotStyle = (tone: SiteLoginBadgeTone): CSSProperties => {
     const toneColors = getSiteLoginToneColors(tone);
     return {
@@ -1185,45 +1162,46 @@ function SettingsPage() {
     };
   };
 
-  const activeCaptureSite = SITE_SESSION_CONFIGS.find((site) => {
-    const phase = siteSessionStates[site.id]?.capturePhase ?? "idle";
-    return phase === "preparing" || phase === "awaiting_confirmation";
-  }) ?? null;
-  const activeCaptureSiteId = activeCaptureSite?.id ?? null;
-  const activeCaptureState = activeCaptureSiteId ? siteSessionStates[activeCaptureSiteId] ?? null : null;
-  const activeCapturePhase = activeCaptureState?.capturePhase ?? "idle";
-  const siteSessionError = SITE_SESSION_CONFIGS
-    .map((site) => siteSessionErrors[site.id])
+  const siteSessionError = siteSessionRegistryEntries
+    .map((site) => siteSessionErrors[site.siteId])
     .find((error): error is string => Boolean(error));
-  const siteLoginBadges: SiteLoginBadgeModel[] = SITE_SESSION_CONFIGS.map((site) => {
-    const state = siteSessionStates[site.id];
-    const error = siteSessionErrors[site.id];
+  const siteLoginBadges: SiteLoginBadgeModel[] = siteSessionRegistryEntries.map((site) => {
+    const state = siteSessionStates[site.siteId];
+    const error = siteSessionErrors[site.siteId];
     const availability = state?.availability ?? "missing";
-    const phase = state?.capturePhase ?? "idle";
-    const Logo = SITE_SESSION_LOGOS[site.id];
+    const Logo = SITE_SESSION_LOGOS[site.icon.key ?? site.siteId];
     const statusKey = error ? "expired" : availability === "ready" ? "ready" : "missing";
     const statusLabel = t(`desktop:settings.siteSessions.status.${statusKey}`);
-    const siteLabel = t(site.labelKey);
-    const disabled = isSiteSessionActionBusy || phase === "preparing" || phase === "awaiting_confirmation";
-    const syncsFromExtension = site.id === "youtube";
+    const siteLabel = site.labelKey ? t(site.labelKey) : site.displayName;
+    const disabled = isSiteSessionActionBusy;
     const syncSource = formatSiteSessionSyncSource(state);
     return {
-      id: site.id,
-      icon: <Logo size={15} />,
+      id: site.siteId,
+      icon: Logo
+        ? <Logo size={15} />
+        : (
+            <span style={{
+              width: 15,
+              height: 15,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 9,
+              fontWeight: 700,
+            }}>
+              {site.displayName.slice(0, 1).toUpperCase()}
+            </span>
+          ),
       label: siteLabel,
       statusLabel,
       detailLabel: syncSource
         ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
-        : syncsFromExtension
-          ? t("desktop:settings.siteSessions.extensionSyncHint")
-          : null,
+        : t("desktop:settings.siteSessions.extensionSyncHint"),
       tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
       disabled,
-      capturePhase: phase,
-      syncsFromExtension,
-      canRefresh: !disabled,
+      canSync: !disabled,
       canClear: !disabled,
-      onClick: () => void invokeSiteSessionCommand(site.id, syncsFromExtension ? "sync" : "start"),
+      onClick: () => void invokeSiteSessionCommand(site.siteId, "sync"),
     };
   });
 
@@ -1283,9 +1261,7 @@ function SettingsPage() {
   });
   const siteLoginsSummary = siteSessionError
     ? t("desktop:settings.hub.summary.sitesError")
-    : activeCapturePhase === "preparing" || activeCapturePhase === "awaiting_confirmation"
-      ? t("desktop:settings.hub.summary.sitesPending")
-      : readySiteLoginCount > 0
+    : readySiteLoginCount > 0
         ? t("desktop:settings.hub.summary.sitesReady", {
           count: readySiteLoginCount,
           total: siteLoginBadges.length,
@@ -1349,13 +1325,12 @@ function SettingsPage() {
         t("desktop:settings.hub.pages.sites"),
         siteLoginsSummary,
         t("desktop:settings.siteSessions.title"),
-        t("desktop:settings.siteSessions.confirmButton"),
-        t("desktop:settings.siteSessions.cancelButton"),
+        t("desktop:settings.siteSessions.syncButton"),
         t("desktop:settings.siteSessions.clearButton"),
-        ...SITE_SESSION_CONFIGS.map((site) => t(site.labelKey)),
+        ...siteSessionRegistryEntries.map((site) => site.labelKey ? t(site.labelKey) : site.displayName),
       ]),
       matchSummary: t("desktop:settings.hub.search.match.sites"),
-      attentionTone: hasSiteLoginError ? "danger" : readySiteLoginCount > 0 || activeCapturePhase !== "idle" ? "accent" : null,
+      attentionTone: hasSiteLoginError ? "danger" : readySiteLoginCount > 0 ? "accent" : null,
     },
     {
       id: "plugins",
@@ -1893,7 +1868,7 @@ function SettingsPage() {
                 style={{
                   ...getSiteLoginRowStyle(
                     site.tone,
-                    site.disabled && site.capturePhase !== "awaiting_confirmation",
+                    site.disabled,
                   ),
                   ...WINDOW_NO_DRAG_REGION_STYLE,
                 }}
@@ -1973,59 +1948,28 @@ function SettingsPage() {
                     flexWrap: "nowrap",
                   }}
                 >
-                  {site.capturePhase === "awaiting_confirmation" ? (
-                    <>
-                      <NeonButton
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        onClick={() => void invokeSiteSessionCommand(site.id, "confirm")}
-                        disabled={isSiteSessionActionBusy}
-                        style={siteLoginConfirmActionStyle}
-                      >
-                        {t("desktop:settings.siteSessions.confirmButton")}
-                      </NeonButton>
-                      <NeonButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void invokeSiteSessionCommand(site.id, "cancel")}
-                        disabled={isSiteSessionActionBusy}
-                        style={siteLoginInlineActionStyle}
-                      >
-                        {t("desktop:settings.siteSessions.cancelButton")}
-                      </NeonButton>
-                    </>
-                  ) : (
-                    <>
-                      <NeonButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void invokeSiteSessionCommand(site.id, site.syncsFromExtension ? "sync" : "refresh")}
-                        disabled={isSiteSessionActionBusy || !site.canRefresh}
-                        title={t(site.syncsFromExtension
-                          ? "desktop:settings.siteSessions.syncButton"
-                          : "desktop:settings.siteSessions.refreshButton")}
-                        style={siteLoginInlineActionStyle}
-                      >
-                        {t(site.syncsFromExtension
-                          ? "desktop:settings.siteSessions.syncShortButton"
-                          : "desktop:settings.siteSessions.refreshShortButton")}
-                      </NeonButton>
-                      <NeonButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void invokeSiteSessionCommand(site.id, "clear")}
-                        disabled={isSiteSessionActionBusy || !site.canClear}
-                        title={t("desktop:settings.siteSessions.clearButton")}
-                        style={siteLoginInlineActionStyle}
-                      >
-                        {t("desktop:settings.siteSessions.clearButton")}
-                      </NeonButton>
-                    </>
-                  )}
+                  <NeonButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void invokeSiteSessionCommand(site.id, "sync")}
+                    disabled={isSiteSessionActionBusy || !site.canSync}
+                    title={t("desktop:settings.siteSessions.syncButton")}
+                    style={siteLoginInlineActionStyle}
+                  >
+                    {t("desktop:settings.siteSessions.syncShortButton")}
+                  </NeonButton>
+                  <NeonButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void invokeSiteSessionCommand(site.id, "clear")}
+                    disabled={isSiteSessionActionBusy || !site.canClear}
+                    title={t("desktop:settings.siteSessions.clearButton")}
+                    style={siteLoginInlineActionStyle}
+                  >
+                    {t("desktop:settings.siteSessions.clearButton")}
+                  </NeonButton>
                 </div>
               </div>
             ))}

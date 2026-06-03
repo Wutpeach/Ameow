@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  DownloadRuntimeError,
   type DownloadEngine,
   type EngineExecutionContext,
   type RawDownloadInput,
@@ -72,8 +71,6 @@ import {
 } from "./service";
 import type {
   RuntimeEmitterEvent,
-  SiteSessionCredentialRefreshContext,
-  SiteSessionCredentialRefreshResult,
 } from "./contracts";
 import { resetRenameSequenceState } from "./renameRules";
 import { bilibiliProvider } from "../sites/bilibili";
@@ -113,9 +110,6 @@ const createRuntime = (options: {
     context: EngineExecutionContext,
     input: RawDownloadInput,
   ) => EngineExecutionContext;
-  refreshSiteSessionCredentials?: (
-    context: SiteSessionCredentialRefreshContext,
-  ) => Promise<SiteSessionCredentialRefreshResult | null>;
   environment?: {
     repoRoot?: string;
     configDir?: string;
@@ -152,7 +146,6 @@ const createRuntime = (options: {
   },
   ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   buildExecutionContext: options.buildExecutionContext,
-  refreshSiteSessionCredentials: options.refreshSiteSessionCredentials,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -467,83 +460,11 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
   });
 
-  it("refreshes supported site credentials and retries auth-required failures once", async () => {
-    let cookieSnapshot = "old-cookies";
-    const cookiesSeen: Array<string | undefined> = [];
-    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
-    const progressStages: string[] = [];
-    const refreshSiteSessionCredentials = vi.fn(async () => {
-      cookieSnapshot = "fresh-cookies";
-      return {
-        availability: "ready" as const,
-        cookieCount: 2,
-        lastError: null,
-      };
-    });
-    const runtime = createRuntime({
-      providers: [youtubeProvider, genericProvider],
-      refreshSiteSessionCredentials,
-      buildExecutionContext(context) {
-        return {
-          ...context,
-          intent: {
-            ...context.intent,
-            cookies: cookieSnapshot,
-          },
-        };
-      },
-      engines: [
-        createEngineStub("yt-dlp", async (context) => {
-          cookiesSeen.push(context.intent.cookies);
-          if (cookiesSeen.length === 1) {
-            throw new Error("cookies required for this resource");
-          }
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
-          };
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { traceId: string; success: boolean; error?: string });
-        }
-        if (event === "video-download-progress") {
-          progressStages.push((payload as { stage: string }).stage);
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledTimes(1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledWith(expect.objectContaining({
-      siteId: "youtube",
-      reason: "auth_required_retry",
-    }));
-    expect(cookiesSeen).toEqual(["old-cookies", "fresh-cookies"]);
-    expect(progressStages.filter((stage) => stage === "preparing")).toHaveLength(2);
-    expect(completed[0]).toMatchObject({
-      success: true,
-    });
-  });
-
-  it("does not retry when credential refresh remains missing", async () => {
+  it("does not retry auth-required failures through app-owned credential refresh", async () => {
     const completed: Array<{ success: boolean; error?: string }> = [];
-    const refreshSiteSessionCredentials = vi.fn(async () => ({
-      availability: "missing" as const,
-      cookieCount: 0,
-      lastError: "No cookies found",
-    }));
     let attempts = 0;
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
-      refreshSiteSessionCredentials,
       engines: [
         createEngineStub("yt-dlp", async () => {
           attempts += 1;
@@ -563,204 +484,10 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledTimes(1);
     expect(attempts).toBe(1);
     expect(completed[0]).toMatchObject({
       success: false,
       error: "cookies required for this resource",
-    });
-  });
-
-  it("does not refresh a second time when the auth retry also fails", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    const refreshSiteSessionCredentials = vi.fn(async () => ({
-      availability: "ready" as const,
-      cookieCount: 1,
-      lastError: null,
-    }));
-    let attempts = 0;
-    const runtime = createRuntime({
-      providers: [youtubeProvider, genericProvider],
-      refreshSiteSessionCredentials,
-      engines: [
-        createEngineStub("yt-dlp", async () => {
-          attempts += 1;
-          throw new Error(attempts === 1
-            ? "cookies required for this resource"
-            : "cookies still invalid after refresh");
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledTimes(1);
-    expect(attempts).toBe(2);
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "cookies still invalid after refresh",
-    });
-  });
-
-  it("does not refresh credentials for non-auth failures or unsupported site ids", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    const refreshSiteSessionCredentials = vi.fn(async () => ({
-      availability: "ready" as const,
-      cookieCount: 1,
-      lastError: null,
-    }));
-    const runtime = createRuntime({
-      providers: [genericProvider],
-      refreshSiteSessionCredentials,
-      engines: [
-        createEngineStub("yt-dlp", async () => {
-          throw new DownloadRuntimeError(
-            "E_INVALID_DOWNLOAD_INPUT",
-            "Invalid URL for provider",
-          );
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://example.com/protected",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).not.toHaveBeenCalled();
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "Invalid URL for provider",
-    });
-  });
-
-  it("does not refresh credentials for auth failures on unsupported site ids", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    const refreshSiteSessionCredentials = vi.fn(async () => ({
-      availability: "ready" as const,
-      cookieCount: 1,
-      lastError: null,
-    }));
-    let attempts = 0;
-    const runtime = createRuntime({
-      providers: [genericProvider],
-      refreshSiteSessionCredentials,
-      engines: [
-        createEngineStub("yt-dlp", async () => {
-          attempts += 1;
-          throw new Error("cookies required for this resource");
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://example.com/protected",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).not.toHaveBeenCalled();
-    expect(attempts).toBe(1);
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "cookies required for this resource",
-    });
-  });
-
-  it("does not retry when credential refresh throws", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    const refreshSiteSessionCredentials = vi.fn(async (): Promise<SiteSessionCredentialRefreshResult | null> => {
-      throw new Error("refresh failed");
-    });
-    let attempts = 0;
-    const runtime = createRuntime({
-      providers: [youtubeProvider, genericProvider],
-      refreshSiteSessionCredentials,
-      engines: [
-        createEngineStub("yt-dlp", async () => {
-          attempts += 1;
-          throw new Error("cookies required for this resource");
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledTimes(1);
-    expect(attempts).toBe(1);
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "cookies required for this resource",
-    });
-  });
-
-  it("does not retry when cancellation happens while credentials refresh", async () => {
-    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
-    const runtimeRef: { current: ReturnType<typeof createRuntime> | null } = { current: null };
-    const refreshSiteSessionCredentials = vi.fn(async ({ traceId }: SiteSessionCredentialRefreshContext) => {
-      await runtimeRef.current?.cancelDownload(traceId);
-      return {
-        availability: "ready" as const,
-        cookieCount: 1,
-        lastError: null,
-      };
-    });
-    let attempts = 0;
-    const runtime = createRuntime({
-      providers: [youtubeProvider, genericProvider],
-      refreshSiteSessionCredentials,
-      engines: [
-        createEngineStub("yt-dlp", async () => {
-          attempts += 1;
-          throw new Error("cookies required for this resource");
-        }),
-      ],
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { traceId: string; success: boolean; error?: string });
-        }
-      },
-    });
-    runtimeRef.current = runtime;
-
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(refreshSiteSessionCredentials).toHaveBeenCalledTimes(1);
-    expect(attempts).toBe(1);
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "Download cancelled",
     });
   });
 

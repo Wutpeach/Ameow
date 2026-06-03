@@ -1,7 +1,32 @@
 (function initAmeowSiteSessionCookieSync(root) {
   "use strict";
 
+  // Phase 1 keeps this local allowlist in sync with desktop seed registry data.
+  // Phase 2 replaces it with registry entries pushed from the desktop app.
   const SUPPORTED_SITES = {
+    douyin: {
+      siteId: "douyin",
+      cookieDomains: ["douyin.com"],
+      cookieUrls: [
+        "https://www.douyin.com/",
+      ],
+    },
+    bilibili: {
+      siteId: "bilibili",
+      cookieDomains: ["bilibili.com", "b23.tv"],
+      cookieUrls: [
+        "https://www.bilibili.com/",
+        "https://b23.tv/",
+      ],
+    },
+    xiaohongshu: {
+      siteId: "xiaohongshu",
+      cookieDomains: ["xiaohongshu.com", "xhslink.com"],
+      cookieUrls: [
+        "https://www.xiaohongshu.com/",
+        "https://xhslink.com/",
+      ],
+    },
     youtube: {
       siteId: "youtube",
       cookieDomains: ["youtube.com", "google.com"],
@@ -9,6 +34,13 @@
         "https://www.youtube.com/",
         "https://accounts.google.com/",
         "https://www.google.com/",
+      ],
+    },
+    instagram: {
+      siteId: "instagram",
+      cookieDomains: ["instagram.com"],
+      cookieUrls: [
+        "https://www.instagram.com/",
       ],
     },
   };

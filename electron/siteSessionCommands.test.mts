@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { AmeowRendererCommand } from "../src/types/electronBridge.js";
-import type { SupportedSiteSessionId } from "../src/types/siteSession.js";
 import {
   createSiteSessionCommandController,
   resolveSiteSessionIdFromPayload,
@@ -10,43 +9,40 @@ import {
 type SiteSessionMethod =
   | "getDiagnostics"
   | "getState"
-  | "startCapture"
-  | "confirmCapture"
-  | "cancelCapture"
-  | "refreshCredentials"
   | "importSnapshot"
   | "clearSession";
 
 const genericCommandCases = [
   ["get_site_session_diagnostics", "getDiagnostics"],
   ["get_site_session_state", "getState"],
-  ["start_site_session_capture", "startCapture"],
-  ["complete_site_session_capture", "confirmCapture"],
-  ["cancel_site_session_capture", "cancelCapture"],
-  ["refresh_site_session_credentials", "refreshCredentials"],
   ["clear_site_session", "clearSession"],
 ] as const satisfies readonly [AmeowRendererCommand, SiteSessionMethod][];
 
 const douyinAliasCommandCases = [
   ["get_douyin_session_state", "getState"],
-  ["start_douyin_session_capture", "startCapture"],
-  ["complete_douyin_session_capture", "confirmCapture"],
-  ["cancel_douyin_session_capture", "cancelCapture"],
   ["clear_douyin_session", "clearSession"],
 ] as const satisfies readonly [AmeowRendererCommand, SiteSessionMethod][];
 
 const allSiteSessionCommands = [
   ...genericCommandCases.map(([command]) => command),
   ...douyinAliasCommandCases.map(([command]) => command),
-];
+  "get_site_session_registry",
+  "sync_site_session_from_extension",
+] as const satisfies readonly AmeowRendererCommand[];
 
-const createManager = (siteId: SupportedSiteSessionId) => ({
+const removedCaptureCommands = [
+  "start_site_session_capture",
+  "complete_site_session_capture",
+  "cancel_site_session_capture",
+  "refresh_site_session_credentials",
+  "start_douyin_session_capture",
+  "complete_douyin_session_capture",
+  "cancel_douyin_session_capture",
+] as const;
+
+const createManager = (siteId: string) => ({
   getDiagnostics: vi.fn(async () => ({ siteId, method: "getDiagnostics" })),
   getState: vi.fn(async () => ({ siteId, method: "getState" })),
-  startCapture: vi.fn(async () => ({ siteId, method: "startCapture" })),
-  confirmCapture: vi.fn(async () => ({ siteId, method: "confirmCapture" })),
-  cancelCapture: vi.fn(async () => ({ siteId, method: "cancelCapture" })),
-  refreshCredentials: vi.fn(async () => ({ siteId, method: "refreshCredentials" })),
   importSnapshot: vi.fn(async () => ({ siteId, method: "importSnapshot" })),
   clearSession: vi.fn(async () => ({ siteId, method: "clearSession" })),
 });
@@ -58,17 +54,25 @@ const createControllerHarness = () => {
     instagram: createManager("instagram"),
     xiaohongshu: createManager("xiaohongshu"),
     youtube: createManager("youtube"),
-  } satisfies Record<SupportedSiteSessionId, ReturnType<typeof createManager>>;
+  };
 
-  const requireSiteSessionManager = vi.fn((siteId: SupportedSiteSessionId) => {
-    const manager = managers[siteId];
+  const requireSiteSessionManager = vi.fn((siteId: string) => {
+    const manager = managers[siteId as keyof typeof managers];
     if (!manager) {
       throw new Error(`Unsupported site session: ${siteId ?? ""}`);
     }
     return manager;
   });
 
+  const registryEntries = [
+    {
+      siteId: "youtube",
+      displayName: "YouTube",
+    },
+  ];
+
   const controller = createSiteSessionCommandController({
+    listSiteSessionRegistryEntries: () => registryEntries as never,
     requireSiteSessionManager,
     resolveSiteSessionIdFromPayload,
   });
@@ -76,22 +80,32 @@ const createControllerHarness = () => {
   return {
     controller,
     managers,
+    registryEntries,
     requireSiteSessionManager,
   };
 };
 
 describe("createSiteSessionCommandController", () => {
-  it("supports only site-session commands", () => {
+  it("supports only active site-session commands", () => {
     const { controller } = createControllerHarness();
 
     for (const command of allSiteSessionCommands) {
       expect(controller.supports(command)).toBe(true);
     }
+    for (const command of removedCaptureCommands) {
+      expect(controller.supports(command as AmeowRendererCommand)).toBe(false);
+    }
 
     expect(controller.supports("get_config")).toBe(false);
     expect(controller.supports("save_config")).toBe(false);
     expect(controller.supports("queue_video_download")).toBe(false);
-    expect(controller.supports("sync_site_session_from_extension")).toBe(true);
+  });
+
+  it("returns registry entries without resolving a site manager", async () => {
+    const { controller, registryEntries, requireSiteSessionManager } = createControllerHarness();
+
+    await expect(controller.invoke("get_site_session_registry")).resolves.toBe(registryEntries);
+    expect(requireSiteSessionManager).not.toHaveBeenCalled();
   });
 
   it("dispatches generic site-session commands to the resolved site manager", async () => {
@@ -115,18 +129,12 @@ describe("createSiteSessionCommandController", () => {
       siteId: "douyin",
       method: "getState",
     });
-    await expect(controller.invoke("start_site_session_capture", null as never)).resolves.toMatchObject({
-      siteId: "douyin",
-      method: "startCapture",
-    });
 
-    expect(requireSiteSessionManager).toHaveBeenNthCalledWith(1, "douyin");
-    expect(requireSiteSessionManager).toHaveBeenNthCalledWith(2, "douyin");
+    expect(requireSiteSessionManager).toHaveBeenCalledWith("douyin");
     expect(managers.douyin.getState).toHaveBeenCalledTimes(1);
-    expect(managers.douyin.startCapture).toHaveBeenCalledTimes(1);
   });
 
-  it("dispatches Douyin aliases to the Douyin manager and ignores payload siteId", async () => {
+  it("dispatches active Douyin aliases to the Douyin manager and ignores payload siteId", async () => {
     const { controller, managers, requireSiteSessionManager } = createControllerHarness();
 
     for (const [command, method] of douyinAliasCommandCases) {
@@ -140,33 +148,14 @@ describe("createSiteSessionCommandController", () => {
     }
 
     expect(managers.youtube.getState).not.toHaveBeenCalled();
-    expect(managers.youtube.startCapture).not.toHaveBeenCalled();
-    expect(managers.youtube.getDiagnostics).not.toHaveBeenCalled();
-    expect(managers.youtube.confirmCapture).not.toHaveBeenCalled();
-    expect(managers.youtube.cancelCapture).not.toHaveBeenCalled();
-    expect(managers.youtube.refreshCredentials).not.toHaveBeenCalled();
     expect(managers.youtube.clearSession).not.toHaveBeenCalled();
   });
 
-  it("throws the existing unsupported site-session error before resolving a manager", async () => {
-    const { controller, requireSiteSessionManager } = createControllerHarness();
+  it("passes through manager-missing errors without rewriting them", async () => {
+    const { controller } = createControllerHarness();
 
     await expect(controller.invoke("get_site_session_state", { siteId: "unsupported" }))
       .rejects.toThrow("Unsupported site session: unsupported");
-    expect(requireSiteSessionManager).not.toHaveBeenCalled();
-  });
-
-  it("passes through manager-missing errors without rewriting them", async () => {
-    const requireSiteSessionManager = vi.fn((siteId: SupportedSiteSessionId) => {
-      throw new Error(`Unsupported site session: ${siteId ?? ""}`);
-    });
-    const controller = createSiteSessionCommandController({
-      requireSiteSessionManager,
-      resolveSiteSessionIdFromPayload,
-    });
-
-    await expect(controller.invoke("get_site_session_state", { siteId: "douyin" }))
-      .rejects.toThrow("Unsupported site session: douyin");
   });
 
   it("throws the existing unsupported Electron command error when invoked directly with an unknown command", async () => {
@@ -177,17 +166,18 @@ describe("createSiteSessionCommandController", () => {
   });
 
   it("passes through manager promise rejections without wrapping them", async () => {
-    const error = new Error("capture failed");
+    const error = new Error("clear failed");
     const manager = createManager("douyin");
-    manager.startCapture.mockRejectedValueOnce(error);
+    manager.clearSession.mockRejectedValueOnce(error);
     const controller = createSiteSessionCommandController({
+      listSiteSessionRegistryEntries: () => [],
       requireSiteSessionManager: vi.fn(() => manager),
       resolveSiteSessionIdFromPayload,
     });
 
     let caught: unknown;
     try {
-      await controller.invoke("start_site_session_capture", { siteId: "douyin" });
+      await controller.invoke("clear_site_session", { siteId: "douyin" });
     } catch (error_) {
       caught = error_;
     }
@@ -195,20 +185,17 @@ describe("createSiteSessionCommandController", () => {
     expect(caught).toBe(error);
   });
 
-  it("syncs the YouTube site session through the injected extension sync dependency", async () => {
+  it("syncs any registry-backed site session through the injected extension sync dependency", async () => {
     const { managers, requireSiteSessionManager } = createControllerHarness();
     const syncSiteSessionFromExtension = vi.fn(async () => ({
-      siteId: "youtube",
+      siteId: "bilibili",
       availability: "ready",
       updatedAtMs: 123,
-      cookieCount: 2,
-      requiredKeys: [],
+      cookieCount: 1,
+      requiredKeys: ["SESSDATA"],
       missingRequiredKeys: [],
       lastError: null,
-      sessionFilePath: "site-sessions/youtube.json",
-      capturePhase: "idle",
-      captureStartedAtMs: null,
-      capturePid: null,
+      sessionFilePath: "site-sessions/bilibili.json",
       lastSyncSource: {
         browser: "chrome",
         profileLabel: "Default",
@@ -216,33 +203,21 @@ describe("createSiteSessionCommandController", () => {
       },
     } as const));
     const controller = createSiteSessionCommandController({
+      listSiteSessionRegistryEntries: () => [],
       requireSiteSessionManager,
       resolveSiteSessionIdFromPayload,
       syncSiteSessionFromExtension,
     });
 
-    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "youtube" }))
+    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "bilibili" }))
       .resolves.toMatchObject({
-        siteId: "youtube",
+        siteId: "bilibili",
         availability: "ready",
-        lastSyncSource: {
-          browser: "chrome",
-          profileLabel: "Default",
-          extensionId: "extension-id",
-        },
       });
 
-    expect(requireSiteSessionManager).toHaveBeenCalledWith("youtube");
-    expect(syncSiteSessionFromExtension).toHaveBeenCalledWith("youtube", managers.youtube);
-    expect(managers.youtube.importSnapshot).not.toHaveBeenCalled();
-  });
-
-  it("rejects extension site-session sync for non-YouTube sites", async () => {
-    const { controller, requireSiteSessionManager } = createControllerHarness();
-
-    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "bilibili" }))
-      .rejects.toThrow("Extension site session sync is currently only supported for YouTube");
-    expect(requireSiteSessionManager).not.toHaveBeenCalled();
+    expect(requireSiteSessionManager).toHaveBeenCalledWith("bilibili");
+    expect(syncSiteSessionFromExtension).toHaveBeenCalledWith("bilibili", managers.bilibili);
+    expect(managers.bilibili.importSnapshot).not.toHaveBeenCalled();
   });
 
   it("rejects extension site-session sync when the dependency is not configured", async () => {
@@ -256,8 +231,9 @@ describe("createSiteSessionCommandController", () => {
   it("passes the original payload object to the injected site-id resolver", async () => {
     const manager = createManager("bilibili");
     const payload = { siteId: "bilibili", marker: "keep" };
-    const resolver = vi.fn(() => "bilibili" as const);
+    const resolver = vi.fn(() => "bilibili");
     const controller = createSiteSessionCommandController({
+      listSiteSessionRegistryEntries: () => [],
       requireSiteSessionManager: vi.fn(() => manager),
       resolveSiteSessionIdFromPayload: resolver,
     });
@@ -270,11 +246,12 @@ describe("createSiteSessionCommandController", () => {
 });
 
 describe("resolveSiteSessionIdFromPayload", () => {
-  it("keeps the current fallback and unsupported-site behavior", () => {
+  it("keeps the fallback while accepting dynamic site ids", () => {
     expect(resolveSiteSessionIdFromPayload(undefined)).toBe("douyin");
     expect(resolveSiteSessionIdFromPayload({})).toBe("douyin");
     expect(resolveSiteSessionIdFromPayload({ siteId: "instagram" })).toBe("instagram");
-    expect(() => resolveSiteSessionIdFromPayload({ siteId: "unknown" }))
-      .toThrow("Unsupported site session: unknown");
+    expect(resolveSiteSessionIdFromPayload({ siteId: "unknown-site" })).toBe("unknown-site");
+    expect(() => resolveSiteSessionIdFromPayload({ siteId: "   " }))
+      .toThrow("Unsupported site session:");
   });
 });
