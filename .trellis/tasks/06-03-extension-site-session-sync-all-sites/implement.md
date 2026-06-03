@@ -102,11 +102,18 @@ Phase 3 review checkpoint:
 
 ### Phase 4: Local icon handling
 
-- [ ] Add known local icon mappings for seeded entries.
-- [ ] Keep placeholder fallback for unknown entries.
-- [ ] Optionally fetch/cache favicon metadata when available.
-- [ ] Ensure Settings and extension UI do not depend on live remote icon URLs.
-- [ ] Run icon metadata/rendering tests where practical.
+- [x] Add known local icon mappings for seeded entries.
+- [x] Keep placeholder fallback for unknown entries.
+- [x] Optionally fetch/cache favicon metadata when available.
+- [x] Ensure Settings and extension UI do not depend on live remote icon URLs.
+- [x] Run icon metadata/rendering tests where practical.
+
+Phase 4 review checkpoint:
+
+- Local validation passed: `npm run type-check`, `npm run lint`, focused Phase 4 tests (`browser-extension/site-session-icons.test.js`, `browser-extension/manifest.test.js`), full `npm test`, `git diff --check`, and `node --check browser-extension/site-session-icons.js browser-extension/popup.js`.
+- Settings now imports the shared `SITE_SESSION_LOGOS` mapping from `src/site-session-icons.ts` instead of owning a duplicate static mapping.
+- The browser extension popup loads a bundled `site-session-icons.js` helper and renders local SVG paths for seeded known entries or deterministic placeholder initials for unknown/current-tab entries.
+- No UI rendering path consumes `icon.url` or fetches live remote favicons; favicon fetching remains intentionally unimplemented because this phase can satisfy stable local/placeholder rendering without network dependency.
 
 ### Phase 5: gallery-dl catalog import
 

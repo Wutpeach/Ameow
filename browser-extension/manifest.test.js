@@ -27,6 +27,12 @@ describe("browser extension manifest", () => {
     expect(manifest.options_page).toBe("options.html");
   });
 
+  it("loads site-session icons before the popup renderer", () => {
+    const popupHtml = readFileSync(path.resolve("browser-extension/popup.html"), "utf8");
+    expect(popupHtml.indexOf("site-session-icons.js")).toBeGreaterThanOrEqual(0);
+    expect(popupHtml.indexOf("site-session-icons.js")).toBeLessThan(popupHtml.indexOf("popup.js"));
+  });
+
   it("registers the Twitter/X injected detector", () => {
     expect(findContentScript("https://x.com/*")).toMatchObject({
       js: ["injected-cat-icon.js", "twitter-detector.js"],

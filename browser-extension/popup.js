@@ -119,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     contextCounts: document.getElementById("contextCounts"),
     contextFallbackDownloadButton: document.getElementById("contextFallbackDownloadButton"),
     loginStatePanel: document.getElementById("loginStatePanel"),
+    loginStateIcon: document.getElementById("loginStateIcon"),
     loginStateLabel: document.getElementById("loginStateLabel"),
     loginStateTitle: document.getElementById("loginStateTitle"),
     loginStateHint: document.getElementById("loginStateHint"),
@@ -286,6 +287,17 @@ document.addEventListener("DOMContentLoaded", () => {
     return safeText(site?.displayName, site?.siteId || shortHost(currentSiteSessionStatus?.currentTabUrl));
   }
 
+  function renderLoginStateIcon(site, fallbackLabel) {
+    const icons = globalThis.AmeowSiteSessionIcons;
+    const knownKey = icons?.resolveKnownIconKey?.(site) || null;
+    const path = knownKey ? icons?.KNOWN_ICON_PATHS?.[knownKey] : null;
+    if (path) {
+      elements.loginStateIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true"><path d="${path}"></path></svg>`;
+      return;
+    }
+    elements.loginStateIcon.textContent = icons?.placeholderLabel?.(fallbackLabel) || "?";
+  }
+
   function renderLoginStatePanel(feedback = null) {
     const siteSession = currentSiteSessionStatus || {};
     const site = siteSession.currentSiteSession || null;
@@ -301,6 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const siteName = currentSiteSessionName();
+    renderLoginStateIcon(site, site?.displayName || site?.siteId || pageHost);
     elements.loginStatePanel.dataset.state = feedback?.tone || (canSync ? "sync" : "enable");
     elements.loginStateTitle.textContent = feedback?.title || (
       canSync

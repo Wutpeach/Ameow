@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
@@ -65,13 +65,7 @@ import {
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
 import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
-import {
-  BilibiliLogo,
-  DouyinLogo,
-  InstagramLogo,
-  XiaohongshuLogo,
-  YouTubeLogo,
-} from "../site-session-icons";
+import { SITE_SESSION_LOGOS } from "../site-session-icons";
 import type {
   SiteSessionRegistryEntry,
   SiteSessionState,
@@ -128,14 +122,6 @@ const SETTINGS_HUB_SEARCH_TO_LIST_GAP = 14;
 const SETTINGS_HUB_DESTINATION_GAP = 9;
 const UI_LAB_WINDOW_WIDTH = 420;
 const UI_LAB_WINDOW_HEIGHT = 560;
-const SITE_SESSION_LOGOS: Partial<Record<string, ComponentType<{ size?: number }>>> = {
-  douyin: DouyinLogo,
-  bilibili: BilibiliLogo,
-  xiaohongshu: XiaohongshuLogo,
-  instagram: InstagramLogo,
-  youtube: YouTubeLogo,
-};
-
 const formatSiteSessionSyncSource = (state: SiteSessionState | undefined): string | null => {
   const source = state?.lastSyncSource;
   if (!source) {
