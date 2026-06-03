@@ -82,7 +82,7 @@ type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
 type SettingsPageId = "hub" | "appearance" | "saving" | "sites" | "plugins" | "system";
 type SettingsDetailPageId = Exclude<SettingsPageId, "hub">;
 type SiteLoginBadgeTone = "ready" | "danger" | "muted";
-type SiteSessionAction = "start" | "confirm" | "cancel" | "refresh" | "clear";
+type SiteSessionAction = "start" | "sync" | "confirm" | "cancel" | "refresh" | "clear";
 type SettingsNavigationDirection = "forward" | "back";
 
 type SettingsHubDestination = {
@@ -99,9 +99,11 @@ type SiteLoginBadgeModel = {
   icon: ReactNode;
   label: string;
   statusLabel: string;
+  detailLabel: string | null;
   tone: SiteLoginBadgeTone;
   disabled: boolean;
   capturePhase: SiteSessionState["capturePhase"];
+  syncsFromExtension: boolean;
   canRefresh: boolean;
   canClear: boolean;
   onClick: () => void;
@@ -136,6 +138,23 @@ const SITE_SESSION_LOGOS: Record<SupportedSiteSessionId, ComponentType<{ size?: 
   instagram: InstagramLogo,
   youtube: YouTubeLogo,
 };
+
+const formatSiteSessionSyncSource = (state: SiteSessionState | undefined): string | null => {
+  const source = state?.lastSyncSource;
+  if (!source) {
+    return null;
+  }
+
+  const parts = [source.browser, source.profileLabel]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+  if (parts.length > 0) {
+    return parts.join(" · ");
+  }
+
+  return source.extensionId ? "browser extension" : null;
+};
+
 const SHORTCUT_KEY_ALIASES: Record<string, string> = {
   CONTROL: "Ctrl",
   CTRL: "Ctrl",
@@ -838,6 +857,8 @@ function SettingsPage() {
 
     const command = action === "start"
       ? "start_site_session_capture"
+      : action === "sync"
+        ? "sync_site_session_from_extension"
       : action === "confirm"
         ? "complete_site_session_capture"
         : action === "cancel"
@@ -1184,17 +1205,25 @@ function SettingsPage() {
     const statusLabel = t(`desktop:settings.siteSessions.status.${statusKey}`);
     const siteLabel = t(site.labelKey);
     const disabled = isSiteSessionActionBusy || phase === "preparing" || phase === "awaiting_confirmation";
+    const syncsFromExtension = site.id === "youtube";
+    const syncSource = formatSiteSessionSyncSource(state);
     return {
       id: site.id,
       icon: <Logo size={15} />,
       label: siteLabel,
       statusLabel,
+      detailLabel: syncSource
+        ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
+        : syncsFromExtension
+          ? t("desktop:settings.siteSessions.extensionSyncHint")
+          : null,
       tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
       disabled,
       capturePhase: phase,
+      syncsFromExtension,
       canRefresh: !disabled,
       canClear: !disabled,
-      onClick: () => void invokeSiteSessionCommand(site.id, "start"),
+      onClick: () => void invokeSiteSessionCommand(site.id, syncsFromExtension ? "sync" : "start"),
     };
   });
 
@@ -1915,6 +1944,23 @@ function SettingsPage() {
                           {site.label}
                         </span>
                       </span>
+                      {site.detailLabel ? (
+                        <span
+                          style={{
+                            minWidth: 0,
+                            maxWidth: 170,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            fontSize: 10,
+                            lineHeight: 1.1,
+                            color: colors.textSecondary,
+                            opacity: 0.84,
+                          }}
+                        >
+                          {site.detailLabel}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 </button>
@@ -1956,12 +2002,16 @@ function SettingsPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => void invokeSiteSessionCommand(site.id, "refresh")}
+                        onClick={() => void invokeSiteSessionCommand(site.id, site.syncsFromExtension ? "sync" : "refresh")}
                         disabled={isSiteSessionActionBusy || !site.canRefresh}
-                        title={t("desktop:settings.siteSessions.refreshButton")}
+                        title={t(site.syncsFromExtension
+                          ? "desktop:settings.siteSessions.syncButton"
+                          : "desktop:settings.siteSessions.refreshButton")}
                         style={siteLoginInlineActionStyle}
                       >
-                        {t("desktop:settings.siteSessions.refreshShortButton")}
+                        {t(site.syncsFromExtension
+                          ? "desktop:settings.siteSessions.syncShortButton"
+                          : "desktop:settings.siteSessions.refreshShortButton")}
                       </NeonButton>
                       <NeonButton
                         type="button"

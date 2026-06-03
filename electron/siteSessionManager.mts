@@ -6,6 +6,7 @@ import type {
   SiteSessionCapturePhase,
   SiteSessionDiagnostics,
   SiteSessionState,
+  SiteSessionSyncSource,
 } from "../src/types/siteSession.js";
 import {
   evaluateSiteSessionPolicy,
@@ -16,6 +17,7 @@ type StoredSiteSession = {
   cookies: Record<string, string>;
   cookieHeader: string;
   cookiesNetscape: string;
+  source?: SiteSessionSyncSource | null;
 };
 
 export type SiteSessionDefinition = {
@@ -57,6 +59,21 @@ type SiteSessionManagerOptions = {
   now?(): number;
 };
 
+export type ImportedSiteSessionCookie = {
+  domain?: string;
+  expirationDate?: number;
+  httpOnly?: boolean;
+  name?: string;
+  path?: string;
+  secure?: boolean;
+  value?: string;
+};
+
+export type ImportSiteSessionSnapshotOptions = {
+  cookies: ImportedSiteSessionCookie[];
+  source?: Partial<SiteSessionSyncSource> | null;
+};
+
 export type SiteSessionManager = {
   getState(): Promise<SiteSessionState>;
   getDiagnostics(): Promise<SiteSessionDiagnostics>;
@@ -64,6 +81,7 @@ export type SiteSessionManager = {
   confirmCapture(): Promise<SiteSessionState>;
   cancelCapture(): Promise<SiteSessionState>;
   refreshCredentials(): Promise<SiteSessionState>;
+  importSnapshot(options: ImportSiteSessionSnapshotOptions): Promise<SiteSessionState>;
   clearSession(): Promise<SiteSessionState>;
   shutdown(): Promise<void>;
   getDownloadCookies(): string | null;
@@ -133,6 +151,36 @@ const isCookieForSite = (
   return allowedDomains.some((allowedDomain) => domainMatches(normalizedDomain, allowedDomain));
 };
 
+const normalizeSiteCookies = (
+  rawCookies: ImportedSiteSessionCookie[],
+  allowedDomains: string[],
+): Array<{
+  domain: string;
+  expirationDate?: number;
+  name: string;
+  path?: string;
+  secure?: boolean;
+  value: string;
+}> => rawCookies
+  .map((cookie) => ({
+    domain: normalizeCookieValue(cookie.domain),
+    expirationDate: cookie.expirationDate,
+    name: normalizeCookieValue(cookie.name),
+    path: normalizeCookieValue(cookie.path) ?? "/",
+    secure: cookie.secure === true,
+    value: typeof cookie.value === "string" ? cookie.value : "",
+  }))
+  .filter((cookie) => Boolean(cookie.domain && cookie.name))
+  .filter((cookie) => isCookieForSite(cookie.domain, allowedDomains))
+  .map((cookie) => ({
+    domain: cookie.domain as string,
+    expirationDate: cookie.expirationDate,
+    name: cookie.name as string,
+    path: cookie.path,
+    secure: cookie.secure,
+    value: cookie.value,
+  }));
+
 const buildNetscapeCookies = (
   cookies: Array<{
     domain: string;
@@ -177,6 +225,25 @@ const getSessionFilePath = (userDataDir: string, siteId: string): string => (
   join(userDataDir, "site-sessions", `${siteId}.json`)
 );
 
+const normalizeSyncSource = (
+  value: Partial<SiteSessionSyncSource> | null | undefined,
+): SiteSessionSyncSource | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const browser = normalizeCookieValue(value.browser);
+  const profileLabel = normalizeCookieValue(value.profileLabel);
+  const extensionId = normalizeCookieValue(value.extensionId);
+  if (!browser && !profileLabel && !extensionId) {
+    return null;
+  }
+  return {
+    browser,
+    profileLabel,
+    extensionId,
+  };
+};
+
 const getSessionTempFilePath = (sessionFilePath: string): string => (
   `${sessionFilePath}.tmp`
 );
@@ -215,6 +282,7 @@ const loadStoredSiteSessionSync = (
       cookies,
       cookieHeader: normalizeCookieValue(record.cookieHeader) ?? buildCookieHeader(cookies),
       cookiesNetscape,
+      source: normalizeSyncSource(record.source as Partial<SiteSessionSyncSource> | null | undefined),
     };
   } catch {
     return null;
@@ -266,6 +334,7 @@ export const createSiteSessionManager = (
       capturePhase,
       captureStartedAtMs,
       capturePid: captureWindow?.id ?? null,
+      lastSyncSource: sessionCache?.source ?? null,
     };
   };
 
@@ -331,42 +400,47 @@ export const createSiteSessionManager = (
     },
   ): Promise<StoredSiteSession> => {
     const rawCookies = await options.readCookies(partition);
-    const siteCookies = rawCookies
-      .map((cookie) => ({
-        domain: normalizeCookieValue(cookie.domain),
-        expirationDate: cookie.expirationDate,
-        name: normalizeCookieValue(cookie.name),
-        path: normalizeCookieValue(cookie.path) ?? "/",
-        secure: cookie.secure === true,
-        value: typeof cookie.value === "string" ? cookie.value : "",
-      }))
-      .filter((cookie) => Boolean(cookie.domain && cookie.name))
-      .filter((cookie) => isCookieForSite(cookie.domain, options.site.cookieDomains))
-      .map((cookie) => ({
-        domain: cookie.domain as string,
-        expirationDate: cookie.expirationDate,
-        name: cookie.name as string,
-        path: cookie.path,
-        secure: cookie.secure,
-        value: cookie.value,
-      }));
+    const siteCookies = normalizeSiteCookies(rawCookies, options.site.cookieDomains);
 
+    return await saveCredentialSnapshotFromSiteCookies({
+      siteCookies,
+      supplementalCookies: options_.includeSupplementalCookies && options.readSupplementalCookies
+        ? await options.readSupplementalCookies(partition)
+        : {},
+      emptyErrorMessage: `${options.site.displayName} cookie capture finished without saving any cookies.`,
+      source: null,
+    });
+  };
+
+  const saveCredentialSnapshotFromSiteCookies = async (
+    options_: {
+      siteCookies: Array<{
+        domain: string;
+        expirationDate?: number;
+        name: string;
+        path?: string;
+        secure?: boolean;
+        value: string;
+      }>;
+      supplementalCookies: Record<string, string>;
+      emptyErrorMessage: string;
+      source: SiteSessionSyncSource | null;
+    },
+  ): Promise<StoredSiteSession> => {
     const primaryCookies = sanitizeCookieRecord(Object.fromEntries(
-      siteCookies.map((cookie) => [cookie.name, cookie.value]),
+      options_.siteCookies.map((cookie) => [cookie.name, cookie.value]),
     ));
-    const supplementalCookies = options_.includeSupplementalCookies && options.readSupplementalCookies
-      ? await options.readSupplementalCookies(partition)
-      : {};
-    const cookies = mergeSupplementalCookies(primaryCookies, supplementalCookies);
+    const cookies = mergeSupplementalCookies(primaryCookies, options_.supplementalCookies);
     if (Object.keys(cookies).length === 0) {
-      throw new Error(`${options.site.displayName} cookie capture finished without saving any cookies.`);
+      throw new Error(options_.emptyErrorMessage);
     }
 
     const session: StoredSiteSession = {
       capturedAtMs: now(),
       cookies,
       cookieHeader: buildCookieHeader(cookies),
-      cookiesNetscape: buildNetscapeCookies(siteCookies),
+      cookiesNetscape: buildNetscapeCookies(options_.siteCookies),
+      source: options_.source,
     };
 
     await mkdir(dirname(sessionFilePath), { recursive: true });
@@ -374,6 +448,19 @@ export const createSiteSessionManager = (
     await writeFile(tempFilePath, `${JSON.stringify(session, null, 2)}\n`, "utf8");
     await rename(tempFilePath, sessionFilePath);
     return session;
+  };
+
+  const importCredentialSnapshot = async (
+    importOptions: ImportSiteSessionSnapshotOptions,
+  ): Promise<void> => {
+    const siteCookies = normalizeSiteCookies(importOptions.cookies, options.site.cookieDomains);
+    sessionCache = await saveCredentialSnapshotFromSiteCookies({
+      siteCookies,
+      supplementalCookies: {},
+      emptyErrorMessage: `${options.site.displayName} browser sync finished without saving any cookies.`,
+      source: normalizeSyncSource(importOptions.source),
+    });
+    lastError = null;
   };
 
   const finalizeCaptureSuccess = async (partition: string): Promise<void> => {
@@ -455,6 +542,14 @@ export const createSiteSessionManager = (
       try {
         sessionCache = await saveCredentialSnapshot(stableProfilePartition, { includeSupplementalCookies: false });
         lastError = null;
+      } catch (error) {
+        lastError = summarizeError(error);
+      }
+      return currentState();
+    },
+    async importSnapshot(importOptions) {
+      try {
+        await importCredentialSnapshot(importOptions);
       } catch (error) {
         lastError = summarizeError(error);
       }

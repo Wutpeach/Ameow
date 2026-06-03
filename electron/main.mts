@@ -1533,10 +1533,40 @@ function getExtensionRequestBridge() {
       return nextOpaqueId(prefix);
     },
     log(message, details) {
-      console.log(`>>> [PastedVideo] ${message}:`, JSON.stringify(details ?? null));
+      console.log(`>>> [ExtensionBridge] ${message}:`, JSON.stringify(details ?? null));
     },
   });
   return extensionRequestBridge;
+}
+
+async function syncSiteSessionFromExtension(siteId, manager) {
+  if (siteId !== "youtube") {
+    throw new Error("Extension site session sync is currently only supported for YouTube");
+  }
+
+  const siteConfig = getSiteSessionConfig(siteId);
+  const resolution = await getExtensionRequestBridge().requestSiteSessionCookieSync({
+    siteId,
+    cookieDomains: siteConfig.cookieDomains,
+  });
+
+  if (!resolution.success) {
+    throw new Error(resolution.error || resolution.code || "Browser extension site session sync failed");
+  }
+  if (resolution.siteId !== siteId) {
+    throw new Error(`Browser extension returned site session for ${resolution.siteId || "unknown"} instead of ${siteId}`);
+  }
+
+  const nextState = await manager.importSnapshot({
+    cookies: resolution.cookies,
+    source: resolution.source ?? null,
+  });
+
+  if (nextState.lastError) {
+    throw new Error(nextState.lastError);
+  }
+
+  return nextState;
 }
 
 function getVideoDownloadCommandBridge() {
@@ -1567,6 +1597,7 @@ function getSiteSessionCommandController() {
   siteSessionCommandController = createSiteSessionCommandController({
     requireSiteSessionManager,
     resolveSiteSessionIdFromPayload,
+    syncSiteSessionFromExtension,
   });
   return siteSessionCommandController;
 }
@@ -2654,6 +2685,14 @@ async function handleWsMessage(rawMessage) {
     }
     case "pasted_video_selection_result": {
       const result = getExtensionRequestBridge().handlePastedVideoSelectionResult(data);
+      return {
+        success: result.success,
+        message: result.message,
+        data: withRequest(result.success ? null : result.code),
+      };
+    }
+    case "site_session_cookie_sync_result": {
+      const result = getExtensionRequestBridge().handleSiteSessionCookieSyncResult(data);
       return {
         success: result.success,
         message: result.message,

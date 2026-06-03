@@ -189,6 +189,8 @@
     "siteSessions": {
       "title": "站点登录态",
       "hint": "需要登录 Cookies 的站点会显示在这里。点击站点徽章即可开始、确认或取消会话捕获。",
+      "extensionSyncHint": "从你的浏览器扩展同步",
+      "syncedFrom": "已从 {{source}} 同步",
       "capturePreparing": "正在打开 {{site}} 的官方登录窗口。",
       "captureAwaiting": "{{site}} 登录窗口已打开，完成登录后可确认保存。",
       "lastUpdated": "{{site}} 最近一次刷新：{{time}}",
@@ -219,6 +221,8 @@
       "cancelButton": "取消",
       "refreshButton": "刷新凭据",
       "refreshShortButton": "刷新",
+      "syncButton": "从浏览器扩展同步",
+      "syncShortButton": "同步",
       "clearButton": "清除",
       "sites": {
         "douyin": "抖音",
@@ -233,6 +237,7 @@
         "confirm": "站点会话保存失败",
         "cancel": "站点登录流程取消失败",
         "refresh": "站点下载凭据刷新失败",
+        "sync": "从浏览器扩展同步失败。请确认 Ameow 扩展已连接，并且当前浏览器已登录 YouTube。",
         "clear": "站点会话清除失败"
       }
     },

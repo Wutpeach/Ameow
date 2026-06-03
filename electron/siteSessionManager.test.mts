@@ -852,4 +852,113 @@ describe("createSiteSessionManager", () => {
       capturePid: 208,
     });
   });
+
+  it("imports browser-extension cookie snapshots while filtering cross-site records", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const youtube = getSiteSessionConfig("youtube");
+    const manager = createSiteSessionManager({
+      site: youtube,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 300,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => []),
+      now: () => 1_779_428_739_194,
+    });
+
+    const state = await manager.importSnapshot({
+      source: {
+        browser: "chrome",
+        profileLabel: "Default",
+        extensionId: "ameow-extension",
+      },
+      cookies: [
+        {
+          domain: ".youtube.com",
+          name: "LOGIN_INFO",
+          value: "login-info",
+          path: "/",
+          secure: true,
+          expirationDate: 1_800_000_000,
+        },
+        {
+          domain: ".google.com",
+          name: "__Secure-1PSID",
+          value: "psid",
+          path: "/",
+          secure: true,
+          expirationDate: 1_800_000_001,
+        },
+        {
+          domain: ".evil.com",
+          name: "SID",
+          value: "evil",
+          path: "/",
+        },
+      ],
+    });
+
+    expect(state).toMatchObject({
+      siteId: "youtube",
+      availability: "ready",
+      cookieCount: 2,
+      lastError: null,
+      lastSyncSource: {
+        browser: "chrome",
+        profileLabel: "Default",
+        extensionId: "ameow-extension",
+      },
+    });
+
+    const stored = JSON.parse(
+      await readFile(join(userDataDir, "site-sessions", "youtube.json"), "utf8"),
+    ) as { cookies: Record<string, string>; cookiesNetscape: string; source: Record<string, string> };
+    expect(stored.cookies).toMatchObject({
+      LOGIN_INFO: "login-info",
+      "__Secure-1PSID": "psid",
+    });
+    expect(stored.cookies).not.toHaveProperty("SID");
+    expect(stored.cookiesNetscape).toContain(".youtube.com");
+    expect(stored.cookiesNetscape).toContain(".google.com");
+    expect(stored.cookiesNetscape).not.toContain(".evil.com");
+    expect(stored.source).toMatchObject({
+      browser: "chrome",
+      profileLabel: "Default",
+      extensionId: "ameow-extension",
+    });
+  });
+
+  it("reports an error when imported browser cookies contain no supported site records", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const youtube = getSiteSessionConfig("youtube");
+    const manager = createSiteSessionManager({
+      site: youtube,
+      getUserDataDir: () => userDataDir,
+      createCaptureWindow: vi.fn(async () => ({
+        id: 301,
+        close: vi.fn(),
+      })),
+      readCookies: vi.fn(async () => []),
+      now: () => 1_779_428_739_195,
+    });
+
+    const state = await manager.importSnapshot({
+      cookies: [
+        {
+          domain: ".evil.com",
+          name: "SID",
+          value: "evil",
+          path: "/",
+        },
+      ],
+    });
+
+    expect(state).toMatchObject({
+      availability: "missing",
+      cookieCount: 0,
+      sessionFilePath: null,
+    });
+    expect(state.lastError).toContain("YouTube browser sync finished without saving any cookies");
+  });
 });

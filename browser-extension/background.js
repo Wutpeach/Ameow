@@ -8,6 +8,7 @@ importScripts(
   "injection-debug-config.js",
   "launcher-config.js",
   "media-scan-cache.js",
+  "site-session-cookie-sync.js",
   "video-selection-routing.js",
   "xiaohongshu-drag-resolution-utils.js",
 );
@@ -73,6 +74,7 @@ const genericVideoSelectionUtils = self.AmeowGenericVideoSelectionUtils;
 const injectionDebugConfig = self.AmeowInjectionDebugConfig;
 const launcherConfig = self.AmeowLauncherConfig;
 const mediaScanCache = self.AmeowMediaScanCache;
+const siteSessionCookieSync = self.AmeowSiteSessionCookieSync;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
@@ -1086,6 +1088,115 @@ async function reportPastedVideoSelectionResolutionResult(requestId, result) {
   }
 }
 
+async function reportSiteSessionCookieSyncResult(requestId, result) {
+  if (!requestId) {
+    return;
+  }
+
+  const response = await sendRequestToApp(
+    'site_session_cookie_sync_result',
+    {
+      correlationRequestId: requestId,
+      success: result?.success === true,
+      siteId: typeof result?.siteId === 'string' ? result.siteId : undefined,
+      source: result?.source && typeof result.source === 'object'
+        ? result.source
+        : undefined,
+      cookies: Array.isArray(result?.cookies) ? result.cookies : [],
+      code: typeof result?.code === 'string' ? result.code : undefined,
+      error: typeof result?.error === 'string' ? result.error : undefined,
+    },
+    REQUEST_TIMEOUT_MS,
+  );
+
+  if (!response?.success) {
+    console.warn(
+      '[Ameow] site_session_cookie_sync_result was not acknowledged:',
+      response?.data?.code || response?.message || 'unknown'
+    );
+  }
+}
+
+function resolveExtensionSyncBrowserLabel() {
+  const userAgent = self.navigator?.userAgent || '';
+  if (/\bEdg\//.test(userAgent)) {
+    return 'edge';
+  }
+  if (/\bOPR\//.test(userAgent)) {
+    return 'opera';
+  }
+  if (/\bChrome\//.test(userAgent) || /\bChromium\//.test(userAgent)) {
+    return 'chromium';
+  }
+  return 'browser-extension';
+}
+
+async function collectSiteSessionCookies(site) {
+  const queries = siteSessionCookieSync.buildCookieQueries(site);
+  const collected = [];
+  for (const query of queries) {
+    try {
+      const cookies = await chrome.cookies.getAll(query);
+      collected.push(...cookies);
+    } catch (error) {
+      console.warn('[Ameow] Failed to read site-session cookies for query:', {
+        domain: query.domain || null,
+        url: query.url || null,
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  return siteSessionCookieSync.normalizeCookieRecords(collected, site.cookieDomains);
+}
+
+async function handleSiteSessionCookieSyncRequest(data) {
+  const resolvedRequest = siteSessionCookieSync.resolveSiteSessionCookieSyncRequest(data);
+  if (!resolvedRequest.success) {
+    await reportSiteSessionCookieSyncResult(resolvedRequest.requestId, {
+      success: false,
+      siteId: resolvedRequest.siteId,
+      cookies: [],
+      code: resolvedRequest.code,
+      error: resolvedRequest.error,
+      source: {
+        browser: resolveExtensionSyncBrowserLabel(),
+        profileLabel: null,
+        extensionId: chrome.runtime?.id || null,
+      },
+    });
+    return;
+  }
+
+  const cookies = await collectSiteSessionCookies(resolvedRequest.site);
+  if (cookies.length === 0) {
+    await reportSiteSessionCookieSyncResult(resolvedRequest.requestId, {
+      success: false,
+      siteId: resolvedRequest.site.siteId,
+      cookies: [],
+      code: 'no_site_session_cookies',
+      error: 'No supported site cookies were available. Log in to the site in this browser first.',
+      source: {
+        browser: resolveExtensionSyncBrowserLabel(),
+        profileLabel: null,
+        extensionId: chrome.runtime?.id || null,
+      },
+    });
+    return;
+  }
+
+  await reportSiteSessionCookieSyncResult(resolvedRequest.requestId, {
+    success: true,
+    siteId: resolvedRequest.site.siteId,
+    cookies,
+    source: {
+      browser: resolveExtensionSyncBrowserLabel(),
+      profileLabel: null,
+      extensionId: chrome.runtime?.id || null,
+    },
+  });
+}
+
 async function handleProtectedImageResolveRequest(data) {
   cleanupProtectedImageDragRegistry();
 
@@ -1626,6 +1737,9 @@ function handleMessage(message) {
       break;
     case 'resolve_pasted_video_selection':
       void handlePastedVideoSelectionResolveRequest(message.data || {});
+      break;
+    case 'site_session_cookie_sync_request':
+      void handleSiteSessionCookieSyncRequest(message.data || {});
       break;
     case 'resolve_xiaohongshu_drag':
       void handleXiaohongshuDragResolveRequest(message.data || {});

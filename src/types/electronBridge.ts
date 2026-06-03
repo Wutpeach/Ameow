@@ -53,7 +53,8 @@ export type AmeowRendererCommand =
   | "set_window_size"
   | "start_douyin_session_capture"
   | "start_site_session_capture"
-  | "start_runtime_dependency_bootstrap";
+  | "start_runtime_dependency_bootstrap"
+  | "sync_site_session_from_extension";
 
 export type AmeowAppEvent =
   | "app-update-preference-changed"

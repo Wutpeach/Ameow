@@ -14,6 +14,7 @@ type SiteSessionMethod =
   | "confirmCapture"
   | "cancelCapture"
   | "refreshCredentials"
+  | "importSnapshot"
   | "clearSession";
 
 const genericCommandCases = [
@@ -46,6 +47,7 @@ const createManager = (siteId: SupportedSiteSessionId) => ({
   confirmCapture: vi.fn(async () => ({ siteId, method: "confirmCapture" })),
   cancelCapture: vi.fn(async () => ({ siteId, method: "cancelCapture" })),
   refreshCredentials: vi.fn(async () => ({ siteId, method: "refreshCredentials" })),
+  importSnapshot: vi.fn(async () => ({ siteId, method: "importSnapshot" })),
   clearSession: vi.fn(async () => ({ siteId, method: "clearSession" })),
 });
 
@@ -89,6 +91,7 @@ describe("createSiteSessionCommandController", () => {
     expect(controller.supports("get_config")).toBe(false);
     expect(controller.supports("save_config")).toBe(false);
     expect(controller.supports("queue_video_download")).toBe(false);
+    expect(controller.supports("sync_site_session_from_extension")).toBe(true);
   });
 
   it("dispatches generic site-session commands to the resolved site manager", async () => {
@@ -190,6 +193,64 @@ describe("createSiteSessionCommandController", () => {
     }
 
     expect(caught).toBe(error);
+  });
+
+  it("syncs the YouTube site session through the injected extension sync dependency", async () => {
+    const { managers, requireSiteSessionManager } = createControllerHarness();
+    const syncSiteSessionFromExtension = vi.fn(async () => ({
+      siteId: "youtube",
+      availability: "ready",
+      updatedAtMs: 123,
+      cookieCount: 2,
+      requiredKeys: [],
+      missingRequiredKeys: [],
+      lastError: null,
+      sessionFilePath: "site-sessions/youtube.json",
+      capturePhase: "idle",
+      captureStartedAtMs: null,
+      capturePid: null,
+      lastSyncSource: {
+        browser: "chrome",
+        profileLabel: "Default",
+        extensionId: "extension-id",
+      },
+    } as const));
+    const controller = createSiteSessionCommandController({
+      requireSiteSessionManager,
+      resolveSiteSessionIdFromPayload,
+      syncSiteSessionFromExtension,
+    });
+
+    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "youtube" }))
+      .resolves.toMatchObject({
+        siteId: "youtube",
+        availability: "ready",
+        lastSyncSource: {
+          browser: "chrome",
+          profileLabel: "Default",
+          extensionId: "extension-id",
+        },
+      });
+
+    expect(requireSiteSessionManager).toHaveBeenCalledWith("youtube");
+    expect(syncSiteSessionFromExtension).toHaveBeenCalledWith("youtube", managers.youtube);
+    expect(managers.youtube.importSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("rejects extension site-session sync for non-YouTube sites", async () => {
+    const { controller, requireSiteSessionManager } = createControllerHarness();
+
+    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "bilibili" }))
+      .rejects.toThrow("Extension site session sync is currently only supported for YouTube");
+    expect(requireSiteSessionManager).not.toHaveBeenCalled();
+  });
+
+  it("rejects extension site-session sync when the dependency is not configured", async () => {
+    const { controller, requireSiteSessionManager } = createControllerHarness();
+
+    await expect(controller.invoke("sync_site_session_from_extension", { siteId: "youtube" }))
+      .rejects.toThrow("Extension site session sync is not configured");
+    expect(requireSiteSessionManager).not.toHaveBeenCalled();
   });
 
   it("passes the original payload object to the injected site-id resolver", async () => {

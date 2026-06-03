@@ -36,11 +36,49 @@ export type PastedVideoSelectionResolution = {
   error?: string;
 };
 
+export type SiteSessionCookieSyncRequest = {
+  siteId: string;
+  cookieDomains: string[];
+};
+
+export type SiteSessionCookieRecord = {
+  domain?: string;
+  expirationDate?: number;
+  httpOnly?: boolean;
+  name?: string;
+  path?: string;
+  secure?: boolean;
+  value?: string;
+};
+
+export type SiteSessionCookieSyncSource = {
+  browser?: string;
+  profileLabel?: string;
+  extensionId?: string;
+};
+
+export type SiteSessionCookieSyncResolution = {
+  success: boolean;
+  siteId?: string;
+  cookies: SiteSessionCookieRecord[];
+  source?: SiteSessionCookieSyncSource;
+  code?: string;
+  error?: string;
+};
+
 export type ExtensionRequestBridge = {
   requestPastedVideoSelectionResolution(
     payload: PastedVideoSelectionRequest,
   ): Promise<PastedVideoSelectionResolution>;
+  requestSiteSessionCookieSync(
+    payload: SiteSessionCookieSyncRequest,
+  ): Promise<SiteSessionCookieSyncResolution>;
   handlePastedVideoSelectionResult(data: unknown): {
+    success: boolean;
+    message: string;
+    code?: string;
+  };
+  handleSiteSessionCookieSyncResult(data: unknown): {
     success: boolean;
     message: string;
     code?: string;
@@ -48,10 +86,16 @@ export type ExtensionRequestBridge = {
   rejectAllPendingRequests(error: Error): void;
 };
 
-type PendingResolution = {
-  resolveResolution: (resolution: PastedVideoSelectionResolution) => void;
+type PendingResolution<TResult> = {
+  resolveResolution: (resolution: TResult) => void;
   rejectResolution: (error: Error) => void;
   timeoutId: ReturnType<typeof setTimeout>;
+};
+
+type PendingSiteSessionCookieSyncResolution = PendingResolution<SiteSessionCookieSyncResolution> & {
+  expectedResponseCount: number;
+  failedResponseCount: number;
+  lastFailure: SiteSessionCookieSyncResolution | null;
 };
 
 export type ExtensionRequestBridgeOptions = {
@@ -92,15 +136,26 @@ const normalizeSelectionScope = (
 export const createExtensionRequestBridge = (
   options: ExtensionRequestBridgeOptions,
 ): ExtensionRequestBridge => {
-  const pendingPastedVideoSelectionRequests = new Map<string, PendingResolution>();
+  const pendingPastedVideoSelectionRequests = new Map<string, PendingResolution<PastedVideoSelectionResolution>>();
+  const pendingSiteSessionCookieSyncRequests = new Map<string, PendingSiteSessionCookieSyncResolution>();
   const timeoutMs = options.timeoutMs ?? DEFAULT_PASTED_VIDEO_SELECTION_TIMEOUT_MS;
 
-  const takePendingPastedVideoSelectionRequest = (requestId: string): PendingResolution | null => {
+  const takePendingPastedVideoSelectionRequest = (requestId: string): PendingResolution<PastedVideoSelectionResolution> | null => {
     const pending = pendingPastedVideoSelectionRequests.get(requestId);
     if (!pending) {
       return null;
     }
     pendingPastedVideoSelectionRequests.delete(requestId);
+    clearTimeout(pending.timeoutId);
+    return pending;
+  };
+
+  const takePendingSiteSessionCookieSyncRequest = (requestId: string): PendingSiteSessionCookieSyncResolution | null => {
+    const pending = pendingSiteSessionCookieSyncRequests.get(requestId);
+    if (!pending) {
+      return null;
+    }
+    pendingSiteSessionCookieSyncRequests.delete(requestId);
     clearTimeout(pending.timeoutId);
     return pending;
   };
@@ -139,6 +194,46 @@ export const createExtensionRequestBridge = (
             url: payload.url,
             pageUrl: payload.pageUrl ?? null,
             siteHint: payload.siteHint ?? null,
+          },
+        });
+      });
+    },
+
+    async requestSiteSessionCookieSync(payload) {
+      const connectedClientCount = options.getConnectedClientCount();
+      if (connectedClientCount === 0) {
+        throw new Error("Browser extension is not connected");
+      }
+
+      const requestId = options.nextRequestId("site-session-cookie-sync");
+      options.log?.("Requesting extension site-session cookie sync", {
+        requestId,
+        siteId: payload.siteId,
+        cookieDomains: payload.cookieDomains,
+        wsClientCount: connectedClientCount,
+      });
+
+      return await new Promise<SiteSessionCookieSyncResolution>((resolveResolution, rejectResolution) => {
+        const timeoutId = setTimeout(() => {
+          pendingSiteSessionCookieSyncRequests.delete(requestId);
+          rejectResolution(new Error("Site session cookie sync timed out"));
+        }, timeoutMs);
+
+        pendingSiteSessionCookieSyncRequests.set(requestId, {
+          resolveResolution,
+          rejectResolution,
+          timeoutId,
+          expectedResponseCount: Math.max(1, connectedClientCount),
+          failedResponseCount: 0,
+          lastFailure: null,
+        });
+
+        options.broadcast({
+          action: "site_session_cookie_sync_request",
+          data: {
+            requestId,
+            siteId: payload.siteId,
+            cookieDomains: payload.cookieDomains,
           },
         });
       });
@@ -201,12 +296,83 @@ export const createExtensionRequestBridge = (
       };
     },
 
+    handleSiteSessionCookieSyncResult(data) {
+      const payload = asObject(data);
+      const correlationRequestId = normalizeOptionalString(
+        payload?.correlationRequestId ?? payload?.correlation_request_id,
+      );
+      if (!correlationRequestId) {
+        return {
+          success: false,
+          message: "Missing correlationRequestId",
+          code: "missing_correlation_request_id",
+        };
+      }
+
+      const pending = pendingSiteSessionCookieSyncRequests.get(correlationRequestId);
+      if (!pending) {
+        return {
+          success: false,
+          message: "Unknown site session cookie sync correlation request",
+          code: "unknown_correlation_request",
+        };
+      }
+
+      const rawCookies = Array.isArray(payload?.cookies) ? payload.cookies : [];
+      const source = asObject(payload?.source);
+      const resolution = {
+        success: payload?.success === true,
+        siteId: normalizeOptionalString(payload?.siteId ?? payload?.site_id),
+        cookies: rawCookies
+          .map((cookie) => asObject(cookie))
+          .filter((cookie): cookie is Record<string, unknown> => cookie !== null)
+          .map((cookie) => ({
+            domain: normalizeOptionalString(cookie.domain),
+            expirationDate: normalizeOptionalNumber(cookie.expirationDate ?? cookie.expiration_date),
+            httpOnly: cookie.httpOnly === true || cookie.http_only === true,
+            name: normalizeOptionalString(cookie.name),
+            path: normalizeOptionalString(cookie.path),
+            secure: cookie.secure === true,
+            value: normalizeOptionalString(cookie.value),
+          })),
+        source: source
+          ? {
+              browser: normalizeOptionalString(source.browser),
+              profileLabel: normalizeOptionalString(source.profileLabel ?? source.profile_label),
+              extensionId: normalizeOptionalString(source.extensionId ?? source.extension_id),
+            }
+          : undefined,
+        code: normalizeOptionalString(payload?.code),
+        error: normalizeOptionalString(payload?.error),
+      };
+
+      if (resolution.success) {
+        takePendingSiteSessionCookieSyncRequest(correlationRequestId)?.resolveResolution(resolution);
+      } else {
+        pending.failedResponseCount += 1;
+        pending.lastFailure = resolution;
+        if (pending.failedResponseCount >= pending.expectedResponseCount) {
+          takePendingSiteSessionCookieSyncRequest(correlationRequestId)?.resolveResolution(resolution);
+        }
+      }
+
+      return {
+        success: true,
+        message: "site_session_cookie_sync_received",
+      };
+    },
+
     rejectAllPendingRequests(error) {
       for (const pending of pendingPastedVideoSelectionRequests.values()) {
         clearTimeout(pending.timeoutId);
         pending.rejectResolution(error);
       }
       pendingPastedVideoSelectionRequests.clear();
+      for (const pending of pendingSiteSessionCookieSyncRequests.values()) {
+        clearTimeout(pending.timeoutId);
+        pending.rejectResolution(error);
+      }
+      pendingSiteSessionCookieSyncRequests.clear();
     },
   };
 };

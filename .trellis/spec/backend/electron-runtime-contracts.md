@@ -1148,11 +1148,13 @@ Required tests:
   - `save_image`
   - `save_data_url`
   - `pasted_video_selection_result`
+  - `site_session_cookie_sync_result`
   - `protected_image_resolution_result`
   - `video_selected_v2`
 - Outbound actions to preserve:
   - `request_download_preferences`
   - `resolve_pasted_video_selection`
+  - `site_session_cookie_sync_request`
   - `theme_info`
   - `theme_changed`
   - `language_info`
@@ -1172,6 +1174,16 @@ Required tests:
   - `ytdlpQualityPreference`
   - `cookies`
   - `requestId`
+- `site_session_cookie_sync_request` is a Settings-owned site-session acquisition path, not a download-payload cookie fallback:
+  - desktop request data: `{ requestId, siteId, cookieDomains }`
+  - extension result data: `{ correlationRequestId, success, siteId, source?, cookies, code?, error? }`
+  - supported MVP site id: `youtube`
+  - extension must reject unsupported site ids through a local hardcoded whitelist before any `chrome.cookies.getAll(...)` call
+  - extension may use desktop-provided `cookieDomains` as request context only; it must read from its own whitelist such as YouTube's `youtube.com` and `google.com`
+  - extension must return structured cookie records (`domain`, `expirationDate`, `httpOnly`, `name`, `path`, `secure`, `value`) rather than an authoritative Netscape string
+  - desktop must treat the response as untrusted input, validate `siteId`, filter cookie domains through `src/site-sessions.ts`, and rebuild the saved cookie header/Netscape snapshot itself
+  - multiple connected extension clients are allowed; the first successful response wins, failed responses are ignored until all connected clients fail, and later duplicate responses for a completed request return `unknown_correlation_request`
+  - logs must never include cookie values, cookie headers, or Netscape cookie content
 - `resolve_xiaohongshu_drag_media` renderer command contract:
   - request fields:
     - `url`
@@ -2112,6 +2124,7 @@ type SiteSessionCommand =
   | "complete_site_session_capture"
   | "cancel_site_session_capture"
   | "refresh_site_session_credentials"
+  | "sync_site_session_from_extension"
   | "clear_site_session";
 ```
 
@@ -2146,6 +2159,11 @@ type SiteSessionState = {
   capturePhase: SiteSessionCapturePhase;
   captureStartedAtMs: number | null;
   capturePid: number | null;
+  lastSyncSource: {
+    browser: string | null;
+    profileLabel: string | null;
+    extensionId: string | null;
+  } | null;
 };
 
 type SiteSessionPolicyEvaluation = {
@@ -2191,6 +2209,10 @@ type SiteSessionConfig = {
 - Electron capture windows use an app-owned Chromium session, not the user's default browser profile. Capture sessions may harden unneeded permissions, set a browser-like user agent / accept-language, and collect same-site supplemental cookie values observed during capture.
 - Site capture uses a stable app-owned profile partition per supported site: `persist:ameow-site-session-<siteId>`. Confirming, cancelling, or closing a capture window must preserve that partition so sites see a consistent app browser profile across manual refresh attempts.
 - Site capture partitions must re-apply the current global proxy config before each capture window's first navigation. Persisted Electron partitions preserve cookie/storage state, not the app's runtime proxy configuration, and listener-registration deduplication must not skip proxy re-application.
+- YouTube capture must use user-initiated `sync_site_session_from_extension` instead of the Electron embedded login window while Google blocks embedded/app-controlled login with the insecure-browser prompt.
+- `sync_site_session_from_extension` is currently YouTube-only. Settings may expose it as the YouTube badge's login/refresh action, while other sites keep the existing confirmation-based Electron capture flow.
+- Browser-extension site-session sync must persist into the same `<userDataDir>/site-sessions/<siteId>.json` shape as Electron capture, including `cookies`, `cookieHeader`, and `cookiesNetscape`; extension cookies must not be attached directly to `video_selected_v2` or pasted-video download payloads.
+- Browser-extension site-session sync source metadata must be recorded in `lastSyncSource` so Settings can show which browser/extension profile answered the sync request when available.
 - Site profile diagnostics report only lightweight profile evidence, not account identity or arbitrary storage contents. A profile is `present` when the stable partition has at least one cookie for the site's allowed domains, `missing` when inspection succeeds with no matching cookies, and `unknown` with `lastError` when inspection fails.
 - Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. The first policy layer wraps the current config-driven required-cookie and login-marker checks; do not add speculative site-specific rules without current downloader evidence.
 - Capture-session hardening for a stable partition must be idempotent. Repeated capture windows for the same site must not stack duplicate `webRequest` listeners, but each capture attempt should reset that partition's supplemental cookie collection state before loading the site.

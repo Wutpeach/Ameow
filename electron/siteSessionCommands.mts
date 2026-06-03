@@ -1,5 +1,5 @@
 import { isSupportedSiteSessionId } from "../src/site-sessions.js";
-import type { SupportedSiteSessionId } from "../src/types/siteSession.js";
+import type { SiteSessionState, SupportedSiteSessionId } from "../src/types/siteSession.js";
 import type { AmeowRendererCommand } from "../src/types/electronBridge.js";
 import type { SiteSessionManager } from "./siteSessionManager.mjs";
 
@@ -13,10 +13,11 @@ type SiteSessionCommandManager = Pick<
   | "confirmCapture"
   | "cancelCapture"
   | "refreshCredentials"
+  | "importSnapshot"
   | "clearSession"
 >;
 
-type SiteSessionManagerMethod = keyof SiteSessionCommandManager;
+type SiteSessionManagerMethod = Exclude<keyof SiteSessionCommandManager, "importSnapshot">;
 
 export type SiteSessionCommandController = {
   supports(command: AmeowRendererCommand): boolean;
@@ -32,6 +33,10 @@ export type SiteSessionCommandControllerOptions = {
     payload: unknown,
     fallback?: SupportedSiteSessionId,
   ): SupportedSiteSessionId;
+  syncSiteSessionFromExtension?(
+    siteId: SupportedSiteSessionId,
+    manager: SiteSessionCommandManager,
+  ): Promise<SiteSessionState>;
 };
 
 export const resolveSiteSessionIdFromPayload = (
@@ -68,6 +73,7 @@ const douyinAliasCommands: Partial<Record<AmeowRendererCommand, SiteSessionManag
 const supportedCommands = new Set<AmeowRendererCommand>([
   ...Object.keys(genericSiteSessionCommands),
   ...Object.keys(douyinAliasCommands),
+  "sync_site_session_from_extension",
 ] as AmeowRendererCommand[]);
 
 const getCommandMethod = (
@@ -96,6 +102,19 @@ export const createSiteSessionCommandController = (
     ): Promise<TResult> {
       const method = getCommandMethod(command);
       if (!method) {
+        if (command === "sync_site_session_from_extension") {
+          const siteId = resolvePayloadSiteId(payload);
+          if (siteId !== "youtube") {
+            throw new Error("Extension site session sync is currently only supported for YouTube");
+          }
+          if (!options.syncSiteSessionFromExtension) {
+            throw new Error("Extension site session sync is not configured");
+          }
+
+          const manager = options.requireSiteSessionManager(siteId);
+          return await options.syncSiteSessionFromExtension(siteId, manager) as TResult;
+        }
+
         throw new Error(`Unsupported Electron command: ${command}`);
       }
 

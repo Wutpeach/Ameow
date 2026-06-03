@@ -15,6 +15,12 @@ export type SiteSessionCapturePhase =
   | "preparing"
   | "awaiting_confirmation";
 
+export type SiteSessionSyncSource = {
+  browser: string | null;
+  profileLabel: string | null;
+  extensionId: string | null;
+};
+
 export type SupportedSiteSessionId =
   | "douyin"
   | "bilibili"
@@ -34,6 +40,7 @@ export type SiteSessionState = {
   capturePhase: SiteSessionCapturePhase;
   captureStartedAtMs: number | null;
   capturePid: number | null;
+  lastSyncSource: SiteSessionSyncSource | null;
 };
 
 export type SiteSessionPolicyEvaluation = {
