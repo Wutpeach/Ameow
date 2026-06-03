@@ -50,11 +50,7 @@ import {
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
 import {
-  collectSupplementalCookiesFromRequest,
-  prepareSiteSessionCapturePartition,
-  resolveSiteSessionCaptureAcceptLanguages,
   resolveSiteSessionCaptureUserAgent,
-  shouldAllowSiteSessionCapturePermission,
 } from "./siteSessionCaptureHardening.mjs";
 import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
 import {
@@ -82,10 +78,10 @@ import {
   buildStartupWindowModeArgument,
   resolveMainWindowStartupMode,
 } from "./startupWindowMode.mjs";
+import { applyConfiguredProxyToSession } from "./desktopProxy.mjs";
 import {
-  describeGlobalProxyValidationError,
-  validateGlobalProxySettings,
-} from "../src/config/globalProxy.js";
+  configureSiteSessionCaptureSession as configureCaptureSession,
+} from "./siteSessionCaptureSession.mjs";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -906,26 +902,13 @@ async function applyConfiguredDesktopProxy(config = null) {
   }
 
   const resolvedConfig = config ?? await readConfigObject();
-  const validation = validateGlobalProxySettings(resolvedConfig);
-
-  if (!validation.enabled) {
-    await activeSession.setProxy({ mode: "system" });
+  const result = await applyConfiguredProxyToSession(activeSession, resolvedConfig);
+  if (result.mode === "system") {
     logInfo("Network", "Using system proxy settings");
     return;
   }
 
-  if (validation.errorCode || !validation.normalizedUrl) {
-    throw new Error(describeGlobalProxyValidationError(
-      validation.errorCode ?? "invalid_url",
-    ));
-  }
-
-  await activeSession.setProxy({
-    mode: "fixed_servers",
-    proxyRules: validation.normalizedUrl,
-    proxyBypassRules: "<local>;localhost;127.0.0.1;::1",
-  });
-  logInfo("Network", "Applied configured global proxy", validation.normalizedUrl);
+  logInfo("Network", "Applied configured global proxy", result.proxyRules);
 }
 
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
@@ -1421,7 +1404,7 @@ function getSiteSessionManager(siteId) {
     },
     getUserDataDir,
     async createCaptureWindow({ site, partition, onClosed }) {
-      configureSiteSessionCaptureSession({ site, partition });
+      await configureSiteSessionCaptureSession({ site, partition });
       const captureWindow = new BrowserWindow({
         width: 1180,
         height: 860,
@@ -1498,61 +1481,23 @@ function getSiteSessionManager(siteId) {
   return manager;
 }
 
-function configureSiteSessionCaptureSession({ site, partition }) {
+async function configureSiteSessionCaptureSession({ site, partition }) {
   const captureSession = session.fromPartition(partition);
-  const userAgent = resolveSiteSessionCaptureUserAgent(app.userAgentFallback);
-  const acceptLanguages = resolveSiteSessionCaptureAcceptLanguages(app.getLocale());
-  const partitionSetup = prepareSiteSessionCapturePartition({
-    configuredPartitions: configuredSiteSessionCapturePartitions,
-    supplementalCookiesByPartition: siteSessionSupplementalCookies,
-  }, partition);
-
-  if (!partitionSetup.shouldConfigureSession) {
-    captureSession.setUserAgent(userAgent, acceptLanguages);
-    return;
-  }
-
-  captureSession.setUserAgent(userAgent, acceptLanguages);
-  captureSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    logInfo("SiteSession", "Denied capture permission check", JSON.stringify({
-      siteId: site.id,
-      permission,
-      requestingOrigin,
-      webContentsId: webContents?.id ?? null,
-    }));
-    return shouldAllowSiteSessionCapturePermission();
-  });
-  captureSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    logInfo("SiteSession", "Denied capture permission request", JSON.stringify({
-      siteId: site.id,
-      permission,
-      requestingOrigin: details?.requestingUrl ?? details?.securityOrigin ?? null,
-      webContentsId: webContents?.id ?? null,
-    }));
-    callback(shouldAllowSiteSessionCapturePermission());
-  });
-
-  captureSession.webRequest.onBeforeSendHeaders(
-    { urls: site.cookieDomains.flatMap((domain) => [`*://*.${domain}/*`, `*://${domain}/*`]) },
-    (details, callback) => {
-      try {
-        const supplementalCookies = siteSessionSupplementalCookies.get(partition) ?? {};
-        siteSessionSupplementalCookies.set(partition, supplementalCookies);
-        collectSupplementalCookiesFromRequest({
-          url: details.url,
-          requestHeaders: details.requestHeaders,
-          cookieDomains: site.cookieDomains,
-          supplementalCookies,
-        });
-      } catch (error) {
-        logInfo("SiteSession", "Failed to collect supplemental request cookies", JSON.stringify({
-          siteId: site.id,
-          error: String(error),
-        }));
-      }
-      callback({ requestHeaders: details.requestHeaders });
+  await configureCaptureSession({
+    site,
+    partition,
+    captureSession,
+    proxyConfig: await readConfigObject(),
+    locale: app.getLocale(),
+    rawUserAgent: app.userAgentFallback,
+    state: {
+      configuredPartitions: configuredSiteSessionCapturePartitions,
+      supplementalCookiesByPartition: siteSessionSupplementalCookies,
     },
-  );
+    log(message, details) {
+      logInfo("SiteSession", message, details ? JSON.stringify(details) : undefined);
+    },
+  });
 }
 
 function requireSiteSessionManager(siteId) {

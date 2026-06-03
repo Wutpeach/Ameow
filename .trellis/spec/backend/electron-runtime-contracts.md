@@ -588,7 +588,7 @@ async function applyConfiguredDesktopProxy(
   - path/query/hash fragments on the proxy URL
   - per-feature proxy routing
 - `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches.
-- Proxy configuration is applied through `session.defaultSession.setProxy(...)`, not by rewriting each fetch call individually.
+- Proxy configuration is applied through Electron `Session.setProxy(...)`, not by rewriting each fetch call individually. The default desktop network session uses `session.defaultSession.setProxy(...)`; Settings-owned site-session capture partitions must apply the same validated proxy config to their own `session.fromPartition(...)` session before first navigation.
 - When custom proxy is disabled, Electron must return to `mode: "system"` proxy behavior.
 - When custom proxy is enabled and valid, Electron must use `mode: "fixed_servers"` with the normalized proxy URL and keep local bypass rules for `localhost`, `127.0.0.1`, and `::1`.
 - Saving config through `save_config` must re-apply proxy settings immediately so users do not need manual JSON edits or app restarts just to switch ports.
@@ -2190,6 +2190,7 @@ type SiteSessionConfig = {
 - Electron capture uses a real visible login window and user confirmation. Do not claim silent auto-login or background refresh unless an explicit browser-profile reuse contract is added.
 - Electron capture windows use an app-owned Chromium session, not the user's default browser profile. Capture sessions may harden unneeded permissions, set a browser-like user agent / accept-language, and collect same-site supplemental cookie values observed during capture.
 - Site capture uses a stable app-owned profile partition per supported site: `persist:ameow-site-session-<siteId>`. Confirming, cancelling, or closing a capture window must preserve that partition so sites see a consistent app browser profile across manual refresh attempts.
+- Site capture partitions must re-apply the current global proxy config before each capture window's first navigation. Persisted Electron partitions preserve cookie/storage state, not the app's runtime proxy configuration, and listener-registration deduplication must not skip proxy re-application.
 - Site profile diagnostics report only lightweight profile evidence, not account identity or arbitrary storage contents. A profile is `present` when the stable partition has at least one cookie for the site's allowed domains, `missing` when inspection succeeds with no matching cookies, and `unknown` with `lastError` when inspection fails.
 - Downloader snapshot readiness is evaluated from the saved cookie snapshot through a pure policy helper. The first policy layer wraps the current config-driven required-cookie and login-marker checks; do not add speculative site-specific rules without current downloader evidence.
 - Capture-session hardening for a stable partition must be idempotent. Repeated capture windows for the same site must not stack duplicate `webRequest` listeners, but each capture attempt should reset that partition's supplemental cookie collection state before loading the site.
