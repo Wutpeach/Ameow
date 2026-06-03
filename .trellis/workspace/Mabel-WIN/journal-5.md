@@ -73,3 +73,36 @@ Reworked the Ameow Starlight documentation so pages answer user tasks directly, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 199: Site login proxy sessions
+
+**Date**: 2026-06-03
+**Task**: Site login proxy sessions
+**Branch**: `main`
+
+### Summary
+
+Applied configured desktop proxy settings to Settings-owned site login capture partitions before first navigation, extracted proxy/capture-session helpers with tests, and documented the proxy requirement for persisted site-session partitions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a836f93` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
