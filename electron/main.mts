@@ -91,6 +91,7 @@ import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
 import {
   createMainWindowPointerBoundaryController,
+  MAIN_WINDOW_POINTER_BOUNDARY_CHANNEL,
 } from "./mainWindowPointerBoundary.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
@@ -127,7 +128,10 @@ import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { getSiteSessionConfig, isSupportedSiteSessionId } from "../src/site-sessions.js";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
-import { createStartupDiagnosticsController } from "./startupDiagnostics.mjs";
+import {
+  createStartupDiagnosticsController,
+  summarizeCapturedImage,
+} from "./startupDiagnostics.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
 import {
   createConfigStore,
@@ -191,6 +195,14 @@ const RENDERER_READY_TIMEOUT_MS = 2_500;
 const WINDOW_STARTUP_CAPTURE_DELAY_MS = 180;
 const STARTUP_DIAGNOSTIC_SETTINGS_OPEN_DELAY_MS = 1_500;
 const MACOS_TRAY_ICON_SIZE_PX = 18;
+const DOCS_SCREENSHOT_TARGET_ENV = "AMEOW_DOCS_SCREENSHOT_TARGET";
+const DOCS_SCREENSHOT_OUTPUT_ENV = "AMEOW_DOCS_SCREENSHOT_OUTPUT";
+const DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR_ENV = "AMEOW_DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR";
+const DOCS_SCREENSHOT_USER_DATA_ENV = "AMEOW_DOCS_SCREENSHOT_USER_DATA";
+const DOCS_SCREENSHOT_CAPTURE_DELAY_MS = 600;
+const DOCS_SCREENSHOT_EXPANDED_CAPTURE_DELAY_MS = 1_000;
+const DOCS_SCREENSHOT_SETTINGS_CAPTURE_DELAY_MS = 900;
+const DOCS_SCREENSHOT_UI_LAB_APPLY_DELAY_MS = 800;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
@@ -231,6 +243,16 @@ const startupDiagnosticsEnabled = shouldEnablePackagedStartupDiagnostics({
   argv: process.argv,
   env: process.env,
 });
+
+if (process.env[DOCS_SCREENSHOT_TARGET_ENV]) {
+  const deviceScaleFactor = String(process.env[DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR_ENV] ?? "3").trim();
+  app.commandLine.appendSwitch("force-device-scale-factor", deviceScaleFactor);
+  const userDataPath = String(process.env[DOCS_SCREENSHOT_USER_DATA_ENV] ?? "").trim();
+  if (userDataPath) {
+    app.setPath("userData", resolve(userDataPath));
+  }
+}
+
 const forceOpaquePackagedWindow = shouldUsePackagedWindowsOpaqueWindow({
   platform: process.platform,
   isPackaged: app.isPackaged,
@@ -365,6 +387,147 @@ const readRecentRuntimeLogLines = runtimeLogController.readRecentRuntimeLogLines
 
 function getStartupCapturePath(label, phase) {
   return join(getLogsDir(), `startup-capture-${label}-${phase}.png`);
+}
+
+function resolveDocsScreenshotRequest() {
+  const target = String(process.env[DOCS_SCREENSHOT_TARGET_ENV] ?? "").trim();
+  if (!target) {
+    return null;
+  }
+
+  const outputPath = String(process.env[DOCS_SCREENSHOT_OUTPUT_ENV] ?? "").trim();
+  if (!outputPath) {
+    throw new Error(`${DOCS_SCREENSHOT_OUTPUT_ENV} is required when ${DOCS_SCREENSHOT_TARGET_ENV} is set.`);
+  }
+
+  return {
+    target,
+    outputPath: resolve(outputPath),
+  };
+}
+
+function resolveDocsScreenshotSettingsPage(target: string): string | null {
+  const match = target.match(/^desktop-settings-(hub|appearance|saving|sites|plugins|system)$/);
+  return match?.[1] ?? null;
+}
+
+function resolveDocsScreenshotUiLabScenario(target: string): string | null {
+  switch (target) {
+    case "desktop-download-active":
+      return "download-active";
+    case "desktop-transcode-active":
+      return "transcode-active";
+    default:
+      return null;
+  }
+}
+
+async function writeDocsScreenshot(win: BrowserWindow, request: {
+  target: string;
+  outputPath: string;
+}) {
+  if (win.isDestroyed()) {
+    throw new Error(`Cannot capture docs screenshot because ${request.target} window was destroyed.`);
+  }
+
+  const image = await win.webContents.capturePage();
+  const summary = summarizeCapturedImage(image);
+  if (summary.nonTransparentRatio < 0.01) {
+    throw new Error(`Docs screenshot capture appears blank: ${JSON.stringify(summary)}`);
+  }
+
+  await mkdir(dirname(request.outputPath), { recursive: true });
+  await writeFile(request.outputPath, image.toPNG());
+  console.log(JSON.stringify({
+    target: request.target,
+    outputPath: request.outputPath,
+    summary,
+  }, null, 2));
+}
+
+async function applyDocsScreenshotUiLabScenario(win: BrowserWindow, scenario: string) {
+  await win.webContents.executeJavaScript(`
+    window.ameow.commands.invoke("dev_ui_lab_apply_scenario", ${JSON.stringify({ scenario })})
+  `);
+}
+
+async function captureDocsScreenshotAndQuit(win: BrowserWindow, request: {
+  target: string;
+  outputPath: string;
+}) {
+  const uiLabScenario = resolveDocsScreenshotUiLabScenario(request.target);
+  if (![
+    "desktop-floating-window-idle",
+    "desktop-main-window-expanded",
+    "desktop-download-active",
+    "desktop-transcode-active",
+  ].includes(request.target)) {
+    throw new Error(`Unsupported docs screenshot target: ${request.target}`);
+  }
+
+  if (request.target === "desktop-main-window-expanded" || uiLabScenario) {
+    mainWindowPointerBoundaryController?.stop();
+    win.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: 40,
+      y: 40,
+      movementX: 0,
+      movementY: 0,
+    });
+    win.webContents.send(MAIN_WINDOW_POINTER_BOUNDARY_CHANNEL, { inside: true });
+  }
+
+  if (uiLabScenario) {
+    await new Promise((resolveDelay) => {
+      setTimeout(resolveDelay, DOCS_SCREENSHOT_UI_LAB_APPLY_DELAY_MS);
+    });
+    await applyDocsScreenshotUiLabScenario(win, uiLabScenario);
+  }
+
+  await new Promise((resolveDelay) => {
+    setTimeout(
+      resolveDelay,
+      request.target === "desktop-main-window-expanded" || uiLabScenario
+        ? DOCS_SCREENSHOT_EXPANDED_CAPTURE_DELAY_MS
+        : DOCS_SCREENSHOT_CAPTURE_DELAY_MS,
+    );
+  });
+
+  await writeDocsScreenshot(win, request);
+  app.isQuitting = true;
+  app.quit();
+}
+
+async function captureDocsSettingsScreenshotAndQuit(request: {
+  target: string;
+  outputPath: string;
+}) {
+  const page = resolveDocsScreenshotSettingsPage(request.target);
+  if (!page) {
+    throw new Error(`Unsupported docs settings screenshot target: ${request.target}`);
+  }
+
+  await showMainWindow({
+    preserveExistingBounds: process.platform === "win32",
+  });
+  const settingsWindow = await openSecondaryWindow(WINDOW_LABELS.settings, {
+    title: "Settings",
+    width: SETTINGS_WINDOW_WIDTH,
+    height: SETTINGS_WINDOW_HEIGHT,
+    alwaysOnTop: true,
+    focus: true,
+    center: true,
+  }, {
+    routePath: `/settings?docsPage=${page}`,
+  });
+
+  await new Promise((resolveDelay) => {
+    setTimeout(resolveDelay, DOCS_SCREENSHOT_SETTINGS_CAPTURE_DELAY_MS);
+  });
+
+  await writeDocsScreenshot(settingsWindow, request);
+  app.isQuitting = true;
+  app.quit();
 }
 
 const startupDiagnosticsController = createStartupDiagnosticsController({
@@ -2083,7 +2246,7 @@ function showSecondaryWindow(label, win, options) {
   void collectWindowStartupArtifacts(win, label, "show");
 }
 
-async function openSecondaryWindow(label, options) {
+async function openSecondaryWindow(label, options, internalOptions = {}) {
   const resolvedOptions = resolveSecondaryWindowOpenOptions(label, options);
   const existing = getWindow(label);
   if (existing && !existing.isDestroyed()) {
@@ -2091,7 +2254,7 @@ async function openSecondaryWindow(label, options) {
     return existing;
   }
 
-  const routePath = secondaryWindowRoute(label);
+  const routePath = internalOptions.routePath ?? secondaryWindowRoute(label);
   const secondaryWindowOuterSize = (
     label === WINDOW_LABELS.settings || label === WINDOW_LABELS.uiLab
   )
@@ -3192,7 +3355,8 @@ function registerWsServer() {
 }
 
 async function bootstrap() {
-  const gotSingleInstanceLock = app.requestSingleInstanceLock();
+  const docsScreenshotRequest = resolveDocsScreenshotRequest();
+  const gotSingleInstanceLock = docsScreenshotRequest ? true : app.requestSingleInstanceLock();
   if (!gotSingleInstanceLock) {
     app.quit();
     return;
@@ -3261,6 +3425,22 @@ async function bootstrap() {
     });
   }
   if (!app.isPackaged) {
+    if (docsScreenshotRequest) {
+      console.log(`>>> [DocsScreenshot] Capturing ${docsScreenshotRequest.target} to ${docsScreenshotRequest.outputPath}`);
+      if (resolveDocsScreenshotSettingsPage(docsScreenshotRequest.target)) {
+        await captureDocsSettingsScreenshotAndQuit(docsScreenshotRequest);
+        return;
+      }
+      await showMainWindow({
+        preserveExistingBounds: process.platform === "win32",
+      });
+      const mainWindow = getWindow(WINDOW_LABELS.main);
+      if (!mainWindow) {
+          throw new Error("Main window not found for docs screenshot capture.");
+        }
+      await captureDocsScreenshotAndQuit(mainWindow, docsScreenshotRequest);
+      return;
+    }
     await showMainWindow({
       preserveExistingBounds: process.platform === "win32",
     });

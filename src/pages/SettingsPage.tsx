@@ -108,6 +108,14 @@ type SiteLoginBadgeModel = {
 };
 
 const DEFAULT_RENAME_RULE_PRESET: RenameRulePreset = "desc_number";
+const SETTINGS_PAGE_IDS = new Set<SettingsPageId>([
+  "hub",
+  "appearance",
+  "saving",
+  "sites",
+  "plugins",
+  "system",
+]);
 const ILLEGAL_FILENAME_CHARS = /[/\\:*?"<>|]/g;
 const VERSION_TAP_HINT_DURATION_MS = 2200;
 const COMPACT_THEME_BUTTON_HEIGHT = 34;
@@ -192,6 +200,21 @@ const formatShortcutForDisplay = (shortcut: string, isMacOS: boolean): string =>
     Meta: "Win",
   };
   return tokens.map((token) => windowsLabels[token] ?? token).join("+");
+};
+
+const resolveInitialSettingsPage = (): SettingsPageId => {
+  if (typeof window === "undefined") {
+    return "hub";
+  }
+
+  const hashQuery = window.location.hash.includes("?")
+    ? `?${window.location.hash.split("?").slice(1).join("?")}`
+    : "";
+  const page = new URLSearchParams(window.location.search).get("docsPage")
+    ?? new URLSearchParams(hashQuery).get("docsPage");
+  return page && SETTINGS_PAGE_IDS.has(page as SettingsPageId)
+    ? page as SettingsPageId
+    : "hub";
 };
 
 const isModifierKey = (key: string): boolean => {
@@ -283,7 +306,7 @@ function SettingsPage() {
     useState<Partial<Record<SupportedSiteSessionId, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: SupportedSiteSessionId; action: SiteSessionAction } | null>(null);
-  const [activePage, setActivePage] = useState<SettingsPageId>("hub");
+  const [activePage, setActivePage] = useState<SettingsPageId>(resolveInitialSettingsPage);
   const [settingsNavigationDirection, setSettingsNavigationDirection] =
     useState<SettingsNavigationDirection>("forward");
   const [hoveredHubDestination, setHoveredHubDestination] = useState<SettingsDetailPageId | null>(null);
