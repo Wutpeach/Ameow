@@ -96,6 +96,11 @@
       "taskCountSingle": "1 task",
       "taskCountPlural": "{{count}} tasks"
     },
+    "siteSessionPending": {
+      "title": "Login state needed",
+      "titleWithSite": "{{site}} login state",
+      "hint": "{{count}} site(s) need browser login-state sync. Open Settings or the extension to sync."
+    },
     "actions": {
       "hideWindow": "Hide window",
       "cancelCurrentTask": "Cancel current task",

@@ -21,7 +21,6 @@
     "sections": {
       "quality": "画质",
       "launcher": "贴边入口",
-      "loginState": "登录态",
       "hiddenSites": "隐藏站点"
     },
     "footer": {
@@ -124,20 +123,6 @@
       "launcherHidden": "本站已隐藏贴边入口",
       "launcherDisabled": "贴边入口已全局隐藏",
       "launcherActive": "贴边入口已启用"
-    },
-    "loginState": {
-      "syncTitle": "同步 {site}",
-      "enableTitle": "启用 {host}",
-      "syncHint": "使用当前浏览器的登录 Cookie，供之后下载使用。",
-      "enableHint": "允许 Ameow 只读取这个站点域名的 Cookie。",
-      "working": "同步中",
-      "syncButton": "同步",
-      "enableButton": "启用",
-      "syncedTitle": "登录态已同步",
-      "syncedHint": "Ameow 已保存 Cookie，之后下载会自动使用。",
-      "failedTitle": "同步失败",
-      "offlineHint": "请先打开桌面应用，然后重试。",
-      "failedHint": "请先在浏览器中登录此站点，然后重试。"
     },
     "sites": {
       "count": "{count} 个隐藏站点",
