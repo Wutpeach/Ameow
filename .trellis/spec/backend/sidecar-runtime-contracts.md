@@ -106,17 +106,17 @@
   - Extraction/install should retry transient failures in the same bootstrap run before surfacing a terminal error to the user.
   - yt-dlp paths that rely on JavaScript runtimes must ensure managed `deno` is ready before spawn and prepend the proxy-front directory to `PATH`, not the `real/` subdirectory.
 - Runtime contract for YouTube route:
-  - Public/default YouTube runs must start with light mode: `--extractor-args youtube:player_client=android,web`.
-  - Extended YouTube compatibility mode must remain available with `--extractor-args youtube:player_js_variant=tv`.
+  - YouTube runs must start with the extended extractor path: `--extractor-args youtube:player_js_variant=tv`.
+  - The runtime must not start public/default YouTube runs with light extractor args such as `youtube:player_client=android,web`; that path can succeed while exposing only low-resolution progressive MP4 formats.
   - Include `--remote-components ejs:github`.
   - Include JavaScript runtimes via repeated args; do not pass `node,deno` as one token.
   - On Windows, prefer managed `deno` before host `node` for app-managed yt-dlp runs: `--js-runtimes deno --js-runtimes node`.
   - On non-Windows, keep the broader compatibility order: `--js-runtimes node --js-runtimes deno`.
-  - `pageUrl` or `selectionScope == "current_item"` alone must not force extended mode. Default injected/public YouTube should still attempt light mode first.
-  - `forceExtended == true` or an already-attached cookie payload may start directly in extended mode.
-  - When light mode fails with login / bot-check / signature / player-extractor errors, runtime may retry exactly once in extended mode.
-  - Before the extended retry begins, emit a `preparing` progress update whose `speed` carries a translatable activity token (for example `activity:youtube.retryingCompatibleExtractor`) so the UI distinguishes fallback from the initial resolve phase.
+  - `pageUrl`, `selectionScope == "current_item"`, cookies, and legacy YouTube extension mode hints must not change the extractor profile away from the extended path.
+  - Retired payload fields such as `forceExtended` / `allowCookies` may be tolerated as ignored compatibility input, but they are not active runtime mode switches.
   - If extension cookie file exists, attach it for YouTube URLs as well (`youtube.com`, `youtu.be`) to improve fetch success on 403-prone routes.
+  - App-managed yt-dlp executions should receive a CLI-compatible proxy via `--proxy` when one can be resolved automatically from Electron `session.resolveProxy(...)` or HTTP(S) proxy environment variables. Ameow should not expose or consume manual global proxy config for this path.
+  - Automatically resolved SOCKS proxy rules should not be passed into the YouTube section-download ffmpeg path; prefer HTTP(S) proxy URLs because yt-dlp delegates `--download-sections` media fetching to ffmpeg.
   - Temporary Netscape cookie files created from extension-provided cookies must be written under the OS temp directory (`tmpdir()` or equivalent), not `process.cwd()` or packaged resource paths, because packaged macOS apps can run with a read-only current working directory.
 - Clipboard contract:
   - `get_clipboard_files()` uses `clipboard-win` only on Windows.
@@ -146,8 +146,8 @@
 | app launches into compact icon mode with missing managed runtimes | startup bootstrap timing | compact first reveal regresses into an unsolicited main-window expand | defer startup bootstrap until the renderer is in the expanded main-window state |
 | startup auto-bootstrap timer is scheduled before gate/status refresh completes | renderer startup timing | effect cleanup can clear the pending timer and the UI stays stuck in missing-runtime `idle` state | keep the delayed timer alive across refresh-driven re-renders and set the one-shot latch only when dispatch begins |
 | YouTube returns 403 while non-YouTube works | route-specific runtime behavior | YouTube media fetch fails after extraction | verify `--js-runtimes` arg shape and attach extension cookies when available |
-| injected YouTube default path uses bare yt-dlp with no `player_client` extractor args | initial public-video resolve | first attempt frequently fails and total wait time regresses because runtime burns one full failed parse before fallback | keep the default light mode on `youtube:player_client=android,web` |
-| every injected/current-item YouTube run forces extended mode just because `pageUrl` exists | initial public-video resolve | public videos pay heavy extractor latency even when no fallback is required | keep page-context-only requests on light mode unless `forceExtended` or cookies require otherwise |
+| YouTube path uses light extractor args such as `youtube:player_client=android,web` | initial public-video resolve / format discovery | run can succeed while exposing only low-resolution progressive MP4 formats | keep YouTube on the extended extractor path |
+| retired YouTube mode hint fields are treated as active switches | queue normalization / runtime planning | stale extension payloads can imply behavior that no longer exists | accept old fields only as ignored compatibility input |
 | extension cookie temp file is created relative to `process.cwd()` in a packaged macOS app | app-managed YouTube download startup | writing `<trace>-cookies.txt` fails with `EROFS` before yt-dlp starts | write cookie temp files under `tmpdir()` and clean them up after the run |
 | Windows ffmpeg/ffprobe launches use default console flags | AE-friendly post-processing runtime | transient black console window appears during normalization/probing | apply hidden-window flags on Windows CLI child launches |
 | stale `.part` / `.ytdl` resume state exists | packaged Bilibili/generic yt-dlp download runtime | retry can fail with HTTP 416 on one machine but not another | clean temp artifacts and retry once without resume support |
@@ -195,8 +195,8 @@
   - On a clean config directory without managed runtimes, startup or first media-tool use bootstraps `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/` with both `ffmpeg` and `ffprobe`.
   - On a Windows portable package without external tooling installed, a merged yt-dlp download produces a single final file and no `.f*` residue.
   - On Windows, a `highest` download path that triggers extra yt-dlp probe/retry work still completes without transient console windows.
-  - Trigger a public injected YouTube download with no cookies and assert the first yt-dlp attempt includes `youtube:player_client=android,web` rather than starting in extended mode.
-  - Force a retryable YouTube extractor failure and assert runtime emits a retry activity token before the second extended attempt.
+  - Trigger a public injected YouTube download with no cookies and assert the first yt-dlp attempt includes `youtube:player_js_variant=tv` and `--remote-components ejs:github`.
+  - Pass legacy YouTube extension mode hint fields through queue normalization and assert they are ignored rather than preserved as active runtime hints.
   - On Windows with `AE-Friendly Format` enabled, ffmpeg-backed post-processing completes without showing a transient console window.
   - When yt-dlp reports `has already been downloaded`, the app still resolves the existing final file path and emits success instead of `E_OUTPUT_NORMALIZATION_FAILED`.
   - Inspect the Windows portable ZIP and assert bundled Python remains under packaged resources while `ffmpeg` is absent from the artifact because it now bootstraps on first use.

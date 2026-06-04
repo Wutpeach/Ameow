@@ -4,8 +4,6 @@ import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest, resolveYtdlpFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { resolveRenameEnabled } from "./renameRules.js";
 
-export type YouTubeMode = "light" | "extended";
-
 type YtdlpClipRange = {
   startSec: number;
   endSec: number;
@@ -27,6 +25,8 @@ type BuildYtdlpCommandArgsOptions = {
   cookiesPath: string | null;
   hasFfmpeg: boolean;
   hasDeno: boolean;
+  formatProfile?: YtdlpFormatProfile;
+  proxyUrl?: string | null;
   selectionScope?: string;
   pageUrl?: string;
   platform: NodeJS.Platform;
@@ -199,12 +199,13 @@ export const buildYtdlpCommandArgs = (
   options: BuildYtdlpCommandArgsOptions,
 ): string[] => {
   const manifest = getCliEngineManifest("yt-dlp");
+  const formatProfile = options.formatProfile ?? plan.formatProfile;
   const args = [
     ...manifest.baseArgs,
     ...manifest.configIsolationArgs,
     ...manifest.progressArgs,
     "-f",
-    plan.formatProfile.selector,
+    formatProfile.selector,
     ...manifest.encodingArgs,
     "--print-to-file",
     manifest.progressReport.finalPathPrint,
@@ -216,14 +217,17 @@ export const buildYtdlpCommandArgs = (
     plan.outputTemplate,
   ];
 
-  if (plan.formatProfile.sort) {
-    args.push("--format-sort", plan.formatProfile.sort);
+  if (formatProfile.sort) {
+    args.push("--format-sort", formatProfile.sort);
   }
-  if (plan.formatProfile.mergeOutputFormat) {
-    args.push("--merge-output-format", plan.formatProfile.mergeOutputFormat);
+  if (formatProfile.mergeOutputFormat) {
+    args.push("--merge-output-format", formatProfile.mergeOutputFormat);
   }
   if (options.hasFfmpeg) {
     args.push("--ffmpeg-location", plan.ffmpegDir);
+  }
+  if (options.proxyUrl) {
+    args.push("--proxy", options.proxyUrl);
   }
   if (options.selectionScope === "current_item") {
     args.push("--no-playlist");

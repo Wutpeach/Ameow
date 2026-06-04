@@ -112,6 +112,29 @@ const YTDLP_YOUTUBE_FORMAT_SELECTOR_DATA_SAVER = [
   "worst[ext=mp4]/",
   "worst",
 ].join("");
+const YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_BEST = [
+  "bv*[vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "bv*[vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[ext=m4a][protocol^=http][protocol!*=dash]/",
+  "bv*[ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "bv*[ext=mp4][protocol^=http][protocol!*=dash]+ba[ext=m4a][protocol^=http][protocol!*=dash]/",
+  "b[vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]/",
+  "b[ext=mp4][protocol^=http][protocol!*=dash]/",
+  "best[ext=mp4][protocol^=http][protocol!*=dash]",
+].join("");
+const YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_BALANCED = [
+  "bv*[height=1080][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "b[height=1080][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]/",
+  "bv*[height<=1080][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "b[height<=1080][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]/",
+  "best[height<=1080][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]",
+].join("");
+const YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_DATA_SAVER = [
+  "bv*[height=360][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "b[height=360][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]/",
+  "bv*[height<=360][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]+ba[acodec^=mp4a][ext=m4a][protocol^=http][protocol!*=dash]/",
+  "b[height<=360][vcodec^=avc1][ext=mp4][protocol^=http][protocol!*=dash]/",
+  "worst[ext=mp4][protocol^=http][protocol!*=dash]",
+].join("");
 
 const YTDLP_SITE_FORMAT_PROFILES: YtdlpSiteFormatProfiles = {
   default: {
@@ -245,4 +268,35 @@ export const resolveYtdlpFormatProfile = (
   const siteProfiles = manifest.siteFormatProfiles[siteProfileKey]
     ?? manifest.siteFormatProfiles.default;
   return siteProfiles[normalized];
+};
+
+export const resolveYtdlpSectionRetryFormatProfile = (
+  quality: YtdlpQualityPreference | undefined,
+  options?: { isYouTube?: boolean; siteId?: string },
+): YtdlpFormatProfile | null => {
+  if (options?.isYouTube !== true && options?.siteId !== "youtube") {
+    return null;
+  }
+
+  switch (quality ?? "best") {
+    case "balanced":
+      return {
+        selector: YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_BALANCED,
+        sort: "proto:https,res,codec:h264,acodec:aac,ext:mp4:m4a",
+        mergeOutputFormat: "mp4",
+      };
+    case "data_saver":
+      return {
+        selector: YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_DATA_SAVER,
+        sort: "proto:https,res,codec:h264,acodec:aac,ext:mp4:m4a",
+        mergeOutputFormat: "mp4",
+      };
+    case "best":
+    default:
+      return {
+        selector: YTDLP_YOUTUBE_SECTION_RETRY_FORMAT_SELECTOR_BEST,
+        sort: "proto:https,res,codec:h264,acodec:aac,ext:mp4:m4a",
+        mergeOutputFormat: "mp4",
+      };
+  }
 };

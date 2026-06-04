@@ -1,10 +1,8 @@
 import { z } from "zod";
 
 const youtubeExtensionDataSchema = z.object({
-  forceExtended: z.boolean().optional(),
-  allowCookies: z.boolean().optional(),
   source: z.enum(["injected", "pasted", "context_menu"]).optional(),
-});
+}).catchall(z.unknown());
 
 const ameowCaptureEvidenceSchema = z.object({
   version: z.literal(1),

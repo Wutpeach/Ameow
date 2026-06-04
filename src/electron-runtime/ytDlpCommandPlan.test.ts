@@ -54,6 +54,7 @@ describe("yt-dlp command planning", () => {
       cookiesPath: "D:/temp/trace-plan-cookies.txt",
       hasFfmpeg: true,
       hasDeno: true,
+      proxyUrl: "http://127.0.0.1:7890",
       selectionScope: "current_item",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       platform: "darwin",
@@ -77,6 +78,8 @@ describe("yt-dlp command planning", () => {
       "-o",
     ]);
     expect(args).toContain("--ffmpeg-location");
+    expect(args).toContain("--proxy");
+    expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7890");
     expect(args).toContain("--no-playlist");
     expect(args).toContain("D:/temp/trace-plan-cookies.txt");
     expect(args).toContain("youtube:player_js_variant=tv");

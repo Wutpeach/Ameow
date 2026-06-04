@@ -140,7 +140,7 @@
         "sitesError": "有登录态需要处理",
         "pluginsActive": "AE Portal 已启用",
         "pluginsAvailable": "AE Portal 可用，后续继续接入",
-        "systemIdle": "v{{version}} · 更新、代理、日志",
+        "systemIdle": "v{{version}} · 更新、日志",
         "systemUpdateReady": "发现更新：{{version}}",
         "systemProxyOn": "v{{version}} · 自定义代理已开",
         "systemProxyError": "代理设置需要处理"
@@ -161,7 +161,7 @@
           "saving": "输出文件夹、重命名规则、预览",
           "sites": "站点会话、登录捕获、Cookies",
           "plugins": "AE Portal、可执行文件、集成",
-          "system": "版本、更新、代理、日志、开发工具"
+          "system": "版本、更新、日志、开发工具"
         }
       }
     },
@@ -177,14 +177,6 @@
     "appUpdates": {
       "title": "接收测试版更新",
       "hint": "开启后会接收 beta / rc 等预发布版本；关闭时只接收正式稳定版。"
-    },
-    "globalProxy": {
-      "title": "全局代理",
-      "hint": "为运行时自举、更新检查以及其他 Electron 侧网络请求统一指定一个代理 URL。",
-      "enableTitle": "使用自定义代理",
-      "enableHint": "启用后会覆盖桌面侧请求对系统 / 环境代理的自动探测。",
-      "urlLabel": "代理 URL",
-      "urlPlaceholder": "http://127.0.0.1:7897"
     },
     "outputFolder": {
       "title": "输出文件夹",

@@ -228,6 +228,47 @@ describe("runYtDlpDownload", () => {
     });
   });
 
+  it("uses automatically resolved execution proxy URLs for yt-dlp invocations", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Proxy Video"
+        : path.join("D:/downloads", "Proxy Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("--proxy");
+      expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7897");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-auto-proxy",
+      outputDir: "D:/downloads",
+      outputStem: "Proxy Video",
+      config: {},
+      proxyUrl: "http://127.0.0.1:7897",
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=proxy123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=proxy123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Proxy Video.mp4"),
+    });
+  });
+
   it("does not retry public youtube downloads through an extended mode branch", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
@@ -309,7 +350,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -406,7 +447,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -458,7 +499,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -524,7 +565,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -943,7 +984,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -996,7 +1037,7 @@ describe("runYtDlpDownload", () => {
         extensionData: {
           youtube: {
             source: "injected",
-            allowCookies: false,
+
           },
         },
       },
@@ -1009,5 +1050,174 @@ describe("runYtDlpDownload", () => {
     expect(onProgress).not.toHaveBeenCalledWith(expect.objectContaining({
       speed: "activity:youtube.retryingCompatibleExtractor",
     }));
+  });
+
+  it("retries failed YouTube clip downloads once with a conservative section format selector", async () => {
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["5000-8000_Clip Video.mp4.part"])
+      .mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Clip Video"
+        : path.join("D:/downloads", "5000-8000_Clip Video.mp4")
+    ));
+    writeCookiesFileMock.mockResolvedValue("D:/temp/trace-section-retry-cookies.txt");
+    runStreamingCommandMock
+      .mockImplementationOnce(async (_command, args, options) => {
+        expect(args).toContain("--download-sections");
+        expect(args[args.indexOf("--download-sections") + 1]).toBe("*00:00:05-00:00:08");
+        expect(args).toContain("--cookies");
+        expect(args).toContain("D:/temp/trace-section-retry-cookies.txt");
+        expect(args).toContain("--proxy");
+        expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7890");
+        await options?.onStderrLine?.("ERROR: ffmpeg exited with code 4294967158");
+        await options?.onStderrLine?.("Press [q] to stop, [?] for help");
+        return 1;
+      })
+      .mockImplementationOnce(async (_command, args) => {
+        const formatIndex = args.indexOf("-f");
+        expect(formatIndex).toBeGreaterThanOrEqual(0);
+        expect(args[formatIndex + 1]).toContain("vcodec^=avc1");
+        expect(args[formatIndex + 1]).toContain("acodec^=mp4a");
+        expect(args[formatIndex + 1]).toContain("protocol^=http");
+        expect(args[formatIndex + 1]).toContain("protocol!*=dash");
+        expect(args).toContain("--download-sections");
+        expect(args[args.indexOf("--download-sections") + 1]).toBe("*00:00:05-00:00:08");
+        expect(args).toContain("--cookies");
+        expect(args).toContain("D:/temp/trace-section-retry-cookies.txt");
+        expect(args).toContain("--proxy");
+        expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7890");
+        return 0;
+      });
+
+    const context = {
+      traceId: "trace-section-retry",
+      outputDir: "D:/downloads",
+      outputStem: "Clip Video",
+      config: {},
+      proxyUrl: "http://127.0.0.1:7890",
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=clipretry",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=clipretry",
+        pageUrl: "https://www.youtube.com/watch?v=clipretry",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        clipStartSec: 5,
+        clipEndSec: 8,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "5000-8000_Clip Video.mp4"),
+    });
+    expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
+    expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "5000-8000_Clip Video.mp4.part"));
+  });
+
+  it("does not retry YouTube clip failures for terminal availability errors", async () => {
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["5000-8000_Clip Video.mp4.part"]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Clip Video"
+        : path.join("D:/downloads", "5000-8000_Clip Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementationOnce(async (_command, _args, options) => {
+      await options?.onStderrLine?.("ERROR: [youtube] clipretry: Private video");
+      return 1;
+    });
+
+    const context = {
+      traceId: "trace-private-section",
+      outputDir: "D:/downloads",
+      outputStem: "Clip Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=privateclip",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=privateclip",
+        pageUrl: "https://www.youtube.com/watch?v=privateclip",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "balanced",
+        clipStartSec: 5,
+        clipEndSec: 8,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toThrow("ERROR: [youtube] clipretry: Private video");
+    expect(runStreamingCommandMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the retry attempt stderr when a YouTube clip retry also fails", async () => {
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Clip Video"
+        : path.join("D:/downloads", "5000-8000_Clip Video.mp4")
+    ));
+    runStreamingCommandMock
+      .mockImplementationOnce(async (_command, _args, options) => {
+        await options?.onStderrLine?.("ERROR: first attempt failure");
+        return 1;
+      })
+      .mockImplementationOnce(async (_command, _args, options) => {
+        await options?.onStderrLine?.("ERROR: retry attempt failure");
+        await options?.onStderrLine?.("Press [q] to stop, [?] for help");
+        return 1;
+      });
+
+    const context = {
+      traceId: "trace-section-retry-fails",
+      outputDir: "D:/downloads",
+      outputStem: "Clip Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=retryfails",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=retryfails",
+        pageUrl: "https://www.youtube.com/watch?v=retryfails",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "balanced",
+        clipStartSec: 5,
+        clipEndSec: 8,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toThrow("ERROR: retry attempt failure");
+    expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
   });
 });

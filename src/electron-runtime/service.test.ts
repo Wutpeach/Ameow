@@ -124,6 +124,11 @@ const createRuntime = (options: {
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<{ shouldRetry: boolean } | void>;
+  resolveNetworkProxy?: (context: {
+    targetUrl: string;
+    providerId: string | null;
+    engineId: "yt-dlp" | "gallery-dl" | "douyin-dl";
+  }) => Promise<string | null | undefined>;
 }) => createElectronDownloadRuntime({
   environment: {
     repoRoot: options.environment?.repoRoot ?? process.cwd(),
@@ -151,6 +156,7 @@ const createRuntime = (options: {
   ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   buildExecutionContext: options.buildExecutionContext,
   handleAuthRequiredFailure: options.handleAuthRequiredFailure,
+  resolveNetworkProxy: options.resolveNetworkProxy,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -390,6 +396,67 @@ describe("AmeowElectronDownloadRuntime", () => {
     await waitFor(() => ensured.length === 1);
     expect(ensured[0]?.engineId).toBe("yt-dlp");
     expect(ensured[0]?.reason).toMatch(/^runtime_execute_.*_yt-dlp$/);
+  });
+
+  it("passes resolved network proxy URLs into yt-dlp execution contexts", async () => {
+    let receivedProxyUrl: string | null | undefined = undefined;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      resolveNetworkProxy: vi.fn(async (context) => {
+        expect(context).toMatchObject({
+          targetUrl: "https://www.youtube.com/watch?v=abc123",
+          providerId: "youtube",
+          engineId: "yt-dlp",
+        });
+        return "http://127.0.0.1:7897";
+      }),
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          receivedProxyUrl = context.proxyUrl;
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => receivedProxyUrl !== undefined);
+    expect(receivedProxyUrl).toBe("http://127.0.0.1:7897");
+  });
+
+  it("continues yt-dlp downloads when automatic proxy resolution fails", async () => {
+    let executed = false;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      resolveNetworkProxy: vi.fn(async () => {
+        throw new Error("resolveProxy failed");
+      }),
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          executed = true;
+          expect(context.proxyUrl).toBeNull();
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => executed);
   });
 
   it("waits for the selected engine runtime before executing the download", async () => {

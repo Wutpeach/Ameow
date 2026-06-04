@@ -232,7 +232,7 @@ describe("createElectronRuntimeCommandRouter", () => {
     }));
   });
 
-  it("normalizes extension youtube mode hints on queue requests", async () => {
+  it("drops retired extension youtube mode hints on queue requests while preserving source", async () => {
     const runtime = createRuntimeStub();
     const router = createElectronRuntimeCommandRouter({ runtime });
 
@@ -256,8 +256,6 @@ describe("createElectronRuntimeCommandRouter", () => {
       videoQuality: undefined,
       extensionData: {
         youtube: {
-          forceExtended: true,
-          allowCookies: false,
           source: "injected",
         },
       },
@@ -298,7 +296,7 @@ describe("createElectronRuntimeCommandRouter", () => {
     }));
   });
 
-  it("preserves unknown extension data while normalizing known YouTube hints", async () => {
+  it("preserves unknown extension data while normalizing supported YouTube source", async () => {
     const runtime = createRuntimeStub();
     const router = createElectronRuntimeCommandRouter({ runtime });
 
@@ -323,8 +321,6 @@ describe("createElectronRuntimeCommandRouter", () => {
     expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
       extensionData: {
         youtube: {
-          forceExtended: true,
-          allowCookies: false,
           source: "injected",
         },
         ameowCapture: {

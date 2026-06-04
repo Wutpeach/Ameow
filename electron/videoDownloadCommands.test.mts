@@ -238,8 +238,6 @@ describe("buildVideoSelectedV2QueuePayload", () => {
       clipEndSec: 48.75,
       extensionData: {
         youtube: {
-          forceExtended: true,
-          allowCookies: false,
           source: "injected",
         },
       },
@@ -254,8 +252,6 @@ describe("buildVideoSelectedV2QueuePayload", () => {
       clipEndSec: 48.75,
       extensionData: {
         youtube: {
-          forceExtended: true,
-          allowCookies: false,
           source: "injected",
         },
       },

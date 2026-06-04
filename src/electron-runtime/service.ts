@@ -770,6 +770,17 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             reason: enginePlan.reason,
             when: enginePlan.when,
           })}`);
+          const proxyTargetUrl = enginePlan.sourceUrl ?? activeTask.request.pageUrl ?? activeTask.request.url;
+          const proxyUrl = enginePlan.engine === "yt-dlp" && this.options.resolveNetworkProxy
+            ? await this.options.resolveNetworkProxy({
+                targetUrl: proxyTargetUrl,
+                providerId: plan.providerId,
+                engineId: enginePlan.engine,
+              }).catch((error) => {
+                this.logger.log(`>>> [ElectronRuntime] proxy resolution failed: ${String(error)}`);
+                return null;
+              })
+            : null;
           const context: EngineExecutionContext = {
             traceId,
             plan,
@@ -778,6 +789,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             outputDir: resolvedOutputDir,
             outputStem,
             config,
+            proxyUrl,
             binaries,
             abortSignal: activeTask.abortController.signal,
             fetch: this.options.environment.fetch,

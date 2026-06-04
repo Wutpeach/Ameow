@@ -98,19 +98,6 @@ const readOptionalHttpUrlString = (
   ...keys: string[]
 ): string | undefined => normalizeHttpUrl(readOptionalTrimmedString(payload, ...keys));
 
-const readOptionalBoolean = (
-  payload: Record<string, unknown>,
-  ...keys: string[]
-): boolean | undefined => {
-  for (const key of keys) {
-    const value = payload[key];
-    if (typeof value === "boolean") {
-      return value;
-    }
-  }
-  return undefined;
-};
-
 const readRequiredHttpUrlString = (
   payload: Record<string, unknown>,
   ...keys: string[]
@@ -178,14 +165,10 @@ const normalizeExtensionData = (
     ? youtubeSource
     : undefined;
   const normalizedYouTube = {
-    forceExtended: readOptionalBoolean(rawYouTubeExtensionData, "forceExtended", "force_extended"),
-    allowCookies: readOptionalBoolean(rawYouTubeExtensionData, "allowCookies", "allow_cookies"),
     source: normalizedYoutubeSource,
   };
   const hasNormalizedYouTube = (
-    normalizedYouTube.forceExtended !== undefined
-    || normalizedYouTube.allowCookies !== undefined
-    || normalizedYouTube.source !== undefined
+    normalizedYouTube.source !== undefined
   );
   const normalizedExtensionData = { ...rawExtensionData };
 

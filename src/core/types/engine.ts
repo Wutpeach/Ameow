@@ -13,6 +13,7 @@ export type EngineExecutionContext = {
   outputStem: string;
   config: Record<string, unknown>;
   userDataDir?: string;
+  proxyUrl?: string | null;
   binaries: RuntimeBinaryPaths;
   abortSignal: AbortSignal;
   fetch?: typeof fetch;

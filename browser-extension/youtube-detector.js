@@ -882,8 +882,6 @@
       selectionScope: 'current_item',
       extensionData: {
         youtube: {
-          forceExtended: false,
-          allowCookies: false,
           source: 'injected',
         },
       },

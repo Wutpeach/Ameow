@@ -40,7 +40,7 @@ describe("extension data utils", () => {
     });
   });
 
-  it("normalizes known YouTube hints while preserving other namespaces", () => {
+  it("keeps supported YouTube source diagnostics while dropping retired mode hints", () => {
     const helper = loadHelper();
 
     expect(helper.normalizeExtensionData({
@@ -57,8 +57,6 @@ describe("extension data utils", () => {
       },
     })).toEqual({
       youtube: {
-        forceExtended: true,
-        allowCookies: false,
         source: "injected",
       },
       ameowCapture: {

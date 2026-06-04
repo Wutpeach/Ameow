@@ -144,7 +144,8 @@ Some YouTube videos expose only a 640x360 progressive MP4 when `yt-dlp` runs wit
 That can make a download succeed at a lower quality than the selected profile even though adaptive formats exist. For YouTube:
 
 - all quality profiles must start in extended mode.
-- cookies or `extensionData.youtube.forceExtended === true` still force extended mode.
+- cookies and legacy YouTube extension mode hints do not switch the extractor profile away from the extended path.
+- retired fields such as `extensionData.youtube.forceExtended` may be accepted as ignored compatibility input, but they are not active runtime mode switches.
 
 Extended mode uses:
 
@@ -175,6 +176,23 @@ Rules:
 
 Regression check:
 - `npm test -- src/electron-runtime/engineManifest.test.ts src/electron-runtime/ytDlpCommandPlan.test.ts`
+- `npm run type-check`
+
+## Added Lesson: YouTube Section Downloads Need CLI-Compatible Proxy Resolution
+
+YouTube `--download-sections` downloads can fail on Windows with `ffmpeg exited with code 4294967158 (-138)` when the desktop app can resolve YouTube pages but the yt-dlp/ffmpeg child process is not covered by the user's proxy path. This is not a cookies issue when the same URL works after enabling TUN/VPN mode.
+
+Rules:
+- Settings should not expose a first-run or failure-time proxy form. Keep proxy setup guidance in documentation.
+- Ameow should not expose or consume manual `globalProxyEnabled/globalProxyUrl` configuration for this path.
+- Before invoking app-managed yt-dlp, resolve a CLI-compatible proxy in this order: Electron `session.resolveProxy(targetUrl)`, HTTP(S) proxy environment variables, then direct.
+- Convert Electron `PROXY host:port` and `HTTPS host:port` results into `http://host:port` and `https://host:port` for yt-dlp `--proxy`.
+- Do not automatically pass SOCKS-only proxy rules into the YouTube section ffmpeg path; prefer TUN/VPN coverage or documentation-level troubleshooting for SOCKS-only setups.
+- Do not add a full-video download plus local crop fallback for section downloads.
+
+Regression check:
+- `npm test -- src/config/cliProxy.test.ts src/electron-runtime/service.test.ts src/electron-runtime/ytDlpDownload.test.ts`
+- `npm run electron:build`
 - `npm run type-check`
 
 ## Added Lesson: Douyin Temporary yt-dlp Strategy

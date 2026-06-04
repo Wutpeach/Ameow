@@ -72,6 +72,12 @@ export type RuntimeAuthFailureRecoveryResult = {
   shouldRetry: boolean;
 };
 
+export type RuntimeNetworkProxyContext = {
+  targetUrl: string;
+  providerId: string | null;
+  engineId: EngineId;
+};
+
 export interface ElectronRuntimeEnvironment {
   repoRoot: string;
   configDir: string;
@@ -115,6 +121,9 @@ export interface ElectronDownloadRuntimeOptions {
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<RuntimeAuthFailureRecoveryResult | void>;
+  resolveNetworkProxy?(
+    context: RuntimeNetworkProxyContext,
+  ): Promise<string | null | undefined>;
 }
 
 export interface RuntimeDependencyResolver {

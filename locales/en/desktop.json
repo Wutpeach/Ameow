@@ -140,7 +140,7 @@
         "sitesError": "One login state needs attention",
         "pluginsActive": "AE Portal enabled",
         "pluginsAvailable": "AE Portal available, more integrations later",
-        "systemIdle": "v{{version}} · updates, proxy, logs",
+        "systemIdle": "v{{version}} · updates, logs",
         "systemUpdateReady": "Update ready: {{version}}",
         "systemProxyOn": "v{{version}} · custom proxy on",
         "systemProxyError": "Proxy setting needs attention"
@@ -161,7 +161,7 @@
           "saving": "Output folder, rename rules, preview",
           "sites": "Site sessions, login capture, cookies",
           "plugins": "AE Portal, executable, integrations",
-          "system": "Version, updates, proxy, logs, developer tools"
+          "system": "Version, updates, logs, developer tools"
         }
       }
     },
@@ -177,14 +177,6 @@
     "appUpdates": {
       "title": "Receive test builds",
       "hint": "Enable beta / rc prerelease updates. Leave off to stay on stable releases only."
-    },
-    "globalProxy": {
-      "title": "Global proxy",
-      "hint": "Apply one desktop-wide proxy URL to runtime bootstrap, update checks, and other Electron-owned network requests.",
-      "enableTitle": "Use custom proxy",
-      "enableHint": "Overrides ambient system / environment proxy detection for desktop-side requests.",
-      "urlLabel": "Proxy URL",
-      "urlPlaceholder": "http://127.0.0.1:7897"
     },
     "outputFolder": {
       "title": "Output Folder",

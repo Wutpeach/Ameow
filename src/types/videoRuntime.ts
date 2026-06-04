@@ -127,8 +127,6 @@ export type QueuedVideoDownloadRequest = {
   siteHint?: string;
   extensionData?: {
     youtube?: {
-      forceExtended?: boolean;
-      allowCookies?: boolean;
       source?: "injected" | "pasted" | "context_menu";
     };
   };

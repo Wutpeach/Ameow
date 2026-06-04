@@ -538,92 +538,70 @@ function buildManagedRuntimeBootstrapOptions(
 - Bad: importing `app.getPath(...)` or `updateRuntimeDependencyGateDownloadActivity(...)` inside `managedRuntimeBootstrap.mts`, which would couple installer logic back to Electron main state.
 - Bad: changing `managedYtDlpPaths(...)` without updating `runtimePaths.ts`, causing status inspection to report missing while installer wrote a different path.
 
-## Scenario: Electron Global Proxy URL Contract
+## Scenario: Electron Proxy Resolution Contract
 
 ### 1. Scope / Trigger
 
-- Trigger: Any task that changes desktop-side proxy behavior for bootstrap, update checks, or Electron-owned fetch requests.
-- Why this needs code-spec depth: Proxy handling crosses persisted config, Electron session wiring, managed runtime bootstrap, update checks, and desktop-side downloads.
+- Trigger: Any task that changes desktop-side proxy behavior for bootstrap, update checks, Electron-owned fetch requests, or app-managed downloader CLI invocations.
+- Why this needs code-spec depth: Proxy handling crosses Electron session wiring, managed runtime bootstrap, update checks, and yt-dlp/ffmpeg child-process downloads.
 
 ### 2. Signatures
-
-Persisted config keys:
-
-```ts
-type DesktopProxyConfigKeys =
-  | "globalProxyEnabled"
-  | "globalProxyUrl";
-```
-
-Validation helper boundary:
-
-```ts
-type GlobalProxyValidationErrorCode =
-  | "missing_url"
-  | "invalid_url"
-  | "unsupported_protocol"
-  | "auth_unsupported"
-  | "path_unsupported";
-```
 
 Electron main ownership:
 
 ```ts
-async function applyConfiguredDesktopProxy(
-  config?: Record<string, unknown> | null,
-): Promise<void>
+async function applyDesktopSystemProxy(): Promise<void>
+```
+
+CLI proxy resolution helpers:
+
+```ts
+function resolveCliProxyUrlFromElectronProxyRules(
+  proxyRules: string | null | undefined,
+): string | null;
+
+function resolveCliProxyUrlFromEnvironment(
+  env: Record<string, string | undefined>,
+): string | null;
 ```
 
 ### 3. Contracts
 
-- The first shipped proxy setting is global-only. It applies one proxy URL to the desktop network session used by Electron-owned fetch paths.
-- Supported proxy URL schemes are:
-  - `http://`
-  - `https://`
-  - `socks4://`
-  - `socks5://`
-- The first version must reject:
-  - embedded username/password auth
-  - PAC URLs / PAC mode
-  - path/query/hash fragments on the proxy URL
-  - per-feature proxy routing
+- Ameow does not expose or consume manual global proxy configuration. Proxy setup guidance belongs in documentation/troubleshooting, not first-run or failure-time UI.
 - `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches.
-- Proxy configuration is applied through Electron `Session.setProxy(...)`, not by rewriting each fetch call individually. The default desktop network session uses `session.defaultSession.setProxy(...)`; Settings-owned site-session capture partitions must apply the same validated proxy config to their own `session.fromPartition(...)` session before first navigation.
-- When custom proxy is disabled, Electron must return to `mode: "system"` proxy behavior.
-- When custom proxy is enabled and valid, Electron must use `mode: "fixed_servers"` with the normalized proxy URL and keep local bypass rules for `localhost`, `127.0.0.1`, and `::1`.
-- Saving config through `save_config` must re-apply proxy settings immediately so users do not need manual JSON edits or app restarts just to switch ports.
+- The default desktop network session should stay in `mode: "system"` proxy behavior so Electron-owned fetches inherit OS / Chromium proxy resolution.
+- Saving config through `save_config` must not re-apply or mutate any Ameow-owned proxy setting.
+- yt-dlp CLI downloads should receive a resolved proxy through `--proxy` when available. Resolution order is: Electron `session.resolveProxy(targetUrl)`, HTTP(S) proxy environment variables, then direct.
+- Electron `resolveProxy(...)` results such as `PROXY host:port` and `HTTPS host:port` may be converted into `http://host:port` / `https://host:port` for CLI usage. `DIRECT` and automatically resolved SOCKS rules should not be passed to the YouTube section-download ffmpeg path.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| `globalProxyEnabled !== true` | config validation | Proxy is treated as disabled | Apply `mode: "system"` |
-| Enabled but empty URL | config validation | Reject save/apply | Surface `missing_url` |
-| URL missing scheme or malformed | config validation | Reject save/apply | Surface `invalid_url` |
-| URL uses unsupported protocol | config validation | Reject save/apply | Surface `unsupported_protocol` |
-| URL embeds auth credentials | config validation | Reject save/apply | Surface `auth_unsupported` |
-| URL includes path/query/hash | config validation | Reject save/apply | Surface `path_unsupported` |
-| Valid proxy URL | Electron session apply | Desktop session uses fixed proxy servers | Continue shared session-backed fetch flow |
+| Desktop app startup | Electron session apply | Desktop session uses system proxy mode | Continue shared session-backed fetch flow |
+| `save_config` receives stale `globalProxyEnabled/globalProxyUrl` keys | config save | Persist as ordinary unknown config only; do not apply as proxy | Keep system proxy mode |
+| `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | yt-dlp execution context | Pass `--proxy http://127.0.0.1:7897` | Continue section download |
+| `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | yt-dlp execution context | Treat as no CLI proxy for automatic resolution | Prefer TUN/VPN mode or docs-level troubleshooting |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: user enables custom proxy with `http://127.0.0.1:7897`, saves settings, and managed runtime bootstrap / update checks use the configured proxy immediately.
-- Base: user leaves custom proxy disabled, so Electron continues using ambient system/environment proxy behavior.
-- Bad: one feature uses the configured proxy while another still bypasses it with direct `globalThis.fetch`.
-- Bad: a settings save accepts `http://user:pass@127.0.0.1:7897` even though auth is not supported in this first version.
+- Good: user enables system proxy in their proxy tool, Electron resolves `PROXY 127.0.0.1:7897`, and YouTube section downloads pass `--proxy http://127.0.0.1:7897` to yt-dlp/ffmpeg.
+- Base: user leaves system proxy disabled, so Electron continues using ambient system/environment proxy behavior and CLI downloads use direct mode unless a HTTP(S) proxy can be resolved.
+- Bad: one feature uses a hand-written proxy setting while another uses Electron/system proxy resolution.
+- Bad: stale persisted `globalProxyEnabled/globalProxyUrl` changes downloader behavior after the Settings UI has removed proxy controls.
+- Bad: Settings reintroduces a first-run or failure-time proxy setup flow instead of keeping proxy configuration in documentation/troubleshooting.
 
 ### 6. Tests Required
 
-- `src/config/globalProxy.test.ts`
-  - valid URL normalization
-  - invalid/missing/unsupported URL rejection
-  - auth/path rejection
-- `electron/configStore.test.mts`
-  - arbitrary proxy config keys persist through config store reads
+- `src/config/cliProxy.test.ts`
+  - Electron proxy-rule parsing for CLI-compatible HTTP(S) proxy URLs
+  - environment proxy parsing
+- `electron/desktopProxy.test.mts`
+  - desktop session remains in system proxy mode
 - `npm run type-check`
   - main-process and settings-page wiring compile
 - `npm run lint`
-  - settings page remains lint-clean
+  - settings page remains lint-clean without exposing the proxy entry UI
 
 ### 7. Wrong vs Correct
 

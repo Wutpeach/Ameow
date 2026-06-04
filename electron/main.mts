@@ -75,7 +75,7 @@ import {
   buildStartupWindowModeArgument,
   resolveMainWindowStartupMode,
 } from "./startupWindowMode.mjs";
-import { applyConfiguredProxyToSession } from "./desktopProxy.mjs";
+import { applySystemProxyToSession } from "./desktopProxy.mjs";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -124,10 +124,7 @@ import {
   summarizeCapturedImage,
 } from "./startupDiagnostics.mjs";
 import { exportSupportLogFile } from "./supportLogExport.mjs";
-import {
-  createConfigStore,
-  parseJsonObject,
-} from "./configStore.mjs";
+import { createConfigStore } from "./configStore.mjs";
 import {
   createTrayMenuController,
   resolveTrayIconPath,
@@ -147,6 +144,10 @@ import {
   getClipboardFilePaths as readClipboardFilePaths,
   processFiles as processIncomingFiles,
 } from "./fileIntake.mjs";
+import {
+  resolveCliProxyUrlFromElectronProxyRules,
+  resolveCliProxyUrlFromEnvironment,
+} from "../src/config/cliProxy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -889,20 +890,27 @@ function getDesktopNetworkSession() {
   return session.defaultSession ?? null;
 }
 
-async function applyConfiguredDesktopProxy(config = null) {
+async function applyDesktopSystemProxy() {
   const activeSession = getDesktopNetworkSession();
   if (!activeSession?.setProxy) {
     return;
   }
 
-  const resolvedConfig = config ?? await readConfigObject();
-  const result = await applyConfiguredProxyToSession(activeSession, resolvedConfig);
-  if (result.mode === "system") {
-    logInfo("Network", "Using system proxy settings");
-    return;
+  await applySystemProxyToSession(activeSession);
+  logInfo("Network", "Using system proxy settings");
+}
+
+async function resolveCliProxyUrlForTarget(targetUrl) {
+  const activeSession = getDesktopNetworkSession();
+  if (activeSession?.resolveProxy) {
+    const proxyRules = await activeSession.resolveProxy(targetUrl);
+    const resolvedProxyUrl = resolveCliProxyUrlFromElectronProxyRules(proxyRules);
+    if (resolvedProxyUrl) {
+      return resolvedProxyUrl;
+    }
   }
 
-  logInfo("Network", "Applied configured global proxy", result.proxyRules);
+  return resolveCliProxyUrlFromEnvironment(process.env);
 }
 
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
@@ -1001,12 +1009,6 @@ function summarizeInjectedVideoSelectionPayload(payload) {
   const normalizedExtensionData = rawYouTubeExtensionData
     ? {
         youtube: {
-          forceExtended: typeof rawYouTubeExtensionData.forceExtended === "boolean"
-            ? rawYouTubeExtensionData.forceExtended
-            : null,
-          allowCookies: typeof rawYouTubeExtensionData.allowCookies === "boolean"
-            ? rawYouTubeExtensionData.allowCookies
-            : null,
           source:
             youtubeExtensionSource === "injected"
             || youtubeExtensionSource === "pasted"
@@ -1339,6 +1341,11 @@ function getElectronDownloadRuntime() {
         await ensureManagedDouyinDlRuntimeReady(reason, options);
         return;
       }
+    },
+    resolveNetworkProxy: async ({ targetUrl }) => {
+      const proxyUrl = await resolveCliProxyUrlForTarget(targetUrl);
+      logInfo("ElectronRuntime", `Resolved CLI proxy for download: ${proxyUrl ? new URL(proxyUrl).protocol.replace(/:$/, "") : "direct"}`);
+      return proxyUrl;
     },
     bootstrapManagedComponents: async ({ reason }) => {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
@@ -2886,7 +2893,6 @@ async function handleCommand(command, payload = {}) {
     case "save_config": {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
-      await applyConfiguredDesktopProxy(parseJsonObject(rawConfig));
       return;
     }
     case "broadcast_theme":
@@ -3432,8 +3438,8 @@ async function bootstrap() {
   });
 
   await app.whenReady();
-  await applyConfiguredDesktopProxy().catch((error) => {
-    console.error(">>> [Electron] Failed to apply configured proxy:", error);
+  await applyDesktopSystemProxy().catch((error) => {
+    console.error(">>> [Electron] Failed to apply system proxy:", error);
   });
   applyMacTrayAppMode(app);
   registerIpcHandlers();

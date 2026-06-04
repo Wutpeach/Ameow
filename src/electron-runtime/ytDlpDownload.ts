@@ -3,11 +3,13 @@ import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { buildYtdlpCommandArgs, createYtdlpCommandPlan } from "./ytDlpCommandPlan.js";
+import { resolveYtdlpSectionRetryFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
+import { hasTerminalYtDlpAvailabilityFailure, summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
 
 const YTDLP_ACTIVITY_FALLBACK = "Resolving media...";
 
@@ -38,6 +40,23 @@ const logYtDlpTiming = (message: string, payload: Record<string, unknown>): void
 
 const logInjectedDownloadDebug = (message: string, payload: unknown): void => {
   console.log(`>>> [InjectedDownloadDebug] ${message}: ${toSafeLogDetails(payload)}`);
+};
+
+class YtDlpAttemptError extends Error {
+  readonly exitCode: number;
+  readonly stderrLines: string[];
+
+  constructor(message: string, options: { exitCode: number; stderrLines: string[] }) {
+    super(message);
+    this.name = "YtDlpAttemptError";
+    this.exitCode = options.exitCode;
+    this.stderrLines = options.stderrLines;
+  }
+}
+
+type YtDlpAttemptDescriptor = {
+  label: "primary" | "section_format_retry";
+  formatProfile: YtdlpFormatProfile;
 };
 
 const isYtDlpPostProcessingLine = (line: string): boolean => {
@@ -104,6 +123,19 @@ const cleanupTaskArtifacts = async (
     .filter((entry) => !beforeFiles.has(entry))
     .map((entry) => fs.unlink(path.join(outputDir, entry)).catch(() => undefined)));
 };
+
+const shouldRetryYouTubeSectionWithConservativeFormat = (
+  commandPlan: ReturnType<typeof createYtdlpCommandPlan>,
+  error: unknown,
+  signal: AbortSignal,
+): error is YtDlpAttemptError => (
+  error instanceof YtDlpAttemptError
+  && commandPlan.isYouTube
+  && commandPlan.clipRange !== null
+  && !signal.aborted
+  && !hasTerminalYtDlpAvailabilityFailure(error.stderrLines)
+);
+
 export const runYtDlpDownload = async (
   context: EngineExecutionContext,
 ): Promise<DownloadResultPayload> => {
@@ -137,19 +169,23 @@ export const runYtDlpDownload = async (
     formatSelectorLength: commandPlan.formatProfile.selector.length,
   });
   const clipDurationSec = resolveClipDurationSec(commandPlan.clipRange);
-  const stderrLines: string[] = [];
+  const proxyUrl = context.proxyUrl ?? null;
+  let latestStderrLines: string[] = [];
 
-  const runAttempt = async (): Promise<DownloadResultPayload> => {
+  const runAttempt = async (attempt: YtDlpAttemptDescriptor): Promise<DownloadResultPayload> => {
     if (context.abortSignal.aborted) {
       throw new Error("Download cancelled");
     }
     const attemptStartedAtMs = Date.now();
+    const stderrLines: string[] = [];
 
     const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
     const args = buildYtdlpCommandArgs(commandPlan, {
       cookiesPath,
       hasFfmpeg: Boolean(context.binaries.ffmpeg),
       hasDeno: Boolean(context.binaries.deno),
+      formatProfile: attempt.formatProfile,
+      proxyUrl,
       selectionScope: context.intent.selectionScope,
       pageUrl: context.intent.pageUrl,
       platform: process.platform,
@@ -169,21 +205,26 @@ export const runYtDlpDownload = async (
         titlePresent: Boolean(context.intent.title),
         cookiesPresent: Boolean(context.intent.cookies?.trim()),
         cookiesPath,
+        proxyPresent: Boolean(proxyUrl),
+        proxyScheme: proxyUrl ? new URL(proxyUrl).protocol.replace(/:$/, "") : null,
         videoQuality: context.intent.videoQuality ?? null,
-        formatSelector: commandPlan.formatProfile.selector,
-        formatSort: commandPlan.formatProfile.sort,
-        mergeOutputFormat: commandPlan.formatProfile.mergeOutputFormat,
-        youtubeMode: "extended",
+        attempt: attempt.label,
+        formatSelector: attempt.formatProfile.selector,
+        formatSort: attempt.formatProfile.sort,
+        mergeOutputFormat: attempt.formatProfile.mergeOutputFormat,
+        youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
         args,
       });
     }
 
     logYtDlpTiming("attempt start", {
       traceId: context.traceId,
-      mode: "extended",
+      attempt: attempt.label,
+      youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
       elapsedMs: formatElapsedMs(taskStartedAtMs),
-      selectorLength: commandPlan.formatProfile.selector.length,
+      selectorLength: attempt.formatProfile.selector.length,
       hasCookies: Boolean(cookiesPath),
+      hasProxy: Boolean(proxyUrl),
       selectionScope: context.intent.selectionScope ?? null,
     });
 
@@ -207,7 +248,8 @@ export const runYtDlpDownload = async (
               loggedFirstProgress = true;
               logYtDlpTiming("first download progress", {
                 traceId: context.traceId,
-                mode: "extended",
+                attempt: attempt.label,
+                youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 percent: progress.percent,
@@ -224,7 +266,8 @@ export const runYtDlpDownload = async (
               loggedFirstActivity = true;
               logYtDlpTiming("first extractor activity", {
                 traceId: context.traceId,
-                mode: "extended",
+                attempt: attempt.label,
+                youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 activity,
@@ -248,7 +291,8 @@ export const runYtDlpDownload = async (
               loggedFirstProgress = true;
               logYtDlpTiming("first download progress", {
                 traceId: context.traceId,
-                mode: "extended",
+                attempt: attempt.label,
+                youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 percent: progress.percent,
@@ -268,7 +312,8 @@ export const runYtDlpDownload = async (
               loggedFirstActivity = true;
               logYtDlpTiming("first extractor activity", {
                 traceId: context.traceId,
-                mode: "extended",
+                attempt: attempt.label,
+                youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
                 elapsedMs: formatElapsedMs(taskStartedAtMs),
                 attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
                 activity,
@@ -290,7 +335,8 @@ export const runYtDlpDownload = async (
       const reportedTitle = await readReportedValue(commandPlan.titleReportPath);
       logYtDlpTiming("attempt finished", {
         traceId: context.traceId,
-        mode: "extended",
+        attempt: attempt.label,
+        youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
         attemptElapsedMs: formatElapsedMs(attemptStartedAtMs),
         exitCode,
@@ -298,7 +344,14 @@ export const runYtDlpDownload = async (
         reportedTitlePresent: Boolean(reportedTitle),
       });
       if (exitCode !== 0) {
-        throw new Error(stderrLines[stderrLines.length - 1] ?? `yt-dlp exited with code ${exitCode}`);
+        latestStderrLines = stderrLines;
+        throw new YtDlpAttemptError(
+          summarizeYtDlpFailure(stderrLines, `yt-dlp exited with code ${exitCode}`),
+          {
+            exitCode,
+            stderrLines,
+          },
+        );
       }
       if (!reportedPath) {
         throw new DownloadRuntimeError(
@@ -315,7 +368,8 @@ export const runYtDlpDownload = async (
       logYtDlpTiming("task success", {
         traceId: context.traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
-        mode: "extended",
+        attempt: attempt.label,
+        youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
         filePath: reportedPath,
       });
 
@@ -333,21 +387,52 @@ export const runYtDlpDownload = async (
   };
 
   try {
-    return await runAttempt();
+    try {
+      return await runAttempt({
+        label: "primary",
+        formatProfile: commandPlan.formatProfile,
+      });
+    } catch (error) {
+      const retryFormatProfile = resolveYtdlpSectionRetryFormatProfile(
+        context.intent.videoQuality,
+        { isYouTube: commandPlan.isYouTube, siteId: context.intent.siteId },
+      );
+      if (
+        !retryFormatProfile
+        || !shouldRetryYouTubeSectionWithConservativeFormat(commandPlan, error, context.abortSignal)
+      ) {
+        throw error;
+      }
+
+      logYtDlpTiming("section format retry", {
+        traceId: context.traceId,
+        elapsedMs: formatElapsedMs(taskStartedAtMs),
+        previousError: summarizeError(error),
+        selectorLength: retryFormatProfile.selector.length,
+      });
+      await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
+      if (context.abortSignal.aborted) {
+        throw new Error("Download cancelled");
+      }
+      return await runAttempt({
+        label: "section_format_retry",
+        formatProfile: retryFormatProfile,
+      });
+    }
   } catch (error) {
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {
         traceId: context.traceId,
         sourceUrl: commandPlan.sourceUrl,
         error: summarizeError(error),
-        stderrTail: stderrLines.slice(-5),
+        stderrTail: latestStderrLines.slice(-5),
       });
     }
     logYtDlpTiming("task failed", {
       traceId: context.traceId,
       elapsedMs: formatElapsedMs(taskStartedAtMs),
       error: summarizeError(error),
-      stderrTail: stderrLines.slice(-3),
+      stderrTail: latestStderrLines.slice(-3),
     });
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
     if (error instanceof DownloadRuntimeError) {

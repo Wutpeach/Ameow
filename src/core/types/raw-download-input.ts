@@ -6,8 +6,6 @@ export type DownloadSelectionScope = "current_item" | "playlist";
 export type YtdlpQualityPreference = "best" | "balanced" | "data_saver";
 
 export type YouTubeExtensionData = {
-  forceExtended?: boolean;
-  allowCookies?: boolean;
   source?: "injected" | "pasted" | "context_menu";
 };
 

@@ -46,12 +46,6 @@ import {
 import { saveOutputPath } from "../utils/outputPath";
 import { APP_VERSION } from "../constants/appVersion";
 import { MACOS_SECONDARY_WINDOW_SHADOW_GUTTER } from "../constants/windowMetrics";
-import {
-  GLOBAL_PROXY_ENABLED_CONFIG_KEY,
-  GLOBAL_PROXY_URL_CONFIG_KEY,
-  describeGlobalProxyValidationError,
-  validateGlobalProxySettings,
-} from "../config/globalProxy";
 import { changeDesktopLanguage } from "../i18n/desktopLanguage";
 import {
   FALLBACK_LANGUAGE,
@@ -300,9 +294,6 @@ function SettingsPage() {
   const [aeExePath, setAeExePath] = useState("");
   const [extensionInjectionDebugEnabled, setExtensionInjectionDebugEnabled] = useState(false);
   const [receivePrereleaseUpdates, setReceivePrereleaseUpdates] = useState(false);
-  const [globalProxyEnabled, setGlobalProxyEnabled] = useState(false);
-  const [globalProxyUrl, setGlobalProxyUrl] = useState("");
-  const [globalProxyError, setGlobalProxyError] = useState<string | null>(null);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
@@ -382,10 +373,6 @@ function SettingsPage() {
           setExtensionInjectionDebugEnabled(config.extensionInjectionDebugEnabled);
         }
         setReceivePrereleaseUpdates(resolveReceivePrereleaseUpdates(config));
-        setGlobalProxyEnabled(config[GLOBAL_PROXY_ENABLED_CONFIG_KEY] === true);
-        if (typeof config[GLOBAL_PROXY_URL_CONFIG_KEY] === "string") {
-          setGlobalProxyUrl(config[GLOBAL_PROXY_URL_CONFIG_KEY]);
-        }
       } catch (err) {
         console.error("Failed to load config:", err);
       }
@@ -684,78 +671,6 @@ function SettingsPage() {
     } catch (err) {
       setReceivePrereleaseUpdates(previousValue);
       console.error("Failed to toggle prerelease app updates:", err);
-    }
-  };
-
-  const saveGlobalProxySettings = async (
-    nextEnabled: boolean,
-    nextUrl: string,
-  ) => {
-    try {
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config[GLOBAL_PROXY_ENABLED_CONFIG_KEY] = nextEnabled;
-      config[GLOBAL_PROXY_URL_CONFIG_KEY] = nextUrl.trim();
-
-      const validation = validateGlobalProxySettings(config);
-      if (validation.errorCode) {
-        const errorMessage = describeGlobalProxyValidationError(validation.errorCode);
-        setGlobalProxyError(errorMessage);
-        return false;
-      }
-
-      await desktopCommands.invoke<void>("save_config", { json: JSON.stringify(config) });
-      setGlobalProxyError(null);
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setGlobalProxyError(errorMessage);
-      console.error("Failed to save global proxy settings:", err);
-      return false;
-    }
-  };
-
-  const toggleGlobalProxyEnabled = async () => {
-    const previousValue = globalProxyEnabled;
-    const nextValue = !previousValue;
-    setGlobalProxyEnabled(nextValue);
-    if (!nextValue) {
-      const saved = await saveGlobalProxySettings(false, globalProxyUrl);
-      if (!saved) {
-        setGlobalProxyEnabled(previousValue);
-      }
-      return;
-    }
-
-    const validation = validateGlobalProxySettings({
-      [GLOBAL_PROXY_ENABLED_CONFIG_KEY]: true,
-      [GLOBAL_PROXY_URL_CONFIG_KEY]: globalProxyUrl,
-    });
-    if (validation.errorCode) {
-      setGlobalProxyError(describeGlobalProxyValidationError(validation.errorCode));
-      return;
-    }
-
-    const saved = await saveGlobalProxySettings(true, globalProxyUrl);
-    if (!saved) {
-      setGlobalProxyEnabled(previousValue);
-    }
-  };
-
-  const handleGlobalProxyUrlChange = (value: string) => {
-    setGlobalProxyUrl(value);
-    if (globalProxyError) {
-      setGlobalProxyError(null);
-    }
-  };
-
-  const handleGlobalProxyUrlBlur = async () => {
-    if (!globalProxyEnabled) {
-      return;
-    }
-    const saved = await saveGlobalProxySettings(globalProxyEnabled, globalProxyUrl);
-    if (saved) {
-      setGlobalProxyUrl((current) => current.trim());
     }
   };
 
@@ -1273,13 +1188,9 @@ function SettingsPage() {
   const pluginsSummary = aePortalEnabled
     ? t("desktop:settings.hub.summary.pluginsActive")
     : t("desktop:settings.hub.summary.pluginsAvailable");
-  const systemSummary = globalProxyError
-    ? t("desktop:settings.hub.summary.systemProxyError")
-    : appUpdateInfo
-      ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
-      : globalProxyEnabled
-        ? t("desktop:settings.hub.summary.systemProxyOn", { version: APP_VERSION })
-        : t("desktop:settings.hub.summary.systemIdle", { version: APP_VERSION });
+  const systemSummary = appUpdateInfo
+    ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
+    : t("desktop:settings.hub.summary.systemIdle", { version: APP_VERSION });
   const buildSearchText = (parts: string[]): string => parts
     .filter(Boolean)
     .join(" ")
@@ -1361,8 +1272,6 @@ function SettingsPage() {
         t("desktop:settings.versionCard.checkButton"),
         t("desktop:settings.versionCard.updateButton"),
         t("desktop:settings.appUpdates.title"),
-        t("desktop:settings.globalProxy.title"),
-        t("desktop:settings.globalProxy.urlLabel"),
         t("desktop:settings.supportLog.title"),
         t("desktop:settings.supportLog.button"),
         isDevBuild ? t("desktop:settings.uiLab.developerSectionTitle") : "",
@@ -1370,7 +1279,7 @@ function SettingsPage() {
         isDevBuild ? t("desktop:settings.uiLab.injectionDebug.title") : "",
       ]),
       matchSummary: t("desktop:settings.hub.search.match.system"),
-      attentionTone: globalProxyError ? "danger" : appUpdateInfo ? "warning" : globalProxyEnabled ? "accent" : null,
+      attentionTone: appUpdateInfo ? "warning" : null,
     },
   ];
   const normalizedSettingsSearchQuery = settingsSearchQuery.trim().toLocaleLowerCase();
@@ -2183,56 +2092,6 @@ function SettingsPage() {
             checked={receivePrereleaseUpdates}
             onChange={toggleReceivePrereleaseUpdates}
           />
-        </div>
-      </NeonSection>
-
-      <NeonSection
-        title={t("desktop:settings.globalProxy.title")}
-        hint={globalProxyError || t("desktop:settings.globalProxy.hint")}
-      >
-        <div style={{ display: "grid", gap: 10 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              ...getFieldSurfaceStyle(colors, {
-                padding: "10px 12px",
-                height: 0,
-              }),
-            }}
-          >
-            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
-                {t("desktop:settings.globalProxy.enableTitle")}
-              </span>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  lineHeight: 1.4,
-                  color: colors.textSecondary,
-                  opacity: 0.82,
-                }}
-              >
-                {t("desktop:settings.globalProxy.enableHint")}
-              </span>
-            </div>
-            <NeonToggle checked={globalProxyEnabled} onChange={toggleGlobalProxyEnabled} />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={getCompactLabelStyle(colors)}>
-              {t("desktop:settings.globalProxy.urlLabel")}
-            </label>
-            <NeonInput
-              value={globalProxyUrl}
-              onChange={(event) => handleGlobalProxyUrlChange(event.target.value)}
-              onBlur={() => void handleGlobalProxyUrlBlur()}
-              placeholder={t("desktop:settings.globalProxy.urlPlaceholder")}
-              disabled={!globalProxyEnabled}
-            />
-          </div>
         </div>
       </NeonSection>
 

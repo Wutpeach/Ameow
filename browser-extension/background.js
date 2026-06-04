@@ -762,8 +762,6 @@ function summarizeVideoSelectionForDebug(payload) {
     cookiesPresent: typeof payload?.cookies === 'string' && payload.cookies.trim().length > 0,
     extensionData: youtubeExtensionData ? {
       youtube: {
-        forceExtended: youtubeExtensionData.forceExtended === true,
-        allowCookies: youtubeExtensionData.allowCookies === true,
         source: typeof youtubeExtensionData.source === 'string' ? youtubeExtensionData.source : null,
       },
     } : null,

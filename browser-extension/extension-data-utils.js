@@ -11,16 +11,6 @@
     }
 
     const normalized = {
-      forceExtended: typeof rawYouTubeExtensionData.forceExtended === "boolean"
-        ? rawYouTubeExtensionData.forceExtended
-        : typeof rawYouTubeExtensionData.force_extended === "boolean"
-          ? rawYouTubeExtensionData.force_extended
-          : undefined,
-      allowCookies: typeof rawYouTubeExtensionData.allowCookies === "boolean"
-        ? rawYouTubeExtensionData.allowCookies
-        : typeof rawYouTubeExtensionData.allow_cookies === "boolean"
-          ? rawYouTubeExtensionData.allow_cookies
-          : undefined,
       source:
         rawYouTubeExtensionData.source === "injected"
         || rawYouTubeExtensionData.source === "pasted"
@@ -30,9 +20,7 @@
     };
 
     if (
-      typeof normalized.forceExtended === "undefined"
-      && typeof normalized.allowCookies === "undefined"
-      && typeof normalized.source === "undefined"
+      typeof normalized.source === "undefined"
     ) {
       return null;
     }
