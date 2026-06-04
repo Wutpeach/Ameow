@@ -34,6 +34,10 @@ export type SiteSessionCommandControllerOptions = {
     siteId: string,
     manager: SiteSessionCommandManager,
   ): Promise<SiteSessionState>;
+  onSiteSessionCleared?(
+    siteId: string,
+    state: SiteSessionState,
+  ): Promise<void> | void;
 };
 
 export const resolveSiteSessionIdFromPayload = (
@@ -114,7 +118,11 @@ export const createSiteSessionCommandController = (
         ? "douyin"
         : resolvePayloadSiteId(payload);
       const manager = options.requireSiteSessionManager(siteId);
-      return await manager[method]() as TResult;
+      const result = await manager[method]() as TResult;
+      if (method === "clearSession") {
+        await options.onSiteSessionCleared?.(siteId, result as SiteSessionState);
+      }
+      return result;
     },
   };
 };

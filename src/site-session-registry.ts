@@ -39,7 +39,7 @@ export const createSeedSiteSessionRegistryEntry = (
   autoSyncAllowed: true,
   discoverySources: ["seed"],
   engineHints: STATIC_ENGINE_HINTS[config.id] ?? [],
-  visibility: "visible",
+  visibility: "hidden_catalog",
   icon: {
     kind: "known",
     key: config.id,

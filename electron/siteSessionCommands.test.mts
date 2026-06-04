@@ -185,6 +185,25 @@ describe("createSiteSessionCommandController", () => {
     expect(caught).toBe(error);
   });
 
+  it("notifies the injected clear hook after site-session clear succeeds", async () => {
+    const manager = createManager("bilibili");
+    const onSiteSessionCleared = vi.fn();
+    const controller = createSiteSessionCommandController({
+      listSiteSessionRegistryEntries: () => [],
+      requireSiteSessionManager: vi.fn(() => manager),
+      resolveSiteSessionIdFromPayload,
+      onSiteSessionCleared,
+    });
+
+    const state = await controller.invoke("clear_site_session", { siteId: "bilibili" });
+
+    expect(state).toMatchObject({
+      siteId: "bilibili",
+      method: "clearSession",
+    });
+    expect(onSiteSessionCleared).toHaveBeenCalledWith("bilibili", state);
+  });
+
   it("syncs any registry-backed site session through the injected extension sync dependency", async () => {
     const { managers, requireSiteSessionManager } = createControllerHarness();
     const syncSiteSessionFromExtension = vi.fn(async () => ({

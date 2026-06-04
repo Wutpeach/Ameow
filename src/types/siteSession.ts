@@ -99,3 +99,9 @@ export type SiteSessionPendingActionsPayload = {
   count: number;
   entries: SiteSessionPendingAction[];
 };
+
+export type SiteSessionStateChangedPayload = {
+  siteId: string;
+  state: SiteSessionState;
+  registryEntries: SiteSessionRegistryEntry[];
+};

@@ -60,6 +60,7 @@ export type AmeowAppEvent =
   | "rename-setting-changed"
   | "runtime-dependency-gate-state"
   | "site-session-pending-actions-changed"
+  | "site-session-state-changed"
   | "shortcut-show"
   | "theme-changed"
   | "ui-lab-reset"

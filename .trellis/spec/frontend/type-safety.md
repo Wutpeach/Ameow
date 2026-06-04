@@ -131,6 +131,7 @@ type DownloadProgress = {
 | `shortcut-show` | `listen<void>(...)` |
 | `runtime-dependency-gate-state` | `listen<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null }>(...)` |
 | `site-session-pending-actions-changed` | `listen<{ count: number; entries: { siteId: string; displayName: string; primaryHost: string }[] }>(...)` |
+| `site-session-state-changed` | `listen<{ siteId: string; state: SiteSessionState; registryEntries: SiteSessionRegistryEntry[] }>(...)` |
 
 #### Support Log Export Contract
 
@@ -594,6 +595,21 @@ Behavior contract in frontend:
 - Render the lower-left login-state warning dot only in the full main window when `count > 0`; compact/minimized mode and the queue popover should keep it hidden.
 - Clicking the warning dot opens Settings. The main window must not attempt to read cookies or activate site sessions directly.
 - Treat `entries[0]` as display-only copy. The backend remains authoritative for which sites are pending.
+
+#### Site Login-State Settings Refresh Contract
+
+- Source files: `src/pages/SettingsPage.tsx`, `src/types/siteSession.ts`, `src/types/electronBridge.ts`
+- Event: `site-session-state-changed`
+- Payload fields:
+  - `siteId: string`
+  - `state: SiteSessionState`
+  - `registryEntries: SiteSessionRegistryEntry[]`
+
+Behavior contract in frontend:
+- Settings must load visible site-session registry rows with `invoke<SiteSessionRegistryEntry[]>("get_site_session_registry")`, then load state for each visible row with `get_site_session_state`.
+- Settings must subscribe to `site-session-state-changed` while mounted and refresh its panel state when the event fires.
+- The frontend must not locally infer whether hidden seed/catalog entries should be visible. Registry visibility remains backend-owned.
+- A `partial` state is visible when the backend returns a visible registry row; the UI may present it through the existing incomplete/missing status copy, but it must not hide the row.
 
 #### Config JSON Key Contract: Download Rename Toggle
 

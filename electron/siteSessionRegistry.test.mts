@@ -24,7 +24,7 @@ const registryPath = (userDataDir: string): string => (
 );
 
 describe("createSiteSessionRegistry", () => {
-  it("seeds visible first-party entries and persists the registry synchronously", async () => {
+  it("seeds first-party entries as hidden catalog metadata and persists the registry synchronously", async () => {
     const userDataDir = await createTempUserDataDir();
     const registry = createSiteSessionRegistry({
       getUserDataDir: () => userDataDir,
@@ -33,26 +33,26 @@ describe("createSiteSessionRegistry", () => {
 
     const entries = registry.listVisibleEntries();
 
-    expect(entries.map((entry) => entry.siteId).sort()).toEqual([
+    expect(entries.map((entry) => entry.siteId)).toEqual(expect.not.arrayContaining([
       "bilibili",
       "douyin",
       "instagram",
       "xiaohongshu",
       "youtube",
-    ]);
+    ]));
     expect(registry.requireEntry("youtube")).toMatchObject({
       siteId: "youtube",
       cookieDomains: ["youtube.com", "google.com"],
       syncAuthorization: "seeded",
       autoSyncAllowed: true,
-      visibility: "visible",
+      visibility: "hidden_catalog",
     });
     expect(registry.requireEntry("instagram")).toMatchObject({
       siteId: "instagram",
       cookieDomains: ["instagram.com"],
       loginCookieKeys: ["sessionid"],
       discoverySources: expect.arrayContaining(["seed", "gallery-dl-supported-sites"]),
-      visibility: "visible",
+      visibility: "hidden_catalog",
     });
 
     const stored = JSON.parse(await readFile(registryPath(userDataDir), "utf8")) as {
@@ -61,6 +61,20 @@ describe("createSiteSessionRegistry", () => {
     };
     expect(stored.version).toBe(1);
     expect(stored.entries.some((entry) => entry.siteId === "youtube")).toBe(true);
+  });
+
+  it("keeps first-party seed entries matchable while hidden from settings", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_305,
+    });
+
+    expect(registry.matchEntryForUrl("https://www.bilibili.com/video/BV123")).toMatchObject({
+      siteId: "bilibili",
+      visibility: "hidden_catalog",
+    });
+    expect(registry.listVisibleEntries().map((entry) => entry.siteId)).not.toContain("bilibili");
   });
 
   it("seeds gallery-dl cookie catalog entries as hidden recognition metadata", async () => {
@@ -120,6 +134,61 @@ describe("createSiteSessionRegistry", () => {
       discoverySources: expect.arrayContaining(["gallery-dl-supported-sites", "user_sync"]),
     });
     expect(registry.listVisibleEntries().filter((item) => item.siteId === "patreon")).toHaveLength(1);
+  });
+
+  it("activates first-party seed entries after user sync", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_312,
+    });
+
+    const entry = registry.activateEntry("bilibili", "user_sync");
+
+    expect(entry).toMatchObject({
+      siteId: "bilibili",
+      visibility: "visible",
+      discoverySources: expect.arrayContaining(["seed", "user_sync"]),
+    });
+    expect(registry.listVisibleEntries().map((item) => item.siteId)).toContain("bilibili");
+  });
+
+  it("hides seed-only entries after user-sync activation is removed", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_313,
+    });
+    registry.activateEntry("bilibili", "user_sync");
+
+    const entry = registry.removeActivationSource("bilibili", "user_sync");
+
+    expect(entry).toMatchObject({
+      siteId: "bilibili",
+      visibility: "hidden_catalog",
+    });
+    expect(entry.discoverySources).not.toContain("user_sync");
+    expect(registry.listVisibleEntries().map((item) => item.siteId)).not.toContain("bilibili");
+  });
+
+  it("keeps entries visible after removing user-sync when another activation source remains", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_314,
+    });
+    registry.activateEntry("bilibili", "auth_required");
+    registry.activateEntry("bilibili", "user_sync");
+
+    const entry = registry.removeActivationSource("bilibili", "user_sync");
+
+    expect(entry).toMatchObject({
+      siteId: "bilibili",
+      visibility: "visible",
+      discoverySources: expect.arrayContaining(["seed", "auth_required"]),
+    });
+    expect(entry.discoverySources).not.toContain("user_sync");
+    expect(registry.listVisibleEntries().map((item) => item.siteId)).toContain("bilibili");
   });
 
   it("promotes hidden catalog entries on auth-required discovery", async () => {

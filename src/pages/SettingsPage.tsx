@@ -69,6 +69,7 @@ import { SITE_SESSION_LOGOS } from "../site-session-icons";
 import type {
   SiteSessionRegistryEntry,
   SiteSessionState,
+  SiteSessionStateChangedPayload,
 } from "../types/siteSession";
 
 type RenameRulePreset = "desc_number" | "asc_number" | "prefix_number";
@@ -821,6 +822,22 @@ function SettingsPage() {
 
   useEffect(() => {
     void loadSiteSessionPanelState();
+  }, [loadSiteSessionPanelState]);
+
+  useEffect(() => {
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<SiteSessionStateChangedPayload>(
+      "site-session-state-changed",
+      () => {
+        void loadSiteSessionPanelState();
+      },
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+
+    return () => {
+      cleanup?.();
+    };
   }, [loadSiteSessionPanelState]);
 
   const isSiteSessionActionBusy = Boolean(busySiteSessionAction);

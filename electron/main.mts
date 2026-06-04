@@ -1474,6 +1474,7 @@ async function syncSiteSessionFromExtension(siteId, manager) {
 
   getSiteSessionRegistry().activateEntry(siteId, "user_sync");
   broadcastSiteSessionRegistryUpdate();
+  emitSiteSessionStateChanged(siteId, nextState);
   void broadcastSiteSessionPendingActions();
   return nextState;
 }
@@ -1536,6 +1537,12 @@ function getSiteSessionCommandController() {
     requireSiteSessionManager,
     resolveSiteSessionIdFromPayload,
     syncSiteSessionFromExtension,
+    onSiteSessionCleared(siteId, state) {
+      getSiteSessionRegistry().removeActivationSource(siteId, "user_sync");
+      broadcastSiteSessionRegistryUpdate();
+      emitSiteSessionStateChanged(siteId, state);
+      void broadcastSiteSessionPendingActions();
+    },
   });
   return siteSessionCommandController;
 }
@@ -1748,6 +1755,14 @@ function emitAppEvent(event, payload) {
       win.webContents.send(`ameow:event:${event}`, { payload });
     }
   }
+}
+
+function emitSiteSessionStateChanged(siteId, state) {
+  emitAppEvent("site-session-state-changed", {
+    siteId,
+    state,
+    registryEntries: getSiteSessionRegistry().listVisibleEntries(),
+  });
 }
 
 function emitLiveVideoQueueState() {
@@ -2711,6 +2726,7 @@ async function handleWsMessage(rawMessage) {
         }
         getSiteSessionRegistry().activateEntry(siteId, "user_sync");
         broadcastSiteSessionRegistryUpdate();
+        emitSiteSessionStateChanged(siteId, nextState);
         void broadcastSiteSessionPendingActions();
         return {
           success: true,

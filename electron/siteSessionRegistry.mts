@@ -18,6 +18,7 @@ export type SiteSessionRegistry = {
   requireEntry(siteId: string): SiteSessionRegistryEntry;
   matchEntryForUrl(url: string): SiteSessionRegistryEntry | null;
   activateEntry(siteId: string, source: SiteSessionRegistryEntry["discoverySources"][number]): SiteSessionRegistryEntry;
+  removeActivationSource(siteId: string, source: SiteSessionRegistryEntry["discoverySources"][number]): SiteSessionRegistryEntry;
   upsertAuthRequiredSite(options: {
     pageUrl?: string | null;
     siteId?: string | null;
@@ -37,6 +38,11 @@ export type SiteSessionRegistryOptions = {
 };
 
 const REGISTRY_VERSION = 1;
+const ACTIVATION_DISCOVERY_SOURCES = new Set<SiteSessionRegistryEntry["discoverySources"][number]>([
+  "auth_required",
+  "extension_current_tab",
+  "user_sync",
+]);
 
 const defaultNow = (): number => Date.now();
 
@@ -110,6 +116,18 @@ const normalizeEngineHint = (
     : null
 );
 
+const isActivationDiscoverySource = (
+  source: SiteSessionRegistryEntry["discoverySources"][number],
+): boolean => (
+  ACTIVATION_DISCOVERY_SOURCES.has(source)
+);
+
+const resolveVisibilityForDiscoverySources = (
+  discoverySources: SiteSessionRegistryEntry["discoverySources"],
+): SiteSessionRegistryEntry["visibility"] => (
+  discoverySources.some(isActivationDiscoverySource) ? "visible" : "hidden_catalog"
+);
+
 const normalizeEntry = (value: unknown): SiteSessionRegistryEntry | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -179,6 +197,9 @@ const mergeSeedEntries = (
   }
   for (const seed of seedEntries) {
     const existing = entries.get(seed.siteId);
+    const discoverySources = existing
+      ? Array.from(new Set([...seed.discoverySources, ...existing.discoverySources]))
+      : seed.discoverySources;
     entries.set(seed.siteId, existing
       ? {
           ...seed,
@@ -189,12 +210,15 @@ const mergeSeedEntries = (
           loginCookieKeys: seed.loginCookieKeys,
           syncAuthorization: seed.syncAuthorization,
           autoSyncAllowed: seed.autoSyncAllowed,
-          discoverySources: Array.from(new Set([...seed.discoverySources, ...existing.discoverySources])),
-          visibility: seed.discoverySources.includes("seed") ? "visible" : existing.visibility,
+          discoverySources,
+          visibility: resolveVisibilityForDiscoverySources(discoverySources),
           icon: existing.icon.kind === "placeholder" ? seed.icon : existing.icon,
           updatedAtMs: Math.max(existing.updatedAtMs, seed.updatedAtMs),
         }
-      : seed);
+      : {
+          ...seed,
+          visibility: resolveVisibilityForDiscoverySources(discoverySources),
+        });
   }
   return Array.from(entries.values()).sort((left, right) => (
     left.displayName.localeCompare(right.displayName)
@@ -359,6 +383,25 @@ export const createSiteSessionRegistry = (
           ...matchedEntry.discoverySources,
           source,
         ])),
+        updatedAtMs: now(),
+      };
+      entries = currentEntries.map((entry) => (
+        entry.siteId === nextEntry.siteId ? nextEntry : entry
+      ));
+      persistEntries(entries);
+      return nextEntry;
+    },
+    removeActivationSource(siteId, source) {
+      const currentEntries = loadEntries();
+      const matchedEntry = currentEntries.find((entry) => entry.siteId === siteId);
+      if (!matchedEntry) {
+        throw new Error(`Unsupported site session: ${siteId}`);
+      }
+      const discoverySources = matchedEntry.discoverySources.filter((item) => item !== source);
+      const nextEntry: SiteSessionRegistryEntry = {
+        ...matchedEntry,
+        discoverySources,
+        visibility: resolveVisibilityForDiscoverySources(discoverySources),
         updatedAtMs: now(),
       };
       entries = currentEntries.map((entry) => (
