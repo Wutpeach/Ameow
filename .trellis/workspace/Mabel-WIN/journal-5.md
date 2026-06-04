@@ -177,3 +177,36 @@ Implemented dynamic extension-driven site-session sync across all planned phases
 ### Next Steps
 
 - None - task complete
+
+
+## Session 202: Fix site session settings visibility refresh
+
+**Date**: 2026-06-04
+**Task**: Fix site session settings visibility refresh
+**Branch**: `main`
+
+### Summary
+
+Implemented hidden-by-default seed site-session registry rows, user-sync activation and clear demotion, Settings live refresh via site-session-state-changed, tests, and spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e62ccdc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
