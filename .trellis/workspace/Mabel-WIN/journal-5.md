@@ -210,3 +210,36 @@ Implemented hidden-by-default seed site-session registry rows, user-sync activat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 203: Redesign extension toolbar popup layout
+
+**Date**: 2026-06-04
+**Task**: Redesign extension toolbar popup layout
+**Branch**: `main`
+
+### Summary
+
+Refactored browser extension toolbar popup into a media-first quick panel, removed toolbar launcher/current-page download controls, moved login state below media browser as a stable shortcut row, and updated locale/spec guidance.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2df9b7a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
