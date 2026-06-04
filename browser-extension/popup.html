@@ -8,39 +8,6 @@
 </head>
 <body class="ameow-theme-black">
   <main class="ameow-popup">
-    <section class="ameow-context-card" id="contextCard" data-state="checking">
-      <div class="ameow-context-main">
-        <div class="ameow-context-title" id="contextTitle">Checking page</div>
-        <div class="ameow-context-status" id="contextStatus">Preparing scan</div>
-      </div>
-      <div class="ameow-context-counts" id="contextCounts">- video · - audio · - image</div>
-      <div class="ameow-context-actions">
-        <div class="ameow-header-status" id="headerStatus" data-state="offline" title="Offline">
-          <span class="ameow-status-dot" id="statusDot"></span>
-          <span class="ameow-header-status-text" id="statusText">Offline</span>
-        </div>
-        <button type="button" class="ameow-context-secondary ameow-refresh-button" id="refreshMediaButton">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.45 5.08a1 1 0 0 0-1.86.74A6 6 0 1 1 12 6c1.31 0 2.52.42 3.5 1.13L13.8 8.82a1 1 0 0 0 .7 1.71H19a1 1 0 0 0 1-1V5a1 1 0 0 0-1.7-.7l-.65 2.05Z"/></svg>
-          <span class="ameow-sr-only" id="refreshMediaText">Refresh</span>
-        </button>
-        <button type="button" class="ameow-context-secondary" id="contextFallbackDownloadButton" hidden>
-          Download this page
-        </button>
-      </div>
-    </section>
-
-    <section class="ameow-login-state-panel" id="loginStatePanel" data-state="unknown" hidden>
-      <span class="ameow-login-state-icon" id="loginStateIcon" aria-hidden="true">?</span>
-      <div class="ameow-login-state-copy">
-        <span class="ameow-tool-label" id="loginStateLabel">Login state</span>
-        <span class="ameow-login-state-title" id="loginStateTitle">Current site</span>
-        <span class="ameow-login-state-hint" id="loginStateHint">Sync cookies from this browser for better downloads.</span>
-      </div>
-      <button type="button" class="ameow-login-state-button" id="loginStateButton">
-        Sync
-      </button>
-    </section>
-
     <section class="ameow-media-panel" id="mediaPanel">
       <div class="ameow-media-toolbar">
         <div class="ameow-media-tabs" role="tablist" aria-label="Media type">
@@ -48,6 +15,10 @@
           <button type="button" class="ameow-media-tab" data-media-type="audio" id="audioMediaTab">Audio</button>
           <button type="button" class="ameow-media-tab" data-media-type="image" id="imageMediaTab">Image</button>
         </div>
+        <button type="button" class="ameow-refresh-button" id="refreshMediaButton">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.45 5.08a1 1 0 0 0-1.86.74A6 6 0 1 1 12 6c1.31 0 2.52.42 3.5 1.13L13.8 8.82a1 1 0 0 0 .7 1.71H19a1 1 0 0 0 1-1V5a1 1 0 0 0-1.7-.7l-.65 2.05Z"/></svg>
+          <span class="ameow-sr-only" id="refreshMediaText">Refresh</span>
+        </button>
       </div>
       <div class="ameow-media-summary" id="mediaSummary">Scanning current page.</div>
       <div class="ameow-media-list" id="mediaList"></div>
@@ -72,22 +43,24 @@
           </span>
         </div>
       </section>
-      <button type="button" class="ameow-launcher-summary" id="launcherSettingsButton">
-        <span class="ameow-launcher-summary-main">
-          <span class="ameow-tool-label" id="launcherSectionTitle">Launcher</span>
-          <span class="ameow-tool-value" id="launcherStateText">Checking</span>
-        </span>
-        <span class="ameow-launcher-summary-meta">
-          <span id="hiddenSitesCount">0 hidden sites</span>
-          <span class="ameow-launcher-settings-copy" id="launcherSettingsText">Settings</span>
-        </span>
-      </button>
+      <section class="ameow-login-state-panel" id="loginStatePanel" data-state="unknown">
+        <span class="ameow-login-state-icon" id="loginStateIcon" aria-hidden="true">?</span>
+        <div class="ameow-login-state-copy">
+          <span class="ameow-tool-label" id="loginStateLabel">Login state</span>
+          <span class="ameow-login-state-title" id="loginStateTitle">Current site</span>
+          <span class="ameow-login-state-hint" id="loginStateHint">Sync cookies from this browser for better downloads.</span>
+        </div>
+        <button type="button" class="ameow-login-state-button" id="loginStateButton">
+          Sync
+        </button>
+      </section>
     </section>
 
     <footer class="ameow-popup-footer">
       <div class="ameow-footer-slot ameow-footer-slot-left">
         <button type="button" class="ameow-footer-btn" id="openOptionsButton">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 1 0 7.5a3.75 3.75 0 0 1 0-7.5Zm0-5.25l1.25 2.25c.4.12.78.27 1.15.47l2.47-.72l1.75 3.03l-1.86 1.74c.08.4.12.82.12 1.23s-.04.83-.12 1.23l1.86 1.74l-1.75 3.03l-2.47-.72c-.37.2-.75.35-1.15.47L12 21l-1.25-2.25c-.4-.12-.78-.27-1.15-.47l-2.47.72l-1.75-3.03l1.86-1.74A6.4 6.4 0 0 1 7.12 12c0-.41.04-.83.12-1.23L5.38 9.03L7.13 6l2.47.72c.37-.2.75-.35 1.15-.47L12 3Z"/></svg>
+          <svg id="footerSettingsIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 1 0 7.5a3.75 3.75 0 0 1 0-7.5Zm0-5.25l1.25 2.25c.4.12.78.27 1.15.47l2.47-.72l1.75 3.03l-1.86 1.74c.08.4.12.82.12 1.23s-.04.83-.12 1.23l1.86 1.74l-1.75 3.03l-2.47-.72c-.37.2-.75.35-1.15.47L12 21l-1.25-2.25c-.4-.12-.78-.27-1.15-.47l-2.47.72l-1.75-3.03l1.86-1.74A6.4 6.4 0 0 1 7.12 12c0-.41.04-.83.12-1.23L5.38 9.03L7.13 6l2.47.72c.37-.2.75-.35 1.15-.47L12 3Z"/></svg>
+          <span class="ameow-footer-status-dot" id="footerStatusDot" aria-hidden="true" hidden></span>
           <span id="footerSettingsText">Settings</span>
         </button>
       </div>

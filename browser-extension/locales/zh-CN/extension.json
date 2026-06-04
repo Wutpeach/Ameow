@@ -21,7 +21,8 @@
     "sections": {
       "quality": "画质",
       "launcher": "贴边入口",
-      "hiddenSites": "隐藏站点"
+      "hiddenSites": "隐藏站点",
+      "loginState": "登录态"
     },
     "footer": {
       "settings": "设置",
@@ -62,6 +63,7 @@
       },
       "summary": {
         "scanning": "正在扫描当前页面",
+        "refreshing": "正在刷新当前页面媒体",
         "unavailable": "无法扫描",
         "counts": "{videoCount} 个视频 / {audioCount} 个音频 / {imageCount} 张图片",
         "results": "{videoCount} 个视频 / {audioCount} 个音频 / {imageCount} 张图片{age}"
@@ -123,6 +125,25 @@
       "launcherHidden": "本站已隐藏贴边入口",
       "launcherDisabled": "贴边入口已全局隐藏",
       "launcherActive": "贴边入口已启用"
+    },
+    "loginState": {
+      "syncTitle": "同步 {site}",
+      "syncHint": "使用当前浏览器的登录 Cookies 供后续下载。",
+      "enableTitle": "启用 {host}",
+      "enableHint": "允许 Ameow 为此站点使用 Cookies。",
+      "offlineTitle": "桌面端离线",
+      "offlineHint": "打开桌面应用后再试。",
+      "unavailableTitle": "不可用",
+      "unavailableHint": "当前页面不支持同步登录态。",
+      "workingTitle": "正在同步登录态",
+      "workingHint": "正在保存浏览器 Cookies。",
+      "working": "同步中",
+      "syncButton": "同步",
+      "enableButton": "启用",
+      "syncedTitle": "登录态已同步",
+      "syncedHint": "Ameow 已保存 Cookies 供后续下载。",
+      "failedTitle": "同步失败",
+      "failedHint": "请先在浏览器登录此站点，然后重试。"
     },
     "sites": {
       "count": "{count} 个隐藏站点",

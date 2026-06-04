@@ -175,7 +175,10 @@ Rules:
 
 - Should feel like a companion surface to the desktop app, not a separate product
 - Prefer compact panel language over decorative popup chrome
-- Connection state and download quality are the primary hierarchy
+- The toolbar popup is a media-first quick panel: open directly into current-page `Video / Audio / Image` browsing instead of a landing card or nested feature launcher
+- Keep only current-page shortcuts in the toolbar. Download quality and site login-state sync may live below the media browser; launcher visibility, hidden sites, and broader configuration belong in the extension settings page
+- Normal connected state should stay implicit. Show desktop connection status only for abnormal states such as connecting/offline, and keep the centered footer version stable
+- Do not add a `Download current page` toolbar action when the in-page launcher/floating window already owns the primary download path
 
 ### Browser-injected controls
 

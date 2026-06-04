@@ -21,7 +21,8 @@
     "sections": {
       "quality": "Quality",
       "launcher": "Launcher",
-      "hiddenSites": "Hidden sites"
+      "hiddenSites": "Hidden sites",
+      "loginState": "Login state"
     },
     "footer": {
       "settings": "Settings",
@@ -62,6 +63,7 @@
       },
       "summary": {
         "scanning": "Scanning current page",
+        "refreshing": "Refreshing current page media",
         "unavailable": "Scan unavailable",
         "counts": "{videoCount} video / {audioCount} audio / {imageCount} image",
         "results": "{videoCount} video / {audioCount} audio / {imageCount} image{age}"
@@ -123,6 +125,25 @@
       "launcherHidden": "Launcher hidden on this site",
       "launcherDisabled": "Launcher hidden globally",
       "launcherActive": "Launcher active"
+    },
+    "loginState": {
+      "syncTitle": "Sync {site}",
+      "syncHint": "Use this browser's login cookies for future downloads.",
+      "enableTitle": "Enable {host}",
+      "enableHint": "Allow Ameow to use cookies for this exact host.",
+      "offlineTitle": "Desktop offline",
+      "offlineHint": "Open the desktop app, then try again.",
+      "unavailableTitle": "Unavailable",
+      "unavailableHint": "This page does not support login sync.",
+      "workingTitle": "Syncing login state",
+      "workingHint": "Saving browser cookies for downloads.",
+      "working": "Syncing",
+      "syncButton": "Sync",
+      "enableButton": "Enable",
+      "syncedTitle": "Login state synced",
+      "syncedHint": "Ameow saved cookies for future downloads.",
+      "failedTitle": "Sync failed",
+      "failedHint": "Log in to this site in the browser, then retry."
     },
     "sites": {
       "count": "{count} hidden sites",

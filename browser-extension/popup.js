@@ -111,13 +111,6 @@ function ageBucket(ageMs) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const elements = {
-    headerStatus: document.getElementById("headerStatus"),
-    statusText: document.getElementById("statusText"),
-    contextCard: document.getElementById("contextCard"),
-    contextTitle: document.getElementById("contextTitle"),
-    contextStatus: document.getElementById("contextStatus"),
-    contextCounts: document.getElementById("contextCounts"),
-    contextFallbackDownloadButton: document.getElementById("contextFallbackDownloadButton"),
     loginStatePanel: document.getElementById("loginStatePanel"),
     loginStateIcon: document.getElementById("loginStateIcon"),
     loginStateLabel: document.getElementById("loginStateLabel"),
@@ -137,12 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
     highestQualityHint: document.getElementById("highestQualityHint"),
     highestQualityHintText: document.getElementById("highestQualityHintText"),
     qualitySectionTitle: document.getElementById("qualitySectionTitle"),
-    launcherSectionTitle: document.getElementById("launcherSectionTitle"),
-    launcherStateText: document.getElementById("launcherStateText"),
-    hiddenSitesCount: document.getElementById("hiddenSitesCount"),
-    launcherSettingsButton: document.getElementById("launcherSettingsButton"),
-    launcherSettingsText: document.getElementById("launcherSettingsText"),
     openOptionsButton: document.getElementById("openOptionsButton"),
+    footerSettingsIcon: document.getElementById("footerSettingsIcon"),
+    footerStatusDot: document.getElementById("footerStatusDot"),
     footerSettingsText: document.getElementById("footerSettingsText"),
     popupVersion: document.getElementById("popupVersion"),
     moreMenuButton: document.getElementById("moreMenuButton"),
@@ -153,7 +143,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   let statusTimer = null;
-  let launcherTimer = null;
   let currentBundle = {
     language: FALLBACK_LANGUAGE,
     common: {},
@@ -163,14 +152,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSiteSessionStatus = null;
   let loginStateBusy = false;
   let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
-  let currentLauncherStatus = null;
-  let currentLauncherConfig = null;
   let currentMediaType = "video";
   let mediaScanResult = null;
   let scanStarted = false;
   let scanInProgress = false;
-  let currentPageTitle = "";
-  let currentPageUrl = "";
   let openMenuId = null;
   const downloadCooldown = new Set();
 
@@ -223,26 +208,13 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
     elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
     elements.qualitySectionTitle.textContent = t("popup.sections.quality", "Quality");
-    elements.launcherSectionTitle.textContent = t("popup.sections.launcher", "Launcher");
-    elements.contextFallbackDownloadButton.textContent = t("launcher.popup.fallback", "Download this page");
-    elements.launcherSettingsText.textContent = t("popup.footer.settings", "Settings");
-    elements.footerSettingsText.textContent = t("popup.footer.settings", "Settings");
-    elements.openOptionsButton.title = t("popup.footer.openSettings", "Open settings");
-    elements.openOptionsButton.setAttribute("aria-label", t("popup.footer.openSettings", "Open settings"));
     elements.footerMoreText.textContent = t("popup.footer.more", "More");
     elements.moreMenuButton.setAttribute("aria-label", t("popup.footer.more", "More"));
     elements.repositoryLinkButton.textContent = t("popup.footer.repository", "GitHub repository");
     elements.gettingStartedLinkButton.textContent = t("popup.footer.gettingStarted", "Getting started");
     elements.popupVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+    renderFooterStatus();
     document.title = t("app.name", "Ameow");
-  }
-
-  function pageHost(value) {
-    try {
-      return new URL(value).hostname.replace(/^www\./i, "");
-    } catch {
-      return "";
-    }
   }
 
   function getStatusCopy(state) {
@@ -268,12 +240,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateStatus(nextState) {
     currentStatusState = nextState;
-    const copy = getStatusCopy(nextState);
-    elements.headerStatus.dataset.state = nextState;
-    elements.headerStatus.title = copy.hint;
-    elements.statusText.textContent = copy.label;
-    renderContextCard();
+    renderFooterStatus();
     renderLoginStatePanel();
+  }
+
+  function renderFooterStatus() {
+    const connected = currentStatusState === STATUS_STATE_CONNECTED;
+    const copy = getStatusCopy(currentStatusState);
+    const settingsLabel = t("popup.footer.settings", "Settings");
+    const settingsTitle = t("popup.footer.openSettings", "Open settings");
+
+    elements.openOptionsButton.dataset.state = connected ? "settings" : currentStatusState;
+    elements.footerSettingsIcon.hidden = !connected;
+    elements.footerStatusDot.hidden = connected;
+    elements.footerStatusDot.dataset.state = currentStatusState;
+    elements.footerSettingsText.textContent = connected ? settingsLabel : copy.label;
+    elements.openOptionsButton.title = connected ? settingsTitle : copy.hint;
+    elements.openOptionsButton.setAttribute(
+      "aria-label",
+      connected ? settingsTitle : `${copy.label}. ${copy.hint}`,
+    );
   }
 
   async function checkStatus() {
@@ -305,31 +291,43 @@ document.addEventListener("DOMContentLoaded", () => {
     const connected = currentStatusState === STATUS_STATE_CONNECTED;
     const canSync = connected && siteSession.canSyncCurrentSite === true && site;
     const canEnable = connected && siteSession.canEnableCurrentSite === true;
-    const shouldShow = Boolean(canSync || canEnable || feedback);
+    const siteName = currentSiteSessionName();
 
-    elements.loginStatePanel.hidden = !shouldShow;
-    if (!shouldShow) {
-      return;
+    renderLoginStateIcon(site, site?.displayName || site?.siteId || pageHost);
+
+    if (feedback) {
+      elements.loginStatePanel.dataset.state = feedback.tone || "sync";
+      elements.loginStateTitle.textContent = feedback.title;
+      elements.loginStateHint.textContent = feedback.hint;
+    } else if (loginStateBusy) {
+      elements.loginStatePanel.dataset.state = "working";
+      elements.loginStateTitle.textContent = t("popup.loginState.workingTitle", "Syncing login state");
+      elements.loginStateHint.textContent = siteName || t("popup.loginState.workingHint", "Saving browser cookies for downloads.");
+    } else if (!connected) {
+      elements.loginStatePanel.dataset.state = "offline";
+      elements.loginStateTitle.textContent = t("popup.loginState.offlineTitle", "Desktop offline");
+      elements.loginStateHint.textContent = t("popup.loginState.offlineHint", "Open the desktop app, then try again.");
+    } else if (canSync) {
+      elements.loginStatePanel.dataset.state = "sync";
+      elements.loginStateTitle.textContent = tt("popup.loginState.syncTitle", { site: siteName }, `Sync ${siteName}`);
+      elements.loginStateHint.textContent = t("popup.loginState.syncHint", "Use this browser's login cookies for future downloads.");
+    } else if (canEnable) {
+      elements.loginStatePanel.dataset.state = "enable";
+      elements.loginStateTitle.textContent = tt("popup.loginState.enableTitle", { host: pageHost }, `Enable ${pageHost}`);
+      elements.loginStateHint.textContent = t("popup.loginState.enableHint", "Allow Ameow to use cookies for this exact host.");
+    } else {
+      elements.loginStatePanel.dataset.state = "unavailable";
+      elements.loginStateTitle.textContent = t("popup.loginState.unavailableTitle", "Unavailable");
+      elements.loginStateHint.textContent = t("popup.loginState.unavailableHint", "This page does not support login sync.");
     }
 
-    const siteName = currentSiteSessionName();
-    renderLoginStateIcon(site, site?.displayName || site?.siteId || pageHost);
-    elements.loginStatePanel.dataset.state = feedback?.tone || (canSync ? "sync" : "enable");
-    elements.loginStateTitle.textContent = feedback?.title || (
-      canSync
-        ? tt("popup.loginState.syncTitle", { site: siteName }, `Sync ${siteName}`)
-        : tt("popup.loginState.enableTitle", { host: pageHost }, `Enable ${pageHost}`)
-    );
-    elements.loginStateHint.textContent = feedback?.hint || (
-      canSync
-        ? t("popup.loginState.syncHint", "Use this browser's login cookies for future downloads.")
-        : t("popup.loginState.enableHint", "Allow Ameow to use cookies for this exact host.")
-    );
     elements.loginStateButton.textContent = loginStateBusy
       ? t("popup.loginState.working", "Syncing")
       : canSync
         ? t("popup.loginState.syncButton", "Sync")
-        : t("popup.loginState.enableButton", "Enable");
+        : canEnable
+          ? t("popup.loginState.enableButton", "Enable")
+          : t("popup.loginState.syncButton", "Sync");
     elements.loginStateButton.disabled = loginStateBusy || (!canSync && !canEnable);
   }
 
@@ -353,44 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     renderMediaTabs();
     renderMediaState();
-  }
-
-  function renderLauncherStatus(status, config = currentLauncherConfig) {
-    currentLauncherStatus = status;
-    currentLauncherConfig = config || currentLauncherConfig;
-
-    if (!status) {
-      elements.contextFallbackDownloadButton.hidden = true;
-      elements.launcherStateText.textContent = t("launcher.status.checking", "Checking");
-      renderHiddenSites(config?.disabledSitePatterns || [], false);
-      renderContextCard();
-      return;
-    }
-
-    const enabled = status?.enabled !== false;
-    const mounted = status?.mounted === true && status?.visible !== false;
-    const hiddenForSite = status?.hiddenForSite === true;
-    elements.contextFallbackDownloadButton.hidden = mounted || !enabled;
-
-    if (!enabled) {
-      elements.launcherStateText.textContent = t("launcher.status.disabled", "Hidden");
-    } else if (mounted) {
-      elements.launcherStateText.textContent = t("launcher.status.visible", "Visible");
-    } else if (hiddenForSite) {
-      elements.launcherStateText.textContent = t("launcher.status.hidden", "Hidden here");
-    } else {
-      elements.launcherStateText.textContent = t("launcher.status.unavailable", "Unavailable");
-    }
-
-    renderHiddenSites(config?.disabledSitePatterns || [], hiddenForSite);
-    renderContextCard();
-  }
-
-  async function refreshLauncherControls() {
-    const response = await sendRuntimeMessage({ type: "get_launcher_controls_state" });
-    const status = response?.status || response;
-    const config = response?.config || null;
-    renderLauncherStatus(status, config);
   }
 
   function renderQualityOptions(selectedValue) {
@@ -443,19 +403,6 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.highestQualityHint.style.display = hintVisible ? "flex" : "none";
   }
 
-  function renderHiddenSites(patterns, hiddenForSite = false) {
-    const hiddenSites = Array.isArray(patterns) ? patterns.filter(Boolean) : [];
-    if (hiddenForSite) {
-      elements.hiddenSitesCount.textContent = t("popup.sites.hiddenHere", "Hidden here");
-      return;
-    }
-    elements.hiddenSitesCount.textContent = tt(
-      "popup.sites.count",
-      { count: hiddenSites.length },
-      `${hiddenSites.length} hidden sites`,
-    );
-  }
-
   function mediaCounts() {
     return {
       video: mediaScanResult?.videos?.length || 0,
@@ -473,67 +420,6 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  function renderContextCard() {
-    const host = pageHost(mediaScanResult?.pageUrl || currentPageUrl);
-    const title = host || safeText(mediaScanResult?.pageTitle, safeText(currentPageTitle, t("popup.context.thisPage", "This page")));
-    const statusCopy = getStatusCopy(currentStatusState);
-    const launcherState = currentLauncherStatus || {};
-    const launcherEnabled = launcherState.enabled !== false;
-    const launcherMounted = launcherState.mounted === true && launcherState.visible !== false;
-    const launcherHidden = launcherState.hiddenForSite === true;
-    const scanUnavailable = mediaScanResult?.success === false;
-
-    elements.contextTitle.textContent = title;
-    elements.contextCounts.textContent = formatMediaCounts();
-    elements.contextFallbackDownloadButton.hidden = launcherMounted || !launcherEnabled || mediaScanResult?.reason === "scan_restricted_page";
-    elements.refreshMediaButton.disabled = scanInProgress;
-
-    if (scanUnavailable) {
-      elements.contextCard.dataset.state = "unavailable";
-      elements.contextStatus.textContent = t("popup.context.scanUnavailable", "Cannot scan this page");
-      return;
-    }
-
-    if (currentStatusState === STATUS_STATE_OFFLINE) {
-      elements.contextCard.dataset.state = "offline";
-      elements.contextStatus.textContent = t("popup.context.offline", "Desktop app required for downloads");
-      return;
-    }
-
-    if (scanInProgress && mediaScanResult) {
-      elements.contextCard.dataset.state = "scanning";
-      elements.contextStatus.textContent = t("popup.context.refreshing", "Refreshing media resources");
-      return;
-    }
-
-    if (scanInProgress) {
-      elements.contextCard.dataset.state = "scanning";
-      elements.contextStatus.textContent = t("popup.context.scanning", "Scanning media resources");
-      return;
-    }
-
-    if (launcherHidden) {
-      elements.contextCard.dataset.state = "hidden";
-      elements.contextStatus.textContent = t("popup.context.launcherHidden", "Launcher hidden on this site");
-      return;
-    }
-
-    if (!launcherEnabled) {
-      elements.contextCard.dataset.state = "disabled";
-      elements.contextStatus.textContent = t("popup.context.launcherDisabled", "Launcher hidden globally");
-      return;
-    }
-
-    if (launcherMounted) {
-      elements.contextCard.dataset.state = "ready";
-      elements.contextStatus.textContent = t("popup.context.launcherActive", "Launcher active");
-      return;
-    }
-
-    elements.contextCard.dataset.state = currentStatusState;
-    elements.contextStatus.textContent = statusCopy.hint;
-  }
-
   function renderMediaState() {
     closeRowMenus();
     const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
@@ -548,7 +434,6 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
       elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for media resources.");
       elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
-      renderContextCard();
       return;
     }
 
@@ -558,7 +443,6 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.unavailable.title", "Cannot scan this page");
       elements.mediaEmptyCopy.textContent = mediaScanResult.reason || t("popup.media.empty.unavailable.copy", "The active page is unavailable to the extension.");
       elements.mediaSummary.textContent = t("popup.media.summary.unavailable", "Scan unavailable");
-      renderContextCard();
       return;
     }
 
@@ -590,7 +474,6 @@ document.addEventListener("DOMContentLoaded", () => {
           : "No videos found";
       elements.mediaEmptyTitle.textContent = t(emptyTitleKey, emptyTitleFallback);
       elements.mediaEmptyCopy.textContent = t("popup.media.empty.none.copy", "Try another media type or refresh after the page finishes loading.");
-      renderContextCard();
       return;
     }
 
@@ -599,7 +482,6 @@ document.addEventListener("DOMContentLoaded", () => {
     candidates.forEach((candidate) => {
       elements.mediaList.appendChild(createMediaRow(candidate));
     });
-    renderContextCard();
   }
 
   function createMediaRow(candidate) {
@@ -768,15 +650,14 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
       elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for media resources.");
       elements.mediaSummary.textContent = t("popup.media.summary.scanning", "Scanning current page");
+    } else {
+      elements.mediaSummary.textContent = t("popup.media.summary.refreshing", "Refreshing current page media");
     }
-    renderContextCard();
 
     const response = await sendRuntimeMessage({ type: "scan_page_media" });
     mediaScanResult = response && typeof response === "object"
       ? response
       : { success: false, reason: "scan_failed" };
-    currentPageUrl = mediaScanResult.pageUrl || currentPageUrl;
-    currentPageTitle = mediaScanResult.pageTitle || currentPageTitle;
     scanInProgress = false;
     elements.refreshMediaButton.disabled = false;
     elements.refreshMediaButton.dataset.scanning = "false";
@@ -788,8 +669,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadMediaCache() {
     const response = await sendRuntimeMessage({ type: "get_media_scan_cache" });
-    currentPageUrl = response?.pageUrl || currentPageUrl;
-    currentPageTitle = response?.pageTitle || currentPageTitle;
     if (response?.cached && response.result && response.stale !== true) {
       scanStarted = true;
       mediaScanResult = response.result;
@@ -806,7 +685,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQualityOptions(currentQualityPreference);
     updateStatus(currentStatusState);
     renderLoginStatePanel();
-    renderLauncherStatus(currentLauncherStatus, currentLauncherConfig);
     renderMediaState();
   }
 
@@ -869,10 +747,6 @@ document.addEventListener("DOMContentLoaded", () => {
       clearInterval(statusTimer);
       statusTimer = null;
     }
-    if (launcherTimer !== null) {
-      clearInterval(launcherTimer);
-      launcherTimer = null;
-    }
   });
 
   elements.mediaTabs.forEach((button) => {
@@ -881,16 +755,15 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.refreshMediaButton.addEventListener("click", () => {
     void scanPageMedia();
   });
-  elements.contextFallbackDownloadButton.addEventListener("click", async () => {
-    await sendRuntimeMessage({ type: "download_current_content" });
-    window.close();
-  });
   elements.loginStateButton.addEventListener("click", async () => {
     if (loginStateBusy) {
       return;
     }
-    const canSync = currentSiteSessionStatus?.canSyncCurrentSite === true;
-    const canEnable = currentSiteSessionStatus?.canEnableCurrentSite === true;
+    const connected = currentStatusState === STATUS_STATE_CONNECTED;
+    const canSync = connected
+      && currentSiteSessionStatus?.canSyncCurrentSite === true
+      && currentSiteSessionStatus?.currentSiteSession;
+    const canEnable = connected && currentSiteSessionStatus?.canEnableCurrentSite === true;
     if (!canSync && !canEnable) {
       return;
     }
@@ -922,7 +795,6 @@ document.addEventListener("DOMContentLoaded", () => {
         : t("popup.loginState.failedHint", "Log in to this site in the browser, then retry."),
     });
   });
-  elements.launcherSettingsButton.addEventListener("click", openOptionsPage);
   elements.openOptionsButton.addEventListener("click", openOptionsPage);
   elements.moreMenuButton.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -948,7 +820,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     void checkStatus();
-    void refreshLauncherControls();
     void (async () => {
       await loadMediaCache();
       void scanPageMedia();
@@ -960,8 +831,5 @@ document.addEventListener("DOMContentLoaded", () => {
     statusTimer = window.setInterval(() => {
       void checkStatus();
     }, 1200);
-    launcherTimer = window.setInterval(() => {
-      void refreshLauncherControls();
-    }, 1500);
   })();
 });
