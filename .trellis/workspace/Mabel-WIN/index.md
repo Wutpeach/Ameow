@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 203
-- **Last Active**: 2026-06-04
+- **Total Sessions**: 204
+- **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~245 | Active |
+| `journal-5.md` | ~278 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 204 | 2026-06-05 | Fix extension popup current media scan | `0099af9` | `main` |
 | 203 | 2026-06-04 | Redesign extension toolbar popup layout | `2df9b7a` | `main` |
 | 202 | 2026-06-04 | Fix site session settings visibility refresh | `e62ccdc` | `main` |
 | 201 | 2026-06-04 | Dynamic site-session sync | `cf86db7`, `568f711`, `dadfc90`, `208c19a`, `6b1bed2`, `6b70b43` | `main` |

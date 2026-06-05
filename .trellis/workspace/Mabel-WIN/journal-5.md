@@ -243,3 +243,36 @@ Refactored browser extension toolbar popup into a media-first quick panel, remov
 ### Next Steps
 
 - None - task complete
+
+
+## Session 204: Fix extension popup current media scan
+
+**Date**: 2026-06-05
+**Task**: Fix extension popup current media scan
+**Branch**: `main`
+
+### Summary
+
+Prioritized current media in the extension popup scan, filtered noisy page links, and fixed shared preview fallback behavior for media candidates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0099af9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
