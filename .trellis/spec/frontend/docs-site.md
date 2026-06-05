@@ -22,6 +22,14 @@ npm run docs:build
 npm run docs:preview
 ```
 
+Runtime requirement:
+
+```text
+Node.js >= 22.12.0
+```
+
+The desktop app still has its own runtime requirements, but the Astro 6 docs site must build with Node 22.12 or newer. GitHub Pages docs deployment should use Node 22+.
+
 Docs-site internal commands:
 
 ```bash
@@ -74,6 +82,7 @@ export default defineConfig({
 | --- | --- | --- |
 | Docs content or config changed | `npm run docs:build` | Broken route, Starlight config, markdown/MDX, or Pagefind build |
 | Docs deploy workflow changed | YAML parse check plus workflow review | GitHub Pages deployment may fail |
+| Docs deploy workflow uses Node < 22.12 | inspect `node-version` in `.github/workflows/deploy-docs.yml` | Astro 6 exits before building |
 | README or extension docs links changed | grep old root docs and old URLs | Users may be sent to stale/deleted docs |
 | `site/` migration or Git metadata changed | inspect `.gitmodules`, `site/.git`, `.git/modules/site`, and `git ls-files -s site` | Submodule model may have been reintroduced accidentally |
 | Browser extension help link changed | `node --check browser-extension/popup.js` | Popup script syntax may break extension UI |
