@@ -771,6 +771,15 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             when: enginePlan.when,
           })}`);
           const proxyTargetUrl = enginePlan.sourceUrl ?? activeTask.request.pageUrl ?? activeTask.request.url;
+          if (this.options.diagnoseNetworkProxy) {
+            await this.options.diagnoseNetworkProxy({
+              targetUrl: proxyTargetUrl,
+              providerId: plan.providerId,
+              engineId: enginePlan.engine,
+            }).catch((error) => {
+              this.logger.log(`>>> [ElectronRuntime] proxy diagnostics failed: ${String(error)}`);
+            });
+          }
           const proxyUrl = enginePlan.engine === "yt-dlp" && this.options.resolveNetworkProxy
             ? await this.options.resolveNetworkProxy({
                 targetUrl: proxyTargetUrl,

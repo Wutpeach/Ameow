@@ -115,8 +115,9 @@
   - `pageUrl`, `selectionScope == "current_item"`, cookies, and legacy YouTube extension mode hints must not change the extractor profile away from the extended path.
   - Retired payload fields such as `forceExtended` / `allowCookies` may be tolerated as ignored compatibility input, but they are not active runtime mode switches.
   - If extension cookie file exists, attach it for YouTube URLs as well (`youtube.com`, `youtu.be`) to improve fetch success on 403-prone routes.
-  - App-managed yt-dlp executions should receive a CLI-compatible proxy via `--proxy` when one can be resolved automatically from Electron `session.resolveProxy(...)` or HTTP(S) proxy environment variables. Ameow should not expose or consume manual global proxy config for this path.
-  - Automatically resolved SOCKS proxy rules should not be passed into the YouTube section-download ffmpeg path; prefer HTTP(S) proxy URLs because yt-dlp delegates `--download-sections` media fetching to ffmpeg.
+  - App-managed yt-dlp and ffmpeg executions default to the user's ambient network route. Ameow must not silently translate a single Electron `session.resolveProxy(...)` result or HTTP(S) proxy environment value into a default yt-dlp `--proxy`.
+  - Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment values may be sampled for diagnostics only. For YouTube/GitHub network failures, user-facing guidance should prefer proxy-tool TUN/global/VPN mode because yt-dlp and ffmpeg may contact multiple hosts during one download.
+  - Automatically detected SOCKS/PAC/rule-based proxy setups should be logged as diagnostics rather than passed into the YouTube section-download ffmpeg path.
   - Temporary Netscape cookie files created from extension-provided cookies must be written under the OS temp directory (`tmpdir()` or equivalent), not `process.cwd()` or packaged resource paths, because packaged macOS apps can run with a read-only current working directory.
 - Clipboard contract:
   - `get_clipboard_files()` uses `clipboard-win` only on Windows.

@@ -346,7 +346,11 @@ export const runYtDlpDownload = async (
       if (exitCode !== 0) {
         latestStderrLines = stderrLines;
         throw new YtDlpAttemptError(
-          summarizeYtDlpFailure(stderrLines, `yt-dlp exited with code ${exitCode}`),
+          summarizeYtDlpFailure(
+            stderrLines,
+            `yt-dlp exited with code ${exitCode}`,
+            { isYouTube: commandPlan.isYouTube },
+          ),
           {
             exitCode,
             stderrLines,

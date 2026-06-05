@@ -228,7 +228,7 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("uses automatically resolved execution proxy URLs for yt-dlp invocations", async () => {
+  it("uses explicit execution proxy URLs for yt-dlp invocations", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
@@ -266,6 +266,46 @@ describe("runYtDlpDownload", () => {
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
       file_path: path.join("D:/downloads", "Proxy Video.mp4"),
+    });
+  });
+
+  it("omits proxy args when no explicit execution proxy URL is present", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Direct Video"
+        : path.join("D:/downloads", "Direct Video.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).not.toContain("--proxy");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-no-proxy",
+      outputDir: "D:/downloads",
+      outputStem: "Direct Video",
+      config: {},
+      proxyUrl: null,
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=direct123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=direct123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Direct Video.mp4"),
     });
   });
 

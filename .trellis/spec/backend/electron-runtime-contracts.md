@@ -553,7 +553,7 @@ Electron main ownership:
 async function applyDesktopSystemProxy(): Promise<void>
 ```
 
-CLI proxy resolution helpers:
+CLI proxy diagnostic helpers:
 
 ```ts
 function resolveCliProxyUrlFromElectronProxyRules(
@@ -563,6 +563,16 @@ function resolveCliProxyUrlFromElectronProxyRules(
 function resolveCliProxyUrlFromEnvironment(
   env: Record<string, string | undefined>,
 ): string | null;
+
+function buildCliProxyDiagnosticFromElectronProxyRules(
+  proxyRules: string | null | undefined,
+  targetUrl?: string | null,
+): CliProxyDiagnostic;
+
+function buildCliProxyDiagnosticFromEnvironment(
+  env: Record<string, string | undefined>,
+  targetUrl?: string | null,
+): CliProxyDiagnostic;
 ```
 
 ### 3. Contracts
@@ -571,8 +581,9 @@ function resolveCliProxyUrlFromEnvironment(
 - `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches.
 - The default desktop network session should stay in `mode: "system"` proxy behavior so Electron-owned fetches inherit OS / Chromium proxy resolution.
 - Saving config through `save_config` must not re-apply or mutate any Ameow-owned proxy setting.
-- yt-dlp CLI downloads should receive a resolved proxy through `--proxy` when available. Resolution order is: Electron `session.resolveProxy(targetUrl)`, HTTP(S) proxy environment variables, then direct.
-- Electron `resolveProxy(...)` results such as `PROXY host:port` and `HTTPS host:port` may be converted into `http://host:port` / `https://host:port` for CLI usage. `DIRECT` and automatically resolved SOCKS rules should not be passed to the YouTube section-download ffmpeg path.
+- yt-dlp / ffmpeg CLI downloads default to the user's ambient network environment. Ameow must not silently translate a single Electron `session.resolveProxy(targetUrl)` result into a default yt-dlp `--proxy`.
+- Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment variables may be sampled for diagnostics only. Diagnostic entries must include the sampled target host and classify direct, HTTP/HTTPS, SOCKS-unsupported, mixed/PAC-like, malformed, environment, skipped-non-yt-dlp, and resolution-failed cases.
+- If a future advanced path reintroduces CLI proxy injection, it must be explicit, disabled by default, and preserve diagnostics that recommend TUN/global/VPN mode for YouTube.
 
 ### 4. Validation & Error Matrix
 
@@ -580,14 +591,16 @@ function resolveCliProxyUrlFromEnvironment(
 |-----------|------------------|-------------------|--------|
 | Desktop app startup | Electron session apply | Desktop session uses system proxy mode | Continue shared session-backed fetch flow |
 | `save_config` receives stale `globalProxyEnabled/globalProxyUrl` keys | config save | Persist as ordinary unknown config only; do not apply as proxy | Keep system proxy mode |
-| `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | yt-dlp execution context | Pass `--proxy http://127.0.0.1:7897` | Continue section download |
-| `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | yt-dlp execution context | Treat as no CLI proxy for automatic resolution | Prefer TUN/VPN mode or docs-level troubleshooting |
+| `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | proxy diagnostics | Log sanitized HTTP proxy diagnostic for the sampled target; do not inject default `--proxy` | Continue ambient download path |
+| `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | proxy diagnostics | Log SOCKS-unsupported diagnostic | Prefer TUN/global/VPN mode or docs-level troubleshooting |
+| yt-dlp context receives an explicit `proxyUrl` from a test or future advanced path | command planning | Include `--proxy <url>` | Preserve explicit hook behavior |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: user enables system proxy in their proxy tool, Electron resolves `PROXY 127.0.0.1:7897`, and YouTube section downloads pass `--proxy http://127.0.0.1:7897` to yt-dlp/ffmpeg.
-- Base: user leaves system proxy disabled, so Electron continues using ambient system/environment proxy behavior and CLI downloads use direct mode unless a HTTP(S) proxy can be resolved.
+- Good: user enables TUN/global/VPN mode in their proxy tool, and Electron, yt-dlp, ffmpeg, Python, Deno, and update/bootstrap traffic share the same ambient network route.
+- Base: Electron resolves `PROXY 127.0.0.1:7897` for the sampled YouTube page URL, Ameow logs the sanitized diagnostic, and yt-dlp still runs without a default `--proxy` so the user's proxy tool owns routing.
 - Bad: one feature uses a hand-written proxy setting while another uses Electron/system proxy resolution.
+- Bad: Ameow collapses a single YouTube page `resolveProxy(...)` result into `--proxy` for the entire yt-dlp/ffmpeg run, even though `googlevideo.com`, `ytimg.com`, and remote component endpoints may use different proxy rules.
 - Bad: stale persisted `globalProxyEnabled/globalProxyUrl` changes downloader behavior after the Settings UI has removed proxy controls.
 - Bad: Settings reintroduces a first-run or failure-time proxy setup flow instead of keeping proxy configuration in documentation/troubleshooting.
 

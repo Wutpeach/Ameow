@@ -178,16 +178,20 @@ Regression check:
 - `npm test -- src/electron-runtime/engineManifest.test.ts src/electron-runtime/ytDlpCommandPlan.test.ts`
 - `npm run type-check`
 
-## Added Lesson: YouTube Section Downloads Need CLI-Compatible Proxy Resolution
+## Added Lesson: Proxy Ownership Belongs To The User Proxy Tool
 
-YouTube `--download-sections` downloads can fail on Windows with `ffmpeg exited with code 4294967158 (-138)` when the desktop app can resolve YouTube pages but the yt-dlp/ffmpeg child process is not covered by the user's proxy path. This is not a cookies issue when the same URL works after enabling TUN/VPN mode.
+YouTube downloads can fail on Windows with `ffmpeg exited with code 4294967158 (-138)`, `Requested format is not available`, or similar network-shaped errors when only some Ameow processes are covered by the user's proxy path. This is not a cookies issue when the same URL works after enabling TUN/global/VPN mode.
+
+Do not collapse a single Electron `session.resolveProxy(targetUrl)` result into a default yt-dlp `--proxy`. yt-dlp and ffmpeg may contact YouTube pages, `googlevideo.com`, `ytimg.com`, and remote component endpoints during one download, and rule/PAC proxy tools may route those hosts differently.
 
 Rules:
 - Settings should not expose a first-run or failure-time proxy form. Keep proxy setup guidance in documentation.
 - Ameow should not expose or consume manual `globalProxyEnabled/globalProxyUrl` configuration for this path.
-- Before invoking app-managed yt-dlp, resolve a CLI-compatible proxy in this order: Electron `session.resolveProxy(targetUrl)`, HTTP(S) proxy environment variables, then direct.
-- Convert Electron `PROXY host:port` and `HTTPS host:port` results into `http://host:port` and `https://host:port` for yt-dlp `--proxy`.
-- Do not automatically pass SOCKS-only proxy rules into the YouTube section ffmpeg path; prefer TUN/VPN coverage or documentation-level troubleshooting for SOCKS-only setups.
+- Electron-owned fetches should keep using desktop/session defaults.
+- App-managed yt-dlp and ffmpeg should default to the user's ambient network route, not an automatically inferred `--proxy`.
+- Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment variables may be sampled for diagnostics only.
+- Proxy diagnostics must include the sampled target host and classify direct, HTTP/HTTPS, SOCKS-unsupported, mixed/PAC-like, malformed, environment, skipped-non-yt-dlp, and resolution-failed cases.
+- Prefer TUN/global/VPN coverage or documentation-level troubleshooting for SOCKS/PAC/rule-based setups that Ameow cannot safely translate.
 - Do not add a full-video download plus local crop fallback for section downloads.
 
 Regression check:

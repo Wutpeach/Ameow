@@ -87,6 +87,21 @@ describe("yt-dlp command planning", () => {
     expect(args[args.length - 1]).toBe("https://www.youtube.com/watch?v=abc123");
   });
 
+  it("does not include proxy args when no explicit proxy URL is provided", () => {
+    const plan = createYtdlpCommandPlan(createContext());
+    const args = buildYtdlpCommandArgs(plan, {
+      cookiesPath: null,
+      hasFfmpeg: true,
+      hasDeno: true,
+      proxyUrl: null,
+      selectionScope: "current_item",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      platform: "win32",
+    });
+
+    expect(args).not.toContain("--proxy");
+  });
+
   it("adds clip section args and clip output stem for supported sites", () => {
     const plan = createYtdlpCommandPlan(createContext({
       intent: {

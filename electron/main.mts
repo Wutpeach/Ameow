@@ -145,8 +145,10 @@ import {
   processFiles as processIncomingFiles,
 } from "./fileIntake.mjs";
 import {
-  resolveCliProxyUrlFromElectronProxyRules,
-  resolveCliProxyUrlFromEnvironment,
+  buildCliProxyDiagnosticFromElectronProxyRules,
+  buildCliProxyDiagnosticFromEnvironment,
+  buildProxyResolutionFailedDiagnostic,
+  buildSkippedNonYtdlpProxyDiagnostic,
 } from "../src/config/cliProxy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -900,17 +902,50 @@ async function applyDesktopSystemProxy() {
   logInfo("Network", "Using system proxy settings");
 }
 
-async function resolveCliProxyUrlForTarget(targetUrl) {
+function summarizeCliProxyDiagnostic(diagnostic) {
+  return JSON.stringify({
+    kind: diagnostic.kind,
+    source: diagnostic.source,
+    targetHost: diagnostic.targetHost,
+    proxyScheme: diagnostic.proxyScheme,
+    proxyHost: diagnostic.proxyHost,
+    proxyPort: diagnostic.proxyPort,
+    reason: diagnostic.reason,
+  });
+}
+
+async function logCliProxyDiagnosticsForTarget({ targetUrl, engineId }) {
+  if (engineId !== "yt-dlp") {
+    logInfo(
+      "ElectronRuntime",
+      `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildSkippedNonYtdlpProxyDiagnostic(targetUrl))}`,
+    );
+    return;
+  }
+
   const activeSession = getDesktopNetworkSession();
   if (activeSession?.resolveProxy) {
-    const proxyRules = await activeSession.resolveProxy(targetUrl);
-    const resolvedProxyUrl = resolveCliProxyUrlFromElectronProxyRules(proxyRules);
-    if (resolvedProxyUrl) {
-      return resolvedProxyUrl;
+    try {
+      const proxyRules = await activeSession.resolveProxy(targetUrl);
+      logInfo(
+        "ElectronRuntime",
+        `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildCliProxyDiagnosticFromElectronProxyRules(proxyRules, targetUrl))}`,
+      );
+    } catch (error) {
+      logInfo(
+        "ElectronRuntime",
+        `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildProxyResolutionFailedDiagnostic(targetUrl, error))}`,
+      );
     }
   }
 
-  return resolveCliProxyUrlFromEnvironment(process.env);
+  const environmentDiagnostic = buildCliProxyDiagnosticFromEnvironment(process.env, targetUrl);
+  if (environmentDiagnostic.kind !== "direct") {
+    logInfo(
+      "ElectronRuntime",
+      `Proxy diagnostic: ${summarizeCliProxyDiagnostic(environmentDiagnostic)}`,
+    );
+  }
 }
 
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
@@ -1342,11 +1377,7 @@ function getElectronDownloadRuntime() {
         return;
       }
     },
-    resolveNetworkProxy: async ({ targetUrl }) => {
-      const proxyUrl = await resolveCliProxyUrlForTarget(targetUrl);
-      logInfo("ElectronRuntime", `Resolved CLI proxy for download: ${proxyUrl ? new URL(proxyUrl).protocol.replace(/:$/, "") : "direct"}`);
-      return proxyUrl;
-    },
+    diagnoseNetworkProxy: logCliProxyDiagnosticsForTarget,
     bootstrapManagedComponents: async ({ reason }) => {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
       return getRuntimeDependencyStatus();

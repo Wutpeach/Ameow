@@ -18,6 +18,19 @@ const TERMINAL_AVAILABILITY_PATTERNS = [
   /\b404 Not Found\b/i,
 ];
 
+const PROXY_GUIDANCE_PATTERNS = [
+  /\bRequested format is not available\b/i,
+  /\bHTTP Error\b/i,
+  /\bERR_CONNECTION/i,
+  /\bConnection (?:closed|reset|refused|timed out)\b/i,
+  /\bffmpeg exited with code\b/i,
+  /\bUnable to download\b/i,
+  /\bFailed to download\b/i,
+];
+
+const YOUTUBE_PROXY_GUIDANCE =
+  "If you are using a proxy tool for YouTube or GitHub access, enable TUN/global/VPN mode so Ameow, yt-dlp, and ffmpeg all use the same network route.";
+
 const GENERIC_FFMPEG_NOISE_PATTERNS = [
   /^Press \[q\] to stop, \[\?\] for help$/i,
   /^handler_name\s*:/i,
@@ -60,6 +73,7 @@ export const annotateUnsignedWindowsExitCodes = (message: string): string => (
 export const summarizeYtDlpFailure = (
   stderrLines: string[],
   fallbackMessage: string,
+  options: { isYouTube?: boolean } = {},
 ): string => {
   const normalized = stderrLines
     .map(normalizeLine)
@@ -68,7 +82,14 @@ export const summarizeYtDlpFailure = (
   const actionable = normalized.filter((line) => isActionableLine(line));
   const useful = normalized.filter((line) => !isGenericNoiseLine(line));
   const selected = lastItem(actionable) ?? lastItem(useful) ?? fallbackMessage;
-  return annotateUnsignedWindowsExitCodes(selected);
+  const summary = annotateUnsignedWindowsExitCodes(selected);
+  if (
+    options.isYouTube
+    && normalized.some((line) => PROXY_GUIDANCE_PATTERNS.some((pattern) => pattern.test(line)))
+  ) {
+    return `${summary}\n${YOUTUBE_PROXY_GUIDANCE}`;
+  }
+  return summary;
 };
 
 export const hasTerminalYtDlpAvailabilityFailure = (stderrLines: string[]): boolean => (

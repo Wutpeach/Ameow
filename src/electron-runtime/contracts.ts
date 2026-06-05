@@ -78,6 +78,8 @@ export type RuntimeNetworkProxyContext = {
   engineId: EngineId;
 };
 
+export type RuntimeNetworkProxyDiagnosticContext = RuntimeNetworkProxyContext;
+
 export interface ElectronRuntimeEnvironment {
   repoRoot: string;
   configDir: string;
@@ -124,6 +126,9 @@ export interface ElectronDownloadRuntimeOptions {
   resolveNetworkProxy?(
     context: RuntimeNetworkProxyContext,
   ): Promise<string | null | undefined>;
+  diagnoseNetworkProxy?(
+    context: RuntimeNetworkProxyDiagnosticContext,
+  ): Promise<void>;
 }
 
 export interface RuntimeDependencyResolver {
