@@ -1,0 +1,95 @@
+---
+title: Browser Extension
+description: Install and connect the Ameow browser extension so you can send web download tasks to the desktop app.
+---
+
+The Ameow browser extension sends page download tasks, page context, cookies, and some download preferences into the desktop app. It is not a standalone downloader. It must be used together with a running Ameow desktop app.
+
+[Diagram: browser page, browser extension, and the local Ameow desktop app connected together]
+
+## When do I need the extension?
+
+You can start with the desktop app alone. Install the extension when:
+
+- you want to trigger video downloads directly from supported pages;
+- the site needs login state or cookies;
+- copying the link fails even though the page plays fine in the browser;
+- you want browser-side quality or AE-compatibility preferences to reach the desktop app.
+
+If you only drag local files, organize the output folder, or save public direct links, the extension is optional.
+
+## Shortest path
+
+1. Install and launch the Ameow desktop app.
+2. Download the matching `Ameow_<version>_browser_extension.zip` from GitHub Releases.
+3. Extract the zip.
+4. Turn on Developer Mode in Chrome or Edge extension management.
+5. Click `Load unpacked` and choose the extracted extension folder.
+6. Open the extension popup and confirm the status shows `Connected`.
+7. Open a supported page and send the task from the popup or page entry point.
+
+[Screenshot: extension popup showing Connected and download-quality options]
+
+Success state: the popup shows `Connected`, the Ameow desktop app is running, and a task sent from the page appears in the desktop queue or state display.
+
+## What do Connected and Disconnected mean?
+
+- `Connected`: the extension is linked to the Ameow desktop app on this machine and can send tasks.
+- `Disconnected`: the extension is not linked to the desktop app. The desktop app may be closed, or the extension may need to be reloaded.
+
+The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication, not a third-party cookies relay.
+
+## What happens when I send a task from the page?
+
+When you use an extension entry point on a supported page, the extension sends current page information into Ameow. The desktop app creates the task, shows progress, writes files into the output folder, and applies your download-quality preferences as needed.
+
+You should see:
+
+- the popup stays `Connected`;
+- the desktop app shows task states such as preparing, downloading, converting, done, or failed;
+- the finished file lands in the current output folder.
+
+If the page needs login state, confirm you are already logged in inside the browser before sending the task.
+
+## How should I use the popup's "current page media" list?
+
+The popup scans resources from the current active tab. It works best when:
+
+- you are already on a specific video page, post page, work page, or image-detail page;
+- the target content has fully loaded and can already play or display in the browser;
+- you want to pick a more precise resource from the current content page.
+
+Do not rely on it first on:
+
+- homepages and recommendation feeds;
+- search results pages;
+- profile pages, channel pages, or collection pages;
+- any list or hub page that has not entered the actual content yet.
+
+Those pages often include the current card, side recommendations, preloaded covers, and other media requests at the same time. The popup can only show what the current page is requesting; it cannot assume only one of those resources is the one you want.
+
+The stable workflow is simple: open the specific content page first, then use the popup or in-page entry point.
+
+## Which browsers are supported?
+
+The extension targets Chromium browsers such as Chrome and Edge. Installation uses Developer Mode plus `Load unpacked`. Browsers that cannot load Manifest V3 extensions may not work.
+
+## Common issues
+
+### I selected the zip in the browser and it failed
+
+The browser needs the extracted extension directory, not the zip file itself. Extract it first, then choose the folder that contains the extension manifest.
+
+### The extension is installed but shows Disconnected
+
+Launch the Ameow desktop app first, then reopen the popup. If it still does not connect, reload the extension and restart Ameow. Firewalls or security tools can also block the local connection.
+
+### There is no download entry on the page
+
+Confirm the current site and page type are supported. Test from the actual content page before deciding the extension is missing or broken. Site redesigns, login restrictions, paid access, and region rules can all affect the result.
+
+Next steps:
+
+- Need the installation walkthrough: [Install the Extension](../extension/install/).
+- Connection is unstable: [Connect to the Desktop App](../extension/connection/).
+- Site-specific failures: [Supported Sites](../extension/supported-sites/) and [Cookies and Login State](../extension/cookies-and-login/).

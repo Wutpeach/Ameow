@@ -44,6 +44,21 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - Keep a `Full Changelog` compare link at the bottom of the release note.
 - The GitHub release workflow expects the versioned release-note file to exist in the tagged commit; missing notes should block the release.
 
+### Public Documentation Site
+
+- The public user documentation site is managed in this repository under `site/`; it is not a submodule.
+- `site/src/content/docs/` is the source of truth for user-facing documentation.
+- Root `docs/` is reserved for engineering/reference notes and repo-local assets; do not add new public user guides there.
+- Chinese docs are served from the root locale and English docs from `/en/`.
+- Public docs are deployed from `.github/workflows/deploy-docs.yml` to `https://wutpeach.github.io/Ameow/`.
+- Use root scripts for docs-site work:
+  - `npm run docs:dev`
+  - `npm run docs:build`
+  - `npm run docs:preview`
+- When changing user-facing behavior, packaging/download flows, browser-extension workflows, supported-site behavior, proxy/network guidance, install steps, or troubleshooting guidance, update the relevant docs-site pages in the same task/commit.
+- README and extension help links should point to docs-site URLs, not root `docs/*.md` files or old GitHub blob pages.
+- Do not reintroduce `.gitmodules`, a `site` gitlink, or nested `site/.git` metadata unless the user explicitly asks to return to a submodule model.
+
 
 ### macOS Fix PR Policy
 

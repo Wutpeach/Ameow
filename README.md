@@ -6,9 +6,9 @@
     <a href="./README.md">中文</a> |
     <a href="./README.en.md">English</a> |
     <a href="https://github.com/Wutpeach/Ameow/releases">下载 Releases</a> |
-    <a href="./docs/getting-started.md">快速上手</a> |
-    <a href="./docs/browser-extension.md">浏览器扩展</a> |
-    <a href="./docs/faq.md">FAQ</a> |
+    <a href="https://wutpeach.github.io/Ameow/docs/getting-started/">快速上手</a> |
+    <a href="https://wutpeach.github.io/Ameow/docs/browser-extension/">浏览器扩展</a> |
+    <a href="https://wutpeach.github.io/Ameow/docs/faq/">FAQ</a> |
     <a href="./release-notes/">Release Notes</a>
   </p>
   <p>
@@ -35,13 +35,13 @@
   <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
 </p>
 
-安装、首次启动与常见平台问题请查看 [快速上手](./docs/getting-started.md)。
+安装、首次启动与常见平台问题请查看 [快速上手](https://wutpeach.github.io/Ameow/docs/getting-started/)。
 
 ## 使用指南
 
-- [快速上手](./docs/getting-started.md)：从安装到第一次下载，几分钟就能跑通。
-- [浏览器扩展](./docs/browser-extension.md)：把网页里的链接、Cookies 和偏好送到桌面端。
-- [FAQ](./docs/faq.md)：处理 macOS 放行、下载失败与连接问题。
+- [快速上手](https://wutpeach.github.io/Ameow/docs/getting-started/)：从安装到第一次下载，几分钟就能跑通。
+- [浏览器扩展](https://wutpeach.github.io/Ameow/docs/browser-extension/)：把网页里的链接、Cookies 和偏好送到桌面端。
+- [FAQ](https://wutpeach.github.io/Ameow/docs/faq/)：处理 macOS 放行、下载失败与连接问题。
 
 ## 开发
 
@@ -66,7 +66,8 @@ npm run test
 - `src/`：桌面端 React 界面。
 - `electron/`：Electron 主进程、托盘与原生窗口集成。
 - `browser-extension/`：浏览器扩展源码。
-- `docs/`：用户文档与工程记录。
+- `site/`：Astro/Starlight 文档站源码。
+- `docs/`：工程文档、参考记录和仓库内资产。
 - `desktop-assets/`：应用图标、打包素材和托管运行时清单。
 - `distribution/`、`release-notes/`：发布包附带资料和版本发布说明。
 - `scripts/`、`locales/`：构建、打包、版本和多语言同步脚本及源文案。

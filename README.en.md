@@ -6,9 +6,9 @@
     <a href="./README.md">中文</a> |
     <a href="./README.en.md">English</a> |
     <a href="https://github.com/Wutpeach/Ameow/releases">Download Releases</a> |
-    <a href="./docs/getting-started.en.md">Getting Started</a> |
-    <a href="./docs/browser-extension.en.md">Browser Extension</a> |
-    <a href="./docs/faq.en.md">FAQ</a> |
+    <a href="https://wutpeach.github.io/Ameow/en/docs/getting-started/">Getting Started</a> |
+    <a href="https://wutpeach.github.io/Ameow/en/docs/browser-extension/">Browser Extension</a> |
+    <a href="https://wutpeach.github.io/Ameow/en/docs/faq/">FAQ</a> |
     <a href="./release-notes/">Release Notes</a>
   </p>
   <p>
@@ -35,13 +35,13 @@ Drop in files, paste a link, and your download or collection starts right away. 
   <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
 </p>
 
-For installation, first launch, and platform-specific help, see [Getting Started](./docs/getting-started.en.md).
+For installation, first launch, and platform-specific help, see [Getting Started](https://wutpeach.github.io/Ameow/en/docs/getting-started/).
 
 ## Guides
 
-- [Getting Started](./docs/getting-started.en.md): go from install to your first download in a few minutes.
-- [Browser Extension](./docs/browser-extension.en.md): send links, cookies, and preferences from the browser to the desktop app.
-- [FAQ](./docs/faq.en.md): troubleshoot macOS launch prompts, failed downloads, and connection issues.
+- [Getting Started](https://wutpeach.github.io/Ameow/en/docs/getting-started/): go from install to your first download in a few minutes.
+- [Browser Extension](https://wutpeach.github.io/Ameow/en/docs/browser-extension/): send links, cookies, and preferences from the browser to the desktop app.
+- [FAQ](https://wutpeach.github.io/Ameow/en/docs/faq/): troubleshoot macOS launch prompts, failed downloads, and connection issues.
 
 ## Development
 
@@ -66,7 +66,8 @@ npm run test
 - `src/`: desktop React interface.
 - `electron/`: Electron main process, tray, and native window integration.
 - `browser-extension/`: browser extension source.
-- `docs/`: user guides and engineering notes.
+- `site/`: Astro/Starlight docs site source.
+- `docs/`: engineering notes, reference docs, and repo-local assets.
 - `desktop-assets/`: app icons, packaging assets, and managed runtime manifests.
 - `distribution/`, `release-notes/`: release package collateral and versioned release notes.
 - `scripts/`, `locales/`: build, packaging, versioning, and localization source files.

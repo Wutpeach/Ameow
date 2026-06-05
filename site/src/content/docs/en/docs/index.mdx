@@ -1,0 +1,61 @@
+---
+title: Ameow Docs
+description: English user documentation for Ameow, covering installation, first use, desktop workflows, browser extension setup, troubleshooting, and release notes.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Ameow is a desktop-edge entry point for downloads and quick collection. You can hand it local files, folders, web links, and browser content, then let the desktop app handle the output folder, download queue, and common preferences in one place.
+
+If this is your first time, read in this order: "Download Ameow -> Core Concepts -> Getting Started." Check the FAQ first for common issues, then move into troubleshooting pages when you already know the symptom.
+
+## First time setup
+
+<CardGrid>
+	<Card title="Download Ameow" icon="download">
+		Most Windows users should pick the Installer EXE; choose the Portable ZIP for quick trials; use the macOS arm64 DMG on Apple Silicon Macs. The browser extension ships as a separate zip.  
+		[View download notes](./downloads/)
+	</Card>
+	<Card title="Core Concepts" icon="open-book">
+		Understand how the floating window, output folder, download queue, browser extension, and settings fit together before you start hunting for files.  
+		[Learn the basics](./concepts/)
+	</Card>
+	<Card title="Getting Started" icon="rocket">
+		Run through first launch, drop in a file, paste a link, and open the output folder to confirm Ameow is working end to end.  
+		[Start here](./getting-started/)
+	</Card>
+	<Card title="FAQ" icon="question">
+		Quick answers for choosing the right download, first-launch issues on macOS, extension connection problems, missing files, and failed downloads.  
+		[Open the FAQ](./faq/)
+	</Card>
+</CardGrid>
+
+## Read by task
+
+### Organize local files
+
+Start with [Floating Window](./desktop/floating-window/) and [Output Folder](./desktop/output-folder/). The key rule is simple: dropping a file copies it, while dropping a folder changes the output folder.
+
+### Download web content
+
+Start with [Links and Download Queue](./desktop/links-and-queue/). If a page needs login state, cookies, or page context, continue to [Browser Extension](./browser-extension/).
+
+### Install and connect the extension
+
+Use [Browser Extension](./browser-extension/) for the full workflow. If you want the step-by-step setup path, read [Install the Extension](./extension/install/). If connection fails, go to [Connect to the Desktop App](./extension/connection/).
+
+### Tune download results
+
+If you care about quality, file size, or stability, read [Quality Preferences and Formats](./advanced/quality-and-formats/). If the media is headed into After Effects, continue to [AE-Compatible Formats](./advanced/ae-compatibility/).
+
+### Troubleshoot issues
+
+If you are not sure which page applies yet, start with the [FAQ](./faq/). If you already know the symptom, jump straight into [Troubleshooting](./troubleshooting/).
+
+## Image placeholders
+
+`[Screenshot: ...]` and `[Diagram: ...]` markers in the current docs are placeholders for future images. Final screenshots will live under `site/public/images/docs/`, with filenames and capture notes documented in that directory's README.
+
+## Release history
+
+The in-site [Release Notes](./releases/) page keeps both stable and prerelease history so you can confirm which user-visible issues changed in a given version.

@@ -1,0 +1,61 @@
+---
+title: Ameow 文档
+description: Ameow 中文用户文档，覆盖下载安装、首次使用、桌面端工作流、浏览器扩展、故障排查和版本记录。
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Ameow 是一个常驻桌面边缘的下载与收集入口。你可以把本地文件、文件夹、网页链接和浏览器里的内容交给它，再由桌面端统一处理输出目录、下载队列和常用偏好。
+
+如果你是第一次使用，建议按“下载 Ameow → 基础概念 → 快速上手”的顺序阅读。遇到问题时先看 FAQ；如果已经知道具体故障，再进入故障排查专题。
+
+## 第一次使用
+
+<CardGrid>
+	<Card title="下载 Ameow" icon="download">
+		Windows 用户通常选择 Installer EXE；临时试用选择 Portable ZIP；M 系列 Mac 选择 macOS arm64 DMG。浏览器扩展是单独的 zip。  
+		[查看下载说明](./downloads/)
+	</Card>
+	<Card title="基础概念" icon="open-book">
+		先理解悬浮窗口、输出目录、下载队列、浏览器扩展和设置之间的关系，避免拖入文件夹后找不到文件。  
+		[了解基础概念](./concepts/)
+	</Card>
+	<Card title="快速上手" icon="rocket">
+		按步骤完成第一次启动、拖入文件、粘贴链接、打开输出目录，确认 Ameow 已经能正常工作。  
+		[开始上手](./getting-started/)
+	</Card>
+	<Card title="FAQ" icon="question">
+		快速解决下载哪个文件、macOS 首次启动、扩展未连接、找不到文件和下载失败等常见问题。  
+		[打开 FAQ](./faq/)
+	</Card>
+</CardGrid>
+
+## 按任务阅读
+
+### 整理本地文件
+
+先看 [悬浮窗口](./desktop/floating-window/) 和 [输出目录](./desktop/output-folder/)。你需要记住：拖入文件会复制文件，拖入文件夹会切换输出目录。
+
+### 下载网页内容
+
+先看 [链接与下载队列](./desktop/links-and-queue/)。如果网页需要登录态、Cookies 或页面上下文，再看 [浏览器扩展](./browser-extension/)。
+
+### 安装和连接扩展
+
+从 [浏览器扩展](./browser-extension/) 获取完整流程；需要逐步安装时看 [安装扩展](./extension/install/)，连接失败时看 [连接桌面端](./extension/connection/)。
+
+### 调整下载结果
+
+如果你关心画质、体积和稳定性，看 [质量偏好与格式](./advanced/quality-and-formats/)。如果素材要进入 After Effects，看 [AE 兼容格式](./advanced/ae-compatibility/)。
+
+### 排查问题
+
+不确定问题类型时先看 [FAQ](./faq/)。已经知道具体症状时直接进入 [故障排查](./troubleshooting/)。
+
+## 图片占位说明
+
+当前文档中的 `[截图：...]` 和 `[示意图：...]` 是后续补图标记。图片会统一放在 `site/public/images/docs/`，文件名和拍摄要求记录在该目录的 README 中。
+
+## 版本记录
+
+站内 [Release Notes](./releases/) 保留稳定版和预发布记录，适合确认某个版本修复了哪些用户可见问题。

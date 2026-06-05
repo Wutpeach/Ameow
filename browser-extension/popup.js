@@ -7,7 +7,13 @@ const STATUS_STATE_CONNECTED = "connected";
 const STATUS_STATE_CONNECTING = "connecting";
 const STATUS_STATE_OFFLINE = "offline";
 const REPOSITORY_URL = "https://github.com/Wutpeach/Ameow";
-const GETTING_STARTED_URL = "https://github.com/Wutpeach/Ameow/blob/main/docs/getting-started.md";
+const DOCS_SITE_URL = "https://wutpeach.github.io/Ameow";
+
+function getGettingStartedUrl(language = FALLBACK_LANGUAGE) {
+  const normalized = typeof language === "string" ? language.trim().toLowerCase() : "";
+  const localePrefix = normalized.startsWith("zh") ? "" : "/en";
+  return `${DOCS_SITE_URL}${localePrefix}/docs/getting-started/`;
+}
 
 function applyTheme(theme) {
   document.body.classList.toggle("ameow-theme-white", theme === "white");
@@ -802,7 +808,9 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleMoreMenu();
   });
   elements.repositoryLinkButton.addEventListener("click", () => openExternalLink(REPOSITORY_URL));
-  elements.gettingStartedLinkButton.addEventListener("click", () => openExternalLink(GETTING_STARTED_URL));
+  elements.gettingStartedLinkButton.addEventListener("click", () => {
+    openExternalLink(getGettingStartedUrl(currentBundle.language));
+  });
 
   void (async () => {
     setMediaType("video");

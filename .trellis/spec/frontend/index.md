@@ -37,6 +37,7 @@ FlowSelect is an Electron desktop application with a React frontend. The UI is a
 | [State Management](./state-management.md) | Local state, ThemeContext, config flow | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Done |
 | [Type Safety](./type-safety.md) | Type patterns, validation | Done |
+| [Docs Site Contract](./docs-site.md) | Single-repo public docs-site ownership, i18n, deploy, and validation contract | Done |
 
 ---
 
@@ -46,6 +47,7 @@ FlowSelect is an Electron desktop application with a React frontend. The UI is a
 - **Always-on-top**: Window stays above other applications
 - **Desktop Bridge**: Renderer-to-desktop communication must go through `window.ameow` via `src/desktop/runtime.ts`
 - **Compact Hover Contract**: Entering the compact icon expands immediately; leaving an unlocked full shell collapses through a short grace path, not a 3-second idle timer
+- **Public Docs Contract**: User-facing docs live in `site/` as normal root-repository files. Product behavior changes that affect users should update the docs site in the same task and pass `npm run docs:build`.
 
 ---
 
