@@ -276,3 +276,37 @@ Prioritized current media in the extension popup scan, filtered noisy page links
 ### Next Steps
 
 - None - task complete
+
+
+## Session 205: Docs site single-repo migration
+
+**Date**: 2026-06-05
+**Task**: Docs site single-repo migration
+**Branch**: `main`
+
+### Summary
+
+Migrated the Astro/Starlight docs site from a submodule into the main repository, added full English docs coverage, updated docs links and deployment workflow, fixed CI to use Node 22, enabled GitHub Pages, and documented the new docs-site contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ecfdc1` | (see git log) |
+| `f2bfa07` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
