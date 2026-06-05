@@ -85,4 +85,12 @@ describe("generic video selection utils", () => {
       },
     ])).toBe("https://cdn.example.com/video/final.mp4");
   });
+
+  it("keeps broad indirect classification behavior for non-direct content urls", () => {
+    const helper = loadHelper();
+
+    expect(helper.classifyVideoCandidateType("https://www.bilibili.com/video/BV1xx411c7mD")).toBe("indirect_media");
+    expect(helper.classifyVideoCandidateType("https://www.youtube.com/watch?v=abc123")).toBe("unknown");
+    expect(helper.classifyVideoCandidateType("https://search.bilibili.com/all?keyword=video")).toBe("indirect_media");
+  });
 });

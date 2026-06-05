@@ -231,6 +231,7 @@ type PopupMediaCandidate = {
   extension?: string;
   mimeType?: string;
   source:
+    | "current_page"
     | "video_element"
     | "audio_element"
     | "source_element"
@@ -280,7 +281,7 @@ background.js -> normalize/cache -> popup.js
 - Audio candidates should prefer stable direct audio files (`mp3`, `m4a`, `aac`, `wav`, `ogg`, `oga`, `flac`, `opus`) and exclude playlist/segment shapes (`m3u8`, `mpd`, `m4s`, `ts`) unless a later provider-specific contract explicitly opts them in.
 - Known-duration audio below 5 seconds is treated as likely UI sound and excluded from popup scan results.
 - Popup row downloads may pass `mediaType: "audio"` through the video-selection queue path, but the candidate metadata must preserve `mediaType: "audio"` instead of rewriting it to `"video"`.
-- Video candidate metadata is owned by the detector, not the popup renderer. For `<video>` rows, preserve `poster` first, then bounded nearby image metadata, then page meta image (`og:image` / `twitter:image`) as `previewUrl`; resolve titles from the element, nearby scoped heading/card text, then page meta title. For direct video links with empty link text, use the page title/meta title and page meta image so the popup does not display only a CDN filename.
+- Video candidate metadata is owned by the detector, not the popup renderer. For `<video>` rows, preserve `poster` first, then bounded nearby image metadata, then page meta image (`og:image` / `twitter:image`) as `previewUrl`; resolve titles from the element, nearby scoped heading/card text, then page meta title. For generated `current_page` rows, page meta image is an acceptable fallback preview. For direct video links with empty link text, use the page title/meta title, but do not blanket-use page meta image when no scoped preview exists; a missing preview is preferable to reusing an unrelated page-level cover across multiple rows.
 
 ### 4. Validation & Error Matrix
 
@@ -296,6 +297,7 @@ background.js -> normalize/cache -> popup.js
 | Popup downloads an audio row | `downloadMediaCandidate` | Candidate keeps `mediaType: "audio"` in metadata | Preserve media type in queued candidate |
 | Page video has no `<video poster>` but exposes card/meta cover | `collectVideoScanCandidates` | Video candidate includes a bounded `previewUrl` without popup-side DOM guessing | Resolve cover in content script before background normalization |
 | Direct video link has empty text | `collectVideoScanCandidates` | Candidate title falls back to page/meta title instead of only CDN filename | Populate `title` before `describeCandidate` fallback |
+| Blob/MSE-backed visible player exposes no HTTP media URL | `collectVideoScanCandidates` | Detector emits a high-confidence `current_page` candidate for a canonical current content URL | Generate current-page fallback only when the visible player has no usable HTTP element/source URL |
 
 ### 5. Good / Base / Bad Cases
 
@@ -325,8 +327,9 @@ background.js -> normalize/cache -> popup.js
   - Popup opens on a scannable page and auto-populates without clicking Scan.
   - Popup opens on a restricted page and does not wait for content-script timeout.
   - Same-tab navigation does not show the previous URL's cache result.
-  - Video candidate without a poster still displays a nearby card cover or page meta cover when available.
-  - Direct video link with empty text displays a page/meta title.
+- Video candidate without a poster still displays a nearby card cover or page meta cover when available.
+- Direct video link with empty text displays a page/meta title.
+- Blob/MSE-backed YouTube/Bilibili player shows a canonical `current_page` candidate instead of unrelated recommendation/search links.
 
 ### 7. Wrong vs Correct
 

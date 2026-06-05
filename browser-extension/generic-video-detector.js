@@ -16,6 +16,7 @@
   const MIN_IMAGE_WIDTH = 100;
   const MIN_IMAGE_HEIGHT = 100;
   const DIRECT_IMAGE_EXT_RE = /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i;
+  const DIRECT_VIDEO_SCAN_TYPE_RE = /^(?:direct_mp4|manifest_m3u8)$/;
   const DIRECT_AUDIO_EXT_RE = /\.(?:aac|flac|m4a|mp3|oga|ogg|opus|wav)(?:[?#]|$)/i;
   const AUDIO_FRAGMENT_EXT_RE = /\.(?:m3u8|m4s|mpd|ts)(?:[?#]|$)/i;
   const MIN_AUDIO_DURATION_SECONDS = 5;
@@ -100,6 +101,18 @@
   function isXiaohongshuHostname(hostname) {
     return /(?:^|\.)xiaohongshu\.com$/i.test(hostname || "")
       || /(?:^|\.)xhslink\.com$/i.test(hostname || "");
+  }
+
+  function isPinterestHostname(hostname) {
+    return /(?:^|\.)pinterest\.[a-z.]+$/i.test(hostname || "");
+  }
+
+  function isYouTubeHostname(hostname) {
+    return /(?:^|\.)youtube\.com$/i.test(hostname || "");
+  }
+
+  function isBilibiliHostname(hostname) {
+    return /(?:^|\.)bilibili\.com$/i.test(hostname || "");
   }
 
   function isXiaohongshuPageUrl(rawUrl) {
@@ -357,6 +370,88 @@
     return (document.title || "").trim();
   }
 
+  function normalizeYouTubeWatchUrl(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (!isYouTubeHostname(parsed.hostname) || parsed.pathname !== "/watch") {
+        return null;
+      }
+
+      const videoId = parsed.searchParams.get("v");
+      if (!videoId) {
+        return null;
+      }
+
+      const canonical = new URL("/watch", parsed.origin);
+      canonical.searchParams.set("v", videoId);
+      return canonical.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeBilibiliCurrentItemUrl(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (!isBilibiliHostname(parsed.hostname)) {
+        return null;
+      }
+
+      if (parsed.pathname.startsWith("/video/")) {
+        const canonical = new URL(parsed.pathname, parsed.origin);
+        const currentPart = parsed.searchParams.get("p");
+        if (currentPart) {
+          canonical.searchParams.set("p", currentPart);
+        }
+        return canonical.toString();
+      }
+
+      if (parsed.pathname.startsWith("/bangumi/play/")) {
+        return new URL(parsed.pathname, parsed.origin).toString();
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeCurrentItemPageUrl(rawUrl = window.location.href) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    if (shouldAvoidCurrentPageFallback(normalized)) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (isPinterestHostname(parsed.hostname)) {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+
+    return (
+      normalizeYouTubeWatchUrl(normalized)
+      || normalizeBilibiliCurrentItemUrl(normalized)
+      || normalizeContentUrl(normalized)
+    );
+  }
+
   function firstMetaContent(selectors) {
     for (const selector of selectors) {
       const value = document.querySelector(selector)?.getAttribute("content")?.trim();
@@ -478,6 +573,55 @@
       || extractMetaPreviewUrl();
   }
 
+  function resolveAnchorMetadataScope(anchor) {
+    if (!(anchor instanceof Element)) {
+      return null;
+    }
+
+    if (typeof anchor.closest === "function") {
+      const scoped = anchor.closest(
+        'article, [role="article"], figure, li, [data-title], [data-e2e], [data-testid], section, main',
+      );
+      if (scoped) {
+        return scoped;
+      }
+    }
+
+    let current = anchor.parentElement || null;
+    for (let depth = 0; current && depth < 4; depth += 1) {
+      if (
+        titleFromElementAttribute(current)
+        || current.querySelector?.("h1, h2, h3, [role='heading'], img[alt], img[src], img[srcset]")
+      ) {
+        return current;
+      }
+      current = current.parentElement || null;
+    }
+
+    return anchor.parentElement || null;
+  }
+
+  function resolveAnchorTitle(anchor) {
+    const scope = resolveAnchorMetadataScope(anchor);
+    const titleElement = scope?.querySelector?.(
+      "h1, h2, h3, [role='heading'], [data-title], a[title], img[alt]",
+    );
+    return titleFromElementAttribute(anchor)
+      || titleFromElementText(anchor)
+      || titleFromElementAttribute(scope)
+      || titleFromElementAttribute(titleElement)
+      || titleFromElementText(titleElement)
+      || extractTitle();
+  }
+
+  function resolveAnchorPreviewUrl(anchor) {
+    if (!(anchor instanceof Element)) {
+      return null;
+    }
+
+    return extractScopedPreviewUrl(anchor) || extractScopedPreviewUrl(resolveAnchorMetadataScope(anchor));
+  }
+
   function urlHost(rawUrl) {
     try {
       return new URL(rawUrl).hostname.toLowerCase();
@@ -586,28 +730,87 @@
     return candidates;
   }
 
+  function isPopupDirectVideoCandidateType(type) {
+    return typeof type === "string" && DIRECT_VIDEO_SCAN_TYPE_RE.test(type);
+  }
+
+  function buildCurrentPageVideoCandidate(video) {
+    if (!(video instanceof HTMLVideoElement) || !isRenderableVideo(video)) {
+      return null;
+    }
+
+    const directCandidates = extractVideoCandidatesFromElement(video);
+    if (directCandidates.some((candidate) => normalizeHttpUrl(candidate?.url))) {
+      return null;
+    }
+
+    const currentPageUrl = normalizeCurrentItemPageUrl(window.location.href);
+    if (!currentPageUrl) {
+      return null;
+    }
+
+    const rect = typeof video.getBoundingClientRect === "function"
+      ? video.getBoundingClientRect()
+      : null;
+    return describeCandidate({
+      url: currentPageUrl,
+      mediaType: "video",
+      source: "current_page",
+      type: selectionUtils.classifyVideoCandidateType(currentPageUrl),
+      confidence: "high",
+      title: resolveVideoTitle(video),
+      width: video.videoWidth || rect?.width,
+      height: video.videoHeight || rect?.height,
+      previewUrl: resolveVideoPreviewUrl(video) || extractMetaPreviewUrl(),
+    });
+  }
+
   function collectVideoScanCandidates() {
-    const videos = Array.from(document.querySelectorAll("video"));
+    const primaryVideo = resolveBestVideo(document);
     const candidates = [];
 
-    videos.forEach((video) => {
-      extractVideoCandidatesFromElement(video).forEach((candidate) => {
-        const rect = typeof video.getBoundingClientRect === "function"
-          ? video.getBoundingClientRect()
+    if (primaryVideo instanceof HTMLVideoElement) {
+      extractVideoCandidatesFromElement(primaryVideo).forEach((candidate) => {
+        const rect = typeof primaryVideo.getBoundingClientRect === "function"
+          ? primaryVideo.getBoundingClientRect()
           : null;
         const described = describeCandidate({
           ...candidate,
           mediaType: "video",
-          title: resolveVideoTitle(video),
-          width: video.videoWidth || rect?.width,
-          height: video.videoHeight || rect?.height,
-          previewUrl: resolveVideoPreviewUrl(video),
+          title: resolveVideoTitle(primaryVideo),
+          width: primaryVideo.videoWidth || rect?.width,
+          height: primaryVideo.videoHeight || rect?.height,
+          previewUrl: resolveVideoPreviewUrl(primaryVideo),
         });
         if (described) {
           candidates.push(described);
         }
       });
-    });
+
+      collectPerformanceCandidates(primaryVideo)
+        .filter((candidate) => isPopupDirectVideoCandidateType(candidate?.type))
+        .forEach((candidate) => {
+          const rect = typeof primaryVideo.getBoundingClientRect === "function"
+            ? primaryVideo.getBoundingClientRect()
+            : null;
+          const described = describeCandidate({
+            ...candidate,
+            mediaType: "video",
+            title: resolveVideoTitle(primaryVideo),
+            width: primaryVideo.videoWidth || rect?.width,
+            height: primaryVideo.videoHeight || rect?.height,
+            previewUrl: resolveVideoPreviewUrl(primaryVideo),
+          });
+          if (described) {
+            candidates.push(described);
+          }
+        });
+
+      const currentPageCandidate = buildCurrentPageVideoCandidate(primaryVideo);
+      if (currentPageCandidate) {
+        candidates.push(currentPageCandidate);
+      }
+    }
 
     const anchors = Array.from(document.querySelectorAll("a[href]")).slice(0, MEDIA_SCAN_LINK_LIMIT);
     anchors.forEach((anchor) => {
@@ -616,7 +819,7 @@
         return;
       }
       const type = selectionUtils.classifyVideoCandidateType(url);
-      if (type === "unknown") {
+      if (!isPopupDirectVideoCandidateType(type)) {
         return;
       }
       const described = describeCandidate({
@@ -625,8 +828,8 @@
         type,
         confidence: type === "direct_mp4" ? "medium" : "low",
         source: "direct_link",
-        title: anchor.textContent || extractTitle(),
-        previewUrl: extractMetaPreviewUrl(),
+        title: resolveAnchorTitle(anchor),
+        previewUrl: resolveAnchorPreviewUrl(anchor),
       });
       if (described) {
         candidates.push(described);
@@ -1093,6 +1296,7 @@
     collectPageMediaCandidates,
     collectAudioScanCandidates,
     normalizeContentUrl,
+    normalizeCurrentItemPageUrl,
     normalizeXiaohongshuNoteUrl,
     resolveSelectionPageUrl,
     shouldAvoidCurrentPageFallback,

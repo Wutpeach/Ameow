@@ -81,6 +81,7 @@ function shortHost(value) {
 
 function sourceLabel(source, translate = null) {
   const labels = {
+    current_page: ["popup.media.sources.currentPage", "page"],
     direct_link: ["popup.media.sources.directLink", "link"],
     img_element: ["popup.media.sources.imageElement", "img"],
     open_graph: ["popup.media.sources.openGraph", "og"],

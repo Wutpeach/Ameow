@@ -25,8 +25,47 @@ function createSelectionUtils() {
         return null;
       }
     },
-    classifyVideoCandidateType() {
-      return "indirect_media";
+    classifyVideoCandidateType(rawUrl) {
+      const url = this.normalizeHttpUrl(rawUrl);
+      if (!url) {
+        return "unknown";
+      }
+      if (/\.(?:mp4|m4v|mov|webm)(?:[?#]|$)/i.test(url)) {
+        return "direct_mp4";
+      }
+      if (/\.(?:m3u8|mpd)(?:[?#]|$)/i.test(url)) {
+        return "manifest_m3u8";
+      }
+      if (/(?:video|stream|play|manifest|playlist|media|mp4|m3u8|mpd)/i.test(url)) {
+        return "indirect_media";
+      }
+      return "unknown";
+    },
+    candidateStrength(candidate) {
+      const type = candidate?.type || this.classifyVideoCandidateType(candidate?.url);
+      const confidence = candidate?.confidence || "low";
+      let score = 0;
+      if (type === "direct_cdn") {
+        score += 120;
+      } else if (type === "direct_mp4") {
+        score += 110;
+      } else if (type === "indirect_media") {
+        score += 70;
+      } else if (type === "manifest_m3u8") {
+        score += 40;
+      } else {
+        score += 10;
+      }
+
+      if (confidence === "high") {
+        score += 30;
+      } else if (confidence === "medium") {
+        score += 18;
+      } else {
+        score += 6;
+      }
+
+      return score;
     },
     mergeVideoCandidates(...lists) {
       return lists.flat().filter(Boolean);
@@ -43,6 +82,8 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
   const parsedCurrentUrl = new URL(currentUrl);
   let messageListener = null;
   const documentOverride = overrides.document || {};
+  const domUtilsOverride = overrides.domUtils || {};
+  const selectionUtils = overrides.selectionUtils || createSelectionUtils();
   class TestAudioElement {}
   class TestVideoElement {}
   const window = {
@@ -63,8 +104,9 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
       resolveCanonicalUrl() {
         return null;
       },
+      ...domUtilsOverride,
     },
-    AmeowGenericVideoSelectionUtils: createSelectionUtils(),
+    AmeowGenericVideoSelectionUtils: selectionUtils,
   };
 
   const context = {
@@ -204,7 +246,7 @@ describe("generic video detector", () => {
         videoCandidates: [
           {
             url: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
-            type: "indirect_media",
+            type: "direct_mp4",
             confidence: "medium",
             source: "context_menu_src",
             mediaType: "video",
@@ -312,6 +354,11 @@ describe("generic video detector", () => {
       },
     };
     const { hooks, TestVideoElement } = loadDetectorHooks("https://www.example.com/post/2", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
       document: {
         addEventListener() {},
         querySelector() {
@@ -342,7 +389,7 @@ describe("generic video detector", () => {
         return [];
       },
       getBoundingClientRect() {
-        return { width: 640, height: 360 };
+        return { width: 640, height: 360, left: 0, top: 0, right: 640, bottom: 360 };
       },
     });
 
@@ -361,6 +408,11 @@ describe("generic video detector", () => {
 
   it("uses open graph metadata for popup video candidates when element metadata is missing", () => {
     const { hooks, TestVideoElement } = loadDetectorHooks("https://www.example.com/post/3", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
       document: {
         addEventListener() {},
         querySelector(selector) {
@@ -402,7 +454,7 @@ describe("generic video detector", () => {
         return [];
       },
       getBoundingClientRect() {
-        return { width: 640, height: 360 };
+        return { width: 640, height: 360, left: 0, top: 0, right: 640, bottom: 360 };
       },
     });
 
@@ -457,8 +509,259 @@ describe("generic video detector", () => {
       mediaType: "video",
       source: "direct_link",
       title: "Direct video post",
-      previewUrl: "https://cdn.example.com/covers/direct.jpg",
     });
+    expect(result.videos[0]).not.toHaveProperty("previewUrl");
+  });
+
+  it("filters ordinary broad-hint page links but keeps direct media links", () => {
+    const noisyLink = {
+      getAttribute(name) {
+        return name === "href" ? "https://search.bilibili.com/all?keyword=video+tips" : null;
+      },
+      textContent: "Search results",
+    };
+    const directLink = {
+      getAttribute(name) {
+        return name === "href" ? "https://cdn.example.com/videos/final.mp4" : null;
+      },
+      textContent: "Final cut",
+    };
+    const manifestLink = {
+      getAttribute(name) {
+        return name === "href" ? "https://cdn.example.com/videos/master.m3u8" : null;
+      },
+      textContent: "Adaptive stream",
+    };
+    const { hooks } = loadDetectorHooks("https://www.example.com/post/5", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "a[href]") {
+            return [noisyLink, directLink, manifestLink];
+          }
+          return [];
+        },
+        title: "Example post",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos.map((candidate) => candidate.url)).toEqual([
+      "https://cdn.example.com/videos/final.mp4",
+      "https://cdn.example.com/videos/master.m3u8",
+    ]);
+  });
+
+  it("adds a current-page candidate for blob-backed YouTube watch pages", () => {
+    let video = null;
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.youtube.com/watch?v=abc123&list=related", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Current watch title" : null;
+              },
+            };
+          }
+          if (selector === 'meta[property="og:image"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "https://i.ytimg.com/vi/abc123/maxresdefault.jpg" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          if (selector === "a[href]") {
+            return [{
+              getAttribute(name) {
+                return name === "href" ? "https://www.youtube.com/results?search_query=video+tips" : null;
+              },
+              textContent: "Recommended search",
+            }];
+          }
+          return [];
+        },
+        title: "Current watch title",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.youtube.com/1234",
+      src: "blob:https://www.youtube.com/1234",
+      paused: false,
+      readyState: 4,
+      currentTime: 12,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 1280, height: 720, left: 0, top: 0, right: 1280, bottom: 720 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos).toHaveLength(1);
+    expect(result.videos[0]).toMatchObject({
+      source: "current_page",
+      mediaType: "video",
+      url: "https://www.youtube.com/watch?v=abc123",
+      title: "Current watch title",
+      previewUrl: "https://i.ytimg.com/vi/abc123/maxresdefault.jpg",
+    });
+  });
+
+  it("adds a current-page candidate for blob-backed Bilibili play pages", () => {
+    let video = null;
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.bilibili.com/video/BV1xx411c7mD/?p=2&spm_id_from=333.1007.tianma.1-1-1.click", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Current Bilibili title" : null;
+              },
+            };
+          }
+          if (selector === 'meta[property="og:image"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "https://i0.hdslb.com/bfs/archive/current.jpg" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          if (selector === "a[href]") {
+            return [{
+              getAttribute(name) {
+                return name === "href" ? "https://member.bilibili.com/platform/upload/video/frame" : null;
+              },
+              textContent: "投稿",
+            }];
+          }
+          return [];
+        },
+        title: "Current Bilibili title",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.bilibili.com/player",
+      src: "blob:https://www.bilibili.com/player",
+      paused: false,
+      readyState: 4,
+      currentTime: 42,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 1280, height: 720, left: 0, top: 0, right: 1280, bottom: 720 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos).toHaveLength(1);
+    expect(result.videos[0]).toMatchObject({
+      source: "current_page",
+      mediaType: "video",
+      url: "https://www.bilibili.com/video/BV1xx411c7mD/?p=2",
+      title: "Current Bilibili title",
+      previewUrl: "https://i0.hdslb.com/bfs/archive/current.jpg",
+    });
+  });
+
+  it("does not add a generic current-page fallback on Pinterest pages", () => {
+    let video = null;
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.pinterest.com/pin/1234567890/", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Pin page",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.pinterest.com/1234",
+      src: "blob:https://www.pinterest.com/1234",
+      paused: false,
+      readyState: 4,
+      currentTime: 7,
+      videoWidth: 1080,
+      videoHeight: 1350,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 360, height: 450, left: 0, top: 0, right: 360, bottom: 450 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos).toEqual([]);
   });
 
   it("caps popup media scan results to a bounded total", () => {
