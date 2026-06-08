@@ -229,17 +229,31 @@ jobs:
             --output-dir artifacts/browser-extension
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Ameow v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          generate_release_notes: false
-          body_path: ${{ steps.release_notes.outputs.path }}
-          files: |
-            artifacts/windows-installer/*.exe
-            artifacts/windows-portable/*.zip
-            artifacts/macos-dmg-arm64/*.dmg
-            artifacts/macos-zip-arm64/*.zip
-            artifacts/browser-extension/*.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          BODY="$(cat "${{ steps.release_notes.outputs.path }}")"
+          gh api \
+            --method POST \
+            repos/${{ github.repository }}/releases \
+            -f tag_name="$TAG" \
+            -f target_commitish="${{ github.sha }}" \
+            -f name="Ameow v${{ steps.version.outputs.version }}" \
+            -f body="$BODY" \
+            -F draft=false \
+            -F prerelease=${{ steps.version.outputs.prerelease }} \
+            -F make_latest=${{ steps.version.outputs.prerelease == 'true' && 'false' || 'true' }}
+
+      - name: Upload GitHub Release Assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          gh release upload "$TAG" \
+            artifacts/windows-installer/*.exe \
+            artifacts/windows-portable/*.zip \
+            artifacts/macos-dmg-arm64/*.dmg \
+            artifacts/macos-zip-arm64/*.zip \
+            artifacts/browser-extension/*.zip \
             artifacts/updater/latest.json
