@@ -376,3 +376,36 @@ Added Windows portable app self-update support with portable release manifest me
 ### Next Steps
 
 - None - task complete
+
+
+## Session 208: Docs site content clarity
+
+**Date**: 2026-06-08
+**Task**: Docs site content clarity
+**Branch**: `main`
+
+### Summary
+
+Clarified the public docs site around first-use paths, removed the standalone docs index from the sidebar, added docs redirects, optimized remaining guide pages, and tightened Starlight heading typography.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `046bcae` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
