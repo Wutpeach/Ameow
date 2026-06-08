@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const args = process.argv.slice(2);
 
@@ -70,6 +71,12 @@ function findRequiredFileByPatterns(files, patterns, label) {
   throw new Error(`Unable to find ${label} matching any of: ${patterns.map(String).join(", ")}`);
 }
 
+function computeSha256(filePath) {
+  const hash = createHash("sha256");
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest("hex").toUpperCase();
+}
+
 function buildReleaseAssetUrl(repo, releaseTag, assetFilePath) {
   const assetName = path.basename(assetFilePath);
   return `https://github.com/${repo}/releases/download/${releaseTag}/${encodeURIComponent(assetName)}`;
@@ -101,6 +108,11 @@ function main() {
     ],
     "Windows updater asset",
   );
+  const windowsPortableAsset = findRequiredFile(
+    files,
+    /^Ameow_.*_windows_x64_portable\.zip$/,
+    "Windows portable updater asset",
+  );
 
   const manifest = {
     version,
@@ -108,6 +120,13 @@ function main() {
     pub_date: pubDate,
     platforms: {
       "windows-x86_64": createPlatformEntry(repo, releaseTag, windowsAsset),
+    },
+    portable: {
+      "windows-x86_64": {
+        ...createPlatformEntry(repo, releaseTag, windowsPortableAsset),
+        sha256: computeSha256(windowsPortableAsset),
+        rootDir: "Ameow_portable",
+      },
     },
   };
 

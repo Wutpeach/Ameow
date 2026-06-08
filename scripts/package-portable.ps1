@@ -76,6 +76,7 @@ try {
   $portableDir = Join-Path $portableRoot "Ameow_portable"
   $stagingDir = Join-Path $portableRoot ("Ameow_portable_staging_{0}" -f $PID)
   $stagingAppDir = Join-Path $stagingDir "Ameow_portable"
+  $portableMarkerFile = Join-Path $stagingAppDir ".ameow-portable.json"
   $portableZip = Join-Path $portableRoot ("Ameow_{0}_windows_x64_portable.zip" -f $Version)
   $browserExtensionZip = Join-Path $portableRoot ("Ameow_{0}_browser_extension.zip" -f $Version)
   $unpackedExe = Join-Path $unpackedDir "Ameow.exe"
@@ -92,6 +93,12 @@ try {
   }
   New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
   Copy-Item $unpackedDir $stagingAppDir -Recurse -Force -ErrorAction Stop
+  @{
+    product = "Ameow"
+    package = "windows-portable"
+    version = $Version
+    generatedAt = (Get-Date).ToString("s")
+  } | ConvertTo-Json -Depth 3 | Set-Content -Path $portableMarkerFile -Encoding UTF8
 
   if (Test-Path $portableZip) {
     Remove-Item $portableZip -Force

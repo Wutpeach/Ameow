@@ -1372,8 +1372,8 @@ Required tests and assertion points:
 
 - Windows:
   - canonical packaged artifact: Electron Builder `nsis`
-  - portable ZIP remains manual-distribution only
-  - in-app auto-update is supported only for installed NSIS builds
+  - installer builds use the NSIS installer URL from `latest.json`
+  - portable ZIP builds may self-update from the portable ZIP metadata in `latest.json` when the running directory has the portable marker and passes path-safety checks
   - packaged runtime files must include the Windows icon asset used at runtime (`desktop-assets/icons/icon.ico`) if Electron main loads that asset after launch
 - macOS:
   - canonical packaged artifacts remain arch-specific DMGs
@@ -1470,7 +1470,7 @@ Required tests and assertion points:
 | Two active downloads choose the same output stem before either file exists on disk | Electron runtime queue concurrency | Concurrent tasks do not race into one filename or produce false `output file missing` failures | Serialize stem reservation and include active reserved stems in availability checks |
 | Only `.part` / `.txt` / `.json` / `.ytdl` artifacts exist for a stem | Output path allocation | Retry or cleanup metadata does not force unnecessary suffix bumps | Ignore sidecar-only artifacts when selecting the preferred final stem |
 | macOS updater enabled without signed/notarized distribution | Packaged runtime | Broken or misleading in-app updates | Return `null` for unsigned macOS updater check |
-| Portable Windows build advertises in-app update install | Packaged runtime | Update flow can corrupt portable expectations | Keep portable builds manual-only |
+| Portable Windows build advertises in-app update install | Packaged runtime | Update flow can corrupt portable expectations if it opens the installer or overwrites a locked/unsafe path | Use the portable ZIP strategy only after marker, checksum, same-volume staging, and helper-spawn checks pass; otherwise surface a manual fallback |
 | Preload exposes raw Electron objects/functions to renderer | Security review | Renderer gets overly privileged runtime access | Expose only serializable contract surface |
 
 ### 5. Good / Base / Bad Cases
@@ -1490,7 +1490,7 @@ Required tests and assertion points:
   - Repeatedly switching UI Lab scenarios keeps the real main window in full-mode visuals, with no circular minimized shell wrapped around preview content.
   - Main/settings/context-menu can all subscribe to app events without `MaxListenersExceededWarning`.
   - Browser extension still connects to `ws://127.0.0.1:39527`, `get_language` succeeds, and `video_selected_v2` responses echo `requestId`.
-  - Windows installer builds support in-app updates while portable ZIP remains manual-only.
+  - Windows installer builds support in-app updates through the NSIS installer asset, while Windows portable builds support portable ZIP self-update through the external helper path.
   - macOS DMG builds stay manual-install artifacts with updater disabled cleanly.
   - Existing `settings.json` with legacy rename or quality keys still behaves the same after migration.
   - Pinterest downloads with a real title use that title first, while title-less Pinterest requests still fall back to stable names such as `pinterest_7f3a2c.mp4`.
@@ -1573,8 +1573,8 @@ Required tests and assertion points:
   - Start from a config file containing `videoKeepOriginalName`, `ytdlpQualityPreference`, and `clipDownloadMode` and assert behavior still matches current semantics.
   - Start from the legacy config path and assert one-time migration to the current app config directory still occurs.
 - Packaging / updater:
-  - Windows NSIS build surfaces updater availability only for installed builds.
-  - Windows portable build does not advertise in-app updater install.
+  - Windows NSIS build surfaces updater availability through the installer strategy.
+  - Windows portable build surfaces updater availability through the portable ZIP strategy when the marker and manifest metadata are valid.
   - macOS unsigned build resolves no available in-app updater path and still exposes manual release links.
 
 ### 7. Wrong vs Correct

@@ -125,8 +125,8 @@ Autostart remains runtime-owned OS state, not a `settings.json` key.
 
 - Windows:
   - canonical packaged artifact: Electron Builder `nsis`
-  - portable ZIP remains manual-only under `dist-release/portable/`
-  - in-app auto-update is supported only for installed Windows builds through the repo-generated `latest.json` manifest
+  - installed Windows builds update through the NSIS installer URL in the repo-generated `latest.json` manifest
+  - portable ZIP builds may self-update from portable ZIP metadata in the same `latest.json` manifest when the running directory contains the portable marker and passes updater safety checks
 - macOS:
   - canonical packaged artifacts are architecture-specific Electron Builder ZIPs plus the repo's custom unsigned DMGs
   - because the current repo ships unsigned open-source DMGs, Electron in-app auto-update is intentionally out of scope until code signing/notarization exists
@@ -138,7 +138,7 @@ Autostart remains runtime-owned OS state, not a `settings.json` key.
 
 Renderer updater contract:
 
-- Windows installer builds may surface an update from `window.ameow.updater.check()`.
+- Windows installer and portable builds may surface an update from `window.ameow.updater.check()`; Electron main chooses the installer or portable ZIP strategy from the running app shape.
 - macOS unsigned builds should return `null` from `window.ameow.updater.check()` and keep manual release links as the visible update path.
 
 ## Download Runtime Core

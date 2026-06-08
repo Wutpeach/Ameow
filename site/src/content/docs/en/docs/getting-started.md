@@ -23,6 +23,8 @@ If you have not downloaded the app yet, start at [Download Ameow](../downloads/)
 2. If you chose the Portable ZIP, extract it fully first, then run Ameow from the extracted folder.
 3. After launch, a small floating window appears near the edge of the desktop.
 
+For later app updates, installed builds continue to open the installer. Portable builds prefer the new Portable ZIP and replace the current portable folder after restart. If the portable folder is not writable or the update metadata is incomplete, download the Portable ZIP from the release page and replace the folder manually.
+
 ### macOS
 
 1. Open the DMG.

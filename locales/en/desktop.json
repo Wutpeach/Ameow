@@ -105,6 +105,13 @@
       "hideWindow": "Hide window",
       "cancelCurrentTask": "Cancel current task",
       "updateYtdlp": "Update yt-dlp: {{current}} → {{latest}}",
+      "updateApp": "Update Ameow: {{current}} → {{latest}}",
+      "downloadAppUpdate": "Downloading Ameow update...",
+      "installAppUpdate": "Opening Ameow installer...",
+      "downloadPortableAppUpdate": "Downloading Ameow portable update...",
+      "installPortableAppUpdate": "Restarting to replace the portable folder...",
+      "retryAppUpdate": "Retry Ameow update: {{current}} → {{latest}}",
+      "openManualAppUpdate": "Open Ameow update download: {{current}} → {{latest}}",
       "updating": "Updating...",
       "resetRenameCounter": "Reset rename counter",
       "settings": "Settings"

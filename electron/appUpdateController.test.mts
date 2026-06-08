@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { APP_RELEASES_API, APP_STABLE_UPDATE_ENDPOINT } from "./appUpdate.mjs";
+import { APP_RELEASES_API, APP_RELEASES_URL, APP_STABLE_UPDATE_ENDPOINT } from "./appUpdate.mjs";
 import { buildGitHubHeaders } from "./appUpdateDownload.mjs";
 import { createAppUpdateController } from "./appUpdateController.mjs";
 
@@ -32,6 +32,10 @@ const createController = (overrides = {}) => {
       typeof value === "string" && value.trim() ? value.trim() : null
     )),
     openPath: vi.fn(async () => ""),
+    getInstallMode: vi.fn(() => "installed"),
+    getExecutablePath: vi.fn(() => "C:\\Users\\mabel\\AppData\\Local\\Programs\\Ameow\\Ameow.exe"),
+    getPortableRootPath: vi.fn(() => "C:\\Users\\mabel\\AppData\\Local\\Programs\\Ameow"),
+    getCurrentProcessId: vi.fn(() => 1234),
     prepareToQuit: vi.fn(),
     ...overrides,
   };
@@ -58,6 +62,8 @@ describe("createAppUpdateController", () => {
       latest: "0.3.1",
       notes: "Update notes",
       publishedAt: "2026-05-16T00:00:00Z",
+      installMode: "installer",
+      manualUrl: "https://example.invalid/Ameow_setup.exe",
     });
     expect(fetchMock).toHaveBeenCalledWith(APP_STABLE_UPDATE_ENDPOINT);
   });
@@ -95,6 +101,91 @@ describe("createAppUpdateController", () => {
 
     await expect(controller.downloadAndInstallAppUpdate()).rejects.toThrow(
       "No pending Electron app update is available",
+    );
+  });
+
+  it("selects portable update metadata for portable builds", async () => {
+    const portableUrl = "https://example.invalid/Ameow_0.3.1_windows_x64_portable.zip";
+    const { controller, options } = createController({
+      getInstallMode: vi.fn(() => "portable"),
+      fetch: vi.fn(async () => responseJson({
+        version: "0.3.1",
+        notes: "Update notes",
+        pub_date: "2026-05-16T00:00:00Z",
+        platforms: {
+          "windows-x86_64": {
+            url: "https://example.invalid/Ameow_setup.exe",
+          },
+        },
+        portable: {
+          "windows-x86_64": {
+            url: portableUrl,
+            sha256: "b".repeat(64),
+            rootDir: "Ameow_portable",
+          },
+        },
+      })),
+    });
+
+    await expect(controller.checkForAppUpdate()).resolves.toEqual({
+      current: "0.3.0",
+      latest: "0.3.1",
+      notes: "Update notes",
+      publishedAt: "2026-05-16T00:00:00Z",
+      installMode: "portable",
+      manualUrl: portableUrl,
+    });
+    expect(options.getInstallMode).toHaveBeenCalled();
+  });
+
+  it("does not quit when portable helper launch fails", async () => {
+    const { controller, options } = createController({
+      getInstallMode: vi.fn(() => "portable"),
+      performPortableAppUpdate: vi.fn(async () => {
+        throw new Error("could not start updater helper");
+      }),
+      fetch: vi.fn(async () => responseJson({
+        version: "0.3.1",
+        notes: "Update notes",
+        pub_date: "2026-05-16T00:00:00Z",
+        platforms: {
+          "windows-x86_64": {
+            url: "https://example.invalid/Ameow_setup.exe",
+          },
+        },
+        portable: {
+          "windows-x86_64": {
+            url: "https://example.invalid/Ameow_0.3.1_windows_x64_portable.zip",
+            sha256: "c".repeat(64),
+            rootDir: "Ameow_portable",
+          },
+        },
+      })),
+    });
+
+    await controller.checkForAppUpdate();
+    await expect(controller.downloadAndInstallAppUpdate()).rejects.toThrow(
+      "could not start updater helper",
+    );
+    expect(options.prepareToQuit).not.toHaveBeenCalled();
+  });
+
+  it("keeps portable builds on a manual fallback when portable metadata is missing", async () => {
+    const { controller } = createController({
+      getInstallMode: vi.fn(() => "portable"),
+    });
+
+    await expect(controller.checkForAppUpdate()).resolves.toEqual({
+      current: "0.3.0",
+      latest: "0.3.1",
+      notes: "Update notes",
+      publishedAt: "2026-05-16T00:00:00Z",
+      installMode: "manual",
+      manualUrl: APP_RELEASES_URL,
+    });
+
+    await expect(controller.downloadAndInstallAppUpdate()).rejects.toThrow(
+      "valid Windows portable update asset",
     );
   });
 });

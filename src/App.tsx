@@ -1529,6 +1529,17 @@ function App({
       return;
     }
 
+    if (appUpdateInfo.installMode === "manual" && appUpdateInfo.manualUrl) {
+      try {
+        await desktopSystem.openExternal(appUpdateInfo.manualUrl);
+      } catch (err) {
+        console.error("Failed to open app update download:", err);
+        setAppUpdateError(summarizeAppUpdateError(err));
+        setAppUpdatePhase("error");
+      }
+      return;
+    }
+
     setAppUpdateError(null);
     setAppUpdatePhase("downloading");
 
@@ -3738,11 +3749,15 @@ function App({
     }
 
     if (appUpdatePhase === "downloading") {
-      return t("app.actions.downloadAppUpdate");
+      return appUpdateInfo.installMode === "portable"
+        ? t("app.actions.downloadPortableAppUpdate")
+        : t("app.actions.downloadAppUpdate");
     }
 
     if (appUpdatePhase === "installing") {
-      return t("app.actions.installAppUpdate");
+      return appUpdateInfo.installMode === "portable"
+        ? t("app.actions.installPortableAppUpdate")
+        : t("app.actions.installAppUpdate");
     }
 
     if (appUpdatePhase === "error") {
@@ -3751,6 +3766,13 @@ function App({
         latest: appUpdateInfo.latest,
       });
       return appUpdateError ? `${retryTitle}\n${appUpdateError}` : retryTitle;
+    }
+
+    if (appUpdateInfo.installMode === "manual") {
+      return t("app.actions.openManualAppUpdate", {
+        current: appUpdateInfo.current,
+        latest: appUpdateInfo.latest,
+      });
     }
 
     return t("app.actions.updateApp", {

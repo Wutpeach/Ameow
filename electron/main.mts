@@ -49,6 +49,10 @@ import {
 } from "../src/core/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
+import {
+  resolvePortableRootPathFromExecutable,
+  resolveWindowsAppInstallMode,
+} from "./portableAppUpdate.mjs";
 import { checkYtdlpVersion as buildYtdlpVersionInfo, getGalleryDlInfo as buildGalleryDlInfo } from "./downloaderVersionInfo.mjs";
 import {
   normalizeVideoCandidates,
@@ -305,6 +309,22 @@ const appUpdateController = createAppUpdateController({
   normalizeVersionString,
   openPath(path) {
     return shell.openPath(path);
+  },
+  getInstallMode() {
+    return resolveWindowsAppInstallMode({
+      platform: process.platform,
+      isPackaged: app.isPackaged,
+      executablePath: process.execPath,
+    });
+  },
+  getExecutablePath() {
+    return process.execPath;
+  },
+  getPortableRootPath() {
+    return resolvePortableRootPathFromExecutable(process.execPath);
+  },
+  getCurrentProcessId() {
+    return process.pid;
   },
   prepareToQuit() {
     app.isQuitting = true;

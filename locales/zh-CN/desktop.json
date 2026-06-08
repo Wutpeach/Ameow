@@ -105,6 +105,13 @@
       "hideWindow": "隐藏窗口",
       "cancelCurrentTask": "取消当前任务",
       "updateYtdlp": "更新 yt-dlp：{{current}} → {{latest}}",
+      "updateApp": "更新 Ameow：{{current}} → {{latest}}",
+      "downloadAppUpdate": "正在下载 Ameow 更新...",
+      "installAppUpdate": "正在打开 Ameow 安装器...",
+      "downloadPortableAppUpdate": "正在下载 Ameow 便携版更新...",
+      "installPortableAppUpdate": "即将重启并替换当前便携版目录...",
+      "retryAppUpdate": "重试 Ameow 更新：{{current}} → {{latest}}",
+      "openManualAppUpdate": "打开 Ameow 更新下载：{{current}} → {{latest}}",
       "updating": "更新中...",
       "resetRenameCounter": "重置重命名计数",
       "settings": "设置"

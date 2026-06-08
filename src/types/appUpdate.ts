@@ -11,4 +11,6 @@ export type AppUpdateInfo = {
   latest: string;
   notes: string | null;
   publishedAt: string | null;
+  installMode?: "installer" | "portable" | "manual";
+  manualUrl?: string | null;
 };
