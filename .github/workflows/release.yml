@@ -243,7 +243,7 @@ jobs:
             -f body="$BODY" \
             -F draft=false \
             -F prerelease=${{ steps.version.outputs.prerelease }} \
-            -F make_latest=${{ steps.version.outputs.prerelease == 'true' && 'false' || 'true' }}
+            -f make_latest=${{ steps.version.outputs.prerelease == 'true' && 'false' || 'true' }}
 
       - name: Upload GitHub Release Assets
         env:
