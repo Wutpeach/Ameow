@@ -10,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
 const electronBuilderCli = path.join(repoRoot, "node_modules", "electron-builder", "cli.js");
+const npmCli = process.env.npm_execpath ?? null;
 
 const runCommand = (command, args) => new Promise((resolve, reject) => {
   const child = spawn(command, args, {
@@ -37,7 +38,10 @@ async function main() {
   const builderArgs = process.argv.slice(2);
   await runCommand(process.execPath, [path.join(repoRoot, "scripts", "ensure-python-runtime.mjs"), ...builderArgs]);
   await assertBundledPythonRuntimeReady(resolveTargetFromBuilderArgs(builderArgs));
-  await runCommand("npm", ["run", "build"]);
+  if (!npmCli) {
+    throw new Error("npm_execpath is required to run the build from the package script");
+  }
+  await runCommand(process.execPath, [npmCli, "run", "build"]);
   await runCommand(process.execPath, [
     electronBuilderCli,
     "--config",
