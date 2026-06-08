@@ -8,16 +8,41 @@ import type {
 import { buildEnginePlansFromStrategySources } from "../download-capabilities/strategy-plans.js";
 import { getRuntimeManualSiteStrategy } from "../download-capabilities/runtime-site-strategies.js";
 import {
+  collectCaptureSourceCandidates,
+  isHttpSourceCandidate,
+  resolveCaptureSourceUrl,
+} from "./capture-source.js";
+import {
   readAmeowCaptureEvidence,
   readCaptureContentId,
 } from "./extension-capture.js";
 
-const DOUYIN_HOST_PATTERN = /(douyin\.com|douyinvod\.com|douyincdn\.com|bytecdn|bytedance)/i;
+const DOUYIN_HOST_SUFFIXES = [
+  "douyin.com",
+  "douyinvod.com",
+  "douyincdn.com",
+  "bytecdn.com",
+  "bytedance.com",
+];
+const DOUYIN_CONTENT_PATH_PATTERN = /^\/(video|note|gallery)\/(\d{15,20})(?:\/)?$/i;
+const DOUYIN_CONTENT_ID_PATTERN = /^\d{15,20}$/;
 
-const isDouyinUrl = (value: string | undefined): boolean => Boolean(value && DOUYIN_HOST_PATTERN.test(value));
+const isDouyinUrl = (value: string | undefined): boolean => {
+  if (!value) {
+    return false;
+  }
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return DOUYIN_HOST_SUFFIXES.some((suffix) => (
+      hostname === suffix || hostname.endsWith(`.${suffix}`)
+    ));
+  } catch {
+    return false;
+  }
+};
 
 const isDirectVideoUrl = (value: string | undefined): boolean => (
-  Boolean(value && DOUYIN_HOST_PATTERN.test(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
+  Boolean(value && isDouyinUrl(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
 );
 
 const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
@@ -26,34 +51,84 @@ const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
   }
   try {
     const url = new URL(value);
-    return /^\/(?:video|note|gallery)\/\d{15,20}(?:\/)?$/i.test(url.pathname);
+    return DOUYIN_CONTENT_PATH_PATTERN.test(url.pathname);
   } catch {
     return false;
   }
 };
 
-const synthesizeDouyinVideoSourceFromCapture = (
-  input: RawDownloadInput,
-): string | undefined => {
-  const modalId = readCaptureContentId(input, "modal_id", /^\d{15,20}$/);
-  return modalId ? `https://www.douyin.com/video/${modalId}` : undefined;
+type DouyinContentSource = {
+  kind: "video" | "note" | "gallery";
+  id: string;
 };
 
-const resolveDouyinDlSourceUrl = (input: RawDownloadInput): string => {
-  const captureEvidence = readAmeowCaptureEvidence(input);
-  const canonicalSource = captureEvidence?.canonicalUrl;
-  const ogSource = captureEvidence?.ogUrl;
-  const pageSourceUrl = input.pageUrl ?? input.url;
-
-  if (typeof canonicalSource === "string" && isAcceptedDouyinPageSource(canonicalSource)) {
-    return canonicalSource;
+const extractDouyinContentSource = (value: string | undefined): DouyinContentSource | undefined => {
+  if (!value || !isDouyinUrl(value)) {
+    return undefined;
   }
-  if (typeof ogSource === "string" && isAcceptedDouyinPageSource(ogSource)) {
-    return ogSource;
-  }
+  try {
+    const url = new URL(value);
+    const pathMatch = url.pathname.match(DOUYIN_CONTENT_PATH_PATTERN);
+    if (pathMatch?.[1] && pathMatch?.[2]) {
+      return {
+        kind: pathMatch[1].toLowerCase() as DouyinContentSource["kind"],
+        id: pathMatch[2],
+      };
+    }
 
-  return synthesizeDouyinVideoSourceFromCapture(input) ?? pageSourceUrl;
+    const modalId = url.searchParams.get("modal_id")?.trim();
+    if (modalId && DOUYIN_CONTENT_ID_PATTERN.test(modalId)) {
+      return {
+        kind: "video",
+        id: modalId,
+      };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 };
+
+const buildDouyinContentSourceUrl = (source: DouyinContentSource): string =>
+  `https://www.douyin.com/${source.kind}/${source.id}`;
+
+const synthesizeDouyinSource = (input: RawDownloadInput): string | undefined => {
+  const evidenceSource = collectCaptureSourceCandidates(input)
+    .map(extractDouyinContentSource)
+    .find((source): source is DouyinContentSource => Boolean(source));
+  if (evidenceSource) {
+    return buildDouyinContentSourceUrl(evidenceSource);
+  }
+
+  const modalId = readCaptureContentId(input, "modal_id", DOUYIN_CONTENT_ID_PATTERN);
+  if (modalId) {
+    return buildDouyinContentSourceUrl({ kind: "video", id: modalId });
+  }
+
+  const contentId = readCaptureContentId(input, "content_id", DOUYIN_CONTENT_ID_PATTERN);
+  if (contentId) {
+    return buildDouyinContentSourceUrl({ kind: "video", id: contentId });
+  }
+  return undefined;
+};
+
+const hasDouyinCaptureEvidence = (input: RawDownloadInput): boolean => {
+  const capture = readAmeowCaptureEvidence(input);
+  return [
+    capture?.canonicalUrl,
+    capture?.ogUrl,
+    capture?.targetHref,
+    capture?.targetSrc,
+    ...(capture?.structuredDataUrls ?? []),
+  ].filter(isHttpSourceCandidate).some(isDouyinUrl);
+};
+
+const resolveDouyinDlSourceUrl = (input: RawDownloadInput): string =>
+  resolveCaptureSourceUrl(input, {
+    isAcceptedSource: (value) => isAcceptedDouyinPageSource(value) || isDirectVideoUrl(value),
+    synthesizeSource: synthesizeDouyinSource,
+    fallback: (value) => value.pageUrl ?? value.url,
+  });
 
 const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   type: "video",
@@ -77,7 +152,8 @@ export const douyinProvider: SiteProvider = {
     return input.siteHint === "douyin"
       || isDouyinUrl(input.pageUrl)
       || isDouyinUrl(input.url)
-      || isDirectVideoUrl(input.videoUrl);
+      || isDirectVideoUrl(input.videoUrl)
+      || hasDouyinCaptureEvidence(input);
   },
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
     const intent = buildIntent(input) as VideoDownloadIntent;

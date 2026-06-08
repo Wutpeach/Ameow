@@ -103,6 +103,12 @@ Provider helpers:
 ```ts
 readAmeowCaptureEvidence(input: RawDownloadInput): AmeowCaptureEvidenceV1 | undefined;
 readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): string | undefined;
+collectCaptureSourceCandidates(input: RawDownloadInput): string[];
+resolveCaptureSourceUrl(input: RawDownloadInput, options: {
+  isAcceptedSource(value: string | undefined): boolean;
+  synthesizeSource?(input: RawDownloadInput): string | undefined;
+  fallback?(input: RawDownloadInput): string;
+}): string;
 ```
 
 ### 3. Contracts
@@ -116,6 +122,8 @@ readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): st
   - bounded JSON-LD URLs from `url`, `contentUrl`, `embedUrl`, `@id`, or `mainEntityOfPage`.
 - Providers choose downloader-specific `sourceUrl` values from evidence.
 - The extension must not synthesize backend-specific URLs such as `https://www.douyin.com/video/{id}` as the top-level request URL.
+- Provider-owned source selection should use `src/sites/capture-source.ts` when multiple evidence fields are relevant. The helper checks canonical URL, Open Graph URL, picker `targetHref`, picker `targetSrc`, bounded structured-data URLs, raw `input.url`, and `input.pageUrl`, filtering non-HTTP(S) values before provider predicates run.
+- Providers must supply their own `isAcceptedSource` predicate and optional synthesis logic. Do not make `capture-source` a global URL normalizer that decides site-specific permalink rules.
 
 ### 4. Validation & Error Matrix
 
@@ -123,6 +131,7 @@ readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): st
 |---|---|
 | `ameowCapture.version !== 1` | provider ignores capture evidence |
 | evidence URL is not HTTP(S) | browser helper drops it before sending |
+| provider receives non-HTTP(S) evidence anyway | provider source helper filters it before acceptance checks |
 | JSON-LD is malformed or too large | browser helper ignores it |
 | provider has accepted evidence URL | provider uses it as engine `sourceUrl` |
 | provider has only content ID evidence | provider may synthesize a site-scoped source URL |
@@ -132,6 +141,7 @@ readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): st
 
 - Good:
   - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes `/video/{id}` for `douyin-dl`.
+  - Douyin picker evidence pointing at `/video/{id}`, `/note/{id}`, or `/gallery/{id}` wins over the SPA page URL, and note/gallery path types are preserved.
   - Instagram explore/modal context carries shortcode evidence, while the gallery-dl-supported provider selects a permalink for `gallery-dl` and `yt-dlp`.
 - Base:
   - A long-tail supported site sends only `pageUrl`, canonical URL, and OG URL; provider fallback behavior remains unchanged.
@@ -150,6 +160,8 @@ readCaptureContentId(input: RawDownloadInput, key: string, pattern?: RegExp): st
 - Provider tests for:
   - site-scoped source priority;
   - fallback when evidence is absent;
+  - non-HTTP(S) evidence filtering;
+  - preserving provider-specific content path types when synthesis is needed;
   - preserving `intent.extensionData` for diagnostics and future routing.
 
 ### 7. Wrong vs Correct

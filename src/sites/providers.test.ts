@@ -91,7 +91,7 @@ describe("builtin site providers", () => {
     });
   });
 
-  it("keeps Douyin page fallback when extension modal evidence is absent", () => {
+  it("synthesizes Douyin video page source from raw jingxuan modal id", () => {
     const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
     const plan = resolvePlan({
       url: pageUrl,
@@ -102,7 +102,177 @@ describe("builtin site providers", () => {
     expect(plan.providerId).toBe("douyin");
     expect(plan.engines[0]).toMatchObject({
       engine: "douyin-dl",
-      sourceUrl: pageUrl,
+      sourceUrl: "https://www.douyin.com/video/7637912431158644014",
+    });
+  });
+
+  it("prefers Douyin picker target href evidence over a generic page URL", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan";
+    const targetHref = "https://www.douyin.com/video/7637912431158644014";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetHref,
+          contentIds: {
+            content_id: "7637912431158644014",
+          },
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: targetHref,
+    });
+  });
+
+  it("prefers Douyin picker target src evidence over a generic page URL", () => {
+    const pageUrl = "https://www.douyin.com/";
+    const targetSrc = "https://www.douyin.com/video/7637912431158644015";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetSrc,
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: targetSrc,
+    });
+  });
+
+  it("preserves Douyin note and gallery evidence path types", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan";
+    const noteUrl = "https://www.douyin.com/note/7637912431158644016";
+    const galleryUrl = "https://www.douyin.com/gallery/7637912431158644017";
+
+    const notePlan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetHref: noteUrl,
+          contentIds: {
+            content_id: "7637912431158644016",
+          },
+        },
+      },
+    });
+    const galleryPlan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetHref: galleryUrl,
+          contentIds: {
+            content_id: "7637912431158644017",
+          },
+        },
+      },
+    });
+
+    expect(notePlan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: noteUrl,
+    });
+    expect(galleryPlan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: galleryUrl,
+    });
+  });
+
+  it("matches Douyin from picker evidence when the top-level URL is generic", () => {
+    const pageUrl = "https://example.com/embedded";
+    const targetHref = "https://www.douyin.com/video/7637912431158644018";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetHref,
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: targetHref,
+    });
+  });
+
+  it("does not match Douyin only because a generic URL mentions douyin in query text", () => {
+    const url = "https://example.com/post?next=https%3A%2F%2Fwww.douyin.com%2Fvideo%2F7637912431158644020";
+    const plan = resolvePlan({
+      url,
+      pageUrl: url,
+    });
+
+    expect(plan.providerId).toBe("generic");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: url,
+    });
+  });
+
+  it("does not match Douyin on lookalike hostnames", () => {
+    const url = "https://evil-douyin.com/video/7637912431158644021";
+    const plan = resolvePlan({ url });
+
+    expect(plan.providerId).toBe("generic");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: url,
+    });
+  });
+
+  it("filters non-http Douyin picker evidence before source selection", () => {
+    const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644019";
+    const plan = resolvePlan({
+      url: pageUrl,
+      pageUrl,
+      siteHint: "douyin",
+      extensionData: {
+        ameowCapture: {
+          version: 1,
+          action: "pick_download",
+          pageUrl,
+          targetSrc: "blob:https://www.douyin.com/not-downloadable",
+        },
+      },
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: "https://www.douyin.com/video/7637912431158644019",
     });
   });
 
