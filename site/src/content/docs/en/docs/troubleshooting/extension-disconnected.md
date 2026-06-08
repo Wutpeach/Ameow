@@ -5,6 +5,8 @@ description: Troubleshoot the Ameow browser extension when it shows Disconnected
 
 When the extension shows `Disconnected`, it means the browser extension is not linked to the Ameow desktop app on this machine. The most common causes are: the desktop app is not running, the extension needs to be reloaded, or local communication is blocked by system policy.
 
+This page is only for connection recovery. Once the popup returns to `Connected`, move to [Download Failures](../download-failures/) if tasks still fail instead of reinstalling the extension again.
+
 [Screenshot: extension popup showing Disconnected and prompting for the desktop app]
 
 ## Quick checks first

@@ -5,6 +5,8 @@ description: Load the Ameow browser extension in Chrome or Edge and confirm the 
 
 The Ameow browser extension is usually installed from the zip package attached to GitHub Releases. Extract it first, then use `Load unpacked` in the browser's extension manager.
 
+If you only drop local files or paste public links, you can skip the extension for now. Install it when a page needs login state, current-page media, or a site-specific entry point.
+
 ## Before you start
 
 You need:
@@ -41,7 +43,7 @@ Choose the extracted extension directory. Do not choose:
 - the Ameow desktop app install folder;
 - the repository root.
 
-If the browser says it cannot find the manifest, the chosen directory is almost always wrong. Pick the folder that actually contains the extension manifest.
+If the browser says it cannot find the manifest, the chosen directory is almost always wrong. Pick the folder that actually contains the extension manifest. You do not need to reinstall the desktop app for this error.
 
 ## Chrome and Edge entry points
 

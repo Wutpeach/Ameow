@@ -1,0 +1,131 @@
+---
+title: FAQ
+description: Quick answers for common Ameow questions about downloads, first launch, output folders, browser extension setup, and failed downloads.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Use this page when the first run gets stuck. Each answer starts with the next action, then links to deeper guidance when needed.
+
+<Aside type="tip" title="First failure checklist">
+	Confirm you downloaded a desktop installer or portable package, not Source code; confirm Ameow launches and shows the floating window; open the current output folder from Ameow when files are missing; test web downloads with a public link first.
+</Aside>
+
+## Which File Should I Download?
+
+Most Windows users should download the Installer EXE; use the Portable ZIP for a quick trial or fixed tools folder. M-series Mac users should download the macOS Apple Silicon / arm64 DMG.
+
+The browser extension is a separate `browser_extension.zip`; it is not the desktop app. Do not download `Source code.zip` or `Source code.tar.gz`; those are source archives, not runnable apps.
+
+Continue with [Download Ameow](../downloads/).
+
+## macOS Blocks First Launch. What Should I Do?
+
+Try this order:
+
+1. Confirm `Ameow.app` is already in `Applications`.
+2. In `Applications`, right-click `Ameow.app` and choose `Open`.
+3. If it is still blocked, open `System Settings > Privacy & Security`, find the Ameow warning, and allow it.
+4. If it still fails, use the quarantine command:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Ameow.app"
+```
+
+Continue with [First Launch on macOS](../troubleshooting/macos-first-run/).
+
+## Where Did My Dropped File Go?
+
+Open the current output folder from Ameow first. Do not rely only on memory of the default path.
+
+The default output folder is usually:
+
+```text
+Desktop/Ameow_Received
+```
+
+But if you previously dropped a folder into Ameow, the current output folder changes to that folder.
+
+Continue with [Output Folder](../desktop/output-folder/) and [Missing Files](../troubleshooting/missing-files/).
+
+## Why Did Dropping a Folder Not Copy the Whole Folder?
+
+Files and folders mean different things:
+
+- dropping a file copies it into the current output folder;
+- dropping a folder changes the output folder to that folder.
+
+This lets you quickly choose where future assets should be saved. If you want to collect files inside a folder, open the folder and drop the files themselves.
+
+## I Pasted a Link but No Download Started
+
+Check these first:
+
+1. Can the link open in the browser?
+2. Can you reproduce the flow with a public page or public media link?
+3. Is the current output folder writable?
+4. Is the site and page type currently supported?
+
+If the content needs login, paid access, region access, age verification, or cookies, install the browser extension and send the task from the specific content page.
+
+Continue with [Getting Started](../getting-started/) and [Download Failures](../troubleshooting/download-failures/).
+
+## The Browser Extension Shows Disconnected
+
+Launch the Ameow desktop app first, then open the extension popup. The extension depends on a local connection; if the desktop app is closed, it will show Disconnected.
+
+If the desktop app is already running:
+
+1. Close and reopen the extension popup.
+2. Reload the Ameow extension in browser extension management.
+3. Restart the Ameow desktop app.
+4. Check whether a firewall or security tool blocks the local connection `127.0.0.1:39527`.
+
+Continue with [Extension Disconnected](../troubleshooting/extension-disconnected/).
+
+## Which Sites Are Supported?
+
+The public docs currently highlight YouTube, Bilibili, X / Twitter, Douyin, and Xiaohongshu. Site support changes over time; paid, private, region-locked, or login-limited content on the same site may still fail.
+
+Before judging support, test on a specific content page, not a homepage, search result, recommendation feed, profile page, or collection page. Many failures come from page type and mixed preview resources, not total site incompatibility.
+
+Continue with [Supported Sites](../extension/supported-sites/).
+
+## YouTube Plays in the Browser but Still Fails in Ameow
+
+Check your proxy setup before changing Ameow settings.
+
+This commonly happens when:
+
+- the browser uses a proxy but Ameow does not reach the same network path;
+- the proxy tool only covers the browser and not the local downloader chain;
+- you are testing from a homepage, search page, or recommendation feed instead of a specific video page.
+
+Recommended order:
+
+1. Open a specific YouTube video page and confirm it plays.
+2. Send the task from that page through the extension.
+3. Switch your proxy tool to TUN, global, VPN, or system-proxy capture mode and try again.
+4. Validate with a public video and balanced quality first.
+
+The current product direction is to let the user's own proxy tool handle networking. Ameow does not maintain a separate proxy configuration.
+
+## When Do I Need the Browser Extension?
+
+If you only drop local files, organize folders, or paste ordinary public links, you can skip it at first.
+
+Use the extension when:
+
+- web video needs login state or cookies;
+- the page has a dedicated download entry;
+- you want to send from the current content page directly to the desktop app;
+- you want to choose video, audio, or image items from the popup's current-page media list;
+- you want download quality preferences to sync.
+
+If you plan to use current-page media, enter a specific video page, post page, work page, or detail page first. Do not expect a homepage, search page, recommendation feed, or list page to identify only the one resource you have in mind.
+
+Continue with [Browser Extension](../browser-extension/).
+
+## Where Can I See Version Changes?
+
+The in-site [Release Notes](../releases/) page keeps both stable and prerelease history. Most users should read stable releases first; use prerelease notes when helping test a build.

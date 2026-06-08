@@ -5,6 +5,8 @@ description: Find completed downloads and copied files by checking the current o
 
 If you cannot find a file, do not immediately download it again. Ameow saves results to the current output folder, and that folder may already have changed if you dropped another folder into the app.
 
+Fastest action: open the current output folder from Ameow and sort by modified time. Most missing-file cases become clear after that.
+
 [Diagram: trace the file through current output folder, changed folders, and task state]
 
 ## Quick checks first
@@ -23,7 +25,7 @@ Confirm:
 3. Inspect the newest files.
 4. If the name is not what you expected, search for recently modified media or image files instead of only the original page title.
 
-Success state: you find the newest file in the current output folder.
+Success state: you find the newest file in the current output folder. If it is not there, then check whether the folder changed, the task has not finished, or rename rules changed the filename.
 
 ## Branch B: you dropped a folder earlier
 

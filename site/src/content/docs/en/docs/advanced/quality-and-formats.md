@@ -5,6 +5,8 @@ description: Understand how Ameow's quality choices affect image quality, file s
 
 The quality preference decides whether Ameow leans toward visual quality, smaller files, or steadier downloads. It is not an absolute guarantee because each site exposes different formats, resolutions, and access rules.
 
+Default recommendation: use Balanced when you are unsure. Move away from it only when you clearly need archive quality or smaller files.
+
 ## Three common choices
 
 | Preference | Good for | Tradeoff |
@@ -13,7 +15,7 @@ The quality preference decides whether Ameow leans toward visual quality, smalle
 | Balanced | Everyday saving, reuse, and sharing | Middle ground between quality and file size |
 | Data saver | Slow networks, limited storage, quick reference copies | Lower visual quality |
 
-If you are not sure, start with Balanced. It is usually the most stable baseline.
+If you are not sure, start with Balanced. It is usually the most stable baseline and the best preference for checking whether a failing link is usable at all.
 
 ## Why is highest quality more complex?
 

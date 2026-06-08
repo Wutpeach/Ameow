@@ -5,6 +5,8 @@ description: Understand why some downloads need browser login state and how the 
 
 Some web content is not a public direct link. The fact that the browser can play it does not mean the desktop app can download it from the URL alone. A site may require login state, cookies, paid access, age verification, or region access. The browser extension helps Ameow reuse the browser session that already has access.
 
+When "it plays in the browser but fails in Ameow," validate this path first: logged in browser, actual content page open, extension `Connected`, task sent through the extension.
+
 ## When is login state needed?
 
 Common cases:
@@ -30,7 +32,7 @@ Success state: the task reaches preparing, downloading, or done instead of faili
 
 Cookies prove that the current browser session is allowed to access the content. Ameow's goal is to let the desktop app reuse that access state as part of the download flow.
 
-The docs will not ask you to copy raw cookie strings manually, and you should not send cookies to untrusted tools or other people.
+The docs will not ask you to copy raw cookie strings manually, and you should not send cookies to untrusted tools or other people. Prefer letting the extension pass the needed context locally between the browser and desktop app.
 
 ## Common failures
 

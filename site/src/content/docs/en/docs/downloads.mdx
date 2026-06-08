@@ -1,0 +1,78 @@
+---
+title: Download Ameow
+description: Quickly pick the right Ameow release asset and avoid confusing source archives or extension zips with the desktop app.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Ameow releases are published on GitHub Releases. For your first download, make one choice first: get the desktop app package that matches your computer.
+
+<Aside type="caution" title="Do not download Source code">
+	`Source code.zip` and `Source code.tar.gz` are repository snapshots, not runnable Ameow apps. Most users should choose an Installer, Portable ZIP, DMG, or browser extension zip from `Assets`.
+</Aside>
+
+[Screenshot: GitHub Releases assets list with Installer, Portable, DMG, and browser_extension zip highlighted]
+
+## Pick This First
+
+| Your setup | Download | Next step |
+| --- | --- | --- |
+| Windows daily use | `Ameow_<version>_windows_x64_installer.exe` | Run the installer, then launch from Start menu or desktop |
+| Windows quick trial | `Ameow_<version>_windows_x64_portable.zip` | Extract the ZIP fully, then run Ameow from the extracted folder |
+| M-series Mac | `Ameow_<version>_macos_arm64_installer.dmg` | Open the DMG and drag `Ameow.app` into `Applications` |
+| Web login state or page media needed | `Ameow_<version>_browser_extension.zip` | Install the desktop app first, then extract and load the extension in Chrome/Edge |
+
+If you are unsure, pick the Installer EXE on Windows or the arm64 DMG on Apple Silicon Mac. The browser extension is not the desktop app, so you do not need it first.
+
+[Diagram: choosing between Windows Installer, Portable ZIP, macOS DMG, and browser extension zip]
+
+## Download Steps
+
+1. Open [the latest release](https://github.com/Wutpeach/Ameow/releases/latest).
+2. Find the `Assets` section.
+3. Choose one desktop installer or portable package from the table above.
+4. Launch Ameow and confirm the floating window appears near the desktop edge.
+5. Download the matching `browser_extension.zip` only when you need page handoff, login state, or current-page media scanning.
+
+## Windows Installer or Portable ZIP?
+
+Choose the Installer EXE by default. It fits long-term daily use and behaves like a normal desktop-app install.
+
+Choose the Portable ZIP when:
+
+- you only want to try Ameow quickly;
+- you want Ameow in a fixed tools directory;
+- you do not want a system install state;
+- you need to move the app between work directories.
+
+Portable ZIP builds must be fully extracted first. Do not run Ameow from the archive preview window, or the app may fail to access bundled files.
+
+## How Do I Launch It on macOS?
+
+The current macOS build targets Apple Silicon, meaning M-series Macs. After downloading the DMG:
+
+1. Open the DMG.
+2. Drag `Ameow.app` into `Applications`.
+3. Launch Ameow from `Applications`.
+4. If macOS warns about the developer identity, right-click `Ameow.app` and choose `Open`.
+
+If that still fails, follow the [First Launch on macOS](../troubleshooting/macos-first-run/) guide. Most users do not need to compile the app themselves.
+
+## Should I Download the Browser Extension Now?
+
+Not always. You can start with the desktop floating window alone if you only drag local files, organize folders, or paste ordinary public links.
+
+Install the extension when:
+
+- you want to send tasks directly from sites like YouTube, Bilibili, X / Twitter, Douyin, or Xiaohongshu;
+- the content needs browser login state or cookies;
+- you want to choose video, audio, or image resources from the popup's current-page media list;
+- copying the link fails even though the page plays in the browser.
+
+The extension zip must be extracted before loading. Do not drag the zip into the browser directly. Full steps are in [Install the Extension](../extension/install/).
+
+## Stable Release or Prerelease?
+
+Most users should choose the latest stable release. Prereleases are usually for validating packaging, platform fixes, or new download behavior and may still change.
+
+If you are helping with testing, read the prerelease notes in [Release Notes](../releases/) first so you know what the build is trying to validate. For normal use, return to the latest stable release.

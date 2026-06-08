@@ -5,6 +5,8 @@ description: Handle macOS unsigned-DMG first-launch blocks, developer-verificati
 
 The current macOS build is distributed as an unsigned open-source DMG. On first launch, macOS may say the developer cannot be verified, the app cannot be opened, or the app was downloaded from the internet. That usually reflects system security policy, not a broken install.
 
+Use the UI path first and the terminal command last. Most first-launch cases are solved by moving the app into `Applications`, right-clicking `Open`, and allowing it in system settings.
+
 [Screenshot: macOS security dialog blocking Ameow on first launch]
 
 ## Recommended order

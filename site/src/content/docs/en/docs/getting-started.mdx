@@ -1,0 +1,125 @@
+---
+title: Getting Started
+description: Follow the shortest path to launch Ameow, save one file, test one public link, and know when the browser extension is needed.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide does one job: confirm Ameow works on your machine. Start with the desktop app, then decide whether you need the browser extension or advanced settings.
+
+<Aside type="tip" title="Just want the first run to work?">
+	Prepare one local test file and one public web link. Do not start with members-only, region-locked, login-required, or age-gated content.
+</Aside>
+
+## 1. Install and Launch
+
+<Tabs>
+	<TabItem label="Windows">
+		1. Most users should download the Installer EXE and run it.
+		2. If you chose the Portable ZIP, extract it fully first, then run Ameow from the extracted folder.
+		3. After launch, a small floating window should appear near the desktop edge.
+	</TabItem>
+	<TabItem label="macOS">
+		1. Open the DMG.
+		2. Drag `Ameow.app` into `Applications`.
+		3. Launch it from `Applications`.
+		4. If the system blocks it, right-click `Ameow.app` and choose `Open`.
+	</TabItem>
+</Tabs>
+
+[Screenshot: Ameow floating window in its first-launch idle state near the desktop edge]
+
+Success state: you can see a small always-available window near the desktop edge. This is the main input surface for files, folders, and links, not a traditional large main window.
+
+## 2. Save Something Once
+
+<Steps>
+1. Select one test file in Explorer, Finder, or on the desktop.
+2. Drag it onto the Ameow floating window.
+3. Release the pointer.
+4. Open the current output folder from Ameow.
+5. Confirm the test file appears in the output folder.
+</Steps>
+
+[Screenshot: dropping a local file onto the Ameow floating window]
+
+[Screenshot: the output folder showing the file that was just collected]
+
+Success state:
+
+- the file is copied into the current output folder;
+- the original file stays in its original location;
+- the default output folder is usually `Desktop/Ameow_Received`.
+
+<Aside type="caution" title="Folders mean something different">
+	Dropping a file copies it. Dropping a folder changes the output folder instead of copying the whole folder. If you cannot find a result, open the current output folder from Ameow first.
+</Aside>
+
+## 3. Test One Public Link
+
+For your first link test, use a public page or public media link.
+
+<Steps>
+1. Copy a public image link, video link, or supported page URL in the browser.
+2. Return to the Ameow floating window.
+3. Press `Ctrl+V`, or `Cmd+V` on macOS.
+4. Watch the task feedback in the window.
+5. When it finishes, open the current output folder from Ameow and confirm the file.
+</Steps>
+
+Success state:
+
+- if the link is supported, Ameow enters preparation, download, or conversion;
+- when finished, the file is written into the current output folder;
+- unsupported, invalid, or permission-limited links can fail.
+
+If a public link works, the desktop app's basic flow is healthy.
+
+## 4. When Should I Install the Browser Extension?
+
+The desktop app works on its own. The browser extension is an optional upgrade, not a first-launch requirement.
+
+Install it when:
+
+- you mainly download web video;
+- the page plays in the browser but a copied link fails in Ameow;
+- the site needs login state, cookies, paid access, or page context;
+- you want to choose video, audio, or image items from the popup's current-page media list.
+
+Shortest path:
+
+<Steps>
+1. Download the matching `Ameow_<version>_browser_extension.zip`.
+2. Extract the zip.
+3. Open Chrome or Edge extension management and turn on Developer Mode.
+4. Click `Load unpacked` and choose the extracted extension folder.
+5. Launch Ameow, then open the extension popup and confirm it shows `Connected`.
+</Steps>
+
+Full details are in [Browser Extension](../browser-extension/) and [Install the Extension](../extension/install/).
+
+## Common First-Run Failures
+
+### I Do Not See the Floating Window
+
+Confirm Ameow really launched. On Windows, reopen it from the Start menu. On macOS, confirm the app is in `Applications`. If macOS blocks launch, use the right-click `Open` flow or allow it in system settings.
+
+Continue with [First Launch on macOS](../troubleshooting/macos-first-run/).
+
+### I Dropped a File but Cannot Find It
+
+Open the current output folder from Ameow. Do not rely only on the default path, because dropping a folder changes the current output folder.
+
+Continue with [Output Folder](../desktop/output-folder/) and [Missing Files](../troubleshooting/missing-files/).
+
+### I Pasted a Link and Nothing Happened
+
+First confirm the link opens in the browser. If the content needs login state, send it through the browser extension instead. If it still fails, continue with [Download Failures](../troubleshooting/download-failures/).
+
+## Next Steps
+
+Once your first test works, continue only where needed:
+
+- [Browser Extension](../browser-extension/): send web content, login state, and current-page media into the desktop app.
+- [Output Folder](../desktop/output-folder/): avoid losing track of saved files.
+- [Core Concepts](../concepts/): understand how the floating window, output folder, and queue work together.

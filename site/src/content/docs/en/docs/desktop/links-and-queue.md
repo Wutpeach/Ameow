@@ -5,6 +5,8 @@ description: Understand Ameow's queue states, concurrency, conversion steps, and
 
 When you paste a web link or send a task from the browser extension, Ameow places supported jobs into the download queue. The queue handles ordering, downloading, conversion, and final save behavior.
 
+The queue is not just progress display. Use it to choose the next step: no task means check input and extension connection, long `Preparing` means check network or login state, and `Done` means open the output folder.
+
 [Screenshot: download queue showing waiting, downloading, converting, and done states]
 
 ## Create a download task

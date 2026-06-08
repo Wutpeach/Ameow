@@ -1,45 +1,54 @@
 ---
 title: Browser Extension
-description: Install and connect the Ameow browser extension so you can send web download tasks to the desktop app.
+description: Decide when you need the Ameow browser extension and send web download tasks to the desktop app.
 ---
 
-The Ameow browser extension sends page download tasks, page context, cookies, and some download preferences into the desktop app. It is not a standalone downloader. It must be used together with a running Ameow desktop app.
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+You can start with the Ameow desktop app alone. The browser extension is an optional upgrade that sends page tasks, page context, cookies, and some download preferences into the running desktop app.
 
 [Diagram: browser page, browser extension, and the local Ameow desktop app connected together]
 
-## When do I need the extension?
+## Decide Whether to Install It
 
-You can start with the desktop app alone. Install the extension when:
+<CardGrid>
+	<Card title="Skip It at First" icon="check-circle">
+		If you only drop local files, change the output folder, or paste ordinary public links, the desktop app is enough.
+	</Card>
+	<Card title="Install It" icon="puzzle">
+		Use it when a page plays in the browser but copied links fail, when login state or cookies are needed, or when you want current-page media.
+	</Card>
+	<Card title="Not Standalone" icon="warning">
+		The extension must connect to the running Ameow desktop app. If the desktop app is closed, the popup shows Disconnected.
+	</Card>
+</CardGrid>
 
-- you want to trigger video downloads directly from supported pages;
-- the site needs login state or cookies;
-- copying the link fails even though the page plays fine in the browser;
-- you want browser-side quality or AE-compatibility preferences to reach the desktop app.
+## Shortest Path
 
-If you only drag local files, organize the output folder, or save public direct links, the extension is optional.
-
-## Shortest path
-
-1. Install and launch the Ameow desktop app.
+<Steps>
+1. Install and launch the Ameow desktop app first.
 2. Download the matching `Ameow_<version>_browser_extension.zip` from GitHub Releases.
-3. Extract the zip.
+3. Extract the extension zip.
 4. Turn on Developer Mode in Chrome or Edge extension management.
 5. Click `Load unpacked` and choose the extracted extension folder.
 6. Open the extension popup and confirm the status shows `Connected`.
-7. Open a supported page and send the task from the popup or page entry point.
+7. Open a specific video page, post page, work page, or image-detail page, then send the task from the extension.
+</Steps>
 
 [Screenshot: extension popup showing Connected and download-quality options]
 
 Success state: the popup shows `Connected`, the Ameow desktop app is running, and a task sent from the page appears in the desktop queue or state display.
 
-## What do Connected and Disconnected mean?
+## What Do Connected and Disconnected Mean?
 
 - `Connected`: the extension is linked to the Ameow desktop app on this machine and can send tasks.
 - `Disconnected`: the extension is not linked to the desktop app. The desktop app may be closed, or the extension may need to be reloaded.
 
-The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication, not a third-party cookies relay.
+<Aside type="note" title="This is a local connection">
+	The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication, not a third-party cookies relay.
+</Aside>
 
-## What happens when I send a task from the page?
+## What Happens When I Send a Task from the Page?
 
 When you use an extension entry point on a supported page, the extension sends current page information into Ameow. The desktop app creates the task, shows progress, writes files into the output folder, and applies your download-quality preferences as needed.
 
@@ -51,30 +60,23 @@ You should see:
 
 If the page needs login state, confirm you are already logged in inside the browser before sending the task.
 
-## How should I use the popup's "current page media" list?
+## How Should I Use Current-Page Media?
 
-The popup scans resources from the current active tab. It works best when:
+The popup scans resources from the current active tab. It works best on:
 
-- you are already on a specific video page, post page, work page, or image-detail page;
-- the target content has fully loaded and can already play or display in the browser;
-- you want to pick a more precise resource from the current content page.
+- a specific video page, post page, work page, or image-detail page;
+- a page where the target content has fully loaded and can already play or display in the browser;
+- a page where you want to choose a more precise resource before sending it to Ameow.
 
-Do not rely on it first on:
-
-- homepages and recommendation feeds;
-- search results pages;
-- profile pages, channel pages, or collection pages;
-- any list or hub page that has not entered the actual content yet.
-
-Those pages often include the current card, side recommendations, preloaded covers, and other media requests at the same time. The popup can only show what the current page is requesting; it cannot assume only one of those resources is the one you want.
+Do not judge support from homepages, recommendation feeds, search results pages, profile pages, channel pages, collection pages, or list pages. Those pages often include current cards, side recommendations, preloaded covers, and other media requests at the same time. The popup can only show what the current page is requesting; it cannot assume which resource you want.
 
 The stable workflow is simple: open the specific content page first, then use the popup or in-page entry point.
 
-## Which browsers are supported?
+## Which Browsers Are Supported?
 
 The extension targets Chromium browsers such as Chrome and Edge. Installation uses Developer Mode plus `Load unpacked`. Browsers that cannot load Manifest V3 extensions may not work.
 
-## Common issues
+## Common Issues
 
 ### I selected the zip in the browser and it failed
 

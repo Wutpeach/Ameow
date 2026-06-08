@@ -5,6 +5,8 @@ description: Quickly narrow Ameow issues down to launch problems, extension conn
 
 When something goes wrong, first decide which symptom category you are looking at. Do not start by reinstalling the app or repeating the same download. Confirm the current state first and the cause is usually easier to isolate.
 
+Fast rule: **launch problems point to system blocking, extension problems start with `Connected`, download problems start with task state, and file problems start with the current output folder.**
+
 ## 30-second routing
 
 | Symptom | First thing to judge | Go here |
@@ -41,4 +43,4 @@ Open the current output folder from Ameow. Do not trust only the default `Deskto
 
 ## Not sure where to start?
 
-Start with the [FAQ](../faq/). It covers the most common user-facing issues with short, practical answers.
+Start with the [FAQ](../faq/). It covers the most common user-facing issues with short, practical answers. If this is your first run, you can also return to [Getting Started](../getting-started/) and repeat the shortest path.

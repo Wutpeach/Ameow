@@ -5,6 +5,8 @@ description: Make Ameow downloads easier to import into After Effects and simila
 
 AE compatibility is about whether the downloaded file behaves well in post-production software, not only whether Ameow downloaded the highest-quality version. Some web videos play fine in the browser but use codecs, containers, or track layouts that After Effects does not handle well.
 
+If the media is only a reference copy, you do not need to optimize for AE first. Prioritize compatibility when the file is headed into editing or compositing work.
+
 ## When should I care about AE compatibility?
 
 Typical cases:
@@ -33,7 +35,7 @@ If the media is going into post-production:
 3. open one sample file in AE right after the download;
 4. once it passes, continue with a larger batch.
 
-If you only need a reference copy, you may not need to optimize for AE compatibility at all.
+If you only need a reference copy, you may not need to optimize for AE compatibility at all. Get a stable normal download first, then tune format choices for post-production.
 
 ## What if conversion takes too long?
 

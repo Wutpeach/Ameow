@@ -5,6 +5,8 @@ description: 排查 Ameow 浏览器扩展显示 Disconnected、无法发送任�
 
 扩展显示 `Disconnected` 表示浏览器扩展没有连上本机 Ameow 桌面端。最常见原因是桌面端没有启动、扩展需要重新加载，或本地连接被系统策略拦截。
 
+这页只处理连接问题。连接恢复为 `Connected` 后，如果下载仍失败，就转到 [下载失败](../download-failures/)，不要继续反复重装扩展。
+
 [截图：扩展弹窗显示 Disconnected，并提示桌面端未连接]
 
 ## 先做快速判断

@@ -1,0 +1,78 @@
+---
+title: 下载 Ameow
+description: 快速选对 Ameow 发布包，避免把源码包或浏览器扩展 zip 当成桌面应用。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Ameow 的发布包在 GitHub Releases。第一次下载时只需要先做一个选择：按你的系统拿到能运行的桌面应用。
+
+<Aside type="caution" title="不要下载 Source code">
+	`Source code.zip` 和 `Source code.tar.gz` 是项目源码，不是可以直接运行的 Ameow。普通用户请在 `Assets` 里选择 Installer、Portable、DMG 或 browser extension zip。
+</Aside>
+
+[截图：GitHub Releases 页面中 Assets 区域，标出 Installer、Portable、DMG 和 browser_extension zip]
+
+## 先选这个
+
+| 你的情况 | 下载文件 | 下一步 |
+| --- | --- | --- |
+| Windows 日常使用 | `Ameow_<version>_windows_x64_installer.exe` | 运行安装包，从开始菜单或桌面启动 |
+| Windows 临时试用 | `Ameow_<version>_windows_x64_portable.zip` | 完整解压 ZIP，再运行里面的 Ameow |
+| M 系列 Mac | `Ameow_<version>_macos_arm64_installer.dmg` | 打开 DMG，把 `Ameow.app` 拖进 `Applications` |
+| 需要网页登录态或页面资源 | `Ameow_<version>_browser_extension.zip` | 先装桌面端，再解压扩展 zip 并加载到 Chrome/Edge |
+
+如果你不确定，Windows 选 Installer EXE，M 系列 Mac 选 arm64 DMG。浏览器扩展不是桌面应用本体，先不用急着下载。
+
+[示意图：Windows Installer、Portable ZIP、macOS DMG、浏览器扩展 zip 的选择路径]
+
+## 下载步骤
+
+1. 打开 [最新版本 Releases](https://github.com/Wutpeach/Ameow/releases/latest)。
+2. 找到页面里的 `Assets` 区域。
+3. 按上表选择一个桌面端安装包或便携包。
+4. 下载完成后先启动 Ameow，确认桌面边缘能看到悬浮窗口。
+5. 只有需要从网页直接发送任务、同步登录态或扫描当前页面资源时，再下载同版本的 `browser_extension.zip`。
+
+## Windows Installer 和 Portable 怎么选？
+
+优先选 Installer EXE。它适合长期使用，也更接近普通桌面应用的安装方式。
+
+Portable ZIP 适合这些情况：
+
+- 你只是临时试用。
+- 你希望把 Ameow 放在一个固定工具目录里。
+- 你不想修改系统安装状态。
+- 你需要在不同工作目录之间移动应用。
+
+Portable ZIP 必须先完整解压。不要直接在压缩包预览窗口里运行程序，否则应用可能无法正确访问随包文件。
+
+## macOS 下载后怎么启动？
+
+当前 macOS 包面向 Apple Silicon，也就是 M 系列芯片 Mac。下载 DMG 后：
+
+1. 双击打开 DMG。
+2. 把 `Ameow.app` 拖到 `Applications`。
+3. 从 `Applications` 启动 Ameow。
+4. 如果 macOS 提示无法验证开发者，右键 `Ameow.app`，选择“打开”。
+
+如果右键打开仍被拦截，按 [macOS 首次启动](../troubleshooting/macos-first-run/) 的步骤处理。普通用户不需要自己编译应用。
+
+## 浏览器扩展要现在下载吗？
+
+不一定。只用桌面悬浮窗口拖拽文件、复制文件、粘贴普通公开链接时，可以先不装扩展。
+
+建议安装扩展的情况：
+
+- 你想在 YouTube、Bilibili、X / Twitter、Douyin、Xiaohongshu 等网页里直接发送任务。
+- 某些内容需要浏览器登录态或 Cookies。
+- 你想从扩展弹窗选择当前页面里的视频、音频或图片资源。
+- 复制链接后下载失败，但网页在浏览器里能正常播放。
+
+扩展 zip 需要解压后加载，不能直接把 zip 丢进浏览器。完整步骤见 [安装扩展](../extension/install/)。
+
+## 稳定版和预发布版怎么选？
+
+普通用户选择最新稳定版。预发布版通常用于验证打包、平台修复或新下载能力，可能还会调整。
+
+如果你正在帮忙测试，可以先阅读 [Release Notes](../releases/) 中的“预发布记录”，确认该版本主要验证什么问题。正式使用时，优先回到最新稳定版。

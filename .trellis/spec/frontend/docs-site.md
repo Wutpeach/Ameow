@@ -75,6 +75,7 @@ export default defineConfig({
 - Root `docs/` is for engineering/reference notes and repo-local assets, not public user guides.
 - README and browser-extension help links must point to docs-site URLs under `https://wutpeach.github.io/Ameow/`.
 - The docs deploy workflow builds from `site/` and uploads `site/dist`.
+- Starlight docs pages should keep one semantic page `h1` for accessibility and SEO. If the visual title scale feels too large, adjust `site/src/styles/starlight.css` instead of demoting the page title to `h2`.
 
 ## 4. Validation & Error Matrix
 

@@ -5,6 +5,8 @@ description: Collect local files with Ameow and understand the difference betwee
 
 Ameow accepts both local files and folders, but they do not mean the same thing. Dropping files collects files. Dropping a folder changes the output folder.
 
+If you remember only one rule: **files are copied, folders become the save location.** This is the cause behind many "where did my file go?" cases.
+
 [Diagram: dropping files copies them into the output folder; dropping a folder changes the output folder]
 
 ## Drop files: copy them into the output folder

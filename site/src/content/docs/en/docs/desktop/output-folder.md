@@ -5,6 +5,8 @@ description: Understand Ameow's current output folder, default location, how to 
 
 The output folder is where Ameow saves results. Local-file copies, pasted-link downloads, and tasks sent from the browser extension all land in the current output folder.
 
+When you cannot find a file, open the current output folder from Ameow first instead of guessing the default path. If you have dropped a folder before, the current folder may already be different.
+
 [Screenshot: opening the current output folder from Ameow by double-click or right-click]
 
 ## Default location

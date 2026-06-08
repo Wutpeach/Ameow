@@ -5,6 +5,8 @@ description: Understand how Ameow's floating window, output folder, download que
 
 The Ameow model fits into one sentence: you hand content to the floating window, Ameow saves it using the current settings and output folder, web tasks go through the download queue, and the browser extension supplies extra page context when a site needs it.
 
+You do not need to learn every concept before using Ameow. Remember this path first: **the floating window is the entry point, the current output folder decides where files go, the queue tells you what is happening, and the extension matters when login state or page context is needed.**
+
 ## Five core objects
 
 | Concept | What it is | What to remember |
@@ -43,7 +45,7 @@ A web link does not always turn into a file immediately. It may pass through:
 5. Done: the final file was written to the output folder.
 6. Failed: the task needs troubleshooting.
 
-Once you understand the states, it becomes easier to decide whether to wait, check the network, or investigate site support and login state.
+Once you understand the states, the next step is clearer: `Waiting`, `Preparing`, `Downloading`, and `Converting` usually mean wait first; `Failed` means troubleshoot; `Done` means open the output folder.
 
 ## The browser extension provides page context
 
@@ -71,4 +73,4 @@ Imagine you are organizing assets for a video project:
 4. Watch the queue move through preparing, downloading, and converting.
 5. Open the output folder from Ameow and use the finished files in the project.
 
-That is the core Ameow workflow.
+That is the core Ameow workflow. If one step does not match what you expect, go back to the matching object first: did the window receive the content, is the output folder correct, did the queue finish, and is the extension connected?

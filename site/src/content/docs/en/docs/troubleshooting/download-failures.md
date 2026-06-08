@@ -5,6 +5,8 @@ description: Troubleshoot Ameow downloads by splitting the problem into no task,
 
 Do not start a failed download investigation by retrying over and over. First decide where the task stopped, then follow the branch that matches that stage. The most common causes are: invalid links, unwritable output folders, missing login state, disconnected extension, or a first-run runtime still preparing.
 
+This page has four main branches: **no task, stuck in `Preparing`, explicit failure, and `Done` but missing file.** Classify the symptom first, then act.
+
 [Diagram: decision tree for no task, preparing forever, explicit failure, and done-but-missing-file]
 
 ## 30-second checks first
@@ -16,7 +18,7 @@ Answer these four questions:
 3. Can the link open and play in the browser?
 4. Can the current output folder be written to?
 
-If you already know which stage is failing, jump to the matching branch below.
+If you already know which stage is failing, jump to the matching branch below. Avoid changing quality, output folder, extension install, and app version all at once, or it becomes hard to know which change fixed the issue.
 
 ## Branch A: no task appears at all
 
@@ -112,4 +114,4 @@ Update to the latest stable release when:
 - you are currently on a prerelease build and want the stable path again;
 - the problem only reproduces on an older version.
 
-Before updating, note the current version, site, link type, and task state. That makes later bug reports much easier to debug.
+Before updating, note the current version, site, link type, and task state. That makes later bug reports much easier to debug. After updating, retry with the same public link once so you can see whether the behavior changed.

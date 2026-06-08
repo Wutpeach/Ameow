@@ -5,6 +5,8 @@ description: Understand Ameow's current major site coverage and how to judge whe
 
 Ameow keeps expanding web-media download coverage, but it does not promise that every site and every page shape will work. Third-party sites frequently change their page structure, playback APIs, login rules, and rate limits, so "supported site" always needs to be judged together with the exact page you are using.
 
+Judge the exact page first, not only the site name. The best test target is a public content page that plays or displays normally and has no paid-access, login, or region restriction.
+
 ## Current focus sites
 
 The public docs currently call out:
@@ -51,7 +53,7 @@ Both in-page download entries and the popup's "current page media" list work bes
 
 List and recommendation pages often request several media resources at once: preview streams, cover images, neighbor cards, and side recommendations. The popup can only report what the current page is loading. It cannot assume only one of those requests is the target you meant.
 
-If the popup resource list looks wrong, refresh is not the first move. Enter the actual content page first and retry.
+If the popup resource list looks wrong, refresh is not the first move. Enter the actual content page first and retry. On listing pages, the extension cannot know which of several loaded resources is the one you meant.
 
 ## What should I try when a page fails?
 

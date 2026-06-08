@@ -5,6 +5,8 @@ description: 让浏览器扩展连接正在运行的 Ameow 桌面端，并理解
 
 浏览器扩展必须连接 Ameow 桌面端后才能发送下载任务。连接状态显示在扩展弹窗里，最重要的两个状态是 `Connected` 和 `Disconnected`。
 
+先看连接状态，再看下载结果。`Disconnected` 时先修连接；`Connected` 后仍失败，再转去排查页面、登录态、站点支持或输出目录。
+
 [截图：扩展弹窗从 Disconnected 变为 Connected 的状态对比]
 
 ## 最短连接步骤

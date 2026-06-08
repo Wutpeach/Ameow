@@ -5,6 +5,8 @@ description: Understand why Ameow may spend time in a preparing state before a w
 
 Some web-download flows need extra runtime components for probing, downloading, or conversion. Ameow tries to prepare those pieces automatically, which is why you may see `Preparing` for a while on first use or after an update.
 
+When you see `Preparing`, do not start by installing tools manually. Wait briefly, test with a public link, then consider restart or update if it stays stuck.
+
 ## What might you see?
 
 Common signs:

@@ -30,7 +30,7 @@ export default defineConfig({
 				{
 					label: '入门',
 					translations: { en: 'Getting Started' },
-					items: ['docs', 'docs/downloads', 'docs/concepts', 'docs/getting-started', 'docs/faq'],
+					items: ['docs/downloads', 'docs/concepts', 'docs/getting-started', 'docs/faq'],
 				},
 				{
 					label: '桌面端使用',

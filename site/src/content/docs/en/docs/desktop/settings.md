@@ -5,6 +5,8 @@ description: Adjust Ameow's output folder, shortcuts, launch-at-startup behavior
 
 The settings page is where you tune Ameow for your workflow. You do not need to change everything up front. A good pattern is to finish one file drop and one download first, then adjust settings based on real use.
 
+The first settings worth checking are simple: the output folder is correct, the shortcut fits your habit, and download quality stays on a steady default. Leave the rest until a concrete need appears.
+
 [Screenshot: settings page sections for output folder, shortcut, quality, and AE compatibility]
 
 ## Output folder

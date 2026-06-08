@@ -5,6 +5,8 @@ description: Use the Ameow floating window to receive files, folders, and web li
 
 The floating window is the main Ameow entry point. It stays near the desktop edge and receives the files, folders, and web links you are organizing. You do not need to open a large management UI first. Just hand content to this small window.
 
+Start by closing one small loop: drop one file, then open the current output folder and confirm it appears. Once that works, web links and extension tasks are easier to diagnose.
+
 [Screenshot: Ameow floating window docked near the desktop edge, ready for files and pasted links]
 
 ## What can you hand to it?
@@ -42,7 +44,7 @@ Double-click an empty area of the window, or right-click the window and open the
 
 You can keep the floating window on any desktop edge or at any spot that fits your habit. A good location is one that stays easy to reach without blocking your main workspace, such as the right edge or a corner.
 
-If the window seems to disappear, appears in an awkward spot, or the shortcut does not bring it up as expected, first drag it back where you want it and then review the shortcut and startup settings.
+If the window seems to disappear, appears in an awkward spot, or the shortcut does not bring it up as expected, first drag it back where you want it and then review the shortcut and startup settings. Keep window-position issues separate from download failures while troubleshooting.
 
 ## Common misunderstandings
 

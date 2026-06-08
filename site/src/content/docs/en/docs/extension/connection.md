@@ -5,6 +5,8 @@ description: Connect the browser extension to a running Ameow desktop app and un
 
 The browser extension must connect to the Ameow desktop app before it can send tasks. The most important states in the popup are `Connected` and `Disconnected`.
 
+Check connection before judging the download. If it says `Disconnected`, fix connection first. If it says `Connected` and the task still fails, move on to page type, login state, site support, or output-folder checks.
+
 [Screenshot: extension popup changing from Disconnected to Connected]
 
 ## Shortest connection path
