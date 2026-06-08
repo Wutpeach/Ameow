@@ -310,3 +310,36 @@ Migrated the Astro/Starlight docs site from a submodule into the main repository
 ### Next Steps
 
 - None - task complete
+
+
+## Session 206: Fix Douyin picker source routing
+
+**Date**: 2026-06-08
+**Task**: Fix Douyin picker source routing
+**Branch**: `main`
+
+### Summary
+
+Implemented provider-owned capture source routing for Douyin picker downloads, documented upstream douyin-downloader review, and validated focused tests plus runtime smoke.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a8bf05b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
