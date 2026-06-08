@@ -343,3 +343,36 @@ Implemented provider-owned capture source routing for Douyin picker downloads, d
 ### Next Steps
 
 - None - task complete
+
+
+## Session 207: Portable App Self-Update
+
+**Date**: 2026-06-08
+**Task**: Portable App Self-Update
+**Branch**: `main`
+
+### Summary
+
+Added Windows portable app self-update support with portable release manifest metadata, marker-based portable detection, external helper replacement flow, tests, docs, and updater contract updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f98190c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
