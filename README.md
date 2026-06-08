@@ -1,6 +1,7 @@
-# Ameow
-
 <div align="center">
+  <p>
+    <img src="./docs/readme/banner.png" alt="Ameow Desktop Media Downloader banner" width="100%" />
+  </p>
   <p><strong>Ameow 是一个常驻桌面的悬浮下载与收集窗口，拖拽文件、粘贴链接，网页里的内容也能直接发到桌面。</strong></p>
   <p>
     <a href="./README.md">中文</a> |

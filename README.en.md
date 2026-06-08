@@ -1,6 +1,7 @@
-# Ameow
-
 <div align="center">
+  <p>
+    <img src="./docs/readme/banner.png" alt="Ameow Desktop Media Downloader banner" width="100%" />
+  </p>
   <p><strong>Ameow is an always-on-top floating window for downloads and quick collection. Drop in files, paste a link, and send web content straight to your desktop.</strong></p>
   <p>
     <a href="./README.md">中文</a> |
