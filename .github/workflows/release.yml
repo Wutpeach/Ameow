@@ -228,11 +228,11 @@ jobs:
             --version "${{ steps.version.outputs.version }}" \
             --output-dir artifacts/browser-extension
 
-      - name: Create GitHub Release Draft
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Ameow v${{ steps.version.outputs.version }}
-          draft: true
+          draft: false
           prerelease: ${{ steps.version.outputs.prerelease }}
           generate_release_notes: false
           body_path: ${{ steps.release_notes.outputs.path }}
@@ -243,14 +243,3 @@ jobs:
             artifacts/macos-zip-arm64/*.zip
             artifacts/browser-extension/*.zip
             artifacts/updater/latest.json
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
-            gh release edit "$TAG" --draft=false --prerelease
-          else
-            gh release edit "$TAG" --draft=false
-          fi
