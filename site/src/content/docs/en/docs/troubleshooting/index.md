@@ -13,6 +13,7 @@ Fast rule: **launch problems point to system blocking, extension problems start 
 | --- | --- | --- |
 | macOS says the app cannot be opened or the developer cannot be verified | Is the app already in `Applications`? Did you try right-click `Open`? | [First Launch on macOS](./macos-first-run/) |
 | The browser extension shows `Disconnected` | Is the desktop app running? Does the extension need a reload? | [Extension Disconnected](./extension-disconnected/) |
+| The app or logs show an error message, English keyword, or `E_...` code | Use the message text to separate login, network, runtime, and output-folder causes | [Error Messages and Error Codes](./error-messages/) |
 | Pasting a link creates no task, stays in `Preparing`, or fails | Which stage is it stuck in? Can the link open and can the output folder be written? | [Download Failures](./download-failures/) |
 | The task says done but you cannot find the file | Did the output folder change? Did the task really finish? | [Missing Files](./missing-files/) |
 
@@ -27,6 +28,10 @@ On Windows, first confirm you downloaded the Installer EXE or Portable ZIP, not 
 The extension must connect to a running desktop app. Launch Ameow, confirm the floating window is visible, then reopen the popup. `Connected` is the state that means page tasks can be sent.
 
 If the extension is connected but the task still fails, the problem usually moves into site support, login state, link validity, or output-folder permissions.
+
+## If You Have A Specific Error Message
+
+Keep the full message or a screenshot first. If it includes keywords such as `cookies`, `403`, `timeout`, `yt-dlp exited`, or an error code such as `E_AUTH_REQUIRED`, use [Error Messages and Error Codes](./error-messages/) to identify the direction, then return to the download-failure page for the action path.
 
 ## If it is a download problem
 

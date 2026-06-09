@@ -70,6 +70,7 @@ export default defineConfig({
 						'docs/troubleshooting',
 						'docs/troubleshooting/macos-first-run',
 						'docs/troubleshooting/extension-disconnected',
+						'docs/troubleshooting/error-messages',
 						'docs/troubleshooting/download-failures',
 						'docs/troubleshooting/missing-files',
 					],

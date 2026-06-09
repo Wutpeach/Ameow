@@ -33,6 +33,20 @@ Usually no. Ameow is designed to manage the needed download and processing capab
 
 If the docs or Release Notes do not explicitly ask you to install something, avoid changing your system PATH, swapping internal tools, or downloading random external binaries.
 
+## Where are these dependencies stored?
+
+These automatically prepared dependencies are not the image or video files you downloaded, and they are not saved to your current output folder. They are runtime components used by Ameow itself, and Ameow stores them under its user data directory.
+
+On Windows, even when you use the portable build, the common location is:
+
+```text
+%APPDATA%\Ameow\runtimes\
+```
+
+This folder may contain components such as `yt-dlp`, `gallery-dl`, `douyin-dl`, `ffmpeg`, and `deno`. Temporary archives used during download are placed in the system temporary directory first, then cleaned up after installation and verification.
+
+If you delete the `runtimes` folder, Ameow will prepare the needed components again later. Already downloaded media files are not affected by this folder; they stay in the save location you configured.
+
 ## What should I do if it stays in Preparing too long?
 
 Work through this order:
