@@ -142,6 +142,8 @@ const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   candidates: input.videoCandidates ?? [],
   selectionScope: input.selectionScope,
   videoQuality: input.videoQuality,
+  advancedQualitySelector: input.advancedQualitySelector,
+  advancedQualityLabel: input.advancedQualityLabel,
   extensionData: input.extensionData,
   preferredFormat: "mp4",
 });

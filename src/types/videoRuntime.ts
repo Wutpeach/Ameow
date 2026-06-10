@@ -22,10 +22,23 @@ export type DownloadResultPayload = {
 
 export type VideoQueueTaskStatus = "active" | "pending";
 
+export type VideoQueueTaskPhase =
+  | "downloading"
+  | "probing_quality"
+  | "selecting_quality";
+
+export type AdvancedQualityOptionPayload = {
+  id: string;
+  label: string;
+  tags?: string[];
+};
+
 export type VideoQueueTaskPayload = {
   traceId: string;
   label: string;
   status: VideoQueueTaskStatus;
+  phase?: VideoQueueTaskPhase | null;
+  qualityOptions?: AdvancedQualityOptionPayload[];
 };
 
 export type VideoQueueStatePayload = {
@@ -125,6 +138,9 @@ export type QueuedVideoDownloadRequest = {
   clipEndSec?: number;
   videoQuality?: "best" | "balanced" | "data_saver";
   siteHint?: string;
+  advancedQualityRequest?: boolean;
+  advancedQualitySelector?: string;
+  advancedQualityLabel?: string;
   extensionData?: {
     youtube?: {
       source?: "injected" | "pasted" | "context_menu";

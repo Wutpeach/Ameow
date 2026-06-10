@@ -505,6 +505,24 @@
     sendVideoSelectionMessage(payload);
   }
 
+  function requestAdvancedQualityDownload() {
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
+
+    sendVideoSelectionMessage({
+      ...payload,
+      advancedQualityRequest: true,
+    });
+  }
+
+  function handlePrimaryDownloadContextMenu(event) {
+    event.stopPropagation();
+    event.preventDefault();
+    requestAdvancedQualityDownload();
+  }
+
   function handlePrimaryDownload() {
     if (hasValidClipRange()) {
       downloadSelectedClip();
@@ -527,6 +545,7 @@
       title: t('injected.playerControls.buttons.download', 'Download with Ameow'),
       html: CAT_ICON_CLASS,
       onClick: handlePrimaryDownload,
+      onContextMenu: handlePrimaryDownloadContextMenu,
     });
     const inBtn = createButton({
       className: 'ameow-youtube-set-in-btn',

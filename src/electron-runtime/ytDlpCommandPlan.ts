@@ -180,6 +180,13 @@ export const createYtdlpCommandPlan = (
     Boolean(context.binaries.ffmpeg),
     { isYouTube: youtubeUrl, siteId: context.intent.siteId },
   );
+  const advancedQualitySelector = context.intent.advancedQualitySelector?.trim();
+  const resolvedFormatProfile = advancedQualitySelector
+    ? {
+        ...formatProfile,
+        selector: advancedQualitySelector,
+      }
+    : formatProfile;
 
   return {
     sourceUrl,
@@ -190,7 +197,7 @@ export const createYtdlpCommandPlan = (
     outputTemplate: buildYtdlpOutputTemplate(context, clipRange),
     artifactPrefixes: resolveYtdlpArtifactPrefixes(context, clipRange),
     ffmpegDir: path.dirname(context.binaries.ffmpeg),
-    formatProfile,
+    formatProfile: resolvedFormatProfile,
   };
 };
 

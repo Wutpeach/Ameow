@@ -54,6 +54,12 @@ const {
   runPreparedVideoTranscodeTaskMock: vi.fn(),
 }));
 
+const {
+  runAdvancedQualityProbeMock,
+} = vi.hoisted(() => ({
+  runAdvancedQualityProbeMock: vi.fn(),
+}));
+
 vi.mock("./galleryDlMetadata.js", () => ({
   probeGalleryDlMetadataTitle: probeGalleryDlMetadataTitleMock,
   resolveGalleryDlMetadataTitleFromSidecars: resolveGalleryDlMetadataTitleFromSidecarsMock,
@@ -65,11 +71,16 @@ vi.mock("./transcode.js", () => ({
   runPreparedVideoTranscodeTask: runPreparedVideoTranscodeTaskMock,
 }));
 
+vi.mock("./advancedQualityProbe.js", () => ({
+  runAdvancedQualityProbe: runAdvancedQualityProbeMock,
+}));
+
 import {
   FAILED_TRANSCODE_RETENTION_LIMIT,
   createElectronDownloadRuntime,
 } from "./service";
 import type {
+  RuntimeAdvancedQualitySiteSessionRefreshContext,
   RuntimeAuthFailureRecoveryContext,
   RuntimeEmitterEvent,
 } from "./contracts";
@@ -124,6 +135,9 @@ const createRuntime = (options: {
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<{ shouldRetry: boolean } | void>;
+  refreshSiteSessionBeforeAdvancedQualityProbe?(
+    context: RuntimeAdvancedQualitySiteSessionRefreshContext,
+  ): Promise<void>;
   diagnoseNetworkProxy?: (context: {
     targetUrl: string;
     providerId: string | null;
@@ -161,6 +175,7 @@ const createRuntime = (options: {
   ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   buildExecutionContext: options.buildExecutionContext,
   handleAuthRequiredFailure: options.handleAuthRequiredFailure,
+  refreshSiteSessionBeforeAdvancedQualityProbe: options.refreshSiteSessionBeforeAdvancedQualityProbe,
   diagnoseNetworkProxy: options.diagnoseNetworkProxy,
   resolveNetworkProxy: options.resolveNetworkProxy,
   maxConcurrent: options.maxConcurrent,
@@ -182,6 +197,10 @@ describe("AmeowElectronDownloadRuntime", () => {
     runPreparedVideoTranscodeTaskMock.mockImplementation(async (task: { finalPath: string }) => ({
       filePath: task.finalPath,
     }));
+    runAdvancedQualityProbeMock.mockReset();
+    runAdvancedQualityProbeMock.mockResolvedValue({
+      options: [],
+    });
   });
 
   it("emits queue state changes and enforces max concurrency", async () => {
@@ -310,6 +329,282 @@ describe("AmeowElectronDownloadRuntime", () => {
       success: false,
     });
     await waitFor(() => runtime.getQueueState().totalCount === 0);
+  });
+
+  it("creates a probing advanced-quality task instead of starting a normal download immediately", async () => {
+    const events: Array<{ event: RuntimeEmitterEvent; payload: unknown }> = [];
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      onEmit(event, payload) {
+        events.push({ event, payload });
+      },
+    });
+
+    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+      options: [
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+      ],
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    expect(ack.accepted).toBe(true);
+    expect(runtime.getQueueDetail().tasks).toEqual([
+      expect.objectContaining({
+        traceId: ack.traceId,
+        status: "active",
+        phase: "probing_quality",
+      }),
+    ]);
+
+    await waitFor(() => {
+      const task = runtime.getQueueDetail().tasks[0];
+      return task?.phase === "selecting_quality";
+    });
+
+    expect(runAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
+    expect(events.some((entry) => entry.event === "video-download-progress")).toBe(false);
+  });
+
+  it("dedupes repeated advanced-quality requests for the same video", async () => {
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+    });
+
+    let releaseProbe: (() => void) | undefined;
+    runAdvancedQualityProbeMock.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseProbe = () => resolve();
+      });
+      return {
+        options: [
+          { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+        ],
+      };
+    });
+
+    const first = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+    const second = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    expect(second.traceId).toBe(first.traceId);
+    expect(runtime.getQueueState().activeCount).toBe(1);
+
+    if (releaseProbe) {
+      releaseProbe();
+    }
+    await waitFor(() => runtime.getQueueDetail().tasks[0]?.phase === "selecting_quality");
+  });
+
+  it("refreshes site session before building the advanced-quality execution context", async () => {
+    const calls: string[] = [];
+    let savedCookies = "old-cookies";
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      async refreshSiteSessionBeforeAdvancedQualityProbe(context) {
+        calls.push(`refresh:${context.siteId}:${context.url}`);
+        savedCookies = "fresh-cookies";
+      },
+      buildExecutionContext(context) {
+        calls.push(`build:${savedCookies}`);
+        return {
+          ...context,
+          intent: {
+            ...context.intent,
+            cookies: savedCookies,
+          },
+        };
+      },
+    });
+
+    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+      options: [
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runAdvancedQualityProbeMock.mock.calls.length === 1);
+    expect(calls).toEqual([
+      "refresh:youtube:https://www.youtube.com/watch?v=abc123",
+      "build:fresh-cookies",
+    ]);
+    expect(runAdvancedQualityProbeMock.mock.calls[0]?.[0].intent.cookies).toBe("fresh-cookies");
+  });
+
+  it("continues advanced-quality probing when pre-probe site-session refresh fails", async () => {
+    const refreshSiteSessionBeforeAdvancedQualityProbe = vi.fn(async () => {
+      throw new Error("extension unavailable");
+    });
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      refreshSiteSessionBeforeAdvancedQualityProbe,
+    });
+
+    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+      options: [
+        { id: "height_720", label: "720p", selector: "bv*[height=720]+ba" },
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runtime.getQueueDetail().tasks[0]?.phase === "selecting_quality");
+    expect(refreshSiteSessionBeforeAdvancedQualityProbe).toHaveBeenCalledTimes(1);
+    expect(runAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh site session before normal non-advanced downloads", async () => {
+    const refreshSiteSessionBeforeAdvancedQualityProbe = vi.fn(async () => undefined);
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      refreshSiteSessionBeforeAdvancedQualityProbe,
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+    });
+
+    await waitFor(() => runtime.getQueueState().totalCount === 0);
+    expect(refreshSiteSessionBeforeAdvancedQualityProbe).not.toHaveBeenCalled();
+  });
+
+  it("continues the same advanced-quality task into a normal download after selection", async () => {
+    const seenTraceIds: string[] = [];
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          seenTraceIds.push(context.traceId);
+          expect(context.intent.advancedQualitySelector).toBe("bv*[height=1080]+ba");
+          expect(context.intent.advancedQualityLabel).toBe("1080p");
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+    });
+
+    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+      options: [
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+      ],
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runtime.getQueueDetail().tasks[0]?.phase === "selecting_quality");
+
+    await expect(
+      runtime.selectAdvancedQualityOption(ack.traceId, "height_1080"),
+    ).resolves.toBe(true);
+
+    await waitFor(() => seenTraceIds.includes(ack.traceId));
+    expect(seenTraceIds).toEqual([ack.traceId]);
+  });
+
+  it("emits a failure completion and removes the task when advanced-quality probing fails", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(payload as { traceId: string; success: boolean; error?: string });
+        }
+      },
+    });
+
+    runAdvancedQualityProbeMock.mockRejectedValueOnce(new Error("probe failed"));
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => completions.some((entry) => entry.traceId === ack.traceId));
+    expect(completions.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: false,
+      error: "更多画质探测失败",
+    });
+    expect(runtime.getQueueState().totalCount).toBe(0);
   });
 
   it("records success telemetry with site, interaction mode, engine chain, and chosen engine", async () => {

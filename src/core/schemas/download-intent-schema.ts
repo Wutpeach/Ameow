@@ -35,6 +35,8 @@ const baseIntentSchema = z.object({
   candidates: z.array(mediaCandidateSchema),
   selectionScope: z.enum(["current_item", "playlist"]).optional(),
   videoQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
+  advancedQualitySelector: z.string().trim().optional(),
+  advancedQualityLabel: z.string().trim().optional(),
   extensionData: downloadExtensionDataSchema.optional(),
 });
 

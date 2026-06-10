@@ -16,6 +16,7 @@ const readyStatus = {
 
 const createRuntimeStub = (): ElectronDownloadRuntime & {
   queueVideoDownload: ReturnType<typeof vi.fn>;
+  selectAdvancedQualityOption: ReturnType<typeof vi.fn>;
   cancelDownload: ReturnType<typeof vi.fn>;
 } => ({
   maxConcurrent: 3,
@@ -45,6 +46,7 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
     accepted: true,
     traceId: request.url,
   })),
+  selectAdvancedQualityOption: vi.fn(async () => true),
   cancelDownload: vi.fn(async () => true),
   cancelTranscode: vi.fn(async () => false),
   retryTranscode: vi.fn(async () => false),
@@ -224,6 +226,20 @@ describe("createVideoDownloadCommandBridge", () => {
 
     expect(runtime.cancelDownload).toHaveBeenCalledWith("trace-1");
   });
+
+  it("dispatches advanced quality selections to the runtime", async () => {
+    const runtime = createRuntimeStub();
+    const bridge = createBridge(runtime);
+
+    await expect(
+      bridge.invoke("select_advanced_quality_option", {
+        traceId: "trace-1",
+        optionId: "height_1080",
+      }),
+    ).resolves.toBe(true);
+
+    expect(runtime.selectAdvancedQualityOption).toHaveBeenCalledWith("trace-1", "height_1080");
+  });
 });
 
 describe("buildVideoSelectedV2QueuePayload", () => {
@@ -287,6 +303,16 @@ describe("buildVideoSelectedV2QueuePayload", () => {
     )).toMatchObject({
       url: "https://www.bilibili.com/video/BV1xx411c7mD",
       videoQuality: "balanced",
+    });
+  });
+
+  it("preserves advanced quality request when building the queue payload", () => {
+    expect(buildVideoSelectedV2QueuePayload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      advancedQualityRequest: true,
+    })).toMatchObject({
+      url: "https://www.youtube.com/watch?v=abc123",
+      advancedQualityRequest: true,
     });
   });
 });

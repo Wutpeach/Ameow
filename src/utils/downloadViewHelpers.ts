@@ -1,8 +1,10 @@
 import type {
+  AdvancedQualityOptionPayload,
   DownloadProgressPayload,
   DownloadStage,
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
+  VideoQueueTaskPhase,
   VideoQueueTaskStatus,
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
@@ -216,10 +218,33 @@ export const normalizeVideoQueueDetail = (
           return [];
         }
         const status: VideoQueueTaskStatus = task.status === "pending" ? "pending" : "active";
+        const phase: VideoQueueTaskPhase | null = task.phase === "probing_quality"
+          ? "probing_quality"
+          : task.phase === "selecting_quality"
+            ? "selecting_quality"
+            : task.phase === "downloading"
+              ? "downloading"
+              : null;
+        const qualityOptions: AdvancedQualityOptionPayload[] | undefined = Array.isArray(task.qualityOptions)
+          ? task.qualityOptions.flatMap((option) => {
+              if (!option || typeof option.id !== "string" || typeof option.label !== "string") {
+                return [];
+              }
+              return [{
+                id: option.id,
+                label: option.label.trim() || option.id,
+                tags: Array.isArray(option.tags)
+                  ? option.tags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0)
+                  : undefined,
+              }];
+            })
+          : undefined;
         return [{
           traceId: task.traceId,
           label: task.label.trim() || task.traceId,
           status,
+          phase,
+          qualityOptions,
         }];
       })
     : [],

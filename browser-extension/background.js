@@ -359,6 +359,7 @@ function normalizeMediaSelectionPayload(message) {
   ]);
   const clipStartSec = normalizeClipTimeSeconds(message?.clipStartSec);
   const clipEndSec = normalizeClipTimeSeconds(message?.clipEndSec);
+  const advancedQualityRequest = message?.advancedQualityRequest === true;
 
   return {
     requestedUrl,
@@ -370,6 +371,7 @@ function normalizeMediaSelectionPayload(message) {
     extensionData: normalizedExtensionData,
     clipStartSec,
     clipEndSec,
+    advancedQualityRequest,
     title: typeof message?.title === 'string' ? message.title : undefined,
   };
 }
@@ -2283,6 +2285,7 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
       selectionScope,
       clipStartSec: normalized.clipStartSec,
       clipEndSec: normalized.clipEndSec,
+      advancedQualityRequest: normalized.advancedQualityRequest,
       videoQuality: qualityPreference,
       extensionData: normalized.extensionData,
     },

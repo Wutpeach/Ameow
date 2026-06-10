@@ -29,6 +29,8 @@ export const twitterXProvider: SiteProvider = {
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       videoQuality: input.videoQuality,
+      advancedQualitySelector: input.advancedQualitySelector,
+      advancedQualityLabel: input.advancedQualityLabel,
       preferredFormat: "best",
       clipStartSec: input.clipStartSec,
       clipEndSec: input.clipEndSec,

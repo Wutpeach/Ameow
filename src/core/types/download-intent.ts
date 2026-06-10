@@ -17,6 +17,8 @@ type BaseIntent = {
   candidates: MediaCandidate[];
   selectionScope?: DownloadSelectionScope;
   videoQuality?: VideoQualityPreference;
+  advancedQualitySelector?: string;
+  advancedQualityLabel?: string;
   extensionData?: DownloadExtensionData;
 };
 

@@ -80,6 +80,13 @@ export type RuntimeNetworkProxyContext = {
 
 export type RuntimeNetworkProxyDiagnosticContext = RuntimeNetworkProxyContext;
 
+export type RuntimeAdvancedQualitySiteSessionRefreshContext = {
+  traceId: string;
+  siteId: string;
+  pageUrl?: string;
+  url: string;
+};
+
 export interface ElectronRuntimeEnvironment {
   repoRoot: string;
   configDir: string;
@@ -123,6 +130,9 @@ export interface ElectronDownloadRuntimeOptions {
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<RuntimeAuthFailureRecoveryResult | void>;
+  refreshSiteSessionBeforeAdvancedQualityProbe?(
+    context: RuntimeAdvancedQualitySiteSessionRefreshContext,
+  ): Promise<void>;
   resolveNetworkProxy?(
     context: RuntimeNetworkProxyContext,
   ): Promise<string | null | undefined>;
@@ -153,6 +163,7 @@ export interface ElectronDownloadRuntime {
   queueVideoDownload(
     request: RawDownloadInput,
   ): Promise<QueuedVideoDownloadAck>;
+  selectAdvancedQualityOption(traceId: string, optionId: string): Promise<boolean>;
   cancelDownload(traceId: string): Promise<boolean>;
   cancelTranscode(traceId: string): Promise<boolean>;
   retryTranscode(traceId: string): Promise<boolean>;

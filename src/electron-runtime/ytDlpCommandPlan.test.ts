@@ -133,6 +133,22 @@ describe("yt-dlp command planning", () => {
     expect(args[args.indexOf("--download-sections") + 1]).toBe("*00:00:05.250-00:00:08.750");
   });
 
+  it("prefers runtime-owned advanced quality selectors over preset selectors", () => {
+    const plan = createYtdlpCommandPlan(createContext({
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=abc123",
+        pageUrl: "https://www.youtube.com/watch?v=abc123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        advancedQualitySelector: "bv*[height=1080]+ba",
+        advancedQualityLabel: "1080p",
+      },
+    }));
+
+    expect(plan.formatProfile.selector).toBe("bv*[height=1080]+ba");
+  });
+
   it("uses platform-specific extended youtube js runtime ordering", () => {
     const plan = createYtdlpCommandPlan(createContext());
     const windowsArgs = buildYtdlpCommandArgs(plan, {

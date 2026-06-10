@@ -45,6 +45,7 @@ export type AmeowRendererCommand =
   | "retry_transcode"
   | "save_config"
   | "save_data_url"
+  | "select_advanced_quality_option"
   | "set_autostart"
   | "set_window_position"
   | "set_window_size"

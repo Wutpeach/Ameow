@@ -55,6 +55,7 @@ export const buildVideoSelectedV2QueuePayload = (
   selectionScope: data.selectionScope,
   clipStartSec: data.clipStartSec,
   clipEndSec: data.clipEndSec,
+  advancedQualityRequest: data.advancedQualityRequest === true,
   extensionData: data.extensionData ?? data.extension_data,
   videoQuality:
     normalizeVideoQualityPreference(options.videoQuality)
@@ -81,6 +82,7 @@ const supportedCommands = new Set<AmeowRendererCommand>([
   "refresh_runtime_dependency_gate_state",
   "remove_transcode",
   "retry_transcode",
+  "select_advanced_quality_option",
   "start_runtime_dependency_bootstrap",
 ]);
 
@@ -101,6 +103,15 @@ const normalizeOptionalString = (value: unknown): string | undefined => {
 const normalizeTraceId = (payload: CommandPayload): string => (
   normalizeOptionalString(asObject(payload).traceId ?? asObject(payload).trace_id) ?? ""
 );
+
+const normalizeAdvancedQualitySelection = (
+  payload: CommandPayload,
+): { traceId: string; optionId: string } => {
+  const request = asObject(payload);
+  const traceId = normalizeOptionalString(request.traceId ?? request.trace_id) ?? "";
+  const optionId = normalizeOptionalString(request.optionId ?? request.option_id) ?? "";
+  return { traceId, optionId };
+};
 
 const resolveVideoDownloadPreferencesFromConfig = (config: Record<string, unknown>) => ({
   videoQuality: resolveYtdlpQualityPreferenceFromConfig(config),
@@ -230,12 +241,19 @@ export const createVideoDownloadCommandBridge = (
           return await options.runtime.cancelDownload(normalizeTraceId(payload)) as TResult;
         case "cancel_transcode":
           return await options.runtime.cancelTranscode(normalizeTraceId(payload)) as TResult;
-        case "retry_transcode":
-          return await options.runtime.retryTranscode(normalizeTraceId(payload)) as TResult;
-        case "remove_transcode":
-          return await options.runtime.removeTranscode(normalizeTraceId(payload)) as TResult;
-        case "check_ytdlp_version":
-          return await options.checkYtdlpVersion() as TResult;
+      case "retry_transcode":
+        return await options.runtime.retryTranscode(normalizeTraceId(payload)) as TResult;
+      case "remove_transcode":
+        return await options.runtime.removeTranscode(normalizeTraceId(payload)) as TResult;
+      case "select_advanced_quality_option": {
+        const selection = normalizeAdvancedQualitySelection(payload);
+        return await options.runtime.selectAdvancedQualityOption(
+          selection.traceId,
+          selection.optionId,
+        ) as TResult;
+      }
+      case "check_ytdlp_version":
+        return await options.checkYtdlpVersion() as TResult;
         case "get_gallery_dl_info":
           return await options.getGalleryDlInfo() as TResult;
         case "get_runtime_dependency_status":

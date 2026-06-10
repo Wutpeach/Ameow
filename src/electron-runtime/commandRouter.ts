@@ -29,6 +29,7 @@ export type ElectronRuntimeCommand = Extract<
   | "get_runtime_dependency_status"
   | "queue_video_download"
   | "refresh_runtime_dependency_gate_state"
+  | "select_advanced_quality_option"
   | "start_runtime_dependency_bootstrap"
 >;
 
@@ -38,6 +39,7 @@ export type ElectronRuntimeCommandResultMap = {
   get_runtime_dependency_status: RuntimeDependencyStatusSnapshot;
   queue_video_download: QueuedVideoDownloadAck;
   refresh_runtime_dependency_gate_state: RuntimeDependencyGateStatePayload;
+  select_advanced_quality_option: boolean;
   start_runtime_dependency_bootstrap: RuntimeDependencyGateStatePayload;
 };
 
@@ -67,6 +69,7 @@ const supportedCommands = new Set<ElectronRuntimeCommand>([
   "get_runtime_dependency_status",
   "queue_video_download",
   "refresh_runtime_dependency_gate_state",
+  "select_advanced_quality_option",
   "start_runtime_dependency_bootstrap",
 ]);
 
@@ -320,6 +323,7 @@ const normalizeQueueVideoDownloadRequest = (
       ),
     ),
     siteHint,
+    advancedQualityRequest: request.advancedQualityRequest === true,
     extensionData,
     dragDiagnostic,
     diagnostics,
@@ -334,6 +338,16 @@ const normalizeCancelTraceId = (payload: CommandPayload): string => {
 const normalizeBootstrapReason = (payload: CommandPayload): string | undefined => {
   const request = asObject(payload);
   return readOptionalTrimmedString(request, "reason");
+};
+
+const normalizeAdvancedQualitySelectionPayload = (
+  payload: CommandPayload,
+): { traceId: string; optionId: string } => {
+  const request = asObject(payload);
+  return {
+    traceId: readRequiredTrimmedString(request, "traceId", "trace_id"),
+    optionId: readRequiredTrimmedString(request, "optionId", "option_id"),
+  };
 };
 
 export const isElectronRuntimeCommand = (
@@ -363,6 +377,13 @@ export const createElectronRuntimeCommandRouter = (
         return options.runtime.getRuntimeDependencyGateState() as TResult;
       case "refresh_runtime_dependency_gate_state":
         return options.runtime.refreshRuntimeDependencyGateState() as TResult;
+      case "select_advanced_quality_option": {
+        const selection = normalizeAdvancedQualitySelectionPayload(payload);
+        return await options.runtime.selectAdvancedQualityOption(
+          selection.traceId,
+          selection.optionId,
+        ) as TResult;
+      }
       case "start_runtime_dependency_bootstrap":
         return await options.runtime.startRuntimeDependencyBootstrap(
           normalizeBootstrapReason(payload),

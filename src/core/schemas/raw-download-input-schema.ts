@@ -43,6 +43,9 @@ export const rawDownloadInputSchema = z.object({
   videoQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   ytdlpQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   siteHint: z.string().trim().optional(),
+  advancedQualityRequest: z.boolean().optional(),
+  advancedQualitySelector: z.string().trim().optional(),
+  advancedQualityLabel: z.string().trim().optional(),
   extensionData: downloadExtensionDataSchema.optional(),
   diagnostics: z.record(z.string(), z.unknown()).optional(),
 });

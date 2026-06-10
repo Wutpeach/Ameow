@@ -26,7 +26,12 @@ import {
   cleanupGalleryDlMetadataSidecars,
   resolveGalleryDlMetadataTitleFromSidecars,
 } from "./galleryDlMetadata.js";
+import {
+  runAdvancedQualityProbe,
+  type AdvancedQualityProbeResult,
+} from "./advancedQualityProbe.js";
 import type {
+  AdvancedQualityOptionPayload,
   DownloadResultPayload,
   DownloadProgressPayload,
   QueuedVideoDownloadAck,
@@ -37,6 +42,7 @@ import type {
   VideoTranscodeTaskPayload,
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
+  VideoQueueTaskPhase,
 } from "../types/videoRuntime.js";
 import type {
   EngineExecutionContext,
@@ -71,6 +77,20 @@ type PendingTask = {
 
 type ActiveTask = PendingTask & {
   abortController: AbortController;
+};
+
+type AdvancedQualityRuntimeOption = AdvancedQualityOptionPayload & {
+  selector: string;
+};
+
+type AdvancedQualityTaskState = {
+  traceId: string;
+  label: string;
+  request: RawDownloadInput;
+  dedupeKey: string;
+  phase: Extract<VideoQueueTaskPhase, "probing_quality" | "selecting_quality">;
+  abortController: AbortController | null;
+  qualityOptions: AdvancedQualityRuntimeOption[];
 };
 
 type DownloadTelemetryContext = {
@@ -118,6 +138,7 @@ const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - started
 const hasYtDlpEngine = (plan: ResolvedDownloadPlan | null): boolean => (
   plan?.engines.some((enginePlan) => enginePlan.engine === "yt-dlp") ?? false
 );
+const ADVANCED_QUALITY_SUPPORTED_SITE_IDS = new Set(["youtube", "bilibili"]);
 
 const resolveYtdlpTelemetryProfileKey = (
   plan: ResolvedDownloadPlan | null,
@@ -161,6 +182,8 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   private readonly logger;
   private readonly pending: PendingTask[] = [];
   private readonly active = new Map<string, ActiveTask>();
+  private readonly advancedQualityTasks = new Map<string, AdvancedQualityTaskState>();
+  private readonly advancedQualityDedupe = new Map<string, string>();
   private readonly reservedOutputStems = new Map<string, string>();
   private outputStemReservationLock: Promise<void> = Promise.resolve();
   private readonly pendingTranscodes: TranscodeTaskState[] = [];
@@ -225,7 +248,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   }
 
   getQueueState(): VideoQueueStatePayload {
-    const activeCount = this.active.size;
+    const activeCount = this.active.size + this.advancedQualityTasks.size;
     const pendingCount = this.pending.length;
     return {
       activeCount,
@@ -242,6 +265,20 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           traceId: task.traceId,
           label: task.label,
           status: "active" as const,
+          phase: "downloading" as const,
+        })),
+        ...Array.from(this.advancedQualityTasks.values()).map((task) => ({
+          traceId: task.traceId,
+          label: task.label,
+          status: "active" as const,
+          phase: task.phase,
+          qualityOptions: task.phase === "selecting_quality"
+            ? task.qualityOptions.map((option) => ({
+                id: option.id,
+                label: option.label,
+                tags: option.tags,
+              }))
+            : undefined,
         })),
         ...this.pending.map((task) => ({
           traceId: task.traceId,
@@ -253,21 +290,53 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   }
 
   async queueVideoDownload(request: RawDownloadInput): Promise<QueuedVideoDownloadAck> {
+    if (request.advancedQualityRequest === true) {
+      return await this.queueAdvancedQualityDownload(request);
+    }
+
     const traceId = nextDownloadTraceId();
-    this.pending.push({
-      traceId,
-      label: queueTaskLabel(request),
-      request,
-    });
-    await this.emitQueueState();
-    void this.pumpQueue();
+    await this.enqueuePendingDownloadTask(traceId, request);
     return {
       accepted: true,
       traceId,
     };
   }
 
+  async selectAdvancedQualityOption(traceId: string, optionId: string): Promise<boolean> {
+    const task = this.advancedQualityTasks.get(traceId);
+    if (!task || task.phase !== "selecting_quality") {
+      return false;
+    }
+
+    const selectedOption = task.qualityOptions.find((option) => option.id === optionId);
+    if (!selectedOption) {
+      return false;
+    }
+
+    this.removeAdvancedQualityTask(traceId);
+    await this.enqueuePendingDownloadTask(traceId, {
+      ...task.request,
+      advancedQualityRequest: false,
+      advancedQualitySelector: selectedOption.selector,
+      advancedQualityLabel: selectedOption.label,
+    });
+    return true;
+  }
+
   async cancelDownload(traceId: string): Promise<boolean> {
+    const advancedTask = this.advancedQualityTasks.get(traceId);
+    if (advancedTask) {
+      advancedTask.abortController?.abort();
+      this.removeAdvancedQualityTask(traceId);
+      await this.emitQueueState();
+      await this.options.eventSink.emit("video-download-complete", {
+        traceId,
+        success: false,
+        error: "Download cancelled",
+      } satisfies DownloadResultPayload);
+      return true;
+    }
+
     const pendingIndex = this.pending.findIndex((task) => task.traceId === traceId);
     if (pendingIndex >= 0) {
       const [cancelledTask] = this.pending.splice(pendingIndex, 1);
@@ -303,6 +372,231 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
     activeTask.abortController.abort();
     return true;
+  }
+
+  private async enqueuePendingDownloadTask(
+    traceId: string,
+    request: RawDownloadInput,
+  ): Promise<void> {
+    this.pending.push({
+      traceId,
+      label: queueTaskLabel(request),
+      request,
+    });
+    await this.emitQueueState();
+    void this.pumpQueue();
+  }
+
+  private buildAdvancedQualityDedupeKey(request: RawDownloadInput): string {
+    return [
+      request.siteHint?.trim() || "generic",
+      request.pageUrl?.trim() || request.url.trim(),
+      typeof request.clipStartSec === "number" ? request.clipStartSec : "",
+      typeof request.clipEndSec === "number" ? request.clipEndSec : "",
+    ].join("|");
+  }
+
+  private removeAdvancedQualityTask(traceId: string): AdvancedQualityTaskState | null {
+    const task = this.advancedQualityTasks.get(traceId) ?? null;
+    if (!task) {
+      return null;
+    }
+    this.advancedQualityTasks.delete(traceId);
+    const existingTraceId = this.advancedQualityDedupe.get(task.dedupeKey);
+    if (existingTraceId === traceId) {
+      this.advancedQualityDedupe.delete(task.dedupeKey);
+    }
+    return task;
+  }
+
+  private async queueAdvancedQualityDownload(
+    request: RawDownloadInput,
+  ): Promise<QueuedVideoDownloadAck> {
+    const dedupeKey = this.buildAdvancedQualityDedupeKey(request);
+    const existingTraceId = this.advancedQualityDedupe.get(dedupeKey);
+    if (existingTraceId && this.advancedQualityTasks.has(existingTraceId)) {
+      return {
+        accepted: true,
+        traceId: existingTraceId,
+      };
+    }
+
+    const traceId = nextDownloadTraceId();
+    const task: AdvancedQualityTaskState = {
+      traceId,
+      label: queueTaskLabel(request),
+      request,
+      dedupeKey,
+      phase: "probing_quality",
+      abortController: new AbortController(),
+      qualityOptions: [],
+    };
+    this.advancedQualityTasks.set(traceId, task);
+    this.advancedQualityDedupe.set(dedupeKey, traceId);
+    await this.emitQueueState();
+    void this.probeAdvancedQualityTask(traceId);
+    return {
+      accepted: true,
+      traceId,
+    };
+  }
+
+  private async probeAdvancedQualityTask(traceId: string): Promise<void> {
+    const task = this.advancedQualityTasks.get(traceId);
+    if (!task || !task.abortController) {
+      return;
+    }
+
+    try {
+      const { options } = await this.runAdvancedQualityProbeForTask(task);
+      const latestTask = this.advancedQualityTasks.get(traceId);
+      if (!latestTask) {
+        return;
+      }
+      latestTask.phase = "selecting_quality";
+      latestTask.abortController = null;
+      latestTask.qualityOptions = options;
+      await this.emitQueueState();
+    } catch (error) {
+      const latestTask = this.advancedQualityTasks.get(traceId);
+      const aborted = latestTask?.abortController?.signal.aborted === true
+        || task.abortController.signal.aborted;
+      this.removeAdvancedQualityTask(traceId);
+      await this.emitQueueState();
+      if (aborted) {
+        return;
+      }
+      this.logger.log(`>>> [ElectronRuntime] advanced quality probe failed: ${summarizeError(error)}`);
+      await this.options.eventSink.emit("video-download-complete", {
+        traceId,
+        success: false,
+        error: "更多画质探测失败",
+      } satisfies DownloadResultPayload);
+    }
+  }
+
+  private async runAdvancedQualityProbeForTask(
+    task: AdvancedQualityTaskState,
+  ): Promise<AdvancedQualityProbeResult> {
+    const context = await this.buildAdvancedQualityProbeContext(task);
+    return await runAdvancedQualityProbe(context);
+  }
+
+  private async buildAdvancedQualityProbeContext(
+    task: AdvancedQualityTaskState,
+  ): Promise<EngineExecutionContext> {
+    const abortController = task.abortController;
+    if (!abortController) {
+      throw new DownloadRuntimeError(
+        "E_ABORTED",
+        "Advanced quality probe cancelled",
+        {
+          classification: "cancelled",
+        },
+      );
+    }
+    const config = parseJsonObject(await this.options.configStore.readConfigString());
+    const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
+    const binaries = resolveRuntimeBinaryPaths(this.options.environment);
+    const plan = this.siteRegistry.resolve(task.request);
+    if (!plan) {
+      throw new DownloadRuntimeError(
+        "E_NO_PROVIDER_MATCH",
+        "No site provider matched the advanced quality request",
+      );
+    }
+    if (!ADVANCED_QUALITY_SUPPORTED_SITE_IDS.has(plan.intent.siteId)) {
+      throw new DownloadRuntimeError(
+        "E_INPUT_INVALID",
+        `Advanced quality selection is not supported for ${plan.intent.siteId}`,
+        {
+          classification: "input_invalid",
+        },
+      );
+    }
+
+    const enginePlan = plan.engines
+      .slice()
+      .sort((left, right) => right.priority - left.priority)
+      .find((candidate) => candidate.engine === "yt-dlp");
+    if (!enginePlan) {
+      throw new DownloadRuntimeError(
+        "E_ENGINE_NOT_FOUND",
+        "Advanced quality probing is only available for yt-dlp-backed downloads",
+        {
+          context: {
+            traceId: task.traceId,
+            providerId: plan.providerId,
+          },
+        },
+      );
+    }
+
+    if (this.options.ensureEngineRuntimeReady) {
+      await this.options.ensureEngineRuntimeReady(
+        enginePlan.engine,
+        `runtime_probe_${task.traceId}_${enginePlan.engine}`,
+      );
+    }
+
+    if (this.options.refreshSiteSessionBeforeAdvancedQualityProbe) {
+      await this.options.refreshSiteSessionBeforeAdvancedQualityProbe({
+        traceId: task.traceId,
+        siteId: plan.intent.siteId,
+        pageUrl: task.request.pageUrl,
+        url: task.request.url,
+      }).catch((error) => {
+        this.logger.log(
+          `>>> [ElectronRuntime] advanced quality site-session refresh failed: ${summarizeError(error)}`,
+        );
+      });
+    }
+
+    const proxyTargetUrl = enginePlan.sourceUrl ?? task.request.pageUrl ?? task.request.url;
+    if (this.options.diagnoseNetworkProxy) {
+      await this.options.diagnoseNetworkProxy({
+        targetUrl: proxyTargetUrl,
+        providerId: plan.providerId,
+        engineId: enginePlan.engine,
+      }).catch((error) => {
+        this.logger.log(`>>> [ElectronRuntime] proxy diagnostics failed: ${String(error)}`);
+      });
+    }
+    const proxyUrl = this.options.resolveNetworkProxy
+      ? await this.options.resolveNetworkProxy({
+          targetUrl: proxyTargetUrl,
+          providerId: plan.providerId,
+          engineId: enginePlan.engine,
+        }).catch((error) => {
+          this.logger.log(`>>> [ElectronRuntime] proxy resolution failed: ${String(error)}`);
+          return null;
+        })
+      : null;
+
+    const context: EngineExecutionContext = {
+      traceId: task.traceId,
+      plan,
+      enginePlan,
+      intent: plan.intent,
+      outputDir: resolvedOutputDir,
+      outputStem: buildOutputStem(
+        task.traceId,
+        task.request.pageUrl ?? task.request.url,
+        config,
+        task.request.title,
+        task.request.siteHint,
+      ),
+      config,
+      proxyUrl,
+      binaries,
+      abortSignal: abortController.signal,
+      fetch: this.options.environment.fetch,
+      onProgress: async () => undefined,
+    };
+
+    return this.options.buildExecutionContext
+      ? this.options.buildExecutionContext(context, task.request)
+      : context;
   }
 
   async cancelTranscode(traceId: string): Promise<boolean> {
@@ -426,7 +720,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   }
 
   private hasBlockingDownloads(): boolean {
-    return this.active.size > 0 || this.pending.length > 0;
+    return this.active.size > 0 || this.pending.length > 0 || this.advancedQualityTasks.size > 0;
   }
 
   private scheduleTranscodePump(): void {

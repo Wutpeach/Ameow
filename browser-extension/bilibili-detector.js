@@ -627,6 +627,24 @@
     sendVideoSelectionMessage(payload);
   }
 
+  function requestAdvancedQualityDownload() {
+    const payload = buildCurrentVideoSelectionPayload();
+    if (!payload) {
+      return;
+    }
+
+    sendVideoSelectionMessage({
+      ...payload,
+      advancedQualityRequest: true,
+    });
+  }
+
+  function handlePrimaryDownloadContextMenu(event) {
+    event.stopPropagation();
+    event.preventDefault();
+    requestAdvancedQualityDownload();
+  }
+
   function handlePrimaryDownload() {
     if (hasValidClipRange()) {
       downloadSelectedClip();
@@ -653,6 +671,7 @@
       icon: CAT_ICON_CLASS,
       nativeBaseClass,
       onClick: handlePrimaryDownload,
+      onContextMenu: handlePrimaryDownloadContextMenu,
     });
     const inButton = createControlButton({
       className: 'ameow-bilibili-set-in-btn',

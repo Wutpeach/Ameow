@@ -27,6 +27,9 @@ export type RawDownloadInput = {
   videoQuality?: YtdlpQualityPreference;
   ytdlpQuality?: YtdlpQualityPreference;
   siteHint?: string;
+  advancedQualityRequest?: boolean;
+  advancedQualitySelector?: string;
+  advancedQualityLabel?: string;
   extensionData?: DownloadExtensionData;
   diagnostics?: Record<string, unknown>;
 };

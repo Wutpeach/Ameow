@@ -201,6 +201,9 @@ const DOCS_SCREENSHOT_CAPTURE_DELAY_MS = 600;
 const DOCS_SCREENSHOT_EXPANDED_CAPTURE_DELAY_MS = 1_000;
 const DOCS_SCREENSHOT_SETTINGS_CAPTURE_DELAY_MS = 900;
 const DOCS_SCREENSHOT_UI_LAB_APPLY_DELAY_MS = 800;
+const ADVANCED_QUALITY_SESSION_REFRESH_STALE_MS = 24 * 60 * 60 * 1000;
+const ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS = 2_500;
+const ADVANCED_QUALITY_SESSION_REFRESH_SITE_IDS = new Set(["youtube", "bilibili"]);
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
@@ -219,6 +222,7 @@ const windows = new Map();
 const wsClients = new Set();
 const pendingProtectedImageRequests = new Map();
 const pendingXiaohongshuDragRequests = new Map();
+const preProbeSiteSessionRefreshes = new Map();
 let wsServer = null;
 let uiLabRuntimeStatusOverride = null;
 const runtimeDependencyGateController = createRuntimeDependencyGateController({
@@ -1402,6 +1406,7 @@ function getElectronDownloadRuntime() {
       await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
       return getRuntimeDependencyStatus();
     },
+    refreshSiteSessionBeforeAdvancedQualityProbe,
     buildExecutionContext(context) {
       const appOwnedCookies = getSiteSessionManager(context.intent.siteId)?.getDownloadCookies() ?? null;
       return {
@@ -1426,7 +1431,11 @@ function getElectronDownloadRuntime() {
           void broadcastSiteSessionPendingActions();
         },
         log(message, details) {
-          logInfo("SiteSessionAuth", message, details ?? null);
+          logInfo(
+            "SiteSessionAuth",
+            message,
+            details == null ? null : serializeDiagnosticPayload(details),
+          );
         },
       });
     },
@@ -1535,6 +1544,118 @@ async function syncSiteSessionFromExtension(siteId, manager) {
   emitSiteSessionStateChanged(siteId, nextState);
   void broadcastSiteSessionPendingActions();
   return nextState;
+}
+
+function shouldSkipAdvancedQualitySiteSessionRefresh(entry, state) {
+  if (!entry) {
+    return "unsupported_site";
+  }
+  if (!ADVANCED_QUALITY_SESSION_REFRESH_SITE_IDS.has(entry.siteId)) {
+    return "site_not_enabled";
+  }
+  if (entry.syncAuthorization !== "seeded" && entry.syncAuthorization !== "user_enabled") {
+    return "sync_not_authorized";
+  }
+  if (wsClients.size <= 0) {
+    return "extension_disconnected";
+  }
+  if (
+    typeof state.updatedAtMs === "number"
+    && Date.now() - state.updatedAtMs < ADVANCED_QUALITY_SESSION_REFRESH_STALE_MS
+  ) {
+    return "snapshot_fresh";
+  }
+  return null;
+}
+
+function withAdvancedQualitySiteSessionRefreshTimeout(promise, siteId, traceId) {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(
+        `Timed out refreshing site session before advanced-quality probe for ${siteId} (${traceId})`,
+      ));
+    }, ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+function createAdvancedQualitySiteSessionRefresh(siteId, manager) {
+  const refreshPromise = syncSiteSessionFromExtension(siteId, manager)
+    .finally(() => {
+      if (preProbeSiteSessionRefreshes.get(siteId) === refreshPromise) {
+        preProbeSiteSessionRefreshes.delete(siteId);
+      }
+    });
+  preProbeSiteSessionRefreshes.set(siteId, refreshPromise);
+  return refreshPromise;
+}
+
+async function refreshSiteSessionBeforeAdvancedQualityProbe({
+  traceId,
+  siteId,
+  pageUrl,
+  url,
+}) {
+  const entry = getSiteSessionRegistry().getEntry(siteId);
+  const manager = entry ? getSiteSessionManager(entry.siteId) : null;
+  if (!entry || !manager) {
+    logInfo("AdvancedQualitySession", "pre-probe sync skipped", serializeDiagnosticPayload({
+      traceId,
+      siteId,
+      reason: "unsupported_site",
+      url: pageUrl || url,
+    }));
+    return;
+  }
+
+  const state = await manager.getState();
+  const skipReason = shouldSkipAdvancedQualitySiteSessionRefresh(entry, state);
+  if (skipReason) {
+    logInfo("AdvancedQualitySession", "pre-probe sync skipped", serializeDiagnosticPayload({
+      traceId,
+      siteId: entry.siteId,
+      reason: skipReason,
+      updatedAtMs: state.updatedAtMs,
+      url: pageUrl || url,
+    }));
+    return;
+  }
+
+  let refreshPromise = preProbeSiteSessionRefreshes.get(entry.siteId);
+  if (refreshPromise) {
+    logInfo("AdvancedQualitySession", "joining in-flight pre-probe sync", serializeDiagnosticPayload({
+      traceId,
+      siteId: entry.siteId,
+    }));
+  } else {
+    refreshPromise = createAdvancedQualitySiteSessionRefresh(entry.siteId, manager);
+  }
+
+  await withAdvancedQualitySiteSessionRefreshTimeout(
+    refreshPromise,
+    entry.siteId,
+    traceId,
+  ).then(
+    () => {
+      logInfo("AdvancedQualitySession", "pre-probe sync completed", serializeDiagnosticPayload({
+        traceId,
+        siteId: entry.siteId,
+      }));
+    },
+    (error) => {
+      logInfo("AdvancedQualitySession", "pre-probe sync failed; continuing with saved snapshot", serializeDiagnosticPayload({
+        traceId,
+        siteId: entry.siteId,
+        error: error?.message || String(error),
+      }));
+    },
+  );
 }
 
 async function buildSiteSessionPendingActionsPayload() {

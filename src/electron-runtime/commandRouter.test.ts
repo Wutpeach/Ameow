@@ -37,6 +37,7 @@ const gateState: RuntimeDependencyGateStatePayload = {
 
 const createRuntimeStub = (): ElectronDownloadRuntime & {
   queueVideoDownload: ReturnType<typeof vi.fn>;
+  selectAdvancedQualityOption: ReturnType<typeof vi.fn>;
   cancelDownload: ReturnType<typeof vi.fn>;
   cancelTranscode: ReturnType<typeof vi.fn>;
   retryTranscode: ReturnType<typeof vi.fn>;
@@ -54,6 +55,7 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
     accepted: true,
     traceId: request.videoUrl ?? request.url,
   })),
+  selectAdvancedQualityOption: vi.fn(async () => true),
   cancelDownload: vi.fn(async (traceId: string) => traceId === "trace-1"),
   cancelTranscode: vi.fn(async () => false),
   retryTranscode: vi.fn(async () => false),
@@ -113,44 +115,12 @@ describe("createElectronRuntimeCommandRouter", () => {
       accepted: true,
       traceId: "https://www.pinterest.com/pin/1234567890/",
     });
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: "https://www.pinterest.com/pin/1234567890/",
-      videoUrl: undefined,
-      siteHint: "pinterest",
-      videoCandidates: [
-        {
-          url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
-          type: "direct_mp4",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-        {
-          url: "https://v.pinimg.com/videos/iht/hls/video.m3u8",
-          type: "manifest_m3u8",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: {
-        htmlLength: 42,
-        htmlPreview: "drag payload",
-        flags: {
-          hasEmbeddedPayload: false,
-          hasVideoTag: true,
-          hasVideoList: false,
-          hasStoryPinData: false,
-          hasCarouselData: false,
-          hasMp4: true,
-          hasM3u8: true,
-          hasCmfv: false,
-          hasPinimgVideoHost: true,
-        },
-        imageUrl: "https://i.pinimg.com/originals/example.jpg",
-        videoUrl: null,
-        videoCandidatesCount: 2,
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: "https://www.pinterest.com/pin/1234567890/",
+        videoUrl: undefined,
+        siteHint: "pinterest",
         videoCandidates: [
           {
             url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
@@ -167,17 +137,51 @@ describe("createElectronRuntimeCommandRouter", () => {
             mediaType: undefined,
           },
         ],
-      },
-      diagnostics: {
-        interactionCapability: {
-          siteId: "pinterest",
-          interactionMode: "drag",
-          interactionStatus: "needs_special_adapter",
-          supportedModes: ["paste", "drag", "context_menu", "injected_button"],
-          isModeSupported: true,
+        dragDiagnostic: {
+          htmlLength: 42,
+          htmlPreview: "drag payload",
+          flags: {
+            hasEmbeddedPayload: false,
+            hasVideoTag: true,
+            hasVideoList: false,
+            hasStoryPinData: false,
+            hasCarouselData: false,
+            hasMp4: true,
+            hasM3u8: true,
+            hasCmfv: false,
+            hasPinimgVideoHost: true,
+          },
+          imageUrl: "https://i.pinimg.com/originals/example.jpg",
+          videoUrl: null,
+          videoCandidatesCount: 2,
+          videoCandidates: [
+            {
+              url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
+              type: "direct_mp4",
+              source: undefined,
+              confidence: undefined,
+              mediaType: undefined,
+            },
+            {
+              url: "https://v.pinimg.com/videos/iht/hls/video.m3u8",
+              type: "manifest_m3u8",
+              source: undefined,
+              confidence: undefined,
+              mediaType: undefined,
+            },
+          ],
         },
-      },
-    });
+        diagnostics: {
+          interactionCapability: {
+            siteId: "pinterest",
+            interactionMode: "drag",
+            interactionStatus: "needs_special_adapter",
+            supportedModes: ["paste", "drag", "context_menu", "injected_button"],
+            isModeSupported: true,
+          },
+        },
+      }),
+    );
   });
 
   it("dispatches cancel and bootstrap commands", async () => {
@@ -198,6 +202,38 @@ describe("createElectronRuntimeCommandRouter", () => {
     expect(runtime.startRuntimeDependencyBootstrap).toHaveBeenCalledWith("settings_retry");
   });
 
+  it("preserves advanced quality request intent on queue requests", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await router.invoke<{ accepted: boolean; traceId: string }>("queue_video_download", {
+      url: "https://www.youtube.com/watch?v=abc123",
+      page_url: "https://www.youtube.com/watch?v=abc123",
+      advancedQualityRequest: true,
+    });
+
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.youtube.com/watch?v=abc123",
+        advancedQualityRequest: true,
+      }),
+    );
+  });
+
+  it("dispatches advanced quality selections to the runtime", async () => {
+    const runtime = createRuntimeStub();
+    const router = createElectronRuntimeCommandRouter({ runtime });
+
+    await expect(
+      router.invoke<boolean>("select_advanced_quality_option", {
+        traceId: "trace-1",
+        optionId: "height_1080",
+      }),
+    ).resolves.toBe(true);
+
+    expect(runtime.selectAdvancedQualityOption).toHaveBeenCalledWith("trace-1", "height_1080");
+  });
+
   it("preserves upstream diagnostics and attaches interaction capability summaries", async () => {
     const runtime = createRuntimeStub();
     const router = createElectronRuntimeCommandRouter({ runtime });
@@ -213,23 +249,25 @@ describe("createElectronRuntimeCommandRouter", () => {
       },
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.xiaohongshu.com/explore/66112233445566778899",
-      pageUrl: "https://www.xiaohongshu.com/explore/66112233445566778899",
-      siteHint: "xiaohongshu",
-      diagnostics: {
-        resolver: "generic_video_detector",
-        source: "context_menu",
-        candidateCount: 2,
-        interactionCapability: {
-          siteId: "xiaohongshu",
-          interactionMode: "context_menu",
-          interactionStatus: "needs_special_adapter",
-          supportedModes: ["paste", "drag", "context_menu", "injected_button", "page_bridge"],
-          isModeSupported: true,
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.xiaohongshu.com/explore/66112233445566778899",
+        pageUrl: "https://www.xiaohongshu.com/explore/66112233445566778899",
+        siteHint: "xiaohongshu",
+        diagnostics: {
+          resolver: "generic_video_detector",
+          source: "context_menu",
+          candidateCount: 2,
+          interactionCapability: {
+            siteId: "xiaohongshu",
+            interactionMode: "context_menu",
+            interactionStatus: "needs_special_adapter",
+            supportedModes: ["paste", "drag", "context_menu", "injected_button", "page_bridge"],
+            isModeSupported: true,
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
   it("drops retired extension youtube mode hints on queue requests while preserving source", async () => {
@@ -249,17 +287,19 @@ describe("createElectronRuntimeCommandRouter", () => {
       },
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-      selectionScope: "current_item",
-      videoQuality: undefined,
-      extensionData: {
-        youtube: {
-          source: "injected",
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.youtube.com/watch?v=abc123",
+        pageUrl: "https://www.youtube.com/watch?v=abc123",
+        selectionScope: "current_item",
+        videoQuality: undefined,
+        extensionData: {
+          youtube: {
+            source: "injected",
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
   it("preserves unknown extension data namespaces on queue requests", async () => {
@@ -282,18 +322,20 @@ describe("createElectronRuntimeCommandRouter", () => {
       },
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      extensionData: {
-        ameowCapture: {
-          version: 1,
-          action: "current_content",
-          pageUrl: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
-          contentIds: {
-            modal_id: "7637912431158644014",
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionData: {
+          ameowCapture: {
+            version: 1,
+            action: "current_content",
+            pageUrl: "https://www.douyin.com/jingxuan?modal_id=7637912431158644014",
+            contentIds: {
+              modal_id: "7637912431158644014",
+            },
           },
         },
-      },
-    }));
+      }),
+    );
   });
 
   it("preserves unknown extension data while normalizing supported YouTube source", async () => {
@@ -318,19 +360,21 @@ describe("createElectronRuntimeCommandRouter", () => {
       },
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      extensionData: {
-        youtube: {
-          source: "injected",
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionData: {
+          youtube: {
+            source: "injected",
+          },
+          ameowCapture: {
+            version: 1,
+            action: "pick_download",
+            pageUrl: "https://www.youtube.com/watch?v=abc123",
+            targetHref: "https://www.youtube.com/watch?v=abc123",
+          },
         },
-        ameowCapture: {
-          version: 1,
-          action: "pick_download",
-          pageUrl: "https://www.youtube.com/watch?v=abc123",
-          targetHref: "https://www.youtube.com/watch?v=abc123",
-        },
-      },
-    }));
+      }),
+    );
   });
 
   it("normalizes video quality preferences on queue requests", async () => {
@@ -342,10 +386,12 @@ describe("createElectronRuntimeCommandRouter", () => {
       videoQuality: "balanced",
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=abc123",
-      videoQuality: "balanced",
-    }));
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.youtube.com/watch?v=abc123",
+        videoQuality: "balanced",
+      }),
+    );
   });
 
   it("drops invalid Pinterest video hints before dispatching queue requests", async () => {
@@ -363,22 +409,24 @@ describe("createElectronRuntimeCommandRouter", () => {
       ],
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: undefined,
-      videoUrl: undefined,
-      siteHint: "pinterest",
-      videoCandidates: [
-        {
-          url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
-          type: "direct_mp4",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: undefined,
+        videoUrl: undefined,
+        siteHint: "pinterest",
+        videoCandidates: [
+          {
+            url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
+            type: "direct_mp4",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+        ],
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("drops HTTP(S) Pinterest hints that are not real video candidates", async () => {
@@ -396,22 +444,24 @@ describe("createElectronRuntimeCommandRouter", () => {
       ],
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: "https://www.pinterest.com/pin/1234567890/",
-      videoUrl: undefined,
-      siteHint: "pinterest",
-      videoCandidates: [
-        {
-          url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
-          type: "direct_mp4",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: "https://www.pinterest.com/pin/1234567890/",
+        videoUrl: undefined,
+        siteHint: "pinterest",
+        videoCandidates: [
+          {
+            url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
+            type: "direct_mp4",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+        ],
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("dedupes repeated Pinterest video candidates after normalization", async () => {
@@ -428,29 +478,31 @@ describe("createElectronRuntimeCommandRouter", () => {
       ],
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: undefined,
-      videoUrl: undefined,
-      siteHint: "pinterest",
-      videoCandidates: [
-        {
-          url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
-          type: "direct_mp4",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-        {
-          url: "https://v.pinimg.com/videos/iht/hls/video.m3u8",
-          type: "manifest_m3u8",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: undefined,
+        videoUrl: undefined,
+        siteHint: "pinterest",
+        videoCandidates: [
+          {
+            url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
+            type: "direct_mp4",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+          {
+            url: "https://v.pinimg.com/videos/iht/hls/video.m3u8",
+            type: "manifest_m3u8",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+        ],
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("drops invalid drag-diagnostic image urls before dispatch", async () => {
@@ -477,41 +529,43 @@ describe("createElectronRuntimeCommandRouter", () => {
       },
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: undefined,
-      videoUrl: undefined,
-      siteHint: "pinterest",
-      videoCandidates: undefined,
-      dragDiagnostic: {
-        htmlLength: 12,
-        htmlPreview: "drag payload",
-        flags: {
-          hasEmbeddedPayload: false,
-          hasVideoTag: false,
-          hasVideoList: false,
-          hasStoryPinData: false,
-          hasCarouselData: false,
-          hasMp4: false,
-          hasM3u8: false,
-          hasCmfv: false,
-          hasPinimgVideoHost: false,
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: undefined,
+        videoUrl: undefined,
+        siteHint: "pinterest",
+        videoCandidates: undefined,
+        dragDiagnostic: {
+          htmlLength: 12,
+          htmlPreview: "drag payload",
+          flags: {
+            hasEmbeddedPayload: false,
+            hasVideoTag: false,
+            hasVideoList: false,
+            hasStoryPinData: false,
+            hasCarouselData: false,
+            hasMp4: false,
+            hasM3u8: false,
+            hasCmfv: false,
+            hasPinimgVideoHost: false,
+          },
+          imageUrl: null,
+          videoUrl: null,
+          videoCandidatesCount: 0,
+          videoCandidates: [],
         },
-        imageUrl: null,
-        videoUrl: null,
-        videoCandidatesCount: 0,
-        videoCandidates: [],
-      },
-      diagnostics: {
-        interactionCapability: {
-          siteId: "pinterest",
-          interactionMode: "drag",
-          interactionStatus: "needs_special_adapter",
-          supportedModes: ["paste", "drag", "context_menu", "injected_button"],
-          isModeSupported: true,
+        diagnostics: {
+          interactionCapability: {
+            siteId: "pinterest",
+            interactionMode: "drag",
+            interactionStatus: "needs_special_adapter",
+            supportedModes: ["paste", "drag", "context_menu", "injected_button"],
+            isModeSupported: true,
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
   it("drops invalid page urls before dispatching Pinterest queue requests", async () => {
@@ -524,14 +578,16 @@ describe("createElectronRuntimeCommandRouter", () => {
       video_url: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.pinterest.com/pin/1234567890/",
-      pageUrl: undefined,
-      videoUrl: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
-      siteHint: "pinterest",
-      videoCandidates: undefined,
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.pinterest.com/pin/1234567890/",
+        pageUrl: undefined,
+        videoUrl: "https://v.pinimg.com/videos/iht/expmp4/video.mp4",
+        siteHint: "pinterest",
+        videoCandidates: undefined,
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("preserves non-Pinterest candidates and explicit site hints", async () => {
@@ -558,29 +614,31 @@ describe("createElectronRuntimeCommandRouter", () => {
       ],
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.xiaohongshu.com/explore/66112233445566778899",
-      pageUrl: "https://www.xiaohongshu.com/explore/66112233445566778899",
-      videoUrl: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
-      siteHint: "xiaohongshu",
-      videoCandidates: [
-        {
-          url: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
-          type: "direct_mp4",
-          source: "video_element",
-          confidence: "high",
-          mediaType: "video",
-        },
-        {
-          url: "https://www.xiaohongshu.com/explore/66112233445566778899",
-          type: "page_url",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.xiaohongshu.com/explore/66112233445566778899",
+        pageUrl: "https://www.xiaohongshu.com/explore/66112233445566778899",
+        videoUrl: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
+        siteHint: "xiaohongshu",
+        videoCandidates: [
+          {
+            url: "https://sns-video-bd.xhscdn.com/stream/example.mp4",
+            type: "direct_mp4",
+            source: "video_element",
+            confidence: "high",
+            mediaType: "video",
+          },
+          {
+            url: "https://www.xiaohongshu.com/explore/66112233445566778899",
+            type: "page_url",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+        ],
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("lets the runtime reorder Douyin direct candidates by quality after normalization", async () => {
@@ -609,36 +667,38 @@ describe("createElectronRuntimeCommandRouter", () => {
       ],
     });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith({
-      url: "https://www.douyin.com/video/1234567890",
-      pageUrl: "https://www.douyin.com/video/1234567890",
-      videoUrl: undefined,
-      siteHint: "douyin",
-      videoCandidates: [
-        {
-          url: "https://www.douyinvod.com/aweme/v1/play/video_1080p.mp4",
-          type: "direct_mp4",
-          source: "network_probe",
-          confidence: undefined,
-          mediaType: undefined,
-        },
-        {
-          url: "https://www.douyinvod.com/aweme/v1/play/video_540p.mp4",
-          type: "direct_mp4",
-          source: "video_element",
-          confidence: undefined,
-          mediaType: undefined,
-        },
-        {
-          url: "https://www.douyin.com/video/1234567890",
-          type: "page_url",
-          source: undefined,
-          confidence: undefined,
-          mediaType: undefined,
-        },
-      ],
-      dragDiagnostic: undefined,
-    });
+    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://www.douyin.com/video/1234567890",
+        pageUrl: "https://www.douyin.com/video/1234567890",
+        videoUrl: undefined,
+        siteHint: "douyin",
+        videoCandidates: [
+          {
+            url: "https://www.douyinvod.com/aweme/v1/play/video_1080p.mp4",
+            type: "direct_mp4",
+            source: "network_probe",
+            confidence: undefined,
+            mediaType: undefined,
+          },
+          {
+            url: "https://www.douyinvod.com/aweme/v1/play/video_540p.mp4",
+            type: "direct_mp4",
+            source: "video_element",
+            confidence: undefined,
+            mediaType: undefined,
+          },
+          {
+            url: "https://www.douyin.com/video/1234567890",
+            type: "page_url",
+            source: undefined,
+            confidence: undefined,
+            mediaType: undefined,
+          },
+        ],
+        dragDiagnostic: undefined,
+      }),
+    );
   });
 
   it("rejects queue requests whose primary url is not HTTP(S)", async () => {

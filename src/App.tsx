@@ -575,13 +575,21 @@ function App({
     ? downloadProgressByTrace[primaryDownloadTask.traceId] ?? null
     : null;
   const downloadProgress = primaryDownloadTask
-    ? primaryDownloadProgress ?? {
-        traceId: primaryDownloadTask.traceId,
-        percent: -1,
-        stage: "preparing" as DownloadStage,
-        speed: "Resolving media...",
-        eta: "",
-      }
+    ? primaryDownloadTask.phase === "probing_quality" || primaryDownloadTask.phase === "selecting_quality"
+      ? {
+          traceId: primaryDownloadTask.traceId,
+          percent: -1,
+          stage: "preparing" as DownloadStage,
+          speed: "Resolving media...",
+          eta: "",
+        }
+      : primaryDownloadProgress ?? {
+          traceId: primaryDownloadTask.traceId,
+          percent: -1,
+          stage: "preparing" as DownloadStage,
+          speed: "Resolving media...",
+          eta: "",
+        }
     : null;
   const downloadStage = primaryDownloadProgress?.stage ?? (primaryDownloadTask ? "preparing" : null);
   const transcodeQueueTasks = videoTranscodeQueueDetail.tasks.map((task) =>
@@ -610,8 +618,15 @@ function App({
         kind: "download" as const,
         task: primaryDownloadTask,
         percent: downloadProgress.percent,
-        statusText: getDownloadStatusText(i18n.t, downloadProgress, downloadStage),
-        indeterminate: downloadProgress.percent < 0,
+        statusText: primaryDownloadTask.phase === "probing_quality"
+          ? t("app.queue.probingAdvancedQuality")
+          : primaryDownloadTask.phase === "selecting_quality"
+            ? t("app.queue.selectAdvancedQuality")
+            : getDownloadStatusText(i18n.t, downloadProgress, downloadStage),
+        indeterminate:
+          primaryDownloadTask.phase === "probing_quality"
+          || primaryDownloadTask.phase === "selecting_quality"
+          || downloadProgress.percent < 0,
       }
     : primaryTranscodeTask
       ? {
@@ -1719,6 +1734,24 @@ function App({
     }
   }, [addPendingTranscodeActionTraceId, removePendingTranscodeActionTraceId]);
 
+  const selectAdvancedQualityOption = useCallback(async (traceId: string, optionId: string) => {
+    if (!traceId || !optionId) {
+      return;
+    }
+
+    try {
+      const accepted = await desktopCommands.invoke<boolean>("select_advanced_quality_option", {
+        traceId,
+        optionId,
+      });
+      if (!accepted) {
+        console.warn("Advanced quality selection was ignored for trace:", traceId);
+      }
+    } catch (err) {
+      console.error("Failed to select advanced quality option:", err);
+    }
+  }, []);
+
   const cancelTranscodeTask = useCallback(async (traceId: string) => {
     if (!traceId || pendingTranscodeActionTraceIdsRef.current.has(traceId)) {
       return;
@@ -2201,6 +2234,9 @@ function App({
     const unlisten = desktopEvents.on<VideoQueueDetailPayload>("video-queue-detail", (event) => {
       const detail = normalizeVideoQueueDetailEvent(event.payload);
       setVideoQueueDetail(detail);
+      if (detail.tasks.some((task) => task.phase === "selecting_quality")) {
+        setIsQueuePopoverOpen(true);
+      }
       // Detail reflects the task list the UI is actually rendering, so reconcile progress here
       // instead of clearing it on count events that may arrive slightly earlier.
       setDownloadProgressByTrace((current) =>
@@ -3789,6 +3825,12 @@ function App({
     if (cancellingTraceIds.includes(task.traceId)) {
       return t("app.queue.cancelling");
     }
+    if (task.phase === "probing_quality") {
+      return t("app.queue.probingAdvancedQuality");
+    }
+    if (task.phase === "selecting_quality") {
+      return t("app.queue.selectAdvancedQuality");
+    }
     if (task.status === "pending") {
       return t("app.queue.waiting");
     }
@@ -3805,6 +3847,12 @@ function App({
         });
   };
   const getDownloadQueueTaskProgressPercent = (task: VideoQueueTaskPayload): number => {
+    if (task.phase === "selecting_quality") {
+      return 100;
+    }
+    if (task.phase === "probing_quality") {
+      return 18;
+    }
     if (task.status !== "active") {
       return 8;
     }
@@ -4424,6 +4472,38 @@ function App({
                               <span style={{ fontSize: 9, lineHeight: 1.1, color: colors.textSecondary }}>
                                 {getDownloadQueueTaskProgressText(task)}
                               </span>
+                              {task.phase === "selecting_quality" && task.qualityOptions?.length ? (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 4,
+                                  }}
+                                >
+                                  {task.qualityOptions.map((option) => (
+                                    <button
+                                      key={option.id}
+                                      onClick={() => {
+                                        void selectAdvancedQualityOption(task.traceId, option.id);
+                                      }}
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                      style={{
+                                        border: `1px solid ${colors.accentBorder}`,
+                                        backgroundColor: colors.accentSurface,
+                                        color: colors.accentText,
+                                        borderRadius: 999,
+                                        padding: '2px 7px',
+                                        fontSize: 8,
+                                        lineHeight: 1.2,
+                                        cursor: 'pointer',
+                                      }}
+                                      title={option.label}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             <button
                               onClick={() => {

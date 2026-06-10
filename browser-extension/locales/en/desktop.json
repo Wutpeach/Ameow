@@ -54,6 +54,8 @@
       "percentStatus": "{{percent}}% · {{status}}",
       "cancelling": "Cancelling...",
       "waiting": "Waiting...",
+      "probingAdvancedQuality": "Probing qualities...",
+      "selectAdvancedQuality": "Choose a quality",
       "cancellingCurrent": "Cancelling current download...",
       "remainingSummary": "{{downloadCount}} downloads · {{transcodeCount}} transcodes remaining",
       "sourceQueuedForTranscode": "Source media ready, added to transcode queue",
