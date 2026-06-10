@@ -26,7 +26,16 @@ const buildQualityLabel = (height: number): string => {
 };
 
 const buildSelectorForHeight = (height: number): string => (
-  `bv*[height=${height}]+ba/b[height=${height}]/best[height=${height}]`
+  [
+    `bv*[height=${height}][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/`,
+    `bv*[height=${height}][ext=mp4]+ba[ext=m4a]/`,
+    `b[height=${height}][vcodec^=avc1][ext=mp4]/`,
+    `b[height=${height}][ext=mp4]/`,
+    `best[height=${height}][ext=mp4]/`,
+    `bv*[height=${height}]+ba/`,
+    `b[height=${height}]/`,
+    `best[height=${height}]`,
+  ].join("")
 );
 
 const extractFormats = (payload: unknown): Array<Record<string, unknown>> => {

@@ -349,7 +349,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     runAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
-        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
     });
 
@@ -397,7 +397,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       });
       return {
         options: [
-          { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+          { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
         ],
       };
     });
@@ -454,7 +454,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     runAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
-        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
     });
 
@@ -538,7 +538,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       engines: [
         createEngineStub("yt-dlp", async (context) => {
           seenTraceIds.push(context.traceId);
-          expect(context.intent.advancedQualitySelector).toBe("bv*[height=1080]+ba");
+          expect(context.intent.advancedQualitySelector).toBe("bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba");
           expect(context.intent.advancedQualityLabel).toBe("1080p");
           return {
             traceId: context.traceId,
@@ -551,7 +551,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     runAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
-        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
     });
 

@@ -141,12 +141,14 @@ describe("yt-dlp command planning", () => {
         selectionScope: "current_item",
         siteId: "youtube",
         videoQuality: "best",
-        advancedQualitySelector: "bv*[height=1080]+ba",
+        advancedQualitySelector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba",
         advancedQualityLabel: "1080p",
       },
     }));
 
-    expect(plan.formatProfile.selector).toBe("bv*[height=1080]+ba");
+    expect(plan.formatProfile.selector).toBe(
+      "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba",
+    );
   });
 
   it("uses platform-specific extended youtube js runtime ordering", () => {
