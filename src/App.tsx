@@ -143,6 +143,23 @@ import {
   isMainWindowBoundsTransitionCurrent,
   type MainWindowBoundsTransitionState,
 } from "./utils/mainWindowTransitionToken";
+import {
+  MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS,
+  MAIN_WINDOW_FULL_PANEL_RADIUS,
+  MAIN_WINDOW_INITIAL_PANEL_SCALE,
+  MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION,
+  MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION,
+  MAIN_WINDOW_MINIMIZED_ICON_LEAVE_TRANSITION,
+  MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION,
+  MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION,
+  MAIN_WINDOW_MINIMIZED_ICON_SIZE,
+  MAIN_WINDOW_MINIMIZED_PANEL_RADIUS,
+  MAIN_WINDOW_MINIMIZED_PANEL_SCALE,
+  MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION,
+  MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION,
+  MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION,
+  MAIN_WINDOW_PANEL_INSTANT_TRANSITION,
+} from "./utils/mainWindowMotionBaseline";
 import { resolveMainWindowCompactVisibilityBounds } from "./utils/mainWindowCompactBounds";
 import { isPointInsideCompactPointerHotspot } from "./utils/compactPointerHotspot";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
@@ -178,7 +195,6 @@ const isResolvableVideoInputUrl = (value: string): boolean => (
 );
 
 const MAX_IN_MEMORY_DROPPED_FILE_BYTES = 25 * 1024 * 1024;
-const COMPACT_WINDOW_VISIBILITY_MOVE_DURATION_MS = 180;
 
 // Helper function to check and show sequence overflow error
 const checkSequenceOverflow = (error: unknown): boolean => {
@@ -440,7 +456,7 @@ function App({
     ? MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE
     : MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE;
   const MINIMIZED_SHELL_SIZE = MAIN_WINDOW_COMPACT_SHELL_SIZE;
-  const MINIMIZED_ICON_SIZE = 38;
+  const MINIMIZED_ICON_SIZE = MAIN_WINDOW_MINIMIZED_ICON_SIZE;
   const COMPACT_HOTSPOT_FRAME_SIZE = isMacOS ? MINIMIZED_SHELL_SIZE : MINIMIZED_ICON_SIZE;
   const MINIMIZED_SHELL_INSET = Math.round((ICON_SIZE - MINIMIZED_SHELL_SIZE) / 2);
   const FULL_SHELL_INSET = FULL_WINDOW_SHADOW_GUTTER;
@@ -949,7 +965,7 @@ function App({
     }
 
     const result = await desktopCurrentWindow.animateBounds(targetBounds, {
-      durationMs: shouldReduceMotion ? 0 : COMPACT_WINDOW_VISIBILITY_MOVE_DURATION_MS,
+      durationMs: shouldReduceMotion ? 0 : MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS,
       transitionToken,
     });
 
@@ -1336,7 +1352,7 @@ function App({
   const shouldShowDragGlow = isHovering && !primaryTask && !visualIsMinimized;
   const panelRenderSize = visualIsMinimized ? MINIMIZED_SHELL_SIZE : FULL_SIZE;
   const minimizedPanelOffset = visualIsMinimized ? MINIMIZED_SHELL_INSET : FULL_SHELL_INSET;
-  const minimizedPanelScale = 1;
+  const minimizedPanelScale = MAIN_WINDOW_MINIMIZED_PANEL_SCALE;
   const minimizedIconSize = isMacOS ? MINIMIZED_ICON_SIZE - 2 : MINIMIZED_ICON_SIZE;
   const minimizedIconFrameSize = isMacOS ? MINIMIZED_SHELL_SIZE : minimizedIconSize;
   const minimizedIconWrapperScale = 1;
@@ -1349,30 +1365,32 @@ function App({
         ? { scale: 1, opacity: 1 }
         : { scale: [1, 1.015, 0.9], opacity: [1, 1, 0] });
   const minimizedIconTransition = shouldReduceMotion
-    ? { duration: 0.12 }
+    ? MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION
     : visualIsMinimized
-      ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] as const }
-      : { duration: 0.24, times: [0, 0.58, 1], ease: [0.22, 1, 0.36, 1] as const };
+      ? MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION
+      : MAIN_WINDOW_MINIMIZED_ICON_LEAVE_TRANSITION;
   const minimizedIconExit = shouldReduceMotion
     ? {
         opacity: 0,
         scale: 1,
-        transition: { duration: 0.01 },
+        transition: MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION,
       }
     : {
         opacity: 0,
         scale: 1,
-        transition: { duration: 0.05, ease: [0.22, 1, 0.36, 1] as const },
+        transition: MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION,
       };
   const panelScale = visualIsMinimized ? minimizedPanelScale : 1;
-  const panelRadius = visualIsMinimized ? 100 : 16;
-  const initialPanelTweenTransition = { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
-  const minimizedPanelTweenTransition = { duration: 0.18, ease: [0.22, 1, 0.36, 1] as const };
-  const instantPanelValueTransition = { duration: 0 } as const;
-  const springPanelValueTransition = { type: "spring" as const, stiffness: 400, damping: 30 };
+  const panelRadius = visualIsMinimized
+    ? MAIN_WINDOW_MINIMIZED_PANEL_RADIUS
+    : MAIN_WINDOW_FULL_PANEL_RADIUS;
+  const initialPanelTweenTransition = MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION;
+  const minimizedPanelTweenTransition = MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION;
+  const instantPanelValueTransition = MAIN_WINDOW_PANEL_INSTANT_TRANSITION;
+  const springPanelValueTransition = MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION;
   const panelShellClipPath = getContinuousCornerClipPath(panelRadius);
   const panelShellAnimate = {
-    scale: isInitialMount ? 0.82 : panelScale,
+    scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
     borderRadius: panelRadius,
     clipPath: panelShellClipPath,
     x: minimizedPanelOffset,

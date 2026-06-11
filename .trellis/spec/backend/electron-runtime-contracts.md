@@ -1100,7 +1100,7 @@ Required tests:
 - Renderer drag activation may wait for a movement threshold, but once dragging starts it must derive movement from screen-space pointer deltas plus the window's initial outer position.
 - Read `currentWindow.outerPosition()` once when drag becomes active; do not re-query window coordinates on every move.
 - High-frequency movement updates must go through `currentWindow.setPosition({ x, y })`, implemented as fire-and-forget IPC (`ipcRenderer.send(...)` / `ipcMain.on(...)`).
-- Short icon-mode window morphs (`80x80 <-> 200x200`) must use `currentWindow.animateBounds({ x, y, width, height }, { durationMs })` against the existing main BrowserWindow.
+- Shell paths that are confirmed to change the main window's native size must use `currentWindow.animateBounds({ x, y, width, height }, { durationMs })` against the existing main BrowserWindow. Do not infer that every compact/full visual morph changes native size; first classify the current path as startup normalization, compact visibility clamping, restore synchronization, visual-only renderer morph, or a true native size transition.
 - Do not reintroduce a dedicated `window-transition-overlay` BrowserWindow for icon-mode expand; Windows DWM cross-window handoff is not the supported contract for Ameow.
 - Renderer may batch window-position writes with `requestAnimationFrame`, but it must not await request/response IPC inside `pointermove`.
 - `currentWindow.startDragging()` is not the hot-path mechanism for Ameow's custom frameless drag contract on Electron.
