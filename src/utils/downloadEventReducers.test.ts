@@ -223,8 +223,22 @@ describe("queue event reducers", () => {
     )).toEqual({
       detail: {
         tasks: [
-          { traceId: "live", label: "Live", status: "active" },
-          { traceId: "pending", label: "pending", status: "pending" },
+          {
+            traceId: "live",
+            label: "Live",
+            videoTitle: undefined,
+            status: "active",
+            phase: null,
+            qualityOptions: undefined,
+          },
+          {
+            traceId: "pending",
+            label: "pending",
+            videoTitle: undefined,
+            status: "pending",
+            phase: null,
+            qualityOptions: undefined,
+          },
         ],
       },
       progressByTrace: {

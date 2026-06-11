@@ -33,6 +33,25 @@ import { motion, AnimatePresence } from "motion/react";
 
 Do not introduce new imports from `framer-motion`.
 
+### Shared Motion Tokens
+
+Reusable UI motion values live in:
+
+```text
+src/components/ui/motion.ts
+```
+
+Use this module for shared easing tuples, duration tokens, compact presence presets, and small motion helper functions. Keep it as a leaf module: it must not import from `shared-styles.ts` or other UI components.
+
+`MOTION_EASE.compact` and `COMPACT_EASE` intentionally represent the same curve in different formats:
+
+- `MOTION_EASE.compact`: Motion tuple, for `motion/react`
+- `COMPACT_EASE`: CSS cubic-bezier string, for CSS transitions in `shared-styles.ts`
+
+Do not parse CSS strings into Motion tuples or force CSS consumers to use Motion tuple values.
+
+CSS transition helpers exported from `motion.ts` must include `Css` in the name, such as `compactCssTransition(...)`, so they are not confused with Motion transition objects.
+
 ### Property Rule
 
 Prefer animating:
@@ -69,6 +88,10 @@ Use `motion/react` for:
 - Stateful transitions that need `AnimatePresence`
 
 Do not animate the same property with both CSS and Motion at the same time.
+
+### Phase Boundary Rule
+
+Shared motion tokens may be used by low-risk UI consumers such as dropdowns, settings page transitions, and center overlays. The main floating-window compact/full morph is a separate high-risk motion area. Do not tune or refactor its Electron `animateBounds(...)` flow, transition-token ownership, hover-collapse timing, or platform-specific compact shell behavior as part of generic motion-token cleanup.
 
 ---
 

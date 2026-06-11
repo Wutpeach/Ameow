@@ -7,10 +7,14 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { NeonFieldButton } from "./neon-field-button";
 import { COMPACT_EASE, getFieldSurfaceStyle, getPanelShellStyle } from "./shared-styles";
+import {
+  COMPACT_POPOVER_PRESENCE,
+  MOTION_DURATION,
+} from "./motion";
 
 export interface NeonDropdownOption<T extends string> {
   value: T;
@@ -40,8 +44,17 @@ export function NeonDropdownField<T extends string>({
   const [hoveredValue, setHoveredValue] = useState<T | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const listboxId = useId();
+  const shouldReduceMotion = useReducedMotion();
 
   const selectedLabel = options.find((option) => option.value === value)?.label ?? options[0]?.label ?? "";
+  const menuPresence = shouldReduceMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: MOTION_DURATION.micro },
+      }
+    : COMPACT_POPOVER_PRESENCE;
 
   useEffect(() => {
     if (!isOpen) {
@@ -127,10 +140,10 @@ export function NeonDropdownField<T extends string>({
             id={listboxId}
             role="listbox"
             aria-activedescendant={`${listboxId}-${value}`}
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -2, scale: 0.985 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            initial={menuPresence.initial}
+            animate={menuPresence.animate}
+            exit={menuPresence.exit}
+            transition={menuPresence.transition}
             style={{
               position: "absolute",
               top: "calc(100% + 6px)",

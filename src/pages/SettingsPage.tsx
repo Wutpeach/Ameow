@@ -21,6 +21,7 @@ import {
   NeonToggle,
   type NeonDropdownOption,
 } from "../components/ui";
+import { getSettingsPageSwitchMotion } from "../components/ui/motion";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   desktopCommands,
@@ -2172,17 +2173,10 @@ function SettingsPage() {
     }
   };
 
-  const pageOffset = settingsNavigationDirection === "forward" ? 8 : -8;
-  const settingsPageMotionInitial = shouldReduceMotion
-    ? { opacity: 1, x: 0 }
-    : { opacity: 0, x: pageOffset };
-  const settingsPageMotionExit = shouldReduceMotion
-    ? { opacity: 1, x: 0 }
-    : { opacity: 0, x: -pageOffset };
-  const settingsPageMotionTransition = {
-    duration: shouldReduceMotion ? 0 : 0.16,
-    ease: [0.22, 1, 0.36, 1] as const,
-  };
+  const settingsPageMotion = getSettingsPageSwitchMotion(
+    shouldReduceMotion,
+    settingsNavigationDirection,
+  );
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -2257,10 +2251,10 @@ function SettingsPage() {
                 id={`settings-page-${activePage}`}
                 role={activePage === "hub" ? "navigation" : "region"}
                 aria-label={activePageTitle}
-                initial={settingsPageMotionInitial}
-                animate={{ opacity: 1, x: 0 }}
-                exit={settingsPageMotionExit}
-                transition={settingsPageMotionTransition}
+                initial={settingsPageMotion.initial}
+                animate={settingsPageMotion.animate}
+                exit={settingsPageMotion.exit}
+                transition={settingsPageMotion.transition}
                 style={{
                   willChange: shouldReduceMotion ? undefined : "transform, opacity",
                   ...(activePage === "hub"

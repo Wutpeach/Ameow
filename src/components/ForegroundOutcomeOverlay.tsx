@@ -7,6 +7,7 @@ import {
   CENTER_OVERLAY_CONTENT_STYLE,
   CENTER_OVERLAY_PRESENCE_MOTION,
 } from "./foregroundOverlayShared";
+import { MOTION_EASE } from "./ui/motion";
 
 const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
   width: 48,
@@ -53,16 +54,16 @@ export const ForegroundOutcomeOverlay = ({
   const ringExitTransition = shouldReduceMotion
     ? { duration: 0.1 }
     : {
-        opacity: { duration: 0.14, ease: [0.32, 0.72, 0, 1] as const },
-        scale: { duration: 0.16, ease: [0.32, 0.72, 0, 1] as const },
-        filter: { duration: 0.16, ease: [0.32, 0.72, 0, 1] as const },
+        opacity: { duration: 0.14, ease: MOTION_EASE.exit },
+        scale: { duration: 0.16, ease: MOTION_EASE.exit },
+        filter: { duration: 0.16, ease: MOTION_EASE.exit },
       };
   const outcomeEnterTransition = shouldReduceMotion
     ? { duration: 0.12 }
     : {
         duration: 0.34,
         times: [0, 0.46, 1],
-        ease: [0.22, 1, 0.36, 1] as const,
+        ease: MOTION_EASE.compact,
       };
   const ringAnimate = outcomeVisible
     ? { opacity: 0, scale: 0.58, filter: "blur(1px)" }
@@ -78,7 +79,7 @@ export const ForegroundOutcomeOverlay = ({
     : { opacity: 0, scale: 0.84, filter: "blur(0.8px)" };
   const outcomeTransition = outcomeVisible
     ? outcomeEnterTransition
-    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: [0.32, 0.72, 0, 1] as const };
+    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: MOTION_EASE.exit };
   const errorMessageAnimate = outcomeVisible
     ? shouldReduceMotion
       ? { opacity: 1, y: 0 }
@@ -87,8 +88,8 @@ export const ForegroundOutcomeOverlay = ({
   const errorMessageTransition = outcomeVisible
     ? shouldReduceMotion
       ? { duration: 0.12 }
-      : { duration: 0.28, times: [0, 0.55, 1], ease: [0.22, 1, 0.36, 1] as const }
-    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: [0.32, 0.72, 0, 1] as const };
+      : { duration: 0.28, times: [0, 0.55, 1], ease: MOTION_EASE.compact }
+    : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: MOTION_EASE.exit };
 
   return (
     <AnimatePresence mode="sync" initial={false}>
