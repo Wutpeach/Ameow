@@ -172,9 +172,81 @@ describe("video queue helpers", () => {
       ],
     })).toEqual({
       tasks: [
-        { traceId: "active-1", label: "active-1", status: "active" },
-        { traceId: "pending-1", label: "Pending", status: "pending" },
-        { traceId: "coerced", label: "Coerced", status: "active" },
+        {
+          traceId: "active-1",
+          label: "active-1",
+          videoTitle: undefined,
+          status: "active",
+          phase: null,
+          qualityOptions: undefined,
+        },
+        {
+          traceId: "pending-1",
+          label: "Pending",
+          videoTitle: undefined,
+          status: "pending",
+          phase: null,
+          qualityOptions: undefined,
+        },
+        {
+          traceId: "coerced",
+          label: "Coerced",
+          videoTitle: undefined,
+          status: "active",
+          phase: null,
+          qualityOptions: undefined,
+        },
+      ],
+    });
+  });
+
+  it("normalizes advanced quality title and post-process metadata", () => {
+    expect(normalizeVideoQueueDetail({
+      tasks: [
+        {
+          traceId: "advanced-1",
+          label: "Fallback title",
+          videoTitle: " Real video title ",
+          status: "active",
+          phase: "selecting_quality",
+          qualityOptions: [
+            {
+              id: "height_1080",
+              label: " 1080p ",
+              tags: [" ", "legacy"],
+              postProcessPlan: "full_transcode",
+            },
+            {
+              id: "height_720",
+              label: "720p",
+              postProcessPlan: "bad" as "unknown",
+            },
+          ],
+        },
+      ],
+    })).toEqual({
+      tasks: [
+        {
+          traceId: "advanced-1",
+          label: "Fallback title",
+          videoTitle: "Real video title",
+          status: "active",
+          phase: "selecting_quality",
+          qualityOptions: [
+            {
+              id: "height_1080",
+              label: "1080p",
+              tags: ["legacy"],
+              postProcessPlan: "full_transcode",
+            },
+            {
+              id: "height_720",
+              label: "720p",
+              tags: undefined,
+              postProcessPlan: undefined,
+            },
+          ],
+        },
       ],
     });
   });

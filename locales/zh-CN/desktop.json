@@ -55,7 +55,7 @@
       "cancelling": "取消中...",
       "waiting": "等待中...",
       "probingAdvancedQuality": "正在探测画质...",
-      "selectAdvancedQuality": "请选择画质",
+      "selectAdvancedQuality": "选择画质",
       "cancellingCurrent": "正在取消当前下载...",
       "remainingSummary": "剩余 {{downloadCount}} 个下载 · {{transcodeCount}} 个转码",
       "sourceQueuedForTranscode": "源素材已获取，已加入转码队列",

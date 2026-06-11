@@ -47,6 +47,7 @@ import type {
   DownloadProgressPayload,
   DownloadResultPayload as DownloadResult,
   DownloadStage,
+  AdvancedQualityOptionPayload,
   QueuedVideoDownloadAck,
   QueuedVideoDownloadRequest,
   VideoQueueDetailPayload,
@@ -452,6 +453,7 @@ function App({
   const [isProcessing, setIsProcessing] = useState(false);
   const [downloadCancelled, setDownloadCancelled] = useState(false);
   const [downloadErrorMessage, setDownloadErrorMessage] = useState<string | null>(null);
+  const [hoveredAdvancedQualityOptionId, setHoveredAdvancedQualityOptionId] = useState<string | null>(null);
   const [isForegroundTaskOutcomeVisible, setIsForegroundTaskOutcomeVisible] = useState(false);
   const [centerOutcome, setCenterOutcome] = useState<"folder-success" | "folder-error" | null>(null);
   const [outputPath, setOutputPath] = useState("");
@@ -3883,6 +3885,103 @@ function App({
     task.phase === "selecting_quality" && Boolean(task.qualityOptions?.length)
   )) ?? null;
   const isAdvancedQualitySelectionPopover = isQueuePopoverOpen && advancedQualitySelectionTask !== null;
+  const getAdvancedQualityTaskTitle = (task: VideoQueueTaskPayload): string => (
+    task.videoTitle?.trim() || task.label
+  );
+  const getAdvancedQualityPostProcessBadge = (
+    option: AdvancedQualityOptionPayload,
+  ): string | null => {
+    if (option.postProcessPlan === "remux_only") {
+      return "封装";
+    }
+    if (option.postProcessPlan === "audio_transcode" || option.postProcessPlan === "full_transcode") {
+      return "转码";
+    }
+    return null;
+  };
+  const renderAdvancedQualityOptionButton = (
+    task: VideoQueueTaskPayload,
+    option: AdvancedQualityOptionPayload,
+    density: "popover" | "inline",
+  ) => {
+    const hoverKey = `${task.traceId}:${option.id}:${density}`;
+    const isHovered = hoveredAdvancedQualityOptionId === hoverKey;
+    const badge = getAdvancedQualityPostProcessBadge(option);
+
+    return (
+      <button
+        key={option.id}
+        onClick={() => {
+          void selectAdvancedQualityOption(task.traceId, option.id);
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseEnter={() => setHoveredAdvancedQualityOptionId(hoverKey)}
+        onMouseLeave={() => setHoveredAdvancedQualityOptionId((current) => (
+          current === hoverKey ? null : current
+        ))}
+        onFocus={() => setHoveredAdvancedQualityOptionId(hoverKey)}
+        onBlur={() => setHoveredAdvancedQualityOptionId((current) => (
+          current === hoverKey ? null : current
+        ))}
+        style={{
+          minHeight: density === "popover" ? 36 : 30,
+          width: '100%',
+          border: `1px solid ${isHovered ? colors.accentBorder : colors.fieldBorder}`,
+          background: isHovered
+            ? `linear-gradient(180deg, ${colors.fieldHoverBg} 0%, ${colors.fieldBg} 100%)`
+            : `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgSecondary} 100%)`,
+          color: colors.textPrimary,
+          borderRadius: 10,
+          padding: density === "popover" ? '0 10px' : '0 8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          cursor: 'pointer',
+          boxShadow: isHovered
+            ? `inset 0 0 0 1px ${colors.accentBorder}, 0 0 10px -6px ${colors.accentGlow}`
+            : `inset 0 0 0 1px ${colors.borderStart}`,
+          transition: 'border-color 0.16s cubic-bezier(0.22, 1, 0.36, 1), background 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+        title={option.label}
+      >
+        <span
+          style={{
+            minWidth: 0,
+            flex: 1,
+            fontSize: density === "popover" ? 13 : 11,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: isHovered ? colors.accentText : colors.textPrimary,
+            textAlign: 'left',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {option.label}
+        </span>
+        {badge ? (
+          <span
+            style={{
+              flexShrink: 0,
+              borderRadius: 999,
+              padding: density === "popover" ? '2px 6px' : '1px 5px',
+              border: `1px solid ${colors.warningBorder}`,
+              backgroundColor: colors.warningSurface,
+              color: colors.warningText,
+              fontSize: 10,
+              fontWeight: 700,
+              lineHeight: 1.1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </button>
+    );
+  };
   const showVideoTaskBadge = (totalTaskCount > 0 || isQueuePopoverOpen) && !isAdvancedQualitySelectionPopover;
   const queueViewMeta = [
     totalDownloadTaskCount > 0 ? t("app.queue.downloadCountSummary", { count: totalDownloadTaskCount }) : null,
@@ -4342,9 +4441,9 @@ function App({
                           {t("app.queue.selectAdvancedQuality")}
                         </span>
                         <span
-                          title={advancedQualitySelectionTask.label}
+                          title={getAdvancedQualityTaskTitle(advancedQualitySelectionTask)}
                           style={{
-                            fontSize: 9,
+                            fontSize: 10,
                             lineHeight: 1.2,
                             color: colors.textSecondary,
                             whiteSpace: 'nowrap',
@@ -4353,7 +4452,7 @@ function App({
                             userSelect: 'none',
                           }}
                         >
-                          {advancedQualitySelectionTask.label}
+                          {getAdvancedQualityTaskTitle(advancedQualitySelectionTask)}
                         </span>
                       </div>
                       <button
@@ -4403,53 +4502,7 @@ function App({
                       }}
                     >
                       {advancedQualitySelectionTask.qualityOptions?.map((option) => (
-                        <button
-                          key={option.id}
-                          onClick={() => {
-                            void selectAdvancedQualityOption(advancedQualitySelectionTask.traceId, option.id);
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          style={{
-                            minHeight: 34,
-                            width: '100%',
-                            border: `1px solid ${colors.accentBorder}`,
-                            background: `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgSecondary} 100%)`,
-                            color: colors.textPrimary,
-                            borderRadius: 10,
-                            padding: '0 10px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            cursor: 'pointer',
-                            boxShadow: `inset 0 0 0 1px ${colors.borderStart}`,
-                          }}
-                          title={option.label}
-                        >
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 750,
-                              lineHeight: 1,
-                              color: colors.accentText,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {option.label}
-                          </span>
-                          <span
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: '50%',
-                              backgroundColor: colors.progressFgStroke,
-                              boxShadow: `0 0 10px ${colors.progressFgStroke}`,
-                              flexShrink: 0,
-                            }}
-                          />
-                        </button>
+                        renderAdvancedQualityOptionButton(advancedQualitySelectionTask, option, "popover")
                       ))}
                     </div>
                   </div>
@@ -4621,31 +4674,12 @@ function App({
                                 <div
                                   style={{
                                     display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: 4,
+                                    flexDirection: 'column',
+                                    gap: 5,
                                   }}
                                 >
                                   {task.qualityOptions.map((option) => (
-                                    <button
-                                      key={option.id}
-                                      onClick={() => {
-                                        void selectAdvancedQualityOption(task.traceId, option.id);
-                                      }}
-                                      onMouseDown={(e) => e.stopPropagation()}
-                                      style={{
-                                        border: `1px solid ${colors.accentBorder}`,
-                                        backgroundColor: colors.accentSurface,
-                                        color: colors.accentText,
-                                        borderRadius: 999,
-                                        padding: '2px 7px',
-                                        fontSize: 8,
-                                        lineHeight: 1.2,
-                                        cursor: 'pointer',
-                                      }}
-                                      title={option.label}
-                                    >
-                                      {option.label}
-                                    </button>
+                                    renderAdvancedQualityOptionButton(task, option, "inline")
                                   ))}
                                 </div>
                               ) : null}

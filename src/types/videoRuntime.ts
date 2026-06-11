@@ -27,15 +27,24 @@ export type VideoQueueTaskPhase =
   | "probing_quality"
   | "selecting_quality";
 
+export type AdvancedQualityPostProcessPlan =
+  | "none"
+  | "remux_only"
+  | "audio_transcode"
+  | "full_transcode"
+  | "unknown";
+
 export type AdvancedQualityOptionPayload = {
   id: string;
   label: string;
   tags?: string[];
+  postProcessPlan?: AdvancedQualityPostProcessPlan;
 };
 
 export type VideoQueueTaskPayload = {
   traceId: string;
   label: string;
+  videoTitle?: string;
   status: VideoQueueTaskStatus;
   phase?: VideoQueueTaskPhase | null;
   qualityOptions?: AdvancedQualityOptionPayload[];

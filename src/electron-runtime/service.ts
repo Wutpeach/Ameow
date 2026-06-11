@@ -86,6 +86,7 @@ type AdvancedQualityRuntimeOption = AdvancedQualityOptionPayload & {
 type AdvancedQualityTaskState = {
   traceId: string;
   label: string;
+  videoTitle?: string;
   request: RawDownloadInput;
   dedupeKey: string;
   phase: Extract<VideoQueueTaskPhase, "probing_quality" | "selecting_quality">;
@@ -270,6 +271,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         ...Array.from(this.advancedQualityTasks.values()).map((task) => ({
           traceId: task.traceId,
           label: task.label,
+          videoTitle: task.videoTitle,
           status: "active" as const,
           phase: task.phase,
           qualityOptions: task.phase === "selecting_quality"
@@ -277,6 +279,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
                 id: option.id,
                 label: option.label,
                 tags: option.tags,
+                postProcessPlan: option.postProcessPlan,
               }))
             : undefined,
         })),
@@ -448,7 +451,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
 
     try {
-      const { options } = await this.runAdvancedQualityProbeForTask(task);
+      const { options, videoTitle } = await this.runAdvancedQualityProbeForTask(task);
       const latestTask = this.advancedQualityTasks.get(traceId);
       if (!latestTask) {
         return;
@@ -456,6 +459,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       latestTask.phase = "selecting_quality";
       latestTask.abortController = null;
       latestTask.qualityOptions = options;
+      latestTask.videoTitle = videoTitle;
       await this.emitQueueState();
     } catch (error) {
       const latestTask = this.advancedQualityTasks.get(traceId);

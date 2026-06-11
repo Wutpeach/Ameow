@@ -1,6 +1,9 @@
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
-import type { AdvancedQualityOptionPayload } from "../types/videoRuntime.js";
+import type {
+  AdvancedQualityOptionPayload,
+  AdvancedQualityPostProcessPlan,
+} from "../types/videoRuntime.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 import { runCapturedCommand } from "./processRunner.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
@@ -13,6 +16,7 @@ type AdvancedQualityInternalOption = AdvancedQualityOptionPayload & {
 
 export type AdvancedQualityProbeResult = {
   options: AdvancedQualityInternalOption[];
+  videoTitle?: string;
 };
 
 const RESOLUTION_ALIAS_BY_HEIGHT: Record<number, string> = {
@@ -53,23 +57,203 @@ const extractFormats = (payload: unknown): Array<Record<string, unknown>> => {
   ));
 };
 
+const normalizeFormatString = (value: unknown): string => (
+  typeof value === "string" ? value.trim().toLowerCase() : ""
+);
+
+const hasVideoCodec = (format: Record<string, unknown>): boolean => {
+  const vcodec = normalizeFormatString(format.vcodec);
+  return Boolean(vcodec) && vcodec !== "none";
+};
+
+const hasAudioCodec = (format: Record<string, unknown>): boolean => {
+  const acodec = normalizeFormatString(format.acodec);
+  return Boolean(acodec) && acodec !== "none";
+};
+
+const formatHeight = (format: Record<string, unknown>): number | null => {
+  const height = Number(format.height);
+  return Number.isFinite(height) && height > 0 ? Math.floor(height) : null;
+};
+
+const isMp4LikeExtension = (value: string): boolean => value === "mp4" || value === "m4v";
+const isM4aLikeExtension = (value: string): boolean => value === "m4a" || value === "mp4";
+
+const resolveVideoExtension = (format: Record<string, unknown>): string => {
+  const videoExt = normalizeFormatString(format.video_ext);
+  return videoExt && videoExt !== "none" ? videoExt : normalizeFormatString(format.ext);
+};
+
+const resolveAudioExtension = (format: Record<string, unknown>): string => {
+  const audioExt = normalizeFormatString(format.audio_ext);
+  return audioExt && audioExt !== "none" ? audioExt : normalizeFormatString(format.ext);
+};
+
+const isAvc1Video = (format: Record<string, unknown>): boolean => (
+  normalizeFormatString(format.vcodec).startsWith("avc1")
+);
+
+const isMp4aAudio = (format: Record<string, unknown>): boolean => (
+  normalizeFormatString(format.acodec).startsWith("mp4a")
+);
+
+const isCompatibleVideoOnly = (format: Record<string, unknown>, height: number): boolean => (
+  formatHeight(format) === height
+    && hasVideoCodec(format)
+    && !hasAudioCodec(format)
+    && isAvc1Video(format)
+    && isMp4LikeExtension(resolveVideoExtension(format))
+);
+
+const isCompatibleAudioOnly = (format: Record<string, unknown>): boolean => (
+  !hasVideoCodec(format)
+    && hasAudioCodec(format)
+    && isMp4aAudio(format)
+    && isM4aLikeExtension(resolveAudioExtension(format))
+);
+
+const isCompatibleCombined = (format: Record<string, unknown>, height: number): boolean => (
+  formatHeight(format) === height
+    && hasVideoCodec(format)
+    && hasAudioCodec(format)
+    && isAvc1Video(format)
+    && isMp4aAudio(format)
+    && isMp4LikeExtension(resolveVideoExtension(format))
+    && isM4aLikeExtension(resolveAudioExtension(format))
+);
+
+const classifyCompatibleMediaPlan = (
+  format: Record<string, unknown>,
+): AdvancedQualityPostProcessPlan => {
+  const videoCodec = normalizeFormatString(format.vcodec);
+  const audioCodec = normalizeFormatString(format.acodec);
+  const ext = normalizeFormatString(format.ext);
+  const videoExt = resolveVideoExtension(format);
+  const videoCompatible = videoCodec === "h264" || videoCodec.startsWith("avc1");
+  const audioCompatible = !audioCodec || audioCodec === "none" || audioCodec === "aac" || audioCodec.startsWith("mp4a");
+  const mp4Container = isMp4LikeExtension(ext) || isMp4LikeExtension(videoExt);
+
+  if (mp4Container && videoCompatible && audioCompatible) {
+    return "none";
+  }
+  if (videoCompatible && audioCompatible) {
+    return "remux_only";
+  }
+  if (videoCompatible && !audioCompatible) {
+    return "audio_transcode";
+  }
+  return "full_transcode";
+};
+
+const singlePlanOrUnknown = (
+  candidates: Array<Record<string, unknown>>,
+): AdvancedQualityPostProcessPlan => {
+  if (candidates.length === 0) {
+    return "unknown";
+  }
+  const plans = new Set(candidates.map(classifyCompatibleMediaPlan));
+  return plans.size === 1 ? Array.from(plans)[0] ?? "unknown" : "unknown";
+};
+
+const combineSeparatePlans = (
+  videoPlan: AdvancedQualityPostProcessPlan,
+  audioFormats: Array<Record<string, unknown>>,
+): AdvancedQualityPostProcessPlan => {
+  if (videoPlan === "unknown" || audioFormats.length === 0) {
+    return "unknown";
+  }
+  const allAudioCompatible = audioFormats.every((format) => {
+    const audioCodec = normalizeFormatString(format.acodec);
+    return audioCodec === "aac" || audioCodec.startsWith("mp4a");
+  });
+  if (!allAudioCompatible) {
+    return videoPlan === "full_transcode" ? "full_transcode" : "unknown";
+  }
+  return videoPlan;
+};
+
+const resolvePostProcessPlanForHeight = (
+  formats: Array<Record<string, unknown>>,
+  height: number,
+): AdvancedQualityPostProcessPlan => {
+  const heightVideoFormats = formats.filter((format) => (
+    formatHeight(format) === height && hasVideoCodec(format)
+  ));
+  const compatibleAudioFormats = formats.filter(isCompatibleAudioOnly);
+
+  if (
+    heightVideoFormats.some((format) => isCompatibleVideoOnly(format, height))
+    && compatibleAudioFormats.length > 0
+  ) {
+    return "none";
+  }
+
+  const mp4VideoWithM4aFormats = heightVideoFormats.filter((format) => (
+    !hasAudioCodec(format)
+      && isMp4LikeExtension(resolveVideoExtension(format))
+      && compatibleAudioFormats.length > 0
+  ));
+  if (mp4VideoWithM4aFormats.length > 0) {
+    return singlePlanOrUnknown(mp4VideoWithM4aFormats);
+  }
+
+  const compatibleCombinedFormats = formats.filter((format) => isCompatibleCombined(format, height));
+  if (compatibleCombinedFormats.length > 0) {
+    return "none";
+  }
+
+  const mp4CombinedFormats = formats.filter((format) => (
+    formatHeight(format) === height
+      && hasVideoCodec(format)
+      && hasAudioCodec(format)
+      && isMp4LikeExtension(resolveVideoExtension(format))
+  ));
+  if (mp4CombinedFormats.length > 0) {
+    return singlePlanOrUnknown(mp4CombinedFormats);
+  }
+
+  const mp4HeightFormats = heightVideoFormats.filter((format) => (
+    isMp4LikeExtension(resolveVideoExtension(format))
+  ));
+  if (mp4HeightFormats.length > 0) {
+    return singlePlanOrUnknown(mp4HeightFormats);
+  }
+
+  const broadCombinedFormats = heightVideoFormats.filter((format) => hasAudioCodec(format));
+  if (broadCombinedFormats.length > 0) {
+    return singlePlanOrUnknown(broadCombinedFormats);
+  }
+
+  const audioFormats = formats.filter((format) => !hasVideoCodec(format) && hasAudioCodec(format));
+  const videoPlan = singlePlanOrUnknown(heightVideoFormats);
+  return combineSeparatePlans(videoPlan, audioFormats);
+};
+
+const extractVideoTitle = (payload: unknown): string | undefined => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return undefined;
+  }
+  const title = (payload as Record<string, unknown>).title;
+  return typeof title === "string" && title.trim().length > 0 ? title.trim() : undefined;
+};
+
 export const extractAdvancedQualityOptionsFromYtDlpJson = (
   payload: unknown,
 ): AdvancedQualityProbeResult => {
   const heights = new Set<number>();
+  const formats = extractFormats(payload);
 
-  for (const format of extractFormats(payload)) {
-    const vcodec = typeof format.vcodec === "string" ? format.vcodec.trim().toLowerCase() : "";
-    if (!vcodec || vcodec === "none") {
+  for (const format of formats) {
+    if (!hasVideoCodec(format)) {
       continue;
     }
 
-    const height = Number(format.height);
-    if (!Number.isFinite(height) || height <= 0) {
+    const height = formatHeight(format);
+    if (height == null) {
       continue;
     }
 
-    heights.add(Math.floor(height));
+    heights.add(height);
   }
 
   const options = Array.from(heights)
@@ -78,9 +262,13 @@ export const extractAdvancedQualityOptionsFromYtDlpJson = (
       id: `height_${height}`,
       label: buildQualityLabel(height),
       selector: buildSelectorForHeight(height),
+      postProcessPlan: resolvePostProcessPlanForHeight(formats, height),
     }));
 
-  return { options };
+  return {
+    options,
+    videoTitle: extractVideoTitle(payload),
+  };
 };
 
 const resolveProbeSourceUrl = (context: EngineExecutionContext): string => {

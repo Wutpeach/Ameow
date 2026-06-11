@@ -378,6 +378,69 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(events.some((entry) => entry.event === "video-download-progress")).toBe(false);
   });
 
+  it("exposes advanced quality video title and post-process metadata in queue detail", async () => {
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+    });
+
+    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+      videoTitle: "Runtime resolved title",
+      options: [
+        {
+          id: "height_1080",
+          label: "1080p",
+          postProcessPlan: "full_transcode",
+          selector: "bv*[height=1080]+ba",
+        },
+        {
+          id: "height_720",
+          label: "720p",
+          postProcessPlan: "remux_only",
+          selector: "b[height=720]",
+        },
+      ],
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runtime.getQueueDetail().tasks[0]?.phase === "selecting_quality");
+
+    expect(runtime.getQueueDetail().tasks).toEqual([
+      expect.objectContaining({
+        traceId: ack.traceId,
+        label: "https://www.youtube.com/watch?v=abc123",
+        videoTitle: "Runtime resolved title",
+        phase: "selecting_quality",
+        qualityOptions: [
+          {
+            id: "height_1080",
+            label: "1080p",
+            tags: undefined,
+            postProcessPlan: "full_transcode",
+          },
+          {
+            id: "height_720",
+            label: "720p",
+            tags: undefined,
+            postProcessPlan: "remux_only",
+          },
+        ],
+      }),
+    ]);
+  });
+
   it("dedupes repeated advanced-quality requests for the same video", async () => {
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],

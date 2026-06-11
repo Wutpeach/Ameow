@@ -28,6 +28,15 @@ Many sites split video and audio into separate tracks or expose formats that pla
 
 Those extra steps increase processing time and create more failure points.
 
+## Format hints in more quality choices
+
+On supported sites, Ameow may show a short hint beside a quality row:
+
+- `封装` means the choice is expected to need container packaging only, without re-encoding the video.
+- `转码` means the choice is expected to re-encode audio or video, so it can take longer.
+
+These hints come from probed format metadata, not from the resolution. No hint does not guarantee zero post-processing; it only means Ameow does not have enough certain information to label it before download.
+
 ## How should I choose?
 
 ### I only want a reference copy

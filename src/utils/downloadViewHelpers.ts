@@ -1,5 +1,6 @@
 import type {
   AdvancedQualityOptionPayload,
+  AdvancedQualityPostProcessPlan,
   DownloadProgressPayload,
   DownloadStage,
   VideoQueueDetailPayload,
@@ -53,6 +54,18 @@ export const EMPTY_VIDEO_TRANSCODE_QUEUE_STATE: VideoTranscodeQueueStatePayload 
 export const EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL: VideoTranscodeQueueDetailPayload = {
   tasks: [],
 };
+
+const normalizeAdvancedQualityPostProcessPlan = (
+  value: unknown,
+): AdvancedQualityPostProcessPlan | undefined => (
+  value === "none"
+    || value === "remux_only"
+    || value === "audio_transcode"
+    || value === "full_transcode"
+    || value === "unknown"
+    ? value
+    : undefined
+);
 
 const getDownloadStageLabel = (
   t: TranslateFn,
@@ -236,12 +249,17 @@ export const normalizeVideoQueueDetail = (
                 tags: Array.isArray(option.tags)
                   ? option.tags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0)
                   : undefined,
+                postProcessPlan: normalizeAdvancedQualityPostProcessPlan(option.postProcessPlan),
               }];
             })
+          : undefined;
+        const videoTitle = typeof task.videoTitle === "string" && task.videoTitle.trim().length > 0
+          ? task.videoTitle.trim()
           : undefined;
         return [{
           traceId: task.traceId,
           label: task.label.trim() || task.traceId,
+          videoTitle,
           status,
           phase,
           qualityOptions,
