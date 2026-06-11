@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "App updater command/event contract for frontend invoke/listen typing"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Rust command/event contract for updater state and install flow"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Release workflow to backend to frontend updater flow spans multiple layers"}
