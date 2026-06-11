@@ -161,10 +161,13 @@ If a matching advanced task is already probing or selecting, return the existing
 
 ### UI reuse
 
-Renderer should reuse the current task item and circular progress affordance:
+Renderer should reuse the current task lifecycle and surface tokens:
 
 - `probing_quality`: show existing indeterminate task indicator and copy like `正在探测画质`.
-- `selecting_quality`: show existing task container with compact selectable option rows inside the task.
+- `selecting_quality`: show a compact selection surface focused on the current video and quality choices.
+- Quality choices should render as independent selectable rows/buttons, not as small chips inside one queue task card.
+- Hide queue summary chrome while selecting quality: no task-count badge, no `队列` heading, no `X 个下载`, and no `下载队列` section label.
+- After the user selects a quality, close the selection surface and return to the existing circular download progress view.
 - No modal.
 - No independent panel.
 - No popup/floating launcher entry.

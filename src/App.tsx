@@ -1746,7 +1746,9 @@ function App({
       });
       if (!accepted) {
         console.warn("Advanced quality selection was ignored for trace:", traceId);
+        return;
       }
+      setIsQueuePopoverOpen(false);
     } catch (err) {
       console.error("Failed to select advanced quality option:", err);
     }
@@ -3875,9 +3877,13 @@ function App({
         ? t("app.queue.remainingSummary", {
             downloadCount: remainingDownloadCount,
             transcodeCount: remainingTranscodeCount,
-          })
+        })
           : "";
-  const showVideoTaskBadge = totalTaskCount > 0 || isQueuePopoverOpen;
+  const advancedQualitySelectionTask = downloadQueueTasks.find((task) => (
+    task.phase === "selecting_quality" && Boolean(task.qualityOptions?.length)
+  )) ?? null;
+  const isAdvancedQualitySelectionPopover = isQueuePopoverOpen && advancedQualitySelectionTask !== null;
+  const showVideoTaskBadge = (totalTaskCount > 0 || isQueuePopoverOpen) && !isAdvancedQualitySelectionPopover;
   const queueViewMeta = [
     totalDownloadTaskCount > 0 ? t("app.queue.downloadCountSummary", { count: totalDownloadTaskCount }) : null,
     totalTranscodeTaskCount > 0 ? t("app.queue.transcodeCountSummary", { count: totalTranscodeTaskCount }) : null,
@@ -4221,71 +4227,73 @@ function App({
           )}
         </AnimatePresence>
 
-        {showVideoTaskBadge ? (
+        {showVideoTaskBadge || isQueuePopoverOpen ? (
         <>
-          <button
-            ref={queueBadgeButtonRef}
-            onClick={() => setIsQueuePopoverOpen((current) => !current)}
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              minWidth: 42,
-              height: 30,
-              borderRadius: 15,
-              padding: '0 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              background: isQueuePopoverOpen
-                ? `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgSecondary} 100%)`
-                : `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgPrimary} 100%)`,
-              color: colors.textPrimary,
-              border: `1px solid ${isQueuePopoverOpen ? colors.queueStatusBorder : colors.fieldBorder}`,
-              fontSize: 12,
-              fontWeight: 800,
-              lineHeight: 1,
-              userSelect: 'none',
-              zIndex: 30,
-              boxShadow: `inset 0 0 0 1px ${isQueuePopoverOpen ? colors.queueStatusBorder : colors.borderStart}, ${colors.panelShadow}`,
-              backdropFilter: 'blur(12px)',
-              cursor: 'pointer',
-              transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
-            }}
-            aria-pressed={isQueuePopoverOpen}
-            aria-label={t("app.queue.currentTasksAria", { count: totalTaskCount })}
-            title={isQueuePopoverOpen ? t("app.queue.closeList") : t("app.queue.showList")}
-          >
-            <span style={{ pointerEvents: 'none' }}>{totalTaskCount}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-              {hasDownloadTasks ? (
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    backgroundColor: colors.progressFgStroke,
-                    boxShadow: `0 0 10px ${colors.progressFgStroke}`,
-                    flexShrink: 0,
-                  }}
-                />
-              ) : null}
-              {hasTranscodeTasks ? (
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    backgroundColor: colors.transcodeSolid,
-                    boxShadow: `0 0 10px ${colors.transcodeGlow}`,
-                    flexShrink: 0,
-                  }}
-                />
-              ) : null}
-            </span>
-          </button>
+          {showVideoTaskBadge ? (
+            <button
+              ref={queueBadgeButtonRef}
+              onClick={() => setIsQueuePopoverOpen((current) => !current)}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                top: 10,
+                left: 10,
+                minWidth: 42,
+                height: 30,
+                borderRadius: 15,
+                padding: '0 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                background: isQueuePopoverOpen
+                  ? `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgSecondary} 100%)`
+                  : `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgPrimary} 100%)`,
+                color: colors.textPrimary,
+                border: `1px solid ${isQueuePopoverOpen ? colors.queueStatusBorder : colors.fieldBorder}`,
+                fontSize: 12,
+                fontWeight: 800,
+                lineHeight: 1,
+                userSelect: 'none',
+                zIndex: 30,
+                boxShadow: `inset 0 0 0 1px ${isQueuePopoverOpen ? colors.queueStatusBorder : colors.borderStart}, ${colors.panelShadow}`,
+                backdropFilter: 'blur(12px)',
+                cursor: 'pointer',
+                transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
+              }}
+              aria-pressed={isQueuePopoverOpen}
+              aria-label={t("app.queue.currentTasksAria", { count: totalTaskCount })}
+              title={isQueuePopoverOpen ? t("app.queue.closeList") : t("app.queue.showList")}
+            >
+              <span style={{ pointerEvents: 'none' }}>{totalTaskCount}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
+                {hasDownloadTasks ? (
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: colors.progressFgStroke,
+                      boxShadow: `0 0 10px ${colors.progressFgStroke}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
+                {hasTranscodeTasks ? (
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: colors.transcodeSolid,
+                      boxShadow: `0 0 10px ${colors.transcodeGlow}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
+              </span>
+            </button>
+          ) : null}
 
           <AnimatePresence>
             {isQueuePopoverOpen ? (
@@ -4297,7 +4305,7 @@ function App({
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  padding: '48px 10px 10px',
+                  padding: isAdvancedQualitySelectionPopover ? '10px' : '48px 10px 10px',
                   ...getContinuousCornerStyle(visualIsMinimized ? 100 : 16),
                   display: 'flex',
                   flexDirection: 'column',
@@ -4310,9 +4318,146 @@ function App({
                 data-panel-double-click="ignore"
                 onMouseDown={(e) => e.stopPropagation()}
               >
+                {isAdvancedQualitySelectionPopover && advancedQualitySelectionTask ? (
+                  <div
+                    style={{
+                      flex: 1,
+                      minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 750,
+                            lineHeight: 1.1,
+                            color: colors.textPrimary,
+                            userSelect: 'none',
+                          }}
+                        >
+                          {t("app.queue.selectAdvancedQuality")}
+                        </span>
+                        <span
+                          title={advancedQualitySelectionTask.label}
+                          style={{
+                            fontSize: 9,
+                            lineHeight: 1.2,
+                            color: colors.textSecondary,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {advancedQualitySelectionTask.label}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          void cancelVideoTask(advancedQualitySelectionTask.traceId);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: `1px solid ${colors.fieldBorder}`,
+                          backgroundColor: colors.fieldBg,
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                        title={t("app.queue.cancelTask")}
+                      >
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          style={{ color: colors.progressCancelIcon }}
+                        >
+                          <path
+                            d="M2 2L8 8M8 2L2 8"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div
+                      className="hide-scrollbar"
+                      style={{
+                        flex: 1,
+                        minHeight: 0,
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      {advancedQualitySelectionTask.qualityOptions?.map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => {
+                            void selectAdvancedQualityOption(advancedQualitySelectionTask.traceId, option.id);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          style={{
+                            minHeight: 34,
+                            width: '100%',
+                            border: `1px solid ${colors.accentBorder}`,
+                            background: `linear-gradient(180deg, ${colors.fieldBg} 0%, ${colors.bgSecondary} 100%)`,
+                            color: colors.textPrimary,
+                            borderRadius: 10,
+                            padding: '0 10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            cursor: 'pointer',
+                            boxShadow: `inset 0 0 0 1px ${colors.borderStart}`,
+                          }}
+                          title={option.label}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 750,
+                              lineHeight: 1,
+                              color: colors.accentText,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {option.label}
+                          </span>
+                          <span
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: '50%',
+                              backgroundColor: colors.progressFgStroke,
+                              boxShadow: `0 0 10px ${colors.progressFgStroke}`,
+                              flexShrink: 0,
+                            }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div
                   style={{
-                    display: 'flex',
+                    display: isAdvancedQualitySelectionPopover ? 'none' : 'flex',
                     flexDirection: 'column',
                     gap: 4,
                     padding: '0 4px 2px',
@@ -4349,7 +4494,7 @@ function App({
                     flex: 1,
                     minHeight: 0,
                     overflowY: 'auto',
-                    display: 'flex',
+                    display: isAdvancedQualitySelectionPopover ? 'none' : 'flex',
                     flexDirection: 'column',
                     gap: 6,
                     paddingRight: 2,
