@@ -475,3 +475,36 @@ Added docs-first troubleshooting coverage for raw downloader errors, including B
 ### Next Steps
 
 - None - task complete
+
+
+## Session 211: Suppress advanced quality cancel toast
+
+**Date**: 2026-06-12
+**Task**: Suppress advanced quality cancel toast
+**Branch**: `main`
+
+### Summary
+
+Changed advanced-quality probe dismissal to clear queue state without emitting a cancelled download completion, added runtime regression coverage, and updated the Electron runtime contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `926ef64` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
