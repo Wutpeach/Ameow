@@ -17,29 +17,44 @@ Exit gate:
 
 Pre-coding checks:
 
-- Confirm which `AnimatePresence` path actually controls minimized icon enter/exit.
+- First pass scope confirmed by user on 2026-06-12:
+  - tune full expansion spring only
+  - do not add icon handoff elasticity
+  - keep compact shell tween unchanged
+- Confirming the `AnimatePresence` icon enter/exit path is deferred until the icon elasticity pass.
 - Choose concrete numeric targets before editing:
   - full spring damping range should stay conservative, likely no lower than `34-36` with current `stiffness: 460`
   - compact shell tween remains unchanged
-  - icon handoff overshoot, if used, stays around `1.006-1.012`
-- Decide whether the first implementation pass should tune full spring only, icon handoff only, or both. Prefer one visible change at a time if Windows outline risk is uncertain.
+  - first pass target: keep `stiffness: 460`, lower `damping` slightly but not below `36`
 
 Allowed:
 
 - Adjust named visual timing constants in `src/utils/mainWindowMotionBaseline.ts`.
-- Add a very small icon handoff scale keyframe if represented through named enter/exit constants and verified against the actual `AnimatePresence` path.
-- Tune existing full expansion spring only within restrained values.
+- First pass: tune existing full expansion spring only within restrained values.
 - Update tests that lock the motion contract.
+
+Deferred:
+
+- Add a very small icon handoff scale keyframe if represented through named enter/exit constants and verified against the actual `AnimatePresence` path.
 
 Not allowed:
 
 - No native bounds changes.
 - No hover expand/collapse shell-state changes.
 - No compact passthrough timing changes.
+- No icon handoff elasticity in the first pass.
 - No spring overshoot on compact shell `width`, `height`, `x`, `y`, `borderRadius`, or `clipPath`.
 - No moving outline drawing ownership in this task.
 
 ## Phase 3: Validation
+
+Implementation status:
+
+- First pass implemented in current work:
+  - `MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION.damping`: `38` -> `36`
+  - `MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION.stiffness`: unchanged at `460`
+  - compact shell tween unchanged
+  - icon handoff unchanged
 
 Automated:
 

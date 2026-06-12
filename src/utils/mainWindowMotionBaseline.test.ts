@@ -43,7 +43,7 @@ describe("mainWindowMotionBaseline", () => {
     expect(MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION).toEqual({
       type: "spring",
       stiffness: 460,
-      damping: 38,
+      damping: 36,
     });
   });
 

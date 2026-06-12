@@ -98,16 +98,17 @@ Claude review note:
    - Preserve `MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION` as an eased tween.
    - Do not add compact shell spring overshoot to `width/height/x/y/radius/clipPath`.
 
-2. Add elastic feel in full expansion only through the existing full spring.
+2. First implementation pass: add elastic feel in full expansion only through the existing full spring.
    - Tune `MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION` slightly if needed.
    - Keep damping high enough that the full shell does not visibly bounce.
    - Suggested first exploration range after Claude review: keep `stiffness: 460`, do not lower damping below roughly `34-36`.
 
-3. Add a very small icon handoff scale keyframe only on the standalone minimized icon layer.
+3. Defer icon handoff elasticity.
    - It should not affect the panel shell outline.
    - Keep the effect around `1.006` to `1.012`.
    - Keep reduced-motion path unchanged or simplified.
    - Verify the actual `AnimatePresence` path first. Icon leave elasticity likely belongs in the `exit` contract, not the `visualIsMinimized === false` branch of `minimizedIconAnimate`.
+   - Do not implement this in the first pass.
 
 4. If any compact shell scale elasticity is considered, gate it behind Windows visual validation.
    - Prefer not to do this in the first elastic pass.

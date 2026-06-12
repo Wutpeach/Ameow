@@ -3,7 +3,7 @@
   "name": "06-12-main-window-subtle-elastic-motion",
   "title": "Plan subtle main window elastic motion",
   "description": "Plan a subtle elastic feel for main floating window full/icon transitions while avoiding the prior Windows icon outline artifact risk.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

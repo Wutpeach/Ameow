@@ -130,7 +130,7 @@ describe("mainWindowShellGeometry", () => {
     expect(plan.timing.native).toEqual({ kind: "none" });
     expect(plan.timing.visual).toEqual({
       kind: "spring",
-      transition: { type: "spring", stiffness: 460, damping: 38 },
+      transition: { type: "spring", stiffness: 460, damping: 36 },
     });
     expect(plan.timing.icon).toEqual({ kind: "hidden" });
     expect("timing" in geometry).toBe(false);

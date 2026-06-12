@@ -25,7 +25,7 @@ export const MAIN_WINDOW_PANEL_INSTANT_TRANSITION = {
 export const MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION = {
   type: "spring",
   stiffness: 460,
-  damping: 38,
+  damping: 36,
 } as const;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION = {

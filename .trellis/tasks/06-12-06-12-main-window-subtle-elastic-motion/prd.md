@@ -9,6 +9,10 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
 ## Requirements
 
 - Analyze whether adding elastic motion can reintroduce the old Windows icon outline/border artifact.
+- First implementation pass is conservative:
+  - tune only the full expansion spring
+  - do not add icon handoff elasticity yet
+  - keep compact collapse tween unchanged
 - Keep the current Phase 2 architecture boundaries:
   - renderer visual timing stays centralized in `src/utils/mainWindowMotionBaseline.ts`
   - geometry stays in `src/utils/mainWindowShellGeometry.ts`
@@ -20,6 +24,7 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
 - Respect reduced-motion behavior.
 - Treat Windows compact icon outline stability as a hard regression gate.
 - Ask Claude Code for a second-opinion review before implementation starts.
+- Defer icon-layer elasticity to a later pass after the full-expansion-only change is validated.
 
 ## Acceptance Criteria
 
@@ -28,9 +33,12 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
 - [ ] The proposal names properties that must not receive overshooting spring animation.
 - [ ] The proposal includes a focused verification plan for Windows compact outline stability, fast enter/leave, drag, drop, and reduced motion.
 - [ ] Claude review is captured or summarized in this task before implementation starts.
+- [ ] First implementation pass changes only the full expansion spring contract.
+- [ ] No compact shell or icon handoff elasticity is introduced in the first pass.
 - [ ] No code implementation starts until the reviewed plan is accepted.
 
 ## Notes
 
 - Parent task: `.trellis/tasks/06-11-main-floating-window-motion-phase-2`.
 - Phase 2F baseline already passed Windows manual visual validation after `9ff1a0d`.
+- User approved the first implementation pass on 2026-06-12: tune only full expansion elasticity and keep icon elasticity deferred.
