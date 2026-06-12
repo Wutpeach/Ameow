@@ -236,6 +236,23 @@ Progress:
   - compact/full morph does not drift
   - no post-collapse flash
 
+## Validation Status
+
+- Automated checks passed after Phase 2F:
+  - `npm run test -- mainWindowMotionBaseline mainWindowShellGeometry mainWindowNativeBoundsOrchestrator mainWindowCompactBounds mainWindowTransitionToken`
+  - `npm run type-check`
+  - `npm run lint`
+  - `npm run test`
+- Manual Windows visual check passed after Phase 2F on 2026-06-12:
+  - compact transparent gutter click-through checked
+  - icon hover expansion checked
+  - fast enter/leave flash check passed
+  - full drag stability checked
+- Manual macOS visual check remains pending:
+  - custom shadow stability
+  - compact/full morph drift
+  - post-collapse flash
+
 ## Additional Guard Tests From Architecture Review
 
 - Geometry inset symmetry: native bounds, visual shell, and shadow shell stay spatially consistent for Windows and macOS plans.
