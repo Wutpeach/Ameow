@@ -528,6 +528,9 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 - Before the main window settles into compact/icon mode, clamp the compact frame's target position into the current monitor work area. The full shell can be dragged partly outside a display, but the final icon hotspot must remain visible and reachable.
 - On macOS compact-shell flows, do not hand visual ownership from the panel shell to a separate minimized icon plate before the native window is already compact-sized. During full-window -> icon collapse, keep one visible shell surface active through the morph and only enable a standalone minimized plate after `windowResized === true`; otherwise the icon can double-apply compact insets and show end-of-animation drift or a transparent-shell flicker.
 - For Windows compact-shell flows, keep the restore target behind a shared constant such as `INTERMEDIATE_EXPAND_SIZE` instead of scattering raw `200` literals across expand, foreground-task restore, and morph handoff code.
+- Full-mode transparent-window drawing must have native viewport room for shadows and elastic overshoot. Use `getMainWindowFullShadowGutter(...)` / `getMainWindowFullOuterSize(...)` as the source of truth instead of assuming the native full window is exactly the visible `200x200` panel. The visible full panel body remains `200x200`, while the native full viewport may be larger to preserve rounded shadows and renderer-side scale overshoot.
+- Compact icon elasticity must not be applied to the compact panel shell layer that owns the Windows inset outline. Do not overshoot compact shell `width`, `height`, `x`, `y`, `borderRadius`, `clipPath`, or the panel-shell `boxShadow` layer to create icon bounce.
+- If compact icon elasticity is needed, keep the minimized `AnimatePresence` container visually stable during the shell collapse, then trigger a small pulse on the visible inner icon wrapper only after the shell reaches `compact`. This avoids racing the icon animation against the panel shell `clipPath` / radius morph and prevents center-icon flicker frames.
 - Pointer-leave collapse must be guarded while pointer-down, drag-threshold pending, or active drag state exists. Do not allow leave handling to cancel window dragging.
 - If a leave-delay grace window is used, it must be cancelable on re-enter and cleared by shared timer reset helpers. Do not scatter independent leave timers across handlers.
 - Hover response may stay immediate on enter, but leave grace for this compact surface should remain short and intentional. Start in the `0.12s` to `0.18s` range; values around `0.20s` are already noticeably sticky on a 200x200 utility window.
@@ -544,6 +547,9 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 | A stale shrink callback resolves after a newer full-mode request | Full panel never renders inside an `80x80` native shell | Guard `animateBounds(...)` completions with the current transition token |
 | Full shell is dragged partly outside the display before collapse | Compact icon remains visible and reachable inside the current work area | Clamp compact target position before the final compact settle |
 | macOS collapse shows icon drift or last-frame flicker | One shell stays visually anchored until native compact bounds settle | Delay standalone minimized plate activation until `windowResized === true` |
+| Full-mode rounded shadow or scale overshoot clips into straight corners | Native full viewport has no gutter for transparent-window drawing | Restore full-mode shadow gutter through `getMainWindowFullOuterSize(...)` while keeping visible panel `200x200` |
+| Compact icon elasticity causes outline shimmer or thickening | Elasticity was applied to the panel shell layer that draws the outline | Move elasticity to a post-collapse inner icon wrapper pulse |
+| Center icon flashes during full -> compact collapse | Icon enter keyframes overlap with shell `clipPath` / radius morph | Keep the outer icon container stable during collapse and pulse only after `shellPhase === "compact"` |
 | Enter feels laggy | Window feels sticky or slow | Keep enter immediate; do not mirror leave delay onto enter |
 
 ### 5. Good / Base / Bad Cases
@@ -571,6 +577,9 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 - Drag a web image or video into icon mode: verify the window expands once, does not bounce back to compact during the drag, and does not end stuck in the full window because of a stale collapse decision.
 - Leave and re-enter within the leave-delay window: verify collapse is canceled.
 - Finish a foreground task while the pointer is already outside the panel: verify collapse resumes promptly without waiting for idle.
+- When tuning full-mode elasticity, verify Windows and macOS full rounded shadows are not clipped and the visible panel body remains aligned inside the larger native viewport.
+- When tuning compact icon elasticity, verify the Windows compact outline stays stable and the pulse is disabled under reduced motion.
+- Capture or inspect rapid full -> compact cycles when changing compact icon handoff timing; no center-icon partial-opacity or partial-scale flicker frame should appear during the shell morph.
 
 ### 7. Wrong vs Correct
 

@@ -12,19 +12,19 @@ const monitor = {
 };
 
 describe("mainWindowShellGeometry", () => {
-  it("resolves the Windows full shell without shadow gutter", () => {
+  it("resolves the Windows full shell with the shared full shadow gutter", () => {
     const plan = resolveMainWindowShellGeometryPlan({
       mode: "full",
       platform: "win32",
       windowPosition: { x: 120, y: 160 },
-      currentNativeSize: { width: 200, height: 200 },
+      nativeSizeStrategy: "target-mode-outer",
     });
 
-    expect(plan.viewportSize).toBe(200);
-    expect(plan.nativeBounds).toEqual({ x: 120, y: 160, width: 200, height: 200 });
+    expect(plan.viewportSize).toBe(228);
+    expect(plan.nativeBounds).toEqual({ x: 120, y: 160, width: 228, height: 228 });
     expect(plan.visualShell).toEqual({
-      x: 0,
-      y: 0,
+      x: 14,
+      y: 14,
       width: 200,
       height: 200,
       radius: 16,
@@ -114,7 +114,7 @@ describe("mainWindowShellGeometry", () => {
       mode: "full",
       platform: "win32",
       windowPosition: { x: 0, y: 0 },
-      currentNativeSize: { width: 200, height: 200 },
+      currentNativeSize: { width: 228, height: 228 },
     });
 
     const plan = resolveMainWindowShellTransitionPlan({

@@ -2,7 +2,8 @@ export const MAIN_WINDOW_PANEL_SIZE = 200;
 export const MAIN_WINDOW_COMPACT_SHELL_SIZE = 60;
 export const MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE = 80;
 export const MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE = 88;
-export const MAIN_WINDOW_MACOS_FULL_SHADOW_GUTTER = 14;
+export const MAIN_WINDOW_FULL_SHADOW_GUTTER = 14;
+export const MAIN_WINDOW_MACOS_FULL_SHADOW_GUTTER = MAIN_WINDOW_FULL_SHADOW_GUTTER;
 
 export const SETTINGS_WINDOW_CONTENT_WIDTH = 320;
 export const SETTINGS_WINDOW_CONTENT_HEIGHT = 400;
@@ -11,7 +12,7 @@ export const UI_LAB_WINDOW_CONTENT_HEIGHT = 560;
 export const MACOS_SECONDARY_WINDOW_SHADOW_GUTTER = 14;
 
 export const getMainWindowFullShadowGutter = (platform: NodeJS.Platform): number => (
-  platform === "darwin" ? MAIN_WINDOW_MACOS_FULL_SHADOW_GUTTER : 0
+  platform === "darwin" || platform === "win32" ? MAIN_WINDOW_FULL_SHADOW_GUTTER : 0
 );
 
 export const getMainWindowCompactOuterSize = (platform: NodeJS.Platform): number => (

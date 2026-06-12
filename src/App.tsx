@@ -154,6 +154,9 @@ import {
   MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION,
   MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION,
   MAIN_WINDOW_MINIMIZED_ICON_SIZE,
+  MAIN_WINDOW_MINIMIZED_ICON_SETTLE_SCALE_KEYFRAMES,
+  MAIN_WINDOW_MINIMIZED_ICON_SETTLE_SCALE_TIMES,
+  MAIN_WINDOW_MINIMIZED_ICON_SETTLE_TRANSITION,
   MAIN_WINDOW_MINIMIZED_PANEL_SCALE,
   MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION,
   MAIN_WINDOW_PANEL_FULL_ELASTIC_SCALE_KEYFRAMES,
@@ -174,8 +177,8 @@ import { isLikelyShortLinkUrl } from "./core/short-links";
 import {
   MAIN_WINDOW_COMPACT_SHELL_SIZE,
   MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
+  getMainWindowFullShadowGutter,
   MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE,
-  MAIN_WINDOW_MACOS_FULL_SHADOW_GUTTER,
   MAIN_WINDOW_PANEL_SIZE,
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
@@ -459,7 +462,7 @@ function App({
   const startsExpandedOnLaunch =
     shouldStartExpandedOnLaunch(startupWindowEnvironment);
   const FULL_SIZE = MAIN_WINDOW_PANEL_SIZE;
-  const FULL_WINDOW_SHADOW_GUTTER = isMacOS ? MAIN_WINDOW_MACOS_FULL_SHADOW_GUTTER : 0;
+  const FULL_WINDOW_SHADOW_GUTTER = getMainWindowFullShadowGutter(currentMainWindowPlatform);
   const INTERMEDIATE_EXPAND_SIZE = FULL_SIZE + FULL_WINDOW_SHADOW_GUTTER * 2;
   const ICON_SIZE = isMacOS
     ? MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE
@@ -513,6 +516,7 @@ function App({
   const [shellPhase, setShellPhase] = useState<"full" | "collapsing" | "compact" | "expanding">(
     startsInNativeCompactStartupWindow ? "compact" : "full",
   );
+  const [compactIconSettlePulseKey, setCompactIconSettlePulseKey] = useState(0);
   const [showEdgeGlow, setShowEdgeGlow] = useState(true);
   const [isInitialMount, setIsInitialMount] = useState(!startsInNativeCompactStartupWindow);
   const [isDeferredStartupInitializationReady, setIsDeferredStartupInitializationReady] =
@@ -1275,6 +1279,7 @@ function App({
       setPanelTransitionMode("instant");
       dispatchShellEvent({ type: "collapseAnimationComplete" });
       updateShellPhase("compact");
+      setCompactIconSettlePulseKey((key) => key + 1);
       pendingCompactResizeTokenRef.current = null;
       compactHotspotInsideRef.current = false;
       isPanelHoveredRef.current = false;
@@ -1342,6 +1347,15 @@ function App({
     : visualIsMinimized
       ? MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION
       : MAIN_WINDOW_MINIMIZED_ICON_LEAVE_TRANSITION;
+  const minimizedIconSettleAnimate = !shouldReduceMotion && shellPhase === "compact"
+    ? { scale: [...MAIN_WINDOW_MINIMIZED_ICON_SETTLE_SCALE_KEYFRAMES] }
+    : { scale: 1 };
+  const minimizedIconSettleTransition = !shouldReduceMotion && shellPhase === "compact"
+    ? {
+      ...MAIN_WINDOW_MINIMIZED_ICON_SETTLE_TRANSITION,
+      times: [...MAIN_WINDOW_MINIMIZED_ICON_SETTLE_SCALE_TIMES],
+    }
+    : MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION;
   const minimizedIconExit = shouldReduceMotion
     ? {
         opacity: 0,
@@ -5154,7 +5168,11 @@ function App({
               zIndex: 4,
             }}
           >
-            <div
+            <motion.div
+              key={`compact-icon-settle-${compactIconSettlePulseKey}`}
+              initial={false}
+              animate={minimizedIconSettleAnimate}
+              transition={minimizedIconSettleTransition}
               style={{
                 width: minimizedIconFrameSize,
                 height: minimizedIconFrameSize,
@@ -5171,7 +5189,7 @@ function App({
               }}
             >
               <CatIcon size={minimizedIconSize} glow={!isMacOS} />
-            </div>
+            </motion.div>
           </motion.div>
         ) : null}
         </AnimatePresence>
