@@ -332,11 +332,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       advancedTask.abortController?.abort();
       this.removeAdvancedQualityTask(traceId);
       await this.emitQueueState();
-      await this.options.eventSink.emit("video-download-complete", {
-        traceId,
-        success: false,
-        error: "Download cancelled",
-      } satisfies DownloadResultPayload);
       return true;
     }
 

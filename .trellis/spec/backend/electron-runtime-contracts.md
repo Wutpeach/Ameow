@@ -2361,6 +2361,8 @@ export type AdvancedQualityProbeResult = {
   - trim non-empty `videoTitle`
   - preserve only known `AdvancedQualityPostProcessPlan` values
   - drop invalid values instead of rendering unknown strings
+- Dismissing an advanced-quality probe or selection task is a UI dismissal, not a completed download cancellation. Runtime must remove the advanced-quality queue task and emit updated queue state without emitting `video-download-complete`.
+- Real advanced-quality probe failures remain terminal user-visible failures and should continue to emit `video-download-complete` with `success: false`.
 
 ### 4. Validation & Error Matrix
 
@@ -2374,22 +2376,27 @@ export type AdvancedQualityProbeResult = {
 | A height has mixed or insufficient format metadata | `postProcessPlan: "unknown"` or missing, renderer shows no badge |
 | Renderer receives invalid `postProcessPlan` | Normalization removes it and no badge renders |
 | User clicks a quality row | Runtime selects the matching internal selector and continues the same trace as a normal download |
+| User dismisses the advanced-quality probe/selection task | Runtime removes the queue task and does not emit a cancelled `video-download-complete` payload |
+| Advanced-quality probing fails without user dismissal | Runtime removes the queue task and emits a failure `video-download-complete` payload |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: A `1080p` option with a provable compatible branch renders as a quiet row with no badge and starts download on click.
 - Good: A remux-only option renders a concise `封装` badge; it is never labeled `转码`.
 - Good: A VP9/Opus-only combined option with one clear outcome renders `转码`.
+- Good: Closing the advanced-quality picker removes the queue row without showing a `Download cancelled` result.
 - Base: A row has no badge because the runtime cannot prove the post-processing plan before download.
 - Bad: Marking `360p`, `720p`, or `1080p` as `转码` based only on resolution.
 - Bad: Rendering legacy strategy tags such as `推荐`, `最快`, or `兼容` in the advanced quality picker.
 - Bad: Sending internal yt-dlp selector strings to the renderer.
+- Bad: Treating an advanced-quality UI dismissal as a failed download and emitting a cancelled completion event.
 
 ### 6. Tests Required
 
 - `advancedQualityProbe.test.ts` covers title extraction, compatible plans, remux-only plans, full-transcode plans, and ambiguous `unknown`.
 - `downloadViewHelpers.test.ts` covers `videoTitle` trimming and valid/invalid `postProcessPlan` normalization.
 - Runtime service tests cover `getQueueDetail()` forwarding `videoTitle` and `postProcessPlan` while keeping `selector` internal.
+- Runtime service tests cover advanced-quality dismissal removing the task without emitting a cancelled completion event, while probe failures still emit failure completion.
 - Existing advanced quality selection tests must continue to prove the selected option resumes the same `traceId` as a normal download.
 - `npm run type-check` and `npm run lint` must pass after any payload shape change.
 

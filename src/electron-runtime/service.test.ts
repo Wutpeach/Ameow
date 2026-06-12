@@ -378,6 +378,54 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(events.some((entry) => entry.event === "video-download-progress")).toBe(false);
   });
 
+  it("dismisses an advanced-quality task without emitting a cancelled completion", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(payload as { traceId: string; success: boolean; error?: string });
+        }
+      },
+    });
+
+    runAdvancedQualityProbeMock.mockImplementationOnce(async (context: EngineExecutionContext) => {
+      await new Promise<never>((_resolve, reject) => {
+        if (context.abortSignal.aborted) {
+          reject(new Error("probe aborted"));
+          return;
+        }
+        context.abortSignal.addEventListener(
+          "abort",
+          () => reject(new Error("probe aborted")),
+          { once: true },
+        );
+      });
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runAdvancedQualityProbeMock.mock.calls.length === 1);
+
+    await expect(runtime.cancelDownload(ack.traceId)).resolves.toBe(true);
+    await waitFor(() => runtime.getQueueState().totalCount === 0);
+
+    expect(runtime.getQueueDetail().tasks).toEqual([]);
+    expect(completions.some((entry) => entry.traceId === ack.traceId)).toBe(false);
+  });
+
   it("exposes advanced quality video title and post-process metadata in queue detail", async () => {
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
