@@ -1316,9 +1316,13 @@ function App({
     nativeSizeStrategy: "preserve-current",
   });
   const visualShellFrame = shellGeometryPlan.visualShell;
+  const shadowShellFrame = shellGeometryPlan.shadowShell;
   const panelRenderSize = visualShellFrame.width;
   const panelOffsetX = visualShellFrame.x;
   const panelOffsetY = visualShellFrame.y;
+  const shadowRenderSize = shadowShellFrame.width;
+  const shadowOffsetX = shadowShellFrame.x;
+  const shadowOffsetY = shadowShellFrame.y;
   const minimizedPanelScale = MAIN_WINDOW_MINIMIZED_PANEL_SCALE;
   const minimizedIconSize = isMacOS ? MINIMIZED_ICON_SIZE - 2 : MINIMIZED_ICON_SIZE;
   const minimizedIconFrameSize = isMacOS ? MINIMIZED_SHELL_SIZE : minimizedIconSize;
@@ -1349,6 +1353,7 @@ function App({
       };
   const panelScale = visualIsMinimized ? minimizedPanelScale : 1;
   const panelRadius = visualShellFrame.radius;
+  const shadowRadius = shadowShellFrame.radius;
   const initialPanelTweenTransition = MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION;
   const minimizedPanelTweenTransition = MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION;
   const instantPanelValueTransition = MAIN_WINDOW_PANEL_INSTANT_TRANSITION;
@@ -3745,7 +3750,7 @@ function App({
     containerShellAccentShadow,
   ].filter(Boolean).join(", ");
   const containerShadowBackdropStyle = getShadowBackdropStyle(colors, {
-    radius: panelRadius,
+    radius: shadowRadius,
     boxShadow: visualIsMinimized
       ? colors.panelShadowCompact
       : containerBackdropShadow,
@@ -4162,11 +4167,11 @@ function App({
           aria-hidden="true"
           animate={{
             scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
-            borderRadius: panelRadius,
-            x: panelOffsetX,
-            y: panelOffsetY,
-            width: panelRenderSize,
-            height: panelRenderSize,
+            borderRadius: shadowRadius,
+            x: shadowOffsetX,
+            y: shadowOffsetY,
+            width: shadowRenderSize,
+            height: shadowRenderSize,
           }}
           transition={{
             scale: panelShellTransition.scale,
