@@ -23,7 +23,6 @@ import {
 import type { AppUpdateInfo, AppUpdatePhase } from "./types/appUpdate";
 import type {
   AmeowCurrentWindowInteractionMode,
-  AmeowDisplay,
   AmeowStartupWindowMode,
 } from "./types/electronBridge";
 import {
@@ -138,10 +137,15 @@ import {
   type MainWindowShellState,
 } from "./utils/mainWindowShellMachine";
 import {
-  advanceMainWindowBoundsTransition,
-  isMainWindowBoundsTransitionCurrent,
   type MainWindowBoundsTransitionState,
 } from "./utils/mainWindowTransitionToken";
+import {
+  beginMainWindowNativeBoundsTransition,
+  ensureMainWindowCompactTargetVisible as ensureMainWindowNativeCompactTargetVisible,
+  isMainWindowNativeBoundsTransitionStillCurrent,
+  resizeMainWindowPreservingPosition as resizeMainWindowNativeBoundsPreservingPosition,
+  syncMainWindowCurrentPositionCache as syncMainWindowNativePositionCache,
+} from "./utils/mainWindowNativeBoundsOrchestrator";
 import {
   MAIN_WINDOW_INITIAL_PANEL_SCALE,
   MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION,
@@ -158,7 +162,6 @@ import {
 } from "./utils/mainWindowMotionBaseline";
 import {
   resolveMainWindowShellGeometryPlan,
-  resolveMainWindowShellTransitionPlan,
 } from "./utils/mainWindowShellGeometry";
 import { isPointInsideCompactPointerHotspot } from "./utils/compactPointerHotspot";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
@@ -866,45 +869,32 @@ function App({
     clearPointerLeaveCollapseTimer();
   }, [clearPointerLeaveCollapseTimer]);
 
-  const getCurrentWindowPosition = useCallback(async () => {
-    if (lastKnownWindowPositionRef.current) {
-      return lastKnownWindowPositionRef.current;
-    }
-
-    const nextPosition = await desktopCurrentWindow.outerPosition();
-    lastKnownWindowPositionRef.current = nextPosition;
-    return nextPosition;
-  }, []);
-
   const syncCurrentWindowPositionCache = useCallback(async () => {
-    const nextPosition = await desktopCurrentWindow.outerPosition();
-    lastKnownWindowPositionRef.current = nextPosition;
-    return nextPosition;
+    return syncMainWindowNativePositionCache({
+      currentWindow: desktopCurrentWindow,
+      positionCacheRef: lastKnownWindowPositionRef,
+    });
   }, []);
 
   const beginMainWindowBoundsTransition = useCallback((
     target: "compact" | "full",
   ) => {
-    const nextTransition = advanceMainWindowBoundsTransition(
-      mainWindowBoundsTransitionRef.current,
+    return beginMainWindowNativeBoundsTransition({
+      transitionRef: mainWindowBoundsTransitionRef,
+      pendingCompactTokenRef: pendingCompactResizeTokenRef,
       target,
-    );
-    mainWindowBoundsTransitionRef.current = nextTransition;
-    if (target === "full") {
-      pendingCompactResizeTokenRef.current = null;
-    }
-    return nextTransition.token;
+    });
   }, []);
 
   const isMainWindowBoundsTransitionStillCurrent = useCallback((
     expectedToken: number | null | undefined,
     expectedTarget?: "compact" | "full",
   ) => (
-    isMainWindowBoundsTransitionCurrent(
-      mainWindowBoundsTransitionRef.current,
+    isMainWindowNativeBoundsTransitionStillCurrent({
+      transitionRef: mainWindowBoundsTransitionRef,
       expectedToken,
       expectedTarget,
-    )
+    })
   ), []);
 
   const resizeMainWindowPreservingPosition = useCallback(async (
@@ -916,82 +906,36 @@ function App({
       transitionToken?: number;
     } = {},
   ) => {
-    const position = await getCurrentWindowPosition();
-    const result = await desktopCurrentWindow.animateBounds({
-      x: position.x,
-      y: position.y,
-      width,
-      height,
-    }, {
-      durationMs: 0,
+    return resizeMainWindowNativeBoundsPreservingPosition({
+      currentWindow: desktopCurrentWindow,
+      positionCacheRef: lastKnownWindowPositionRef,
+      size: {
+        width,
+        height,
+      },
       transitionToken,
     });
-    lastKnownWindowPositionRef.current = position;
-    return result.transitionToken;
-  }, [getCurrentWindowPosition]);
+  }, []);
 
   const ensureMainWindowCompactTargetVisible = useCallback(async (
     transitionToken: number,
   ) => {
-    const [position, size] = await Promise.all([
-      desktopCurrentWindow.outerPosition(),
-      desktopCurrentWindow.outerSize(),
-    ]);
-    lastKnownWindowPositionRef.current = position;
-
-    let monitor: AmeowDisplay | null = null;
-    try {
-      monitor = await desktopSystem.currentMonitor();
-    } catch (err) {
-      console.error("Failed to resolve current monitor for compact window placement:", err);
-    }
-
-    if (!isMainWindowBoundsTransitionStillCurrent(transitionToken, "compact")) {
-      return;
-    }
-
-    const geometryPlan = resolveMainWindowShellGeometryPlan({
-      mode: "compact",
-      platform: currentMainWindowPlatform,
-      windowPosition: position,
-      currentNativeSize: size,
-      nativeSizeStrategy: "preserve-current",
-      edgePadding: WINDOW_EDGE_PADDING,
-      monitor,
-    });
-    const transitionPlan = resolveMainWindowShellTransitionPlan({
-      token: transitionToken,
-      targetMode: "compact",
-      geometry: geometryPlan,
-      visualIntent: "compact",
-      reducedMotion: Boolean(shouldReduceMotion),
-      nativePath: "compactVisibilityClamp",
-    });
-    const targetBounds = geometryPlan.nativeBounds;
-
-    if (targetBounds.x === position.x && targetBounds.y === position.y) {
-      return;
-    }
-
-    const result = await desktopCurrentWindow.animateBounds(targetBounds, {
-      durationMs: transitionPlan.timing.native.kind === "animateBounds"
-        ? transitionPlan.timing.native.durationMs
-        : 0,
+    await ensureMainWindowNativeCompactTargetVisible({
+      currentWindow: desktopCurrentWindow,
+      system: desktopSystem,
+      positionCacheRef: lastKnownWindowPositionRef,
+      transitionRef: mainWindowBoundsTransitionRef,
       transitionToken,
+      platform: currentMainWindowPlatform,
+      edgePadding: WINDOW_EDGE_PADDING,
+      reducedMotion: Boolean(shouldReduceMotion),
+      onMonitorError: (err) => {
+        console.error("Failed to resolve current monitor for compact window placement:", err);
+      },
     });
-
-    if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "compact")) {
-      return;
-    }
-
-    lastKnownWindowPositionRef.current = {
-      x: targetBounds.x,
-      y: targetBounds.y,
-    };
   }, [
     currentMainWindowPlatform,
     WINDOW_EDGE_PADDING,
-    isMainWindowBoundsTransitionStillCurrent,
     shouldReduceMotion,
   ]);
 

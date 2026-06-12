@@ -95,6 +95,8 @@ Shared motion tokens may be used by low-risk UI consumers such as dropdowns, set
 
 Main floating-window geometry and transition planning lives in `src/utils/mainWindowShellGeometry.ts`. New compact/full work should consume that pure contract before adding local `x/y/width/height/radius/hotspot` calculations in `App.tsx`. Geometry remains spatial; transition token, timing, reduced-motion, and executor lifecycle data stay in the separate transition plan.
 
+Renderer-side native bounds orchestration lives in `src/utils/mainWindowNativeBoundsOrchestrator.ts`. Keep startup normalization, compact visibility clamping, transition-token checks, and position-cache writes behind that helper instead of scattering direct `animateBounds(...)` calls in `App.tsx`. Do not add native bounds calls to hover expand/collapse paths unless the verified baseline changes.
+
 ---
 
 ## Scenario: Choosing CSS vs Motion
