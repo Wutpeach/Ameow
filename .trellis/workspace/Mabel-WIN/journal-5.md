@@ -442,3 +442,36 @@ Adjusted main floating window elastic motion: Windows full viewport now preserve
 ### Next Steps
 
 - None - task complete
+
+
+## Session 210: Document downloader error messages
+
+**Date**: 2026-06-12
+**Task**: Document downloader error messages
+**Branch**: `main`
+
+### Summary
+
+Added docs-first troubleshooting coverage for raw downloader errors, including BiliBili HTTP 412, common HTTP/network/auth/format/ffmpeg/gallery-dl messages, and validated docs build.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ae6a53d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
