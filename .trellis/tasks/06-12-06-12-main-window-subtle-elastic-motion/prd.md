@@ -13,6 +13,10 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
   - tune only the full expansion spring
   - do not add icon handoff elasticity yet
   - keep compact collapse tween unchanged
+- Second implementation pass responds to Windows visual feedback:
+  - add a tiny full-expansion-only panel scale keyframe so the whole full window, not only the corners, reads as elastic
+  - keep compact collapse tween unchanged
+  - keep icon handoff elasticity deferred
 - Keep the current Phase 2 architecture boundaries:
   - renderer visual timing stays centralized in `src/utils/mainWindowMotionBaseline.ts`
   - geometry stays in `src/utils/mainWindowShellGeometry.ts`
@@ -34,6 +38,7 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
 - [ ] The proposal includes a focused verification plan for Windows compact outline stability, fast enter/leave, drag, drop, and reduced motion.
 - [ ] Claude review is captured or summarized in this task before implementation starts.
 - [ ] First implementation pass changes only the full expansion spring contract.
+- [ ] Second implementation pass adds only full-expansion scale elasticity and does not affect compact collapse.
 - [ ] No compact shell or icon handoff elasticity is introduced in the first pass.
 - [ ] No code implementation starts until the reviewed plan is accepted.
 
@@ -42,3 +47,4 @@ The goal is not to make the window playful or bouncy. The goal is a small amount
 - Parent task: `.trellis/tasks/06-11-main-floating-window-motion-phase-2`.
 - Phase 2F baseline already passed Windows manual visual validation after `9ff1a0d`.
 - User approved the first implementation pass on 2026-06-12: tune only full expansion elasticity and keep icon elasticity deferred.
+- User feedback after first pass: full expansion corner elasticity is visible but the whole window does not read as elastic enough. Second pass may add a tiny full-expansion-only scale keyframe while keeping compact/icon paths unchanged.

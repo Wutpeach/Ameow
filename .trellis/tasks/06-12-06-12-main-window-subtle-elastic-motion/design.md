@@ -74,6 +74,14 @@ Recommended maximum:
 - `scale` overshoot no larger than `1.006` to `1.012`
 - no negative undershoot on compact settle that visibly shrinks the outline after it reaches icon mode
 
+Second pass decision:
+
+- Use a full-expansion-only scale keyframe on the panel and shadow shell.
+- Gate it on the existing `shellPhase === "expanding"` direction signal.
+- Target `scale: [1, 1.01, 1]`.
+- Do not apply this keyframe when `visualIsMinimized` is true, when `panelTransitionMode` is instant, during initial mount, or when reduced motion is enabled.
+- Do not add scale elasticity to compact collapse.
+
 ### Lower-Risk Elastic Targets
 
 The safest elastic feel should come from layers that do not draw the compact outline:
@@ -103,14 +111,19 @@ Claude review note:
    - Keep damping high enough that the full shell does not visibly bounce.
    - Suggested first exploration range after Claude review: keep `stiffness: 460`, do not lower damping below roughly `34-36`.
 
-3. Defer icon handoff elasticity.
+3. Second implementation pass: add full-expansion-only panel scale keyframes.
+   - Use the existing renderer visual motion owner.
+   - Keep keyframes small enough to avoid outline shimmer.
+   - Apply to the panel/shadow shell during expansion only.
+
+4. Defer icon handoff elasticity.
    - It should not affect the panel shell outline.
    - Keep the effect around `1.006` to `1.012`.
    - Keep reduced-motion path unchanged or simplified.
    - Verify the actual `AnimatePresence` path first. Icon leave elasticity likely belongs in the `exit` contract, not the `visualIsMinimized === false` branch of `minimizedIconAnimate`.
    - Do not implement this in the first pass.
 
-4. If any compact shell scale elasticity is considered, gate it behind Windows visual validation.
+5. If any compact shell scale elasticity is considered, gate it behind Windows visual validation.
    - Prefer not to do this in the first elastic pass.
 
 ## Rejected Approaches

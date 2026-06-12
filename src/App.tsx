@@ -156,6 +156,8 @@ import {
   MAIN_WINDOW_MINIMIZED_ICON_SIZE,
   MAIN_WINDOW_MINIMIZED_PANEL_SCALE,
   MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION,
+  MAIN_WINDOW_PANEL_FULL_ELASTIC_SCALE_KEYFRAMES,
+  MAIN_WINDOW_PANEL_FULL_ELASTIC_SCALE_TIMES,
   MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION,
   MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION,
   MAIN_WINDOW_PANEL_INSTANT_TRANSITION,
@@ -1359,8 +1361,32 @@ function App({
   const instantPanelValueTransition = MAIN_WINDOW_PANEL_INSTANT_TRANSITION;
   const springPanelValueTransition = MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION;
   const panelShellClipPath = visualShellFrame.clipPath;
+  const shouldUseFullElasticScale = (
+    shellPhase === "expanding"
+    && !isInitialMount
+    && !shouldUseInstantPanelTransition
+    && !visualIsMinimized
+    && !shouldReduceMotion
+  );
+  const panelShellScaleAnimate = shouldUseFullElasticScale
+    ? [...MAIN_WINDOW_PANEL_FULL_ELASTIC_SCALE_KEYFRAMES]
+    : isInitialMount
+      ? MAIN_WINDOW_INITIAL_PANEL_SCALE
+      : panelScale;
+  const panelShellScaleTransition = shouldUseFullElasticScale
+    ? {
+      ...springPanelValueTransition,
+      times: [...MAIN_WINDOW_PANEL_FULL_ELASTIC_SCALE_TIMES],
+    }
+    : isInitialMount
+      ? initialPanelTweenTransition
+      : shouldUseInstantPanelTransition
+        ? instantPanelValueTransition
+        : visualIsMinimized
+          ? minimizedPanelTweenTransition
+          : springPanelValueTransition;
   const panelShellAnimate = {
-    scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
+    scale: panelShellScaleAnimate,
     borderRadius: panelRadius,
     clipPath: panelShellClipPath,
     x: panelOffsetX,
@@ -1369,13 +1395,7 @@ function App({
     height: panelRenderSize,
   };
   const panelShellTransition = {
-    scale: isInitialMount
-      ? initialPanelTweenTransition
-      : shouldUseInstantPanelTransition
-        ? instantPanelValueTransition
-        : visualIsMinimized
-          ? minimizedPanelTweenTransition
-          : springPanelValueTransition,
+    scale: panelShellScaleTransition,
     borderRadius: isInitialMount
       ? initialPanelTweenTransition
       : shouldUseInstantPanelTransition
@@ -4166,7 +4186,7 @@ function App({
           initial={false}
           aria-hidden="true"
           animate={{
-            scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
+            scale: panelShellScaleAnimate,
             borderRadius: shadowRadius,
             x: shadowOffsetX,
             y: shadowOffsetY,

@@ -31,6 +31,7 @@ Allowed:
 
 - Adjust named visual timing constants in `src/utils/mainWindowMotionBaseline.ts`.
 - First pass: tune existing full expansion spring only within restrained values.
+- Second pass: add a tiny full-expansion-only scale keyframe contract and consume it in `App.tsx` when `shellPhase === "expanding"`.
 - Update tests that lock the motion contract.
 
 Deferred:
@@ -44,6 +45,7 @@ Not allowed:
 - No compact passthrough timing changes.
 - No icon handoff elasticity in the first pass.
 - No spring overshoot on compact shell `width`, `height`, `x`, `y`, `borderRadius`, or `clipPath`.
+- No full-expansion scale keyframe during compact collapse, initial mount, instant transition, or reduced motion.
 - No moving outline drawing ownership in this task.
 
 ## Phase 3: Validation
@@ -55,6 +57,12 @@ Implementation status:
   - `MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION.stiffness`: unchanged at `460`
   - compact shell tween unchanged
   - icon handoff unchanged
+- Second pass implemented in current work from user visual feedback:
+  - add full-expansion-only shell scale keyframes: `[1, 1.01, 1]`
+  - gate the keyframes on `shellPhase === "expanding"`
+  - apply the same scale keyframes to panel and shadow shell
+  - keep compact shell tween unchanged
+  - keep icon handoff unchanged
 
 Automated:
 
