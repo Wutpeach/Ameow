@@ -97,6 +97,8 @@ Main floating-window geometry and transition planning lives in `src/utils/mainWi
 
 Renderer-side native bounds orchestration lives in `src/utils/mainWindowNativeBoundsOrchestrator.ts`. Keep startup normalization, compact visibility clamping, transition-token checks, and position-cache writes behind that helper instead of scattering direct `animateBounds(...)` calls in `App.tsx`. Do not add native bounds calls to hover expand/collapse paths unless the verified baseline changes.
 
+Main floating-window visual timing is centralized in `src/utils/mainWindowMotionBaseline.ts`. Phase 2F may tune renderer-only panel spring/tween and minimized-icon handoff values there, but native compact visibility timing, transition-token ownership, hover-collapse state flow, and passthrough timing remain separate contracts.
+
 ---
 
 ## Scenario: Choosing CSS vs Motion

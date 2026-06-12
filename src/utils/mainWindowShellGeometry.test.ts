@@ -130,7 +130,7 @@ describe("mainWindowShellGeometry", () => {
     expect(plan.timing.native).toEqual({ kind: "none" });
     expect(plan.timing.visual).toEqual({
       kind: "spring",
-      transition: { type: "spring", stiffness: 400, damping: 30 },
+      transition: { type: "spring", stiffness: 460, damping: 38 },
     });
     expect(plan.timing.icon).toEqual({ kind: "hidden" });
     expect("timing" in geometry).toBe(false);
@@ -159,7 +159,7 @@ describe("mainWindowShellGeometry", () => {
     });
     expect(plan.timing.visual).toEqual({
       kind: "tween",
-      transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+      transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
     });
     expect(plan.timing.icon).toEqual({
       kind: "currentMinimizedIconHandoff",

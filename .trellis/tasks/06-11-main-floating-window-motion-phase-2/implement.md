@@ -165,6 +165,7 @@ Progress:
 - Phase 2C completed in `9aecd91`: `App.tsx` consumes the shared geometry/transition plan for compact visibility clamping and panel/shadow visual frame derivation without extracting the render tree or changing motion values.
 - Phase 2D completed in `a3398bd`: renderer-side native bounds orchestration moved to `src/utils/mainWindowNativeBoundsOrchestrator.ts`, preserving startup normalization, compact visibility clamp timing, transition-token stale checks, and position-cache behavior without adding native resize paths.
 - Phase 2E completed in `8b608f2`: shadow and panel layers explicitly consume `shadowShell` and `visualShell` from the shared geometry plan while preserving CSS `box-shadow` ownership and current visual timing.
+- Phase 2F completed in current work: renderer-only panel and minimized-icon motion timing tuned in `src/utils/mainWindowMotionBaseline.ts`, with native compact clamp timing and shell interaction contracts unchanged.
 
 0. Reconcile current behavior before refactoring.
    - Confirm normal main-window startup native size.

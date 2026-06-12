@@ -21,50 +21,50 @@ import {
 } from "./mainWindowMotionBaseline";
 
 describe("mainWindowMotionBaseline", () => {
-  it("captures current panel and icon visual timing without tuning it", () => {
+  it("captures the tuned Phase 2F panel visual timing contract", () => {
     expect(MAIN_WINDOW_COMPACT_MOTION_EASE).toEqual([0.22, 1, 0.36, 1]);
     expect(MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS).toBe(180);
 
     expect(MAIN_WINDOW_MINIMIZED_ICON_SIZE).toBe(38);
-    expect(MAIN_WINDOW_INITIAL_PANEL_SCALE).toBe(0.82);
+    expect(MAIN_WINDOW_INITIAL_PANEL_SCALE).toBe(0.88);
     expect(MAIN_WINDOW_MINIMIZED_PANEL_SCALE).toBe(1);
     expect(MAIN_WINDOW_FULL_PANEL_RADIUS).toBe(16);
     expect(MAIN_WINDOW_MINIMIZED_PANEL_RADIUS).toBe(100);
 
     expect(MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION).toEqual({
-      duration: 0.22,
+      duration: 0.2,
       ease: [0.22, 1, 0.36, 1],
     });
     expect(MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION).toEqual({
-      duration: 0.18,
+      duration: 0.2,
       ease: [0.22, 1, 0.36, 1],
     });
     expect(MAIN_WINDOW_PANEL_INSTANT_TRANSITION).toEqual({ duration: 0 });
     expect(MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION).toEqual({
       type: "spring",
-      stiffness: 400,
-      damping: 30,
+      stiffness: 460,
+      damping: 38,
     });
   });
 
-  it("captures current minimized icon handoff timing without tuning it", () => {
+  it("captures the tuned Phase 2F minimized icon handoff timing contract", () => {
     expect(MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION).toEqual({
       duration: 0.12,
     });
     expect(MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION).toEqual({
-      duration: 0.18,
+      duration: 0.16,
       ease: [0.22, 1, 0.36, 1],
     });
     expect(MAIN_WINDOW_MINIMIZED_ICON_LEAVE_TRANSITION).toEqual({
-      duration: 0.24,
-      times: [0, 0.58, 1],
+      duration: 0.2,
+      times: [0, 0.64, 1],
       ease: [0.22, 1, 0.36, 1],
     });
     expect(MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION).toEqual({
       duration: 0.01,
     });
     expect(MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION).toEqual({
-      duration: 0.05,
+      duration: 0.06,
       ease: [0.22, 1, 0.36, 1],
     });
   });

@@ -1,7 +1,7 @@
 export const MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS = 180;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_SIZE = 38;
-export const MAIN_WINDOW_INITIAL_PANEL_SCALE = 0.82;
+export const MAIN_WINDOW_INITIAL_PANEL_SCALE = 0.88;
 export const MAIN_WINDOW_MINIMIZED_PANEL_SCALE = 1;
 export const MAIN_WINDOW_FULL_PANEL_RADIUS = 16;
 export const MAIN_WINDOW_MINIMIZED_PANEL_RADIUS = 100;
@@ -9,12 +9,12 @@ export const MAIN_WINDOW_MINIMIZED_PANEL_RADIUS = 100;
 export const MAIN_WINDOW_COMPACT_MOTION_EASE = [0.22, 1, 0.36, 1] as const;
 
 export const MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION = {
-  duration: 0.22,
+  duration: 0.2,
   ease: MAIN_WINDOW_COMPACT_MOTION_EASE,
 } as const;
 
 export const MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION = {
-  duration: 0.18,
+  duration: 0.2,
   ease: MAIN_WINDOW_COMPACT_MOTION_EASE,
 } as const;
 
@@ -24,8 +24,8 @@ export const MAIN_WINDOW_PANEL_INSTANT_TRANSITION = {
 
 export const MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION = {
   type: "spring",
-  stiffness: 400,
-  damping: 30,
+  stiffness: 460,
+  damping: 38,
 } as const;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION = {
@@ -33,13 +33,13 @@ export const MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION = {
 } as const;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION = {
-  duration: 0.18,
+  duration: 0.16,
   ease: MAIN_WINDOW_COMPACT_MOTION_EASE,
 } as const;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_LEAVE_TRANSITION = {
-  duration: 0.24,
-  times: [0, 0.58, 1],
+  duration: 0.2,
+  times: [0, 0.64, 1],
   ease: MAIN_WINDOW_COMPACT_MOTION_EASE,
 };
 
@@ -48,7 +48,7 @@ export const MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION = {
 } as const;
 
 export const MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION = {
-  duration: 0.05,
+  duration: 0.06,
   ease: MAIN_WINDOW_COMPACT_MOTION_EASE,
 } as const;
 
