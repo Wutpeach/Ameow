@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "06-12-06-12-main-window-subtle-elastic-motion"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",
