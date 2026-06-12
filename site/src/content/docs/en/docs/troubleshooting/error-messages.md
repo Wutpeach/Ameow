@@ -5,6 +5,8 @@ description: Troubleshoot Ameow issues by matching the message, task state, or d
 
 When you hit an error, keep the full message. Some parts of Ameow show user-readable error text, while logs or bug reports may include internal error codes. The code helps narrow the direction, but it should be read together with the task state, site, link, and output folder.
 
+When a download fails, the English text you see often comes from `yt-dlp`, `gallery-dl`, `douyin-dl`, or `ffmpeg`. These messages are not Ameow internal error codes, but they often describe the real cause more directly. Copy the complete original message when troubleshooting, especially the `ERROR:` prefix, site name, HTTP status code, and the text after it.
+
 Fast rule: **start with the text you can see, use the error code as supporting evidence, then keep the full message when reporting the issue.**
 
 ## Start With The Text You See
@@ -15,8 +17,12 @@ Fast rule: **start with the text you can see, use the error code as supporting e
 | `Preparing` never ends | Ameow is resolving the link, preparing a runtime, waiting for network, or waiting for login state | Wait briefly; if several public links behave this way, see [Download Runtimes and Automatic Preparation](../../advanced/download-dependencies/) |
 | `cookies`, `login`, `sign in`, `authentication`, `authorization` | The site needs login state or cookies | Log in in the browser, then send the task from the page with the extension |
 | `403`, `forbidden` | The site refused access, often because of login state, region, proxy, or site-rule changes | Open the same page in the browser first, then send it from the extension |
+| `HTTP Error 412`, `Precondition Failed` | The site rejected a metadata or media request, often because of login state, site checks, link state, or downloader rule changes | See [BiliBili 412](#bilibili-http-error-412-precondition-failed) below; keep the full original message |
 | `timeout`, `timed out`, `network`, `fetch failed` | A network request failed or timed out | Check network/proxy takeover and test with a public link |
 | `429`, `too many requests`, `rate limit` | The site is rate limiting repeated access | Wait before retrying and avoid repeated immediate retries |
+| `Requested format is not available`, `No video formats found` | The selected quality/format is unavailable, or the downloader could not find downloadable media | Try a lower or manual quality; update Ameow/yt-dlp if it still fails |
+| `ffmpeg exited with code ...`, `Conversion failed` | The merge, remux, or transcode step failed | Try another quality or format; include the full error and source link when reporting |
+| `gallery-dl exited with code ...` | `gallery-dl` failed; the detail after the colon is usually the useful part | Look for `403`, `timeout`, `cookies`, or similar keywords in the same message |
 | `yt-dlp exited with code ...` | The downloader process failed; nearby text usually contains the real cause | Look for site, login, proxy, or format details in the same message |
 | `produced no final output path` | The downloader finished but did not report a final file | Open the current output folder and check whether conversion or intermediate files are still present |
 | `Download cancelled` | The task was cancelled | Send the task again; if it cancels without your action, record the steps |
@@ -42,6 +48,50 @@ These codes are mainly used by the download pipeline, logs, and issue investigat
 | `E_INVALID_ENGINE_PLAN` | Ameow could not build a valid download plan | Update to the latest stable version; keep the link and message for reporting |
 | `E_NO_ENGINE_SUCCEEDED` | All attempted download paths failed | Test a public link, lower quality, confirm login state, and check proxy routing |
 | `E_OUTPUT_NOT_FOUND` | The downloader did not provide a final output file | Open the current output folder and check whether conversion is still running; report the full message if it repeats |
+
+## What Do Common Downloader Messages Mean?
+
+These messages usually come from the downloader or the site response. They are different from the `E_*` internal codes above: `E_*` tells you which part of Ameow's download pipeline failed, while the original downloader text is closer to the site or tool-specific cause.
+
+| Original message or keyword | Usually means | First action |
+| --- | --- | --- |
+| `ERROR: [BiliBili] ... Unable to download JSON metadata: HTTP Error 412 Precondition Failed` | BiliBili rejected the metadata request. This can involve login state/cookies, site checks, link state, region restrictions, request headers, or yt-dlp rule changes | See [BiliBili 412](#bilibili-http-error-412-precondition-failed) below |
+| `HTTP Error 403: Forbidden` | The site refused access. Common causes include missing login state, expired cookies, region limits, proxy mismatch, or site-rule changes | Confirm the same page plays in the browser, then send it from the extension |
+| `HTTP Error 404`, `Private video`, `video unavailable`, `not available in your country` | The content is inaccessible, private, removed, or region unavailable | First confirm whether the browser can access it; if not, Ameow usually cannot fix it |
+| `HTTP Error 416: Requested Range Not Satisfiable` | Resume range mismatch, often from an old `.part` temp file or a changed server response | Remove matching leftover temp files and retry; report the full error if it repeats |
+| `429`, `Too Many Requests`, `rate limit` | The site is rate limiting repeated requests | Wait before retrying, avoid immediate repeated retries, and refresh login state if needed |
+| `timeout`, `timed out`, `ECONNRESET`, `ENOTFOUND`, `EAI_AGAIN`, `fetch failed` | Network, DNS, or proxy routing failed | Confirm whether your proxy covers Ameow and downloader subprocesses, then test with a public video |
+| `Requested format is not available` | The selected quality or format is unavailable, or the site response changed | Try a lower or manual quality, then update Ameow/yt-dlp |
+| `No video formats found` | The downloader could not find downloadable media, often because of site-rule changes, unsupported link type, or missing login state | Send from the actual page with the extension, confirm login state, then update Ameow/yt-dlp if needed |
+| `Sign in to confirm you're not a bot` | The site triggered login or anti-bot checks, commonly on YouTube | Log in in the browser, send from the extension, and check proxy route consistency |
+| `Fresh cookies ... needed` | The site needs newer cookies | Log in again in the browser and refresh the matching site login state in Ameow |
+| `ffmpeg exited with code ...`, `Conversion failed` | The post-download merge, remux, or transcode step failed | Try another quality/format; include the full error and source link when reporting |
+| `gallery-dl exited with code ...` | `gallery-dl` itself failed; the HTTP, login, or network text after the colon is the important part | Continue troubleshooting by the specific keyword in the same message |
+| `produced no final output path`, `finished without producing an output file` | The downloader finished but did not give Ameow a final file path | Open the output folder and check leftover files; report the full error if it repeats |
+
+### BiliBili `HTTP Error 412 Precondition Failed`
+
+If you see a message like this:
+
+```text
+ERROR: [BiliBili] 1E642127rm: Unable to download JSON metadata: HTTP Error 412 Precondition Failed
+```
+
+The downloader was rejected while requesting video metadata from BiliBili. `412 Precondition Failed` is not an Ameow internal error code; it is the site's HTTP response. Common directions include:
+
+- The page plays in your browser, but the downloader did not receive the same login state or cookies.
+- BiliBili triggered site checks, region limits, age/member/bangumi restrictions, or link-state restrictions.
+- The BiliBili page or API changed, so Ameow or yt-dlp needs an update.
+- The link is not a normal public video, or the video is expired, app-only, member-only, or region-limited.
+
+Try this order:
+
+1. Open the same page in the browser and confirm it plays normally.
+2. If login is required, log in to BiliBili in the browser first.
+3. Prefer sending the task from the current page with the Ameow browser extension, instead of pasting only the URL.
+4. Refresh the BiliBili site login state in Ameow, then retry.
+5. Update Ameow or yt-dlp and try again.
+6. If it still fails, include the complete original error text, page link, Ameow version, and whether you sent it from the extension.
 
 ## Common Situations
 

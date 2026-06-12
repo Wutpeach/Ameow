@@ -5,6 +5,8 @@ description: 按用户看到的错误文字、状态和下载错误码定位 Ame
 
 遇到报错时，先保留完整提示。Ameow 有些地方显示的是用户可读的错误文字，有些日志或反馈信息里会出现内部错误码。错误码能帮助定位方向，但不要只看错误码本身；同时看任务状态、站点、链接和输出目录。
 
+下载失败时，你看到的英文原文通常来自 `yt-dlp`、`gallery-dl`、`douyin-dl` 或 `ffmpeg`。这些原文不是 Ameow 内部错误码，但往往比内部错误码更能说明真实原因。排查时优先复制整条原文，尤其是 `ERROR:`、站点名、HTTP 状态码和后面的说明。
+
 最快的处理顺序是：**先按屏幕上的文字判断类型，再按错误码补充确认，最后记录完整提示反馈。**
 
 ## 先看你看到的文字
@@ -15,8 +17,12 @@ description: 按用户看到的错误文字、状态和下载错误码定位 Ame
 | `Preparing` 一直不结束 | 正在解析链接、准备依赖、等待网络或登录态 | 等待一小段时间；多个公开链接都这样时看 [下载依赖与自动准备](../../advanced/download-dependencies/) |
 | `cookies`、`login`、`sign in`、`authentication`、`authorization` | 站点需要登录态或 Cookie | 在浏览器登录后，通过扩展从页面发送任务 |
 | `403`、`forbidden` | 站点拒绝访问，常见于登录态、地区、代理或规则变化 | 先用浏览器打开同一页面，再通过扩展发送 |
+| `HTTP Error 412`、`Precondition Failed` | 站点拒绝了这次元数据或媒体请求，常见于登录态、风控、链接状态或下载器规则变化 | 先看下方 [BiliBili 412](#bilibili-http-error-412-precondition-failed) 说明；保留完整原文 |
 | `timeout`、`timed out`、`network`、`fetch failed` | 网络请求失败或超时 | 检查网络和代理接管方式，换公开链接测试 |
 | `429`、`too many requests`、`rate limit` | 访问过于频繁，被站点限流 | 等待一段时间，减少重复重试 |
+| `Requested format is not available`、`No video formats found` | 当前画质/格式不可用，或下载器没有解析到可下载媒体 | 换较低质量或手动画质；仍失败时更新 Ameow/yt-dlp |
+| `ffmpeg exited with code ...`、`Conversion failed` | 合并、封装或转码阶段失败 | 换质量或格式重试；反馈时保留完整错误和源链接 |
+| `gallery-dl exited with code ...` | `gallery-dl` 执行失败，冒号后面通常才是具体原因 | 看同一条提示里的 `403`、`timeout`、`cookies` 等关键词 |
 | `yt-dlp exited with code ...` | 下载器进程失败，后面通常还有更具体原因 | 看同一条提示里的站点、登录、代理或格式信息 |
 | `produced no final output path` | 下载器结束了，但没有报告最终文件 | 打开当前输出目录，确认是否仍在转换或是否生成了中间文件 |
 | `Download cancelled` | 任务被取消 | 如果不是你主动取消，重新发送任务并观察是否再次出现 |
@@ -42,6 +48,50 @@ description: 按用户看到的错误文字、状态和下载错误码定位 Ame
 | `E_INVALID_ENGINE_PLAN` | 下载计划生成失败 | 更新到最新稳定版；保留链接和错误提示反馈 |
 | `E_NO_ENGINE_SUCCEEDED` | 已尝试的下载方式都失败 | 换公开链接、降低质量、确认登录态和代理 |
 | `E_OUTPUT_NOT_FOUND` | 下载器没有给出最终输出文件 | 打开当前输出目录，确认任务是否还在转换；若重复出现，反馈完整错误 |
+
+## 常见下载器原文是什么意思？
+
+这些提示通常来自下载器或站点响应。它们和上面的 `E_*` 内部错误码不同：`E_*` 说明 Ameow 下载链路走到了哪类失败，下面这些原文更接近站点或下载器给出的具体原因。
+
+| 原始提示或关键词 | 通常表示 | 先做什么 |
+| --- | --- | --- |
+| `ERROR: [BiliBili] ... Unable to download JSON metadata: HTTP Error 412 Precondition Failed` | BiliBili 拒绝了元数据请求。可能和登录态/Cookie、站点风控、链接状态、地区限制、请求头或 yt-dlp 规则变化有关 | 见下方 [BiliBili 412](#bilibili-http-error-412-precondition-failed) |
+| `HTTP Error 403: Forbidden` | 站点拒绝访问。常见原因是未登录、Cookie 失效、地区限制、代理环境不一致或站点规则变化 | 在浏览器确认同一页面可播放；通过扩展从页面重新发送 |
+| `HTTP Error 404`、`Private video`、`video unavailable`、`not available in your country` | 内容不可访问、私密、下架或地区不可用 | 先确认浏览器里能否访问；浏览器也不可访问时通常不是 Ameow 能修复的问题 |
+| `HTTP Error 416: Requested Range Not Satisfiable` | 续传范围不匹配，常见于旧的 `.part` 临时文件或站点返回范围变化 | 清理同名残留临时文件后重试；仍失败时反馈完整错误 |
+| `429`、`Too Many Requests`、`rate limit` | 请求太频繁，被站点限流 | 等待一段时间再试，减少连续重试；必要时刷新登录态 |
+| `timeout`、`timed out`、`ECONNRESET`、`ENOTFOUND`、`EAI_AGAIN`、`fetch failed` | 网络、DNS 或代理链路失败 | 确认代理是否接管 Ameow 和下载器进程，换公开视频交叉测试 |
+| `Requested format is not available` | 选择的画质或格式不可用，也可能是站点返回格式发生变化 | 换较低质量或手动画质；更新 Ameow/yt-dlp |
+| `No video formats found` | 下载器没有解析到可下载媒体，可能是站点规则变化、链接类型不支持或需要登录态 | 用扩展从实际页面发送，确认登录态；仍失败时更新 Ameow/yt-dlp |
+| `Sign in to confirm you're not a bot` | 站点触发登录或反机器人校验，常见于 YouTube | 在浏览器登录后通过扩展发送；检查代理路径是否一致 |
+| `Fresh cookies ... needed` | 站点需要新的 Cookie | 在浏览器重新登录，并在 Ameow 里刷新对应站点登录态 |
+| `ffmpeg exited with code ...`、`Conversion failed` | 下载后的合并、封装或转码失败 | 换质量/格式重试；反馈时提供完整错误和源链接 |
+| `gallery-dl exited with code ...` | `gallery-dl` 本身失败，冒号后面的 HTTP、登录、网络文字才是重点 | 按同条提示里的具体关键词继续排查 |
+| `produced no final output path`、`finished without producing an output file` | 下载器结束了，但没有给 Ameow 最终文件路径 | 打开输出目录检查残留文件；重复出现时反馈完整错误 |
+
+### BiliBili `HTTP Error 412 Precondition Failed`
+
+如果你看到类似下面的提示：
+
+```text
+ERROR: [BiliBili] 1E642127rm: Unable to download JSON metadata: HTTP Error 412 Precondition Failed
+```
+
+这表示下载器在向 BiliBili 请求视频元数据时被站点拒绝。`412 Precondition Failed` 本身不是 Ameow 的内部错误码，而是站点 HTTP 响应。常见方向包括：
+
+- 当前浏览器能看，但下载器没有拿到同样的登录态或 Cookie。
+- 站点触发了风控、地区、年龄、会员、番剧或链接状态限制。
+- BiliBili 页面或接口规则变化，需要更新 Ameow 或 yt-dlp。
+- 链接不是普通可公开视频，或视频已经失效、仅 App/会员/地区可看。
+
+先按这个顺序处理：
+
+1. 在浏览器里打开同一页面，确认可以正常播放。
+2. 如果需要登录，先在浏览器登录 BiliBili。
+3. 优先通过 Ameow 浏览器扩展从当前页面重新发送任务，不要只复制链接。
+4. 在 Ameow 里刷新 BiliBili 站点登录态，然后重试。
+5. 更新 Ameow 或 yt-dlp 后再试一次。
+6. 如果仍失败，反馈时保留完整错误原文、页面链接、Ameow 版本，以及是否通过扩展发送。
 
 ## 常见场景怎么处理？
 
