@@ -409,3 +409,36 @@ Clarified the public docs site around first-use paths, removed the standalone do
 ### Next Steps
 
 - None - task complete
+
+
+## Session 209: Refine main window elastic motion
+
+**Date**: 2026-06-12
+**Task**: Refine main window elastic motion
+**Branch**: `main`
+
+### Summary
+
+Adjusted main floating window elastic motion: Windows full viewport now preserves shadow/scale gutter, full expansion uses subtle scale elasticity, compact icon uses a post-collapse inner-wrapper settle pulse, and motion specs/tests were updated.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `00bf3a2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
