@@ -158,6 +158,12 @@ Exit gate:
 
 ## Proposed Sequence
 
+Progress:
+
+- Phase 2A completed in `d9a461a`: baseline constants, native bounds path classification, focused tests, and stale native morph spec reconciliation.
+- Phase 2B completed in current work: pure geometry plan and separate transition plan under `src/utils/mainWindowShellGeometry.ts`, with Windows/macOS geometry and reduced-motion timing tests.
+- Phase 2C completed in current work: `App.tsx` consumes the shared geometry/transition plan for compact visibility clamping and panel/shadow visual frame derivation without extracting the render tree or changing motion values.
+
 0. Reconcile current behavior before refactoring.
    - Confirm normal main-window startup native size.
    - Confirm whether compact native startup is active or dormant.

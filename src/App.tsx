@@ -14,7 +14,6 @@ import { FolderCheckIcon } from "./components/icons/AppIcons";
 import { NeonIconButton } from "./components/ui";
 import {
   COMPACT_EASE,
-  getContinuousCornerClipPath,
   getContinuousCornerStyle,
   getInsetCardStyle,
   getShadowBackdropStyle,
@@ -144,8 +143,6 @@ import {
   type MainWindowBoundsTransitionState,
 } from "./utils/mainWindowTransitionToken";
 import {
-  MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS,
-  MAIN_WINDOW_FULL_PANEL_RADIUS,
   MAIN_WINDOW_INITIAL_PANEL_SCALE,
   MAIN_WINDOW_MINIMIZED_ICON_ENTER_TRANSITION,
   MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION,
@@ -153,14 +150,16 @@ import {
   MAIN_WINDOW_MINIMIZED_ICON_REDUCED_EXIT_TRANSITION,
   MAIN_WINDOW_MINIMIZED_ICON_REDUCED_MOTION_TRANSITION,
   MAIN_WINDOW_MINIMIZED_ICON_SIZE,
-  MAIN_WINDOW_MINIMIZED_PANEL_RADIUS,
   MAIN_WINDOW_MINIMIZED_PANEL_SCALE,
   MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION,
   MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION,
   MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION,
   MAIN_WINDOW_PANEL_INSTANT_TRANSITION,
 } from "./utils/mainWindowMotionBaseline";
-import { resolveMainWindowCompactVisibilityBounds } from "./utils/mainWindowCompactBounds";
+import {
+  resolveMainWindowShellGeometryPlan,
+  resolveMainWindowShellTransitionPlan,
+} from "./utils/mainWindowShellGeometry";
 import { isPointInsideCompactPointerHotspot } from "./utils/compactPointerHotspot";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
 import { isVideoUrl } from "./utils/videoUrl";
@@ -438,6 +437,11 @@ function App({
   const userAgent = navigator.userAgent.toLowerCase();
   const isMacOS = userAgent.includes("mac");
   const isWindows = userAgent.includes("windows");
+  const currentMainWindowPlatform: NodeJS.Platform = isMacOS
+    ? "darwin"
+    : isWindows
+      ? "win32"
+      : "linux";
   const supportsCompactPassthroughHotspot = isWindows;
   const startupWindowEnvironment = {
     protocol: window.location.protocol,
@@ -458,8 +462,6 @@ function App({
   const MINIMIZED_SHELL_SIZE = MAIN_WINDOW_COMPACT_SHELL_SIZE;
   const MINIMIZED_ICON_SIZE = MAIN_WINDOW_MINIMIZED_ICON_SIZE;
   const COMPACT_HOTSPOT_FRAME_SIZE = isMacOS ? MINIMIZED_SHELL_SIZE : MINIMIZED_ICON_SIZE;
-  const MINIMIZED_SHELL_INSET = Math.round((ICON_SIZE - MINIMIZED_SHELL_SIZE) / 2);
-  const FULL_SHELL_INSET = FULL_WINDOW_SHADOW_GUTTER;
   const startsInNativeCompactStartupWindow = shouldUseNativeCompactStartupWindow({
     startupWindowMode: initialStartupWindowMode,
     startsExpandedOnLaunch,
@@ -948,24 +950,33 @@ function App({
       return;
     }
 
-    const targetBounds = resolveMainWindowCompactVisibilityBounds({
-      currentBounds: {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
-      },
-      compactFrameSize: ICON_SIZE,
+    const geometryPlan = resolveMainWindowShellGeometryPlan({
+      mode: "compact",
+      platform: currentMainWindowPlatform,
+      windowPosition: position,
+      currentNativeSize: size,
+      nativeSizeStrategy: "preserve-current",
       edgePadding: WINDOW_EDGE_PADDING,
       monitor,
     });
+    const transitionPlan = resolveMainWindowShellTransitionPlan({
+      token: transitionToken,
+      targetMode: "compact",
+      geometry: geometryPlan,
+      visualIntent: "compact",
+      reducedMotion: Boolean(shouldReduceMotion),
+      nativePath: "compactVisibilityClamp",
+    });
+    const targetBounds = geometryPlan.nativeBounds;
 
     if (targetBounds.x === position.x && targetBounds.y === position.y) {
       return;
     }
 
     const result = await desktopCurrentWindow.animateBounds(targetBounds, {
-      durationMs: shouldReduceMotion ? 0 : MAIN_WINDOW_COMPACT_VISIBILITY_MOVE_DURATION_MS,
+      durationMs: transitionPlan.timing.native.kind === "animateBounds"
+        ? transitionPlan.timing.native.durationMs
+        : 0,
       transitionToken,
     });
 
@@ -978,7 +989,7 @@ function App({
       y: targetBounds.y,
     };
   }, [
-    ICON_SIZE,
+    currentMainWindowPlatform,
     WINDOW_EDGE_PADDING,
     isMainWindowBoundsTransitionStillCurrent,
     shouldReduceMotion,
@@ -1350,8 +1361,20 @@ function App({
   const shouldShowEdgeGlow =
     isPanelHovered && !isHovering && !primaryTask && !visualIsMinimized && showEdgeGlow;
   const shouldShowDragGlow = isHovering && !primaryTask && !visualIsMinimized;
-  const panelRenderSize = visualIsMinimized ? MINIMIZED_SHELL_SIZE : FULL_SIZE;
-  const minimizedPanelOffset = visualIsMinimized ? MINIMIZED_SHELL_INSET : FULL_SHELL_INSET;
+  const shellGeometryPlan = resolveMainWindowShellGeometryPlan({
+    mode: visualIsMinimized ? "compact" : "full",
+    platform: currentMainWindowPlatform,
+    windowPosition: lastKnownWindowPositionRef.current ?? { x: 0, y: 0 },
+    currentNativeSize: {
+      width: INTERMEDIATE_EXPAND_SIZE,
+      height: INTERMEDIATE_EXPAND_SIZE,
+    },
+    nativeSizeStrategy: "preserve-current",
+  });
+  const visualShellFrame = shellGeometryPlan.visualShell;
+  const panelRenderSize = visualShellFrame.width;
+  const panelOffsetX = visualShellFrame.x;
+  const panelOffsetY = visualShellFrame.y;
   const minimizedPanelScale = MAIN_WINDOW_MINIMIZED_PANEL_SCALE;
   const minimizedIconSize = isMacOS ? MINIMIZED_ICON_SIZE - 2 : MINIMIZED_ICON_SIZE;
   const minimizedIconFrameSize = isMacOS ? MINIMIZED_SHELL_SIZE : minimizedIconSize;
@@ -1381,20 +1404,18 @@ function App({
         transition: MAIN_WINDOW_MINIMIZED_ICON_EXIT_TRANSITION,
       };
   const panelScale = visualIsMinimized ? minimizedPanelScale : 1;
-  const panelRadius = visualIsMinimized
-    ? MAIN_WINDOW_MINIMIZED_PANEL_RADIUS
-    : MAIN_WINDOW_FULL_PANEL_RADIUS;
+  const panelRadius = visualShellFrame.radius;
   const initialPanelTweenTransition = MAIN_WINDOW_PANEL_INITIAL_TWEEN_TRANSITION;
   const minimizedPanelTweenTransition = MAIN_WINDOW_PANEL_COMPACT_TWEEN_TRANSITION;
   const instantPanelValueTransition = MAIN_WINDOW_PANEL_INSTANT_TRANSITION;
   const springPanelValueTransition = MAIN_WINDOW_PANEL_FULL_SPRING_TRANSITION;
-  const panelShellClipPath = getContinuousCornerClipPath(panelRadius);
+  const panelShellClipPath = visualShellFrame.clipPath;
   const panelShellAnimate = {
     scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
     borderRadius: panelRadius,
     clipPath: panelShellClipPath,
-    x: minimizedPanelOffset,
-    y: minimizedPanelOffset,
+    x: panelOffsetX,
+    y: panelOffsetY,
     width: panelRenderSize,
     height: panelRenderSize,
   };
@@ -4196,10 +4217,10 @@ function App({
           initial={false}
           aria-hidden="true"
           animate={{
-            scale: isInitialMount ? 0.82 : panelScale,
+            scale: isInitialMount ? MAIN_WINDOW_INITIAL_PANEL_SCALE : panelScale,
             borderRadius: panelRadius,
-            x: minimizedPanelOffset,
-            y: minimizedPanelOffset,
+            x: panelOffsetX,
+            y: panelOffsetY,
             width: panelRenderSize,
             height: panelRenderSize,
           }}
@@ -5150,7 +5171,7 @@ function App({
         ) : visualIsMinimized ? (
           <motion.div
             key="minimized"
-            initial={{ scale: 0.82, opacity: 0 }}
+            initial={{ scale: MAIN_WINDOW_INITIAL_PANEL_SCALE, opacity: 0 }}
             animate={minimizedIconAnimate}
             exit={minimizedIconExit}
             transition={minimizedIconTransition}

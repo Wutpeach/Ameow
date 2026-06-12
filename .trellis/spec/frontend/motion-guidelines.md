@@ -93,6 +93,8 @@ Do not animate the same property with both CSS and Motion at the same time.
 
 Shared motion tokens may be used by low-risk UI consumers such as dropdowns, settings page transitions, and center overlays. The main floating-window compact/full morph is a separate high-risk motion area. Do not tune or refactor its Electron `animateBounds(...)` flow, transition-token ownership, hover-collapse timing, or platform-specific compact shell behavior as part of generic motion-token cleanup.
 
+Main floating-window geometry and transition planning lives in `src/utils/mainWindowShellGeometry.ts`. New compact/full work should consume that pure contract before adding local `x/y/width/height/radius/hotspot` calculations in `App.tsx`. Geometry remains spatial; transition token, timing, reduced-motion, and executor lifecycle data stay in the separate transition plan.
+
 ---
 
 ## Scenario: Choosing CSS vs Motion
