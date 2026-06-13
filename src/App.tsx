@@ -168,6 +168,7 @@ import {
 import {
   resolveMainWindowShellGeometryPlan,
 } from "./utils/mainWindowShellGeometry";
+import { resolveMainWindowEdgeGlowPoint } from "./utils/mainWindowEdgeGlowPosition";
 import { isPointInsideCompactPointerHotspot } from "./utils/compactPointerHotspot";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
 import { isVideoUrl } from "./utils/videoUrl";
@@ -176,9 +177,8 @@ import { useTheme } from "./contexts/ThemeContext";
 import { isLikelyShortLinkUrl } from "./core/short-links";
 import {
   MAIN_WINDOW_COMPACT_SHELL_SIZE,
-  MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
+  getMainWindowCompactOuterSize,
   getMainWindowFullShadowGutter,
-  MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE,
   MAIN_WINDOW_PANEL_SIZE,
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
@@ -464,9 +464,7 @@ function App({
   const FULL_SIZE = MAIN_WINDOW_PANEL_SIZE;
   const FULL_WINDOW_SHADOW_GUTTER = getMainWindowFullShadowGutter(currentMainWindowPlatform);
   const INTERMEDIATE_EXPAND_SIZE = FULL_SIZE + FULL_WINDOW_SHADOW_GUTTER * 2;
-  const ICON_SIZE = isMacOS
-    ? MAIN_WINDOW_MACOS_COMPACT_OUTER_SIZE
-    : MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE;
+  const ICON_SIZE = getMainWindowCompactOuterSize(currentMainWindowPlatform);
   const MINIMIZED_SHELL_SIZE = MAIN_WINDOW_COMPACT_SHELL_SIZE;
   const MINIMIZED_ICON_SIZE = MAIN_WINDOW_MINIMIZED_ICON_SIZE;
   const COMPACT_HOTSPOT_FRAME_SIZE = isMacOS ? MINIMIZED_SHELL_SIZE : MINIMIZED_ICON_SIZE;
@@ -535,6 +533,7 @@ function App({
   const deferredStartupInitializationIdleRef = useRef<number | null>(null);
   const foregroundTaskOutcomeTimerRef = useRef<number | null>(null);
   const centerOutcomeTimerRef = useRef<number | null>(null);
+  const edgeGlowRevealTimerRef = useRef<number | null>(null);
   const foregroundOutcomeRequestIdRef = useRef(0);
   const isForegroundTaskOutcomeVisibleRef = useRef(false);
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
@@ -552,6 +551,7 @@ function App({
   const isWindowPointerDownRef = useRef(false);
   const windowDragFrameRef = useRef<number | null>(null);
   const lastKnownWindowPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const lastKnownPointerScreenPointRef = useRef<{ x: number; y: number } | null>(null);
   const lastPanelOutputFolderShortcutAtRef = useRef(0);
   const isDropHoveringRef = useRef(false);
   const suppressNextPanelDragLeaveRef = useRef(false);
@@ -871,9 +871,90 @@ function App({
     }
   }, []);
 
+  const clearEdgeGlowRevealTimer = useCallback(() => {
+    if (edgeGlowRevealTimerRef.current !== null) {
+      clearTimeout(edgeGlowRevealTimerRef.current);
+      edgeGlowRevealTimerRef.current = null;
+    }
+  }, []);
+
   const clearMainWindowInteractionTimer = useCallback(() => {
     clearPointerLeaveCollapseTimer();
   }, [clearPointerLeaveCollapseTimer]);
+
+  const syncEdgeGlowMousePositionFromLastPointer = useCallback(() => {
+    const cursorScreenPoint = lastKnownPointerScreenPointRef.current;
+    const container = containerRef.current;
+    if (!cursorScreenPoint || !container) {
+      return false;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const point = resolveMainWindowEdgeGlowPoint({
+      cursorScreenPoint,
+      windowScreenPoint: {
+        x: window.screenX,
+        y: window.screenY,
+      },
+      panelRect: {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      panelSize: FULL_SIZE,
+    });
+    if (!point) {
+      return false;
+    }
+
+    setMousePos(point);
+    return true;
+  }, [
+    FULL_SIZE,
+  ]);
+
+  const scheduleEdgeGlowReveal = useCallback((delayMs = 160) => {
+    clearEdgeGlowRevealTimer();
+    edgeGlowRevealTimerRef.current = window.setTimeout(() => {
+      edgeGlowRevealTimerRef.current = null;
+      syncEdgeGlowMousePositionFromLastPointer();
+      setShowEdgeGlow(true);
+    }, delayMs);
+  }, [
+    clearEdgeGlowRevealTimer,
+    syncEdgeGlowMousePositionFromLastPointer,
+  ]);
+
+  const revealEdgeGlowNow = useCallback(() => {
+    clearEdgeGlowRevealTimer();
+    syncEdgeGlowMousePositionFromLastPointer();
+    setShowEdgeGlow(true);
+  }, [
+    clearEdgeGlowRevealTimer,
+    syncEdgeGlowMousePositionFromLastPointer,
+  ]);
+
+  const suppressEdgeGlowUntilReveal = useCallback((delayMs = 160) => {
+    clearEdgeGlowRevealTimer();
+    syncEdgeGlowMousePositionFromLastPointer();
+    setShowEdgeGlow(false);
+    scheduleEdgeGlowReveal(delayMs);
+  }, [
+    clearEdgeGlowRevealTimer,
+    scheduleEdgeGlowReveal,
+    syncEdgeGlowMousePositionFromLastPointer,
+  ]);
+
+  const updateLastKnownPointerScreenPoint = useCallback((screenX: number, screenY: number) => {
+    if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
+      return;
+    }
+    lastKnownPointerScreenPointRef.current = {
+      x: screenX,
+      y: screenY,
+    };
+  }, []);
 
   const syncCurrentWindowPositionCache = useCallback(async () => {
     return syncMainWindowNativePositionCache({
@@ -976,8 +1057,7 @@ function App({
           updateShellPhase("expanding");
           setPanelTransitionMode("animated");
           setIsMinimized(false);
-          setShowEdgeGlow(false);
-          window.setTimeout(() => setShowEdgeGlow(true), 500);
+          suppressEdgeGlowUntilReveal();
           break;
         }
         case "requestCollapse":
@@ -992,6 +1072,7 @@ function App({
           isPanelHoveredRef.current = false;
           setIsPanelHovered(false);
           setIsMinimized(true);
+          clearEdgeGlowRevealTimer();
           setShowEdgeGlow(false);
           break;
       }
@@ -999,9 +1080,11 @@ function App({
   }, [
     applyCurrentWindowInteractionMode,
     beginMainWindowBoundsTransition,
+    clearEdgeGlowRevealTimer,
     clearMainWindowInteractionTimer,
     ensureMainWindowCompactTargetVisible,
     supportsCompactPassthroughHotspot,
+    suppressEdgeGlowUntilReveal,
     updateShellPhase,
   ]);
 
@@ -1101,8 +1184,7 @@ function App({
     dispatchShellEvent({ type: "forceFull" });
     setPanelTransitionMode("instant");
     restoreAnimatedPanelTransitions();
-    setShowEdgeGlow(false);
-    setTimeout(() => setShowEdgeGlow(true), 500);
+    suppressEdgeGlowUntilReveal();
 
     if (focusContainer) {
       scheduleContainerFocus();
@@ -1111,6 +1193,7 @@ function App({
     dispatchShellEvent,
     restoreAnimatedPanelTransitions,
     scheduleContainerFocus,
+    suppressEdgeGlowUntilReveal,
   ]);
 
   const prepareMainWindowForForegroundTask = useCallback(async () => {
@@ -1303,8 +1386,7 @@ function App({
         return;
       }
       updateShellPhase("full");
-      setShowEdgeGlow(false);
-      setTimeout(() => setShowEdgeGlow(true), 500);
+      revealEdgeGlowNow();
       scheduleContainerFocus();
     }
   };
@@ -1916,6 +1998,9 @@ function App({
       if (pointerLeaveCollapseTimerRef.current !== null) {
         clearTimeout(pointerLeaveCollapseTimerRef.current);
       }
+      if (edgeGlowRevealTimerRef.current !== null) {
+        clearTimeout(edgeGlowRevealTimerRef.current);
+      }
       if (panelTransitionModeResetFrameRef.current !== null) {
         cancelAnimationFrame(panelTransitionModeResetFrameRef.current);
       }
@@ -2484,6 +2569,7 @@ function App({
         return;
       }
       const { clientX, clientY } = event;
+      updateLastKnownPointerScreenPoint(event.screenX, event.screenY);
 
       compactHotspotFrameRef.current = requestAnimationFrame(() => {
         compactHotspotFrameRef.current = null;
@@ -2499,7 +2585,13 @@ function App({
       }
       window.removeEventListener("mousemove", handleMouseMove);
     };
-  }, [evaluateCompactHotspot, shellPhase, supportsCompactPassthroughHotspot, visualIsMinimized]);
+  }, [
+    evaluateCompactHotspot,
+    shellPhase,
+    supportsCompactPassthroughHotspot,
+    updateLastKnownPointerScreenPoint,
+    visualIsMinimized,
+  ]);
 
   useEffect(() => {
     dispatchShellEvent({ type: "setLock", lock: "task", active: hasOngoingTask || isProcessing });
@@ -2908,6 +3000,8 @@ function App({
   };
 
   const handlePanelPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    updateLastKnownPointerScreenPoint(e.screenX, e.screenY);
+
     if (isDraggingRef.current) {
       const activeDrag = activeWindowDragRef.current;
       if (activeDrag && activeDrag.pointerId === e.pointerId) {
@@ -4264,6 +4358,7 @@ function App({
         clearPanelDropInteractionState();
       }}
       onMouseEnter={(e) => {
+      updateLastKnownPointerScreenPoint(e.screenX, e.screenY);
       const rect = e.currentTarget.getBoundingClientRect();
       setMousePos({
         x: e.clientX - rect.left,
@@ -5022,6 +5117,7 @@ function App({
               {/* Close button - top right circle */}
               <NeonIconButton
                 onClick={async () => {
+                  clearEdgeGlowRevealTimer();
                   setShowEdgeGlow(false);
                   await closeContextMenuWindow().catch(() => undefined);
                   try {

@@ -84,7 +84,7 @@ describe("mainWindowShellGeometry", () => {
     });
   });
 
-  it("resolves macOS compact target geometry without borrowing the Windows hotspot frame", () => {
+  it("resolves macOS compact target geometry with the shared outer frame", () => {
     const plan = resolveMainWindowShellGeometryPlan({
       mode: "compact",
       platform: "darwin",
@@ -92,18 +92,18 @@ describe("mainWindowShellGeometry", () => {
       nativeSizeStrategy: "target-mode-outer",
     });
 
-    expect(plan.nativeBounds).toEqual({ x: 40, y: 50, width: 88, height: 88 });
+    expect(plan.nativeBounds).toEqual({ x: 40, y: 50, width: 80, height: 80 });
     expect(plan.visualShell).toMatchObject({
-      x: 14,
-      y: 14,
+      x: 10,
+      y: 10,
       width: 60,
       height: 60,
     });
-    expect(plan.compactReachableFrame).toEqual({ x: 0, y: 0, width: 88, height: 88 });
+    expect(plan.compactReachableFrame).toEqual({ x: 0, y: 0, width: 80, height: 80 });
     expect(plan.hotspot).toEqual({
       frameSize: 60,
-      centerX: 44,
-      centerY: 44,
+      centerX: 40,
+      centerY: 40,
       enterRadius: 30,
       exitRadius: 34,
     });
