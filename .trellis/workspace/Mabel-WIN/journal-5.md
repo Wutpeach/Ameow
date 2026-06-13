@@ -508,3 +508,36 @@ Changed advanced-quality probe dismissal to clear queue state without emitting a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 212: Compact geometry edge glow fix
+
+**Date**: 2026-06-13
+**Task**: Compact geometry edge glow fix
+**Branch**: `main`
+
+### Summary
+
+Unified compact outer geometry across macOS and Windows, fixed full-window edge glow reveal timing and cursor synchronization after compact expansion, and validated focused tests/type-check/lint.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d0184c6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

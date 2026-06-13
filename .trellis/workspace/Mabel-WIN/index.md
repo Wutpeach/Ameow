@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 211
-- **Last Active**: 2026-06-12
+- **Total Sessions**: 212
+- **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~510 | Active |
+| `journal-5.md` | ~543 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 212 | 2026-06-13 | Compact geometry edge glow fix | `d0184c6` | `main` |
 | 211 | 2026-06-12 | Suppress advanced quality cancel toast | `926ef64` | `main` |
 | 210 | 2026-06-12 | Document downloader error messages | `ae6a53d` | `main` |
 | 209 | 2026-06-12 | Refine main window elastic motion | `00bf3a2` | `main` |
