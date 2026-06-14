@@ -87,6 +87,12 @@
       "sourceType": "github",
       "computedHash": "72c2426ac9540884eb5032bb438324bb344d0e2dd2b80f300a9fb49fe38d624e"
     },
+    "qiaomu-goal-meta-skill": {
+      "source": "joeseesun/qiaomu-goal-meta-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "e7ad7f997f0ea4e789b0dc9dd704da2b0da4af2dc2f992103aa79ba2a458e329"
+    },
     "quieter": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",

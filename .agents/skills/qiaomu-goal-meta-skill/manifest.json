@@ -1,0 +1,37 @@
+{
+  "name": "qiaomu-goal-meta-skill",
+  "version": "0.2.0",
+  "owner": "Qiaomu",
+  "updated_at": "2026-06-11",
+  "status": "local",
+  "maturity_tier": "production-lite",
+  "lifecycle_stage": "skill",
+  "context_budget_tier": "light",
+  "review_cadence": "monthly",
+  "target_platforms": [
+    "openai",
+    "claude",
+    "generic",
+    "agent-skills-compatible"
+  ],
+  "outputs": [
+    "codex-goal-command",
+    "chinese-friendly-goal-command",
+    "bilingual-goal-draft",
+    "direct-copy-recommended-goal",
+    "lazy-user-choice-prompts",
+    "unknown-domain-discovery-goal",
+    "plan-to-goal-interview",
+    "success-criteria-questions",
+    "verification-contract",
+    "constraints-and-boundaries",
+    "iteration-policy",
+    "stop-and-pause-conditions",
+    "goal-command-lint"
+  ],
+  "copyright": "Copyright (c) 向阳乔木",
+  "contacts": {
+    "x": "https://x.com/vista8",
+    "github": "https://github.com/joeseesun/"
+  }
+}

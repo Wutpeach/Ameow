@@ -1,0 +1,24 @@
+interface:
+  display_name: "Qiaomu Goal Meta Skill"
+  short_description: "Turn vague Codex work into a best-default /goal command, with direct-copy Chinese and English-compatible versions."
+  default_prompt: "Use $qiaomu-goal-meta-skill to turn this vague task into a strong Codex /goal command. If I use Chinese, keep the command prefix as /goal and first provide 推荐执行版（中文，可直接复制）, then an English-compatible mirror unless I ask for one language only. Choose conservative defaults when low-risk, ask only numbered high-impact choices, and use discovery-first goals for unfamiliar or specialized domains."
+compatibility:
+  canonical_format: "agent-skills"
+  adapter_targets:
+    - "openai"
+    - "claude"
+    - "generic"
+  activation:
+    mode: "manual"
+    paths: []
+  execution:
+    context: "inline"
+    shell: "bash"
+  trust:
+    source_tier: "local"
+    remote_inline_execution: "forbid"
+    remote_metadata_policy: "allow-metadata-only"
+  degradation:
+    openai: "drafts structured Codex /goal commands from available task context"
+    claude: "drafts structured agent goal prompts with the same labels"
+    generic: "uses the canonical goal template and asks for missing criteria when needed"
