@@ -523,10 +523,7 @@ function SettingsPage() {
     try {
       await desktopCommands.invoke("register_shortcut", { shortcut: recordedKeys });
       // 保存到配置
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = JSON.parse(configStr);
-      config.shortcut = recordedKeys;
-      await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({ shortcut: recordedKeys });
 
       setShortcut(recordedKeys);
       setIsRecording(false);
@@ -566,11 +563,10 @@ function SettingsPage() {
     try {
       const newValue = !renameMediaOnDownload;
       setRenameMediaOnDownload(newValue);
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config.renameMediaOnDownload = newValue;
-      config.videoKeepOriginalName = !newValue;
-      await desktopCommands.invoke<void>("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({
+        renameMediaOnDownload: newValue,
+        videoKeepOriginalName: !newValue,
+      });
       await desktopEvents.emit("rename-setting-changed", { enabled: newValue });
     } catch (err) {
       console.error("Failed to toggle rename media:", err);
@@ -585,18 +581,7 @@ function SettingsPage() {
     }>,
   ) => {
     try {
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      if (updates.renameRulePreset !== undefined) {
-        config.renameRulePreset = updates.renameRulePreset;
-      }
-      if (updates.renamePrefix !== undefined) {
-        config.renamePrefix = updates.renamePrefix;
-      }
-      if (updates.renameSuffix !== undefined) {
-        config.renameSuffix = updates.renameSuffix;
-      }
-      await desktopCommands.invoke<void>("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch(updates);
     } catch (err) {
       console.error("Failed to save rename rule config:", err);
     }
@@ -662,10 +647,7 @@ function SettingsPage() {
 
     try {
       setReceivePrereleaseUpdates(nextValue);
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config[APP_UPDATE_PRERELEASE_CONFIG_KEY] = nextValue;
-      await desktopCommands.invoke<void>("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({ [APP_UPDATE_PRERELEASE_CONFIG_KEY]: nextValue });
       await desktopEvents.emit("app-update-preference-changed", {
         receivePrereleaseUpdates: nextValue,
       });
@@ -862,10 +844,7 @@ function SettingsPage() {
     });
     if (selected) {
       setAeExePath(selected as string);
-      const configStr = await desktopCommands.invoke<string>("get_config");
-      const config = parseDesktopAppConfig(configStr);
-      config.aeExePath = selected;
-      await desktopCommands.invoke("save_config", { json: JSON.stringify(config) });
+      await saveConfigPatch({ aeExePath: selected });
     }
   };
 

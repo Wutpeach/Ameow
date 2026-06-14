@@ -3,6 +3,7 @@ import {
   LANGUAGE_CONFIG_KEY,
   type AppLanguage,
 } from "./contract";
+import { parseConfigObject } from "../utils/configObject";
 
 const isEnglishVariant = (normalized: string): boolean =>
   normalized === "en" || normalized.startsWith("en-");
@@ -50,10 +51,6 @@ export function resolveAppLanguageFromConfigString(
   configStr: string,
   navigatorLanguage?: string | null,
 ): AppLanguage {
-  try {
-    const config = JSON.parse(configStr) as Record<string, unknown>;
-    return resolveAppLanguage(config[LANGUAGE_CONFIG_KEY], navigatorLanguage);
-  } catch {
-    return resolveAppLanguage(undefined, navigatorLanguage);
-  }
+  const config = parseConfigObject(configStr);
+  return resolveAppLanguage(config[LANGUAGE_CONFIG_KEY], navigatorLanguage);
 }

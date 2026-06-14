@@ -1,25 +1,25 @@
 import { desktopCommands } from "./runtime";
 import {
-  parseDesktopAppConfig,
-  type DesktopAppConfig,
-} from "../updates/appUpdatePreferences";
+  parseConfigObject as parseRawConfigObject,
+  type ConfigObject,
+} from "../utils/configObject";
+
+export { parseConfigObject } from "../utils/configObject";
 
 export type ConfigObjectPatch =
-  | Partial<DesktopAppConfig>
-  | ((draft: DesktopAppConfig) => void);
+  | Partial<ConfigObject>
+  | ((draft: ConfigObject) => void);
 
-export const parseConfigObject = parseDesktopAppConfig;
-
-export const loadConfigObject = async (): Promise<DesktopAppConfig> => {
+export const loadConfigObject = async (): Promise<ConfigObject> => {
   const configStr = await desktopCommands.invoke<string>("get_config");
-  return parseConfigObject(configStr);
+  return parseRawConfigObject(configStr);
 };
 
 export const patchConfigObject = (
-  config: DesktopAppConfig,
+  config: ConfigObject,
   patch: ConfigObjectPatch,
-): DesktopAppConfig => {
-  const nextConfig: DesktopAppConfig = { ...config };
+): ConfigObject => {
+  const nextConfig: ConfigObject = { ...config };
 
   if (typeof patch === "function") {
     patch(nextConfig);
@@ -34,7 +34,7 @@ export const patchConfigObject = (
 
 export const saveConfigPatch = async (
   patch: ConfigObjectPatch,
-): Promise<DesktopAppConfig> => {
+): Promise<ConfigObject> => {
   const config = await loadConfigObject();
   const nextConfig = patchConfigObject(config, patch);
 

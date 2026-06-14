@@ -1,19 +1,10 @@
+import { parseConfigObject } from "../utils/configObject.js";
+
 export const APP_UPDATE_PRERELEASE_CONFIG_KEY = "receivePrereleaseUpdates";
 
-export type DesktopAppConfig = Record<string, unknown>;
+export type { ConfigObject as DesktopAppConfig } from "../utils/configObject.js";
 
-export const parseDesktopAppConfig = (configStr: string): DesktopAppConfig => {
-  try {
-    const parsed = JSON.parse(configStr) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-
-    return parsed as DesktopAppConfig;
-  } catch {
-    return {};
-  }
-};
+export { parseConfigObject as parseDesktopAppConfig } from "../utils/configObject.js";
 
 export const resolveReceivePrereleaseUpdates = (
   config: Record<string, unknown>,
@@ -21,4 +12,4 @@ export const resolveReceivePrereleaseUpdates = (
 
 export const resolveReceivePrereleaseUpdatesFromConfigString = (
   configStr: string,
-): boolean => resolveReceivePrereleaseUpdates(parseDesktopAppConfig(configStr));
+): boolean => resolveReceivePrereleaseUpdates(parseConfigObject(configStr));

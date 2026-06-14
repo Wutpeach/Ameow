@@ -56,4 +56,8 @@ describe("resolveAppLanguageFromConfigString", () => {
   it("falls back safely when config JSON is invalid", () => {
     expect(resolveAppLanguageFromConfigString("{", "fr-FR")).toBe("en");
   });
+
+  it("falls back safely when config JSON is not an object", () => {
+    expect(resolveAppLanguageFromConfigString("null", "fr-FR")).toBe("en");
+  });
 });

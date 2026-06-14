@@ -23,6 +23,14 @@ describe("parseConfigObject", () => {
     expect(parseConfigObject("")).toEqual({});
     expect(parseConfigObject("[]")).toEqual({});
     expect(parseConfigObject("null")).toEqual({});
+    expect(parseConfigObject("true")).toEqual({});
+    expect(parseConfigObject("42")).toEqual({});
+  });
+
+  it("returns the parsed object for valid config JSON objects", () => {
+    expect(parseConfigObject(JSON.stringify({ outputPath: "D:/Ameow" }))).toEqual({
+      outputPath: "D:/Ameow",
+    });
   });
 });
 

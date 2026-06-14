@@ -1,25 +1,13 @@
 import { desktopCommands, desktopEvents } from "../desktop/runtime";
+import { parseConfigObject, type ConfigObject } from "./configObject";
 
-type AppConfig = Record<string, unknown> & {
+type AppConfig = ConfigObject & {
   outputPath?: string;
-};
-
-const parseConfig = (configStr: string): AppConfig => {
-  try {
-    const parsed = JSON.parse(configStr) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-
-    return parsed as AppConfig;
-  } catch {
-    return {};
-  }
 };
 
 export async function saveOutputPath(nextOutputPath: string): Promise<boolean> {
   const configStr = await desktopCommands.invoke<string>("get_config");
-  const config = parseConfig(configStr);
+  const config = parseConfigObject(configStr) as AppConfig;
   const previousOutputPath =
     typeof config.outputPath === "string" ? config.outputPath : "";
 

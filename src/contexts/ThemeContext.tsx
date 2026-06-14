@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { saveConfigPatch } from '../desktop/config';
 import { desktopCommands, desktopEvents } from '../desktop/runtime';
 import { DEFAULT_THEME, resolveThemeFromConfigString, type Theme } from './theme';
 
@@ -309,9 +310,7 @@ export function ThemeProvider({
     // 广播到浏览器扩展
     await desktopCommands.invoke('broadcast_theme', { theme: t });
     // 保存到配置
-    const cfgStr = await desktopCommands.invoke<string>('get_config');
-    const cfg = JSON.parse(cfgStr);
-    await desktopCommands.invoke('save_config', { json: JSON.stringify({ ...cfg, theme: t }) });
+    await saveConfigPatch({ theme: t });
   };
 
   return (

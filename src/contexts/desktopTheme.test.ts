@@ -25,6 +25,10 @@ describe("resolveThemeFromConfigString", () => {
   it("falls back to the default theme when config JSON is invalid", () => {
     expect(resolveThemeFromConfigString("{")).toBe(DEFAULT_THEME);
   });
+
+  it("falls back to the default theme when config JSON is not an object", () => {
+    expect(resolveThemeFromConfigString("null")).toBe(DEFAULT_THEME);
+  });
 });
 
 describe("resolveInitialDesktopTheme", () => {
