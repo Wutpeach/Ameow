@@ -19,8 +19,8 @@ function findContentScriptWithJs(match, scriptName) {
 }
 
 describe("browser extension manifest", () => {
-  it("keeps the global context menu permission enabled", () => {
-    expect(manifest.permissions).toContain("contextMenus");
+  it("does not request a global context menu permission", () => {
+    expect(manifest.permissions).not.toContain("contextMenus");
   });
 
   it("declares the extension options page", () => {

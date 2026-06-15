@@ -52,7 +52,6 @@ const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
 const INTERNAL_THEME_UPDATE_MESSAGE = 'theme_update';
 const INTERNAL_SCAN_PAGE_MEDIA_MESSAGE = 'ameow_scan_page_media';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
-const CONTEXT_MENU_DOWNLOAD_VIDEO_ID = 'ameow_download_video';
 const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
 const MEDIA_SCAN_CACHE_TTL_MS = 60 * 1000;
 const MEDIA_SCAN_CACHE_TOTAL_LIMIT = 24;
@@ -205,42 +204,7 @@ function setCurrentLanguage(nextLanguage, options = {}) {
     notifyLanguageUpdate();
   }
 
-  void ensureContextMenus();
-
   return currentLanguage;
-}
-
-function getContextMenuTitle() {
-  return currentLanguage === 'zh-CN'
-    ? '使用 Ameow 下载当前媒体'
-    : 'Download Current Media with Ameow';
-}
-
-function ensureContextMenus() {
-  if (!chrome?.contextMenus?.removeAll || !chrome?.contextMenus?.create) {
-    return Promise.resolve(false);
-  }
-
-  return new Promise((resolve) => {
-    chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create(
-        {
-          id: CONTEXT_MENU_DOWNLOAD_VIDEO_ID,
-          title: getContextMenuTitle(),
-          contexts: ['video', 'page', 'frame', 'link', 'image'],
-        },
-        () => {
-          if (chrome.runtime?.lastError) {
-            console.warn('[Ameow] Failed to create context menu:', chrome.runtime.lastError.message);
-            resolve(false);
-            return;
-          }
-
-          resolve(true);
-        },
-      );
-    });
-  });
 }
 
 async function initializeLanguageState() {
@@ -420,60 +384,10 @@ function isLikelyContentPageUrl(rawUrl) {
   }
 }
 
-function isLikelyImageUrl(rawUrl) {
-  const normalized = normalizeHttpUrl(rawUrl);
-  if (!normalized) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(normalized);
-    return (
-      /\.(?:jpg|jpeg|png|webp|gif|bmp|svg|avif)(?:[?#]|$)/i.test(parsed.pathname)
-      || /(?:imageView2|format\/(?:jpe?g|png|webp|gif)|notes_pre_post|!nc_)/i.test(normalized)
-      || (/xhscdn\.com/i.test(parsed.hostname) && !/\.(?:mp4|m4v|mov|m3u8|mpd)(?:[?#]|$)/i.test(normalized))
-    );
-  } catch {
-    return false;
-  }
-}
-
-function buildContextMenuFallbackSelection(info, tab) {
-  const pageUrl = selectFirstHttpUrl(info?.linkUrl, info?.pageUrl, info?.frameUrl, tab?.url);
-  const directVideoUrl = normalizeHttpUrl(info?.srcUrl);
-  const routeUrl = isLikelyContentPageUrl(pageUrl) ? pageUrl : (directVideoUrl || pageUrl);
-  if (!routeUrl) {
-    return null;
-  }
-
-  return {
-    url: routeUrl,
-    pageUrl: pageUrl || routeUrl,
-    videoUrl: directVideoUrl || undefined,
-    videoCandidates: buildSelectionCandidateFromUrl(directVideoUrl, 'context_menu_src'),
-    title: typeof tab?.title === 'string' ? tab.title : undefined,
-    selectionScope: 'current_item',
-  };
-}
-
 function normalizeOriginalFilename(value) {
   return typeof value === 'string' && value.trim()
     ? value.trim()
     : null;
-}
-
-function buildContextMenuImageSelection(info, tab) {
-  const imageUrl = normalizeHttpUrl(info?.srcUrl);
-  if (!imageUrl) {
-    return null;
-  }
-
-  const pageUrl = selectFirstHttpUrl(info?.linkUrl, info?.pageUrl, info?.frameUrl, tab?.url, imageUrl);
-  return {
-    url: imageUrl,
-    pageUrl: pageUrl || imageUrl,
-    originalFilename: normalizeOriginalFilename(info?.selectionText) || deriveFilenameFromUrl(imageUrl) || undefined,
-  };
 }
 
 function handlePageImageSelectionRequest(message, senderContext = {}) {
@@ -3224,32 +3138,6 @@ async function findMatchingVideoSelectionTab(url) {
   return tabs.find((tab) => normalizeHttpUrl(tab.url) === normalizedUrl && typeof tab.id === 'number') || null;
 }
 
-async function requestResolvedXiaohongshuContextMedia(tabId, options = {}) {
-  try {
-    const response = await sendMessageToTab(
-      tabId,
-      {
-        type: INTERNAL_RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE,
-        source: options.source || 'context_menu',
-        linkUrl: options.linkUrl || undefined,
-        imageUrl: options.imageUrl || undefined,
-        frameUrl: options.frameUrl || undefined,
-        pageUrl: options.pageUrl || undefined,
-        mediaType: options.mediaType || undefined,
-      },
-      typeof options.frameId === 'number' ? { frameId: options.frameId } : {},
-    );
-
-    if (response?.success && response.payload && typeof response.payload === 'object') {
-      return response.payload;
-    }
-  } catch (error) {
-    console.warn('[Ameow] Failed to resolve Xiaohongshu context media:', error);
-  }
-
-  return null;
-}
-
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === INTERNAL_VIDEO_SELECTION_MESSAGE) {
@@ -3544,106 +3432,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-if (chrome?.contextMenus?.onClicked) {
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId !== CONTEXT_MENU_DOWNLOAD_VIDEO_ID || !tab?.id) {
-      return;
-    }
-
-    const siteHint = deriveSiteHint([
-      info?.linkUrl,
-      info?.srcUrl,
-      info?.pageUrl,
-      info?.frameUrl,
-      tab?.url,
-    ]);
-    const frameId = typeof info.frameId === 'number' ? info.frameId : undefined;
-    const normalizedMediaType = info?.mediaType === 'image' || info?.mediaType === 'video'
-      ? info.mediaType
-      : undefined;
-
-    void Promise.resolve().then(async () => {
-      if (siteHint === 'xiaohongshu') {
-        const resolvedMedia = await requestResolvedXiaohongshuContextMedia(tab.id, {
-          source: 'context_menu',
-          frameId,
-          linkUrl: info?.linkUrl,
-          imageUrl: info?.srcUrl,
-          frameUrl: info?.frameUrl,
-          pageUrl: info?.pageUrl,
-          mediaType: normalizedMediaType,
-        });
-
-        if (resolvedMedia?.kind === 'image' && resolvedMedia.imageUrl) {
-          return handlePageImageSelectionRequest({
-            url: resolvedMedia.imageUrl,
-            pageUrl: resolvedMedia.pageUrl || info?.linkUrl || info?.pageUrl,
-          }, {
-            tabUrl: tab.url,
-          });
-        }
-
-        if (resolvedMedia?.pageUrl) {
-          return handleVideoSelectionRequest({
-            url: resolvedMedia.videoUrl || resolvedMedia.pageUrl,
-            pageUrl: resolvedMedia.pageUrl,
-            videoUrl: resolvedMedia.videoUrl || null,
-            videoCandidates: resolvedMedia.videoCandidates || [],
-            title: resolvedMedia.title,
-            selectionScope: 'current_item',
-          }, {
-            tabUrl: tab.url,
-          });
-        }
-
-        if (isLikelyImageUrl(info?.srcUrl)) {
-          return handlePageImageSelectionRequest({
-            url: info.srcUrl,
-            pageUrl: info?.linkUrl || info?.pageUrl || info?.frameUrl || tab?.url,
-          }, {
-            tabUrl: tab.url,
-          });
-        }
-      }
-
-      if (normalizedMediaType === 'image' || isLikelyImageUrl(info?.srcUrl)) {
-        const imageSelection = buildContextMenuImageSelection(info, tab);
-        if (imageSelection) {
-          return handlePageImageSelectionRequest(imageSelection, {
-            tabUrl: tab.url,
-          });
-        }
-      }
-
-      const resolvedSelection = await requestResolvedVideoSelection(tab.id, {
-        source: 'context_menu',
-        requestedSrcUrl: info.srcUrl,
-        frameId,
-      });
-      const payload = resolvedSelection || buildContextMenuFallbackSelection(info, tab);
-      if (!payload) {
-        console.warn('[Ameow] Context menu selection could not be resolved');
-        return null;
-      }
-
-      return handleVideoSelectionRequest(payload, {
-        tabUrl: tab.url,
-      });
-    }).then((result) => {
-      if (!result || result.success) {
-        return;
-      }
-
-      console.warn(
-        '[Ameow] Context menu media request was not queued:',
-        result.reason || 'unknown',
-      );
-    }).catch((error) => {
-      console.error('[Ameow] Failed to queue context-menu media selection:', error);
-    });
-  });
-}
-
 if (chrome?.tabs?.onActivated) {
   chrome.tabs.onActivated.addListener(() => {
     void updateActionBadgeForActiveTab();
@@ -3678,7 +3466,6 @@ if (chrome?.alarms?.onAlarm) {
 
 if (chrome?.runtime?.onStartup) {
   chrome.runtime.onStartup.addListener(() => {
-    void ensureContextMenus();
     connect({ force: true });
     void bootstrapDownloadPreferencesSync();
   });
@@ -3686,7 +3473,6 @@ if (chrome?.runtime?.onStartup) {
 
 if (chrome?.runtime?.onInstalled) {
   chrome.runtime.onInstalled.addListener(() => {
-    void ensureContextMenus();
     connect({ force: true });
     void bootstrapDownloadPreferencesSync();
   });
@@ -3711,6 +3497,5 @@ if (chrome?.storage?.onChanged) {
 
 // Auto-connect on startup
 clearExtensionInjectionDebugConfigOnDisconnect();
-void ensureContextMenus();
 connect();
 void bootstrapDownloadPreferencesSync();

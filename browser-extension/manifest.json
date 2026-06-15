@@ -9,8 +9,7 @@
     "scripting",
     "cookies",
     "storage",
-    "alarms",
-    "contextMenus"
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
