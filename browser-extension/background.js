@@ -2,6 +2,7 @@
 // WebSocket client for communication with Ameow desktop app
 
 importScripts(
+  "action-icon-indicator.js",
   "direct-download-quality.js",
   "extension-data-utils.js",
   "generic-video-selection-utils.js",
@@ -75,6 +76,7 @@ const injectionDebugConfig = self.AmeowInjectionDebugConfig;
 const launcherConfig = self.AmeowLauncherConfig;
 const mediaScanCache = self.AmeowMediaScanCache;
 const siteSessionCookieSync = self.AmeowSiteSessionCookieSync;
+const actionIconIndicator = self.AmeowActionIconIndicator;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
@@ -1138,8 +1140,10 @@ async function updateActionBadgeForActiveTab() {
   actionBadgeSiteId = shouldShow ? nextSiteId : null;
 
   try {
-    chrome.action.setBadgeText({ text: shouldShow ? '•' : '' });
-    chrome.action.setBadgeBackgroundColor?.({ color: '#f59e0b' });
+    const indicatorState = actionIconIndicator.resolveActionIndicatorState(shouldShow);
+    chrome.action.setBadgeText({ text: indicatorState.badgeText });
+    chrome.action.setIcon?.({ path: indicatorState.iconPath });
+    chrome.action.setBadgeBackgroundColor?.({ color: actionIconIndicator.SYNC_DOT_COLOR });
     chrome.action.setTitle?.({
       title: shouldShow
         ? `Ameow: sync login state for ${status.currentSiteSession.displayName || nextSiteId}`

@@ -33,6 +33,12 @@ describe("browser extension manifest", () => {
     expect(popupHtml.indexOf("site-session-icons.js")).toBeLessThan(popupHtml.indexOf("popup.js"));
   });
 
+  it("packages the action icon indicator helper for the background worker", () => {
+    const backgroundSource = readFileSync(path.resolve("browser-extension/background.js"), "utf8");
+    expect(backgroundSource).toContain("\"action-icon-indicator.js\"");
+    expect(backgroundSource).not.toContain("'•'");
+  });
+
   it("registers the Twitter/X injected detector", () => {
     expect(findContentScript("https://x.com/*")).toMatchObject({
       js: ["injected-cat-icon.js", "twitter-detector.js"],
