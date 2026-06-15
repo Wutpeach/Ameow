@@ -541,3 +541,36 @@ Unified compact outer geometry across macOS and Windows, fixed full-window edge 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 213: Scheduled site-session cookie refresh
+
+**Date**: 2026-06-15
+**Task**: Scheduled site-session cookie refresh
+**Branch**: `main`
+
+### Summary
+
+Implemented default-on scheduled site-session cookie refresh with Electron scheduler, shared in-flight refresh handling, backoff state, startup/extension/periodic triggers, advanced-quality integration, tests, and task documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b637738` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
