@@ -116,46 +116,6 @@
     }
   }
 
-  function deriveSiteHint(rawUrl = root.location?.href) {
-    const value = typeof rawUrl === "string" ? rawUrl.toLowerCase() : "";
-    if (!value) return "generic";
-    if (value.includes("douyin.com/")) return "douyin";
-    if (value.includes("instagram.com/")) return "instagram";
-    if (value.includes("youtube.com/") || value.includes("youtu.be/")) return "youtube";
-    if (value.includes("bilibili.com/") || value.includes("b23.tv/")) return "bilibili";
-    if (value.includes("twitter.com/") || value.includes("x.com/")) return "twitter-x";
-    if (value.includes("xiaohongshu.com/") || value.includes("xhslink.com/")) return "xiaohongshu";
-    if (value.includes("pinterest.com/")) return "pinterest";
-    if (value.includes("weibo.com/") || value.includes("weibo.cn/")) return "weibo";
-    return "generic";
-  }
-
-  function capabilityCopy() {
-    if (connectionState === "offline") {
-      return t("launcher.capability.offline", "Desktop offline");
-    }
-    if (connectionState === "connecting") {
-      return t("launcher.capability.connecting", "Connecting");
-    }
-
-    const payload = captureEvidence.buildCurrentContentPayload?.();
-    const evidence = payload?.extensionData?.ameowCapture;
-    const hasPageEvidence = Boolean(
-      evidence?.canonicalUrl
-      || evidence?.ogUrl
-      || evidence?.targetHref
-      || evidence?.targetSrc
-      || (evidence?.contentIds && Object.keys(evidence.contentIds).length > 0),
-    );
-    const siteHint = deriveSiteHint(evidence?.pageUrl);
-
-    if (siteHint !== "generic" || hasPageEvidence) {
-      return t("launcher.capability.ready", "Ready to capture");
-    }
-
-    return t("launcher.capability.generic", "Try current page");
-  }
-
   function updateLauncherConfig(nextConfig) {
     config = launcherConfig.normalizeConfig(nextConfig);
     if (!launcher) {
@@ -445,10 +405,9 @@
     if (!handle) {
       return;
     }
-    const actionLabel = t("launcher.actions.current", "Download current content");
-    const statusLabel = capabilityCopy();
-    handle.dataset.tooltip = `${actionLabel} · ${statusLabel}`;
-    handle.setAttribute("aria-label", `${actionLabel}. ${statusLabel}`);
+    const actionLabel = t("launcher.actions.current", "下载当前内容");
+    handle.dataset.tooltip = actionLabel;
+    handle.setAttribute("aria-label", actionLabel);
   }
 
   function refreshQualitySelection() {

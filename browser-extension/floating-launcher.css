@@ -214,6 +214,11 @@
   justify-content: center;
 }
 
+.ameow-launcher-handle[data-tooltip]:hover,
+.ameow-launcher-action[data-tooltip]:hover {
+  z-index: 3;
+}
+
 .ameow-launcher-icon-control {
   position: absolute;
   width: 22px;
@@ -265,6 +270,7 @@
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
+  z-index: 4;
   transform: translateY(-50%) scale(0.98);
   transition: opacity 0.12s ease, transform 0.12s ease;
   transition-delay: 0s;
@@ -285,6 +291,7 @@
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
+  z-index: 4;
   transform: translateY(-50%) scale(0.98);
   transition: opacity 0.12s ease, transform 0.12s ease;
   transition-delay: 0s;

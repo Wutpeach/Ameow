@@ -186,7 +186,7 @@
   "launcher": {
     "actions": {
       "pick": "Pick download",
-      "current": "Download current content",
+      "current": "下载当前内容",
       "quality": "Quality",
       "lock": "Lock position",
       "unlock": "Unlock position",
