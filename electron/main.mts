@@ -121,6 +121,9 @@ import {
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { createSiteSessionRegistry } from "./siteSessionRegistry.mjs";
 import { handleAuthRequiredSiteSessionRecovery } from "./siteSessionAuthRecovery.mjs";
+import {
+  createSiteSessionRefreshScheduler,
+} from "./siteSessionRefreshScheduler.mjs";
 import { createRuntimeDependencyGateController } from "./runtimeDependencyGate.mjs";
 import { createRuntimeLogController } from "./runtimeLog.mjs";
 import {
@@ -211,6 +214,7 @@ let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
 let siteSessionCommandController = null;
 let supportLogCommandController = null;
+let siteSessionRefreshScheduler = null;
 const siteSessionManagers = new Map();
 let siteSessionRegistry = null;
 let nextOpaqueSequence = 1;
@@ -222,7 +226,6 @@ const windows = new Map();
 const wsClients = new Set();
 const pendingProtectedImageRequests = new Map();
 const pendingXiaohongshuDragRequests = new Map();
-const preProbeSiteSessionRefreshes = new Map();
 let wsServer = null;
 let uiLabRuntimeStatusOverride = null;
 const runtimeDependencyGateController = createRuntimeDependencyGateController({
@@ -1424,7 +1427,11 @@ function getElectronDownloadRuntime() {
       return handleAuthRequiredSiteSessionRecovery(context, {
         registry: getSiteSessionRegistry(),
         syncSiteSession(siteId) {
-          return syncSiteSessionFromExtension(siteId, requireSiteSessionManager(siteId));
+          return syncSiteSessionFromExtension(
+            siteId,
+            requireSiteSessionManager(siteId),
+            "auth_required",
+          );
         },
         onRegistryChanged() {
           broadcastSiteSessionRegistryUpdate();
@@ -1485,6 +1492,34 @@ function requireSiteSessionManager(siteId) {
   return manager;
 }
 
+function getSiteSessionRefreshScheduler() {
+  if (siteSessionRefreshScheduler) {
+    return siteSessionRefreshScheduler;
+  }
+
+  siteSessionRefreshScheduler = createSiteSessionRefreshScheduler({
+    getUserDataDir,
+    listSiteSessionEntries() {
+      return getSiteSessionRegistry().listEntries();
+    },
+    getSiteSessionManager,
+    getConnectedExtensionClientCount() {
+      return wsClients.size;
+    },
+    refreshSiteSession(siteId, manager) {
+      return syncSiteSessionFromExtensionRaw(siteId, manager);
+    },
+    log(message, details) {
+      logInfo(
+        "SiteSessionRefresh",
+        message,
+        details == null ? null : serializeDiagnosticPayload(details),
+      );
+    },
+  });
+  return siteSessionRefreshScheduler;
+}
+
 function isHttpNavigationUrl(url) {
   try {
     const parsed = new URL(url);
@@ -1516,7 +1551,7 @@ function getExtensionRequestBridge() {
   return extensionRequestBridge;
 }
 
-async function syncSiteSessionFromExtension(siteId, manager) {
+async function syncSiteSessionFromExtensionRaw(siteId, manager) {
   const entry = getSiteSessionRegistry().requireEntry(siteId);
   const resolution = await getExtensionRequestBridge().requestSiteSessionCookieSync({
     siteId,
@@ -1540,10 +1575,24 @@ async function syncSiteSessionFromExtension(siteId, manager) {
   }
 
   getSiteSessionRegistry().activateEntry(siteId, "user_sync");
+  getSiteSessionRefreshScheduler().markSuccess(siteId);
   broadcastSiteSessionRegistryUpdate();
   emitSiteSessionStateChanged(siteId, nextState);
   void broadcastSiteSessionPendingActions();
   return nextState;
+}
+
+async function syncSiteSessionFromExtension(siteId, manager, reason = "manual") {
+  const state = await getSiteSessionRefreshScheduler().ensureRefreshed(siteId, {
+    reason,
+    force: true,
+    onlyIfDue: false,
+    bypassEligibility: reason === "manual",
+  });
+  if (!state) {
+    throw new Error(`Site session sync did not return state for ${siteId}`);
+  }
+  return state;
 }
 
 function shouldSkipAdvancedQualitySiteSessionRefresh(entry, state) {
@@ -1566,34 +1615,6 @@ function shouldSkipAdvancedQualitySiteSessionRefresh(entry, state) {
     return "snapshot_fresh";
   }
   return null;
-}
-
-function withAdvancedQualitySiteSessionRefreshTimeout(promise, siteId, traceId) {
-  let timeoutId = null;
-  const timeout = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(
-        `Timed out refreshing site session before advanced-quality probe for ${siteId} (${traceId})`,
-      ));
-    }, ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  });
-}
-
-function createAdvancedQualitySiteSessionRefresh(siteId, manager) {
-  const refreshPromise = syncSiteSessionFromExtension(siteId, manager)
-    .finally(() => {
-      if (preProbeSiteSessionRefreshes.get(siteId) === refreshPromise) {
-        preProbeSiteSessionRefreshes.delete(siteId);
-      }
-    });
-  preProbeSiteSessionRefreshes.set(siteId, refreshPromise);
-  return refreshPromise;
 }
 
 async function refreshSiteSessionBeforeAdvancedQualityProbe({
@@ -1627,20 +1648,14 @@ async function refreshSiteSessionBeforeAdvancedQualityProbe({
     return;
   }
 
-  let refreshPromise = preProbeSiteSessionRefreshes.get(entry.siteId);
-  if (refreshPromise) {
-    logInfo("AdvancedQualitySession", "joining in-flight pre-probe sync", serializeDiagnosticPayload({
-      traceId,
-      siteId: entry.siteId,
-    }));
-  } else {
-    refreshPromise = createAdvancedQualitySiteSessionRefresh(entry.siteId, manager);
-  }
-
-  await withAdvancedQualitySiteSessionRefreshTimeout(
-    refreshPromise,
+  await getSiteSessionRefreshScheduler().ensureRefreshed(
     entry.siteId,
-    traceId,
+    {
+      reason: "advanced_quality",
+      force: true,
+      onlyIfDue: false,
+      timeoutMs: ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS,
+    },
   ).then(
     () => {
       logInfo("AdvancedQualitySession", "pre-probe sync completed", serializeDiagnosticPayload({
@@ -2904,6 +2919,7 @@ async function handleWsMessage(rawMessage) {
           throw new Error(nextState.lastError);
         }
         getSiteSessionRegistry().activateEntry(siteId, "user_sync");
+        getSiteSessionRefreshScheduler().markSuccess(siteId);
         broadcastSiteSessionRegistryUpdate();
         emitSiteSessionStateChanged(siteId, nextState);
         void broadcastSiteSessionPendingActions();
@@ -3530,6 +3546,7 @@ function registerWsServer() {
     wsClients.add(client);
     client.send(JSON.stringify({ action: "request_download_preferences" }));
     sendSiteSessionRegistryUpdate(client);
+    void getSiteSessionRefreshScheduler().checkDueSessions("extension_connected");
 
     client.on("message", async (message) => {
       const response = await handleWsMessage(message);
@@ -3603,6 +3620,7 @@ async function bootstrap() {
       pending.rejectResolution(new Error("Ameow is shutting down"));
     }
     pendingXiaohongshuDragRequests.clear();
+    getSiteSessionRefreshScheduler().stop();
     if (wsServer) {
       wsServer.close();
       wsServer = null;
@@ -3617,6 +3635,7 @@ async function bootstrap() {
   registerIpcHandlers();
   registerWsServer();
   await ensureUserDataDirs();
+  getSiteSessionRefreshScheduler().start();
   await initializeRuntimeLogCapture();
   if (startupDiagnosticsEnabled) {
     await writeFile(getStartupDiagnosticsPath(), "", "utf8");
