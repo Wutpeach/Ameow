@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 213
+- **Total Sessions**: 214
 - **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~576 | Active |
+| `journal-5.md` | ~610 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 214 | 2026-06-15 | Fix extension floating tooltip overlap | `50876b2`, `4d14470` | `main` |
 | 213 | 2026-06-15 | Scheduled site-session cookie refresh | `b637738` | `main` |
 | 212 | 2026-06-13 | Compact geometry edge glow fix | `d0184c6` | `main` |
 | 211 | 2026-06-12 | Suppress advanced quality cancel toast | `926ef64` | `main` |

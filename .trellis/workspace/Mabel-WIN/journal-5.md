@@ -574,3 +574,37 @@ Implemented default-on scheduled site-session cookie refresh with Electron sched
 ### Next Steps
 
 - None - task complete
+
+
+## Session 214: Fix extension floating tooltip overlap
+
+**Date**: 2026-06-15
+**Task**: Fix extension floating tooltip overlap
+**Branch**: `main`
+
+### Summary
+
+Fixed the browser extension edge launcher tooltip stacking so it renders above adjacent hide/lock controls, changed the main handle tooltip copy to 下载当前内容, synced extension locale resources, and verified with locales:sync, lint, type-check, and tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `50876b2` | (see git log) |
+| `4d14470` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
