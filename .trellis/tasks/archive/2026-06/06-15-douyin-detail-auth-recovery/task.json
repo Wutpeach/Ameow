@@ -3,7 +3,7 @@
   "name": "douyin-detail-auth-recovery",
   "title": "Recover Douyin detail failures with site session refresh",
   "description": "",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
