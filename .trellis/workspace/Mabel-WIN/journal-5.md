@@ -641,3 +641,36 @@ Removed the persistent green connected outline from the browser extension edge l
 ### Next Steps
 
 - None - task complete
+
+
+## Session 216: Recover Douyin detail auth failures
+
+**Date**: 2026-06-15
+**Task**: Recover Douyin detail auth failures
+**Branch**: `main`
+
+### Summary
+
+Implemented narrow douyin-dl detail failure auth classification, reused site-session recovery retry, added executor/service regression tests, and documented the download pattern.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `79c01d6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

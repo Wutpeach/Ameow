@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 215
+- **Total Sessions**: 216
 - **Last Active**: 2026-06-15
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~643 | Active |
+| `journal-5.md` | ~676 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 216 | 2026-06-15 | Recover Douyin detail auth failures | `79c01d6` | `main` |
 | 215 | 2026-06-15 | Refine browser extension edge launcher visuals | `9588bc8` | `main` |
 | 214 | 2026-06-15 | Fix extension floating tooltip overlap | `50876b2`, `4d14470` | `main` |
 | 213 | 2026-06-15 | Scheduled site-session cookie refresh | `b637738` | `main` |
