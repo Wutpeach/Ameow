@@ -203,6 +203,53 @@ const pickDiagnosticLine = (...lineGroups: string[][]): string | null => {
   return null;
 };
 
+const classifyDouyinDlFailure = (line: string | null): "auth_required" | null => {
+  if (!line) {
+    return null;
+  }
+  if (/Failed to get video detail:\s*\d{15,20}/i.test(line)) {
+    return "auth_required";
+  }
+  if (
+    /aweme\/v1\/web\/aweme\/detail/i.test(line)
+    && /(anti-bot|empty\s+200|empty response)/i.test(line)
+  ) {
+    return "auth_required";
+  }
+  return null;
+};
+
+const buildDouyinDlFailureMessage = (
+  fallbackMessage: string,
+  diagnosticLine: string | null,
+): string => {
+  const upstreamMessage = diagnosticLine ?? fallbackMessage;
+  return classifyDouyinDlFailure(diagnosticLine) === "auth_required"
+    ? `Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: ${upstreamMessage}`
+    : upstreamMessage;
+};
+
+const buildDouyinDlFailureOptions = (
+  context: EngineExecutionContext,
+  diagnosticLine: string | null,
+  extraContext: Record<string, unknown>,
+): {
+  classification?: "auth_required";
+  context: Record<string, unknown>;
+} => {
+  const classification = classifyDouyinDlFailure(diagnosticLine) ?? undefined;
+  return {
+    ...(classification ? { classification } : {}),
+    context: {
+      sourceUrl: context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl,
+      traceId: context.traceId,
+      hasIntentCookies: Boolean(context.intent.cookies),
+      diagnosticLine,
+      ...extraContext,
+    },
+  };
+};
+
 const buildConfigYaml = (
   outputDir: string,
   cookies: Record<string, string>,
@@ -529,17 +576,12 @@ export const runDouyinDlDownload = async (
     if (exitCode !== 0) {
       throw new DownloadRuntimeError(
         "E_EXECUTION_FAILED",
-        diagnosticLine
-          ?? `douyin-dl exited with code ${exitCode}`,
-        {
-          context: {
-            sourceUrl: context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl,
-            traceId: context.traceId,
-            stderrTail,
-            stdoutTail,
-            summary,
-          },
-        },
+        buildDouyinDlFailureMessage(`douyin-dl exited with code ${exitCode}`, diagnosticLine),
+        buildDouyinDlFailureOptions(context, diagnosticLine, {
+          stderrTail,
+          stdoutTail,
+          summary,
+        }),
       );
     }
 
@@ -572,18 +614,14 @@ export const runDouyinDlDownload = async (
     if ((summary?.failed ?? 0) > 0) {
       throw new DownloadRuntimeError(
         "E_EXECUTION_FAILED",
-        diagnosticLine
-          ?? "douyin-dl reported failed items",
-        {
-          context: {
-            outputDir: context.outputDir,
-            createdArtifacts,
-            stdoutTail,
-            stderrTail,
-            traceId: context.traceId,
-            summary,
-          },
-        },
+        buildDouyinDlFailureMessage("douyin-dl reported failed items", diagnosticLine),
+        buildDouyinDlFailureOptions(context, diagnosticLine, {
+          outputDir: context.outputDir,
+          createdArtifacts,
+          stdoutTail,
+          stderrTail,
+          summary,
+        }),
       );
     }
 
@@ -600,19 +638,19 @@ export const runDouyinDlDownload = async (
     if (!resultArtifact) {
       throw new DownloadRuntimeError(
         "E_OUTPUT_NOT_FOUND",
-        diagnosticLine
-          ? `douyin-dl did not produce an output file: ${diagnosticLine}`
-          : "douyin-dl finished without producing an output file",
-        {
-          context: {
-            outputDir: context.outputDir,
-            createdArtifacts,
-            stdoutTail,
-            stderrTail,
-            traceId: context.traceId,
-            summary,
-          },
-        },
+        buildDouyinDlFailureMessage(
+          diagnosticLine
+            ? `douyin-dl did not produce an output file: ${diagnosticLine}`
+            : "douyin-dl finished without producing an output file",
+          diagnosticLine,
+        ),
+        buildDouyinDlFailureOptions(context, diagnosticLine, {
+          outputDir: context.outputDir,
+          createdArtifacts,
+          stdoutTail,
+          stderrTail,
+          summary,
+        }),
       );
     }
 

@@ -54,6 +54,15 @@ Browser Extension / UI URL
 - Uses yt-dlp as sidecar binary
 - Supports extension cookies when provided (including YouTube) via sidecar cookie handling
 
+### Douyin Detail Auth Recovery
+
+`douyin-dl` failures that specifically indicate Douyin detail API access problems should reuse the shared site-session recovery path instead of adding a Douyin-specific retry loop.
+
+- Match only narrow Douyin detail symptoms such as `Failed to get video detail: <aweme_id>` or `/aweme/v1/web/aweme/detail/` plus anti-bot / empty-response wording.
+- Keep the runtime error code as `E_EXECUTION_FAILED` and set `classification: "auth_required"` so `src/electron-runtime/service.ts` can sync the saved Douyin site session through the extension and retry once.
+- Do not classify missing/null diagnostics or unrelated `douyin-dl` execution failures as auth-required.
+- Browser-extension download payloads still must not attach fresh cookies directly; retry uses the desktop site-session snapshot injected by `buildExecutionContext(...)`.
+
 ---
 
 ## Pattern 3: Direct Media Candidates As Hints

@@ -58,6 +58,18 @@ vi.mock("./processRunner.js", () => ({
 import { DownloadRuntimeError } from "../core/index.js";
 import { runDouyinDlDownload } from "./douyinDlDownload.js";
 
+const expectDownloadRuntimeError = async (
+  promise: Promise<unknown>,
+): Promise<DownloadRuntimeError> => {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(DownloadRuntimeError);
+    return error as DownloadRuntimeError;
+  }
+  throw new Error("Expected DownloadRuntimeError");
+};
+
 const fileEntry = (name: string) => ({
   name,
   isDirectory: () => false,
@@ -369,7 +381,7 @@ describe("runDouyinDlDownload", () => {
     });
   });
 
-  it("uses manifest summary and error output when douyin-dl exits 0 but the single item failed", async () => {
+  it("classifies Douyin detail API anti-bot failures as auth-required", async () => {
     readFileMock.mockResolvedValue("");
     readdirMock
       .mockResolvedValueOnce([])
@@ -397,10 +409,164 @@ describe("runDouyinDlDownload", () => {
       abortSignal: new AbortController().signal,
     } as never;
 
-    await expect(runDouyinDlDownload(context)).rejects.toMatchObject({
-      name: "DownloadRuntimeError",
+    const error = await expectDownloadRuntimeError(runDouyinDlDownload(context));
+
+    expect(error).toMatchObject({
       code: "E_EXECUTION_FAILED",
-      message: "2026-05-18 15:57:27 - APIClient - ERROR - Request failed after 3 attempts: path=/aweme/v1/web/aweme/detail/, error=Empty 200 response for /aweme/v1/web/aweme/detail/ (anti-bot)",
+      classification: "auth_required",
+      message: "Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: 2026-05-18 15:57:27 - APIClient - ERROR - Request failed after 3 attempts: path=/aweme/v1/web/aweme/detail/, error=Empty 200 response for /aweme/v1/web/aweme/detail/ (anti-bot)",
+    } satisfies Partial<DownloadRuntimeError>);
+    expect(error.context).toMatchObject({
+      sourceUrl: "https://www.douyin.com/video/7604129988555574538",
+      traceId: "trace-failed-summary",
+      hasIntentCookies: false,
+      diagnosticLine: "2026-05-18 15:57:27 - APIClient - ERROR - Request failed after 3 attempts: path=/aweme/v1/web/aweme/detail/, error=Empty 200 response for /aweme/v1/web/aweme/detail/ (anti-bot)",
+      summary: {
+        success: 0,
+        failed: 1,
+        skipped: 0,
+      },
+    });
+  });
+
+  it("classifies Failed to get video detail as auth-required without changing the execution error code", async () => {
+    readFileMock.mockResolvedValue("");
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options?.onStderrLine?.("2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460");
+      return 1;
+    });
+
+    const context = {
+      traceId: "trace-detail-failed",
+      outputDir: "D:/downloads",
+      binaries: {
+        douyinDl: "D:/douyin-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      intent: {
+        originalUrl: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
+        pageUrl: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
+        cookies: "# Netscape HTTP Cookie File\n.douyin.com\tTRUE\t/\tFALSE\t0\tttwid\tstored-ttwid",
+      },
+      abortSignal: new AbortController().signal,
+    } as never;
+
+    const error = await expectDownloadRuntimeError(runDouyinDlDownload(context));
+
+    expect(error).toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      classification: "auth_required",
+      message: "Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: 2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460",
+    } satisfies Partial<DownloadRuntimeError>);
+    expect(error.context).toMatchObject({
+      sourceUrl: "https://www.douyin.com/video/7645228154830769460",
+      traceId: "trace-detail-failed",
+      hasIntentCookies: true,
+      diagnosticLine: "2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460",
+    });
+    expect(JSON.stringify(error.context)).not.toContain("stored-ttwid");
+  });
+
+  it("classifies missing output as auth-required only when the diagnostic is a Douyin detail failure", async () => {
+    readFileMock.mockResolvedValue("");
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options?.onStderrLine?.("2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460");
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-output-detail-failed",
+      outputDir: "D:/downloads",
+      binaries: {
+        douyinDl: "D:/douyin-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      intent: {
+        originalUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      abortSignal: new AbortController().signal,
+    } as never;
+
+    const error = await expectDownloadRuntimeError(runDouyinDlDownload(context));
+
+    expect(error).toMatchObject({
+      code: "E_OUTPUT_NOT_FOUND",
+      classification: "auth_required",
+    } satisfies Partial<DownloadRuntimeError>);
+  });
+
+  it("does not classify unrelated Douyin execution failures as auth-required", async () => {
+    readFileMock.mockResolvedValue("");
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options?.onStderrLine?.("2026-06-15 13:22:14 - VideoDownloader - ERROR - Local file write failed");
+      return 1;
+    });
+
+    const context = {
+      traceId: "trace-unrelated-failed",
+      outputDir: "D:/downloads",
+      binaries: {
+        douyinDl: "D:/douyin-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      intent: {
+        originalUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      abortSignal: new AbortController().signal,
+    } as never;
+
+    const error = await expectDownloadRuntimeError(runDouyinDlDownload(context));
+
+    expect(error).toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      classification: "fallback_to_other_engine",
+      message: "2026-06-15 13:22:14 - VideoDownloader - ERROR - Local file write failed",
+    } satisfies Partial<DownloadRuntimeError>);
+  });
+
+  it("does not classify missing output without a diagnostic line as auth-required", async () => {
+    readFileMock.mockResolvedValue("");
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    runStreamingCommandMock.mockResolvedValue(0);
+
+    const context = {
+      traceId: "trace-output-missing",
+      outputDir: "D:/downloads",
+      binaries: {
+        douyinDl: "D:/douyin-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      intent: {
+        originalUrl: "https://www.douyin.com/video/7645228154830769460",
+      },
+      abortSignal: new AbortController().signal,
+    } as never;
+
+    const error = await expectDownloadRuntimeError(runDouyinDlDownload(context));
+
+    expect(error).toMatchObject({
+      code: "E_OUTPUT_NOT_FOUND",
+      classification: "fallback_to_other_engine",
+      message: "douyin-dl finished without producing an output file",
     } satisfies Partial<DownloadRuntimeError>);
   });
 
