@@ -17,6 +17,9 @@
   --ameow-launcher-accent-surface: rgba(96, 165, 250, 0.12);
   --ameow-launcher-danger-border: rgba(248, 113, 113, 0.38);
   --ameow-launcher-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  --ameow-launcher-mascot-badge-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+  --ameow-launcher-mascot-badge-border: transparent;
+  --ameow-launcher-mascot-badge-shadow: none;
   --ameow-launcher-mascot-filter: none;
   position: fixed;
   top: var(--ameow-launcher-top, 62vh);
@@ -48,7 +51,10 @@
   --ameow-launcher-accent-surface: rgba(37, 99, 235, 0.1);
   --ameow-launcher-danger-border: rgba(239, 68, 68, 0.28);
   --ameow-launcher-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.28), 0 3px 9px -4px rgba(0, 0, 0, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  --ameow-launcher-mascot-filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.58));
+  --ameow-launcher-mascot-badge-bg: linear-gradient(180deg, rgba(0, 0, 0, 0.045) 0%, rgba(0, 0, 0, 0.075) 100%);
+  --ameow-launcher-mascot-badge-border: transparent;
+  --ameow-launcher-mascot-badge-shadow: none;
+  --ameow-launcher-mascot-filter: none;
 }
 
 .ameow-launcher[data-side="right"] {
@@ -102,6 +108,20 @@
   cursor: pointer;
 }
 
+.ameow-launcher-handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ameow-launcher-mascot-badge-border);
+  border-radius: 999px;
+  background: var(--ameow-launcher-mascot-badge-bg);
+  box-shadow: var(--ameow-launcher-mascot-badge-shadow);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
 .ameow-launcher-handle-wrap {
   position: relative;
   width: 44px;
@@ -151,6 +171,10 @@
   border-radius: 999px 0 0 999px;
 }
 
+.ameow-launcher[data-side="right"] .ameow-launcher-handle::before {
+  left: 5px;
+}
+
 .ameow-launcher[data-side="left"] .ameow-launcher-handle {
   justify-content: flex-end;
   padding-left: 0;
@@ -159,19 +183,21 @@
   border-radius: 0 999px 999px 0;
 }
 
+.ameow-launcher[data-side="left"] .ameow-launcher-handle::before {
+  right: 5px;
+}
+
 .ameow-launcher-mascot {
+  position: relative;
+  z-index: 1;
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   pointer-events: none;
   user-select: none;
   filter: var(--ameow-launcher-mascot-filter);
   transition: filter 0.18s ease, transform 0.18s ease;
-}
-
-.ameow-launcher[data-connection-state="connected"] .ameow-launcher-handle {
-  border-color: rgba(52, 211, 153, 0.42);
 }
 
 .ameow-launcher[data-connection-state="connecting"] .ameow-launcher-handle {

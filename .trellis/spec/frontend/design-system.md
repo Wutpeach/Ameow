@@ -185,6 +185,7 @@ Rules:
 - Stay lightweight and site-aware, but still use consistent FlowSelect interaction states
 - Site accents may vary, but button states, motion, and panel treatment should remain recognizably related
 - Reuse screenshot-panel and overlay button patterns across supported sites instead of restyling each site from scratch
+- The in-page floating launcher should keep the normal connected state visually implicit. Use neutral chrome for connected, blue for connecting/attention/drag feedback, and reserve success green for transient confirmation feedback.
 - When injected controls depend on a native player bar, use shared renderable-control helpers such as `browser-extension/control-style-utils.js` to decide readiness; do not hardcode site-specific native button classes unless a site truly requires them for spacing or alignment
 
 ---
