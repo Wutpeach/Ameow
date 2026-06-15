@@ -1,12 +1,8 @@
 import type { ComponentType, CSSProperties, SVGProps } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 
 import { CircularProgressIndicator } from "./CircularProgressIndicator";
 import { CheckIcon, CloseIcon } from "./icons/AppIcons";
-import {
-  CENTER_OVERLAY_CONTENT_STYLE,
-  CENTER_OVERLAY_PRESENCE_MOTION,
-} from "./foregroundOverlayShared";
 import { MOTION_EASE } from "./ui/motion";
 
 const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
@@ -23,7 +19,6 @@ type OutcomeIconProps = SVGProps<SVGSVGElement> & {
 };
 
 export type ForegroundOutcomeOverlayProps = {
-  visible: boolean;
   outcomeVisible: boolean;
   cancelled: boolean;
   errorMessage: string | null;
@@ -37,7 +32,6 @@ export type ForegroundOutcomeOverlayProps = {
 };
 
 export const ForegroundOutcomeOverlay = ({
-  visible,
   outcomeVisible,
   cancelled,
   errorMessage,
@@ -92,96 +86,83 @@ export const ForegroundOutcomeOverlay = ({
     : { duration: shouldReduceMotion ? 0.08 : 0.12, ease: MOTION_EASE.exit };
 
   return (
-    <AnimatePresence mode="sync" initial={false}>
-      {visible ? (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        width: 170,
+        maxWidth: "100%",
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          ...FIXED_CENTER_ICON_FRAME_STYLE,
+          position: "relative",
+        }}
+      >
         <motion.div
-          key="foreground-outcome-overlay"
-          initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
-          animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
-          exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
-          transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
-          style={CENTER_OVERLAY_CONTENT_STYLE}
+          animate={ringAnimate}
+          transition={ringExitTransition}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transformOrigin: "center center",
+            pointerEvents: "none",
+          }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              width: 170,
-              maxWidth: "100%",
-              pointerEvents: "none",
-            }}
-          >
-            <div
-              style={{
-                ...FIXED_CENTER_ICON_FRAME_STYLE,
-                position: "relative",
-              }}
-            >
-              <motion.div
-                animate={ringAnimate}
-                transition={ringExitTransition}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transformOrigin: "center center",
-                  pointerEvents: "none",
-                }}
-              >
-                <CircularProgressIndicator
-                  strokeColor={loadingStrokeColor}
-                  trackColor={loadingTrackColor}
-                  textColor={loadingTextColor}
-                  percent={0}
-                  indeterminate
-                />
-              </motion.div>
-              <motion.div
-                animate={outcomeAnimate}
-                transition={outcomeTransition}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transformOrigin: "center center",
-                  pointerEvents: "none",
-                }}
-              >
-                {cancelled ? (
-                  <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
-                ) : (
-                  <SuccessIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={successIconStrokeWidth} />
-                )}
-              </motion.div>
-            </div>
-            {outcomeVisible && cancelled && errorMessage ? (
-              <motion.span
-                animate={errorMessageAnimate}
-                transition={errorMessageTransition}
-                title={errorMessage}
-                style={{
-                  fontSize: 9,
-                  lineHeight: 1.2,
-                  color: loadingTextColor,
-                  textAlign: "center",
-                  userSelect: "none",
-                  pointerEvents: "none",
-                  padding: "0 8px",
-                }}
-              >
-                {errorMessage}
-              </motion.span>
-            ) : null}
-          </div>
+          <CircularProgressIndicator
+            strokeColor={loadingStrokeColor}
+            trackColor={loadingTrackColor}
+            textColor={loadingTextColor}
+            percent={0}
+            indeterminate
+          />
         </motion.div>
+        <motion.div
+          animate={outcomeAnimate}
+          transition={outcomeTransition}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transformOrigin: "center center",
+            pointerEvents: "none",
+          }}
+        >
+          {cancelled ? (
+            <CloseIcon size={48} style={{ color: errorColor, pointerEvents: "none" }} strokeWidth={3} />
+          ) : (
+            <SuccessIcon size={48} style={{ color: successColor, pointerEvents: "none" }} strokeWidth={successIconStrokeWidth} />
+          )}
+        </motion.div>
+      </div>
+      {outcomeVisible && cancelled && errorMessage ? (
+        <motion.span
+          animate={errorMessageAnimate}
+          transition={errorMessageTransition}
+          title={errorMessage}
+          style={{
+            fontSize: 9,
+            lineHeight: 1.2,
+            color: loadingTextColor,
+            textAlign: "center",
+            userSelect: "none",
+            pointerEvents: "none",
+            padding: "0 8px",
+          }}
+        >
+          {errorMessage}
+        </motion.span>
       ) : null}
-    </AnimatePresence>
+    </div>
   );
 };

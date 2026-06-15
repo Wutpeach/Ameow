@@ -166,6 +166,7 @@ Progress:
 - Phase 2D completed in `a3398bd`: renderer-side native bounds orchestration moved to `src/utils/mainWindowNativeBoundsOrchestrator.ts`, preserving startup normalization, compact visibility clamp timing, transition-token stale checks, and position-cache behavior without adding native resize paths.
 - Phase 2E completed in `8b608f2`: shadow and panel layers explicitly consume `shadowShell` and `visualShell` from the shared geometry plan while preserving CSS `box-shadow` ownership and current visual timing.
 - Phase 2F completed in `9ff1a0d`: renderer-only panel and minimized-icon motion timing tuned in `src/utils/mainWindowMotionBaseline.ts`, with native compact clamp timing and shell interaction contracts unchanged.
+- Phase 2G completed on 2026-06-15: center overlay state model consolidation for task progress, task processing, task outcomes, folder outcomes, and minimized ownership. The implementation added a pure `centerOverlayState` reducer/selector, request-id guarded transient outcomes, and a single center visual owner in `App.tsx`.
 
 0. Reconcile current behavior before refactoring.
    - Confirm normal main-window startup native size.
@@ -221,6 +222,62 @@ Progress:
    - Use Phase 1 shared motion tokens.
    - Validate macOS and Windows.
 
+## Phase 2G: Center Overlay State Model
+
+Goal:
+
+- replace the current ad hoc combination of `primaryTask`, `isProcessing`, `isForegroundTaskOutcomeVisible`, `centerOutcome`, and minimized icon branching with a single center-overlay visual state model
+- ensure repeated downloads, transcodes, and folder outcomes cannot overlap stale outcomes with new progress
+- preserve the existing shell lock behavior while making it derive from a single state source
+
+Allowed changes:
+
+- add a pure center-overlay state module under `src/utils`
+- add a host component or equivalent single render selector for the center overlay
+- introduce request-id / epoch checks for all transient outcome timers
+- refactor `ForegroundOutcomeOverlay` into content-only outcome choreography if doing so preserves behavior
+- update the center-overlay shell lock derivation to follow the new state model
+- add focused tests for state transitions, timer invalidation, and single-owner rendering
+
+Not allowed:
+
+- changing download/transcode business logic or queue derivation
+- changing compact/full shell geometry or native bounds behavior
+- tuning the visible duration or feel of the outcome animation as part of this phase
+- introducing extra animation layers that still allow multiple owners to render at once
+
+Implementation shape:
+
+1. Introduce `centerOverlayState.ts`.
+   - Define the transient state union.
+   - Carry `requestId` through every task or folder outcome.
+   - Model `task-processing`, `task-outcome-loading`, `task-outcome-visible`, and `folder-outcome-visible` explicitly.
+
+2. Add a single visual selector.
+   - Derive one center overlay visual owner from task progress, transient outcome state, and minimized icon facts.
+   - Ensure new progress preempts stale outcomes.
+   - Ensure minimized icon rendering cannot overlap with task or folder outcomes.
+
+3. Replace the outer presence ownership.
+   - Give mount/unmount identity to the host component, not to a nested overlay with a fixed internal key.
+   - Keep `ForegroundOutcomeOverlay` responsible for inner ring/icon choreography only if that remains simpler than extracting a new content component.
+
+4. Refactor event entry points.
+   - `video-download-progress` and `video-transcode-progress` must invalidate transient outcomes before applying new progress.
+   - `showForegroundTaskOutcome()` must become an action against the new state model rather than a separate boolean/timer pair.
+   - `showFolderDropOutcome()` and `showFolderDropErrorOutcome()` must use the same request-id guard.
+   - `startForegroundProcessing()` must preserve the shell lock during long-running foreground work.
+
+5. Preserve shell lock semantics.
+   - Keep the main window locked in full mode while the center overlay is in any non-idle transient state.
+   - Do not reduce the lock to only the visible outcome icon.
+
+6. Validate.
+   - Run type-check and lint.
+   - Exercise repeat download, transcode, folder drop, and cancel flows.
+   - Confirm no old outcome remains mounted once new progress arrives.
+   - Confirm minimized icon and outcome remain mutually exclusive.
+
 ## Required Validation
 
 - `npm run test -- mainWindowShellMachine compactPointerHotspot mainWindowCompactBounds mainWindowTransitionToken`
@@ -243,6 +300,11 @@ Progress:
   - `npm run type-check`
   - `npm run lint`
   - `npm run test`
+- Automated checks passed after Phase 2G:
+  - `npm run type-check`
+  - `npm run lint`
+  - `npm run test`
+  - `npm run test -- centerOverlayState`
 - Manual Windows visual check passed after Phase 2F on 2026-06-12:
   - compact transparent gutter click-through checked
   - icon hover expansion checked
@@ -276,3 +338,4 @@ Stop and reassess if:
 - macOS and Windows require materially different state machines
 - a refactor causes any regression before motion tuning begins
 - existing specs and current code conflict in a way that cannot be resolved by a behavior-preserving interpretation
+- the center overlay state model cannot preserve current shell lock behavior while removing overlap risk

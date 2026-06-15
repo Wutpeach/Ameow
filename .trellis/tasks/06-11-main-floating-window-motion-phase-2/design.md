@@ -324,3 +324,138 @@ Phase 2 starts with behavior-preserving architecture only. Do not pursue visual 
 Claude review update:
 
 The plan should be adjusted so hotspot active/inactive state is not part of geometry. Geometry remains spatial; shell phase/interaction owns whether hotspot evaluation is active. The plan should also include timing so renderer Motion and Electron native bounds consume a shared duration/easing contract.
+
+## Addendum: Center Overlay State Model
+
+Discovery on 2026-06-15 found a separate but related motion-state issue in the center overlay region of the main floating window.
+
+Current center visuals are driven by several parallel sources in `src/App.tsx`:
+
+- primary task progress from `primaryTask`
+- foreground task outcome through `isProcessing` and `isForegroundTaskOutcomeVisible`
+- folder outcome through `centerOutcome`
+- minimized icon state through `visualIsMinimized`
+
+This allows stale short-lived outcomes, such as a completed-download checkmark, to remain mounted while a new download progress state appears. `ForegroundOutcomeOverlay` also uses a fixed internal key, so Motion can reuse animation state across logically different outcome events. Folder outcomes have a timer but no request/epoch guard, so rapid folder-drop feedback has the same class of lifecycle risk.
+
+Phase 2 should treat the center overlay as a single-owner visual state machine. The state model should be systematic rather than event-specific patching.
+
+### Center Overlay Owner
+
+Proposed pure state module:
+
+```text
+src/utils/centerOverlayState.ts
+```
+
+Responsibility:
+
+- model transient center outcomes and processing phases
+- issue request ids / epochs for every transient outcome
+- select one center visual owner from task progress, transient outcome, and minimized icon facts
+- expose whether the center overlay should hold the main shell in full mode
+
+This module should not own:
+
+- queue truth
+- download/transcode progress maps
+- Electron bridge calls
+- timers
+- Motion transition objects
+- shell geometry
+
+Progress remains derived from existing queue and progress data. The center overlay reducer owns only transient processing/outcome lifecycle.
+
+### Required State Shape
+
+The model must distinguish these states:
+
+- `idle`
+- `task-processing`: long-running foreground work such as image/clipboard save, shown as an indeterminate center spinner
+- `task-outcome-loading`: short preparation/ring phase before success/error icon reveal
+- `task-outcome-visible`: visible success/error/cancelled outcome
+- `folder-outcome-visible`: visible folder success/error outcome
+
+Each transient state must carry a `requestId`. Timer callbacks must validate the request id before mutating state.
+
+### Single Visual Selector
+
+The render path should compute a single discriminated union, for example:
+
+```ts
+type CenterOverlayVisual =
+  | { kind: "task-progress"; key: string }
+  | { kind: "task-processing"; key: string }
+  | { kind: "task-outcome"; key: string; requestId: number }
+  | { kind: "folder-outcome"; key: string; requestId: number }
+  | { kind: "minimized"; key: string }
+  | { kind: "none" };
+```
+
+Priority should be explicit:
+
+1. active task progress
+2. active task processing/outcome
+3. folder outcome
+4. minimized icon
+5. none
+
+New download or transcode progress must preempt stale task or folder outcomes. The compact UI should show the current work truthfully instead of preserving a previous checkmark dwell at the cost of overlap.
+
+### Rendering Contract
+
+The center region should render through one host component / one `AnimatePresence` boundary:
+
+```text
+src/components/main-window/CenterOverlayHost.tsx
+```
+
+or an equivalent local component if extraction is deferred.
+
+The host should use the selected visual key, such as:
+
+- `progress:<traceId>`
+- `task-processing:<requestId>`
+- `task-outcome:<requestId>`
+- `folder-outcome:<requestId>`
+- `minimized`
+
+`ForegroundOutcomeOverlay` should become outcome content rather than a second owner of outer presence. Its ring-to-icon choreography can remain local, but the host should own mount/unmount and identity.
+
+### Shell Lock Contract
+
+The existing `isProcessing` behavior is not just visual state. It also helps hold the shell in full mode while foreground work is being prepared, processed, displayed, and timed out.
+
+The replacement model must provide an equivalent derived lock:
+
+```ts
+centerOverlayLockActive =
+  state.kind === "task-processing"
+  || state.kind === "task-outcome-loading"
+  || state.kind === "task-outcome-visible"
+  || state.kind === "folder-outcome-visible";
+```
+
+Do not derive the lock only from icon visibility. Long-running processing and the short pre-outcome preparation phase must also keep the shell stable.
+
+### Ownership Notes
+
+- Keep `downloadCancelled` / `downloadErrorMessage` ownership for active progress feedback separate from outcome payloads. Cancelling an active download should still affect progress-area text without turning into an outcome overlay.
+- `video-download-progress` and `video-transcode-progress` must both cancel stale transient outcomes before showing progress.
+- `startForegroundProcessing()` must invalidate pending outcome preparation, not just hide the current outcome boolean.
+- Folder success/error outcomes must use the same request-id guard as task outcomes.
+- Minimized icon rendering should participate in the same single-owner selector so it cannot overlap with a task or folder outcome.
+
+### Center Overlay Validation Matrix
+
+| Scenario | Expected Behavior |
+|---|---|
+| download complete followed immediately by new download progress | progress renders; old checkmark is not visible |
+| transcode complete followed immediately by new transcode progress | progress renders; old outcome is not visible |
+| progress event during outcome preparation | pending outcome is invalidated and never appears |
+| double folder drop within one second | second folder outcome remains for its full duration |
+| folder drop while task outcome is visible | folder outcome replaces task outcome without overlap |
+| new task progress while folder outcome is visible | progress preempts folder outcome |
+| image/clipboard save during task body | indeterminate spinner shows and shell remains full |
+| active download cancel feedback | progress-area cancellation text remains separate from outcome payload |
+| completion while minimized | one center visual owner renders; minimized icon and outcome do not overlap |

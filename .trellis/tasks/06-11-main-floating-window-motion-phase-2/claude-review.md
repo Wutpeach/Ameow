@@ -33,3 +33,58 @@ Changing animation frameworks does not materially improve native window morph sa
 - Timing contract tests.
 - Compact visibility move cancellation tests.
 - Hotspot hysteresis and lifecycle tests.
+
+## Addendum: Center Overlay State Model Review
+
+On 2026-06-15, Claude reviewed the proposed center overlay state-model fix for the repeated-download checkmark/progress overlap bug.
+
+Claude agreed with the core direction:
+
+- the center overlay should have a single visual owner
+- progress, task outcomes, folder outcomes, and minimized icon state should be selected through one discriminated visual state
+- transient outcomes should carry request ids / epochs
+- Motion keys should represent logical event identity instead of reusing a fixed overlay key
+- progress should preempt stale outcomes so the compact UI reflects current work
+
+Must-fix items from the review:
+
+- `video-download-progress` and `video-transcode-progress` must both invalidate stale transient outcomes before rendering progress.
+- The replacement for `isProcessing` must preserve the full shell-lock lifecycle: long-running processing, pre-outcome loading, visible outcome dwell, and timer expiry.
+- Long-running foreground work needs an explicit `task-processing` state, separate from the short outcome-loading phase.
+- Active progress cancellation feedback must remain separate from outcome payload state. Do not collapse `downloadCancelled` / `downloadErrorMessage` into the outcome model in a way that breaks in-progress cancel text.
+- `isForegroundTaskOutcomeVisibleRef` should either be removed as dead state or replaced with a synchronous guard derived from the new state model.
+- Folder outcomes need the same request-id / epoch guard as task outcomes.
+
+Recommended implementation adjustments:
+
+- Keep task progress derived from queue/progress maps. Do not duplicate queue truth inside the center overlay reducer.
+- Build a pure selector such as `selectCenterOverlayVisual(primaryTask, centerOutcomeState, visualIsMinimized)`.
+- Render the selected visual through one `AnimatePresence` boundary.
+- Prefer extracting outer presence ownership into a `CenterOverlayHost`; keep `ForegroundOutcomeOverlay` as inner content/choreography if useful.
+- Migrate event handlers only after the state type and selector exist.
+
+Focused validation additions:
+
+- download complete followed by immediate new download progress shows only progress
+- transcode complete followed by immediate new transcode progress shows only progress
+- progress during the outcome preparation window invalidates the pending outcome
+- double folder drop keeps the second outcome alive for its full duration
+- task outcome, folder outcome, and minimized icon are mutually exclusive
+- image/clipboard foreground processing keeps the shell locked before the outcome is visible
+- active download cancellation feedback still appears in the progress area rather than as an outcome overlay
+
+## Follow-Through
+
+The center overlay review recommendations were implemented on 2026-06-15 using:
+
+- `src/utils/centerOverlayState.ts`
+- `src/utils/centerOverlayState.test.ts`
+- `src/App.tsx`
+- `src/components/ForegroundOutcomeOverlay.tsx`
+
+Validation completed:
+
+- `npm run type-check`
+- `npm run lint`
+- `npm run test -- centerOverlayState`
+- `npm run test`

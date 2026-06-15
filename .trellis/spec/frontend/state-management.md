@@ -194,6 +194,68 @@ Contracts:
 - When showing a foreground task outcome after download/transcode completion, request full-mode ownership before or alongside flipping the visible outcome state. The completion glyph/message must not first appear inside the compact icon shell and then recover back to the full panel.
 - Programmatic full-mode requests must not fabricate pointer ownership. If a reducer event such as `forceFull` expands the compact window for download progress or another app-owned flow, preserve the current `pointerInside` value instead of setting it to `true`. Otherwise task/outcome lock release can believe the pointer is still inside and skip the normal collapse path until the next real enter/leave event.
 
+### Center Overlay State Ownership
+
+The center overlay in `src/App.tsx` is a separate single-owner state machine inside the compact window. It must not be modeled as several independent booleans such as `isProcessing`, `isForegroundTaskOutcomeVisible`, `centerOutcome`, and a minimized-icon branch.
+
+Preferred ownership:
+
+| Concern | Preferred State | Why |
+|---------|-----------------|-----|
+| Current visual owner | discriminated union / reducer state | One selector decides whether the center shows progress, processing, task outcome, folder outcome, minimized icon, or nothing |
+| Transient outcome lifetime | request id / epoch in state | Stale timer callbacks must not clear a newer outcome |
+| Shell-lock truth | derived from the same reducer state | Processing, loading, visible outcome, and folder outcome all keep the shell stable |
+| Progress truth | derived from queue/progress maps | Progress stays the source of truth and can preempt stale outcomes |
+
+Contracts:
+- Keep task progress derived from queue/progress maps.
+- Use one selector to choose the center visual owner.
+- Give each transient outcome a request id and validate it in timer callbacks before mutating state.
+- Progress events may dismiss stale outcome visuals, but they must not clear the long-running `task-processing` state if it is still active.
+- Folder outcomes must use the same request-id guard as task outcomes.
+- Minimized icon rendering should be mutually exclusive with task progress and transient outcomes.
+
+Common mistakes:
+
+**WRONG: Several unrelated center booleans**
+```tsx
+const [isProcessing, setIsProcessing] = useState(false);
+const [isForegroundTaskOutcomeVisible, setIsForegroundTaskOutcomeVisible] = useState(false);
+const [centerOutcome, setCenterOutcome] = useState<"folder-success" | "folder-error" | null>(null);
+```
+
+**CORRECT: One center overlay state machine**
+```tsx
+const [centerOverlayState, setCenterOverlayState] = useState(() => createCenterOverlayState());
+const centerOverlayVisual = selectCenterOverlayVisual({
+  primaryTask,
+  centerOverlayState,
+  visualIsMinimized,
+});
+```
+
+**WRONG: Progress and outcomes own themselves independently**
+```tsx
+if (hasProgress) {
+  showProgress();
+}
+if (hasOutcome) {
+  showOutcome();
+}
+```
+
+**CORRECT: One selector chooses one center owner**
+```tsx
+switch (centerOverlayVisual.kind) {
+  case "task-progress":
+  case "task-processing":
+  case "task-outcome":
+  case "folder-outcome":
+  case "minimized":
+  case "none":
+}
+```
+
 Common compact-window mistakes:
 
 **WRONG: Independent timer ownership**

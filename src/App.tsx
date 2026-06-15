@@ -130,6 +130,13 @@ import {
   resolveMainWindowModeLock,
 } from "./utils/mainWindowMode";
 import {
+  createCenterOverlayState,
+  isCenterOverlayLockActive,
+  reduceCenterOverlayState,
+  selectCenterOverlayVisual,
+  type CenterOverlayState,
+} from "./utils/centerOverlayState";
+import {
   createMainWindowShellState,
   reduceMainWindowShell,
   type MainWindowShellEvent,
@@ -474,12 +481,8 @@ function App({
     isMacOS,
   });
   const [isHovering, setIsHovering] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [downloadCancelled, setDownloadCancelled] = useState(false);
-  const [downloadErrorMessage, setDownloadErrorMessage] = useState<string | null>(null);
   const [hoveredAdvancedQualityOptionId, setHoveredAdvancedQualityOptionId] = useState<string | null>(null);
-  const [isForegroundTaskOutcomeVisible, setIsForegroundTaskOutcomeVisible] = useState(false);
-  const [centerOutcome, setCenterOutcome] = useState<"folder-success" | "folder-error" | null>(null);
+  const [centerOverlayState, setCenterOverlayState] = useState<CenterOverlayState>(() => createCenterOverlayState());
   const [outputPath, setOutputPath] = useState("");
   const [renameMediaOnDownload, setRenameMediaOnDownload] = useState(false);
   const [isPanelHovered, setIsPanelHovered] = useState(false);
@@ -534,8 +537,7 @@ function App({
   const foregroundTaskOutcomeTimerRef = useRef<number | null>(null);
   const centerOutcomeTimerRef = useRef<number | null>(null);
   const edgeGlowRevealTimerRef = useRef<number | null>(null);
-  const foregroundOutcomeRequestIdRef = useRef(0);
-  const isForegroundTaskOutcomeVisibleRef = useRef(false);
+  const centerOverlayStateRef = useRef<CenterOverlayState>(centerOverlayState);
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
   const isContextMenuOpenRef = useRef(false);
   const isDraggingRef = useRef(false);
@@ -669,6 +671,18 @@ function App({
         }
       : null;
   const hasOngoingTask = ongoingTaskCount > 0;
+  const centerOverlayLockActive = isCenterOverlayLockActive(centerOverlayState);
+  const isProcessing = centerOverlayLockActive;
+  const centerOverlayVisual = selectCenterOverlayVisual({
+    primaryTask: primaryTask
+      ? {
+          kind: primaryTask.kind,
+          traceId: primaryTask.task.traceId,
+        }
+      : null,
+    centerOverlayState,
+    visualIsMinimized,
+  });
   const isMainWindowModeLocked = resolveMainWindowModeLock({
     hasOngoingTask,
     runtimeGateIsBusy,
@@ -701,6 +715,13 @@ function App({
     }
   }, []);
 
+  const updateCenterOverlayState = useCallback((action: Parameters<typeof reduceCenterOverlayState>[1]) => {
+    const nextState = reduceCenterOverlayState(centerOverlayStateRef.current, action);
+    centerOverlayStateRef.current = nextState;
+    setCenterOverlayState(nextState);
+    return nextState;
+  }, []);
+
   const waitForForegroundOutcomeStableFrame = useCallback(async () => {
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
@@ -711,16 +732,20 @@ function App({
   }, []);
 
   const resetDownloadOutcome = useCallback(() => {
-    foregroundOutcomeRequestIdRef.current += 1;
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
-    isForegroundTaskOutcomeVisibleRef.current = false;
-    setIsForegroundTaskOutcomeVisible(false);
-    setCenterOutcome(null);
-    setIsProcessing(false);
-    setDownloadCancelled(false);
-    setDownloadErrorMessage(null);
-  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
+    updateCenterOverlayState({ type: "reset" });
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
+
+  const dismissTransientCenterOverlay = useCallback(() => {
+    const current = centerOverlayStateRef.current;
+    if (current.kind !== "task-outcome-loading" && current.kind !== "task-outcome-visible" && current.kind !== "folder-outcome-visible") {
+      return;
+    }
+    clearForegroundTaskOutcomeTimer();
+    clearCenterOutcomeTimer();
+    updateCenterOverlayState({ type: "dismissTransient" });
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
 
   const clearDeferredStartupInitializationIdle = useCallback(() => {
     if (
@@ -752,6 +777,10 @@ function App({
   useEffect(() => {
     isMainWindowModeLockedRef.current = isMainWindowModeLocked;
   }, [isMainWindowModeLocked]);
+
+  useEffect(() => {
+    centerOverlayStateRef.current = centerOverlayState;
+  }, [centerOverlayState]);
 
   const restoreAnimatedPanelTransitions = useCallback(() => {
     if (panelTransitionModeResetFrameRef.current !== null) {
@@ -1218,76 +1247,95 @@ function App({
     error: string | null;
     durationMs: number;
   }) => {
-    const requestId = foregroundOutcomeRequestIdRef.current + 1;
-    foregroundOutcomeRequestIdRef.current = requestId;
     clearForegroundTaskOutcomeTimer();
-    isForegroundTaskOutcomeVisibleRef.current = false;
-    setIsForegroundTaskOutcomeVisible(false);
-    setDownloadCancelled(cancelled);
-    setDownloadErrorMessage(cancelled ? error : null);
-    setIsProcessing(true);
+    const loadingState = updateCenterOverlayState({
+      type: "beginTaskOutcomeLoading",
+      status: cancelled ? "cancelled" : "success",
+      message: cancelled ? error : null,
+      durationMs,
+    });
+    const requestId = loadingState.requestId;
     void (async () => {
       await prepareMainWindowForForegroundTask();
       await waitForForegroundOutcomeStableFrame();
-      if (foregroundOutcomeRequestIdRef.current !== requestId) {
+      if (centerOverlayStateRef.current.requestId !== requestId) {
         return;
       }
-      isForegroundTaskOutcomeVisibleRef.current = true;
-      setIsForegroundTaskOutcomeVisible(true);
+      updateCenterOverlayState({ type: "showTaskOutcome", requestId });
       foregroundTaskOutcomeTimerRef.current = window.setTimeout(() => {
-        if (foregroundOutcomeRequestIdRef.current !== requestId) {
+        if (centerOverlayStateRef.current.requestId !== requestId) {
           return;
         }
         foregroundTaskOutcomeTimerRef.current = null;
-        isForegroundTaskOutcomeVisibleRef.current = false;
-        setIsForegroundTaskOutcomeVisible(false);
-        setIsProcessing(false);
+        updateCenterOverlayState({ type: "finishTaskOutcome", requestId });
       }, durationMs);
     })();
   }, [
     clearForegroundTaskOutcomeTimer,
     prepareMainWindowForForegroundTask,
+    updateCenterOverlayState,
     waitForForegroundOutcomeStableFrame,
   ]);
 
   const showFolderDropOutcome = useCallback(() => {
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
-    isForegroundTaskOutcomeVisibleRef.current = false;
-    setIsForegroundTaskOutcomeVisible(false);
-    setDownloadCancelled(false);
-    setDownloadErrorMessage(null);
-    setIsProcessing(false);
-    setCenterOutcome("folder-success");
+    const outcomeState = updateCenterOverlayState({
+      type: "showFolderOutcome",
+      status: "success",
+      durationMs: 1400,
+    });
+    const requestId = outcomeState.requestId;
     centerOutcomeTimerRef.current = window.setTimeout(() => {
+      if (centerOverlayStateRef.current.requestId !== requestId) {
+        return;
+      }
       centerOutcomeTimerRef.current = null;
-      setCenterOutcome(null);
+      updateCenterOverlayState({ type: "finishFolderOutcome", requestId });
     }, 1400);
-  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
 
   const showFolderDropErrorOutcome = useCallback((error: string) => {
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
-    isForegroundTaskOutcomeVisibleRef.current = false;
-    setIsForegroundTaskOutcomeVisible(false);
-    setDownloadCancelled(true);
-    setDownloadErrorMessage(error);
-    setIsProcessing(false);
-    setCenterOutcome("folder-error");
+    const outcomeState = updateCenterOverlayState({
+      type: "showFolderOutcome",
+      status: "error",
+      message: error,
+      durationMs: 1800,
+    });
+    const requestId = outcomeState.requestId;
     centerOutcomeTimerRef.current = window.setTimeout(() => {
+      if (centerOverlayStateRef.current.requestId !== requestId) {
+        return;
+      }
       centerOutcomeTimerRef.current = null;
-      setCenterOutcome(null);
-      setDownloadCancelled(false);
-      setDownloadErrorMessage(null);
+      updateCenterOverlayState({ type: "finishFolderOutcome", requestId });
     }, 1800);
-  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
+  }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
 
   const startForegroundProcessing = useCallback(async () => {
+    clearForegroundTaskOutcomeTimer();
+    clearCenterOutcomeTimer();
+    updateCenterOverlayState({ type: "beginTaskProcessing", source: "image" });
     await prepareMainWindowForForegroundTask();
-    isForegroundTaskOutcomeVisibleRef.current = false;
-    setIsForegroundTaskOutcomeVisible(false);
-    setIsProcessing(true);
-  }, [prepareMainWindowForForegroundTask]);
+  }, [
+    clearCenterOutcomeTimer,
+    clearForegroundTaskOutcomeTimer,
+    prepareMainWindowForForegroundTask,
+    updateCenterOverlayState,
+  ]);
+
+  const scheduleForegroundProcessingDismiss = useCallback((durationMs: number) => {
+    const requestId = centerOverlayStateRef.current.requestId;
+    window.setTimeout(() => {
+      const current = centerOverlayStateRef.current;
+      if (current.requestId !== requestId || current.kind !== "task-processing") {
+        return;
+      }
+      updateCenterOverlayState({ type: "dismissTransient" });
+    }, durationMs);
+  }, [updateCenterOverlayState]);
 
   const summarizeForegroundTaskError = useCallback((error: unknown): string => {
     const fallbackMessage = checkSequenceOverflow(error)
@@ -1742,21 +1790,28 @@ function App({
         runtimeStatusForRequest?.galleryDl.error ?? "Missing managed gallery-dl runtime",
       ) ?? "Missing managed gallery-dl runtime";
       console.error("Cannot queue Pinterest download because gallery-dl is unavailable:", missingGalleryDlMessage);
-      setDownloadCancelled(true);
-      setDownloadErrorMessage(missingGalleryDlMessage);
+      showForegroundTaskOutcome({
+        cancelled: true,
+        error: missingGalleryDlMessage,
+        durationMs: 1800,
+      });
       return;
     }
     void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_video_download", payload).catch((err) => {
       console.error("Failed to queue video download:", err);
       checkSequenceOverflow(err);
-      setDownloadCancelled(true);
-      setDownloadErrorMessage(summarizeDownloadError(String(err)));
+      showForegroundTaskOutcome({
+        cancelled: true,
+        error: summarizeDownloadError(String(err)),
+        durationMs: 1800,
+      });
     });
   }, [
     prepareMainWindowForForegroundTask,
     refreshRuntimeDependencyContext,
     resetDownloadOutcome,
     runtimeDependencyStatus,
+    showForegroundTaskOutcome,
   ]);
 
   const enqueuePastedVideoDownload = useCallback(async (url: string) => {
@@ -1765,27 +1820,24 @@ function App({
     void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_pasted_video_download", { url }).catch((err) => {
       console.error("Failed to queue pasted video download:", err);
       checkSequenceOverflow(err);
-      setDownloadCancelled(true);
-      setDownloadErrorMessage(summarizeDownloadError(String(err)));
+      showForegroundTaskOutcome({
+        cancelled: true,
+        error: summarizeDownloadError(String(err)),
+        durationMs: 1800,
+      });
     });
   }, [
     prepareMainWindowForForegroundTask,
     resetDownloadOutcome,
+    showForegroundTaskOutcome,
   ]);
 
-  const cancelVideoTask = useCallback(async (
-    traceId: string,
-    options?: { showCurrentTaskFeedback?: boolean },
-  ) => {
+  const cancelVideoTask = useCallback(async (traceId: string) => {
     if (!traceId || cancellingTraceIdsRef.current.has(traceId)) {
       return;
     }
 
     addCancellingTraceId(traceId);
-    if (options?.showCurrentTaskFeedback) {
-      setDownloadCancelled(true);
-      setDownloadErrorMessage(t("app.queue.cancellingCurrent"));
-    }
 
     try {
       const cancelled = await desktopCommands.invoke<boolean>("cancel_download", { traceId });
@@ -1794,13 +1846,9 @@ function App({
       }
     } catch (err) {
       removeCancellingTraceId(traceId);
-      if (options?.showCurrentTaskFeedback) {
-        setDownloadCancelled(false);
-        setDownloadErrorMessage(null);
-      }
       console.error("Failed to cancel download:", err);
     }
-  }, [addCancellingTraceId, removeCancellingTraceId, t]);
+  }, [addCancellingTraceId, removeCancellingTraceId]);
 
   const retryTranscodeTask = useCallback(async (traceId: string) => {
     if (!traceId || pendingTranscodeActionTraceIdsRef.current.has(traceId)) {
@@ -2096,8 +2144,8 @@ function App({
       async (event) => {
         const payload = event.payload;
         await prepareMainWindowForForegroundTask();
+        dismissTransientCenterOverlay();
         setDownloadProgressByTrace((current) => applyDownloadProgressEvent(current, payload));
-        setDownloadErrorMessage(null);
       }
     );
     const unlistenComplete = desktopEvents.on<DownloadResult>(
@@ -2127,6 +2175,7 @@ function App({
       unlistenComplete.then(fn => fn());
     };
   }, [
+    dismissTransientCenterOverlay,
     prepareMainWindowForForegroundTask,
     removeCancellingTraceId,
     showForegroundTaskOutcome,
@@ -2389,13 +2438,13 @@ function App({
       }
 
       await prepareMainWindowForForegroundTask();
+      dismissTransientCenterOverlay();
       setTranscodeProgressByTrace((current) =>
         applyNormalizedTranscodeProgressToMap(current, normalized)
       );
       setVideoTranscodeQueueDetail((current) =>
         applyNormalizedTranscodeProgressToDetail(current, normalized)
       );
-      setDownloadErrorMessage(null);
     });
 
     const unlistenQueued = desktopEvents.on<VideoTranscodeTaskPayload>("video-transcode-queued", (event) => {
@@ -2484,6 +2533,7 @@ function App({
       unlistenComplete.then((fn) => fn());
     };
   }, [
+    dismissTransientCenterOverlay,
     prepareMainWindowForForegroundTask,
     removePendingTranscodeActionTraceId,
     showForegroundTaskOutcome,
@@ -2601,9 +2651,9 @@ function App({
     dispatchShellEvent({
       type: "setLock",
       lock: "centerOutcome",
-      active: isForegroundTaskOutcomeVisible || centerOutcome !== null,
+      active: centerOverlayLockActive,
     });
-  }, [centerOutcome, dispatchShellEvent, isForegroundTaskOutcomeVisible]);
+  }, [centerOverlayLockActive, dispatchShellEvent]);
 
   useEffect(() => {
     dispatchShellEvent({ type: "setLock", lock: "contextMenu", active: isContextMenuOpen });
@@ -3188,7 +3238,7 @@ function App({
           checkSequenceOverflow(err);
         }
 
-        setTimeout(() => setIsProcessing(false), 1000);
+        scheduleForegroundProcessingDismiss(1000);
       } else {
         console.warn("No pasteable clipboard image or files detected");
       }
@@ -3327,7 +3377,7 @@ function App({
 
       await saveDroppedFilesToOutput(droppedVideoFiles, outputPath || null);
 
-      setTimeout(() => setIsProcessing(false), 1000);
+      scheduleForegroundProcessingDismiss(1000);
       return;
     }
 
@@ -3349,7 +3399,7 @@ function App({
         checkSequenceOverflow(err);
       }
 
-      setTimeout(() => setIsProcessing(false), 1000);
+      scheduleForegroundProcessingDismiss(1000);
       return;
     }
 
@@ -3715,7 +3765,7 @@ function App({
         console.log("Saved files from dataTransfer.files fallback:", savedCount);
       }
 
-      setTimeout(() => setIsProcessing(false), 1000);
+      scheduleForegroundProcessingDismiss(1000);
       return;
     }
 
@@ -5155,9 +5205,9 @@ function App({
 
         {/* 中央图标 */}
         <AnimatePresence mode="sync">
-        {primaryTask ? (
+        {centerOverlayVisual.kind === "task-progress" && primaryTask ? (
           <motion.div
-            key="progress"
+            key={centerOverlayVisual.key}
             initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
             animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
             exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
@@ -5201,7 +5251,7 @@ function App({
                     return;
                   }
                   if (primaryTask.kind === "download") {
-                    void cancelVideoTask(primaryTask.task.traceId, { showCurrentTaskFeedback: true });
+                    void cancelVideoTask(primaryTask.task.traceId);
                     return;
                   }
                   void cancelTranscodeTask(primaryTask.task.traceId);
@@ -5247,9 +5297,71 @@ function App({
               </button>
             ) : null}
           </motion.div>
-        ) : visualIsMinimized ? (
+        ) : centerOverlayVisual.kind === "task-processing" ? (
           <motion.div
-            key="minimized"
+            key={centerOverlayVisual.key}
+            initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+            animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+            exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+            transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
+            draggable={false}
+            style={CENTER_OVERLAY_CONTENT_STYLE}
+          >
+            <CircularProgressIndicator
+              strokeColor={colors.accentSolid}
+              trackColor={colors.borderStart}
+              textColor={colors.textSecondary}
+              percent={0}
+              indeterminate
+            />
+          </motion.div>
+        ) : centerOverlayVisual.kind === "task-outcome" ? (
+          <motion.div
+            key={centerOverlayVisual.key}
+            initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+            animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+            exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+            transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
+            draggable={false}
+            style={CENTER_OVERLAY_CONTENT_STYLE}
+          >
+            <ForegroundOutcomeOverlay
+              outcomeVisible={centerOverlayVisual.outcomeVisible}
+              cancelled={centerOverlayVisual.status !== "success"}
+              errorMessage={centerOverlayVisual.message}
+              successColor={colors.successIcon}
+              errorColor={colors.errorIcon}
+              loadingStrokeColor={colors.accentSolid}
+              loadingTrackColor={colors.borderStart}
+              loadingTextColor={colors.textSecondary}
+            />
+          </motion.div>
+        ) : centerOverlayVisual.kind === "folder-outcome" ? (
+          <motion.div
+            key={centerOverlayVisual.key}
+            initial={CENTER_OVERLAY_PRESENCE_MOTION.initial}
+            animate={CENTER_OVERLAY_PRESENCE_MOTION.animate}
+            exit={CENTER_OVERLAY_PRESENCE_MOTION.exit}
+            transition={CENTER_OVERLAY_PRESENCE_MOTION.transition}
+            draggable={false}
+            style={CENTER_OVERLAY_CONTENT_STYLE}
+          >
+            <ForegroundOutcomeOverlay
+              outcomeVisible
+              cancelled={centerOverlayVisual.status === "error"}
+              errorMessage={centerOverlayVisual.status === "error" ? centerOverlayVisual.message : null}
+              successColor={colors.successIcon}
+              errorColor={colors.errorIcon}
+              loadingStrokeColor={colors.accentSolid}
+              loadingTrackColor={colors.borderStart}
+              loadingTextColor={colors.textSecondary}
+              SuccessIcon={FolderCheckIcon}
+              successIconStrokeWidth={2}
+            />
+          </motion.div>
+        ) : centerOverlayVisual.kind === "minimized" ? (
+          <motion.div
+            key={centerOverlayVisual.key}
             initial={{ scale: MAIN_WINDOW_INITIAL_PANEL_SCALE, opacity: 0 }}
             animate={minimizedIconAnimate}
             exit={minimizedIconExit}
@@ -5289,30 +5401,6 @@ function App({
           </motion.div>
         ) : null}
         </AnimatePresence>
-        <ForegroundOutcomeOverlay
-          visible={isProcessing}
-          outcomeVisible={isForegroundTaskOutcomeVisible}
-          cancelled={downloadCancelled}
-          errorMessage={downloadErrorMessage}
-          successColor={colors.successIcon}
-          errorColor={colors.errorIcon}
-          loadingStrokeColor={colors.accentSolid}
-          loadingTrackColor={colors.borderStart}
-          loadingTextColor={colors.textSecondary}
-        />
-        <ForegroundOutcomeOverlay
-          visible={centerOutcome !== null}
-          outcomeVisible={centerOutcome !== null}
-          cancelled={centerOutcome === "folder-error"}
-          errorMessage={centerOutcome === "folder-error" ? downloadErrorMessage : null}
-          successColor={colors.successIcon}
-          errorColor={colors.errorIcon}
-          loadingStrokeColor={colors.accentSolid}
-          loadingTrackColor={colors.borderStart}
-          loadingTextColor={colors.textSecondary}
-          SuccessIcon={FolderCheckIcon}
-          successIconStrokeWidth={2}
-        />
 
         <AnimatePresence>
           {shouldShowRuntimeIndicator ? (
