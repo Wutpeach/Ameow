@@ -674,3 +674,36 @@ Implemented narrow douyin-dl detail failure auth classification, reused site-ses
 ### Next Steps
 
 - None - task complete
+
+
+## Session 217: Refine toolbar sync indicator
+
+**Date**: 2026-06-15
+**Task**: Refine toolbar sync indicator
+**Branch**: `main`
+
+### Summary
+
+Replaced the browser extension action text badge with toolbar icon variants carrying a small yellow sync dot, added regression coverage, and verified extension packaging.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4ecebd2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
