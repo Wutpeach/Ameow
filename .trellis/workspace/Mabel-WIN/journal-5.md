@@ -608,3 +608,36 @@ Fixed the browser extension edge launcher tooltip stacking so it renders above a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 215: Refine browser extension edge launcher visuals
+
+**Date**: 2026-06-15
+**Task**: Refine browser extension edge launcher visuals
+**Branch**: `main`
+
+### Summary
+
+Removed the persistent green connected outline from the browser extension edge launcher, added a low-contrast mascot backing for black and white themes, added CSS regression coverage, and documented the connected-state visual convention.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9588bc8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
