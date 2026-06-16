@@ -112,10 +112,8 @@ import {
   currentManagedRuntimeTarget,
   ensureManagedDenoRuntimeReady,
   ensureManagedFfmpegRuntimeReady,
-  ensureManagedDouyinDlRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
   ensureManagedYtDlpRuntimeReady,
-  managedDouyinDlRuntimePaths,
   resolvePinnedManagedPythonPackage,
 } from "./managedRuntimeBootstrap.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
@@ -234,7 +232,6 @@ const runtimeDependencyGateController = createRuntimeDependencyGateController({
   buildManagedRuntimeBootstrapOptions,
   ensureManagedYtDlpRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
-  ensureManagedDouyinDlRuntimeReady,
   ensureManagedFfmpegRuntimeReady,
   ensureManagedDenoRuntimeReady,
 });
@@ -1399,10 +1396,6 @@ function getElectronDownloadRuntime() {
         await ensureManagedGalleryDlRuntimeReady(reason, options);
         return;
       }
-      if (engineId === "douyin-dl") {
-        await ensureManagedDouyinDlRuntimeReady(reason, options);
-        return;
-      }
     },
     diagnoseNetworkProxy: logCliProxyDiagnosticsForTarget,
     bootstrapManagedComponents: async ({ reason }) => {
@@ -1792,7 +1785,6 @@ function cloneRuntimeStatusSnapshot(snapshot) {
     python: { ...snapshot.python },
     ytDlp: { ...snapshot.ytDlp },
     galleryDl: { ...snapshot.galleryDl },
-    douyinDl: { ...snapshot.douyinDl },
     ffmpeg: { ...snapshot.ffmpeg },
     deno: { ...snapshot.deno },
   };

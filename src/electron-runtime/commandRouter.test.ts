@@ -17,7 +17,6 @@ const runtimeStatus: RuntimeDependencyStatusSnapshot = {
   python: readyStatus,
   ytDlp: readyStatus,
   galleryDl: { ...readyStatus, source: "bundled" },
-  douyinDl: { ...readyStatus, source: "managed" },
   ffmpeg: { ...readyStatus, source: "managed" },
   deno: { ...readyStatus, source: "managed" },
 };

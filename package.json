@@ -28,7 +28,6 @@
     "build": "npm run build:renderer && npm run electron:build",
     "runtime:smoke:python": "node ./scripts/smoke-python-runtime.mjs",
     "runtime:smoke:downloaders": "npm run electron:build && node ./scripts/smoke-managed-python-downloaders.mjs",
-    "runtime:smoke:douyin-session": "node ./scripts/smoke-douyin-dl-session-download.mjs",
     "runtime:verify:macos-package": "node ./scripts/verify-macos-python-runtime-package.mjs",
     "runtime:ensure:python": "node ./scripts/ensure-python-runtime.mjs",
     "package": "node ./scripts/run-electron-package.mjs",

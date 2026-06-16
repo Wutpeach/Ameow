@@ -27,7 +27,6 @@ export const hasMissingManagedRuntimeComponents = (
   && (
     (status.ytDlp.state !== "ready" && status.ytDlp.expectedSource === "managed")
     || (status.galleryDl.state !== "ready" && status.galleryDl.expectedSource === "managed")
-    || (status.douyinDl.state !== "ready" && status.douyinDl.expectedSource === "managed")
     || status.ffmpeg.state !== "ready"
     || status.deno.state !== "ready"
   )
@@ -49,9 +48,6 @@ export const getMissingRuntimeComponentsFromStatus = (
   }
   if (status.galleryDl.state !== "ready") {
     missingComponents.push("gallery-dl");
-  }
-  if (status.douyinDl.state !== "ready") {
-    missingComponents.push("douyin-dl");
   }
   if (status.ffmpeg.state !== "ready") {
     missingComponents.push("ffmpeg");

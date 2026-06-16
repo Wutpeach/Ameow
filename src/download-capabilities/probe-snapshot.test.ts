@@ -67,10 +67,10 @@ describe("capability probe snapshots", () => {
     });
   });
 
-  it("rejects probe targets for engines without implemented probe support", () => {
+  it("rejects probe targets for unsupported engines", () => {
     expect(() => capabilityProbeTargetSchema.parse({
-      id: "douyin-douyin-dl",
-      engine: "douyin-dl",
+      id: "unsupported-engine",
+      engine: "unsupported",
       sourceUrl: "https://www.douyin.com/video/7493088730088770870",
       siteId: "douyin",
       tier: "critical",

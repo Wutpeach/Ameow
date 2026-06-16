@@ -43,7 +43,7 @@ description: 理解 Ameow 首次处理网页下载时为什么可能出现准备
 %APPDATA%\Ameow\runtimes\
 ```
 
-里面可能包含 `yt-dlp`、`gallery-dl`、`douyin-dl`、`ffmpeg`、`deno` 等组件。下载过程中的临时压缩包会先放在系统临时目录，安装和校验完成后会清理。
+里面可能包含 `yt-dlp`、`gallery-dl`、`ffmpeg`、`deno` 等组件。下载过程中的临时压缩包会先放在系统临时目录，安装和校验完成后会清理。
 
 如果删除 `runtimes` 目录，Ameow 后续需要这些能力时会重新准备。已经下载完成的媒体文件不受这个目录影响，它们仍然在你设置的保存位置。
 

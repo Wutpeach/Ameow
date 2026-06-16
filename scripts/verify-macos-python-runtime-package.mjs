@@ -176,14 +176,11 @@ const smokePackagedDownloaderBootstrap = async (details, verifierOptions = {}) =
   try {
     const ytDlp = await bootstrap.ensureManagedYtDlpRuntimeReady("verify_macos_package", bootstrapOptions);
     const galleryDl = await bootstrap.ensureManagedGalleryDlRuntimeReady("verify_macos_package", bootstrapOptions);
-    const douyinDl = await bootstrap.ensureManagedDouyinDlRuntimeReady("verify_macos_package", bootstrapOptions);
     const paths = {
       ytDlp,
       galleryDl,
-      douyinDl,
       ytDlpPython: bootstrap.managedYtDlpPaths(bootstrapOptions).python,
       galleryDlExpected: bootstrap.managedGalleryDlPath(bootstrapOptions),
-      douyinDlExpected: bootstrap.managedDouyinDlPath(bootstrapOptions),
     };
 
     for (const [label, entryPath] of Object.entries(paths)) {
@@ -193,12 +190,10 @@ const smokePackagedDownloaderBootstrap = async (details, verifierOptions = {}) =
     const versions = {
       "yt-dlp": await readCommandVersion(ytDlp),
       "gallery-dl": await readCommandVersion(galleryDl),
-      "douyin-dl": await readCommandVersion(douyinDl),
     };
     const expectedVersions = {
       "yt-dlp": bootstrap.resolvePinnedManagedPythonPackage("yt-dlp").packageVersion,
       "gallery-dl": bootstrap.resolvePinnedManagedPythonPackage("gallery-dl").packageVersion,
-      "douyin-dl": bootstrap.resolvePinnedManagedPythonPackage("douyin-dl").packageVersion,
     };
 
     for (const [toolId, expected] of Object.entries(expectedVersions)) {
@@ -256,11 +251,9 @@ const smokePackagedDownloaderRelocationRebuild = async (details, verifierOptions
   const ensureAllDownloaders = async (options) => {
     const ytDlp = await bootstrap.ensureManagedYtDlpRuntimeReady("verify_macos_package_relocation", options);
     const galleryDl = await bootstrap.ensureManagedGalleryDlRuntimeReady("verify_macos_package_relocation", options);
-    const douyinDl = await bootstrap.ensureManagedDouyinDlRuntimeReady("verify_macos_package_relocation", options);
     return {
       ytDlp,
       galleryDl,
-      douyinDl,
       ytDlpMetadata: bootstrap.managedYtDlpPaths(options).metadata,
     };
   };
@@ -288,7 +281,6 @@ const smokePackagedDownloaderRelocationRebuild = async (details, verifierOptions
     for (const [label, entryPath] of Object.entries({
       ytDlp: second.ytDlp,
       galleryDl: second.galleryDl,
-      douyinDl: second.douyinDl,
     })) {
       assertPathExists(entryPath, `relocated managed downloader ${label}`);
     }

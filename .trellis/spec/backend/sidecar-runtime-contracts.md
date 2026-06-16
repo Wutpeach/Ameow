@@ -21,13 +21,11 @@
   - `npm run runtime:ensure:python`
   - `npm run runtime:smoke:python`
   - `npm run runtime:smoke:downloaders`
-  - `npm run runtime:smoke:douyin-session`
   - `npm run runtime:verify:macos-package`
   - `node ./scripts/ensure-capability-probe-runtime.mjs --tool <tool>`
 - Runtime bootstrap entrypoints:
   - `ensureManagedYtDlpRuntimeReady(...)`
   - `ensureManagedGalleryDlRuntimeReady(...)`
-  - `ensureManagedDouyinDlRuntimeReady(...)`
   - `ensureManagedFfmpegRuntimeReady(...)`
   - `ensureManagedDenoRuntimeReady(...)`
 
@@ -35,7 +33,7 @@
 
 - Runtime path resolution:
   - Bundled Python is the only packaged prerequisite for Python downloaders.
-  - `yt-dlp`, `gallery-dl`, and `douyin-dl` must resolve from managed per-tool virtualenvs under `app_config_dir/runtimes/<tool>/<target>/venv/...`.
+  - `yt-dlp` and `gallery-dl` must resolve from managed per-tool virtualenvs under `app_config_dir/runtimes/<tool>/<target>/venv/...`.
   - Official downloader provenance is represented by pinned Python package sources in `electron/managedPythonPackageManifest.mts`, not by shipping standalone downloader release binaries.
   - Scripts that need managed Python package pins must read the compiled Electron manifest through `scripts/managed-python-package-manifest.mjs`; they must not define a second downloader version/source table.
   - Managed Python venv creation must use Python's default symlink-based layout on macOS. Do not pass `--copies` for macOS python-build-standalone runtimes, because copying the interpreter out of its bundled tree can break loader/runtime lookup and abort during `ensurepip`.
@@ -47,7 +45,7 @@
   - Electron runtime path/status resolution for Python downloaders:
     - `python.source` must resolve as `"bundled"` when ready
     - `python.expectedSource` must be `"bundled"`
-    - `ytDlp.expectedSource`, `galleryDl.expectedSource`, and `douyinDl.expectedSource` must be `"managed"`
+    - `ytDlp.expectedSource` and `galleryDl.expectedSource` must be `"managed"`
     - downloader managed runtime target paths live under `app_config_dir/runtimes/<tool>/<target>/venv/bin/<entrypoint>` (or `venv/Scripts/<entrypoint>.exe` on Windows)
   - Bundled Python candidate order must include:
     - repo dev tree: `<repoRoot>/desktop-assets/binaries/python-<target>`
@@ -76,7 +74,6 @@
   - Downloader managed bootstrap must source Python from bundled runtime bootstrap options; do not fall back to system Python in steady state.
   - Shared Python package bootstrap must use per-tool in-flight promise joining so startup prewarm, settings refresh, and first real download converge on one venv install/rebuild flow per tool.
   - Managed `ffmpeg` and `deno` bootstrap must use component-and-target in-flight promise joining so startup prewarm, yt-dlp engine preparation, and first real download converge on one managed binary install flow per component.
-  - `douyin-dl` browser support (`playwright` / Chromium) remains lazy and must not be part of default startup prewarm.
 - Runtime contract for `ffmpeg` used by yt-dlp/internal post-processing:
   - `ffmpeg` is no longer bundled into the Windows portable ZIP or treated as a system `PATH` dependency.
   - Runtime must bootstrap `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/` from a pinned FFmpegBin release asset when missing.
@@ -180,14 +177,12 @@
 - Runtime assertions:
   - `npm run runtime:smoke:python` exits 0 on the host target.
   - `node ./scripts/smoke-python-runtime.mjs --mac zip` fails clearly on a Windows host instead of executing foreign-target Python; use `node ./scripts/ensure-python-runtime.mjs --mac zip` for cross-target preparation.
-  - `npm run runtime:smoke:downloaders` exits 0 and verifies fresh per-tool venv creation plus pinned versions for `yt-dlp`, `gallery-dl`, and `douyin-dl`.
+  - `npm run runtime:smoke:downloaders` exits 0 and verifies fresh per-tool venv creation plus pinned versions for `yt-dlp` and `gallery-dl`.
   - `npm run runtime:smoke:downloaders` also exercises local HTTP fixture downloads for managed `yt-dlp` and `gallery-dl`, proving those venv entrypoints can produce output files without relying on external sites.
-  - With a valid Douyin session cookies file, `npm run runtime:smoke:douyin-session -- <cookies-file> [douyin-url]` exits 0 and verifies the managed `douyin-dl` runtime can download a non-empty media artifact through the same app runtime execution path with `browser_fallback.enabled=false`.
-  - Managed `douyin-dl` output must be normalized after execution: Ameow may consume upstream `download_manifest.jsonl` internally, but the user-visible output directory should contain the final media artifact at its root, not an author subfolder or a manifest sidecar. Collision handling must choose a deterministic non-overwriting filename.
   - `node ./scripts/ensure-capability-probe-runtime.mjs --tool yt-dlp` exits 0.
   - `npm run package:win:dir` and `npm run package:portable:skip-build` succeed on Windows host verification.
   - Packaged Electron resources include `desktop-assets/binaries/python-<target>` for the current target.
-  - On macOS package verification, `npm run runtime:verify:macos-package -- <arm64|x64> require-execution require-downloader-bootstrap require-relocation-rebuild` must pass against the built `.app` bundle. This verifies the `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>` layout, Python runtime manifest provenance, compiled `managedPythonPackageManifest.mjs`, packaged `main.mjs` resource-dir wiring, absence of old standalone downloader assets, packaged Python venv/pip execution, fresh packaged `yt-dlp` / `gallery-dl` / `douyin-dl` venv bootstrap, pinned downloader versions, and bundled-Python-path-change rebuild behavior on the matching host architecture.
+  - On macOS package verification, `npm run runtime:verify:macos-package -- <arm64|x64> require-execution require-downloader-bootstrap require-relocation-rebuild` must pass against the built `.app` bundle. This verifies the `.app/Contents/Resources/app/desktop-assets/binaries/python-<target>` layout, Python runtime manifest provenance, compiled `managedPythonPackageManifest.mjs`, packaged `main.mjs` resource-dir wiring, absence of old standalone downloader assets, packaged Python venv/pip execution, fresh packaged `yt-dlp` / `gallery-dl` venv bootstrap, pinned downloader versions, and bundled-Python-path-change rebuild behavior on the matching host architecture.
   - Launch the packaged/main app with missing managed runtimes and assert the first visible window appears before any managed-runtime download starts.
   - Launch the app into compact icon mode with missing managed runtimes and assert startup bootstrap waits until the expanded main window is visible instead of forcing an unsolicited first-launch expand.
   - With missing managed runtimes on Electron/macOS startup, allow the initial status/gate refresh to settle and assert the delayed startup bootstrap still transitions from `idle` to `checking`/`downloading` without requiring a manual retry click.
@@ -282,7 +277,7 @@ const ytDlp = resolveManagedYtDlpRuntimePaths(environment).entrypoint;
 - Executor routing:
   - `direct` is not a backend engine id; direct media URLs and candidates are hints only.
   - Provider planning may choose `gallery-dl` as the primary engine for Pinterest-style gallery/image-heavy inputs.
-  - Remaining URLs default to the orchestrated `yt-dlp` / `gallery-dl` / `douyin-dl` engine ladder rather than site-hardcoded executor branching.
+  - Remaining URLs default to the orchestrated `yt-dlp` / `gallery-dl` engine ladder rather than site-hardcoded executor branching.
 - Toolchain contract:
   - Because `src/electron-runtime/` imports Node built-ins from TypeScript, the repo must carry `@types/node` and include Node types in `tsconfig.json`.
 

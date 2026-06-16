@@ -49,7 +49,6 @@ const createStatus = (
   python: readyBundledEntry,
   ytDlp: readyBundledEntry,
   galleryDl: readyBundledEntry,
-  douyinDl: readyManagedEntry,
   ffmpeg: readyManagedEntry,
   deno: readyManagedEntry,
   ...overrides,
@@ -94,7 +93,6 @@ const createControllerHarness = (
   });
   const ensureManagedYtDlpRuntimeReady = createBootstrap("ytDlp");
   const ensureManagedGalleryDlRuntimeReady = createBootstrap("galleryDl");
-  const ensureManagedDouyinDlRuntimeReady = createBootstrap("douyinDl");
   const ensureManagedFfmpegRuntimeReady = createBootstrap("ffmpeg");
   const ensureManagedDenoRuntimeReady = createBootstrap("deno");
 
@@ -106,7 +104,6 @@ const createControllerHarness = (
     buildManagedRuntimeBootstrapOptions,
     ensureManagedYtDlpRuntimeReady,
     ensureManagedGalleryDlRuntimeReady,
-    ensureManagedDouyinDlRuntimeReady,
     ensureManagedFfmpegRuntimeReady,
     ensureManagedDenoRuntimeReady,
     now: () => 1000 + events.length,
@@ -121,7 +118,6 @@ const createControllerHarness = (
     buildManagedRuntimeBootstrapOptions,
     ensureManagedYtDlpRuntimeReady,
     ensureManagedGalleryDlRuntimeReady,
-    ensureManagedDouyinDlRuntimeReady,
     ensureManagedFfmpegRuntimeReady,
     ensureManagedDenoRuntimeReady,
   };

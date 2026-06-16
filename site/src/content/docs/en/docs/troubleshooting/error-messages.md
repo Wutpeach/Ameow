@@ -5,7 +5,7 @@ description: Troubleshoot Ameow issues by matching the message, task state, or d
 
 When you hit an error, keep the full message. Some parts of Ameow show user-readable error text, while logs or bug reports may include internal error codes. The code helps narrow the direction, but it should be read together with the task state, site, link, and output folder.
 
-When a download fails, the English text you see often comes from `yt-dlp`, `gallery-dl`, `douyin-dl`, or `ffmpeg`. These messages are not Ameow internal error codes, but they often describe the real cause more directly. Copy the complete original message when troubleshooting, especially the `ERROR:` prefix, site name, HTTP status code, and the text after it.
+When a download fails, the English text you see often comes from `yt-dlp`, `gallery-dl`, or `ffmpeg`. These messages are not Ameow internal error codes, but they often describe the real cause more directly. Copy the complete original message when troubleshooting, especially the `ERROR:` prefix, site name, HTTP status code, and the text after it.
 
 Fast rule: **start with the text you can see, use the error code as supporting evidence, then keep the full message when reporting the issue.**
 

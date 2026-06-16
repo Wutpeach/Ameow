@@ -43,7 +43,7 @@ On Windows, even when you use the portable build, the common location is:
 %APPDATA%\Ameow\runtimes\
 ```
 
-This folder may contain components such as `yt-dlp`, `gallery-dl`, `douyin-dl`, `ffmpeg`, and `deno`. Temporary archives used during download are placed in the system temporary directory first, then cleaned up after installation and verification.
+This folder may contain components such as `yt-dlp`, `gallery-dl`, `ffmpeg`, and `deno`. Temporary archives used during download are placed in the system temporary directory first, then cleaned up after installation and verification.
 
 If you delete the `runtimes` folder, Ameow will prepare the needed components again later. Already downloaded media files are not affected by this folder; they stay in the save location you configured.
 

@@ -40,7 +40,7 @@ const normalizeHttpUrl = (value: unknown): string | null => {
 };
 
 const normalizeEngineHint = (value: unknown): SiteSessionEngineHint | null => (
-  value === "yt-dlp" || value === "gallery-dl" || value === "douyin-dl"
+  value === "yt-dlp" || value === "gallery-dl"
     ? value
     : null
 );

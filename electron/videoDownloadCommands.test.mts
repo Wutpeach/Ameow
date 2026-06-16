@@ -24,7 +24,6 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
     python: { ...readyStatus, source: "bundled" },
     ytDlp: readyStatus,
     galleryDl: readyStatus,
-    douyinDl: readyStatus,
     ffmpeg: readyStatus,
     deno: readyStatus,
   })),

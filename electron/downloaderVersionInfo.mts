@@ -10,7 +10,6 @@ type RuntimeDependencyStatusSnapshot = {
   python: DownloaderStatusEntry;
   ytDlp: DownloaderStatusEntry;
   galleryDl: DownloaderStatusEntry;
-  douyinDl: DownloaderStatusEntry;
 };
 
 type ManagedPythonRuntimeMetadata = {

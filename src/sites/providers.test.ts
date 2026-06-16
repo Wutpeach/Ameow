@@ -20,31 +20,25 @@ const expectVideoIntent = (intent: ResolvedDownloadPlan["intent"]): VideoDownloa
   return intent;
 };
 
-const expectDouyinYtDlpWithFallback = (
+const expectDouyinYtDlpOnly = (
   plan: ResolvedDownloadPlan,
   sourceUrl: string,
 ): void => {
-  expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "douyin-dl"]);
+  expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp"]);
   expect(plan.engines[0]).toMatchObject({
     engine: "yt-dlp",
     sourceUrl,
     when: "primary",
-    fallbackOn: "any",
-  });
-  expect(plan.engines[1]).toMatchObject({
-    engine: "douyin-dl",
-    sourceUrl,
-    when: "fallback",
   });
 };
 
 describe("builtin site providers", () => {
-  it("routes direct Douyin asset URLs through yt-dlp with douyin-dl fallback", () => {
+  it("routes direct Douyin asset URLs through yt-dlp", () => {
     const directUrl = "https://www.douyinvod.com/obj/tos-cn-v-0000/example.mp4";
     const plan = resolvePlan({ url: directUrl });
 
     expect(plan?.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, directUrl);
+    expectDouyinYtDlpOnly(plan, directUrl);
   });
 
   it("synthesizes Douyin share video source from extension modal evidence", () => {
@@ -67,7 +61,7 @@ describe("builtin site providers", () => {
     const intent = expectVideoIntent(plan.intent);
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(
+    expectDouyinYtDlpOnly(
       plan,
       "https://www.iesdouyin.com/share/video/7637912431158644014/",
     );
@@ -101,7 +95,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, canonicalUrl);
+    expectDouyinYtDlpOnly(plan, canonicalUrl);
   });
 
   it("synthesizes Douyin share video source from raw jingxuan modal id", () => {
@@ -113,7 +107,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(
+    expectDouyinYtDlpOnly(
       plan,
       "https://www.iesdouyin.com/share/video/7637912431158644014/",
     );
@@ -128,7 +122,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, videoUrl);
+    expectDouyinYtDlpOnly(plan, videoUrl);
   });
 
   it("preserves raw Douyin short links for downloader-owned redirect resolution", () => {
@@ -139,7 +133,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, shortUrl);
+    expectDouyinYtDlpOnly(plan, shortUrl);
   });
 
   it("accepts Douyin share video page sources", () => {
@@ -151,7 +145,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, shareUrl);
+    expectDouyinYtDlpOnly(plan, shareUrl);
   });
 
   it("prefers Douyin picker target href evidence over a generic page URL", () => {
@@ -175,7 +169,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, targetHref);
+    expectDouyinYtDlpOnly(plan, targetHref);
   });
 
   it("prefers Douyin picker target src evidence over a generic page URL", () => {
@@ -196,10 +190,10 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, targetSrc);
+    expectDouyinYtDlpOnly(plan, targetSrc);
   });
 
-  it("preserves Douyin note and gallery evidence path types", () => {
+  it("does not synthesize Douyin note and gallery evidence as video sources", () => {
     const pageUrl = "https://www.douyin.com/jingxuan";
     const noteUrl = "https://www.douyin.com/note/7637912431158644016";
     const galleryUrl = "https://www.douyin.com/gallery/7637912431158644017";
@@ -237,18 +231,8 @@ describe("builtin site providers", () => {
       },
     });
 
-    expect(notePlan.engines.map((engine) => engine.engine)).toEqual(["douyin-dl"]);
-    expect(notePlan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: noteUrl,
-      when: "primary",
-    });
-    expect(galleryPlan.engines.map((engine) => engine.engine)).toEqual(["douyin-dl"]);
-    expect(galleryPlan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: galleryUrl,
-      when: "primary",
-    });
+    expectDouyinYtDlpOnly(notePlan, pageUrl);
+    expectDouyinYtDlpOnly(galleryPlan, pageUrl);
   });
 
   it("matches Douyin from picker evidence when the top-level URL is generic", () => {
@@ -268,7 +252,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(plan, targetHref);
+    expectDouyinYtDlpOnly(plan, targetHref);
   });
 
   it("does not match Douyin only because a generic URL mentions douyin in query text", () => {
@@ -313,7 +297,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expectDouyinYtDlpWithFallback(
+    expectDouyinYtDlpOnly(
       plan,
       "https://www.iesdouyin.com/share/video/7637912431158644019/",
     );

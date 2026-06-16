@@ -11,7 +11,6 @@ const createContext = (overrides: Record<string, unknown> = {}) => ({
   binaries: {
     ytDlp: "D:/yt-dlp.exe",
     galleryDl: "D:/gallery-dl.exe",
-    douyinDl: "D:/douyin-dl.exe",
     ffmpeg: "D:/tools/ffmpeg/bin/ffmpeg.exe",
     ffprobe: "D:/tools/ffmpeg/bin/ffprobe.exe",
     deno: "D:/deno/deno.exe",

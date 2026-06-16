@@ -25,7 +25,8 @@ const DOUYIN_HOST_SUFFIXES = [
   "bytecdn.com",
   "bytedance.com",
 ];
-const DOUYIN_CONTENT_PATH_PATTERN = /^\/(video|note|gallery)\/(\d{15,20})(?:\/)?$/i;
+const DOUYIN_CONTENT_PATH_PATTERN = /^\/video\/(\d{15,20})(?:\/)?$/i;
+const DOUYIN_UNSUPPORTED_CONTENT_PATH_PATTERN = /^\/(?:note|gallery)\/\d{15,20}(?:\/)?$/i;
 const DOUYIN_SHARE_VIDEO_PATH_PATTERN = /^\/share\/video\/(\d{15,20})(?:\/)?$/i;
 const DOUYIN_CONTENT_ID_PATTERN = /^\d{15,20}$/;
 
@@ -72,7 +73,6 @@ const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
 };
 
 type DouyinContentSource = {
-  kind: "video" | "note" | "gallery";
   id: string;
 };
 
@@ -83,17 +83,15 @@ const extractDouyinContentSource = (value: string | undefined): DouyinContentSou
   try {
     const url = new URL(value);
     const pathMatch = url.pathname.match(DOUYIN_CONTENT_PATH_PATTERN);
-    if (pathMatch?.[1] && pathMatch?.[2]) {
+    if (pathMatch?.[1]) {
       return {
-        kind: pathMatch[1].toLowerCase() as DouyinContentSource["kind"],
-        id: pathMatch[2],
+        id: pathMatch[1],
       };
     }
 
     const shareVideoPathMatch = url.pathname.match(DOUYIN_SHARE_VIDEO_PATH_PATTERN);
     if (shareVideoPathMatch?.[1]) {
       return {
-        kind: "video",
         id: shareVideoPathMatch[1],
       };
     }
@@ -101,7 +99,6 @@ const extractDouyinContentSource = (value: string | undefined): DouyinContentSou
     const modalId = url.searchParams.get("modal_id")?.trim();
     if (modalId && DOUYIN_CONTENT_ID_PATTERN.test(modalId)) {
       return {
-        kind: "video",
         id: modalId,
       };
     }
@@ -111,22 +108,28 @@ const extractDouyinContentSource = (value: string | undefined): DouyinContentSou
   return undefined;
 };
 
-const buildDouyinContentSourceUrl = (source: DouyinContentSource): string =>
-  `https://www.douyin.com/${source.kind}/${source.id}`;
-
 const buildDouyinShareVideoSourceUrl = (id: string): string =>
   `https://www.iesdouyin.com/share/video/${id}/`;
 
-const buildSynthesizedDouyinSourceUrl = (source: DouyinContentSource): string => (
-  source.kind === "video" ? buildDouyinShareVideoSourceUrl(source.id) : buildDouyinContentSourceUrl(source)
-);
-
 const synthesizeDouyinSource = (input: RawDownloadInput): string | undefined => {
-  const evidenceSource = collectCaptureSourceCandidates(input)
+  const captureSourceCandidates = collectCaptureSourceCandidates(input);
+  const hasUnsupportedContentEvidence = captureSourceCandidates.some((candidate) => {
+    try {
+      return isDouyinUrl(candidate)
+        && DOUYIN_UNSUPPORTED_CONTENT_PATH_PATTERN.test(new URL(candidate).pathname);
+    } catch {
+      return false;
+    }
+  });
+  if (hasUnsupportedContentEvidence) {
+    return undefined;
+  }
+
+  const evidenceSource = captureSourceCandidates
     .map(extractDouyinContentSource)
     .find((source): source is DouyinContentSource => Boolean(source));
   if (evidenceSource) {
-    return buildSynthesizedDouyinSourceUrl(evidenceSource);
+    return buildDouyinShareVideoSourceUrl(evidenceSource.id);
   }
 
   const modalId = readCaptureContentId(input, "modal_id", DOUYIN_CONTENT_ID_PATTERN);
@@ -152,20 +155,12 @@ const hasDouyinCaptureEvidence = (input: RawDownloadInput): boolean => {
   ].filter(isHttpSourceCandidate).some(isDouyinUrl);
 };
 
-const resolveDouyinDlSourceUrl = (input: RawDownloadInput): string =>
+const resolveDouyinYtDlpSourceUrl = (input: RawDownloadInput): string =>
   resolveCaptureSourceUrl(input, {
     isAcceptedSource: (value) => isAcceptedDouyinPageSource(value) || isDirectVideoUrl(value),
     synthesizeSource: synthesizeDouyinSource,
     fallback: (value) => value.pageUrl ?? value.url,
   });
-
-const isYtDlpSupportedDouyinSource = (value: string): boolean => {
-  if (isDirectVideoUrl(value) || isDouyinShortLinkSource(value)) {
-    return true;
-  }
-
-  return extractDouyinContentSource(value)?.kind === "video";
-};
 
 const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   type: "video",
@@ -197,29 +192,15 @@ export const douyinProvider: SiteProvider = {
   resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
     const intent = buildIntent(input) as VideoDownloadIntent;
     const strategy = getRuntimeManualSiteStrategy("douyin");
-    const sourceUrl = resolveDouyinDlSourceUrl(input);
-    const ytdlpSource = isYtDlpSupportedDouyinSource(sourceUrl) ? sourceUrl : undefined;
-    const engines = ytdlpSource
-      ? buildEnginePlansFromStrategySources(strategy, {
-          "yt-dlp": {
-            sourceUrl: ytdlpSource,
-            reason: "Use yt-dlp first for Douyin video/share/short-link extraction",
-            fallbackOn: "any" as const,
-          },
-          "douyin-dl": {
-            sourceUrl,
-            reason: "Use douyin-downloader as the Douyin video fallback",
-          },
-        })
-      : [
-          {
-            engine: "douyin-dl" as const,
-            priority: 100,
-            when: "primary" as const,
-            sourceUrl,
-            reason: "Use douyin-downloader for Douyin sources not covered by yt-dlp",
-          },
-        ];
+    const sourceUrl = isDouyinShortLinkSource(input.url)
+      ? input.url
+      : resolveDouyinYtDlpSourceUrl(input);
+    const engines = buildEnginePlansFromStrategySources(strategy, {
+      "yt-dlp": {
+        sourceUrl,
+        reason: "Use yt-dlp for Douyin video/share/short-link extraction",
+      },
+    });
 
     return {
       providerId: "douyin",

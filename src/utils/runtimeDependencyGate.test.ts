@@ -28,7 +28,6 @@ const createStatus = (
   python: readyEntry,
   ytDlp: readyEntry,
   galleryDl: readyEntry,
-  douyinDl: readyEntry,
   ffmpeg: readyEntry,
   deno: readyEntry,
   ...overrides,
@@ -77,10 +76,9 @@ describe("getMissingRuntimeComponentsFromStatus", () => {
       python: missingEntry,
       ytDlp: missingEntry,
       galleryDl: missingEntry,
-      douyinDl: missingEntry,
       ffmpeg: missingEntry,
       deno: missingEntry,
-    }))).toEqual(["python", "yt-dlp", "gallery-dl", "douyin-dl", "ffmpeg", "deno"]);
+    }))).toEqual(["python", "yt-dlp", "gallery-dl", "ffmpeg", "deno"]);
   });
 
   it("returns an empty list when status is unavailable or all runtimes are ready", () => {

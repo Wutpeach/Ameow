@@ -12,10 +12,8 @@ import {
   resolveRuntimeTarget,
 } from "./python-runtime.mjs";
 import {
-  ensureManagedDouyinDlRuntimeReady,
   ensureManagedGalleryDlRuntimeReady,
   ensureManagedYtDlpRuntimeReady,
-  managedDouyinDlPath,
   managedGalleryDlPath,
   managedYtDlpPaths,
 } from "../dist-electron/electron/managedRuntimeBootstrap.mjs";
@@ -195,19 +193,16 @@ async function main() {
 
   const ytDlp = await ensureManagedYtDlpRuntimeReady("smoke_managed_python_downloaders", options);
   const galleryDl = await ensureManagedGalleryDlRuntimeReady("smoke_managed_python_downloaders", options);
-  const douyinDl = await ensureManagedDouyinDlRuntimeReady("smoke_managed_python_downloaders", options);
   const managedPackageSpecs = await loadManagedPythonPackageSpecs();
 
   const ytDlpPython = managedYtDlpPaths(options).python;
   assertExists("yt-dlp", ytDlp);
   assertExists("yt-dlp venv Python", ytDlpPython);
   assertExists("gallery-dl", managedGalleryDlPath(options));
-  assertExists("douyin-dl", managedDouyinDlPath(options));
 
   const versions = {
     "yt-dlp": await readCommandVersion(ytDlp),
     "gallery-dl": await readCommandVersion(galleryDl),
-    "douyin-dl": await readCommandVersion(douyinDl),
   };
 
   for (const [toolId, version] of Object.entries(versions)) {
@@ -226,7 +221,6 @@ async function main() {
     entries: {
       ytDlp,
       galleryDl,
-      douyinDl,
     },
     versions,
     localExecution,

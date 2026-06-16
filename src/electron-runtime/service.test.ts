@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  DownloadRuntimeError,
   type DownloadEngine,
   type EngineExecutionContext,
   type RawDownloadInput,
@@ -87,7 +86,6 @@ import type {
 } from "./contracts";
 import { resetRenameSequenceState } from "./renameRules";
 import { bilibiliProvider } from "../sites/bilibili";
-import { douyinProvider } from "../sites/douyin";
 import { galleryDlSupportedProvider } from "../sites/gallery-dl-supported";
 import { weiboProvider } from "../sites/weibo";
 
@@ -104,7 +102,7 @@ const waitFor = async (
 };
 
 const createEngineStub = (
-  id: "yt-dlp" | "gallery-dl" | "douyin-dl",
+  id: "yt-dlp" | "gallery-dl",
   execute: DownloadEngine["execute"],
 ): DownloadEngine => ({
   id,
@@ -119,7 +117,7 @@ const createRuntime = (options: {
   engines?: DownloadEngine[];
   maxConcurrent?: number;
   configString?: string;
-  ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl" | "douyin-dl", reason: string) => Promise<void>;
+  ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl", reason: string) => Promise<void>;
   buildExecutionContext?: (
     context: EngineExecutionContext,
     input: RawDownloadInput,
@@ -143,12 +141,12 @@ const createRuntime = (options: {
   diagnoseNetworkProxy?: (context: {
     targetUrl: string;
     providerId: string | null;
-    engineId: "yt-dlp" | "gallery-dl" | "douyin-dl";
+    engineId: "yt-dlp" | "gallery-dl";
   }) => Promise<void>;
   resolveNetworkProxy?: (context: {
     targetUrl: string;
     providerId: string | null;
-    engineId: "yt-dlp" | "gallery-dl" | "douyin-dl";
+    engineId: "yt-dlp" | "gallery-dl";
   }) => Promise<string | null | undefined>;
 }) => createElectronDownloadRuntime({
   environment: {
@@ -1122,133 +1120,6 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(completed[0]).toMatchObject({
       success: false,
       error: "cookies required for this resource",
-    });
-  });
-
-  it("retries a Douyin auth-required detail failure after site-session recovery and rebuilds context", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    const recoveryContexts: RuntimeAuthFailureRecoveryContext[] = [];
-    const buildCookies: Array<string | undefined> = [];
-    const attemptCookies: Array<string | undefined> = [];
-    let savedCookies = "old-douyin-cookies";
-    let attempts = 0;
-    const runtime = createRuntime({
-      providers: [douyinProvider, genericProvider],
-      engines: [
-        createEngineStub("douyin-dl", async (context) => {
-          attempts += 1;
-          attemptCookies.push(context.intent.cookies);
-          if (attempts === 1) {
-            throw new DownloadRuntimeError(
-              "E_EXECUTION_FAILED",
-              "Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: 2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460",
-              {
-                classification: "auth_required",
-              },
-            );
-          }
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
-          };
-        }),
-      ],
-      buildExecutionContext(context) {
-        buildCookies.push(savedCookies);
-        return {
-          ...context,
-          intent: {
-            ...context.intent,
-            cookies: savedCookies,
-          },
-        };
-      },
-      async handleAuthRequiredFailure(context) {
-        recoveryContexts.push(context);
-        savedCookies = "fresh-douyin-cookies";
-        return { shouldRetry: true };
-      },
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
-      pageUrl: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
-      siteHint: "douyin",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(attempts).toBe(2);
-    expect(buildCookies).toEqual(["old-douyin-cookies", "fresh-douyin-cookies"]);
-    expect(attemptCookies).toEqual(["old-douyin-cookies", "fresh-douyin-cookies"]);
-    expect(recoveryContexts).toHaveLength(1);
-    expect(recoveryContexts[0]).toMatchObject({
-      request: {
-        siteHint: "douyin",
-      },
-      plan: {
-        providerId: "douyin",
-        intent: {
-          siteId: "douyin",
-        },
-      },
-      chosenEngine: "douyin-dl",
-      error: {
-        code: "E_EXECUTION_FAILED",
-        classification: "auth_required",
-      },
-    });
-    expect(completed[0]).toMatchObject({
-      success: true,
-    });
-  });
-
-  it("does not loop a Douyin auth-required detail failure when recovery declines", async () => {
-    const completed: Array<{ success: boolean; error?: string }> = [];
-    let attempts = 0;
-    let recoveryAttempts = 0;
-    const runtime = createRuntime({
-      providers: [douyinProvider, genericProvider],
-      engines: [
-        createEngineStub("douyin-dl", async () => {
-          attempts += 1;
-          throw new DownloadRuntimeError(
-            "E_EXECUTION_FAILED",
-            "Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: 2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460",
-            {
-              classification: "auth_required",
-            },
-          );
-        }),
-      ],
-      async handleAuthRequiredFailure() {
-        recoveryAttempts += 1;
-        return { shouldRetry: false };
-      },
-      onEmit(event, payload) {
-        if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
-        }
-      },
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
-      pageUrl: "https://www.douyin.com/jingxuan?modal_id=7645228154830769460",
-      siteHint: "douyin",
-    });
-
-    await waitFor(() => completed.length === 1);
-    expect(attempts).toBe(1);
-    expect(recoveryAttempts).toBe(1);
-    expect(completed[0]).toMatchObject({
-      success: false,
-      error: "Douyin login state may be stale. Refresh Douyin login state and retry. Upstream: 2026-06-15 13:22:14 - VideoDownloader - ERROR - Failed to get video detail: 7645228154830769460",
     });
   });
 

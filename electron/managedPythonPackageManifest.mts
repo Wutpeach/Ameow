@@ -1,19 +1,14 @@
 import type { RuntimeDependencyManagedComponent } from "../src/types/runtimeDependencies.js";
 
-export type ManagedPythonPackageToolId = "yt-dlp" | "gallery-dl" | "douyin-dl";
+export type ManagedPythonPackageToolId = "yt-dlp" | "gallery-dl";
 
 export type ManagedPythonPackageSpec = {
-  component: Extract<RuntimeDependencyManagedComponent, "ytDlp" | "galleryDl" | "douyinDl">;
+  component: Extract<RuntimeDependencyManagedComponent, "ytDlp" | "galleryDl">;
   installSource: string;
   minPython: [number, number, number];
   packageVersion: string;
   staleDirectories?: string[];
 };
-
-const DOUYIN_DOWNLOADER_VERSION = "2.0.0";
-const DOUYIN_DOWNLOADER_GIT_REF = "5144bd3dec91cd2711cfdccbf36c10af17eb93fc";
-const DOUYIN_DOWNLOADER_PACKAGE_SOURCE =
-  `https://github.com/jiji262/douyin-downloader/archive/${DOUYIN_DOWNLOADER_GIT_REF}.zip`;
 
 export const MANAGED_PYTHON_PACKAGE_SPECS: Record<ManagedPythonPackageToolId, ManagedPythonPackageSpec> = {
   "yt-dlp": {
@@ -29,12 +24,6 @@ export const MANAGED_PYTHON_PACKAGE_SPECS: Record<ManagedPythonPackageToolId, Ma
     minPython: [3, 8, 0],
     packageVersion: "1.32.1",
     staleDirectories: ["real"],
-  },
-  "douyin-dl": {
-    component: "douyinDl",
-    installSource: DOUYIN_DOWNLOADER_PACKAGE_SOURCE,
-    minPython: [3, 8, 0],
-    packageVersion: DOUYIN_DOWNLOADER_VERSION,
   },
 };
 

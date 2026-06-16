@@ -111,7 +111,7 @@ const deriveSiteIdFromHost = (host: string): string => (
 const normalizeEngineHint = (
   value: unknown,
 ): SiteSessionRegistryEntry["engineHints"][number] | null => (
-  value === "yt-dlp" || value === "gallery-dl" || value === "douyin-dl"
+  value === "yt-dlp" || value === "gallery-dl"
     ? value
     : null
 );
@@ -165,7 +165,7 @@ const normalizeEntry = (value: unknown): SiteSessionRegistryEntry | null => {
       )),
     engineHints: normalizeStringArray(record.engineHints)
       .filter((engine): engine is SiteSessionRegistryEntry["engineHints"][number] => (
-        engine === "yt-dlp" || engine === "gallery-dl" || engine === "douyin-dl"
+        engine === "yt-dlp" || engine === "gallery-dl"
       )),
     visibility: record.visibility === "hidden_catalog" ? "hidden_catalog" : "visible",
     icon: {

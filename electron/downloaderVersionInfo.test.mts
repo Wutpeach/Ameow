@@ -24,13 +24,6 @@ const createStatus = (overrides = {}) => ({
     error: null,
     ...overrides.galleryDl,
   },
-  douyinDl: {
-    state: "ready" as const,
-    source: "managed" as const,
-    path: "D:/runtime/douyin-dl/x86_64-pc-windows-msvc/venv/Scripts/douyin-dl.exe",
-    error: null,
-    ...overrides.douyinDl,
-  },
   ffmpeg: {
     state: "ready" as const,
     source: "managed" as const,

@@ -54,13 +54,12 @@ FlowSelect desktop runtime is Electron-first. It handles file operations, video 
 | Downloader | Target Platforms | Implementation |
 |------------|------------------|----------------|
 | gallery-dl | Pinterest, Weibo primary, and gallery-dl-supported sites | Managed Python sidecar |
-| yt-dlp | YouTube, Twitter/X, Bilibili, and generic page URLs | Sidecar binary |
-| douyin-dl | Douyin page URLs | Managed Python sidecar |
+| yt-dlp | YouTube, Twitter/X, Bilibili, Douyin videos, and generic page URLs | Managed Python sidecar |
 
 ### Smart Routing
 
 ```
-URL → Douyin → yt-dlp only (temporary validation strategy)
+URL → Douyin video/share/short-link/direct media → yt-dlp only
 URL → Xiaohongshu canonical note URL → yt-dlp only
 URL → Pinterest → gallery-dl only
 URL → other platforms → yt-dlp first
@@ -77,7 +76,7 @@ Settings site login capture
     ↓ <userDataDir>/site-sessions/<siteId>.json
 Electron buildExecutionContext()
     ↓ intent.cookies = stored Netscape cookie string
-yt-dlp / gallery-dl / douyin-dl cookie-file or config path
+yt-dlp / gallery-dl cookie-file or config path
 ```
 
 Browser-extension cookie reads are reserved for request-level page/media resolution flows such as Xiaohongshu drag resolution and protected-image fetching.

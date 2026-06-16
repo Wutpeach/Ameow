@@ -26,10 +26,6 @@ type RuntimeDependencyGateControllerOptions = {
     trigger: string,
     options: ManagedRuntimeBootstrapOptions,
   ): Promise<unknown>;
-  ensureManagedDouyinDlRuntimeReady(
-    trigger: string,
-    options: ManagedRuntimeBootstrapOptions,
-  ): Promise<unknown>;
   ensureManagedFfmpegRuntimeReady(
     trigger: string,
     options: ManagedRuntimeBootstrapOptions,
@@ -61,7 +57,6 @@ export type RuntimeDependencyGateController = {
 const MANAGED_RUNTIME_BOOTSTRAP_ORDER: RuntimeDependencyManagedComponent[] = [
   "ytDlp",
   "galleryDl",
-  "douyinDl",
   "ffmpeg",
   "deno",
 ];
@@ -100,9 +95,6 @@ export const collectMissingManagedRuntimeComponents = (
   }
   if (snapshot.galleryDl.state !== "ready" && snapshot.galleryDl.expectedSource === "managed") {
     missingComponents.push("galleryDl");
-  }
-  if (snapshot.douyinDl.state !== "ready" && snapshot.douyinDl.expectedSource === "managed") {
-    missingComponents.push("douyinDl");
   }
   if (snapshot.ffmpeg.state !== "ready") {
     missingComponents.push("ffmpeg");
@@ -265,12 +257,7 @@ export const createRuntimeDependencyGateController = (
     }
 
     const afterGalleryDl = await options.getRuntimeDependencyStatus();
-    if (afterGalleryDl.douyinDl.state !== "ready" && afterGalleryDl.douyinDl.expectedSource === "managed") {
-      await options.ensureManagedDouyinDlRuntimeReady(trigger, buildBootstrapOptions(missingComponents));
-    }
-
-    const afterDouyinDl = await options.getRuntimeDependencyStatus();
-    if (afterDouyinDl.ffmpeg.state !== "ready") {
+    if (afterGalleryDl.ffmpeg.state !== "ready") {
       await options.ensureManagedFfmpegRuntimeReady(trigger, buildBootstrapOptions(missingComponents));
     }
 

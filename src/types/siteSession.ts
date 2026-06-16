@@ -28,8 +28,7 @@ export type SiteSessionDiscoverySource =
 
 export type SiteSessionEngineHint =
   | "yt-dlp"
-  | "gallery-dl"
-  | "douyin-dl";
+  | "gallery-dl";
 
 export type SiteSessionRegistryVisibility =
   | "visible"

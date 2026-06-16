@@ -296,8 +296,6 @@ export const runCapabilityProbe = async (
         throw new Error("gallery-dl probe requires a binaryPath and execute() implementation");
       }
       return runGalleryDlProbe(input, options.execute);
-    case "douyin-dl":
-      throw new Error("douyin-dl probe is not implemented");
     default:
       throw new Error(`Unsupported probe engine: ${engine satisfies never}`);
   }

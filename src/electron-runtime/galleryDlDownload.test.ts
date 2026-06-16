@@ -46,7 +46,6 @@ describe("runGalleryDlDownload", () => {
       outputStem: "pin",
       binaries: {
         galleryDl: "D:/gallery-dl.exe",
-        douyinDl: "D:/douyin-dl.exe",
       },
       enginePlan: {
         sourceUrl: "https://www.pinterest.com/pin/123/",
@@ -94,7 +93,6 @@ describe("runGalleryDlDownload", () => {
       outputStem: "pin",
       binaries: {
         galleryDl: "D:/gallery-dl.exe",
-        douyinDl: "D:/douyin-dl.exe",
       },
       enginePlan: {
         sourceUrl: "https://www.pinterest.com/pin/123/",
@@ -131,7 +129,6 @@ describe("runGalleryDlDownload", () => {
       outputStem: "pin",
       binaries: {
         galleryDl: "D:/gallery-dl.exe",
-        douyinDl: "D:/douyin-dl.exe",
       },
       enginePlan: {
         sourceUrl: "https://www.pinterest.com/pin/123/",
@@ -174,7 +171,6 @@ describe("runGalleryDlDownload", () => {
       outputStem: "pin",
       binaries: {
         galleryDl: "D:/gallery-dl.exe",
-        douyinDl: "D:/douyin-dl.exe",
       },
       enginePlan: {
         sourceUrl: "https://www.pinterest.com/pin/123/",

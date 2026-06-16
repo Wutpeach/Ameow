@@ -35,12 +35,12 @@ export const runtimeManualSiteStrategies = [
     siteId: "douyin",
     displayName: "Douyin",
     sourceId: "ameow-manual-sites",
-    strategyKind: "ordered_fallback",
-    engineOrder: ["yt-dlp", "douyin-dl"],
+    strategyKind: "single_engine",
+    engineOrder: ["yt-dlp"],
     matchHints: {
       hosts: ["douyin.com", "iesdouyin.com", "douyinvod.com", "douyincdn.com"],
     },
-    notes: ["Use yt-dlp first for Douyin video/share/short-link sources, with douyin-dl kept as fallback."],
+    notes: ["Use yt-dlp for Douyin video/share/short-link sources."],
   },
   {
     siteId: "xiaohongshu",

@@ -9,7 +9,6 @@ import {
   assertPythonVersionSatisfiesManagedPackage,
   currentManagedRuntimeTarget,
   managedDenoPath,
-  managedDouyinDlPath,
   managedFfmpegPaths,
   managedGalleryDlPath,
   managedPythonVirtualenvArgs,
@@ -39,9 +38,6 @@ describe("managed runtime bootstrap helpers", () => {
       ffmpeg: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffmpeg.exe"),
       ffprobe: join("/tmp/ameow-config", "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffprobe.exe"),
     });
-    expect(managedDouyinDlPath(options)).toBe(
-      join("/tmp/ameow-config", "runtimes", "douyin-dl", "x86_64-pc-windows-msvc", "venv", "Scripts", "douyin-dl.exe"),
-    );
     expect(managedYtDlpPaths(options).ytDlp).toBe(
       join("/tmp/ameow-config", "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "venv", "Scripts", "yt-dlp.exe"),
     );
@@ -76,7 +72,6 @@ describe("managed runtime bootstrap helpers", () => {
   it("re-exports the app-owned Python downloader package manifest", () => {
     expect(resolvePinnedManagedPythonPackage).toBe(resolvePinnedManagedPythonPackageFromManifest);
     expect(Object.keys(MANAGED_PYTHON_PACKAGE_SPECS).sort()).toEqual([
-      "douyin-dl",
       "gallery-dl",
       "yt-dlp",
     ]);

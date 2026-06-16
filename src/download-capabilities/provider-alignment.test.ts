@@ -53,7 +53,7 @@ describe("manual capability overlay stays aligned with current provider routing"
     });
   });
 
-  it("keeps douyin routing on the douyin-dl-only strategy", () => {
+  it("keeps douyin routing on the yt-dlp-only strategy", () => {
     expectPlanAlignedWithStrategy("douyin", {
       url: "https://www.douyin.com/video/123",
       pageUrl: "https://www.douyin.com/video/123",

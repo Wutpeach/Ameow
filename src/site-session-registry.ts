@@ -8,7 +8,7 @@ import type {
 } from "./types/siteSession.js";
 
 const STATIC_ENGINE_HINTS: Record<string, SiteSessionEngineHint[]> = {
-  douyin: ["douyin-dl"],
+  douyin: ["yt-dlp"],
   bilibili: ["yt-dlp"],
   xiaohongshu: ["yt-dlp"],
   youtube: ["yt-dlp"],

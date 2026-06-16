@@ -99,10 +99,10 @@ type DownloadProgress = {
 | `export_support_log` | `invoke<string>("export_support_log")` |
 | `get_gallery_dl_info` | `invoke<{ current: string; latest: string \| null; updateAvailable: boolean \| null; latestError: string \| null; source: "managed" \| "missing"; path: string \| null; updateChannel: "managed_python_package" \| "unavailable" }>("get_gallery_dl_info")` |
 | `check_ytdlp_version` | `invoke<{ current: string; latest: string \| null; updateAvailable: boolean \| null; latestError: string \| null; source?: "managed" \| "missing"; path?: string \| null; pythonVersion?: string \| null; pythonPath?: string \| null; pythonSupportsLatestStable?: boolean \| null; updateChannel?: "managed_python_package" \| "unavailable" }>(...)` |
-| `get_runtime_dependency_status` | `invoke<{ python: { state: "ready" \| "missing"; source: "bundled" \| "managed" \| null; expectedSource?: "bundled" \| "managed" \| null; path: string \| null; error: string \| null }; ytDlp: { state: "ready" \| "missing"; source: "bundled" \| "managed" \| null; expectedSource?: "bundled" \| "managed" \| null; path: string \| null; error: string \| null }; galleryDl: ...; douyinDl: ...; ffmpeg: ...; deno: ... }>("get_runtime_dependency_status")` |
-| `get_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null }>("get_runtime_dependency_gate_state")` |
-| `refresh_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null }>("refresh_runtime_dependency_gate_state")` |
-| `start_runtime_dependency_bootstrap` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null }>("start_runtime_dependency_bootstrap", { reason? })` |
+| `get_runtime_dependency_status` | `invoke<{ python: { state: "ready" \| "missing"; source: "bundled" \| "managed" \| null; expectedSource?: "bundled" \| "managed" \| null; path: string \| null; error: string \| null }; ytDlp: { state: "ready" \| "missing"; source: "bundled" \| "managed" \| null; expectedSource?: "bundled" \| "managed" \| null; path: string \| null; error: string \| null }; galleryDl: ...; ffmpeg: ...; deno: ... }>("get_runtime_dependency_status")` |
+| `get_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("get_runtime_dependency_gate_state")` |
+| `refresh_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("refresh_runtime_dependency_gate_state")` |
+| `start_runtime_dependency_bootstrap` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("start_runtime_dependency_bootstrap", { reason? })` |
 | `get_site_session_pending_actions` | `invoke<{ count: number; entries: { siteId: string; displayName: string; primaryHost: string }[] }>("get_site_session_pending_actions")` |
 | `download_video` | `invoke<{ traceId: string; success: boolean; file_path?: string; error?: string }>(...)` |
 | `queue_pasted_video_download` | `invoke<{ accepted: boolean; traceId: string }>("queue_pasted_video_download", { url, pageUrl?, siteHint? })` |
@@ -129,7 +129,7 @@ type DownloadProgress = {
 | `rename-setting-changed` | `listen<{ enabled: boolean }>(...)` |
 | `theme-changed` | `listen<Theme>(...)` |
 | `shortcut-show` | `listen<void>(...)` |
-| `runtime-dependency-gate-state` | `listen<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "douyinDl" \| "ffmpeg" \| "deno" \| null }>(...)` |
+| `runtime-dependency-gate-state` | `listen<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>(...)` |
 | `site-session-pending-actions-changed` | `listen<{ count: number; entries: { siteId: string; displayName: string; primaryHost: string }[] }>(...)` |
 | `site-session-state-changed` | `listen<{ siteId: string; state: SiteSessionState; registryEntries: SiteSessionRegistryEntry[] }>(...)` |
 
@@ -162,7 +162,6 @@ type RuntimeDependencyStatusSnapshot = {
   python: RuntimeDependencyStatusEntry;
   ytDlp: RuntimeDependencyStatusEntry;
   galleryDl: RuntimeDependencyStatusEntry;
-  douyinDl: RuntimeDependencyStatusEntry;
   ffmpeg: RuntimeDependencyStatusEntry;
   deno: RuntimeDependencyStatusEntry;
 };
@@ -179,12 +178,12 @@ type RuntimeDependencyGateStatePayload = {
   missingComponents: string[];
   lastError: string | null;
   updatedAtMs: number;
-  currentComponent: "ytDlp" | "galleryDl" | "douyinDl" | "ffmpeg" | "deno" | null;
+  currentComponent: "ytDlp" | "galleryDl" | "ffmpeg" | "deno" | null;
   currentStage: "checking" | "downloading" | "verifying" | "installing" | null;
   progressPercent: number | null;
   downloadedBytes: number | null;
   totalBytes: number | null;
-  nextComponent: "ytDlp" | "galleryDl" | "douyinDl" | "ffmpeg" | "deno" | null;
+  nextComponent: "ytDlp" | "galleryDl" | "ffmpeg" | "deno" | null;
 };
 ```
 
@@ -195,7 +194,7 @@ Behavior contract in frontend:
 - Use `start_runtime_dependency_bootstrap` to begin managed runtime recovery after the UI is visible or when the user explicitly retries.
 - Both main window and Settings may listen to `runtime-dependency-gate-state`, but neither surface may locally invent or overwrite `missingComponents` / `lastError`.
 - Main window may derive a fallback missing-components list from `get_runtime_dependency_status` when the gate state is still `idle`, but queue/task UI must remain read-only with respect to backend queue ownership.
-- `python` reports `source: "bundled"` when healthy, while `ytDlp`, `galleryDl`, `douyinDl`, `ffmpeg`, and `deno` may report `source: "managed"`; frontend logic must key off `state === "ready"` and `expectedSource` rather than assuming downloader readiness always means `"bundled"`.
+- `python` reports `source: "bundled"` when healthy, while `ytDlp`, `galleryDl`, `ffmpeg`, and `deno` may report `source: "managed"`; frontend logic must key off `state === "ready"` and `expectedSource` rather than assuming downloader readiness always means `"bundled"`.
 - `python` is a prerequisite diagnostic entry and must not be treated as a bootstrap-able missing component in renderer UX.
 
 Validation and error matrix:

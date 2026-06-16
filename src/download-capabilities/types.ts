@@ -1,6 +1,6 @@
 export type CapabilitySeedSchemaVersion = 1;
 
-export const CAPABILITY_ENGINE_IDS = ["yt-dlp", "gallery-dl", "douyin-dl"] as const;
+export const CAPABILITY_ENGINE_IDS = ["yt-dlp", "gallery-dl"] as const;
 
 export type CapabilityEngineId = typeof CAPABILITY_ENGINE_IDS[number];
 

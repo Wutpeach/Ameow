@@ -73,7 +73,6 @@ type ManagedPythonRuntimePaths = {
 const RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
 const managedPythonBootstrapPromises = new Map<ManagedPythonPackageToolId, Promise<string>>();
 const managedBinaryBootstrapPromises = new Map<string, Promise<string>>();
-let managedDouyinDlBrowserSupportPromise: Promise<void> | null = null;
 
 export const currentManagedRuntimeTarget = (
   platform: NodeJS.Platform = process.platform,
@@ -150,26 +149,6 @@ const managedGalleryDlPaths = (options: ManagedRuntimeBootstrapOptions): Managed
   };
 };
 
-const managedDouyinDlPaths = (options: ManagedRuntimeBootstrapOptions): ManagedPythonRuntimePaths => {
-  const root = runtimeRoot(options, "douyin-dl");
-  const venvDir = join(root, "venv");
-  const venvRoot = options.platform === "win32" ? join(venvDir, "Scripts") : join(venvDir, "bin");
-  return {
-    root,
-    venvDir,
-    python: join(venvRoot, options.platform === "win32" ? "python.exe" : "python"),
-    entrypoint: join(venvRoot, options.platform === "win32" ? "douyin-dl.exe" : "douyin-dl"),
-    metadata: join(root, "metadata.json"),
-  };
-};
-
-export const managedDouyinDlPath = (options: ManagedRuntimeBootstrapOptions): string =>
-  managedDouyinDlPaths(options).entrypoint;
-
-export const managedDouyinDlRuntimePaths = (
-  options: ManagedRuntimeBootstrapOptions,
-): ManagedPythonRuntimePaths => managedDouyinDlPaths(options);
-
 const managedPythonRuntimePathsFor = (
   toolId: ManagedPythonPackageToolId,
   options: ManagedRuntimeBootstrapOptions,
@@ -187,7 +166,7 @@ const managedPythonRuntimePathsFor = (
   if (toolId === "gallery-dl") {
     return managedGalleryDlPaths(options);
   }
-  return managedDouyinDlPaths(options);
+  throw new Error(`Unsupported managed Python package tool: ${toolId}`);
 };
 
 const summarizeBootstrapError = (error: unknown): string => (
@@ -1015,76 +994,4 @@ export const ensureManagedGalleryDlRuntimeReady = async (
     trigger,
     options,
   );
-};
-
-export const ensureManagedDouyinDlRuntimeReady = async (
-  trigger: string,
-  options: ManagedRuntimeBootstrapOptions & { forceReinstall?: boolean },
-): Promise<string> => {
-  const targetPath = managedDouyinDlPath(options);
-  if (!options.forceReinstall && existsSync(targetPath)) {
-    const spec = resolvePinnedManagedPythonPackage("douyin-dl");
-    const paths = managedDouyinDlPaths(options);
-    const needsRebuild = await shouldRebuildManagedPythonRuntime(paths, spec, options);
-    if (!needsRebuild) {
-      return targetPath;
-    }
-  }
-
-  return await ensureManagedPythonPackageReady(
-    "douyin-dl",
-    targetPath,
-    trigger,
-    options,
-  );
-};
-
-export const ensureManagedDouyinDlBrowserSupportReady = async (
-  trigger: string,
-  options: ManagedRuntimeBootstrapOptions,
-): Promise<void> => {
-  if (managedDouyinDlBrowserSupportPromise) {
-    return await managedDouyinDlBrowserSupportPromise;
-  }
-
-  managedDouyinDlBrowserSupportPromise = (async (): Promise<void> => {
-    const paths = managedDouyinDlPaths(options);
-    await ensureManagedDouyinDlRuntimeReady(trigger, options);
-    const env = buildManagedPythonEnv(paths);
-
-    try {
-      await runUtilityCommand(paths.python, ["-c", "import playwright"], { env });
-    } catch {
-      await runUtilityCommand(
-        paths.python,
-        [
-          "-m",
-          "pip",
-          "install",
-          "--upgrade",
-          "--disable-pip-version-check",
-          "--no-cache-dir",
-          "playwright>=1.40.0",
-        ],
-        { env },
-      );
-    }
-
-    const browsersRoot = env.PLAYWRIGHT_BROWSERS_PATH;
-    if (browsersRoot && existsSync(browsersRoot)) {
-      return;
-    }
-
-    await runUtilityCommand(
-      paths.python,
-      ["-m", "playwright", "install", "chromium"],
-      { env },
-    );
-  })();
-
-  try {
-    await managedDouyinDlBrowserSupportPromise;
-  } finally {
-    managedDouyinDlBrowserSupportPromise = null;
-  }
 };

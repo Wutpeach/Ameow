@@ -59,16 +59,16 @@
     {
       "siteId": "douyin",
       "displayName": "Douyin",
-      "engine": "douyin-dl",
+      "engine": "yt-dlp",
       "sourceId": "ameow-manual-sites",
       "claimStatus": "manual_supported",
       "probeStatus": "unknown",
-      "authRequirement": "required",
+      "authRequirement": "optional",
       "upstreamState": "reported_supported",
       "matchHints": {
-        "hosts": ["douyin.com", "douyinvod.com", "douyincdn.com"]
+        "hosts": ["douyin.com", "iesdouyin.com", "douyinvod.com", "douyincdn.com"]
       },
-      "notes": ["Project-maintained douyin-downloader routing; fresh browser cookies are required for stable extraction."]
+      "notes": ["Douyin video/share/short-link sources route through yt-dlp; note/gallery downloads are not a dedicated support target."]
     },
     {
       "siteId": "xiaohongshu",
@@ -208,10 +208,11 @@
       "displayName": "Douyin",
       "sourceId": "ameow-manual-sites",
       "strategyKind": "single_engine",
-      "engineOrder": ["douyin-dl"],
+      "engineOrder": ["yt-dlp"],
       "matchHints": {
-        "hosts": ["douyin.com", "douyinvod.com", "douyincdn.com"]
-      }
+        "hosts": ["douyin.com", "iesdouyin.com", "douyinvod.com", "douyincdn.com"]
+      },
+      "notes": ["Use yt-dlp for Douyin video/share/short-link sources."]
     },
     {
       "siteId": "xiaohongshu",

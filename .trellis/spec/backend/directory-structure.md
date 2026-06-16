@@ -65,7 +65,7 @@ Runtime/download responsibilities are organized by boundary:
    - progress/event normalization
 3. **Managed runtime bootstrap**
    - bundled Python validation
-   - per-tool venv bootstrap for `yt-dlp`, `gallery-dl`, and `douyin-dl`
+   - per-tool venv bootstrap for `yt-dlp` and `gallery-dl`
    - managed `ffmpeg` and `deno` downloads
 4. **Build/package preparation**
    - ensuring the official bundled Python runtime exists for the current package target
