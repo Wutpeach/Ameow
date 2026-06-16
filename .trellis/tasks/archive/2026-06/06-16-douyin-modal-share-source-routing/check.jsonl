@@ -1,0 +1,4 @@
+{"file":".trellis/spec/guides/video-download-patterns.md","reason":"Check that the final provider behavior follows documented Douyin source-routing patterns."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Check provider source changes do not break queue/runtime event contracts."}
+{"file":".trellis/spec/backend/sidecar-runtime-contracts.md","reason":"Check douyin-dl sidecar compatibility, manifest/output behavior, and managed runtime boundaries."}
+{"file":".trellis/tasks/06-16-douyin-modal-share-source-routing/implement.md","reason":"Task-specific validation checklist and rollback criteria."}

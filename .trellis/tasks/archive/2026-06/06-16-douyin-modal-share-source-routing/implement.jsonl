@@ -1,0 +1,4 @@
+{"file":".trellis/spec/guides/video-download-patterns.md","reason":"Douyin provider routing conventions, short-link/source-selection lessons, and video download validation patterns."}
+{"file":".trellis/spec/backend/electron-runtime-contracts.md","reason":"Electron download command bridge and runtime queue contracts affected by provider source planning."}
+{"file":".trellis/spec/backend/sidecar-runtime-contracts.md","reason":"Managed douyin-dl runtime and sidecar behavior constraints; do not bypass managed downloader contracts."}
+{"file":".trellis/tasks/06-16-douyin-dl-internal-latency-optimization/implement.md","reason":"Parent task benchmark evidence showing short/share URL behavior versus bare /video URL."}
