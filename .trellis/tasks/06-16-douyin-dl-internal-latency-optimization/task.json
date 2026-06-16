@@ -1,0 +1,28 @@
+{
+  "id": "douyin-dl-internal-latency-optimization",
+  "name": "douyin-dl-internal-latency-optimization",
+  "title": "Investigate douyin-dl internal latency optimization",
+  "description": "Follow up on Douyin slow-download diagnostics. Runtime evidence shows Ameow integration overhead is negligible and variable delay occurs inside douyin-dl after URL processing starts. Evaluate upstream douyin-dl behavior, msToken/detail request latency, retry behavior, package version/options, and possible provider-side bypasses.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-06-16",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-16-douyin-modal-share-source-routing"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

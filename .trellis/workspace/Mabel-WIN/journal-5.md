@@ -707,3 +707,39 @@ Replaced the browser extension action text badge with toolbar icon variants carr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 218: Douyin yt-dlp takeover
+
+**Date**: 2026-06-16
+**Task**: Douyin yt-dlp takeover
+**Branch**: `main`
+
+### Summary
+
+Routed Douyin modal/share/video sources through yt-dlp, relaxed compatible HEVC outputs to skip unnecessary transcode, removed douyin-dl runtime/bootstrap/engine paths, and updated tests, specs, and public docs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e3e0370` | (see git log) |
+| `2c2b197` | (see git log) |
+| `0f553eb` | (see git log) |
+| `ccb2601` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

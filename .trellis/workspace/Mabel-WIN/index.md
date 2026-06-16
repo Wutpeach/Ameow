@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 217
-- **Last Active**: 2026-06-15
+- **Total Sessions**: 218
+- **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~709 | Active |
+| `journal-5.md` | ~745 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 218 | 2026-06-16 | Douyin yt-dlp takeover | `e3e0370`, `2c2b197`, `0f553eb`, `ccb2601` | `main` |
 | 217 | 2026-06-15 | Refine toolbar sync indicator | `4ecebd2` | `main` |
 | 216 | 2026-06-15 | Recover Douyin detail auth failures | `79c01d6` | `main` |
 | 215 | 2026-06-15 | Refine browser extension edge launcher visuals | `9588bc8` | `main` |
