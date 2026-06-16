@@ -10,7 +10,7 @@ FlowSelect uses a sidecar-first architecture:
 - Runtime site-provider planning must not emit `direct` engine plans; `direct` is no longer a backend engine id.
 - `gallery-dl` for Pinterest and supported extractor-first sites that are routed through the site-provider layer
 - `yt-dlp` as the generic fallback and the primary route for dedicated `yt-dlp` providers such as YouTube/Twitter/Bilibili
-- `douyin-dl` for Douyin page extraction
+- `yt-dlp` first for Douyin video/share/short-link extraction, with `douyin-dl` kept as a fallback and for non-video Douyin detail sources
 
 Media candidate labels such as `direct_mp4` and `direct_cdn` are still valid hint vocabulary from browser/page inspection, but they do not imply a direct HTTP backend.
 
@@ -56,7 +56,7 @@ Browser Extension / UI URL
 
 ### Douyin Detail Auth Recovery
 
-`douyin-dl` failures that specifically indicate Douyin detail API access problems should reuse the shared site-session recovery path instead of adding a Douyin-specific retry loop.
+`douyin-dl` fallback failures that specifically indicate Douyin detail API access problems should reuse the shared site-session recovery path instead of adding a Douyin-specific retry loop.
 
 - Match only narrow Douyin detail symptoms such as `Failed to get video detail: <aweme_id>` or `/aweme/v1/web/aweme/detail/` plus anti-bot / empty-response wording.
 - Keep the runtime error code as `E_EXECUTION_FAILED` and set `classification: "auth_required"` so `src/electron-runtime/service.ts` can sync the saved Douyin site session through the extension and retry once.
@@ -149,7 +149,7 @@ resolveCaptureSourceUrl(input: RawDownloadInput, options: {
 ### 5. Good / Base / Bad Cases
 
 - Good:
-  - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes a Douyin share source such as `https://www.iesdouyin.com/share/video/{id}/` for `douyin-dl`.
+  - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes a Douyin share source such as `https://www.iesdouyin.com/share/video/{id}/` for downloader-owned extraction.
   - Douyin picker evidence pointing at `/video/{id}`, `/note/{id}`, or `/gallery/{id}` wins over the SPA page URL, and note/gallery path types are preserved.
   - Instagram explore/modal context carries shortcode evidence, while the gallery-dl-supported provider selects a permalink for `gallery-dl` and `yt-dlp`.
 - Base:
@@ -187,8 +187,20 @@ payload.url = `https://www.douyin.com/video/${modalId}`;
 payload.url = evidence.pageUrl;
 payload.extensionData = { ameowCapture: evidence };
 // Later, inside the Douyin provider:
-sourceUrl = `https://www.douyin.com/video/${modalId}`;
+sourceUrl = `https://www.iesdouyin.com/share/video/${modalId}/`;
 ```
+
+### Douyin yt-dlp Primary Routing
+
+- Douyin video-compatible sources use `yt-dlp` first and `douyin-dl` as fallback:
+  - `https://www.douyin.com/video/{id}`;
+  - `https://www.iesdouyin.com/share/video/{id}/`;
+  - `https://v.douyin.com/...`;
+  - direct Douyin media assets such as `douyinvod.com/...mp4`.
+- `yt-dlp` does not support SPA modal URLs such as `https://www.douyin.com/jingxuan?modal_id=...` directly, so the provider must synthesize a supported share/video source before planning `yt-dlp`.
+- Preserve raw `v.douyin.com/...` short links as source URLs. `yt-dlp` and `douyin-dl` both own their redirect resolution.
+- Keep `/note/{id}` and `/gallery/{id}` sources on `douyin-dl` only until there is explicit `yt-dlp` evidence for those content types.
+- The primary `yt-dlp` plan must set `fallbackOn: "any"` so runtime can continue to `douyin-dl` when extractor support, auth, or media transfer fails.
 
 ### WebSocket Message Contract
 

@@ -20,14 +20,31 @@ const expectVideoIntent = (intent: ResolvedDownloadPlan["intent"]): VideoDownloa
   return intent;
 };
 
+const expectDouyinYtDlpWithFallback = (
+  plan: ResolvedDownloadPlan,
+  sourceUrl: string,
+): void => {
+  expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "douyin-dl"]);
+  expect(plan.engines[0]).toMatchObject({
+    engine: "yt-dlp",
+    sourceUrl,
+    when: "primary",
+    fallbackOn: "any",
+  });
+  expect(plan.engines[1]).toMatchObject({
+    engine: "douyin-dl",
+    sourceUrl,
+    when: "fallback",
+  });
+};
+
 describe("builtin site providers", () => {
-  it("routes direct Douyin asset URLs through douyin-dl only", () => {
+  it("routes direct Douyin asset URLs through yt-dlp with douyin-dl fallback", () => {
     const directUrl = "https://www.douyinvod.com/obj/tos-cn-v-0000/example.mp4";
     const plan = resolvePlan({ url: directUrl });
 
     expect(plan?.providerId).toBe("douyin");
-    expect(plan?.engines.map((engine) => engine.engine)).toEqual(["douyin-dl"]);
-    expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
+    expectDouyinYtDlpWithFallback(plan, directUrl);
   });
 
   it("synthesizes Douyin share video source from extension modal evidence", () => {
@@ -50,11 +67,10 @@ describe("builtin site providers", () => {
     const intent = expectVideoIntent(plan.intent);
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines).toHaveLength(1);
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644014/",
-    });
+    expectDouyinYtDlpWithFallback(
+      plan,
+      "https://www.iesdouyin.com/share/video/7637912431158644014/",
+    );
     expect(intent.extensionData).toMatchObject({
       ameowCapture: {
         contentIds: {
@@ -85,10 +101,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: canonicalUrl,
-    });
+    expectDouyinYtDlpWithFallback(plan, canonicalUrl);
   });
 
   it("synthesizes Douyin share video source from raw jingxuan modal id", () => {
@@ -100,10 +113,10 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644014/",
-    });
+    expectDouyinYtDlpWithFallback(
+      plan,
+      "https://www.iesdouyin.com/share/video/7637912431158644014/",
+    );
   });
 
   it("preserves accepted Douyin video page URLs instead of rewriting them to share URLs", () => {
@@ -115,13 +128,10 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: videoUrl,
-    });
+    expectDouyinYtDlpWithFallback(plan, videoUrl);
   });
 
-  it("preserves raw Douyin short links for douyin-dl short-link resolution", () => {
+  it("preserves raw Douyin short links for downloader-owned redirect resolution", () => {
     const shortUrl = "https://v.douyin.com/P1WL6bqF2SA/";
     const plan = resolvePlan({
       url: shortUrl,
@@ -129,10 +139,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: shortUrl,
-    });
+    expectDouyinYtDlpWithFallback(plan, shortUrl);
   });
 
   it("accepts Douyin share video page sources", () => {
@@ -144,10 +151,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: shareUrl,
-    });
+    expectDouyinYtDlpWithFallback(plan, shareUrl);
   });
 
   it("prefers Douyin picker target href evidence over a generic page URL", () => {
@@ -171,10 +175,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: targetHref,
-    });
+    expectDouyinYtDlpWithFallback(plan, targetHref);
   });
 
   it("prefers Douyin picker target src evidence over a generic page URL", () => {
@@ -195,10 +196,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: targetSrc,
-    });
+    expectDouyinYtDlpWithFallback(plan, targetSrc);
   });
 
   it("preserves Douyin note and gallery evidence path types", () => {
@@ -239,13 +237,17 @@ describe("builtin site providers", () => {
       },
     });
 
+    expect(notePlan.engines.map((engine) => engine.engine)).toEqual(["douyin-dl"]);
     expect(notePlan.engines[0]).toMatchObject({
       engine: "douyin-dl",
       sourceUrl: noteUrl,
+      when: "primary",
     });
+    expect(galleryPlan.engines.map((engine) => engine.engine)).toEqual(["douyin-dl"]);
     expect(galleryPlan.engines[0]).toMatchObject({
       engine: "douyin-dl",
       sourceUrl: galleryUrl,
+      when: "primary",
     });
   });
 
@@ -266,10 +268,7 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: targetHref,
-    });
+    expectDouyinYtDlpWithFallback(plan, targetHref);
   });
 
   it("does not match Douyin only because a generic URL mentions douyin in query text", () => {
@@ -314,10 +313,10 @@ describe("builtin site providers", () => {
     });
 
     expect(plan.providerId).toBe("douyin");
-    expect(plan.engines[0]).toMatchObject({
-      engine: "douyin-dl",
-      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644019/",
-    });
+    expectDouyinYtDlpWithFallback(
+      plan,
+      "https://www.iesdouyin.com/share/video/7637912431158644019/",
+    );
   });
 
   it("routes Xiaohongshu page URLs through yt-dlp with the canonical note URL", () => {

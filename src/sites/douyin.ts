@@ -47,6 +47,17 @@ const isDirectVideoUrl = (value: string | undefined): boolean => (
   Boolean(value && isDouyinUrl(value) && /\.(mp4|mov|m4v)(?:$|\?)/i.test(value))
 );
 
+const isDouyinShortLinkSource = (value: string | undefined): boolean => {
+  if (!value) {
+    return false;
+  }
+  try {
+    return new URL(value).hostname.toLowerCase() === "v.douyin.com";
+  } catch {
+    return false;
+  }
+};
+
 const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
   if (!value || !isDouyinUrl(value)) {
     return false;
@@ -148,6 +159,14 @@ const resolveDouyinDlSourceUrl = (input: RawDownloadInput): string =>
     fallback: (value) => value.pageUrl ?? value.url,
   });
 
+const isYtDlpSupportedDouyinSource = (value: string): boolean => {
+  if (isDirectVideoUrl(value) || isDouyinShortLinkSource(value)) {
+    return true;
+  }
+
+  return extractDouyinContentSource(value)?.kind === "video";
+};
+
 const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   type: "video",
   siteId: "douyin",
@@ -179,17 +198,34 @@ export const douyinProvider: SiteProvider = {
     const intent = buildIntent(input) as VideoDownloadIntent;
     const strategy = getRuntimeManualSiteStrategy("douyin");
     const sourceUrl = resolveDouyinDlSourceUrl(input);
+    const ytdlpSource = isYtDlpSupportedDouyinSource(sourceUrl) ? sourceUrl : undefined;
+    const engines = ytdlpSource
+      ? buildEnginePlansFromStrategySources(strategy, {
+          "yt-dlp": {
+            sourceUrl: ytdlpSource,
+            reason: "Use yt-dlp first for Douyin video/share/short-link extraction",
+            fallbackOn: "any" as const,
+          },
+          "douyin-dl": {
+            sourceUrl,
+            reason: "Use douyin-downloader as the Douyin video fallback",
+          },
+        })
+      : [
+          {
+            engine: "douyin-dl" as const,
+            priority: 100,
+            when: "primary" as const,
+            sourceUrl,
+            reason: "Use douyin-downloader for Douyin sources not covered by yt-dlp",
+          },
+        ];
 
     return {
       providerId: "douyin",
       label: input.title?.trim() || input.pageUrl || input.url,
       intent,
-      engines: buildEnginePlansFromStrategySources(strategy, {
-        "douyin-dl": {
-          sourceUrl,
-          reason: "Use douyin-downloader with a provider-owned accepted Douyin page source",
-        },
-      }),
+      engines,
     };
   },
 };
