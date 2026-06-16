@@ -149,7 +149,7 @@ resolveCaptureSourceUrl(input: RawDownloadInput, options: {
 ### 5. Good / Base / Bad Cases
 
 - Good:
-  - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes `/video/{id}` for `douyin-dl`.
+  - Douyin `jingxuan?modal_id=...` stays as the top-level user URL, while the Douyin provider synthesizes a Douyin share source such as `https://www.iesdouyin.com/share/video/{id}/` for `douyin-dl`.
   - Douyin picker evidence pointing at `/video/{id}`, `/note/{id}`, or `/gallery/{id}` wins over the SPA page URL, and note/gallery path types are preserved.
   - Instagram explore/modal context carries shortcode evidence, while the gallery-dl-supported provider selects a permalink for `gallery-dl` and `yt-dlp`.
 - Base:
@@ -438,6 +438,7 @@ Expected report sections:
 3. URL detection: include Douyin CDN domains (`douyinvod.com`, `douyincdn.com`) in direct route checks; Xiaohongshu video routing uses canonical note URLs for yt-dlp.
 4. Cross-layer payload: keep `video_selected_v2.data.videoUrl` optional.
 5. Cross-layer payload: `video_selected_v2.data.ytdlpQualityPreference` must stay optional and normalize unknown values to `best`.
-5. Completion event: always emit `video-download-complete` on all terminal paths.
-6. Concurrent video downloads require task-identity payloads (`traceId`) on progress and completion events.
-7. Shared cancel controls are only safe when backend state tracks active children and cancellation markers per task.
+6. Completion event: always emit `video-download-complete` on all terminal paths.
+7. Concurrent video downloads require task-identity payloads (`traceId`) on progress and completion events.
+8. Shared cancel controls are only safe when backend state tracks active children and cancellation markers per task.
+9. Douyin perceived "parsing" delay can be media transfer inside `douyin-dl`: verify wrapper startup, `Found URL` timing, `msToken`/detail API timing, and media `download_with_retry` timing before changing provider routing or managed package pins.

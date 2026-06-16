@@ -30,7 +30,7 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(directUrl);
   });
 
-  it("synthesizes Douyin video page source from extension modal evidence", () => {
+  it("synthesizes Douyin share video source from extension modal evidence", () => {
     const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
     const plan = resolvePlan({
       url: pageUrl,
@@ -53,7 +53,7 @@ describe("builtin site providers", () => {
     expect(plan.engines).toHaveLength(1);
     expect(plan.engines[0]).toMatchObject({
       engine: "douyin-dl",
-      sourceUrl: "https://www.douyin.com/video/7637912431158644014",
+      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644014/",
     });
     expect(intent.extensionData).toMatchObject({
       ameowCapture: {
@@ -91,7 +91,7 @@ describe("builtin site providers", () => {
     });
   });
 
-  it("synthesizes Douyin video page source from raw jingxuan modal id", () => {
+  it("synthesizes Douyin share video source from raw jingxuan modal id", () => {
     const pageUrl = "https://www.douyin.com/jingxuan?modal_id=7637912431158644014";
     const plan = resolvePlan({
       url: pageUrl,
@@ -102,7 +102,51 @@ describe("builtin site providers", () => {
     expect(plan.providerId).toBe("douyin");
     expect(plan.engines[0]).toMatchObject({
       engine: "douyin-dl",
-      sourceUrl: "https://www.douyin.com/video/7637912431158644014",
+      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644014/",
+    });
+  });
+
+  it("preserves accepted Douyin video page URLs instead of rewriting them to share URLs", () => {
+    const videoUrl = "https://www.douyin.com/video/7637912431158644014";
+    const plan = resolvePlan({
+      url: videoUrl,
+      pageUrl: videoUrl,
+      siteHint: "douyin",
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: videoUrl,
+    });
+  });
+
+  it("preserves raw Douyin short links for douyin-dl short-link resolution", () => {
+    const shortUrl = "https://v.douyin.com/P1WL6bqF2SA/";
+    const plan = resolvePlan({
+      url: shortUrl,
+      siteHint: "douyin",
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: shortUrl,
+    });
+  });
+
+  it("accepts Douyin share video page sources", () => {
+    const shareUrl = "https://www.iesdouyin.com/share/video/7637912431158644014/";
+    const plan = resolvePlan({
+      url: shareUrl,
+      pageUrl: shareUrl,
+      siteHint: "douyin",
+    });
+
+    expect(plan.providerId).toBe("douyin");
+    expect(plan.engines[0]).toMatchObject({
+      engine: "douyin-dl",
+      sourceUrl: shareUrl,
     });
   });
 
@@ -272,7 +316,7 @@ describe("builtin site providers", () => {
     expect(plan.providerId).toBe("douyin");
     expect(plan.engines[0]).toMatchObject({
       engine: "douyin-dl",
-      sourceUrl: "https://www.douyin.com/video/7637912431158644019",
+      sourceUrl: "https://www.iesdouyin.com/share/video/7637912431158644019/",
     });
   });
 

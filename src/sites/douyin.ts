@@ -19,12 +19,14 @@ import {
 
 const DOUYIN_HOST_SUFFIXES = [
   "douyin.com",
+  "iesdouyin.com",
   "douyinvod.com",
   "douyincdn.com",
   "bytecdn.com",
   "bytedance.com",
 ];
 const DOUYIN_CONTENT_PATH_PATTERN = /^\/(video|note|gallery)\/(\d{15,20})(?:\/)?$/i;
+const DOUYIN_SHARE_VIDEO_PATH_PATTERN = /^\/share\/video\/(\d{15,20})(?:\/)?$/i;
 const DOUYIN_CONTENT_ID_PATTERN = /^\d{15,20}$/;
 
 const isDouyinUrl = (value: string | undefined): boolean => {
@@ -51,7 +53,8 @@ const isAcceptedDouyinPageSource = (value: string | undefined): boolean => {
   }
   try {
     const url = new URL(value);
-    return DOUYIN_CONTENT_PATH_PATTERN.test(url.pathname);
+    return DOUYIN_CONTENT_PATH_PATTERN.test(url.pathname)
+      || DOUYIN_SHARE_VIDEO_PATH_PATTERN.test(url.pathname);
   } catch {
     return false;
   }
@@ -76,6 +79,14 @@ const extractDouyinContentSource = (value: string | undefined): DouyinContentSou
       };
     }
 
+    const shareVideoPathMatch = url.pathname.match(DOUYIN_SHARE_VIDEO_PATH_PATTERN);
+    if (shareVideoPathMatch?.[1]) {
+      return {
+        kind: "video",
+        id: shareVideoPathMatch[1],
+      };
+    }
+
     const modalId = url.searchParams.get("modal_id")?.trim();
     if (modalId && DOUYIN_CONTENT_ID_PATTERN.test(modalId)) {
       return {
@@ -92,22 +103,29 @@ const extractDouyinContentSource = (value: string | undefined): DouyinContentSou
 const buildDouyinContentSourceUrl = (source: DouyinContentSource): string =>
   `https://www.douyin.com/${source.kind}/${source.id}`;
 
+const buildDouyinShareVideoSourceUrl = (id: string): string =>
+  `https://www.iesdouyin.com/share/video/${id}/`;
+
+const buildSynthesizedDouyinSourceUrl = (source: DouyinContentSource): string => (
+  source.kind === "video" ? buildDouyinShareVideoSourceUrl(source.id) : buildDouyinContentSourceUrl(source)
+);
+
 const synthesizeDouyinSource = (input: RawDownloadInput): string | undefined => {
   const evidenceSource = collectCaptureSourceCandidates(input)
     .map(extractDouyinContentSource)
     .find((source): source is DouyinContentSource => Boolean(source));
   if (evidenceSource) {
-    return buildDouyinContentSourceUrl(evidenceSource);
+    return buildSynthesizedDouyinSourceUrl(evidenceSource);
   }
 
   const modalId = readCaptureContentId(input, "modal_id", DOUYIN_CONTENT_ID_PATTERN);
   if (modalId) {
-    return buildDouyinContentSourceUrl({ kind: "video", id: modalId });
+    return buildDouyinShareVideoSourceUrl(modalId);
   }
 
   const contentId = readCaptureContentId(input, "content_id", DOUYIN_CONTENT_ID_PATTERN);
   if (contentId) {
-    return buildDouyinContentSourceUrl({ kind: "video", id: contentId });
+    return buildDouyinShareVideoSourceUrl(contentId);
   }
   return undefined;
 };
