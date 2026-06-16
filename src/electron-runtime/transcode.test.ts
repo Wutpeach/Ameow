@@ -7,7 +7,7 @@ import {
 } from "./transcode.js";
 
 describe("electron transcode helpers", () => {
-  it("detects AE-safe mp4 h264+aac sources", () => {
+  it("detects editing-compatible mp4 h264+aac sources", () => {
     const summary = parseFfmpegProbeSummaryOutput(
       "C:/Temp/sample.mp4",
       [
@@ -19,7 +19,7 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: true,
+      isEditingCompatible: true,
       plan: null,
     });
     expect(createVideoCompatibilityAnalysis("C:/Temp/sample.mp4", summary)).toEqual({
@@ -33,7 +33,7 @@ describe("electron transcode helpers", () => {
     });
   });
 
-  it("detects AE-safe mp4 h264 sources without audio", () => {
+  it("detects editing-compatible mp4 h264 sources without audio", () => {
     const summary = parseFfmpegProbeSummaryOutput(
       "C:/Temp/silent.mp4",
       [
@@ -44,7 +44,7 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: true,
+      isEditingCompatible: true,
       plan: null,
     });
     expect(createVideoCompatibilityAnalysis("C:/Temp/silent.mp4", summary)).toEqual({
@@ -70,7 +70,7 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: false,
+      isEditingCompatible: false,
       plan: "audio_transcode",
     });
     expect(createVideoCompatibilityAnalysis("C:/Temp/opus-audio.mp4", summary)).toMatchObject({
@@ -94,7 +94,7 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: false,
+      isEditingCompatible: false,
       plan: "remux_only",
     });
     expect(createVideoCompatibilityAnalysis("C:/Temp/archive.mkv", summary)).toMatchObject({
@@ -107,7 +107,7 @@ describe("electron transcode helpers", () => {
     });
   });
 
-  it("uses full transcode for mp4 hevc sources", () => {
+  it("detects editing-compatible mp4 hevc+aac sources", () => {
     const summary = parseFfmpegProbeSummaryOutput(
       "C:/Temp/hevc.mp4",
       [
@@ -119,19 +119,67 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: false,
-      plan: "full_transcode",
+      isEditingCompatible: true,
+      plan: null,
     });
     expect(createVideoCompatibilityAnalysis("C:/Temp/hevc.mp4", summary)).toMatchObject({
       sourceExtension: "mp4",
       videoCodec: "hevc",
       audioCodec: "aac",
-      decision: "full_transcode",
+      decision: "skip_compatible",
       probeFailed: false,
     });
   });
 
-  it("uses full transcode when codecs are not AE-safe", () => {
+  it("detects editing-compatible mov hevc+aac sources", () => {
+    const summary = parseFfmpegProbeSummaryOutput(
+      "C:/Temp/hevc.mov",
+      [
+        "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'C:/Temp/hevc.mov':",
+        "  Duration: 00:01:03.00, start: 0.000000, bitrate: 2500 kb/s",
+        "  Stream #0:0: Video: hevc (Main), yuv420p(tv), 3840x2160",
+        "  Stream #0:1: Audio: aac (LC), 48000 Hz, stereo, fltp, 192 kb/s",
+      ].join("\n"),
+    );
+
+    expect(summarizeMediaProbe(summary)).toEqual({
+      isEditingCompatible: true,
+      plan: null,
+    });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/hevc.mov", summary)).toMatchObject({
+      sourceExtension: "mov",
+      videoCodec: "hevc",
+      audioCodec: "aac",
+      decision: "skip_compatible",
+      probeFailed: false,
+    });
+  });
+
+  it("uses remux-only when hevc+aac is compatible but the container is not mp4 or mov", () => {
+    const summary = parseFfmpegProbeSummaryOutput(
+      "C:/Temp/hevc.mkv",
+      [
+        "Input #0, matroska,webm, from 'C:/Temp/hevc.mkv':",
+        "  Duration: 00:01:03.00, start: 0.000000, bitrate: 2500 kb/s",
+        "  Stream #0:0: Video: hevc (Main), yuv420p(tv), 3840x2160",
+        "  Stream #0:1: Audio: aac (LC), 48000 Hz, stereo, fltp, 192 kb/s",
+      ].join("\n"),
+    );
+
+    expect(summarizeMediaProbe(summary)).toEqual({
+      isEditingCompatible: false,
+      plan: "remux_only",
+    });
+    expect(createVideoCompatibilityAnalysis("C:/Temp/hevc.mkv", summary)).toMatchObject({
+      sourceExtension: "mkv",
+      videoCodec: "hevc",
+      audioCodec: "aac",
+      decision: "remux_only",
+      probeFailed: false,
+    });
+  });
+
+  it("uses full transcode when codecs are not editing-compatible", () => {
     const summary = parseFfmpegProbeSummaryOutput(
       "C:/Temp/archive.webm",
       [
@@ -143,7 +191,7 @@ describe("electron transcode helpers", () => {
     );
 
     expect(summarizeMediaProbe(summary)).toEqual({
-      isAeSafe: false,
+      isEditingCompatible: false,
       plan: "full_transcode",
     });
   });

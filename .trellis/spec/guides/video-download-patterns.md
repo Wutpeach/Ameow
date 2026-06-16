@@ -269,22 +269,23 @@ Audio/container rule:
 - `balanced` and `data_saver` stay on the conservative MP4/M4A path.
 - Do not use a broad `bestaudio`/`ba` fallback while still forcing `--merge-output-format mp4` for the conservative tiers.
 
-### AE-Safe Output Normalization Contract
+### Editing-Compatible Output Handoff Contract
 
 - Scope:
   - applies to yt-dlp-backed outputs, including the normal yt-dlp success path and slice-reuse success path
   - does not change the browser extension quality UI or the meaning of `best` / `balanced` / `data_saver`
 - Goal:
   - keep current quality-tier selection behavior
-  - hide container/codec complexity from users by producing an editing-compatible follow-up MP4 when needed
+  - avoid unnecessary post-processing when the downloaded source can already be opened by common editing tools
+  - produce an editing-compatible follow-up MP4 only when the source format is outside the supported handoff set
 - Probe-first rule:
   - backend runs `ffprobe` on the completed yt-dlp output after the source media download finishes
-  - if probe shows `mp4 + h264 + aac` (or no audio stream), backend skips extra work
+  - if probe shows `mp4/mov + h264/hevc + aac` (or no audio stream), backend skips extra work
   - if probe fails, backend logs the warning and falls back to the safest normalization path instead of silently skipping compatibility work
 - Normalization rule:
-  - `h264` video + `aac` audio in a non-`mp4` container -> remux to `mp4`
-  - `h264` video + non-`aac` audio -> keep video, transcode audio to `aac`, output `mp4`
-  - non-`h264` video (`vp9`, `av1`, `hevc`, unknown) -> full transcode to `h264 + aac + mp4`
+  - `h264` or `hevc` video + `aac` audio in a non-`mp4`/`mov` container -> remux to `mp4`
+  - `h264` or `hevc` video + non-`aac` audio -> keep video, transcode audio to `aac`, output `mp4`
+  - non-compatible video (`vp9`, `av1`, unknown) -> full transcode to `h264 + aac + mp4`
 - Encoder selection rule:
   - full transcode tries hardware `h264` encoder first using the existing platform order
   - Windows: `h264_nvenc` -> `h264_qsv` -> `h264_amf`
@@ -304,7 +305,7 @@ Backend touchpoints:
 - `src/electron-runtime/commandRouter.ts` normalizes clip-range seconds before queueing
 - `src/electron-runtime/ytDlpDownload.ts` owns yt-dlp format selection, `--download-sections`, and output naming
 - `src/electron-runtime/service.ts` emits the terminal `video-download-complete` event after yt-dlp finishes
-- `src/electron-runtime/transcode.ts` remains an AE-compatibility follow-up path for completed downloads; it is not part of clip extraction
+- `src/electron-runtime/transcode.ts` remains an editing-compatibility follow-up path for completed downloads; it is not part of clip extraction
 - for YouTube, if a cookies-backed yt-dlp attempt fails with challenge/no-format symptoms, backend retries once without cookies before emitting terminal failure
 - if backend needs to inspect yt-dlp's already-selected format without downloading media, use `--skip-download` plus `--print before_dl:...`; do not use `-s`/simulate mode because `before_dl` hooks do not fire there and the probe will falsely report no selection
 
@@ -382,7 +383,7 @@ resolvePlan({ url });
   - Xiaohongshu homepage image-card drag keeps downloading the dragged image unless the note itself resolves as video.
   - Xiaohongshu video notes enqueue canonical note URLs for yt-dlp instead of xhscdn direct candidates.
   - Extension sends `ytdlpQualityPreference=balanced`; Bilibili/YouTube yt-dlp path prefers 1080p when available.
-  - A `best` high-resolution yt-dlp download can resolve to the highest visible tier, including `1440p/2160p`, with internal `mkv` merge when required by the stream mix, while the final returned file is normalized to AE-safe `mp4` when needed.
+  - A `best` high-resolution yt-dlp download can resolve to the highest visible tier, including `1440p/2160p`, with internal `mkv` merge when required by the stream mix, while the final returned file is normalized to editing-compatible `mp4` when needed.
   - A `best` Bilibili preview-limited request that only resolves to `1080p` with MP4-compatible streams should land directly as `mp4` and skip the transcode queue.
 - Base:
   - Extension cannot extract candidate URLs; sends page URL only; backend uses the provider-selected sidecar path.
@@ -410,10 +411,10 @@ resolvePlan({ url });
 - Highest-tier path: confirm a `best` request can resolve to the current account-visible top tier and may output `mkv` when needed.
 - Highest-tier MP4-preferred path: confirm a `best` request with MP4-compatible selected streams uses `mp4` output first and does not enter downstream transcode just because the requested tier was `best`.
 - High-resolution audio path: confirm conservative tiers still preserve audio when MP4 output is forced.
-- AE-safe skip path: feed an existing `mp4 + h264 + aac` result and confirm no extra transcode/remux happens before success.
-- AE-safe remux path: feed a `mkv` containing `h264 + aac` and confirm final returned file is `mp4` without full video re-encode.
-- AE-safe audio path: feed `h264 + opus` output and confirm final returned file is `mp4` with `aac` audio.
-- AE-safe GPU fallback path: induce hardware encoder failure and confirm backend retries with `libx264` instead of failing immediately.
+- Editing-compatible skip path: feed existing `mp4/mov + h264/hevc + aac` results and confirm no extra transcode/remux happens before success.
+- Editing-compatible remux path: feed a `mkv` containing `h264/hevc + aac` and confirm final returned file is `mp4` without full video re-encode.
+- Editing-compatible audio path: feed `h264/hevc + opus` output and confirm final returned file is `mp4` with `aac` audio.
+- Editing-compatible GPU fallback path: induce hardware encoder failure and confirm backend retries with `libx264` instead of failing immediately.
 - YouTube cookie fallback path: provide cookies that trigger `n challenge solving failed` / `Requested format is not available` and confirm backend retries once without cookies.
 - YouTube section path: set IN/OUT and verify backend logs `Section download enabled` with formatted range.
 - YouTube invalid section path: send invalid clip range and verify immediate error completion event.

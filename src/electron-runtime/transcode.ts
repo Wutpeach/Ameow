@@ -134,24 +134,27 @@ const boundedContainerNames = (values: string[]): string[] => (
 );
 
 export const summarizeMediaProbe = (summary: MediaProbeSummary): {
-  isAeSafe: boolean;
+  isEditingCompatible: boolean;
   plan: PreparedVideoTranscodeTask["plan"] | null;
 } => {
   const isMp4Container = summary.containerNames.includes("mp4");
-  const isAeSafe = isMp4Container
-    && summary.videoCodec === "h264"
+  const isMovContainer = summary.containerNames.includes("mov");
+  const isEditingContainer = isMp4Container || isMovContainer;
+  const isEditingVideoCodec = ["h264", "avc1", "hevc", "h265"].includes(summary.videoCodec ?? "");
+  const isEditingCompatible = isEditingContainer
+    && isEditingVideoCodec
     && (!summary.hasAudioStream || summary.audioCodec === "aac");
 
-  if (isAeSafe) {
+  if (isEditingCompatible) {
     return {
-      isAeSafe: true,
+      isEditingCompatible: true,
       plan: null,
     };
   }
 
-  if (summary.videoCodec === "h264") {
+  if (isEditingVideoCodec) {
     return {
-      isAeSafe: false,
+      isEditingCompatible: false,
       plan: summary.hasAudioStream && summary.audioCodec !== "aac"
         ? "audio_transcode"
         : "remux_only",
@@ -159,7 +162,7 @@ export const summarizeMediaProbe = (summary: MediaProbeSummary): {
   }
 
   return {
-    isAeSafe: false,
+    isEditingCompatible: false,
     plan: "full_transcode",
   };
 };
@@ -175,7 +178,7 @@ export const createVideoCompatibilityAnalysis = (
     containerNames: boundedContainerNames(summary.containerNames),
     videoCodec: boundedProbeToken(summary.videoCodec),
     audioCodec: boundedProbeToken(summary.audioCodec),
-    decision: decision.isAeSafe || !decision.plan ? "skip_compatible" : decision.plan,
+    decision: decision.isEditingCompatible || !decision.plan ? "skip_compatible" : decision.plan,
     probeFailed: false,
     probeErrorSummary: null,
   };
@@ -468,7 +471,7 @@ export const prepareVideoTranscodeTaskFromDownload = async (
       createVideoCompatibilityAnalysis(input.sourcePath, summary),
     );
     const next = summarizeMediaProbe(summary);
-    if (next.isAeSafe || !next.plan) {
+    if (next.isEditingCompatible || !next.plan) {
       return null;
     }
     plan = next.plan;

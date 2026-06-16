@@ -710,7 +710,7 @@ Request action:
   - Deprecated legacy compatibility field after popup AE-toggle removal in Phase 3.
   - Current extension popup/background flows should not send it.
   - If present from an older client, Rust may still persist it to config key `aeFriendlyConversionEnabled` for backward compatibility and support-log visibility.
-  - It must not suppress the new transcode-queue model: `video-download-complete` still represents source download completion, and any non-AE-safe source may enqueue a transcode task regardless of this flag.
+  - It must not suppress the new transcode-queue model: `video-download-complete` still represents source download completion, and any non-editing-compatible source may enqueue a transcode task regardless of this flag.
 - Direct-download and yt-dlp success paths both follow the same source-first completion model; downstream transcode queueing is no longer a yt-dlp-only inline tail.
 - Desktop defaults used by `download_video` / `queue_video_download`:
   - Read from `src-tauri/src/lib.rs` persisted config keys `defaultVideoDownloadQuality` and `aeFriendlyConversionEnabled`.
@@ -721,8 +721,8 @@ Request action:
 
 | Condition | Backend Behavior |
 |-----------|------------------|
-| Current extension payload with valid quality only | Persist `defaultVideoDownloadQuality`, keep the legacy AE flag unchanged if the field is absent, emit `video-download-complete` for the source file, then enqueue transcode if the source is not AE-safe |
-| Legacy payload with valid quality + `aeFriendlyConversionEnabled` | Preserve quality routing, persist both values, emit `video-download-complete` for the source file, then enqueue transcode if the source is not AE-safe |
+| Current extension payload with valid quality only | Persist `defaultVideoDownloadQuality`, keep the legacy AE flag unchanged if the field is absent, emit `video-download-complete` for the source file, then enqueue transcode if the source is not editing-compatible |
+| Legacy payload with valid quality + `aeFriendlyConversionEnabled` | Preserve quality routing, persist both values, emit `video-download-complete` for the source file, then enqueue transcode if the source is not editing-compatible |
 | Invalid/missing quality value | Use persisted `defaultVideoDownloadQuality` value |
 | No persisted config keys yet | Use desktop fallback `balanced` + `false` |
 
@@ -747,8 +747,8 @@ Request action:
   - Set extension quality to `Balanced`, reconnect extension or change the popup setting, then paste a Bilibili URL into the main window and assert the queued yt-dlp run uses `balanced` instead of `best`.
   - Set extension quality to `Highest`, reconnect extension or change the popup setting, then paste a supported video URL and assert the queued yt-dlp run uses `best`.
 - source-complete vs transcode handoff:
-  - With the current quality-only payload, complete a non-AE-safe yt-dlp download and assert `video-download-complete` fires before any `video-transcode-progress` / `video-transcode-complete` activity.
-  - With the current quality-only payload, complete an already AE-safe download and assert no transcode task is enqueued.
+  - With the current quality-only payload, complete a non-editing-compatible yt-dlp download and assert `video-download-complete` fires before any `video-transcode-progress` / `video-transcode-complete` activity.
+  - With the current quality-only payload, complete an already editing-compatible download and assert no transcode task is enqueued.
 - Backward compatibility:
   - Send or simulate an older `video_selected_v2` payload with or without `aeFriendlyConversionEnabled` and assert the backend still completes successfully.
 
@@ -918,7 +918,7 @@ struct VideoTranscodeCompletePayload {
 - Scheduling contract:
   - At most one transcode may be active at a time.
   - Backend must not start a new transcode while download work is still blocking queue priority.
-  - Any non-AE-safe completed download source may enqueue a transcode task, regardless of legacy `aeFriendlyConversionEnabled`.
+  - Any non-editing-compatible completed download source may enqueue a transcode task, regardless of legacy `aeFriendlyConversionEnabled`.
 - Retry/remove contract:
   - `cancel_transcode(traceId)` only targets pending or active transcode rows for the matching `traceId`.
   - `cancel_transcode` must stop the current transcode flow and settle the row through the existing cancelled/removed path.
@@ -933,16 +933,16 @@ struct VideoTranscodeCompletePayload {
   - When media duration is known, backend should derive `progressPercent` from ffmpeg-reported processed time versus total duration.
   - When ffmpeg exposes `speed=`, backend should derive `etaSeconds`; if `speed=` is absent, backend may fall back to wall-clock throughput using processed media seconds divided by elapsed wall time.
   - `etaSeconds` is optional and must reset to `null` when a task is retried, fails, or transitions into a non-progress-reporting stage.
-  - `video-transcode-complete.filePath` is the final replaced AE-friendly output path.
+  - `video-transcode-complete.filePath` is the final replaced editing-compatible output path.
   - `video-transcode-failed.error` must be actionable text suitable for inline queue recovery UI.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| Source download succeeds and file is already AE-safe | Download success follow-up | `video-download-complete` fires, no transcode task is enqueued, AE handoff uses source path | Keep transcode queue unchanged |
-| Source download succeeds and file is not AE-safe | Download success follow-up | `video-download-complete` fires first, then `video-transcode-queued` / transcode queue state appears | Enqueue transcode task with same `traceId` |
-| Probe for AE safety fails | Download success follow-up | Backend still queues fallback transcode instead of skipping silently | Emit transcode probe warning and queue task |
+| Source download succeeds and file is already editing-compatible | Download success follow-up | `video-download-complete` fires, no transcode task is enqueued, editing handoff uses source path | Keep transcode queue unchanged |
+| Source download succeeds and file is not editing-compatible | Download success follow-up | `video-download-complete` fires first, then `video-transcode-queued` / transcode queue state appears | Enqueue transcode task with same `traceId` |
+| Probe for editing compatibility fails | Download success follow-up | Backend still queues fallback transcode instead of skipping silently | Emit transcode probe warning and queue task |
 | ffprobe JSON probe succeeds | Media probe path | Summary includes duration when ffprobe returns `format.duration` | Request `duration` in `-show_entries` and parse it into `duration_seconds` |
 | ffprobe unavailable or unsupported | Media probe fallback path | Backend may still derive duration from ffmpeg `Duration:` header | Parse fallback stderr header and keep `duration_seconds` optional |
 | Download work is still active or pending | Transcode scheduler gate | No new transcode starts | Leave task pending until download pressure clears |
@@ -960,7 +960,7 @@ struct VideoTranscodeCompletePayload {
 ### 5. Good / Base / Bad Cases
 
 - Good:
-  - A `best` yt-dlp download finishes to `movie.mkv`, emits `video-download-complete` with `movie.mkv`, then enters the transcode queue and later emits `video-transcode-complete` with the AE-friendly MP4 replacement path.
+  - A `best` yt-dlp download finishes to `movie.mkv`, emits `video-download-complete` with `movie.mkv`, then enters the transcode queue and later emits `video-transcode-complete` with the editing-compatible MP4 replacement path.
   - A full ffmpeg transcode with known source duration emits incremental `video-transcode-progress` payloads such as `progressPercent=67.0` and `etaSeconds=83`, and the queue row reflects both.
   - A GPU transcode is actively running, the user clicks cancel, and the task emits the existing cancelled/removed queue transition without any CPU fallback attempt.
   - A direct-download MP4/H.264/AAC source emits `video-download-complete` and never creates a transcode row.
@@ -980,8 +980,8 @@ struct VideoTranscodeCompletePayload {
 - Compile/type:
   - `cargo check` passes after adding `etaSeconds` to the transcode payload structs/events and wiring streaming ffmpeg progress.
 - Download success handoff:
-  - Complete an AE-safe source and assert `video-download-complete` fires with no `video-transcode-queued`.
-  - Complete a non-AE-safe source and assert `video-download-complete` arrives before transcode queue/progress events for the same `traceId`.
+  - Complete an editing-compatible source and assert `video-download-complete` fires with no `video-transcode-queued`.
+  - Complete a non-editing-compatible source and assert `video-download-complete` arrives before transcode queue/progress events for the same `traceId`.
 - Failed queue retention:
   - Force more failed transcodes than the retention cap and assert `failedCount` stops at the cap.
   - Assert `video-transcode-queue-detail.tasks` keeps only the newest failed rows in `failed` section order.
