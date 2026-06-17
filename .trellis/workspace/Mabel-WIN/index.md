@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 219
+- **Total Sessions**: 220
 - **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~778 | Active |
+| `journal-5.md` | ~811 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 220 | 2026-06-17 | Fix compact download expand animation | `1618764` | `main` |
 | 219 | 2026-06-17 | Douyin docs and locale cleanup | `70664db` | `main` |
 | 218 | 2026-06-16 | Douyin yt-dlp takeover | `e3e0370`, `2c2b197`, `0f553eb`, `ccb2601` | `main` |
 | 217 | 2026-06-15 | Refine toolbar sync indicator | `4ecebd2` | `main` |

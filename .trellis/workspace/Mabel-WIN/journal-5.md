@@ -776,3 +776,36 @@ Updated docs-site guidance for Douyin yt-dlp routing, supported link shapes, log
 ### Next Steps
 
 - None - task complete
+
+
+## Session 220: Fix compact download expand animation
+
+**Date**: 2026-06-17
+**Task**: Fix compact download expand animation
+**Branch**: `main`
+
+### Summary
+
+Fixed the compact icon to full panel transition being skipped when downloads or foreground tasks start from compact mode. Added a shell-machine regression test, updated compact-window state guidance, and documented the expected download expansion behavior on the docs site.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1618764` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
