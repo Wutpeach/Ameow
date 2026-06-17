@@ -875,3 +875,36 @@ Updated app and browser-extension versions to 0.3.1, added Chinese release notes
 ### Next Steps
 
 - None - task complete
+
+
+## Session 223: Background app update checks
+
+**Date**: 2026-06-17
+**Task**: Background app update checks
+**Branch**: `main`
+
+### Summary
+
+Implemented a main-process background app update scheduler for packaged Windows builds, added updater IPC hydration for renderer windows, preserved pending updates across quiet background checks, updated docs, and added regression coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2b6172c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
