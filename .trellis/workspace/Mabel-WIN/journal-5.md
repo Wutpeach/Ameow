@@ -908,3 +908,36 @@ Implemented a main-process background app update scheduler for packaged Windows 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 224: Release notes v0.3.1 update
+
+**Date**: 2026-06-17
+**Task**: Release notes v0.3.1 update
+**Branch**: `main`
+
+### Summary
+
+Committed the finalized v0.3.1 release note markdown that had already been synced to the published GitHub Release.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `28feaf4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
