@@ -34,6 +34,12 @@ Cookies prove that the current browser session is allowed to access the content.
 
 The docs will not ask you to copy raw cookie strings manually, and you should not send cookies to untrusted tools or other people. Prefer letting the extension pass the needed context locally between the browser and desktop app.
 
+## Do Douyin videos need login state?
+
+Public Douyin videos can usually be downloaded by pasting the video link or short link directly, including `v.douyin.com` short links and `jingxuan?modal_id=...` page links. Ameow handles Douyin videos through the general `yt-dlp` download capability, so there is no separate Douyin downloader runtime to prepare.
+
+If the video plays in the browser but fails when pasted into the desktop app, or if the content needs account access, send the task from the logged-in browser page through the extension.
+
 ## Common failures
 
 ### I am logged in, but it still fails

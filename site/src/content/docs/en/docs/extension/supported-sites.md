@@ -42,6 +42,17 @@ Check in this order:
 
 If all of these are true and the task still fails, the next suspects are site changes or lack of support for that exact page shape.
 
+## Douyin pages and link shapes
+
+Douyin video downloads now use the shared `yt-dlp` path. Common video inputs include:
+
+- `https://v.douyin.com/...`
+- `https://www.douyin.com/video/{id}`
+- `https://www.iesdouyin.com/share/video/{id}/`
+- `https://www.douyin.com/jingxuan?modal_id={id}`
+
+Douyin note and gallery pages are not a current public download target. Even though Douyin is listed as a focus site, non-video pages may still be unsupported.
+
 ## Use the extension and popup on the actual content page first
 
 Both in-page download entries and the popup's "current page media" list work best on the actual content page:

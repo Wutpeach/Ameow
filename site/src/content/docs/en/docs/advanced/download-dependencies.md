@@ -47,6 +47,8 @@ This folder may contain components such as `yt-dlp`, `gallery-dl`, `ffmpeg`, and
 
 If you delete the `runtimes` folder, Ameow will prepare the needed components again later. Already downloaded media files are not affected by this folder; they stay in the save location you configured.
 
+Douyin video downloads use the shared `yt-dlp` capability, so there is no separate Douyin downloader runtime preparation step anymore.
+
 ## What should I do if it stays in Preparing too long?
 
 Work through this order:

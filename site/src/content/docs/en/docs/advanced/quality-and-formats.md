@@ -62,3 +62,13 @@ If Highest quality fails, do not assume the link is unusable. Try this order:
 5. update to the latest stable release.
 
 If Balanced works, the link and site are probably fine and the trouble is more likely in format selection or conversion.
+
+## When does Ameow skip transcoding?
+
+When the downloaded result is already a good editing-software combination, Ameow tries to keep the original file instead of transcoding it again unnecessarily. Common compatible combinations include:
+
+- `MP4` or `MOV`
+- `H.264` or `H.265`
+- `AAC`
+
+That means a source file that already matches these combinations is more likely to need only necessary packaging, not a full re-encode.

@@ -18,11 +18,13 @@ Typical cases:
 
 ## What changes when this matters?
 
-Ameow may prefer or convert to formats that editing tools handle more smoothly. That can mean:
+Ameow may prefer formats that editing tools handle more smoothly. When the downloaded result is already a compatible combination, Ameow tries to keep it directly instead of transcoding again just for "compatibility." That can mean:
 
-- extra conversion time after the download;
+- some light packaging time after the download, but not always a full re-encode;
 - a larger final file than a data-saver result;
-- some very high-quality source formats being converted into a more compatible result.
+- only incompatible codec, container, or audio-track combinations are more likely to be converted into a compatible result.
+
+The safest editing-software target is an `MP4` or `MOV` container with `H.264` or `H.265` video and `AAC` audio. If the downloaded file already matches that kind of combination, Ameow prefers to keep the original file.
 
 Success state: after the task finishes, the file imports into AE or a similar editor more reliably.
 

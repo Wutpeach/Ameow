@@ -249,12 +249,12 @@
     "douyinSession": {
       "title": "抖音登录会话",
       "hint": "使用 Playwright 打开官方登录流程，保存并手动刷新抖音下载所需的 Cookies。",
-      "cardTitle": "Douyin Downloader 登录状态",
+      "cardTitle": "抖音登录状态",
       "siteLabel": "抖音",
-      "runtimeReady": "抖音下载运行时已就绪。",
-      "runtimeInlineReady": "抖音下载器已就绪。",
-      "runtimeMissing": "抖音下载器还未准备好，登录前可能需要先安装运行时。",
-      "runtimePreparing": "正在准备抖音下载器运行时...",
+      "runtimeReady": "抖音下载能力已就绪。",
+      "runtimeInlineReady": "抖音下载能力已就绪。",
+      "runtimeMissing": "抖音下载能力还未准备好，登录前可能需要先等待初始化。",
+      "runtimePreparing": "正在准备抖音下载能力...",
       "capturePreparing": "正在打开官方登录窗口，请在浏览器中完成登录。",
       "captureAwaiting": "登录窗口已打开。完成登录后，请回到这里确认保存会话。",
       "state": {
@@ -287,7 +287,7 @@
       "startFailed": "抖音登录流程启动失败",
       "confirmFailed": "抖音登录会话保存失败",
       "cancelFailed": "抖音登录流程取消失败",
-      "runtimeRetryFailed": "抖音下载器运行时准备失败",
+      "runtimeRetryFailed": "抖音下载能力准备失败",
       "refreshFailed": "抖音登录会话刷新失败",
       "clearFailed": "抖音登录会话清除失败"
     },

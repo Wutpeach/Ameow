@@ -249,12 +249,12 @@
     "douyinSession": {
       "title": "Douyin session",
       "hint": "Use Playwright to open the official login flow, save Douyin cookies, and refresh them manually when needed.",
-      "cardTitle": "Douyin Downloader session",
+      "cardTitle": "Douyin session",
       "siteLabel": "Douyin",
-      "runtimeReady": "Douyin Downloader runtime is ready.",
-      "runtimeInlineReady": "Douyin Downloader is ready.",
-      "runtimeMissing": "Douyin Downloader is not ready yet. Runtime setup may be needed before login.",
-      "runtimePreparing": "Preparing the Douyin Downloader runtime...",
+      "runtimeReady": "Douyin download capability is ready.",
+      "runtimeInlineReady": "Douyin download capability is ready.",
+      "runtimeMissing": "Douyin download capability is not ready yet. Initialization may be needed before login.",
+      "runtimePreparing": "Preparing Douyin download capability...",
       "capturePreparing": "Opening the official login window. Finish login in the browser.",
       "captureAwaiting": "The login window is open. After logging in, return here to save the session.",
       "state": {
@@ -287,7 +287,7 @@
       "startFailed": "Failed to start the Douyin login flow",
       "confirmFailed": "Failed to save the Douyin session",
       "cancelFailed": "Failed to cancel the Douyin login flow",
-      "runtimeRetryFailed": "Failed to prepare the Douyin Downloader runtime",
+      "runtimeRetryFailed": "Failed to prepare Douyin download capability",
       "refreshFailed": "Failed to refresh the Douyin session",
       "clearFailed": "Failed to clear the Douyin session"
     },
