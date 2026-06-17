@@ -743,3 +743,36 @@ Routed Douyin modal/share/video sources through yt-dlp, relaxed compatible HEVC 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 219: Douyin docs and locale cleanup
+
+**Date**: 2026-06-17
+**Task**: Douyin docs and locale cleanup
+**Branch**: `main`
+
+### Summary
+
+Updated docs-site guidance for Douyin yt-dlp routing, supported link shapes, login-state expectations, compatible-format transcode behavior, and cleaned stale Douyin Downloader user-facing copy.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `70664db` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
