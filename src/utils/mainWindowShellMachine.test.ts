@@ -104,6 +104,22 @@ describe("mainWindowShellMachine", () => {
     ]);
   });
 
+  it("does not re-emit requestExpand when forceFull fires during expansion", () => {
+    const expanding = apply(
+      createMainWindowShellState({ startsCompact: true }),
+      { type: "forceFull" },
+    ).state;
+
+    const result = apply(expanding, { type: "forceFull" });
+
+    expect(result.state.phase).toBe("full");
+    expect(result.effects).toEqual([
+      { type: "cancelCollapseTimer" },
+      { type: "setInteractionMode", mode: "interactive" },
+    ]);
+    expect(result.effects).not.toContainEqual({ type: "requestExpand" });
+  });
+
   it("collapses after programmatic forceFull work finishes while pointer is outside", () => {
     const expandedForTask = apply(
       createMainWindowShellState({ startsCompact: true }),

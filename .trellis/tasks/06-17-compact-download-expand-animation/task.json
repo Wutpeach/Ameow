@@ -1,0 +1,31 @@
+{
+  "id": "compact-download-expand-animation",
+  "name": "compact-download-expand-animation",
+  "title": "Fix compact download expand animation",
+  "description": "Fix the compact icon to full panel animation being skipped when a download or foreground task starts from compact mode.",
+  "status": "completed",
+  "dev_type": "bugfix",
+  "scope": "frontend",
+  "package": "desktop-renderer",
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-06-17",
+  "completedAt": "2026-06-17",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/App.tsx",
+    "src/utils/mainWindowShellMachine.ts",
+    "src/utils/mainWindowMotionBaseline.ts",
+    ".trellis/spec/frontend/state-management.md"
+  ],
+  "notes": "Diagnosis reviewed with Claude: prepareMainWindowForForegroundTask starts animated forceFull, then stale isMinimizedRef can call ensureMainWindowFullMode, whose instant panel transition clobbers the first full render.",
+  "meta": {}
+}

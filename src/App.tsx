@@ -1232,6 +1232,11 @@ function App({
       return;
     }
 
+    if (shellPhaseRef.current === "expanding") {
+      shouldReturnToCompactAfterForegroundTaskRef.current = true;
+      return;
+    }
+
     shouldReturnToCompactAfterForegroundTaskRef.current = true;
     await ensureMainWindowFullMode({
       focusContainer: false,

@@ -36,6 +36,8 @@ The success signal depends on the content type: files appear in the output folde
 3. Press `Ctrl+V`, or `Cmd+V` on macOS.
 4. Check whether a task state appears.
 
+If the window is currently in compact icon mode, a download task first expands it into the full panel before progress or result status appears.
+
 ### Open the output folder
 
 Double-click an empty area of the window, or right-click the window and open the current output folder. This is the fastest way to find finished files.
