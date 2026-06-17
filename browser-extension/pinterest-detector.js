@@ -15,6 +15,7 @@
   const DRAG_SYNC_BOUND_ATTR = "data-ameow-pinterest-drag-bound";
   const LEGACY_CARD_BUTTON_CLASS = "ameow-pinterest-card-btn";
   const DRAG_PAYLOAD_MARKER = "AMEOW_PINTEREST_DRAG";
+  const RESOLVE_VIDEO_SELECTION_MESSAGE = "ameow_resolve_video_selection";
   const PIN_PATH_RE = /\/pin\/(\d+)\/?/i;
   const EXACT_DURATION_RE = /^(?:\d{1,2}:)?\d{1,2}:\d{2}$/;
   const VIDEO_HINT_RE =
@@ -475,6 +476,17 @@
   function buildPastedVideoSelectionPayload() {
     const pageUrl = normalizePinUrl(window.location.href);
     if (!pageUrl || !isPinterestPinPage()) {
+      return null;
+    }
+
+    return buildCurrentPinVideoSelectionPayload(document.body, pageUrl, {
+      selectionScope: "current_item",
+    });
+  }
+
+  function buildCurrentVideoSelectionPayload() {
+    const pageUrl = normalizePinUrl(window.location.href);
+    if (!pageUrl || !isPinterestPinPage() || !rootLooksAnimated(document)) {
       return null;
     }
 
@@ -968,8 +980,79 @@
   }
 
   function ensureDetailButton() {
-    document.getElementById(DETAIL_BUTTON_ID)?.remove();
-    document.querySelector(`[${DETAIL_SLOT_ATTR}="true"]`)?.remove();
+    const existing = document.getElementById(DETAIL_BUTTON_ID);
+    const existingSlot = document.querySelector(`[${DETAIL_SLOT_ATTR}="true"]`);
+    if (!isPinterestPinPage() || !rootLooksAnimated(document)) {
+      existing?.remove();
+      existingSlot?.remove();
+      return;
+    }
+
+    const mountPoint = findActionMountPoint();
+    if (!mountPoint || !mountPoint.container) {
+      return;
+    }
+
+    const handleDownload = () => {
+      const pageUrl = normalizePinUrl(window.location.href);
+      if (!pageUrl) {
+        return;
+      }
+
+      const videoCandidates = extractVideoCandidates(document, {
+        includeScripts: true,
+        includePerformance: true,
+      });
+      sendDownloadMessage({
+        pageUrl,
+        videoUrl: selectPreferredVideoUrl(videoCandidates),
+        videoCandidates,
+        title: extractTitle(document.body),
+      });
+    };
+
+    if (mountPoint.mode === "detail-social-group") {
+      let slot = existingSlot instanceof HTMLElement ? existingSlot : null;
+      let button = existing instanceof HTMLElement ? existing : null;
+
+      if (!(slot instanceof HTMLElement) || !(button instanceof HTMLElement) || !slot.contains(button)) {
+        slot?.remove();
+        button?.remove();
+        slot = createDetailGroupSlot(mountPoint.template, handleDownload);
+        button = slot?.querySelector(`#${DETAIL_BUTTON_ID}`) || null;
+      }
+
+      if (!(slot instanceof HTMLElement) || !(button instanceof HTMLElement)) {
+        return;
+      }
+
+      if (slot.parentElement !== mountPoint.container || slot.previousSibling !== mountPoint.reference) {
+        mountPoint.reference.insertAdjacentElement("afterend", slot);
+      }
+      return;
+    }
+
+    existingSlot?.remove();
+    const button =
+      existing ||
+      createIconButton(DETAIL_BUTTON_CLASS, "Download with Ameow", () => {
+        handleDownload();
+      });
+
+    if (!button.id) {
+      button.id = DETAIL_BUTTON_ID;
+    }
+
+    if (mountPoint.reference && mountPoint.reference.parentElement === mountPoint.container) {
+      if (button.parentElement !== mountPoint.container || button.previousSibling !== mountPoint.reference) {
+        mountPoint.reference.insertAdjacentElement("afterend", button);
+      }
+      return;
+    }
+
+    if (button.parentElement !== mountPoint.container) {
+      mountPoint.container.appendChild(button);
+    }
   }
 
   function detectAll() {
@@ -1001,6 +1084,16 @@
 
   function init() {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === RESOLVE_VIDEO_SELECTION_MESSAGE) {
+        const payload = buildCurrentVideoSelectionPayload();
+        sendResponse(
+          payload
+            ? { success: true, payload }
+            : { success: false, reason: "no_video_found" },
+        );
+        return true;
+      }
+
       if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
         return false;
       }
