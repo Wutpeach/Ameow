@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 221
+- **Total Sessions**: 222
 - **Last Active**: 2026-06-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~844 | Active |
+| `journal-5.md` | ~877 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 222 | 2026-06-17 | Prepare 0.3.1 release | `07ff769` | `main` |
 | 221 | 2026-06-17 | Fix single-download queue badge | `013396d` | `main` |
 | 220 | 2026-06-17 | Fix compact download expand animation | `1618764` | `main` |
 | 219 | 2026-06-17 | Douyin docs and locale cleanup | `70664db` | `main` |

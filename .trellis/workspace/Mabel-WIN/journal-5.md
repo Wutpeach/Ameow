@@ -842,3 +842,36 @@ Hid the full-window queue badge for single download-related tasks, preserved the
 ### Next Steps
 
 - None - task complete
+
+
+## Session 222: Prepare 0.3.1 release
+
+**Date**: 2026-06-17
+**Task**: Prepare 0.3.1 release
+**Branch**: `main`
+
+### Summary
+
+Updated app and browser-extension versions to 0.3.1, added Chinese release notes, and added 0.3.1 entries to the Chinese and English docs-site release pages.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `07ff769` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
