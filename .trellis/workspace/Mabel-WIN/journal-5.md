@@ -809,3 +809,36 @@ Fixed the compact icon to full panel transition being skipped when downloads or 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 221: Fix single-download queue badge
+
+**Date**: 2026-06-17
+**Task**: Fix single-download queue badge
+**Branch**: `main`
+
+### Summary
+
+Hid the full-window queue badge for single download-related tasks, preserved the open popover close affordance, added helper coverage, and documented the queue badge visibility contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `013396d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
