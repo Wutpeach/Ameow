@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ameow Video Picker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pick video elements from web pages for Ameow",
   "options_page": "options.html",
   "permissions": [

@@ -7,6 +7,28 @@ This page tracks user-visible Ameow / FlowSelect changes across stable releases 
 
 ## Stable Releases
 
+### v0.3.1
+
+#### Highlights
+
+- Continued polishing the compact and main-window motion so expansion, hover state, edge glow, and single-download feedback feel steadier; the queue badge now appears only when multiple tasks need attention.
+- Consolidated Douyin downloads around `yt-dlp`, improving share-link routing, modal source handling, detail-page auth recovery, and related documentation.
+- Added scheduled site-session refresh so login-backed downloads are less likely to fail because stored sessions have gone stale.
+
+#### Fixes
+
+- Fixed several browser-extension visual issues around the floating launcher, sync indicator, and tooltip overlap, reducing flashes and crowded page controls.
+- Skipped unnecessary transcoding for already-compatible HEVC outputs.
+- Avoided misleading feedback after dismissing advanced-quality selection and hid the full-window queue badge for a single active download task.
+- Resolved dependency security alerts and expanded downloader error documentation for easier troubleshooting.
+
+#### Notes
+
+- `0.3.1` is a stability and experience patch on top of `0.3.0`; no manual configuration migration is required.
+- The browser-extension version is synced to `0.3.1` with the app version. Stable builds do not need an additional `version_name`.
+
+Full Changelog: https://github.com/Wutpeach/Ameow/compare/v0.3.0...v0.3.1
+
 ### v0.3.0
 
 #### Highlights
