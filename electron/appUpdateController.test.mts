@@ -188,4 +188,85 @@ describe("createAppUpdateController", () => {
       "valid Windows portable update asset",
     );
   });
+
+  it("preserves a pending update across background no-update checks", async () => {
+    let nextVersion = "0.3.1";
+    const { controller, options } = createController({
+      fetch: vi.fn(async (url: string) => {
+        if (url === "https://example.invalid/Ameow_setup.exe") {
+          return new Response("installer", { status: 200 });
+        }
+        return responseJson({
+        version: nextVersion,
+        notes: "Update notes",
+        pub_date: "2026-05-16T00:00:00Z",
+        platforms: {
+          "windows-x86_64": {
+            url: "https://example.invalid/Ameow_setup.exe",
+          },
+        },
+        });
+      }),
+    });
+
+    await expect(controller.checkForAppUpdate()).resolves.toMatchObject({
+      latest: "0.3.1",
+      installMode: "installer",
+    });
+
+    nextVersion = "0.3.0";
+    await expect(controller.checkForAppUpdate({
+      preservePendingOnNoUpdate: true,
+      preservePendingOnError: true,
+    })).resolves.toBeNull();
+
+    void controller.downloadAndInstallAppUpdate();
+
+    await vi.waitFor(() => {
+      expect(options.openPath).toHaveBeenCalledWith(expect.stringContaining("Ameow_setup.exe"));
+    });
+    expect(options.prepareToQuit).toHaveBeenCalled();
+  });
+
+  it("preserves a pending update across background check failures", async () => {
+    let failLookup = false;
+    const { controller, options } = createController({
+      fetch: vi.fn(async (url: string) => {
+        if (url === "https://example.invalid/Ameow_setup.exe") {
+          return new Response("installer", { status: 200 });
+        }
+        if (failLookup) {
+          return responseJson({ error: "rate_limited" }, { status: 500 });
+        }
+        return responseJson({
+          version: "0.3.1",
+          notes: "Update notes",
+          pub_date: "2026-05-16T00:00:00Z",
+          platforms: {
+            "windows-x86_64": {
+              url: "https://example.invalid/Ameow_setup.exe",
+            },
+          },
+        });
+      }),
+    });
+
+    await expect(controller.checkForAppUpdate()).resolves.toMatchObject({
+      latest: "0.3.1",
+      installMode: "installer",
+    });
+
+    failLookup = true;
+    await expect(controller.checkForAppUpdate({
+      preservePendingOnNoUpdate: true,
+      preservePendingOnError: true,
+    })).resolves.toBeNull();
+
+    void controller.downloadAndInstallAppUpdate();
+
+    await vi.waitFor(() => {
+      expect(options.openPath).toHaveBeenCalledWith(expect.stringContaining("Ameow_setup.exe"));
+    });
+    expect(options.prepareToQuit).toHaveBeenCalled();
+  });
 });

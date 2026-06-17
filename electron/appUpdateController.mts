@@ -61,6 +61,12 @@ type AppUpdateControllerOptions = {
   prepareToQuit(): void;
 };
 
+type CheckForAppUpdateOptions = {
+  preservePendingOnNoUpdate?: boolean;
+  preservePendingOnError?: boolean;
+  throwOnError?: boolean;
+};
+
 export const createAppUpdateController = (options: AppUpdateControllerOptions) => {
   type PendingAppUpdate =
     | {
@@ -75,7 +81,7 @@ export const createAppUpdateController = (options: AppUpdateControllerOptions) =
         strategy: "manual";
         reason: string;
         manualUrl: string | null;
-      };
+  };
 
   let pendingAppUpdate: PendingAppUpdate | null = null;
 
@@ -107,9 +113,13 @@ export const createAppUpdateController = (options: AppUpdateControllerOptions) =
   };
 
   return {
-    async checkForAppUpdate(): Promise<ElectronAppUpdateInfo | null> {
+    async checkForAppUpdate(
+      checkOptions: CheckForAppUpdateOptions = {},
+    ): Promise<ElectronAppUpdateInfo | null> {
       if (options.platform !== "win32" || !options.isPackaged) {
-        pendingAppUpdate = null;
+        if (!checkOptions.preservePendingOnNoUpdate) {
+          pendingAppUpdate = null;
+        }
         return null;
       }
 
@@ -127,7 +137,9 @@ export const createAppUpdateController = (options: AppUpdateControllerOptions) =
           || !currentVersion
           || options.compareAppVersions(nextVersion, currentVersion) <= 0
         ) {
-          pendingAppUpdate = null;
+          if (!checkOptions.preservePendingOnNoUpdate) {
+            pendingAppUpdate = null;
+          }
           return null;
         }
         const installMode = options.getInstallMode();
@@ -164,7 +176,12 @@ export const createAppUpdateController = (options: AppUpdateControllerOptions) =
         };
       } catch (error) {
         console.error(">>> [Electron] App update check failed:", error);
-        pendingAppUpdate = null;
+        if (!checkOptions.preservePendingOnError) {
+          pendingAppUpdate = null;
+        }
+        if (checkOptions.throwOnError) {
+          throw error;
+        }
         return null;
       }
     },

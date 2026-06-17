@@ -59,7 +59,7 @@ import {
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
-import type { AppUpdateInfo, AppUpdatePhase } from "../types/appUpdate";
+import type { AppUpdateInfo, AppUpdatePhase, AppUpdateStatePayload } from "../types/appUpdate";
 import { SITE_SESSION_LOGOS } from "../site-session-icons";
 import type {
   SiteSessionRegistryEntry,
@@ -318,6 +318,15 @@ function SettingsPage() {
   const [hoveredSavingAction, setHoveredSavingAction] = useState<"outputFolder" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
+
+  const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
+    setAppUpdateInfo(nextState.info);
+    setAppUpdatePhase(nextState.phase);
+    setAppUpdateError(nextState.error);
+    if (nextState.checkedAtMs !== null) {
+      setHasCheckedForAppUpdate(true);
+    }
+  }, []);
   const currentLanguage = normalizeAppLanguage(i18n.resolvedLanguage) ?? FALLBACK_LANGUAGE;
   const languageOptions: Array<NeonDropdownOption<AppLanguage>> = SUPPORTED_APP_LANGUAGES.map((value) => ({
     value,
@@ -401,6 +410,28 @@ function SettingsPage() {
     };
     loadShortcut();
   }, []);
+
+  useEffect(() => {
+    void desktopUpdater.getState()
+      .then(applyAppUpdateState)
+      .catch((err) => {
+        console.error("Failed to load app update state:", err);
+      });
+
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<AppUpdateStatePayload>(
+      "app-update-state",
+      (event) => {
+        applyAppUpdateState(event.payload);
+      },
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, [applyAppUpdateState]);
 
   useEffect(() => {
     if (!isDevBuild) {
@@ -648,6 +679,8 @@ function SettingsPage() {
     try {
       setReceivePrereleaseUpdates(nextValue);
       await saveConfigPatch({ [APP_UPDATE_PRERELEASE_CONFIG_KEY]: nextValue });
+      const nextUpdateState = await desktopUpdater.notifyPreferenceChanged();
+      applyAppUpdateState(nextUpdateState);
       await desktopEvents.emit("app-update-preference-changed", {
         receivePrereleaseUpdates: nextValue,
       });

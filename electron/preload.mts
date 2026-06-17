@@ -165,6 +165,12 @@ contextBridge.exposeInMainWorld("ameow", {
     check() {
       return invoke("ameow:updater:check");
     },
+    getState() {
+      return invoke("ameow:updater:get-state");
+    },
+    notifyPreferenceChanged() {
+      return invoke("ameow:updater:preference-changed");
+    },
     downloadAndInstall() {
       return invoke("ameow:updater:download-and-install");
     },

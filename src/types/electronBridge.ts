@@ -1,4 +1,4 @@
-import type { AppUpdateInfo } from "./appUpdate.js";
+import type { AppUpdateInfo, AppUpdateStatePayload } from "./appUpdate.js";
 
 export type AmeowWindowLabel =
   | "main"
@@ -54,6 +54,7 @@ export type AmeowRendererCommand =
 
 export type AmeowAppEvent =
   | "app-update-preference-changed"
+  | "app-update-state"
   | "context-menu-closed"
   | "devmode-changed"
   | "language-changed"
@@ -247,6 +248,8 @@ export interface AmeowElectronBridge {
   };
   updater: {
     check(): Promise<AppUpdateInfo | null>;
+    getState(): Promise<AppUpdateStatePayload>;
+    notifyPreferenceChanged(): Promise<AppUpdateStatePayload>;
     downloadAndInstall(): Promise<void>;
   };
 }

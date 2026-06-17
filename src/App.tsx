@@ -20,7 +20,7 @@ import {
   getPanelShellStyle,
   getStatusDotStyle,
 } from "./components/ui/shared-styles";
-import type { AppUpdateInfo, AppUpdatePhase } from "./types/appUpdate";
+import type { AppUpdateInfo, AppUpdatePhase, AppUpdateStatePayload } from "./types/appUpdate";
 import type {
   AmeowCurrentWindowInteractionMode,
   AmeowStartupWindowMode,
@@ -1667,36 +1667,12 @@ function App({
     }
   }, []);
 
-  const refreshAppUpdate = useCallback(async () => {
+  const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
     startTransition(() => {
-      setAppUpdatePhase("checking");
-      setAppUpdateError(null);
+      setAppUpdateInfo(nextState.info);
+      setAppUpdatePhase(nextState.phase);
+      setAppUpdateError(nextState.error);
     });
-
-    try {
-      const updateInfo = await desktopUpdater.check();
-      if (!updateInfo) {
-        startTransition(() => {
-          setAppUpdateInfo(null);
-          setAppUpdatePhase("idle");
-        });
-        return null;
-      }
-
-      startTransition(() => {
-        setAppUpdateInfo(updateInfo);
-        setAppUpdatePhase("available");
-      });
-      return updateInfo;
-    } catch (err) {
-      console.error(">>> App update check failed:", err);
-      startTransition(() => {
-        setAppUpdateInfo(null);
-        setAppUpdateError(summarizeAppUpdateError(err));
-        setAppUpdatePhase("idle");
-      });
-      return null;
-    }
   }, []);
 
   const handleAppUpdateInstall = useCallback(async () => {
@@ -2273,14 +2249,19 @@ function App({
   }, []);
 
   useEffect(() => {
-    const unlisten = desktopEvents.on<{ receivePrereleaseUpdates: boolean }>(
-      "app-update-preference-changed",
-      () => {
-        void refreshAppUpdate();
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<AppUpdateStatePayload>(
+      "app-update-state",
+      (event) => {
+        applyAppUpdateState(event.payload);
       },
-    );
-    return () => { unlisten.then(fn => fn()); };
-  }, [refreshAppUpdate]);
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [applyAppUpdateState]);
 
   // Listen for shortcut show event
   useEffect(() => {
@@ -2294,13 +2275,17 @@ function App({
     return () => { unlisten.then(fn => fn()); };
   }, [ensureMainWindowFullMode, syncCurrentWindowPositionCache]);
 
-  // Check app update availability on startup
+  // Hydrate scheduler-owned app update state after startup.
   useEffect(() => {
     if (!isDeferredStartupInitializationReady) {
       return;
     }
-    void refreshAppUpdate();
-  }, [isDeferredStartupInitializationReady, refreshAppUpdate]);
+    void desktopUpdater.getState()
+      .then(applyAppUpdateState)
+      .catch((err) => {
+        console.error("Failed to load app update state:", err);
+      });
+  }, [applyAppUpdateState, isDeferredStartupInitializationReady]);
 
   useEffect(() => {
     const unlisten = desktopEvents.on<RuntimeDependencyGateStatePayload>(
@@ -3951,6 +3936,7 @@ function App({
     : containerShellBoxShadow;
   const shouldShowAppUpdateIndicator = !!appUpdateInfo && (
     appUpdatePhase === "available"
+    || appUpdatePhase === "checking"
     || appUpdatePhase === "downloading"
     || appUpdatePhase === "installing"
     || appUpdatePhase === "error"

@@ -14,3 +14,17 @@ export type AppUpdateInfo = {
   installMode?: "installer" | "portable" | "manual";
   manualUrl?: string | null;
 };
+
+export type AppUpdateCheckSource =
+  | "startup"
+  | "interval"
+  | "manual"
+  | "preference_changed";
+
+export type AppUpdateStatePayload = {
+  info: AppUpdateInfo | null;
+  phase: "idle" | "checking" | "available" | "error";
+  checkedAtMs: number | null;
+  error: string | null;
+  source: AppUpdateCheckSource | null;
+};

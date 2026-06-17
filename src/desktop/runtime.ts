@@ -1,4 +1,4 @@
-import type { AppUpdateInfo } from "../types/appUpdate";
+import type { AppUpdateInfo, AppUpdateStatePayload } from "../types/appUpdate";
 import type {
   AmeowAppEvent,
   AmeowClipboardImage,
@@ -127,6 +127,12 @@ export const desktopClipboard = {
 export const desktopUpdater = {
   async check(): Promise<AppUpdateInfo | null> {
     return resolveElectronBridge().updater.check();
+  },
+  async getState(): Promise<AppUpdateStatePayload> {
+    return resolveElectronBridge().updater.getState();
+  },
+  async notifyPreferenceChanged(): Promise<AppUpdateStatePayload> {
+    return resolveElectronBridge().updater.notifyPreferenceChanged();
   },
   async downloadAndInstall(): Promise<void> {
     await resolveElectronBridge().updater.downloadAndInstall();

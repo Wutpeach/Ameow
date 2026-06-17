@@ -35,6 +35,14 @@ If it conflicts with another tool, choose a less common key combination.
 
 If you want Ameow ready as a desktop collection point all the time, enable launch at startup. If you only download or organize media occasionally, keeping it off is fine.
 
+## App updates
+
+Ameow checks for app updates shortly after startup and continues checking periodically in the background while it is running. When a new version is available, the floating window and settings page show an update entry point.
+
+Background checks only notify you. They do not automatically download, install, quit, or restart the app. You can still check manually from the settings page.
+
+If you enable prerelease updates, both automatic and manual checks prefer beta / RC releases. Turn it off to return to the stable update channel.
+
 ## Rename rules
 
 Rename rules help keep saved files organized. They are useful when you sort by project, date, source site, or media type.

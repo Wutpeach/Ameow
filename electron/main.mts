@@ -49,6 +49,7 @@ import {
 } from "../src/core/index.js";
 import { compareAppVersions } from "../src/updates/versioning.js";
 import { createAppUpdateController } from "./appUpdateController.mjs";
+import { createAppUpdateScheduler } from "./appUpdateScheduler.mjs";
 import {
   resolvePortableRootPathFromExecutable,
   resolveWindowsAppInstallMode,
@@ -333,6 +334,20 @@ const appUpdateController = createAppUpdateController({
   prepareToQuit() {
     app.isQuitting = true;
     app.quit();
+  },
+});
+const appUpdateScheduler = createAppUpdateScheduler({
+  shouldRun() {
+    return process.platform === "win32" && app.isPackaged;
+  },
+  checkForAppUpdate(checkOptions) {
+    return appUpdateController.checkForAppUpdate(checkOptions);
+  },
+  emitState(state) {
+    emitAppEvent("app-update-state", state);
+  },
+  log(message, details) {
+    console.log(">>> [AppUpdateScheduler]", message, details ?? "");
   },
 });
 
@@ -2622,7 +2637,16 @@ async function readClipboardImage() {
 }
 
 async function checkForAppUpdate() {
-  return appUpdateController.checkForAppUpdate();
+  return appUpdateScheduler.checkNow("manual");
+}
+
+function getAppUpdateState() {
+  return appUpdateScheduler.getState();
+}
+
+async function handleAppUpdatePreferenceChanged() {
+  await appUpdateScheduler.checkNow("preference_changed");
+  return appUpdateScheduler.getState();
 }
 
 async function downloadAndInstallAppUpdate() {
@@ -3519,6 +3543,9 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("ameow:clipboard:read-image", () => readClipboardImage());
   ipcMain.handle("ameow:updater:check", () => checkForAppUpdate());
+  ipcMain.handle("ameow:updater:get-state", () => getAppUpdateState());
+  ipcMain.handle("ameow:updater:preference-changed", () =>
+    handleAppUpdatePreferenceChanged());
   ipcMain.handle("ameow:updater:download-and-install", () =>
     downloadAndInstallAppUpdate());
 }
@@ -3613,6 +3640,7 @@ async function bootstrap() {
     }
     pendingXiaohongshuDragRequests.clear();
     getSiteSessionRefreshScheduler().stop();
+    appUpdateScheduler.stop();
     if (wsServer) {
       wsServer.close();
       wsServer = null;
@@ -3628,6 +3656,7 @@ async function bootstrap() {
   registerWsServer();
   await ensureUserDataDirs();
   getSiteSessionRefreshScheduler().start();
+  appUpdateScheduler.start();
   await initializeRuntimeLogCapture();
   if (startupDiagnosticsEnabled) {
     await writeFile(getStartupDiagnosticsPath(), "", "utf8");
