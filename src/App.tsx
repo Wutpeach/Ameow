@@ -99,6 +99,7 @@ import {
   mergeVideoTranscodeTask,
   normalizeVideoTranscodeQueueDetail,
   normalizeVideoTranscodeTask,
+  shouldShowVideoTaskBadge,
 } from "./utils/downloadViewHelpers";
 import {
   applyDownloadProgressEvent,
@@ -4153,7 +4154,11 @@ function App({
       </button>
     );
   };
-  const showVideoTaskBadge = (totalTaskCount > 0 || isQueuePopoverOpen) && !isAdvancedQualitySelectionPopover;
+  const showVideoTaskBadge = shouldShowVideoTaskBadge({
+    totalTaskCount,
+    isQueuePopoverOpen,
+    isAdvancedQualitySelectionPopover,
+  });
   const queueViewMeta = [
     totalDownloadTaskCount > 0 ? t("app.queue.downloadCountSummary", { count: totalDownloadTaskCount }) : null,
     totalTranscodeTaskCount > 0 ? t("app.queue.transcodeCountSummary", { count: totalTranscodeTaskCount }) : null,

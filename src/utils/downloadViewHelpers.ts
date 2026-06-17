@@ -55,6 +55,19 @@ export const EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL: VideoTranscodeQueueDetailPayloa
   tasks: [],
 };
 
+export const shouldShowVideoTaskBadge = ({
+  totalTaskCount,
+  isQueuePopoverOpen,
+  isAdvancedQualitySelectionPopover,
+}: {
+  totalTaskCount: number;
+  isQueuePopoverOpen: boolean;
+  isAdvancedQualitySelectionPopover: boolean;
+}): boolean => (
+  !isAdvancedQualitySelectionPopover
+  && (totalTaskCount > 1 || isQueuePopoverOpen)
+);
+
 const normalizeAdvancedQualityPostProcessPlan = (
   value: unknown,
 ): AdvancedQualityPostProcessPlan | undefined => (

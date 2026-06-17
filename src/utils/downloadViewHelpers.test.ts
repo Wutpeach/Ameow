@@ -19,6 +19,7 @@ import {
   normalizeVideoTranscodeQueueState,
   normalizeVideoTranscodeTask,
   removeVideoTranscodeTask,
+  shouldShowVideoTaskBadge,
   sortVideoTranscodeTasks,
   upsertVideoTranscodeTask,
 } from "./downloadViewHelpers";
@@ -141,6 +142,34 @@ describe("getDownloadStatusText", () => {
 });
 
 describe("video queue helpers", () => {
+  it("shows the video task badge only for multi-task queues unless the queue popover is open", () => {
+    expect(shouldShowVideoTaskBadge({
+      totalTaskCount: 0,
+      isQueuePopoverOpen: false,
+      isAdvancedQualitySelectionPopover: false,
+    })).toBe(false);
+    expect(shouldShowVideoTaskBadge({
+      totalTaskCount: 1,
+      isQueuePopoverOpen: false,
+      isAdvancedQualitySelectionPopover: false,
+    })).toBe(false);
+    expect(shouldShowVideoTaskBadge({
+      totalTaskCount: 2,
+      isQueuePopoverOpen: false,
+      isAdvancedQualitySelectionPopover: false,
+    })).toBe(true);
+    expect(shouldShowVideoTaskBadge({
+      totalTaskCount: 1,
+      isQueuePopoverOpen: true,
+      isAdvancedQualitySelectionPopover: false,
+    })).toBe(true);
+    expect(shouldShowVideoTaskBadge({
+      totalTaskCount: 2,
+      isQueuePopoverOpen: true,
+      isAdvancedQualitySelectionPopover: true,
+    })).toBe(false);
+  });
+
   it("normalizes queue counts with clamped defaults", () => {
     expect(normalizeVideoQueueState({
       activeCount: 1.8,

@@ -520,6 +520,7 @@ Behavior contract in frontend:
 - Treat `pendingCount` as queued backend work waiting for scheduler capacity.
 - Clamp invalid payload fields to safe non-negative integers.
 - Show the queue badge when `totalCount > 1`, and use `totalCount` as the badge number.
+- When the queue popover is already open, keep the badge button mounted as the close affordance even if `totalCount === 1`; do not use `totalCount > 0` for initial badge visibility.
 - Use `video-queue-detail` task order to choose the primary active task shown in the main progress ring.
 - Do not render the queue count inside the circular progress indicator.
 - Main cancel action must target a single `traceId`, not clear the entire queue.
