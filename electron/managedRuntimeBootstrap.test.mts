@@ -48,8 +48,8 @@ describe("managed runtime bootstrap helpers", () => {
 
   it("keeps pinned Python downloader package metadata explicit", () => {
     expect(resolvePinnedManagedPythonPackage("yt-dlp")).toMatchObject({
-      packageVersion: "2026.03.17",
-      installSource: "yt-dlp==2026.03.17",
+      packageVersion: "2026.06.09",
+      installSource: "yt-dlp==2026.06.09",
     });
     expect(resolvePinnedManagedPythonPackage("gallery-dl")).toMatchObject({
       packageVersion: "1.32.1",

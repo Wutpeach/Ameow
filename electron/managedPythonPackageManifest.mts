@@ -13,9 +13,9 @@ export type ManagedPythonPackageSpec = {
 export const MANAGED_PYTHON_PACKAGE_SPECS: Record<ManagedPythonPackageToolId, ManagedPythonPackageSpec> = {
   "yt-dlp": {
     component: "ytDlp",
-    installSource: "yt-dlp==2026.03.17",
+    installSource: "yt-dlp==2026.06.09",
     minPython: [3, 10, 0],
-    packageVersion: "2026.03.17",
+    packageVersion: "2026.06.09",
     staleDirectories: ["real"],
   },
   "gallery-dl": {
