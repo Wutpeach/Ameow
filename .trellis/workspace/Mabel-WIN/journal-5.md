@@ -941,3 +941,36 @@ Committed the finalized v0.3.1 release note markdown that had already been synce
 ### Next Steps
 
 - None - task complete
+
+
+## Session 225: Update yt-dlp pinned version
+
+**Date**: 2026-06-18
+**Task**: Update yt-dlp pinned version
+**Branch**: `main`
+
+### Summary
+
+Updated the managed yt-dlp pin to 2026.06.09, aligned runtime bootstrap tests, and verified with focused tests plus type-check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ba1c325` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
