@@ -35,6 +35,13 @@ import {
   desktopUpdater,
   desktopWindows,
 } from "./desktop/runtime";
+import { saveConfigPatch } from "./desktop/config";
+import {
+  resolveSiteSessionAutoSyncEnabled,
+  resolveSiteSessionDiscoveryDismissed,
+  SITE_SESSION_AUTO_SYNC_CONFIG_KEY,
+  SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY,
+} from "./siteSessionPreferences";
 import type {
   RuntimeDependencyGatePhase,
   RuntimeDependencyGateStatePayload,
@@ -505,8 +512,11 @@ function App({
     useState<RuntimeDependencyGateStatePayload | null>(null);
   const [siteSessionPendingActions, setSiteSessionPendingActions] =
     useState<SiteSessionPendingActionsPayload>({ count: 0, entries: [] });
+  const [siteSessionAutoSyncEnabled, setSiteSessionAutoSyncEnabled] = useState(false);
+  const [siteSessionDiscoveryDismissed, setSiteSessionDiscoveryDismissed] = useState(false);
   const [isRuntimeIndicatorHovered, setIsRuntimeIndicatorHovered] = useState(false);
   const [isSiteSessionIndicatorHovered, setIsSiteSessionIndicatorHovered] = useState(false);
+  const [isSiteSessionDiscoveryPopoverOpen, setIsSiteSessionDiscoveryPopoverOpen] = useState(false);
   const [isRuntimeRetryFeedbackVisible, setIsRuntimeRetryFeedbackVisible] = useState(false);
   const [isRuntimeRetryInFlight, setIsRuntimeRetryInFlight] = useState(false);
   const [showRuntimeSuccessIndicator, setShowRuntimeSuccessIndicator] = useState(false);
@@ -1649,6 +1659,8 @@ function App({
       setOutputPath(config.outputPath);
     }
     setRenameMediaOnDownload(resolveRenameMediaEnabled(config));
+    setSiteSessionAutoSyncEnabled(resolveSiteSessionAutoSyncEnabled(config));
+    setSiteSessionDiscoveryDismissed(resolveSiteSessionDiscoveryDismissed(config));
   }, []);
 
   const refreshRuntimeDependencyStatus = useCallback(async () => {
@@ -1813,6 +1825,44 @@ function App({
     resetDownloadOutcome,
     showForegroundTaskOutcome,
   ]);
+
+  const dismissSiteSessionDiscovery = useCallback(async () => {
+    setSiteSessionDiscoveryDismissed(true);
+    setIsSiteSessionDiscoveryPopoverOpen(false);
+    setIsSiteSessionIndicatorHovered(false);
+    try {
+      await saveConfigPatch({
+        [SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY]: true,
+      });
+      await desktopEvents.emit("site-session-auto-sync-setting-changed", {
+        enabled: siteSessionAutoSyncEnabled,
+        discoveryDismissed: true,
+      });
+    } catch (err) {
+      console.error("Failed to dismiss login-state discovery:", err);
+    }
+  }, [siteSessionAutoSyncEnabled]);
+
+  const enableSiteSessionAutoSync = useCallback(async () => {
+    setSiteSessionAutoSyncEnabled(true);
+    setSiteSessionDiscoveryDismissed(true);
+    setIsSiteSessionDiscoveryPopoverOpen(false);
+    setIsSiteSessionIndicatorHovered(false);
+    try {
+      await saveConfigPatch({
+        [SITE_SESSION_AUTO_SYNC_CONFIG_KEY]: true,
+        [SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY]: true,
+      });
+      await desktopEvents.emit("site-session-auto-sync-setting-changed", {
+        enabled: true,
+        discoveryDismissed: true,
+      });
+    } catch (err) {
+      setSiteSessionAutoSyncEnabled(false);
+      setSiteSessionDiscoveryDismissed(false);
+      console.error("Failed to enable login-state auto sync:", err);
+    }
+  }, []);
 
   const cancelVideoTask = useCallback(async (traceId: string) => {
     if (!traceId || cancellingTraceIdsRef.current.has(traceId)) {
@@ -2244,6 +2294,21 @@ function App({
   useEffect(() => {
     const unlisten = desktopEvents.on<{ enabled: boolean }>("rename-setting-changed", (event) => {
       setRenameMediaOnDownload(Boolean(event.payload.enabled));
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = desktopEvents.on<{
+      enabled: boolean;
+      discoveryDismissed?: boolean;
+    }>("site-session-auto-sync-setting-changed", (event) => {
+      setSiteSessionAutoSyncEnabled(event.payload.enabled === true);
+      if (event.payload.discoveryDismissed === true) {
+        setSiteSessionDiscoveryDismissed(true);
+        setIsSiteSessionDiscoveryPopoverOpen(false);
+        setIsSiteSessionIndicatorHovered(false);
+      }
     });
     return () => { unlisten.then(fn => fn()); };
   }, []);
@@ -4186,9 +4251,17 @@ function App({
     showRuntimeSuccessIndicator
     || hasRuntimeGateIssue
   );
+  const shouldShowSiteSessionDiscoveryIndicator = !visualIsMinimized
+    && !isQueuePopoverOpen
+    && !shouldShowRuntimeIndicator
+    && !siteSessionAutoSyncEnabled
+    && !siteSessionDiscoveryDismissed;
   const shouldShowSiteSessionPendingIndicator = !visualIsMinimized
     && !isQueuePopoverOpen
-    && siteSessionPendingActions.count > 0;
+    && siteSessionPendingActions.count > 0
+    && !shouldShowSiteSessionDiscoveryIndicator;
+  const shouldShowSiteSessionIndicator = shouldShowSiteSessionDiscoveryIndicator
+    || shouldShowSiteSessionPendingIndicator;
   const siteSessionPendingPrimary = siteSessionPendingActions.entries[0] ?? null;
   const siteSessionPendingTitle = siteSessionPendingPrimary
     ? t("app.siteSessionPending.titleWithSite", {
@@ -4290,6 +4363,24 @@ function App({
     height: 6,
     boxShadow: `0 0 8px ${colors.warningGlow}`,
   };
+  const siteSessionIndicatorColor = shouldShowSiteSessionDiscoveryIndicator
+    ? colors.accentSolid
+    : colors.warningSolid;
+  const siteSessionIndicatorBorder = shouldShowSiteSessionDiscoveryIndicator
+    ? colors.accentBorder
+    : colors.warningBorder;
+  const siteSessionIndicatorGlow = shouldShowSiteSessionDiscoveryIndicator
+    ? colors.accentGlow
+    : colors.warningGlow;
+  const siteSessionIndicatorTextColor = shouldShowSiteSessionDiscoveryIndicator
+    ? colors.accentText
+    : colors.warningText;
+  const siteSessionIndicatorStatusDotStyle: CSSProperties = {
+    ...getStatusDotStyle(siteSessionIndicatorColor, siteSessionIndicatorGlow),
+    width: 6,
+    height: 6,
+    boxShadow: `0 0 8px ${siteSessionIndicatorGlow}`,
+  };
   const runtimeIndicatorProgressTrackStyle: CSSProperties = {
     width: "100%",
     height: 5,
@@ -4322,7 +4413,7 @@ function App({
     padding: "9px 10px 8px",
     ...getPanelShellStyle(colors, {
       radius: 12,
-      boxShadow: `inset 0 0 0 1px ${colors.warningBorder}, inset 0 1px 0 ${colors.fieldInset}, ${colors.panelShadowStrong}`,
+      boxShadow: `inset 0 0 0 1px ${siteSessionIndicatorBorder}, inset 0 1px 0 ${colors.fieldInset}, ${colors.panelShadowStrong}`,
     }),
     transformOrigin: "bottom left",
   };
@@ -5670,9 +5761,11 @@ function App({
         </AnimatePresence>
 
         <AnimatePresence>
-          {shouldShowSiteSessionPendingIndicator ? (
+          {shouldShowSiteSessionIndicator ? (
             <motion.div
-              key="site-session-pending-indicator"
+              key={shouldShowSiteSessionDiscoveryIndicator
+                ? "site-session-discovery-indicator"
+                : "site-session-pending-indicator"}
               initial={shouldReduceMotion
                 ? { opacity: 0 }
                 : { opacity: 0, scale: 0.9, y: 6, filter: "blur(1.5px)" }}
@@ -5692,10 +5785,14 @@ function App({
               }}
               data-panel-double-click="ignore"
               onMouseEnter={() => setIsSiteSessionIndicatorHovered(true)}
-              onMouseLeave={() => setIsSiteSessionIndicatorHovered(false)}
+              onMouseLeave={() => {
+                if (!isSiteSessionDiscoveryPopoverOpen) {
+                  setIsSiteSessionIndicatorHovered(false);
+                }
+              }}
             >
               <AnimatePresence>
-                {isSiteSessionIndicatorHovered ? (
+                {isSiteSessionIndicatorHovered || isSiteSessionDiscoveryPopoverOpen ? (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.94, y: 4 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -5705,7 +5802,7 @@ function App({
                     onMouseDown={(e) => e.stopPropagation()}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      <span style={runtimeIndicatorStatusDotStyle} />
+                      <span style={siteSessionIndicatorStatusDotStyle} />
                       <span
                         style={{
                           minWidth: 0,
@@ -5719,23 +5816,76 @@ function App({
                           userSelect: "none",
                         }}
                       >
-                        {siteSessionPendingTitle}
+                        {shouldShowSiteSessionDiscoveryIndicator
+                          ? t("app.siteSessionDiscovery.title")
+                          : siteSessionPendingTitle}
                       </span>
                     </div>
                     <span
-                      title={siteSessionPendingHint}
+                      title={shouldShowSiteSessionDiscoveryIndicator
+                        ? t("app.siteSessionDiscovery.hint")
+                        : siteSessionPendingHint}
                       style={{
                         fontSize: 9,
                         lineHeight: 1.24,
-                        color: colors.warningText,
+                        color: siteSessionIndicatorTextColor,
                         display: "-webkit-box",
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: "vertical",
                         overflow: "hidden",
                       }}
                     >
-                      {siteSessionPendingHint}
+                      {shouldShowSiteSessionDiscoveryIndicator
+                        ? t("app.siteSessionDiscovery.hint")
+                        : siteSessionPendingHint}
                     </span>
+                    {shouldShowSiteSessionDiscoveryIndicator ? (
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 2 }}>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void dismissSiteSessionDiscovery();
+                          }}
+                          style={{
+                            minWidth: 42,
+                            height: 22,
+                            padding: "0 8px",
+                            border: `1px solid ${colors.fieldBorder}`,
+                            ...getContinuousCornerStyle(8),
+                            background: "transparent",
+                            color: colors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {t("app.siteSessionDiscovery.ignore")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void enableSiteSessionAutoSync();
+                          }}
+                          style={{
+                            minWidth: 42,
+                            height: 22,
+                            padding: "0 8px",
+                            border: `1px solid ${colors.accentBorder}`,
+                            ...getContinuousCornerStyle(8),
+                            background: `linear-gradient(180deg, ${colors.accentText} 0%, ${colors.accentSolid} 100%)`,
+                            color: colors.bgPrimary,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            boxShadow: `0 8px 16px -12px ${colors.accentGlow}`,
+                          }}
+                        >
+                          {t("app.siteSessionDiscovery.enable")}
+                        </button>
+                      </div>
+                    ) : null}
                   </motion.div>
                 ) : null}
               </AnimatePresence>
@@ -5744,10 +5894,17 @@ function App({
                 type="button"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => {
+                  if (shouldShowSiteSessionDiscoveryIndicator) {
+                    setIsSiteSessionDiscoveryPopoverOpen((value) => !value);
+                    setIsSiteSessionIndicatorHovered(true);
+                    return;
+                  }
                   setIsSiteSessionIndicatorHovered(false);
                   void openSettings();
                 }}
-                title={siteSessionPendingTitle}
+                title={shouldShowSiteSessionDiscoveryIndicator
+                  ? t("app.siteSessionDiscovery.title")
+                  : siteSessionPendingTitle}
                 style={{
                   position: "relative",
                   width: 24,
@@ -5770,7 +5927,7 @@ function App({
                     position: "absolute",
                     inset: 4,
                     borderRadius: "50%",
-                    border: `1px solid ${colors.warningBorder}`,
+                    border: `1px solid ${siteSessionIndicatorBorder}`,
                     opacity: 0.72,
                     pointerEvents: "none",
                   }}
@@ -5781,8 +5938,8 @@ function App({
                     position: "absolute",
                     inset: 4,
                     borderRadius: "50%",
-                    border: `1px solid ${colors.warningBorder}`,
-                    boxShadow: `0 0 10px ${colors.warningGlow}`,
+                    border: `1px solid ${siteSessionIndicatorBorder}`,
+                    boxShadow: `0 0 10px ${siteSessionIndicatorGlow}`,
                     pointerEvents: "none",
                   }}
                   animate={shouldReduceMotion
@@ -5809,10 +5966,10 @@ function App({
                     marginLeft: -4,
                     marginTop: -4,
                     borderRadius: "50%",
-                    backgroundColor: colors.warningSolid,
+                    backgroundColor: siteSessionIndicatorColor,
                     display: "block",
                     pointerEvents: "none",
-                    boxShadow: `0 0 6px ${colors.warningGlow}`,
+                    boxShadow: `0 0 6px ${siteSessionIndicatorGlow}`,
                   }}
                 />
               </motion.button>

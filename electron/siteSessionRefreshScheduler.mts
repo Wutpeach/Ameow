@@ -36,6 +36,7 @@ type RefreshReason =
   | "startup"
   | "extension_connected"
   | "advanced_quality"
+  | "download_start"
   | "auth_required"
   | "manual";
 

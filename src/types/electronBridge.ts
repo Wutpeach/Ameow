@@ -61,6 +61,7 @@ export type AmeowAppEvent =
   | "output-path-changed"
   | "rename-setting-changed"
   | "runtime-dependency-gate-state"
+  | "site-session-auto-sync-setting-changed"
   | "site-session-pending-actions-changed"
   | "site-session-state-changed"
   | "shortcut-show"
@@ -85,6 +86,7 @@ export type AmeowRendererEvent =
   | "context-menu-closed"
   | "output-path-changed"
   | "rename-setting-changed"
+  | "site-session-auto-sync-setting-changed"
   | "theme-changed"
   | "ytdlp-version-refresh";
 

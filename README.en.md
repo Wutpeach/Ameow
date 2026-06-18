@@ -25,7 +25,8 @@ Drop in files, paste a link, and your download or collection starts right away. 
 
 - **Floating drop zone** — drop files, folders, links, or Windows clipboard content straight into the window.
 - **Download queue** — watch progress live, cancel tasks, and run up to three web downloads at once.
-- **Browser handoff** — send video URLs, cookies, and download preferences from the extension straight to the desktop app.
+- **Browser handoff** — send video URLs, cookies, and download preferences from the extension straight to the desktop app. Login cookies stay local and are not uploaded by Ameow.
+- **Per-site login-state sync** — once enabled, Ameow syncs cookies for the matching site when you download instead of syncing every known site immediately.
 - **Settings that stay out of the way** — tune output folders, rename rules, shortcuts, startup behavior, and After Effects integration when you need it.
 
 ## Get Ameow
@@ -42,6 +43,7 @@ For installation, first launch, and platform-specific help, see [Getting Started
 
 - [Getting Started](https://wutpeach.github.io/Ameow/en/docs/getting-started/): go from install to your first download in a few minutes.
 - [Browser Extension](https://wutpeach.github.io/Ameow/en/docs/browser-extension/): send links, cookies, and preferences from the browser to the desktop app.
+- [Cookies and Login State](https://wutpeach.github.io/Ameow/en/docs/extension/cookies-and-login/): understand local storage, no upload, and per-site sync while downloading.
 - [FAQ](https://wutpeach.github.io/Ameow/en/docs/faq/): troubleshoot macOS launch prompts, failed downloads, and connection issues.
 
 ## Development

@@ -82,6 +82,7 @@ import {
 import type {
   RuntimeAdvancedQualitySiteSessionRefreshContext,
   RuntimeAuthFailureRecoveryContext,
+  RuntimeDownloadSiteSessionRefreshContext,
   RuntimeEmitterEvent,
 } from "./contracts";
 import { resetRenameSequenceState } from "./renameRules";
@@ -138,6 +139,9 @@ const createRuntime = (options: {
   refreshSiteSessionBeforeAdvancedQualityProbe?(
     context: RuntimeAdvancedQualitySiteSessionRefreshContext,
   ): Promise<void>;
+  refreshSiteSessionBeforeDownload?(
+    context: RuntimeDownloadSiteSessionRefreshContext,
+  ): Promise<void>;
   diagnoseNetworkProxy?: (context: {
     targetUrl: string;
     providerId: string | null;
@@ -176,6 +180,7 @@ const createRuntime = (options: {
   buildExecutionContext: options.buildExecutionContext,
   handleAuthRequiredFailure: options.handleAuthRequiredFailure,
   refreshSiteSessionBeforeAdvancedQualityProbe: options.refreshSiteSessionBeforeAdvancedQualityProbe,
+  refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
   diagnoseNetworkProxy: options.diagnoseNetworkProxy,
   resolveNetworkProxy: options.resolveNetworkProxy,
   maxConcurrent: options.maxConcurrent,
@@ -640,6 +645,81 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     await waitFor(() => runtime.getQueueState().totalCount === 0);
     expect(refreshSiteSessionBeforeAdvancedQualityProbe).not.toHaveBeenCalled();
+  });
+
+  it("refreshes site session once before building a normal download execution context", async () => {
+    const calls: string[] = [];
+    let savedCookies = "old-cookies";
+    const refreshSiteSessionBeforeDownload = vi.fn(async (context: RuntimeDownloadSiteSessionRefreshContext) => {
+      calls.push(`refresh:${context.siteId}:${context.url}`);
+      savedCookies = "fresh-cookies";
+    });
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          calls.push(`execute:${context.intent.cookies ?? "none"}`);
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      refreshSiteSessionBeforeDownload,
+      buildExecutionContext(context) {
+        calls.push(`build:${savedCookies}`);
+        return {
+          ...context,
+          intent: {
+            ...context.intent,
+            cookies: savedCookies,
+          },
+        };
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+    });
+
+    await waitFor(() => runtime.getQueueState().totalCount === 0);
+    expect(refreshSiteSessionBeforeDownload).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual([
+      "refresh:youtube:https://www.youtube.com/watch?v=abc123",
+      "build:fresh-cookies",
+      "execute:fresh-cookies",
+    ]);
+  });
+
+  it("continues normal downloads when download-start site-session refresh fails", async () => {
+    const refreshSiteSessionBeforeDownload = vi.fn(async () => {
+      throw new Error("extension unavailable");
+    });
+    const engineExecute = vi.fn(async (context: EngineExecutionContext) => ({
+      traceId: context.traceId,
+      success: true,
+      file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+    }));
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", engineExecute),
+      ],
+      refreshSiteSessionBeforeDownload,
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      siteHint: "youtube",
+    });
+
+    await waitFor(() => runtime.getQueueState().totalCount === 0);
+    expect(refreshSiteSessionBeforeDownload).toHaveBeenCalledTimes(1);
+    expect(engineExecute).toHaveBeenCalledTimes(1);
   });
 
   it("continues the same advanced-quality task into a normal download after selection", async () => {

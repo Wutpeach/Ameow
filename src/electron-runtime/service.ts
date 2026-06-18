@@ -1031,6 +1031,18 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         providerId: telemetryPlan?.providerId ?? null,
         engineCandidates: telemetryPlan?.engines.map((plan) => plan.engine) ?? [],
       })}`);
+      if (telemetryPlan && this.options.refreshSiteSessionBeforeDownload) {
+        await this.options.refreshSiteSessionBeforeDownload({
+          traceId,
+          siteId: telemetryPlan.intent.siteId,
+          pageUrl: activeTask.request.pageUrl,
+          url: activeTask.request.url,
+        }).catch((error) => {
+          this.logger.log(
+            `>>> [ElectronRuntime] download site-session refresh failed: ${summarizeError(error)}`,
+          );
+        });
+      }
       const preferredOutputStem = buildOutputStem(
         traceId,
         activeTask.request.pageUrl ?? activeTask.request.url,

@@ -156,6 +156,9 @@ import {
   buildProxyResolutionFailedDiagnostic,
   buildSkippedNonYtdlpProxyDiagnostic,
 } from "../src/config/cliProxy.js";
+import {
+  resolveSiteSessionAutoSyncEnabled,
+} from "../src/siteSessionPreferences.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -206,6 +209,8 @@ const DOCS_SCREENSHOT_UI_LAB_APPLY_DELAY_MS = 800;
 const ADVANCED_QUALITY_SESSION_REFRESH_STALE_MS = 24 * 60 * 60 * 1000;
 const ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS = 2_500;
 const ADVANCED_QUALITY_SESSION_REFRESH_SITE_IDS = new Set(["youtube", "bilibili"]);
+const DOWNLOAD_START_SESSION_REFRESH_FRESH_MS = 60 * 60 * 1000;
+const DOWNLOAD_START_SESSION_REFRESH_TIMEOUT_MS = 5_000;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
@@ -1418,8 +1423,16 @@ function getElectronDownloadRuntime() {
       return getRuntimeDependencyStatus();
     },
     refreshSiteSessionBeforeAdvancedQualityProbe,
-    buildExecutionContext(context) {
-      const appOwnedCookies = getSiteSessionManager(context.intent.siteId)?.getDownloadCookies() ?? null;
+    refreshSiteSessionBeforeDownload,
+    buildExecutionContext(context, input) {
+      const entry = resolveSiteSessionEntryForDownload({
+        siteId: context.intent.siteId,
+        pageUrl: context.intent.pageUrl ?? input?.pageUrl,
+        url: context.intent.originalUrl ?? input?.url,
+      });
+      const appOwnedCookies = entry
+        ? getSiteSessionManager(entry.siteId)?.getDownloadCookies() ?? null
+        : null;
       return {
         ...context,
         intent: appOwnedCookies
@@ -1623,6 +1636,109 @@ function shouldSkipAdvancedQualitySiteSessionRefresh(entry, state) {
     return "snapshot_fresh";
   }
   return null;
+}
+
+function resolveSiteSessionEntryForDownload({ siteId, pageUrl, url }) {
+  const registry = getSiteSessionRegistry();
+  const matchedByPageUrl = pageUrl ? registry.matchEntryForUrl(pageUrl) : null;
+  if (matchedByPageUrl) {
+    return matchedByPageUrl;
+  }
+  const matchedByUrl = url ? registry.matchEntryForUrl(url) : null;
+  if (matchedByUrl) {
+    return matchedByUrl;
+  }
+  return siteId ? registry.getEntry(siteId) : null;
+}
+
+function shouldSkipDownloadStartSiteSessionRefresh(entry, state) {
+  if (!entry) {
+    return "unsupported_site";
+  }
+  if (entry.syncAuthorization !== "seeded" && entry.syncAuthorization !== "user_enabled") {
+    return "sync_not_authorized";
+  }
+  if (wsClients.size <= 0) {
+    return "extension_disconnected";
+  }
+  if (
+    entry.requiredCookieKeys.length > 0
+    || entry.loginCookieKeys.length > 0
+  ) {
+    if (state.availability !== "ready") {
+      return null;
+    }
+  }
+  if (
+    typeof state.updatedAtMs === "number"
+    && Date.now() - state.updatedAtMs < DOWNLOAD_START_SESSION_REFRESH_FRESH_MS
+  ) {
+    return "snapshot_fresh";
+  }
+  return null;
+}
+
+async function refreshSiteSessionBeforeDownload({
+  traceId,
+  siteId,
+  pageUrl,
+  url,
+}) {
+  const config = await readConfigObject();
+  if (!resolveSiteSessionAutoSyncEnabled(config)) {
+    return;
+  }
+
+  const entry = resolveSiteSessionEntryForDownload({ siteId, pageUrl, url });
+  const manager = entry ? getSiteSessionManager(entry.siteId) : null;
+  if (!entry || !manager) {
+    logInfo("DownloadStartSession", "sync skipped", serializeDiagnosticPayload({
+      traceId,
+      siteId,
+      reason: "unsupported_site",
+      url: pageUrl || url,
+    }));
+    return;
+  }
+
+  const state = await manager.getState();
+  const skipReason = shouldSkipDownloadStartSiteSessionRefresh(entry, state);
+  if (skipReason) {
+    logInfo("DownloadStartSession", "sync skipped", serializeDiagnosticPayload({
+      traceId,
+      siteId: entry.siteId,
+      requestedSiteId: siteId,
+      reason: skipReason,
+      updatedAtMs: state.updatedAtMs,
+      url: pageUrl || url,
+    }));
+    return;
+  }
+
+  await getSiteSessionRefreshScheduler().ensureRefreshed(
+    entry.siteId,
+    {
+      reason: "download_start",
+      onlyIfDue: false,
+      timeoutMs: DOWNLOAD_START_SESSION_REFRESH_TIMEOUT_MS,
+    },
+  ).then(
+    (nextState) => {
+      logInfo("DownloadStartSession", "sync completed", serializeDiagnosticPayload({
+        traceId,
+        siteId: entry.siteId,
+        availability: nextState?.availability ?? null,
+        cookieCount: nextState?.cookieCount ?? null,
+      }));
+    },
+    (error) => {
+      logInfo("DownloadStartSession", "sync failed; continuing download", serializeDiagnosticPayload({
+        traceId,
+        siteId: entry.siteId,
+        error: error?.message || String(error),
+      }));
+    },
+  );
 }
 
 async function refreshSiteSessionBeforeAdvancedQualityProbe({

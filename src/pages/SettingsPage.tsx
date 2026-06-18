@@ -59,6 +59,11 @@ import {
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
 } from "../updates/appUpdatePreferences";
+import {
+  resolveSiteSessionAutoSyncEnabled,
+  SITE_SESSION_AUTO_SYNC_CONFIG_KEY,
+  SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY,
+} from "../siteSessionPreferences";
 import type { AppUpdateInfo, AppUpdatePhase, AppUpdateStatePayload } from "../types/appUpdate";
 import { SITE_SESSION_LOGOS } from "../site-session-icons";
 import type {
@@ -295,6 +300,7 @@ function SettingsPage() {
   const [aeExePath, setAeExePath] = useState("");
   const [extensionInjectionDebugEnabled, setExtensionInjectionDebugEnabled] = useState(false);
   const [receivePrereleaseUpdates, setReceivePrereleaseUpdates] = useState(false);
+  const [siteSessionAutoSyncEnabled, setSiteSessionAutoSyncEnabled] = useState(false);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
@@ -383,6 +389,7 @@ function SettingsPage() {
           setExtensionInjectionDebugEnabled(config.extensionInjectionDebugEnabled);
         }
         setReceivePrereleaseUpdates(resolveReceivePrereleaseUpdates(config));
+        setSiteSessionAutoSyncEnabled(resolveSiteSessionAutoSyncEnabled(config));
       } catch (err) {
         console.error("Failed to load config:", err);
       }
@@ -687,6 +694,26 @@ function SettingsPage() {
     } catch (err) {
       setReceivePrereleaseUpdates(previousValue);
       console.error("Failed to toggle prerelease app updates:", err);
+    }
+  };
+
+  const toggleSiteSessionAutoSync = async () => {
+    const previousValue = siteSessionAutoSyncEnabled;
+    const nextValue = !previousValue;
+
+    try {
+      setSiteSessionAutoSyncEnabled(nextValue);
+      await saveConfigPatch({
+        [SITE_SESSION_AUTO_SYNC_CONFIG_KEY]: nextValue,
+        [SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY]: true,
+      });
+      await desktopEvents.emit("site-session-auto-sync-setting-changed", {
+        enabled: nextValue,
+        discoveryDismissed: true,
+      });
+    } catch (err) {
+      setSiteSessionAutoSyncEnabled(previousValue);
+      console.error("Failed to toggle site-session auto sync:", err);
     }
   };
 
@@ -1779,13 +1806,43 @@ function SettingsPage() {
         title={t("desktop:settings.siteSessions.title")}
         hint={t("desktop:settings.siteSessions.hint")}
       >
-        <NeonCard
+        <div
           style={{
-            padding: "10px",
             display: "grid",
-            gap: 8,
+            gap: 10,
           }}
         >
+          <div style={getSettingsControlRowStyle()}>
+            <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+                {t("desktop:settings.siteSessions.autoSyncTitle")}
+              </span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  lineHeight: 1.35,
+                  color: colors.textSecondary,
+                  opacity: 0.82,
+                }}
+              >
+                {t("desktop:settings.siteSessions.autoSyncHint")}
+              </span>
+            </div>
+            <NeonToggle
+              checked={siteSessionAutoSyncEnabled}
+              onChange={toggleSiteSessionAutoSync}
+            />
+          </div>
+
+          <div
+            aria-hidden="true"
+            style={{
+              height: 1,
+              background: `linear-gradient(90deg, transparent 0%, ${colors.fieldBorder} 16%, ${colors.fieldBorderStrong} 50%, ${colors.fieldBorder} 84%, transparent 100%)`,
+              opacity: 0.72,
+            }}
+          />
+
           <div style={{ display: "grid", gap: 7 }}>
             {siteLoginBadges.map((site) => (
               <div
@@ -1905,7 +1962,7 @@ function SettingsPage() {
               {siteSessionError}
             </NeonHint>
           ) : null}
-        </NeonCard>
+        </div>
       </NeonSection>
     </>
   );

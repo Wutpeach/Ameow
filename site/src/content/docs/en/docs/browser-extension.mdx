@@ -45,7 +45,7 @@ Success state: the popup shows `Connected`, the Ameow desktop app is running, an
 - `Disconnected`: the extension is not linked to the desktop app. The desktop app may be closed, or the extension may need to be reloaded.
 
 <Aside type="note" title="This is a local connection">
-	The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication, not a third-party cookies relay.
+	The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication. Cookies saved by Ameow stay in the local app data directory and are not uploaded by Ameow.
 </Aside>
 
 ## What Happens When I Send a Task from the Page?
@@ -58,7 +58,7 @@ You should see:
 - the desktop app shows task states such as preparing, downloading, converting, done, or failed;
 - the finished file lands in the current output folder.
 
-If the page needs login state, confirm you are already logged in inside the browser before sending the task.
+If the page needs login state, confirm you are already logged in inside the browser before sending the task. You can also enable download-time login-state sync in the desktop app; after that, Ameow tries to sync cookies for the matching site when you download, instead of syncing every known site when you enable the feature.
 
 ## How Should I Use Current-Page Media?
 

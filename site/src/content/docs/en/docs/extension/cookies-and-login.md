@@ -34,6 +34,16 @@ Cookies prove that the current browser session is allowed to access the content.
 
 The docs will not ask you to copy raw cookie strings manually, and you should not send cookies to untrusted tools or other people. Prefer letting the extension pass the needed context locally between the browser and desktop app.
 
+Site cookies saved by Ameow are written only to the app data directory on your computer. They are used later by `yt-dlp` or `gallery-dl` for downloads from the same site. Ameow does not upload cookie or login-state content.
+
+## Download-Time Login-State Sync
+
+The desktop main window may show a blue login-state discovery dot. If you enable it, Ameow does not sync every known site immediately. It only tries to sync cookies for the matching site when you start a download, using the connected browser extension, and saves that site snapshot locally.
+
+For example, a Bilibili download can trigger Bilibili cookie sync. A later YouTube download can trigger YouTube cookie sync. If sync fails, the extension is disconnected, or the short wait times out, Ameow continues the normal download attempt.
+
+Saved site login states can be reviewed, refreshed, or cleared from the desktop Settings page under Site login states.
+
 ## Do Douyin videos need login state?
 
 Public Douyin videos can usually be downloaded by pasting the video link or short link directly, including `v.douyin.com` short links and `jingxuan?modal_id=...` page links. Ameow handles Douyin videos through the general `yt-dlp` download capability, so there is no separate Douyin downloader runtime to prepare.

@@ -120,6 +120,12 @@
     "windows": {
       "settingsTitle": "设置",
       "contextMenuTitle": "右键菜单"
+    },
+    "siteSessionDiscovery": {
+      "title": "自动登录态",
+      "hint": "下载时按站点同步 Cookies。",
+      "ignore": "忽略",
+      "enable": "启用"
     }
   },
   "settings": {
@@ -244,7 +250,9 @@
         "refresh": "站点下载凭据刷新失败",
         "sync": "从浏览器扩展同步失败。请确认 Ameow 扩展已连接，并且当前浏览器已登录 YouTube。",
         "clear": "站点会话清除失败"
-      }
+      },
+      "autoSyncTitle": "下载时自动同步登录态",
+      "autoSyncHint": "开启后，下载匹配站点时按站点同步 Cookies。"
     },
     "douyinSession": {
       "title": "抖音登录会话",

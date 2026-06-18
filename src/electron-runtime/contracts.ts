@@ -87,6 +87,13 @@ export type RuntimeAdvancedQualitySiteSessionRefreshContext = {
   url: string;
 };
 
+export type RuntimeDownloadSiteSessionRefreshContext = {
+  traceId: string;
+  siteId: string;
+  pageUrl?: string;
+  url: string;
+};
+
 export interface ElectronRuntimeEnvironment {
   repoRoot: string;
   configDir: string;
@@ -132,6 +139,9 @@ export interface ElectronDownloadRuntimeOptions {
   ): Promise<RuntimeAuthFailureRecoveryResult | void>;
   refreshSiteSessionBeforeAdvancedQualityProbe?(
     context: RuntimeAdvancedQualitySiteSessionRefreshContext,
+  ): Promise<void>;
+  refreshSiteSessionBeforeDownload?(
+    context: RuntimeDownloadSiteSessionRefreshContext,
   ): Promise<void>;
   resolveNetworkProxy?(
     context: RuntimeNetworkProxyContext,

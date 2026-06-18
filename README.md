@@ -25,7 +25,8 @@
 
 - **悬浮窗口**：文件、文件夹、链接和 Windows 剪贴板内容都能直接拖进来或粘贴进来。
 - **下载队列**：网页视频进入队列后可查看实时进度、取消任务，并支持最多 3 个并发下载。
-- **浏览器联动**：扩展可把视频链接、Cookies 和下载偏好一键送到桌面端。
+- **浏览器联动**：扩展可把视频链接、Cookies 和下载偏好送到桌面端；登录态 Cookies 只保存在本机，Ameow 不会上传。
+- **按站点登录态同步**：启用后不会立即同步所有站点，而是在下载匹配站点时尝试同步该站点 Cookies。
 - **设置可控**：输出目录、重命名规则、快捷键、开机启动，以及 After Effects 集成都能按自己的习惯调整。
 
 ## 获取 Ameow
@@ -42,6 +43,7 @@
 
 - [快速上手](https://wutpeach.github.io/Ameow/docs/getting-started/)：从安装到第一次下载，几分钟就能跑通。
 - [浏览器扩展](https://wutpeach.github.io/Ameow/docs/browser-extension/)：把网页里的链接、Cookies 和偏好送到桌面端。
+- [Cookies 与登录态](https://wutpeach.github.io/Ameow/docs/extension/cookies-and-login/)：了解本机保存、不上传，以及下载时按站点同步的工作方式。
 - [FAQ](https://wutpeach.github.io/Ameow/docs/faq/)：处理 macOS 放行、下载失败与连接问题。
 
 ## 开发
