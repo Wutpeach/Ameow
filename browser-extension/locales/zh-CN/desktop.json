@@ -251,8 +251,8 @@
         "sync": "从浏览器扩展同步失败。请确认 Ameow 扩展已连接，并且当前浏览器已登录 YouTube。",
         "clear": "站点会话清除失败"
       },
-      "autoSyncTitle": "下载时自动同步登录态",
-      "autoSyncHint": "开启后，下载匹配站点时按站点同步 Cookies。"
+      "autoSyncTitle": "自动同步登录态",
+      "autoSyncHint": "下载匹配站点时自动同步Cookies\n(本地保存)"
     },
     "douyinSession": {
       "title": "抖音登录会话",

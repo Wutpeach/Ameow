@@ -61,6 +61,7 @@ export type AmeowAppEvent =
   | "output-path-changed"
   | "rename-setting-changed"
   | "runtime-dependency-gate-state"
+  | "settings-page-requested"
   | "site-session-auto-sync-setting-changed"
   | "site-session-pending-actions-changed"
   | "site-session-state-changed"
@@ -86,6 +87,7 @@ export type AmeowRendererEvent =
   | "context-menu-closed"
   | "output-path-changed"
   | "rename-setting-changed"
+  | "settings-page-requested"
   | "site-session-auto-sync-setting-changed"
   | "theme-changed"
   | "ytdlp-version-refresh";
@@ -161,6 +163,7 @@ export type AmeowSecondaryWindowOptions = {
   center?: boolean;
   alwaysOnTop?: boolean;
   focus?: boolean;
+  routePath?: string;
   skipTaskbar?: boolean;
 };
 

@@ -252,7 +252,7 @@
         "clear": "Failed to clear the site session"
       },
       "autoSyncTitle": "Auto-sync login state",
-      "autoSyncHint": "Sync cookies per matching site while downloading."
+      "autoSyncHint": "Auto-sync cookies for matching sites (saved locally)"
     },
     "douyinSession": {
       "title": "Douyin session",

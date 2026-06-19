@@ -220,6 +220,20 @@ const resolveInitialSettingsPage = (): SettingsPageId => {
     : "hub";
 };
 
+const resolveInitialSiteSessionAutoSyncHighlight = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const hashQuery = window.location.hash.includes("?")
+    ? `?${window.location.hash.split("?").slice(1).join("?")}`
+    : "";
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(hashQuery);
+  return searchParams.get("highlightSiteSessionAutoSync") === "1"
+    || hashParams.get("highlightSiteSessionAutoSync") === "1";
+};
+
 const isModifierKey = (key: string): boolean => {
   const normalized = normalizeShortcutToken(key);
   return ["Ctrl", "Alt", "Shift", "Meta", "CommandOrControl"].includes(normalized);
@@ -301,6 +315,8 @@ function SettingsPage() {
   const [extensionInjectionDebugEnabled, setExtensionInjectionDebugEnabled] = useState(false);
   const [receivePrereleaseUpdates, setReceivePrereleaseUpdates] = useState(false);
   const [siteSessionAutoSyncEnabled, setSiteSessionAutoSyncEnabled] = useState(false);
+  const [shouldHighlightSiteSessionAutoSync, setShouldHighlightSiteSessionAutoSync] =
+    useState(resolveInitialSiteSessionAutoSyncHighlight);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
@@ -703,6 +719,9 @@ function SettingsPage() {
 
     try {
       setSiteSessionAutoSyncEnabled(nextValue);
+      if (nextValue) {
+        setShouldHighlightSiteSessionAutoSync(false);
+      }
       await saveConfigPatch({
         [SITE_SESSION_AUTO_SYNC_CONFIG_KEY]: nextValue,
         [SITE_SESSION_DISCOVERY_DISMISSED_CONFIG_KEY]: true,
@@ -722,6 +741,22 @@ function SettingsPage() {
     setSettingsNavigationDirection(nextPage === "hub" ? "back" : "forward");
     setActivePage(nextPage);
   }, []);
+
+  useEffect(() => {
+    const unlisten = desktopEvents.on<{
+      page: SettingsPageId;
+      highlightSiteSessionAutoSync?: boolean;
+    }>("settings-page-requested", (event) => {
+      if (!SETTINGS_PAGE_IDS.has(event.payload.page)) {
+        return;
+      }
+      navigateSettingsPage(event.payload.page);
+      if (event.payload.page === "sites" && event.payload.highlightSiteSessionAutoSync === true) {
+        setShouldHighlightSiteSessionAutoSync(true);
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, [navigateSettingsPage]);
 
   const setSiteSessionError = useCallback((siteId: string, error: string | null) => {
     setSiteSessionErrors((current) => ({
@@ -1812,7 +1847,81 @@ function SettingsPage() {
             gap: 10,
           }}
         >
-          <div style={getSettingsControlRowStyle()}>
+          <motion.div
+            initial={false}
+            animate={siteSessionAutoSyncEnabled || !shouldHighlightSiteSessionAutoSync
+              ? {
+                  boxShadow: `inset 0 0 0 1px ${colors.fieldBorder}, inset 0 1px 0 ${colors.fieldInset}`,
+                  borderColor: colors.fieldBorder,
+                }
+              : {
+                  boxShadow: `inset 0 0 0 1px ${colors.accentBorder}, inset 0 1px 0 ${colors.fieldInset}`,
+                  borderColor: colors.accentBorder,
+                }}
+            transition={siteSessionAutoSyncEnabled || !shouldHighlightSiteSessionAutoSync
+              ? { duration: 0.18 }
+              : {
+                  duration: shouldReduceMotion ? 0.18 : 1.6,
+                  repeat: shouldReduceMotion ? 0 : Number.POSITIVE_INFINITY,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+            style={{
+              position: "relative",
+              ...getSettingsControlRowStyle(),
+              ...getContinuousCornerStyle(12),
+              border: `1px solid ${siteSessionAutoSyncEnabled || !shouldHighlightSiteSessionAutoSync
+                ? colors.fieldBorder
+                : colors.accentBorder}`,
+              padding: "10px 12px",
+            }}
+          >
+            {siteSessionAutoSyncEnabled || !shouldHighlightSiteSessionAutoSync ? null : (
+              <>
+                <motion.div
+                  aria-hidden="true"
+                  initial={false}
+                  animate={shouldReduceMotion
+                    ? { opacity: 0.38 }
+                    : { opacity: [0.18, 0.56, 0.18] }}
+                  transition={shouldReduceMotion
+                    ? { duration: 0.18 }
+                    : {
+                        duration: 2.2,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                      }}
+                  style={{
+                    position: "absolute",
+                    inset: -1,
+                    pointerEvents: "none",
+                    ...getContinuousCornerStyle(12),
+                    boxShadow: `0 0 0 1px ${colors.accentText}, 0 0 14px ${colors.accentGlow}`,
+                  }}
+                />
+                <motion.div
+                  aria-hidden="true"
+                  initial={false}
+                  animate={shouldReduceMotion
+                    ? { opacity: 0.24 }
+                    : { opacity: [0.08, 0.34, 0.08] }}
+                  transition={shouldReduceMotion
+                    ? { duration: 0.18 }
+                    : {
+                        duration: 2.9,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                      }}
+                  style={{
+                    position: "absolute",
+                    inset: -4,
+                    pointerEvents: "none",
+                    ...getContinuousCornerStyle(14),
+                    boxShadow: `0 0 22px ${colors.accentGlow}, 0 0 38px ${colors.accentGlow}`,
+                    filter: "blur(1px)",
+                  }}
+                />
+              </>
+            )}
             <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
                 {t("desktop:settings.siteSessions.autoSyncTitle")}
@@ -1823,6 +1932,7 @@ function SettingsPage() {
                   lineHeight: 1.35,
                   color: colors.textSecondary,
                   opacity: 0.82,
+                  whiteSpace: "pre-line",
                 }}
               >
                 {t("desktop:settings.siteSessions.autoSyncHint")}
@@ -1832,7 +1942,7 @@ function SettingsPage() {
               checked={siteSessionAutoSyncEnabled}
               onChange={toggleSiteSessionAutoSync}
             />
-          </div>
+          </motion.div>
 
           <div
             aria-hidden="true"

@@ -3499,7 +3499,12 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("ameow:window:open-settings", async (_event, request) => {
-    await openSecondaryWindow(WINDOW_LABELS.settings, request.options);
+    const routePath = typeof request.options?.routePath === "string"
+      ? request.options.routePath
+      : undefined;
+    await openSecondaryWindow(WINDOW_LABELS.settings, request.options, {
+      routePath,
+    });
   });
 
   ipcMain.handle("ameow:window:open-context-menu", async (_event, request) => {
