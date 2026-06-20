@@ -64,7 +64,7 @@ const xiaohongshuDragRegistry = new Map();
 const mediaScanInFlight = new Map();
 let requestCounter = 0;
 let lastConnectionIssue = OFFLINE_STATUS_TEXT;
-let actionBadgeSiteId = null;
+let actionIndicatorConnectionState = null;
 
 // Store current theme from desktop app
 let currentTheme = 'black';
@@ -300,7 +300,7 @@ function notifyConnectionStatus() {
     state: connectionState(),
     statusText: connectionStatusText(),
   }).catch(() => {});
-  void updateActionBadgeForActiveTab();
+  updateActionConnectionIndicator();
 }
 
 function normalizeMediaSelectionPayload(message) {
@@ -1097,7 +1097,6 @@ function applySiteSessionRegistryUpdate(data) {
     type: 'site_session_registry_update',
     entries,
   }).catch(() => {});
-  void updateActionBadgeForActiveTab();
 }
 
 function findCurrentSiteSessionForUrl(url) {
@@ -1126,31 +1125,28 @@ async function buildSiteSessionStatusForActiveTab() {
   };
 }
 
-async function updateActionBadgeForActiveTab() {
+function updateActionConnectionIndicator() {
   if (!chrome?.action?.setBadgeText) {
     return;
   }
 
-  const status = await buildSiteSessionStatusForActiveTab().catch(() => null);
-  const nextSiteId = status?.currentSiteSession?.siteId || null;
-  const shouldShow = Boolean(isConnected() && nextSiteId);
-  if (actionBadgeSiteId === nextSiteId && shouldShow) {
+  const nextState = actionIconIndicator.normalizeConnectionState(connectionState());
+  if (actionIndicatorConnectionState === nextState) {
     return;
   }
-  actionBadgeSiteId = shouldShow ? nextSiteId : null;
 
   try {
-    const indicatorState = actionIconIndicator.resolveActionIndicatorState(shouldShow);
+    const indicatorState = actionIconIndicator.resolveActionIndicatorState(nextState);
     chrome.action.setBadgeText({ text: indicatorState.badgeText });
     chrome.action.setIcon?.({ path: indicatorState.iconPath });
-    chrome.action.setBadgeBackgroundColor?.({ color: actionIconIndicator.SYNC_DOT_COLOR });
     chrome.action.setTitle?.({
-      title: shouldShow
-        ? `Ameow: sync login state for ${status.currentSiteSession.displayName || nextSiteId}`
-        : 'Ameow',
+      title: nextState === actionIconIndicator.CONNECTION_STATES.CONNECTED
+        ? 'Ameow: desktop connected'
+        : 'Ameow: desktop offline',
     });
+    actionIndicatorConnectionState = nextState;
   } catch (error) {
-    console.warn('[Ameow] Failed to update action badge:', error);
+    console.warn('[Ameow] Failed to update action connection indicator:', error);
   }
 }
 
@@ -1211,7 +1207,6 @@ async function syncCurrentSiteSessionFromActiveTab() {
     };
   }
   const result = await syncSiteSessionEntryDirect(status.currentSiteSession);
-  void updateActionBadgeForActiveTab();
   return result;
 }
 
@@ -1251,7 +1246,6 @@ async function enableCurrentSiteSessionFromActiveTab() {
     type: 'site_session_registry_update',
     entries: siteSessionCookieSync.getRegistryEntries(),
   }).catch(() => {});
-  void updateActionBadgeForActiveTab();
   return syncSiteSessionEntryDirect(entry);
 }
 
@@ -3435,26 +3429,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   return true;
 });
-
-if (chrome?.tabs?.onActivated) {
-  chrome.tabs.onActivated.addListener(() => {
-    void updateActionBadgeForActiveTab();
-  });
-}
-
-if (chrome?.tabs?.onUpdated) {
-  chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-    if (changeInfo?.url || changeInfo?.status === 'complete') {
-      void updateActionBadgeForActiveTab();
-    }
-  });
-}
-
-if (chrome?.windows?.onFocusChanged) {
-  chrome.windows.onFocusChanged.addListener(() => {
-    void updateActionBadgeForActiveTab();
-  });
-}
 
 if (chrome?.alarms?.onAlarm) {
   chrome.alarms.onAlarm.addListener((alarm) => {

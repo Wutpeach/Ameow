@@ -7,28 +7,46 @@
     128: "icons/icon128.png",
   };
 
-  const SYNC_DOT_COLOR = "#f59e0b";
-  const SYNC_DOT_ICON_PATHS = {
-    16: "icons/icon16-sync-dot.png",
-    48: "icons/icon48-sync-dot.png",
-    128: "icons/icon128-sync-dot.png",
+  const CONNECTION_STATES = {
+    CONNECTED: "connected",
+    OFFLINE: "offline",
   };
 
-  function resolveActionIconPaths(showDot) {
-    return showDot ? SYNC_DOT_ICON_PATHS : BASE_ICON_PATHS;
+  const CONNECTION_ICON_PATHS = {
+    [CONNECTION_STATES.CONNECTED]: {
+      16: "icons/icon16-connected-dot.png",
+      48: "icons/icon48-connected-dot.png",
+      128: "icons/icon128-connected-dot.png",
+    },
+    [CONNECTION_STATES.OFFLINE]: {
+      16: "icons/icon16-offline-dot.png",
+      48: "icons/icon48-offline-dot.png",
+      128: "icons/icon128-offline-dot.png",
+    },
+  };
+
+  function normalizeConnectionState(state) {
+    return state === CONNECTION_STATES.CONNECTED
+      ? CONNECTION_STATES.CONNECTED
+      : CONNECTION_STATES.OFFLINE;
   }
 
-  function resolveActionIndicatorState(showDot) {
+  function resolveActionIconPaths(state) {
+    return CONNECTION_ICON_PATHS[normalizeConnectionState(state)] || BASE_ICON_PATHS;
+  }
+
+  function resolveActionIndicatorState(state) {
     return {
       badgeText: "",
-      iconPath: resolveActionIconPaths(showDot),
+      iconPath: resolveActionIconPaths(state),
     };
   }
 
   root.AmeowActionIconIndicator = {
     BASE_ICON_PATHS,
-    SYNC_DOT_COLOR,
-    SYNC_DOT_ICON_PATHS,
+    CONNECTION_STATES,
+    CONNECTION_ICON_PATHS,
+    normalizeConnectionState,
     resolveActionIconPaths,
     resolveActionIndicatorState,
   };
