@@ -974,3 +974,36 @@ Updated the managed yt-dlp pin to 2026.06.09, aligned runtime bootstrap tests, a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 226: Use toolbar status dot for desktop connection
+
+**Date**: 2026-06-20
+**Task**: Use toolbar status dot for desktop connection
+**Branch**: `main`
+
+### Summary
+
+Repurposed the browser extension toolbar dot from site-session sync availability to desktop connection status, added green and muted gray icon variants, updated action indicator tests, and verified tests, type-check, lint, and browser-extension packaging.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4615187` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

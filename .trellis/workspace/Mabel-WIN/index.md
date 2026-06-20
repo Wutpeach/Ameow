@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 225
-- **Last Active**: 2026-06-18
+- **Total Sessions**: 226
+- **Last Active**: 2026-06-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~976 | Active |
+| `journal-5.md` | ~1009 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 226 | 2026-06-20 | Use toolbar status dot for desktop connection | `4615187` | `main` |
 | 225 | 2026-06-18 | Update yt-dlp pinned version | `ba1c325` | `main` |
 | 224 | 2026-06-17 | Release notes v0.3.1 update | `28feaf4` | `main` |
 | 223 | 2026-06-17 | Background app update checks | `2b6172c` | `main` |
