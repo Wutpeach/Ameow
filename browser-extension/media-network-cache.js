@@ -4,10 +4,10 @@
   const MEDIA_EXTENSIONS = {
     image: new Set(["avif", "gif", "jpg", "jpeg", "png", "svg", "webp"]),
     audio: new Set(["aac", "flac", "m4a", "mp3", "oga", "ogg", "opus", "wav"]),
-    video: new Set(["m3u8", "m4s", "m4v", "mp4", "mpd", "mov", "ts", "webm"]),
+    video: new Set(["cmfv", "m3u8", "m4s", "m4v", "mp4", "mpd", "mov", "ts", "webm"]),
   };
   const VIDEO_MANIFEST_EXTENSIONS = new Set(["m3u8", "mpd"]);
-  const VIDEO_FRAGMENT_EXTENSIONS = new Set(["m4s", "ts"]);
+  const VIDEO_FRAGMENT_EXTENSIONS = new Set(["cmfv", "m4s", "ts"]);
 
   function isRecord(value) {
     return Boolean(value && typeof value === "object" && !Array.isArray(value));

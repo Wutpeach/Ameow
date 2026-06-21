@@ -535,6 +535,25 @@
     }
   }
 
+  function normalizePinterestPinUrl(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (!isPinterestHostname(parsed.hostname)) {
+        return null;
+      }
+
+      const match = parsed.pathname.match(/^\/pin\/(\d+)\/?/i);
+      return match ? `${parsed.origin}/pin/${match[1]}/` : null;
+    } catch {
+      return null;
+    }
+  }
+
   function normalizeCurrentItemPageUrl(rawUrl = window.location.href) {
     const normalized = normalizeHttpUrl(rawUrl);
     if (!normalized) {
@@ -545,18 +564,10 @@
       return null;
     }
 
-    try {
-      const parsed = new URL(normalized);
-      if (isPinterestHostname(parsed.hostname)) {
-        return null;
-      }
-    } catch {
-      return null;
-    }
-
     return (
       normalizeYouTubeWatchUrl(normalized)
       || normalizeBilibiliCurrentItemUrl(normalized)
+      || normalizePinterestPinUrl(normalized)
       || normalizeContentUrl(normalized)
     );
   }
@@ -848,13 +859,21 @@
     return typeof type === "string" && DIRECT_VIDEO_SCAN_TYPE_RE.test(type);
   }
 
+  function isUsableElementVideoCandidate(candidate) {
+    if (!normalizeHttpUrl(candidate?.url)) {
+      return false;
+    }
+
+    return !isPinterestPageUrl() || candidate?.type === "direct_mp4";
+  }
+
   function buildCurrentPageVideoCandidate(video) {
     if (!(video instanceof HTMLVideoElement) || !isRenderableVideo(video)) {
       return null;
     }
 
     const directCandidates = extractVideoCandidatesFromElement(video);
-    if (directCandidates.some((candidate) => normalizeHttpUrl(candidate?.url))) {
+    if (directCandidates.some(isUsableElementVideoCandidate)) {
       return null;
     }
 
@@ -885,6 +904,10 @@
 
     if (primaryVideo instanceof HTMLVideoElement) {
       extractVideoCandidatesFromElement(primaryVideo).forEach((candidate) => {
+        if (!isUsableElementVideoCandidate(candidate)) {
+          return;
+        }
+
         const rect = typeof primaryVideo.getBoundingClientRect === "function"
           ? primaryVideo.getBoundingClientRect()
           : null;
@@ -924,7 +947,9 @@
         });
 
       const currentPageCandidate = buildCurrentPageVideoCandidate(primaryVideo);
-      if (currentPageCandidate) {
+      const hasDirectPinterestCandidate = isPinterestPageUrl()
+        && candidates.some((candidate) => candidate?.type === "direct_mp4");
+      if (currentPageCandidate && !hasDirectPinterestCandidate) {
         candidates.push(currentPageCandidate);
       }
     }

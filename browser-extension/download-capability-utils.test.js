@@ -113,6 +113,7 @@ describe("download capability utils", () => {
       "blob:https://example.com/123",
       "https://cdn.example.com/watch",
       "https://cdn.example.com/master.m3u8",
+      "https://cdn.example.com/chunk.cmfv",
       "https://cdn.example.com/chunk.m4s",
       "https://cdn.example.com/movie.mov",
     ].forEach((url) => {

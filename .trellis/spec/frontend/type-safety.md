@@ -309,6 +309,7 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 - Browser download lifecycle tracking is lightweight background state, not a popup download manager. The background records only extension-started download ids as `accepted`, updates them from `chrome.downloads.onChanged` to `complete` or `interrupted`, and keeps the map bounded by TTL plus total count. Popup feedback should not show an extra success message for browser fallback downloads; start, completion, failure, and conflict handling remain owned by the browser downloads UI unless a later product requirement adds notifications or a full manager.
 - Browser fallback is limited to complete direct-file resources. Complex/current-page Bilibili rows may show `[Desktop]`, and Bilibili `.m4s` / `m3u8` / `ts` / separated stream resources must not be retained as browser fallback download candidates. Stream parsing, merge, and remux work belongs to the desktop app unless a later extension-side pipeline is explicitly designed.
 - Pinterest pin pages may expose direct `i.pinimg.com` images, direct `v1.pinimg.com` `.mp4` files, and adaptive `.m3u8/.mpd` variants for the same asset. Popup scans should keep direct image/`.mp4` resources browser-downloadable and filter Pinterest manifest variants from generic scan/network-cache rows so the popup does not show multiple desktop-required formats for one direct-downloadable pin.
+- Pinterest `.cmfv` resources are HLS/CMAF stream parts, not complete browser-downloadable files. Popup scans must filter them from video-element, performance, and network-cache rows. If a visible Pinterest pin video exposes only `.cmfv`/HLS-style resources and no direct `.mp4`, the popup should show one page-level `[Desktop]` candidate using the canonical `/pin/<id>/` URL so the desktop app can resolve the page instead of trying to download the segment URL.
 - Popup resource metadata should be user-facing media facts, not implementation/source details. Video/audio rows should show format, file size, duration, and dimensions when known; image cards should show format, dimensions, and size when known, and should not show image titles in the details area.
 
 ### 4. Validation & Error Matrix
@@ -335,6 +336,7 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 | Bilibili exposes renderable `video/mp4` `.m4s` media while desktop is offline | `normalizeNetworkMediaEntry` / `canUseBrowserFallback` | Popup does not surface the fragment as a browser fallback download; only the desktop-required enhanced row remains | Skip the network fragment and keep stream handling on the desktop path |
 | Pinterest pin exposes direct `.mp4` plus `.m3u8/.mpd` variants | `collectPerformanceCandidates` / `normalizeNetworkMediaEntry` | Popup keeps the direct `.mp4` candidate and filters manifest variants | Treat `pinimg.com` as a Pinterest media CDN only for direct candidates and drop Pinterest manifests from popup scan/cache |
 | Pinterest pin exposes multiple direct `.mp4` encodes/resolutions for one asset | `mergeNetworkCandidatesIntoScanResult` | Popup shows one best direct `.mp4` candidate instead of every variant | Group by Pinterest video asset hash and prefer larger/higher-resolution direct candidates |
+| Pinterest pin exposes only `.cmfv` / HLS-style video URLs | `collectVideoScanCandidates` / `normalizeNetworkMediaEntry` | Popup does not list `.cmfv`; it shows one page-level `[Desktop]` candidate for the canonical pin URL | Treat `.cmfv` as a stream part and route desktop handoff by page URL |
 | Popup media row has URL/source-heavy metadata | `popup.js` render path | Row displays format/size/duration/dimensions only | Use `candidateDetailLabel(...)` for video/audio and image card metadata |
 
 ### 5. Good / Base / Bad Cases
@@ -377,6 +379,7 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 - Popup feedback does not show an extra browser fallback success message.
 - Bilibili `.m4s` network fragments are skipped/rejected as browser fallback candidates even when their content type is `video/mp4`.
 - Pinterest popup scans keep direct `v1.pinimg.com` `.mp4` candidates, filter `.m3u8/.mpd` variants, and classify `i.pinimg.com` image URLs as browser-downloadable.
+- Pinterest `.cmfv` stream parts are filtered from popup resources; visible pin videos without direct `.mp4` get one canonical pin-page `[Desktop]` candidate.
 - Popup media metadata omits host/source/link-like text; image cards omit image titles from the details area.
 
 ### 7. Wrong vs Correct

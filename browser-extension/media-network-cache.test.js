@@ -108,6 +108,14 @@ describe("media network cache helper", () => {
     )).toBeNull();
     expect(helper.normalizeNetworkMediaEntry(
       responseDetails({
+        url: "https://v1.pinimg.com/videos/iht/hls/f1/84/f5/example.cmfv",
+        responseHeaders: [{ name: "content-type", value: "video/mp4" }],
+      }),
+      tab,
+      { now: 10_000 },
+    )).toBeNull();
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
         url: "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/example.mp4",
         responseHeaders: [{ name: "content-type", value: "video/mp4" }],
       }),

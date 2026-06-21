@@ -50,7 +50,7 @@
     "xml",
     "zip",
   ]);
-  const DESKTOP_REQUIRED_EXTENSIONS = new Set(["m3u8", "m4s", "mov", "mpd", "ts"]);
+  const DESKTOP_REQUIRED_EXTENSIONS = new Set(["cmfv", "m3u8", "m4s", "mov", "mpd", "ts"]);
   const DESKTOP_REQUIRED_TYPES = new Set([
     "adaptive_stream",
     "blob",

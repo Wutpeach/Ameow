@@ -266,6 +266,19 @@
   - image cards omit title metadata and include size/dimensions;
   - Pinterest direct video variants dedupe to the best direct mp4 candidate.
 
+## Phase 4c: Pinterest CMAF stream cleanup
+
+- [x] Treat Pinterest `.cmfv` URLs as HLS/CMAF stream parts, not browser-downloadable complete video files.
+- [x] Filter Pinterest `.cmfv` / HLS video-element and web-request candidates from popup resource rows.
+- [x] When a Pinterest pin has a visible video but no direct `.mp4` candidate, show one page-level `[Desktop]` candidate that routes the canonical pin URL to the desktop app.
+- [x] When a direct Pinterest `.mp4` candidate is present, keep the `.mp4` row and do not add a duplicate page-level fallback row.
+- [x] Add/update tests for:
+  - Pinterest `.cmfv` video element resources do not appear as popup direct media rows;
+  - Pinterest visible video without direct `.mp4` gets a current-page desktop candidate;
+  - Pinterest direct `.mp4` still wins and remains the only video row;
+  - network `.cmfv` entries are not cached into popup scan results;
+  - `.cmfv` is desktop-required in capability classification.
+
 ## Validation Commands
 
 Use targeted commands first, then broader checks before finishing:
