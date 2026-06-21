@@ -233,6 +233,24 @@
   - `[Desktop]` badge meaning;
   - desktop app enhanced capabilities.
 
+## Phase 4a: Pinterest direct-resource cleanup
+
+- [x] Confirm Pinterest pin pages can expose both direct media files and adaptive variants:
+  - direct `i.pinimg.com` image URLs;
+  - direct `v1.pinimg.com` `.mp4` video files;
+  - HLS/DASH `.m3u8` / `.mpd` variants for the same video asset.
+- [x] Keep the extension boundary unchanged:
+  - direct Pinterest images and `.mp4` files are browser-downloadable when the desktop app is offline;
+  - Pinterest HLS/DASH manifests remain desktop-required and should not crowd the popup as separate browser fallback rows.
+- [x] Filter Pinterest popup scan noise:
+  - allow generic performance scanning to treat `pinimg.com` as a Pinterest media CDN for direct `.mp4` candidates;
+  - filter Pinterest performance/anchor manifest candidates from popup video scans;
+  - filter Pinterest manifest variants from the background network media cache while keeping direct `.mp4` and image entries.
+- [x] Add/update tests for:
+  - Pinterest direct `.mp4` is kept while `.m3u8/.mpd` variants are filtered from popup scans;
+  - Pinterest network cache skips manifest variants and keeps direct pin media;
+  - Pinterest `i.pinimg.com` images and `v1.pinimg.com` direct `.mp4` files are browser-downloadable.
+
 ## Validation Commands
 
 Use targeted commands first, then broader checks before finishing:

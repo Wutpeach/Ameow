@@ -86,6 +86,52 @@ describe("media network cache helper", () => {
     });
   });
 
+  it("skips Pinterest manifest variants while keeping direct pin media", () => {
+    const helper = loadHelper();
+    const tab = { id: 7, url: "https://www.pinterest.com/pin/1011902610019399684/" };
+
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
+        url: "https://v1.pinimg.com/videos/iht/av1-control-v2/f1/84/f5/example.m3u8",
+        responseHeaders: [{ name: "content-type", value: "application/vnd.apple.mpegurl" }],
+      }),
+      tab,
+      { now: 10_000 },
+    )).toBeNull();
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
+        url: "https://v1.pinimg.com/videos/iht/av1-control-v2/f1/84/f5/example.mpd",
+        responseHeaders: [{ name: "content-type", value: "application/dash+xml" }],
+      }),
+      tab,
+      { now: 10_000 },
+    )).toBeNull();
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
+        url: "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/example.mp4",
+        responseHeaders: [{ name: "content-type", value: "video/mp4" }],
+      }),
+      tab,
+      { now: 10_000 },
+    )).toMatchObject({
+      mediaType: "video",
+      extension: "mp4",
+      type: "direct_mp4",
+    });
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
+        url: "https://i.pinimg.com/originals/34/e4/e6/example.jpg",
+        responseHeaders: [{ name: "content-type", value: "image/jpeg" }],
+      }),
+      tab,
+      { now: 10_000 },
+    )).toMatchObject({
+      mediaType: "image",
+      extension: "jpg",
+      previewUrl: "https://i.pinimg.com/originals/34/e4/e6/example.jpg",
+    });
+  });
+
   it("uses image resource URLs as their own popup preview", () => {
     const helper = loadHelper();
     const entry = helper.normalizeNetworkMediaEntry(

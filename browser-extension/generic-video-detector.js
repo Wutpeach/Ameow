@@ -107,6 +107,23 @@
     return /(?:^|\.)pinterest\.[a-z.]+$/i.test(hostname || "");
   }
 
+  function isPinterestPageUrl(rawUrl = window.location.href) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return false;
+    }
+
+    try {
+      return isPinterestHostname(new URL(normalized).hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  function isPinterestMediaHostname(hostname) {
+    return /(?:^|\.)pinimg\.com$/i.test(hostname || "");
+  }
+
   function isYouTubeHostname(hostname) {
     return /(?:^|\.)youtube\.com$/i.test(hostname || "");
   }
@@ -885,7 +902,10 @@
       });
 
       collectPerformanceCandidates(primaryVideo)
-        .filter((candidate) => isPopupDirectVideoCandidateType(candidate?.type))
+        .filter((candidate) => (
+          isPopupDirectVideoCandidateType(candidate?.type)
+          && (!isPinterestPageUrl() || candidate?.type === "direct_mp4")
+        ))
         .forEach((candidate) => {
           const rect = typeof primaryVideo.getBoundingClientRect === "function"
             ? primaryVideo.getBoundingClientRect()
@@ -917,6 +937,9 @@
       }
       const type = selectionUtils.classifyVideoCandidateType(url);
       if (!isPopupDirectVideoCandidateType(type)) {
+        return;
+      }
+      if (isPinterestPageUrl() && type !== "direct_mp4") {
         return;
       }
       const described = describeCandidate({
@@ -1210,7 +1233,11 @@
 
       try {
         const host = new URL(url).hostname.toLowerCase();
-        if (referenceHosts.size > 0 && !referenceHosts.has(host)) {
+        if (
+          referenceHosts.size > 0
+          && !referenceHosts.has(host)
+          && !(isPinterestPageUrl() && isPinterestMediaHostname(host))
+        ) {
           continue;
         }
       } catch {
@@ -1400,6 +1427,7 @@
     normalizeContentUrl,
     normalizeCurrentItemPageUrl,
     normalizeXiaohongshuNoteUrl,
+    isPinterestPageUrl,
     resolveSelectionPageUrl,
     shouldAvoidCurrentPageFallback,
   };

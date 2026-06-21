@@ -35,6 +35,20 @@ describe("download capability utils", () => {
       browserDownloadable: true,
       requiresDesktop: false,
     });
+    expect(helper.resolveDownloadCapability({
+      url: "https://i.pinimg.com/originals/34/e4/e6/34e4e656c3025df4c8dd98817a5d0e19.jpg",
+      mediaType: "image",
+    })).toMatchObject({
+      browserDownloadable: true,
+      requiresDesktop: false,
+    });
+    expect(helper.resolveDownloadCapability({
+      url: "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/f184f5f60381938333397bb7adbd7703.mp4",
+      mediaType: "video",
+    })).toMatchObject({
+      browserDownloadable: true,
+      requiresDesktop: false,
+    });
   });
 
   it("classifies direct URLs with query strings and fragments by pathname extension", () => {

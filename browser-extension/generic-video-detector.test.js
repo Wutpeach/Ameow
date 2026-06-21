@@ -137,7 +137,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
         },
       },
     },
-    performance: {
+    performance: overrides.performance || {
       getEntriesByType() {
         return [];
       },
@@ -1034,6 +1034,73 @@ describe("generic video detector", () => {
     const result = hooks.collectPageMediaCandidates();
 
     expect(result.videos).toEqual([]);
+  });
+
+  it("keeps direct Pinterest mp4 resources but filters manifest variants from popup scans", () => {
+    let video = null;
+    const resources = [
+      { name: "https://v1.pinimg.com/videos/iht/av1-control-v2/f1/84/f5/example.m3u8" },
+      { name: "https://v1.pinimg.com/videos/iht/av1-control-v2/f1/84/f5/example.mpd" },
+      { name: "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/example.mp4" },
+    ];
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.pinterest.com/pin/1011902610019399684/", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Pin page",
+      },
+      performance: {
+        getEntriesByType(type) {
+          return type === "resource" ? resources : [];
+        },
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.pinterest.com/1234",
+      src: "blob:https://www.pinterest.com/1234",
+      paused: false,
+      readyState: 4,
+      currentTime: 7,
+      videoWidth: 1080,
+      videoHeight: 1350,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 360, height: 450, left: 0, top: 0, right: 360, bottom: 450 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos.map((candidate) => candidate.url)).toEqual([
+      "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/example.mp4",
+    ]);
+    expect(result.videos[0]).toMatchObject({
+      mediaType: "video",
+      type: "direct_mp4",
+      source: "performance_resource",
+    });
   });
 
   it("caps popup media scan results to a bounded total", () => {

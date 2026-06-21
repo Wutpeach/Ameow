@@ -68,6 +68,23 @@
     return /(?:^|\.)youtube\.com$/i.test(hostname || "");
   }
 
+  function isPinterestHostname(hostname) {
+    return /(?:^|\.)pinterest\.[a-z.]+$/i.test(hostname || "");
+  }
+
+  function isPinterestPageUrl(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return false;
+    }
+
+    try {
+      return isPinterestHostname(new URL(normalized).hostname);
+    } catch {
+      return false;
+    }
+  }
+
   function cleanCandidateTitle(rawTitle) {
     return typeof rawTitle === "string"
       ? rawTitle.replace(/\s+/g, " ").trim().slice(0, 140)
@@ -194,8 +211,11 @@
       : "unknown";
   }
 
-  function shouldCacheMediaResponse(mediaType, extension) {
+  function shouldCacheMediaResponse(mediaType, extension, pageUrl) {
     if (!mediaType) {
+      return false;
+    }
+    if (mediaType === "video" && isPinterestPageUrl(pageUrl) && VIDEO_MANIFEST_EXTENSIONS.has(extension)) {
       return false;
     }
     return !VIDEO_FRAGMENT_EXTENSIONS.has(extension);
@@ -217,7 +237,7 @@
     const contentLength = normalizeContentLength(responseHeader(details, "content-length"));
     const extension = urlExtension(url);
     const mediaType = mediaTypeFromContentType(contentType) || mediaTypeFromExtension(extension);
-    if (!shouldCacheMediaResponse(mediaType, extension)) {
+    if (!shouldCacheMediaResponse(mediaType, extension, pageUrl)) {
       return null;
     }
 
