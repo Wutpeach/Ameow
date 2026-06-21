@@ -251,6 +251,21 @@
   - Pinterest network cache skips manifest variants and keeps direct pin media;
   - Pinterest `i.pinimg.com` images and `v1.pinimg.com` direct `.mp4` files are browser-downloadable.
 
+## Phase 4b: Popup metadata cleanup and Pinterest variant dedupe
+
+- [x] Replace noisy resource detail text:
+  - video/audio rows show useful media metadata only: format, file size, duration, and dimensions when known;
+  - video/audio rows do not show host/source/link-like implementation details as primary metadata;
+  - image cards do not show image titles in the details area; they show format, dimensions, and size when known.
+- [x] Improve Pinterest popup behavior beyond manifest filtering:
+  - group direct Pinterest video variants by the shared asset hash;
+  - retain one best direct `.mp4` candidate per Pinterest video asset instead of listing every encoded/resolution variant;
+  - keep direct image candidates unchanged and browser-downloadable.
+- [x] Add/update tests for:
+  - popup detail rendering uses `candidateDetailLabel(...)` instead of host/source metadata;
+  - image cards omit title metadata and include size/dimensions;
+  - Pinterest direct video variants dedupe to the best direct mp4 candidate.
+
 ## Validation Commands
 
 Use targeted commands first, then broader checks before finishing:

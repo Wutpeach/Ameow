@@ -115,12 +115,25 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("ameow-image-card-thumb");
     expect(popupJs).toContain("imageFormatLabel(candidate)");
     expect(popupJs).toContain("candidate.width && candidate.height");
+    expect(popupJs).toContain("formatByteSize(candidateByteSize(candidate))");
+    expect(popupJs).toContain("titleText.textContent = metaParts.join(\" / \") || imageFormatLabel(candidate)");
+    expect(popupJs).toContain("meta.textContent = \"\"");
     expect(popupJs).toContain("downloadCandidate(candidate, card)");
     expect(popupJs).toContain("copyCandidateLink(candidate, card)");
     expect(popupJs).toContain("showCandidateSource(candidate, card)");
     expect(popupCss).toContain(".ameow-media-list[data-media-type=\"image\"][data-visible=\"true\"]");
     expect(popupCss).toContain(".ameow-image-card");
     expect(popupCss).toContain("grid-template-rows: 96px auto");
+  });
+
+  it("renders useful media detail metadata instead of host/source/link text", () => {
+    expect(popupJs).toContain("function candidateDetailLabel(candidate)");
+    expect(popupJs).toContain("function formatByteSize(bytes)");
+    expect(popupJs).toContain("function formatDuration(seconds)");
+    expect(popupJs).toContain("[format, size, duration, dimensions].filter(Boolean).join(\" / \")");
+    expect(popupJs).toContain("meta.textContent = candidateDetailLabel(previewCandidate) || candidateDetailLabel(candidate)");
+    expect(popupJs).not.toContain("sourceLabel(previewCandidate.source || candidate.source, t)");
+    expect(popupJs).not.toContain("candidate.host || shortHost(candidate.url)");
   });
 
   it("adds popup-local image lightbox behavior without hijacking image card menus", () => {

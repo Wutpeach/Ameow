@@ -85,6 +85,43 @@
     }
   }
 
+  function pinterestVideoAssetKey(rawUrl) {
+    const normalized = normalizeHttpUrl(rawUrl);
+    if (!normalized) {
+      return "";
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (!/(?:^|\.)pinimg\.com$/i.test(parsed.hostname) || !/\/videos\//i.test(parsed.pathname)) {
+        return "";
+      }
+      const filename = parsed.pathname.split("/").filter(Boolean).pop() || "";
+      const match = filename.match(/^([a-f0-9]{16,})(?:_[^./]+)?\.(?:mp4|m3u8|mpd)$/i);
+      return match ? match[1].toLowerCase() : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function pinterestDirectVideoScore(candidate) {
+    const url = normalizeHttpUrl(candidate?.url);
+    if (!url || urlExtension(url) !== "mp4") {
+      return -1;
+    }
+    const sizeScore = Number(candidate?.contentLength || 0);
+    const urlScore = /(?:\/720p\/|_720w\b|_t5\.mp4\b)/i.test(url)
+      ? 720
+      : /(?:_540w\b|_t4\.mp4\b)/i.test(url)
+        ? 540
+        : /(?:_360w\b|_t3\.mp4\b)/i.test(url)
+          ? 360
+          : /(?:_240w\b|_t2\.mp4\b)/i.test(url)
+            ? 240
+            : 0;
+    return sizeScore + urlScore;
+  }
+
   function cleanCandidateTitle(rawTitle) {
     return typeof rawTitle === "string"
       ? rawTitle.replace(/\s+/g, " ").trim().slice(0, 140)
@@ -394,6 +431,32 @@
     return Array.from(merged.values()).slice(0, Math.max(0, limit));
   }
 
+  function filterPinterestVideoCandidates(candidates, pageUrl) {
+    if (!isPinterestPageUrl(pageUrl)) {
+      return candidates;
+    }
+
+    const bestByAsset = new Map();
+    const retained = [];
+    candidates.forEach((candidate) => {
+      const assetKey = pinterestVideoAssetKey(candidate?.url);
+      if (!assetKey) {
+        retained.push(candidate);
+        return;
+      }
+
+      const current = bestByAsset.get(assetKey);
+      if (!current || pinterestDirectVideoScore(candidate) > pinterestDirectVideoScore(current)) {
+        bestByAsset.set(assetKey, candidate);
+      }
+    });
+
+    return [
+      ...retained,
+      ...Array.from(bestByAsset.values()),
+    ];
+  }
+
   function mergeNetworkCandidatesIntoScanResult(scanResult, networkEntries, options = {}) {
     const totalLimit = Number.isFinite(Number(options.totalLimit)) && Number(options.totalLimit) > 0
       ? Math.floor(Number(options.totalLimit))
@@ -425,7 +488,10 @@
       ));
     const networkImages = entries.filter((entry) => entry.mediaType === "image");
 
-    const nextVideos = mergeCandidates(videos, networkVideos, totalLimit);
+    const nextVideos = filterPinterestVideoCandidates(
+      mergeCandidates(videos, networkVideos, totalLimit),
+      scanResult?.pageUrl,
+    ).slice(0, totalLimit);
     const nextAudios = mergeCandidates(audios, networkAudios, Math.max(0, totalLimit - nextVideos.length));
     const nextImages = mergeCandidates(images, networkImages, Math.max(0, totalLimit - nextVideos.length - nextAudios.length));
     const beforeTotal = videos.length + audios.length + images.length;

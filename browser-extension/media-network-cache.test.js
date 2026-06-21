@@ -132,6 +132,46 @@ describe("media network cache helper", () => {
     });
   });
 
+  it("dedupes Pinterest direct video variants to the best asset candidate", () => {
+    const helper = loadHelper();
+    const result = helper.mergeNetworkCandidatesIntoScanResult({
+      success: true,
+      pageUrl: "https://www.pinterest.com/pin/1011902610019399684/",
+      pageTitle: "Pin page",
+      videos: [],
+      audios: [],
+      images: [],
+    }, [
+      {
+        url: "https://v1.pinimg.com/videos/iht/av1Mp4-enabled-v2/f1/84/f5/f184f5f60381938333397bb7adbd7703_240w.mp4",
+        mediaType: "video",
+        source: "web_request",
+        extension: "mp4",
+        contentLength: 1_000_000,
+      },
+      {
+        url: "https://v1.pinimg.com/videos/iht/av1Mp4-enabled-v2/f1/84/f5/f184f5f60381938333397bb7adbd7703_720w.mp4",
+        mediaType: "video",
+        source: "web_request",
+        extension: "mp4",
+        contentLength: 4_000_000,
+      },
+      {
+        url: "https://v1.pinimg.com/videos/iht/720p/f1/84/f5/f184f5f60381938333397bb7adbd7703.mp4",
+        mediaType: "video",
+        source: "web_request",
+        extension: "mp4",
+        contentLength: 3_000_000,
+      },
+    ], {
+      totalLimit: 10,
+    });
+
+    expect(result.videos.map((candidate) => candidate.url)).toEqual([
+      "https://v1.pinimg.com/videos/iht/av1Mp4-enabled-v2/f1/84/f5/f184f5f60381938333397bb7adbd7703_720w.mp4",
+    ]);
+  });
+
   it("uses image resource URLs as their own popup preview", () => {
     const helper = loadHelper();
     const entry = helper.normalizeNetworkMediaEntry(

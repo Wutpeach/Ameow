@@ -541,6 +541,66 @@ document.addEventListener("DOMContentLoaded", () => {
     return candidate?.width && candidate?.height ? `${candidate.width}x${candidate.height}` : "";
   }
 
+  function candidateByteSize(candidate) {
+    const value = Number(
+      candidate?.contentLength
+      ?? candidate?.sizeBytes
+      ?? candidate?.byteSize
+      ?? candidate?.bytes
+      ?? 0,
+    );
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  function formatByteSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
+    return `${value.toFixed(digits)} ${units[unitIndex]}`;
+  }
+
+  function formatDuration(seconds) {
+    const totalSeconds = Math.round(Number(seconds || 0));
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+      return "";
+    }
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const remainingSeconds = totalSeconds % 60;
+    return hours > 0
+      ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`
+      : `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  }
+
+  function candidateFormatLabel(candidate) {
+    const extension = safeText(
+      candidate?.extension,
+      downloadCapabilityUtils?.urlExtension?.(candidate?.url) || "",
+    );
+    if (extension) {
+      return extension.toUpperCase();
+    }
+    const contentType = safeText(candidate?.contentType, safeText(candidate?.mimeType, ""));
+    const subtype = contentType.split(";")[0].split("/")[1] || "";
+    return subtype ? subtype.toUpperCase() : "";
+  }
+
+  function candidateDetailLabel(candidate) {
+    const format = candidateFormatLabel(candidate);
+    const size = formatByteSize(candidateByteSize(candidate));
+    const duration = formatDuration(candidate?.duration);
+    const dimensions = dimensionsKey(candidate);
+    return [format, size, duration, dimensions].filter(Boolean).join(" / ");
+  }
+
   function sameKnownValue(left, right) {
     return !left || !right || left === right;
   }
@@ -637,6 +697,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const rightHasPreview = Boolean(right.previewUrl);
     if (rightHasPreview !== leftHasPreview) {
       return rightHasPreview ? right : left;
+    }
+
+    const leftDetails = candidateDetailLabel(left).length;
+    const rightDetails = candidateDetailLabel(right).length;
+    if (rightDetails !== leftDetails) {
+      return rightDetails > leftDetails ? right : left;
     }
 
     return left;
@@ -1052,13 +1118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     title.appendChild(titleText);
     appendDesktopBadge(title, capability);
     meta.className = "ameow-media-meta";
-    meta.textContent = [
-      candidate.host || shortHost(candidate.url),
-      sourceLabel(previewCandidate.source || candidate.source, t),
-      previewCandidate.extension || previewCandidate.type || candidate.extension || candidate.type,
-      previewCandidate.duration ? `${previewCandidate.duration}s` : "",
-      previewCandidate.width && previewCandidate.height ? `${previewCandidate.width}x${previewCandidate.height}` : "",
-    ].filter(Boolean).join(" / ");
+    meta.textContent = candidateDetailLabel(previewCandidate) || candidateDetailLabel(candidate);
     main.append(title, meta);
 
     menuButton.type = "button";
@@ -1088,11 +1148,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function imageFormatLabel(candidate) {
-    const extension = safeText(
-      candidate.extension,
-      downloadCapabilityUtils?.urlExtension?.(candidate.url) || candidate.type || "",
-    );
-    return extension ? extension.toUpperCase() : t("popup.media.type.imageShort", "IMG");
+    return candidateFormatLabel(candidate) || t("popup.media.type.imageShort", "IMG");
   }
 
   function createImageCard(candidate, index = 0) {
@@ -1108,7 +1164,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = candidateStableId(candidate, index);
     const capability = downloadCapabilityUtils?.resolveDownloadCapability?.(candidate) || null;
     const dimensions = candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "";
-    const metaParts = [imageFormatLabel(candidate), dimensions].filter(Boolean);
+    const metaParts = [
+      imageFormatLabel(candidate),
+      dimensions,
+      formatByteSize(candidateByteSize(candidate)),
+    ].filter(Boolean);
 
     card.className = "ameow-image-card";
     card.dataset.candidateId = id;
@@ -1139,11 +1199,11 @@ document.addEventListener("DOMContentLoaded", () => {
     body.className = "ameow-image-card-body";
     title.className = "ameow-image-card-title";
     titleText.className = "ameow-image-card-title-text";
-    titleText.textContent = safeText(candidate.title, candidate.url);
+    titleText.textContent = metaParts.join(" / ") || imageFormatLabel(candidate);
     title.appendChild(titleText);
     appendDesktopBadge(title, capability);
     meta.className = "ameow-image-card-meta";
-    meta.textContent = metaParts.join(" / ");
+    meta.textContent = "";
 
     menuButton.type = "button";
     menuButton.className = "ameow-row-menu-btn";
