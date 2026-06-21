@@ -3,6 +3,7 @@
 
 importScripts(
   "action-icon-indicator.js",
+  "browser-download-lifecycle.js",
   "direct-download-quality.js",
   "extension-data-utils.js",
   "generic-video-selection-utils.js",
@@ -64,6 +65,8 @@ const MEDIA_NETWORK_CACHE_PER_TAB_LIMIT = 40;
 const MEDIA_NETWORK_CACHE_TOTAL_LIMIT = 120;
 const MEDIA_SCAN_TIMEOUT_MS = 5000;
 const MEDIA_SCAN_TOTAL_LIMIT = 100;
+const BROWSER_DOWNLOAD_STATE_TTL_MS = 30 * 60 * 1000;
+const BROWSER_DOWNLOAD_STATE_TOTAL_LIMIT = 50;
 const pendingRequests = new Map();
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
@@ -85,9 +88,16 @@ const mediaNetworkCache = self.AmeowMediaNetworkCache;
 const mediaScanCache = self.AmeowMediaScanCache;
 const siteSessionCookieSync = self.AmeowSiteSessionCookieSync;
 const actionIconIndicator = self.AmeowActionIconIndicator;
+const browserDownloadLifecycle = self.AmeowBrowserDownloadLifecycle;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
 const languageInitializationPromise = initializeLanguageState();
+const browserDownloadTracker = browserDownloadLifecycle?.createBrowserDownloadTracker
+  ? browserDownloadLifecycle.createBrowserDownloadTracker({
+    ttlMs: BROWSER_DOWNLOAD_STATE_TTL_MS,
+    totalLimit: BROWSER_DOWNLOAD_STATE_TOTAL_LIMIT,
+  })
+  : null;
 
 function isEnglishVariant(normalized) {
   return normalized === 'en' || normalized.startsWith('en-');
@@ -480,14 +490,40 @@ function startBrowserDownload({ url, filename }) {
         return;
       }
 
+      const downloadState = browserDownloadTracker?.recordAccepted?.({
+        downloadId,
+        url,
+        filename,
+      }) || null;
+
       resolve({
         success: true,
         connected: isConnected(),
         downloadedBy: 'browser',
         downloadId,
+        browserDownloadStatus: downloadState?.status || 'accepted',
       });
     });
   });
+}
+
+function handleBrowserDownloadChanged(delta) {
+  return browserDownloadTracker?.handleChanged?.(delta) || null;
+}
+
+function getBrowserDownloadState(downloadId) {
+  const state = browserDownloadTracker?.getState?.(downloadId) || null;
+  if (!state) {
+    return {
+      success: false,
+      reason: 'download_state_not_found',
+    };
+  }
+
+  return {
+    success: true,
+    state,
+  };
 }
 
 function handlePageImageSelectionRequest(message, senderContext = {}) {
@@ -2981,8 +3017,11 @@ async function downloadMediaCandidate(candidate) {
   const canUseBrowserFallback = Boolean(
     browserFallbackCandidate
     && fallbackUrl
-    && fallbackCapability?.requiresDesktop !== true
-    && fallbackCapability?.browserDownloadable === true
+    && (
+      downloadCapabilityUtils?.canUseBrowserFallback
+        ? downloadCapabilityUtils.canUseBrowserFallback(browserFallbackCandidate)
+        : fallbackCapability?.requiresDesktop !== true && fallbackCapability?.browserDownloadable === true
+    )
   );
 
   if (!url) {
@@ -3612,6 +3651,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     });
     return true;
+  } else if (message.type === 'get_browser_download_state') {
+    sendResponse(getBrowserDownloadState(message.downloadId));
+    return false;
   } else if (message.type === 'download_current_content') {
     downloadCurrentContentFromActiveTab().then(sendResponse).catch((error) => {
       console.error('[Ameow] Failed to trigger current-content download:', error);
@@ -3695,6 +3737,12 @@ if (chrome?.webRequest?.onHeadersReceived) {
     },
     ['responseHeaders'],
   );
+}
+
+if (chrome?.downloads?.onChanged) {
+  chrome.downloads.onChanged.addListener((delta) => {
+    handleBrowserDownloadChanged(delta);
+  });
 }
 
 if (chrome?.runtime?.onStartup) {

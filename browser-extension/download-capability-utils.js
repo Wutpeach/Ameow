@@ -72,7 +72,6 @@
     "audio/x-mpegurl",
     "video/mp2t",
   ]);
-
   function normalizeScheme(rawUrl) {
     if (typeof rawUrl !== "string") {
       return "";
@@ -230,7 +229,13 @@
     };
   }
 
+  function canUseBrowserFallback(candidate) {
+    const capability = resolveDownloadCapability(candidate);
+    return capability.browserDownloadable === true && capability.requiresDesktop !== true;
+  }
+
   root.AmeowDownloadCapabilityUtils = {
+    canUseBrowserFallback,
     resolveDownloadCapability,
     urlExtension,
   };

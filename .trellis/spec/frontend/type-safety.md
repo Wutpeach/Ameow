@@ -260,6 +260,26 @@ type PopupMediaScanResult = {
   truncated?: boolean;
   ttlMs?: number;
 };
+
+type BrowserDownloadStartResponse = {
+  success: true;
+  connected: boolean;
+  downloadedBy: "browser";
+  downloadId: number;
+  browserDownloadStatus: "accepted";
+};
+
+type BrowserDownloadTrackedState = {
+  downloadId: number;
+  url: string;
+  filename: string;
+  status: "accepted" | "complete" | "interrupted";
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  interruptedAt?: number;
+  error?: string;
+};
 ```
 
 Message flow:
@@ -269,6 +289,9 @@ popup.js -> chrome.runtime.sendMessage({ type: "scan_page_media" })
 background.js -> active tab frame 0: { type: "ameow_scan_page_media" }
 generic-video-detector.js -> PopupMediaScanResult
 background.js -> normalize/cache -> popup.js
+popup.js -> chrome.runtime.sendMessage({ type: "download_media_candidate", candidate })
+background.js -> chrome.downloads.download({ url, filename }) -> BrowserDownloadStartResponse
+chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 ```
 
 ### 3. Contracts
@@ -282,6 +305,9 @@ background.js -> normalize/cache -> popup.js
 - Popup row downloads may pass `mediaType: "audio"` through the video-selection queue path, but the candidate metadata must preserve `mediaType: "audio"` instead of rewriting it to `"video"`.
 - Video candidate metadata is owned by the detector, not the popup renderer. For `<video>` rows, preserve `poster` first, then bounded nearby image metadata, then page meta image (`og:image` / `twitter:image`) as `previewUrl`; resolve titles from the element, nearby scoped heading/card text, then page meta title. For generated `current_page` rows, page meta image is an acceptable fallback preview. For direct video links with empty link text, use the page title/meta title, but do not blanket-use page meta image when no scoped preview exists; a missing preview is preferable to reusing an unrelated page-level cover across multiple rows.
 - Site page title trust order is allowed for narrow known video sites. For Bilibili and YouTube, a cleaned page title from a known page selector, Open Graph title, or `document.title` is more authoritative than local player-control labels and network/CDN filenames. Network-discovered video/audio candidates on those page URLs should inherit the cleaned page title so popup grouping does not display `index.m4s`, opaque CDN ids, or player UI labels as the resource title.
+- Browser fallback downloads use `chrome.downloads.download({ url, filename })` for filename control. Do not add `chrome.downloads.onDeterminingFilename` unless a real browser filename conflict or filename-loss bug proves the direct `filename` option is insufficient.
+- Browser download lifecycle tracking is lightweight background state, not a popup download manager. The background records only extension-started download ids as `accepted`, updates them from `chrome.downloads.onChanged` to `complete` or `interrupted`, and keeps the map bounded by TTL plus total count. Popup feedback should not show an extra success message for browser fallback downloads; start, completion, failure, and conflict handling remain owned by the browser downloads UI unless a later product requirement adds notifications or a full manager.
+- Browser fallback is limited to complete direct-file resources. Complex/current-page Bilibili rows may show `[Desktop]`, and Bilibili `.m4s` / `m3u8` / `ts` / separated stream resources must not be retained as browser fallback download candidates. Stream parsing, merge, and remux work belongs to the desktop app unless a later extension-side pipeline is explicitly designed.
 
 ### 4. Validation & Error Matrix
 
@@ -299,6 +325,12 @@ background.js -> normalize/cache -> popup.js
 | Direct video link has empty text | `collectVideoScanCandidates` | Candidate title falls back to page/meta title instead of only CDN filename | Populate `title` before `describeCandidate` fallback |
 | Blob/MSE-backed visible player exposes no HTTP media URL | `collectVideoScanCandidates` | Detector emits a high-confidence `current_page` candidate for a canonical current content URL | Generate current-page fallback only when the visible player has no usable HTTP element/source URL |
 | Bilibili/YouTube player scope exposes control text or network cache exposes a CDN filename | `resolveVideoTitle` / `mergeNetworkCandidatesIntoScanResult` | Popup shows the cleaned page video title | Prefer cleaned site page title over local player labels and network filename titles for those sites |
+| Browser download is accepted by Chrome | `startBrowserDownload` | Response includes `downloadId` and `browserDownloadStatus: "accepted"` | Record the id in bounded background state |
+| Browser later emits `state.current: "complete"` | `chrome.downloads.onChanged` | Tracked state becomes `complete` | Update only matching extension-started download ids |
+| Browser later emits `state.current: "interrupted"` | `chrome.downloads.onChanged` | Tracked state becomes `interrupted` and keeps browser error if present | Update only matching extension-started download ids |
+| Many browser fallback downloads are started | Browser download tracker | State remains bounded | Prune by TTL and total count |
+| Filename polish is requested without a concrete filename bug | Code review | No global filename hook is added | Keep `chrome.downloads.download({ filename })` |
+| Bilibili exposes renderable `video/mp4` `.m4s` media while desktop is offline | `normalizeNetworkMediaEntry` / `canUseBrowserFallback` | Popup does not surface the fragment as a browser fallback download; only the desktop-required enhanced row remains | Skip the network fragment and keep stream handling on the desktop path |
 
 ### 5. Good / Base / Bad Cases
 
@@ -306,13 +338,17 @@ background.js -> normalize/cache -> popup.js
   - A normal page scan returns `{ videos, audios, images }`, the popup shows `Video / Audio / Image`, and cache refresh replaces stale counts without blocking first render.
   - A page with `<audio src="song.mp3" duration=180>` shows one Audio row.
   - `chrome://extensions` returns `scan_restricted_page` immediately and the popup shows an unavailable state.
+  - Browser fallback download returns `accepted` with a download id, then background state moves to `complete` or `interrupted` when Chrome emits the change.
 - Base:
   - Existing video/image-only detectors still work because missing `audios` normalizes to `[]`.
   - A popup close during scan is harmless because the background promise can finish and cache the result.
+  - If the popup closes after starting a browser download, the browser still owns the final download UI and background state remains bounded.
 - Bad:
   - Cache keyed only by URL shows one tab's scan results in another tab.
   - Popup assumes `result.audios` exists before background normalization.
   - Audio detection lists dozens of `m4s` chunks or 1-second UI sounds as downloadable audio.
+  - A global `onDeterminingFilename` listener rewrites unrelated browser downloads without a proven need.
+  - Popup text says a browser download completed when the extension only knows Chrome accepted it.
 
 ### 6. Tests Required
 
@@ -332,6 +368,9 @@ background.js -> normalize/cache -> popup.js
 - Direct video link with empty text displays a page/meta title.
 - Blob/MSE-backed YouTube/Bilibili player shows a canonical `current_page` candidate instead of unrelated recommendation/search links.
 - Bilibili/YouTube network-discovered direct media rows display the cleaned page title rather than CDN filenames.
+- Browser download lifecycle helper records accepted downloads, handles complete/interrupted changes, ignores untracked ids, and prunes to its configured limit.
+- Popup feedback does not show an extra browser fallback success message.
+- Bilibili `.m4s` network fragments are skipped/rejected as browser fallback candidates even when their content type is `video/mp4`.
 
 ### 7. Wrong vs Correct
 

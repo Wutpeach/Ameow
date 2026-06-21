@@ -1218,9 +1218,6 @@ document.addEventListener("DOMContentLoaded", () => {
       type: "download_media_candidate",
       candidate,
     });
-    const successFeedback = response?.downloadedBy === "browser"
-      ? t("popup.media.feedback.browserDownloaded", "Downloaded by browser")
-      : t("popup.media.feedback.submitted", "Submitted");
     const failureFeedback = response?.reason === "desktop_required"
       ? t("popup.media.feedback.desktopRequired", "Desktop required")
       : response?.reason === "browser_download_failed"
@@ -1228,7 +1225,11 @@ document.addEventListener("DOMContentLoaded", () => {
         : response?.connected === false
           ? t("popup.media.feedback.offline", "Desktop offline")
           : t("popup.media.feedback.failed", "Failed");
-    setRowFeedback(row, response?.success ? successFeedback : failureFeedback);
+    if (response?.success && response?.downloadedBy !== "browser") {
+      setRowFeedback(row, t("popup.media.feedback.submitted", "Submitted"));
+    } else if (!response?.success) {
+      setRowFeedback(row, failureFeedback);
+    }
     window.setTimeout(() => downloadCooldown.delete(key), 700);
   }
 

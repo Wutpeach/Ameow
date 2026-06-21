@@ -91,6 +91,21 @@ describe("browser extension popup download capability UI", () => {
     expect(backgroundJs).toContain("candidate.desktopCandidate");
     expect(backgroundJs).toContain("candidate.browserFallbackCandidate");
     expect(backgroundJs).toContain("canUseBrowserFallback");
+    expect(backgroundJs).toContain("downloadCapabilityUtils.canUseBrowserFallback(browserFallbackCandidate)");
+  });
+
+  it("tracks browser download lifecycle without building a popup download manager", () => {
+    expect(backgroundJs).toContain("browser-download-lifecycle.js");
+    expect(backgroundJs).toContain("createBrowserDownloadTracker");
+    expect(backgroundJs).toContain("browserDownloadTracker?.recordAccepted");
+    expect(backgroundJs).toContain("browserDownloadStatus: downloadState?.status || 'accepted'");
+    expect(backgroundJs).toContain("chrome.downloads.onChanged.addListener");
+    expect(backgroundJs).toContain("handleBrowserDownloadChanged(delta)");
+    expect(backgroundJs).toContain("get_browser_download_state");
+    expect(popupJs).toContain("response?.downloadedBy !== \"browser\"");
+    expect(popupJs).not.toContain("popup.media.feedback.browserStarted");
+    expect(popupJs).not.toContain("Browser download started");
+    expect(popupJs).not.toContain("chrome.downloads.onChanged.addListener");
   });
 
   it("renders image candidates with a dedicated grid card layout and existing actions", () => {

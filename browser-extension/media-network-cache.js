@@ -195,7 +195,10 @@
   }
 
   function shouldCacheMediaResponse(mediaType, extension) {
-    return Boolean(mediaType) && !VIDEO_FRAGMENT_EXTENSIONS.has(extension);
+    if (!mediaType) {
+      return false;
+    }
+    return !VIDEO_FRAGMENT_EXTENSIONS.has(extension);
   }
 
   function normalizeNetworkMediaEntry(details, tab, options = {}) {

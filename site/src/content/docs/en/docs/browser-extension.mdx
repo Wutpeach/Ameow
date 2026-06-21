@@ -72,6 +72,8 @@ An orange `[Desktop]` badge means the resource needs or strongly prefers desktop
 
 When the desktop app is connected, the extension still sends downloads to the desktop app by default. When it is disconnected, only direct resources without the `[Desktop]` badge use browser fallback.
 
+Browser fallback downloads are handed to the browser's own download manager. The popup does not show an extra completion message; start, completion, failure, and conflict handling remain in the browser downloads UI.
+
 ## How Should I Use Current-Page Media?
 
 The popup scans resources from the current active tab. In addition to `<video>`, `<audio>`, `<img>`, links, and browser performance records from the page DOM, the extension background passively records recent media responses and merges them into the popup results when you refresh the scan.

@@ -208,11 +208,27 @@
 
 ## Phase 4: Browser download lifecycle polish
 
-- [ ] Evaluate filename control with `chrome.downloads.onDeterminingFilename`.
-- [ ] Add conflict behavior only if the default browser behavior is insufficient.
-- [ ] Evaluate richer browser-download status feedback beyond the Phase 1b basics.
-- [ ] Avoid adding notifications/offscreen unless the product need is clear.
-- [ ] Update public docs under `site/src/content/docs/` explaining:
+- [x] Evaluate filename control:
+  - keep `chrome.downloads.download({ filename })` as the default filename path;
+  - do not add `chrome.downloads.onDeterminingFilename` unless the default filename option proves insufficient;
+  - preserve browser-native conflict behavior unless a real filename conflict problem appears.
+- [x] Add lightweight browser download lifecycle tracking:
+  - record accepted browser download IDs in bounded background state;
+  - update tracked state from `chrome.downloads.onChanged` for `complete` and `interrupted`;
+  - do not show extra popup success feedback for browser fallback downloads because the browser downloads UI owns start/complete/failure feedback;
+  - do not build a full popup download manager.
+- [x] Keep Bilibili adaptive/fragment media desktop-required:
+  - keep complex/current-page Bilibili candidates marked `[Desktop]`;
+  - do not retain `.m4s` fragments as browser fallback download candidates, even when they have `video/mp4` content type;
+  - leave stream parsing, separated audio/video, merge, and remux work to the desktop app instead of building an extension-side pipeline.
+- [x] Avoid adding notifications/offscreen/DNR/header rewriting unless the product need is clear.
+- [x] Add/update tests for:
+  - browser download response includes a download ID and accepted status;
+  - `chrome.downloads.onChanged` marks tracked downloads complete/interrupted;
+  - tracked browser download state is bounded;
+  - popup does not show a browser fallback success message;
+  - Bilibili `.m4s` fragments are skipped/rejected as browser fallback candidates.
+- [x] Update public docs under `site/src/content/docs/` only if visible behavior changes require it:
   - extension standalone downloads;
   - `[Desktop]` badge meaning;
   - desktop app enhanced capabilities.

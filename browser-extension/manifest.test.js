@@ -50,7 +50,14 @@ describe("browser extension manifest", () => {
   it("packages the action icon indicator helper for the background worker", () => {
     const backgroundSource = readFileSync(path.resolve("browser-extension/background.js"), "utf8");
     expect(backgroundSource).toContain("\"action-icon-indicator.js\"");
+    expect(backgroundSource).toContain("\"browser-download-lifecycle.js\"");
     expect(backgroundSource).toContain("\"media-network-cache.js\"");
+    expect(backgroundSource.indexOf("\"action-icon-indicator.js\"")).toBeLessThan(
+      backgroundSource.indexOf("\"browser-download-lifecycle.js\""),
+    );
+    expect(backgroundSource.indexOf("\"browser-download-lifecycle.js\"")).toBeLessThan(
+      backgroundSource.indexOf("\"direct-download-quality.js\""),
+    );
     expect(backgroundSource.indexOf("\"generic-video-selection-utils.js\"")).toBeLessThan(
       backgroundSource.indexOf("\"download-capability-utils.js\""),
     );

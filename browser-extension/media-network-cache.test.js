@@ -117,6 +117,21 @@ describe("media network cache helper", () => {
     }), tab)).toBeNull();
   });
 
+  it("skips Bilibili m4s fragments even when they have renderable content type", () => {
+    const helper = loadHelper();
+    expect(helper.normalizeNetworkMediaEntry(
+      responseDetails({
+        url: "https://xy123x456x789xy.mcdn.bilivideo.cn/upgcxcode/example/index.m4s",
+        responseHeaders: [
+          { name: "content-type", value: "video/mp4" },
+          { name: "content-length", value: "12345" },
+        ],
+      }),
+      { id: 7, url: "https://www.bilibili.com/video/BV1xfJ36cERC/" },
+      { now: 10_000 },
+    )).toBeNull();
+  });
+
   it("keeps per-tab and total cache sizes bounded while dropping stale entries", () => {
     const helper = loadHelper();
     const cache = {
@@ -230,10 +245,10 @@ describe("media network cache helper", () => {
       images: [],
     }, [
       {
-        url: "https://xy123x456x789xy.mcdn.bilivideo.cn/upgcxcode/example/index.m4s",
+        url: "https://xy123x456x789xy.mcdn.bilivideo.cn/upgcxcode/example/video.mp4",
         mediaType: "video",
         source: "web_request",
-        title: "index.m4s",
+        title: "video.mp4",
       },
     ], {
       totalLimit: 4,

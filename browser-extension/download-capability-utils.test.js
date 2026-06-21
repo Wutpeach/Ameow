@@ -126,6 +126,35 @@ describe("download capability utils", () => {
     });
   });
 
+  it("rejects Bilibili m4s fragments for browser fallback even when marked", () => {
+    const helper = loadHelper();
+    const candidate = {
+      url: "https://xy123x456x789xy.mcdn.bilivideo.cn/upgcxcode/example/index.m4s",
+      pageUrl: "https://www.bilibili.com/video/BV1xfJ36cERC/",
+      mediaType: "video",
+      contentType: "video/mp4",
+      browserFallbackEligible: true,
+    };
+
+    expect(helper.resolveDownloadCapability(candidate)).toMatchObject({
+      browserDownloadable: false,
+      requiresDesktop: true,
+      desktopReason: "m4s_resource",
+    });
+    expect(helper.canUseBrowserFallback(candidate)).toBe(false);
+  });
+
+  it("does not allow generic browser fallback for unmarked fragments", () => {
+    const helper = loadHelper();
+
+    expect(helper.canUseBrowserFallback({
+      url: "https://cdn.example.com/chunk.m4s",
+      pageUrl: "https://www.example.com/watch/1",
+      mediaType: "video",
+      contentType: "video/mp4",
+    })).toBe(false);
+  });
+
   it("lets candidate metadata override a direct-looking URL", () => {
     const helper = loadHelper();
 
