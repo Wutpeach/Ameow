@@ -1,0 +1,127 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const popupJs = readFileSync(path.resolve("browser-extension/popup.js"), "utf8");
+const popupCss = readFileSync(path.resolve("browser-extension/popup.css"), "utf8");
+const popupHtml = readFileSync(path.resolve("browser-extension/popup.html"), "utf8");
+const backgroundJs = readFileSync(path.resolve("browser-extension/background.js"), "utf8");
+
+describe("browser extension popup download capability UI", () => {
+  it("renders only the compact Desktop capability badge from download capability state", () => {
+    expect(popupJs).toContain("resolveDownloadCapability");
+    expect(popupJs).toContain("ameow-media-desktop-badge");
+    expect(popupJs).toContain("\"Desktop\"");
+    expect(popupJs).not.toContain("Desktop+");
+  });
+
+  it("styles the desktop badge as a compact orange label", () => {
+    expect(popupCss).toContain(".ameow-media-desktop-badge");
+    expect(popupCss).toMatch(/\.ameow-media-desktop-badge\s*\{[\s\S]*?rgba\(245,\s*158,\s*11/);
+    expect(popupCss).toMatch(/\.ameow-media-desktop-badge\s*\{[\s\S]*?font-size:\s*9px;/);
+  });
+
+  it("adds a dedicated popup preview slot before the scrollable media list", () => {
+    expect(popupHtml).toContain('id="mediaPreviewSlot"');
+    expect(popupHtml.indexOf('id="mediaPreviewSlot"')).toBeLessThan(popupHtml.indexOf('id="mediaList"'));
+    expect(popupJs).toContain("mediaPreviewSlot: document.getElementById(\"mediaPreviewSlot\")");
+    expect(popupCss).toContain(".ameow-media-preview-slot[data-visible=\"true\"] + .ameow-media-list");
+  });
+
+  it("gates playable previews through download capability state", () => {
+    expect(popupJs).toContain("function isCandidatePreviewable(candidate)");
+    expect(popupJs).toContain("resolveDownloadCapability?.(candidate)");
+    expect(popupJs).toContain("capability?.requiresDesktop !== true");
+    expect(popupJs).toContain("capability?.browserDownloadable === true");
+    expect(popupJs).toContain("Preview unavailable");
+  });
+
+  it("uses stable SVG hooks for play, pause, and unavailable preview affordances", () => {
+    expect(popupJs).toContain("function createPreviewIcon(active, previewable)");
+    expect(popupJs).toContain("document.createElementNS(\"http://www.w3.org/2000/svg\", \"svg\")");
+    expect(popupJs).toContain("ameow-preview-toggle-icon");
+    expect(popupJs).toContain("button.appendChild(createPreviewIcon(active, previewable))");
+    expect(popupCss).toContain(".ameow-preview-toggle-icon");
+    expect(popupCss).not.toContain(".ameow-preview-toggle::before");
+  });
+
+  it("renders native video and custom audio previews without autoplay", () => {
+    expect(popupJs).toContain("document.createElement(\"video\")");
+    expect(popupJs).toContain("video.controls = true");
+    expect(popupJs).toContain("video.preload = \"metadata\"");
+    expect(popupJs).toContain("video.playsInline = true");
+    expect(popupJs).toContain("video.poster = previewCandidate.previewUrl");
+    expect(popupJs).toContain("document.createElement(\"audio\")");
+    expect(popupJs).toContain("function createAudioSampler(candidate)");
+    expect(popupJs).toContain("audio.className = \"ameow-audio-engine\"");
+    expect(popupJs).toContain("audio.preload = \"metadata\"");
+    expect(popupJs).toContain("await audio.play()");
+    expect(popupJs).not.toContain("autoplay");
+    expect(popupJs).not.toContain("audio.controls = true");
+    expect(popupCss).toContain(".ameow-audio-sampler");
+    expect(popupCss).toContain(".ameow-audio-sampler-range");
+  });
+
+  it("uses explicit play/pause preview state and clears it on tab changes and refresh", () => {
+    expect(popupJs).toContain("let activeVideoPreviewId = null");
+    expect(popupJs).toContain("let activeAudioPreviewId = null");
+    expect(popupJs).toContain("function clearActivePreviewState()");
+    expect(popupJs).toContain("activeAudioPreviewId = active ? null : id");
+    expect(popupJs).toContain("activeVideoPreviewId = active ? null : id");
+    expect(popupJs).toContain("clearActivePreviewState();");
+  });
+
+  it("groups duplicate display candidates while preserving preview and desktop routing candidates", () => {
+    expect(popupJs).toContain("function mergeDisplayCandidates(candidates)");
+    expect(popupJs).toContain("function createDisplayCandidate(group, index)");
+    expect(popupJs).toContain("function arePageScopedMediaCandidates(left, right)");
+    expect(popupJs).toContain("function isCurrentPageCandidate(candidate)");
+    expect(popupJs).toContain("candidate.source === \"current_page\"");
+    expect(popupJs).toContain("hasCurrentPageDesktop");
+    expect(popupJs).toContain("const title = candidateDisplayTitle(desktopCandidate) || candidateDisplayTitle(previewCandidate)");
+    expect(popupJs).toContain("return arePageScopedMediaCandidates(left, right)");
+    expect(popupJs).not.toContain("const hasSharedDuration");
+    expect(popupJs).not.toContain("const hasSharedDimensions");
+    expect(popupJs).toContain("previewCandidate");
+    expect(popupJs).toContain("desktopCandidate");
+    expect(popupJs).toContain("browserFallbackCandidate");
+    expect(popupJs).toContain("displayCapability");
+    expect(popupJs).toContain("renderMediaPreviewSlot(displayCandidates)");
+    expect(popupJs).toContain("downloadCandidate(candidate, row)");
+    expect(backgroundJs).toContain("candidate.desktopCandidate");
+    expect(backgroundJs).toContain("candidate.browserFallbackCandidate");
+    expect(backgroundJs).toContain("canUseBrowserFallback");
+  });
+
+  it("renders image candidates with a dedicated grid card layout and existing actions", () => {
+    expect(popupJs).toContain("elements.mediaList.dataset.mediaType = currentMediaType");
+    expect(popupJs).toContain("createImageCard(candidate, index)");
+    expect(popupJs).toContain("ameow-image-card");
+    expect(popupJs).toContain("ameow-image-card-thumb");
+    expect(popupJs).toContain("imageFormatLabel(candidate)");
+    expect(popupJs).toContain("candidate.width && candidate.height");
+    expect(popupJs).toContain("downloadCandidate(candidate, card)");
+    expect(popupJs).toContain("copyCandidateLink(candidate, card)");
+    expect(popupJs).toContain("showCandidateSource(candidate, card)");
+    expect(popupCss).toContain(".ameow-media-list[data-media-type=\"image\"][data-visible=\"true\"]");
+    expect(popupCss).toContain(".ameow-image-card");
+    expect(popupCss).toContain("grid-template-rows: 96px auto");
+  });
+
+  it("adds popup-local image lightbox behavior without hijacking image card menus", () => {
+    expect(popupHtml).toContain('id="imageLightbox"');
+    expect(popupHtml).toContain('id="imageLightboxBackdrop"');
+    expect(popupHtml).toContain('id="imageLightboxClose"');
+    expect(popupHtml).toContain('id="imageLightboxImage"');
+    expect(popupJs).toContain("function openImageLightbox(candidate, id)");
+    expect(popupJs).toContain("function closeImageLightbox()");
+    expect(popupJs).toContain("thumbnail.dataset.imagePreviewTarget = \"true\"");
+    expect(popupJs).toContain("openImageLightbox(candidate, id)");
+    expect(popupJs).toContain("elements.imageLightboxBackdrop.addEventListener(\"click\", closeImageLightbox)");
+    expect(popupJs).toContain("elements.imageLightboxClose.addEventListener(\"click\", closeImageLightbox)");
+    expect(popupJs).toContain("if (event.key === \"Escape\")");
+    expect(popupJs).toContain("event.stopPropagation();");
+    expect(popupCss).toContain(".ameow-image-lightbox[data-open=\"true\"]");
+    expect(popupCss).toContain("cursor: zoom-in");
+  });
+});

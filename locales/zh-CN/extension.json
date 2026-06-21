@@ -96,9 +96,16 @@
         "copy": "复制链接",
         "source": "查看来源"
       },
+      "badges": {
+        "desktop": "桌面端",
+        "desktopTitle": "需要桌面端接管"
+      },
       "feedback": {
         "submitting": "提交中",
         "submitted": "已提交",
+        "browserDownloaded": "浏览器已下载",
+        "browserFailed": "浏览器下载失败",
+        "desktopRequired": "需要桌面端",
         "offline": "桌面端离线",
         "failed": "失败",
         "copied": "已复制"

@@ -357,17 +357,109 @@
     return normalizeContentUrl(window.location.href) || null;
   }
 
+  function currentHostname() {
+    try {
+      return new URL(window.location.href).hostname;
+    } catch {
+      return "";
+    }
+  }
+
+  function firstElementTitle(selectors) {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      const attributeTitle = titleFromElementAttribute(element, ["title", "aria-label", "data-title"]);
+      if (attributeTitle) {
+        return attributeTitle;
+      }
+
+      const textTitle = titleFromElementText(element);
+      if (textTitle) {
+        return textTitle;
+      }
+    }
+    return "";
+  }
+
+  function cleanBilibiliTitle(rawTitle) {
+    return normalizeCandidateTitle(rawTitle)
+      .replace(/\s*[_-]\s*哔哩哔哩\s*bilibili\s*$/i, "")
+      .replace(/\s*[_-]\s*bilibili\s*$/i, "")
+      .replace(/\s*[_-]\s*哔哩哔哩\s*$/i, "")
+      .trim();
+  }
+
+  function cleanYouTubeTitle(rawTitle) {
+    return normalizeCandidateTitle(rawTitle)
+      .replace(/\s+-\s+YouTube\s*$/i, "")
+      .trim();
+  }
+
+  function cleanSiteVideoTitle(rawTitle, rawUrl = window.location.href) {
+    const title = normalizeCandidateTitle(rawTitle);
+    if (!title) {
+      return "";
+    }
+
+    try {
+      const hostname = new URL(rawUrl).hostname;
+      if (isBilibiliHostname(hostname)) {
+        return cleanBilibiliTitle(title);
+      }
+      if (isYouTubeHostname(hostname)) {
+        return cleanYouTubeTitle(title);
+      }
+    } catch {
+      return title;
+    }
+
+    return title;
+  }
+
+  function isSitePageTitleAuthoritative(rawUrl = window.location.href) {
+    try {
+      const hostname = new URL(rawUrl).hostname;
+      return isBilibiliHostname(hostname) || isYouTubeHostname(hostname);
+    } catch {
+      return false;
+    }
+  }
+
   function extractTitle() {
+    const hostname = currentHostname();
+    if (isBilibiliHostname(hostname)) {
+      const elementTitle = firstElementTitle([
+        "h1.video-title",
+        ".video-title",
+        "h1[title]",
+        "h1",
+      ]);
+      if (elementTitle) {
+        return cleanBilibiliTitle(elementTitle);
+      }
+    }
+
     const metaTitle = firstMetaContent([
       'meta[property="og:title"]',
       'meta[name="og:title"]',
       'meta[name="twitter:title"]',
     ]);
     if (metaTitle) {
-      return metaTitle;
+      return cleanSiteVideoTitle(metaTitle);
     }
 
-    return (document.title || "").trim();
+    if (isYouTubeHostname(hostname)) {
+      const elementTitle = firstElementTitle([
+        "h1 yt-formatted-string",
+        "h1.title",
+        "h1",
+      ]);
+      if (elementTitle) {
+        return cleanYouTubeTitle(elementTitle);
+      }
+    }
+
+    return cleanSiteVideoTitle(document.title || "");
   }
 
   function normalizeYouTubeWatchUrl(rawUrl) {
@@ -525,6 +617,11 @@
   }
 
   function resolveVideoTitle(video) {
+    const sitePageTitle = isSitePageTitleAuthoritative() ? extractTitle() : "";
+    if (sitePageTitle) {
+      return sitePageTitle;
+    }
+
     const scope = resolveVideoMetadataScope(video);
     const titleElement = scope?.querySelector?.(
       "h1, h2, h3, [role='heading'], [data-title], a[title], img[alt]",
@@ -1025,6 +1122,7 @@
 
   function collectPageMediaCandidates() {
     const startedAt = Date.now();
+    const primaryVideo = resolveBestVideo(document);
     const videos = collectVideoScanCandidates();
     const audios = collectAudioScanCandidates();
     const images = collectImageScanCandidates();
@@ -1062,6 +1160,9 @@
       scanDurationMs: Date.now() - startedAt,
       pageUrl: normalizeHttpUrl(window.location.href) || window.location.href,
       pageTitle: extractTitle(),
+      pagePreviewUrl: primaryVideo instanceof HTMLVideoElement
+        ? resolveVideoPreviewUrl(primaryVideo) || extractMetaPreviewUrl() || undefined
+        : extractMetaPreviewUrl() || undefined,
       videos: limitedVideos,
       audios: limitedAudios,
       images: limitedImages,
@@ -1295,6 +1396,7 @@
   window.AmeowGenericVideoDetectorTestHooks = {
     collectPageMediaCandidates,
     collectAudioScanCandidates,
+    cleanSiteVideoTitle,
     normalizeContentUrl,
     normalizeCurrentItemPageUrl,
     normalizeXiaohongshuNoteUrl,

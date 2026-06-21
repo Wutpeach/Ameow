@@ -464,6 +464,278 @@ describe("generic video detector", () => {
       title: "Open graph title",
       previewUrl: "https://cdn.example.com/covers/og.jpg",
     });
+    expect(result.pagePreviewUrl).toBe("https://cdn.example.com/covers/og.jpg");
+  });
+
+  it("cleans Bilibili page title suffixes for popup video candidates", () => {
+    const expectedTitle = "Blender 波纹纹理映射修复巧 - 曲线纹理畸变 / 动态循环动画";
+    const { hooks } = loadDetectorHooks(
+      "https://www.bilibili.com/video/BV1xfJ36cERC/?vd_source=4f50838c933e5a53404b98227cab1dcb",
+      {
+        document: {
+          addEventListener() {},
+          querySelector(selector) {
+            if (selector === 'meta[property="og:title"]') {
+              return {
+                getAttribute(name) {
+                  return name === "content" ? `${expectedTitle}_哔哩哔哩_bilibili` : null;
+                },
+              };
+            }
+            return null;
+          },
+          querySelectorAll() {
+            return [];
+          },
+          title: `${expectedTitle}_哔哩哔哩_bilibili`,
+        },
+      },
+    );
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.pageTitle).toBe(expectedTitle);
+  });
+
+  it("prefers Bilibili title elements over noisy metadata", () => {
+    let video = null;
+    const titleElement = {
+      textContent: "Element Bilibili Title",
+      getAttribute(name) {
+        return name === "title" ? "Element Bilibili Title" : null;
+      },
+    };
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.bilibili.com/video/BV1xx411c7mD/", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === "h1.video-title") {
+            return titleElement;
+          }
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Noisy Metadata_哔哩哔哩_bilibili" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Document Title_哔哩哔哩_bilibili",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.bilibili.com/player",
+      src: "blob:https://www.bilibili.com/player",
+      paused: false,
+      readyState: 4,
+      currentTime: 42,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 1280, height: 720, left: 0, top: 0, right: 1280, bottom: 720 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.pageTitle).toBe("Element Bilibili Title");
+    expect(result.videos[0].title).toBe("Element Bilibili Title");
+  });
+
+  it("keeps Bilibili page title ahead of local player metadata", () => {
+    let video = null;
+    const playerScope = {
+      textContent: "播放器设置",
+      getAttribute(name) {
+        return name === "aria-label" ? "播放器设置" : null;
+      },
+      querySelector(selector) {
+        if (selector === "h1, h2, h3, [role='heading'], [data-title], a[title], img[alt]") {
+          return {
+            textContent: "播放器设置",
+            getAttribute() {
+              return null;
+            },
+          };
+        }
+        return null;
+      },
+    };
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.bilibili.com/video/BV1xx411c7mD/", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === "h1.video-title") {
+            return {
+              textContent: "Correct Bilibili Page Title",
+              getAttribute() {
+                return null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Correct Bilibili Page Title_哔哩哔哩_bilibili",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.bilibili.com/player",
+      src: "blob:https://www.bilibili.com/player",
+      paused: false,
+      readyState: 4,
+      currentTime: 42,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: playerScope,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return playerScope;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 1280, height: 720, left: 0, top: 0, right: 1280, bottom: 720 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.pageTitle).toBe("Correct Bilibili Page Title");
+    expect(result.videos[0].title).toBe("Correct Bilibili Page Title");
+  });
+
+  it("cleans YouTube browser title suffixes for current-page candidates", () => {
+    let video = null;
+    const { hooks, TestVideoElement } = loadDetectorHooks("https://www.youtube.com/watch?v=abc123", {
+      domUtils: {
+        isRenderableElement() {
+          return true;
+        },
+      },
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "video") {
+            return [video];
+          }
+          return [];
+        },
+        title: "Some Video Title - YouTube",
+      },
+    });
+    video = Object.assign(new TestVideoElement(), {
+      currentSrc: "blob:https://www.youtube.com/1234",
+      src: "blob:https://www.youtube.com/1234",
+      paused: false,
+      readyState: 4,
+      currentTime: 12,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      parentElement: null,
+      getAttribute() {
+        return null;
+      },
+      closest() {
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      getBoundingClientRect() {
+        return { width: 1280, height: 720, left: 0, top: 0, right: 1280, bottom: 720 };
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.pageTitle).toBe("Some Video Title");
+    expect(result.videos[0].title).toBe("Some Video Title");
+  });
+
+  it("does not apply site title cleanup on unknown sites", () => {
+    const { hooks } = loadDetectorHooks("https://www.example.com/watch/abc123", {
+      document: {
+        addEventListener() {},
+        querySelector() {
+          return null;
+        },
+        querySelectorAll() {
+          return [];
+        },
+        title: "Some Video Title - YouTube",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.pageTitle).toBe("Some Video Title - YouTube");
+  });
+
+  it("returns a page preview for network-only media candidates", () => {
+    const { hooks } = loadDetectorHooks("https://www.example.com/post/network-only", {
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:image"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "https://cdn.example.com/covers/network.jpg" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll() {
+          return [];
+        },
+        title: "Network only post",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos).toEqual([]);
+    expect(result.images).toEqual([]);
+    expect(result.pagePreviewUrl).toBe("https://cdn.example.com/covers/network.jpg");
   });
 
   it("adds page title and cover metadata to direct video links", () => {

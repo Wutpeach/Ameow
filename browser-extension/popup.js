@@ -1,6 +1,7 @@
 // Ameow Browser Extension - Popup Script
 
 const directDownloadQuality = window.AmeowDirectDownloadQuality;
+const downloadCapabilityUtils = window.AmeowDownloadCapabilityUtils;
 const localeUtils = window.AmeowLocaleUtils;
 const FALLBACK_LANGUAGE = localeUtils?.FALLBACK_LANGUAGE || "en";
 const STATUS_STATE_CONNECTED = "connected";
@@ -128,6 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshMediaText: document.getElementById("refreshMediaText"),
     mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
     mediaSummary: document.getElementById("mediaSummary"),
+    mediaPreviewSlot: document.getElementById("mediaPreviewSlot"),
     mediaList: document.getElementById("mediaList"),
     mediaEmpty: document.getElementById("mediaEmpty"),
     mediaEmptyTitle: document.getElementById("mediaEmptyTitle"),
@@ -147,6 +149,11 @@ document.addEventListener("DOMContentLoaded", () => {
     moreMenu: document.getElementById("moreMenu"),
     repositoryLinkButton: document.getElementById("repositoryLinkButton"),
     gettingStartedLinkButton: document.getElementById("gettingStartedLinkButton"),
+    imageLightbox: document.getElementById("imageLightbox"),
+    imageLightboxBackdrop: document.getElementById("imageLightboxBackdrop"),
+    imageLightboxClose: document.getElementById("imageLightboxClose"),
+    imageLightboxImage: document.getElementById("imageLightboxImage"),
+    imageLightboxCaption: document.getElementById("imageLightboxCaption"),
   };
 
   let statusTimer = null;
@@ -164,6 +171,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let scanStarted = false;
   let scanInProgress = false;
   let openMenuId = null;
+  let activeVideoPreviewId = null;
+  let activeAudioPreviewId = null;
+  let activeImagePreviewId = null;
   const downloadCooldown = new Set();
 
   function t(key, fallback) {
@@ -351,8 +361,56 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function clearActivePreviewState() {
+    activeVideoPreviewId = null;
+    activeAudioPreviewId = null;
+  }
+
+  function imagePreviewUrl(candidate) {
+    return safeText(candidate?.previewUrl, safeText(candidate?.url, ""));
+  }
+
+  function openImageLightbox(candidate, id) {
+    const url = imagePreviewUrl(candidate);
+    if (!url) {
+      return;
+    }
+    activeImagePreviewId = id;
+    elements.imageLightbox.dataset.candidateId = activeImagePreviewId;
+    closeRowMenus();
+    closeMoreMenu();
+    elements.imageLightboxImage.src = url;
+    elements.imageLightboxImage.alt = safeText(candidate?.title, t("popup.media.type.imageShort", "Image"));
+    elements.imageLightboxCaption.textContent = [
+      safeText(candidate?.title, ""),
+      candidate?.width && candidate?.height ? `${candidate.width}x${candidate.height}` : "",
+      imageFormatLabel(candidate),
+    ].filter(Boolean).join(" / ");
+    elements.imageLightbox.hidden = false;
+    elements.imageLightbox.dataset.open = "true";
+    elements.imageLightbox.setAttribute("aria-hidden", "false");
+  }
+
+  function closeImageLightbox() {
+    if (elements.imageLightbox.dataset.open !== "true") {
+      return;
+    }
+    activeImagePreviewId = null;
+    elements.imageLightbox.dataset.open = "false";
+    elements.imageLightbox.dataset.candidateId = "";
+    elements.imageLightbox.setAttribute("aria-hidden", "true");
+    elements.imageLightbox.hidden = true;
+    elements.imageLightboxImage.removeAttribute("src");
+    elements.imageLightboxImage.alt = "";
+    elements.imageLightboxCaption.textContent = "";
+  }
+
   function setMediaType(mediaType) {
+    const previousMediaType = currentMediaType;
     currentMediaType = mediaType === "audio" || mediaType === "image" ? mediaType : "video";
+    if (previousMediaType !== currentMediaType) {
+      clearActivePreviewState();
+    }
     elements.mediaTabs.forEach((button) => {
       button.classList.toggle("active", button.dataset.mediaType === currentMediaType);
     });
@@ -427,16 +485,392 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  function candidateStableId(candidate, index = 0) {
+    return safeText(
+      candidate?.id,
+      [
+        candidate?.mediaType || currentMediaType,
+        candidate?.source || "candidate",
+        candidate?.url || candidate?.previewUrl || index,
+      ].join(":"),
+    );
+  }
+
+  function currentPreviewIdForType(mediaType) {
+    return mediaType === "audio" ? activeAudioPreviewId : activeVideoPreviewId;
+  }
+
+  function isCandidatePreviewable(candidate) {
+    const capability = downloadCapabilityUtils?.resolveDownloadCapability?.(candidate) || null;
+    return capability?.requiresDesktop !== true && capability?.browserDownloadable === true;
+  }
+
+  function candidateCapability(candidate) {
+    return downloadCapabilityUtils?.resolveDownloadCapability?.(candidate) || null;
+  }
+
+  function candidateDisplayTitle(candidate) {
+    return safeText(candidate?.title, safeText(candidate?.url, ""));
+  }
+
+  function normalizeDisplayKeyPart(value) {
+    return typeof value === "string"
+      ? value.trim().toLowerCase().replace(/\s+/g, " ")
+      : "";
+  }
+
+  function normalizeDisplayUrl(value) {
+    if (typeof value !== "string" || !value.trim()) {
+      return "";
+    }
+    try {
+      const url = new URL(value.trim());
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return "";
+    }
+  }
+
+  function roundedDurationBucket(candidate) {
+    const duration = Number(candidate?.duration);
+    return Number.isFinite(duration) && duration > 0 ? String(Math.round(duration)) : "";
+  }
+
+  function dimensionsKey(candidate) {
+    return candidate?.width && candidate?.height ? `${candidate.width}x${candidate.height}` : "";
+  }
+
+  function sameKnownValue(left, right) {
+    return !left || !right || left === right;
+  }
+
+  function candidatePageUrl(candidate) {
+    return normalizeDisplayUrl(candidate?.pageUrl || mediaScanResult?.pageUrl || "");
+  }
+
+  function isCurrentPageCandidate(candidate) {
+    const candidateUrl = normalizeDisplayUrl(candidate?.url);
+    const pageUrl = candidatePageUrl(candidate);
+    return Boolean(
+      candidate
+      && currentMediaType !== "image"
+      && (
+        candidate.source === "current_page"
+        || candidate.source === "site_extractor"
+        || candidateUrl && pageUrl && candidateUrl === pageUrl
+      )
+    );
+  }
+
+  function arePageScopedMediaCandidates(left, right) {
+    if (currentMediaType === "image" || !left || !right) {
+      return false;
+    }
+    if ((left.mediaType || currentMediaType) !== (right.mediaType || currentMediaType)) {
+      return false;
+    }
+
+    const leftPageUrl = candidatePageUrl(left);
+    const rightPageUrl = candidatePageUrl(right);
+    if (!leftPageUrl || !rightPageUrl || leftPageUrl !== rightPageUrl) {
+      return false;
+    }
+
+    const leftDesktop = candidateCapability(left)?.requiresDesktop === true;
+    const rightDesktop = candidateCapability(right)?.requiresDesktop === true;
+    const leftPreviewable = isCandidatePreviewable(left);
+    const rightPreviewable = isCandidatePreviewable(right);
+    const hasCurrentPageDesktop =
+      (leftDesktop && isCurrentPageCandidate(left))
+      || (rightDesktop && isCurrentPageCandidate(right));
+    return hasCurrentPageDesktop && ((leftDesktop && rightPreviewable) || (rightDesktop && leftPreviewable));
+  }
+
+  function candidateGroupKey(candidate) {
+    const explicit = safeText(candidate?.groupId, safeText(candidate?.canonicalId, ""));
+    if (explicit) {
+      return `explicit:${currentMediaType}:${explicit}`;
+    }
+
+    const pageUrl = normalizeDisplayKeyPart(candidate?.pageUrl || mediaScanResult?.pageUrl || "");
+    const title = normalizeDisplayKeyPart(candidate?.title || "");
+    const host = normalizeDisplayKeyPart(candidate?.host || shortHost(candidate?.url));
+    const duration = roundedDurationBucket(candidate);
+    const dimensions = dimensionsKey(candidate);
+
+    if (title && (duration || dimensions)) {
+      return `meta:${currentMediaType}:${pageUrl}:${title}:${duration}:${dimensions}`;
+    }
+
+    if (title && host) {
+      return `title-host:${currentMediaType}:${pageUrl}:${title}:${host}`;
+    }
+
+    const url = safeText(candidate?.url, "");
+    return `url:${currentMediaType}:${url}`;
+  }
+
+  function areCandidatesCompatible(left, right) {
+    if (!left || !right) {
+      return false;
+    }
+
+    return arePageScopedMediaCandidates(left, right);
+  }
+
+  function preferPreviewCandidate(left, right) {
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+
+    const leftPreviewable = isCandidatePreviewable(left);
+    const rightPreviewable = isCandidatePreviewable(right);
+    if (rightPreviewable !== leftPreviewable) {
+      return rightPreviewable ? right : left;
+    }
+
+    const leftHasPreview = Boolean(left.previewUrl);
+    const rightHasPreview = Boolean(right.previewUrl);
+    if (rightHasPreview !== leftHasPreview) {
+      return rightHasPreview ? right : left;
+    }
+
+    return left;
+  }
+
+  function preferDesktopCandidate(left, right) {
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+
+    const leftRequiresDesktop = candidateCapability(left)?.requiresDesktop === true;
+    const rightRequiresDesktop = candidateCapability(right)?.requiresDesktop === true;
+    if (rightRequiresDesktop !== leftRequiresDesktop) {
+      return rightRequiresDesktop ? right : left;
+    }
+
+    return left;
+  }
+
+  function createDisplayCandidate(group, index) {
+    const previewCandidate = group.previewCandidate || group.primaryCandidate;
+    const desktopCandidate = group.desktopCandidate || group.primaryCandidate;
+    const capability = group.hasDesktopCapability
+      ? { browserDownloadable: Boolean(candidateCapability(previewCandidate)?.browserDownloadable), requiresDesktop: true, desktopReason: "desktop_capable" }
+      : candidateCapability(previewCandidate) || candidateCapability(group.primaryCandidate);
+    const title = candidateDisplayTitle(desktopCandidate) || candidateDisplayTitle(previewCandidate);
+    return {
+      ...previewCandidate,
+      id: group.id || candidateStableId(previewCandidate, index),
+      title,
+      mediaType: previewCandidate?.mediaType || desktopCandidate?.mediaType || currentMediaType,
+      previewCandidate,
+      desktopCandidate,
+      browserFallbackCandidate: previewCandidate,
+      displayCapability: capability,
+      displayCandidates: group.candidates,
+    };
+  }
+
+  function mergeDisplayCandidates(candidates) {
+    const groups = [];
+    const groupsByKey = new Map();
+
+    candidates.forEach((candidate, index) => {
+      const key = candidateGroupKey(candidate);
+      let group = groupsByKey.get(key) || null;
+      if (!group && currentMediaType !== "image") {
+        group = groups.find((existingGroup) => areCandidatesCompatible(existingGroup.primaryCandidate, candidate)) || null;
+      }
+
+      if (!group) {
+        group = {
+          id: key,
+          primaryCandidate: candidate,
+          previewCandidate: null,
+          desktopCandidate: null,
+          hasDesktopCapability: false,
+          candidates: [],
+          firstIndex: index,
+        };
+        groups.push(group);
+        groupsByKey.set(key, group);
+      }
+
+      group.candidates.push(candidate);
+      group.previewCandidate = preferPreviewCandidate(group.previewCandidate, candidate);
+      group.desktopCandidate = preferDesktopCandidate(group.desktopCandidate, candidate);
+      group.hasDesktopCapability = group.hasDesktopCapability || candidateCapability(candidate)?.requiresDesktop === true;
+    });
+
+    return groups
+      .sort((left, right) => left.firstIndex - right.firstIndex)
+      .map((group, index) => createDisplayCandidate(group, index));
+  }
+
+  function activePreviewCandidate(candidates) {
+    if (currentMediaType !== "video" && currentMediaType !== "audio") {
+      return null;
+    }
+    const activeId = currentPreviewIdForType(currentMediaType);
+    if (!activeId) {
+      return null;
+    }
+    return candidates.find((candidate, index) => candidateStableId(candidate, index) === activeId) || null;
+  }
+
+  function renderMediaPreviewSlot(candidates) {
+    elements.mediaPreviewSlot.innerHTML = "";
+    elements.mediaPreviewSlot.hidden = true;
+    elements.mediaPreviewSlot.dataset.visible = "false";
+    elements.mediaPreviewSlot.dataset.mediaType = currentMediaType;
+
+    const candidate = activePreviewCandidate(candidates);
+    const previewCandidate = candidate?.previewCandidate || candidate;
+    if (!candidate || !isCandidatePreviewable(previewCandidate)) {
+      return;
+    }
+
+    const panel = document.createElement("div");
+    const title = document.createElement("div");
+    const titleText = document.createElement("span");
+    const mediaHost = document.createElement("div");
+
+    panel.className = "ameow-inline-preview-panel";
+    panel.dataset.mediaType = currentMediaType;
+    title.className = "ameow-inline-preview-title";
+    titleText.textContent = safeText(candidate.title, previewCandidate.url);
+    title.appendChild(titleText);
+    mediaHost.className = "ameow-inline-preview-media";
+
+    if (currentMediaType === "video") {
+      const video = document.createElement("video");
+      video.controls = true;
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.src = previewCandidate.url;
+      if (previewCandidate.previewUrl) {
+        video.poster = previewCandidate.previewUrl;
+      }
+      mediaHost.appendChild(video);
+    } else if (currentMediaType === "audio") {
+      mediaHost.appendChild(createAudioSampler(previewCandidate));
+    }
+
+    panel.append(title, mediaHost);
+    elements.mediaPreviewSlot.appendChild(panel);
+    elements.mediaPreviewSlot.hidden = false;
+    elements.mediaPreviewSlot.dataset.visible = "true";
+  }
+
+  function formatAudioTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return "0:00";
+    }
+    const totalSeconds = Math.floor(seconds);
+    const minutes = Math.floor(totalSeconds / 60);
+    const remainder = String(totalSeconds % 60).padStart(2, "0");
+    return `${minutes}:${remainder}`;
+  }
+
+  function createAudioSampler(candidate) {
+    const sampler = document.createElement("div");
+    const audio = document.createElement("audio");
+    const button = document.createElement("button");
+    const icon = document.createElement("span");
+    const time = document.createElement("span");
+    const range = document.createElement("input");
+
+    sampler.className = "ameow-audio-sampler";
+    sampler.style.setProperty("--audio-progress", "0%");
+    audio.className = "ameow-audio-engine";
+    audio.preload = "metadata";
+    audio.src = candidate.url;
+
+    button.type = "button";
+    button.className = "ameow-audio-sampler-toggle";
+    button.setAttribute("aria-label", t("popup.media.preview.play", "Preview"));
+    icon.className = "ameow-audio-sampler-icon";
+    icon.textContent = ">";
+    button.appendChild(icon);
+
+    time.className = "ameow-audio-sampler-time";
+    time.textContent = "0:00 / 0:00";
+
+    range.type = "range";
+    range.className = "ameow-audio-sampler-range";
+    range.min = "0";
+    range.max = "1000";
+    range.value = "0";
+    range.step = "1";
+    range.setAttribute("aria-label", t("popup.media.preview.audioProgress", "Audio progress"));
+
+    const syncUi = () => {
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+      const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const progress = duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0;
+      range.value = duration > 0 ? String(Math.round((current / duration) * 1000)) : "0";
+      sampler.style.setProperty("--audio-progress", `${progress}%`);
+      time.textContent = `${formatAudioTime(current)} / ${formatAudioTime(duration)}`;
+      icon.textContent = audio.paused ? ">" : "||";
+      button.setAttribute(
+        "aria-label",
+        audio.paused ? t("popup.media.preview.play", "Preview") : t("popup.media.preview.pause", "Stop preview"),
+      );
+    };
+
+    button.addEventListener("click", async () => {
+      if (audio.paused) {
+        try {
+          await audio.play();
+        } catch {
+          setRowFeedback(elements.mediaPreviewSlot, t("popup.media.preview.unavailable", "Preview unavailable"));
+        }
+      } else {
+        audio.pause();
+      }
+      syncUi();
+    });
+    range.addEventListener("input", () => {
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+      if (!duration) {
+        return;
+      }
+      audio.currentTime = (Number(range.value) / 1000) * duration;
+      syncUi();
+    });
+    audio.addEventListener("loadedmetadata", syncUi);
+    audio.addEventListener("timeupdate", syncUi);
+    audio.addEventListener("play", syncUi);
+    audio.addEventListener("pause", syncUi);
+    audio.addEventListener("ended", syncUi);
+
+    sampler.append(audio, button, range, time);
+    return sampler;
+  }
+
   function renderMediaState() {
     closeRowMenus();
     const candidates = Array.isArray(mediaScanResult?.[`${currentMediaType}s`])
       ? mediaScanResult[`${currentMediaType}s`]
       : [];
+    const displayCandidates = mergeDisplayCandidates(candidates);
     elements.mediaList.innerHTML = "";
+    elements.mediaList.dataset.mediaType = currentMediaType;
+    renderMediaPreviewSlot(displayCandidates);
     renderMediaTabs();
 
     if (!scanStarted && !mediaScanResult) {
       elements.mediaList.dataset.visible = "false";
+      elements.mediaPreviewSlot.hidden = true;
+      elements.mediaPreviewSlot.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.scanning.title", "Scanning");
       elements.mediaEmptyCopy.textContent = t("popup.media.empty.scanning.copy", "Checking the active page for media resources.");
@@ -446,6 +880,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (mediaScanResult?.success === false) {
       elements.mediaList.dataset.visible = "false";
+      elements.mediaPreviewSlot.hidden = true;
+      elements.mediaPreviewSlot.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
       elements.mediaEmptyTitle.textContent = t("popup.media.empty.unavailable.title", "Cannot scan this page");
       elements.mediaEmptyCopy.textContent = mediaScanResult.reason || t("popup.media.empty.unavailable.copy", "The active page is unavailable to the extension.");
@@ -466,8 +902,10 @@ document.addEventListener("DOMContentLoaded", () => {
       `${formatMediaCounts()}${ageSuffix}`,
     );
 
-    if (candidates.length === 0) {
+    if (displayCandidates.length === 0) {
       elements.mediaList.dataset.visible = "false";
+      elements.mediaPreviewSlot.hidden = true;
+      elements.mediaPreviewSlot.dataset.visible = "false";
       elements.mediaEmpty.style.display = "flex";
       const emptyTitleKey = currentMediaType === "audio"
         ? "popup.media.empty.audio.title"
@@ -486,12 +924,95 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.mediaEmpty.style.display = "none";
     elements.mediaList.dataset.visible = "true";
-    candidates.forEach((candidate) => {
-      elements.mediaList.appendChild(createMediaRow(candidate));
+    displayCandidates.forEach((candidate, index) => {
+      if (currentMediaType === "image") {
+        elements.mediaList.appendChild(createImageCard(candidate, index));
+        return;
+      }
+      elements.mediaList.appendChild(createMediaRow(candidate, index));
     });
   }
 
-  function createMediaRow(candidate) {
+  function createPreviewToggle(candidate, id, active, previewable, row) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ameow-preview-toggle";
+    button.dataset.active = active ? "true" : "false";
+    button.dataset.previewable = previewable ? "true" : "false";
+    button.title = previewable
+      ? active
+        ? t("popup.media.preview.pause", "Stop preview")
+        : t("popup.media.preview.play", "Preview")
+      : t("popup.media.preview.unavailable", "Preview unavailable");
+    button.setAttribute("aria-label", button.title);
+    button.appendChild(createPreviewIcon(active, previewable));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!previewable) {
+        setRowFeedback(row, t("popup.media.preview.unavailable", "Preview unavailable"));
+        return;
+      }
+      if (candidate.mediaType === "audio") {
+        activeAudioPreviewId = active ? null : id;
+        activeVideoPreviewId = null;
+      } else {
+        activeVideoPreviewId = active ? null : id;
+        activeAudioPreviewId = null;
+      }
+      renderMediaState();
+    });
+    return button;
+  }
+
+  function createPreviewIcon(active, previewable) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    svg.setAttribute("class", "ameow-preview-toggle-icon");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    if (!previewable) {
+      path.setAttribute("d", "M12 3.75a8.25 8.25 0 1 0 0 16.5a8.25 8.25 0 0 0 0-16.5Zm0 1.5a6.75 6.75 0 0 1 5.26 10.98L7.77 6.74A6.72 6.72 0 0 1 12 5.25Zm-5.26 2.52l9.49 9.49A6.75 6.75 0 0 1 6.74 7.77Z");
+    } else if (active) {
+      path.setAttribute("d", "M8 5.75h3v12.5H8V5.75Zm5 0h3v12.5h-3V5.75Z");
+    } else {
+      path.setAttribute("d", "M8 5.5v13l10-6.5L8 5.5Z");
+    }
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function appendPreviewImage(container, candidate) {
+    if (!candidate.previewUrl) {
+      return;
+    }
+    const image = document.createElement("img");
+    image.src = candidate.previewUrl;
+    image.alt = "";
+    image.loading = "lazy";
+    image.referrerPolicy = "no-referrer";
+    image.addEventListener("load", () => {
+      container.dataset.hasPreview = "true";
+    }, { once: true });
+    image.addEventListener("error", () => {
+      image.remove();
+      container.dataset.hasPreview = "false";
+    }, { once: true });
+    container.appendChild(image);
+  }
+
+  function appendDesktopBadge(container, capability) {
+    if (!capability?.requiresDesktop) {
+      return;
+    }
+    const desktopBadge = document.createElement("span");
+    desktopBadge.className = "ameow-media-desktop-badge";
+    desktopBadge.textContent = t("popup.media.badges.desktop", "Desktop");
+    desktopBadge.title = t("popup.media.badges.desktopTitle", "Requires the desktop app");
+    container.appendChild(desktopBadge);
+  }
+
+  function createMediaRow(candidate, index = 0) {
     const row = document.createElement("div");
     const preview = document.createElement("span");
     const main = document.createElement("div");
@@ -500,7 +1021,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuButton = document.createElement("button");
     const menu = document.createElement("div");
 
-    const id = safeText(candidate.id, `${candidate.mediaType}-${Math.random().toString(16).slice(2)}`);
+    const previewCandidate = candidate.previewCandidate || candidate;
+    const id = candidateStableId(candidate, index);
+    const capability = candidate.displayCapability || candidateCapability(candidate);
+    const previewable = isCandidatePreviewable(previewCandidate);
+    const active = candidate.mediaType === "audio"
+      ? activeAudioPreviewId === id
+      : activeVideoPreviewId === id;
     row.className = "ameow-media-row";
     row.dataset.candidateId = id;
     preview.className = "ameow-media-preview";
@@ -512,32 +1039,25 @@ document.addEventListener("DOMContentLoaded", () => {
       : candidate.mediaType === "image"
         ? t("popup.media.type.imageShort", "IMG")
         : t("popup.media.type.videoShort", "VID");
-    if (candidate.previewUrl) {
-      const image = document.createElement("img");
-      image.src = candidate.previewUrl;
-      image.alt = "";
-      image.loading = "lazy";
-      image.referrerPolicy = "no-referrer";
-      image.addEventListener("load", () => {
-        preview.dataset.hasPreview = "true";
-      }, { once: true });
-      image.addEventListener("error", () => {
-        image.remove();
-        preview.dataset.hasPreview = "false";
-      }, { once: true });
-      preview.appendChild(image);
+    appendPreviewImage(preview, previewCandidate);
+    if (candidate.mediaType === "video" || candidate.mediaType === "audio") {
+      preview.appendChild(createPreviewToggle(candidate, id, active, previewable, row));
     }
 
     main.className = "ameow-media-row-main";
     title.className = "ameow-media-title";
-    title.textContent = safeText(candidate.title, candidate.url);
+    const titleText = document.createElement("span");
+    titleText.className = "ameow-media-title-text";
+    titleText.textContent = safeText(candidate.title, previewCandidate.url);
+    title.appendChild(titleText);
+    appendDesktopBadge(title, capability);
     meta.className = "ameow-media-meta";
     meta.textContent = [
       candidate.host || shortHost(candidate.url),
-      sourceLabel(candidate.source, t),
-      candidate.extension || candidate.type,
-      candidate.duration ? `${candidate.duration}s` : "",
-      candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "",
+      sourceLabel(previewCandidate.source || candidate.source, t),
+      previewCandidate.extension || previewCandidate.type || candidate.extension || candidate.type,
+      previewCandidate.duration ? `${previewCandidate.duration}s` : "",
+      previewCandidate.width && previewCandidate.height ? `${previewCandidate.width}x${previewCandidate.height}` : "",
     ].filter(Boolean).join(" / ");
     main.append(title, meta);
 
@@ -567,6 +1087,91 @@ document.addEventListener("DOMContentLoaded", () => {
     return row;
   }
 
+  function imageFormatLabel(candidate) {
+    const extension = safeText(
+      candidate.extension,
+      downloadCapabilityUtils?.urlExtension?.(candidate.url) || candidate.type || "",
+    );
+    return extension ? extension.toUpperCase() : t("popup.media.type.imageShort", "IMG");
+  }
+
+  function createImageCard(candidate, index = 0) {
+    const card = document.createElement("div");
+    const thumbnail = document.createElement("span");
+    const body = document.createElement("div");
+    const title = document.createElement("div");
+    const titleText = document.createElement("span");
+    const meta = document.createElement("div");
+    const menuButton = document.createElement("button");
+    const menu = document.createElement("div");
+
+    const id = candidateStableId(candidate, index);
+    const capability = downloadCapabilityUtils?.resolveDownloadCapability?.(candidate) || null;
+    const dimensions = candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "";
+    const metaParts = [imageFormatLabel(candidate), dimensions].filter(Boolean);
+
+    card.className = "ameow-image-card";
+    card.dataset.candidateId = id;
+    thumbnail.className = "ameow-image-card-thumb";
+    thumbnail.dataset.imagePreviewTarget = "true";
+    thumbnail.textContent = t("popup.media.type.imageShort", "IMG");
+    thumbnail.setAttribute("role", "button");
+    thumbnail.tabIndex = 0;
+    thumbnail.title = t("popup.media.preview.image", "Preview image");
+    thumbnail.setAttribute("aria-label", t("popup.media.preview.image", "Preview image"));
+    appendPreviewImage(thumbnail, {
+      ...candidate,
+      previewUrl: candidate.previewUrl || candidate.url,
+    });
+    thumbnail.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openImageLightbox(candidate, id);
+    });
+    thumbnail.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      openImageLightbox(candidate, id);
+    });
+
+    body.className = "ameow-image-card-body";
+    title.className = "ameow-image-card-title";
+    titleText.className = "ameow-image-card-title-text";
+    titleText.textContent = safeText(candidate.title, candidate.url);
+    title.appendChild(titleText);
+    appendDesktopBadge(title, capability);
+    meta.className = "ameow-image-card-meta";
+    meta.textContent = metaParts.join(" / ");
+
+    menuButton.type = "button";
+    menuButton.className = "ameow-row-menu-btn";
+    menuButton.textContent = "...";
+    menuButton.setAttribute("aria-label", t("popup.media.actions.open", "Candidate actions"));
+    menuButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const nextOpen = openMenuId !== id;
+      closeRowMenus();
+      if (nextOpen) {
+        openMenuId = id;
+        menuButton.dataset.open = "true";
+        menu.dataset.open = "true";
+      }
+    });
+
+    menu.className = "ameow-row-menu";
+    menu.append(
+      createMenuItem(t("popup.media.actions.download", "Download"), () => downloadCandidate(candidate, card)),
+      createMenuItem(t("popup.media.actions.copy", "Copy link"), () => copyCandidateLink(candidate, card)),
+      createMenuItem(t("popup.media.actions.source", "View source"), () => showCandidateSource(candidate, card)),
+    );
+
+    body.append(title, meta);
+    card.append(thumbnail, body, menuButton, menu);
+    return card;
+  }
+
   function createMenuItem(label, onClick) {
     const button = document.createElement("button");
     button.type = "button";
@@ -591,7 +1196,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setRowFeedback(row, message) {
-    const meta = row?.querySelector(".ameow-media-meta");
+    const meta = row?.querySelector(".ameow-media-meta, .ameow-image-card-meta");
     if (!meta) {
       return;
     }
@@ -603,7 +1208,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function downloadCandidate(candidate, row) {
-    const key = candidate.url;
+    const key = candidate.url || candidate.desktopCandidate?.url || candidate.browserFallbackCandidate?.url;
     if (downloadCooldown.has(key)) {
       return;
     }
@@ -613,21 +1218,28 @@ document.addEventListener("DOMContentLoaded", () => {
       type: "download_media_candidate",
       candidate,
     });
-    setRowFeedback(row, response?.success
-      ? t("popup.media.feedback.submitted", "Submitted")
-      : (response?.connected === false
-        ? t("popup.media.feedback.offline", "Desktop offline")
-        : t("popup.media.feedback.failed", "Failed")));
+    const successFeedback = response?.downloadedBy === "browser"
+      ? t("popup.media.feedback.browserDownloaded", "Downloaded by browser")
+      : t("popup.media.feedback.submitted", "Submitted");
+    const failureFeedback = response?.reason === "desktop_required"
+      ? t("popup.media.feedback.desktopRequired", "Desktop required")
+      : response?.reason === "browser_download_failed"
+        ? t("popup.media.feedback.browserFailed", "Browser download failed")
+        : response?.connected === false
+          ? t("popup.media.feedback.offline", "Desktop offline")
+          : t("popup.media.feedback.failed", "Failed");
+    setRowFeedback(row, response?.success ? successFeedback : failureFeedback);
     window.setTimeout(() => downloadCooldown.delete(key), 700);
   }
 
   async function copyCandidateLink(candidate, row) {
+    const link = candidate.previewCandidate?.url || candidate.browserFallbackCandidate?.url || candidate.url;
     try {
-      await navigator.clipboard.writeText(candidate.url);
+      await navigator.clipboard.writeText(link);
       setRowFeedback(row, t("popup.media.feedback.copied", "Copied"));
     } catch {
       const input = document.createElement("textarea");
-      input.value = candidate.url;
+      input.value = link;
       document.body.appendChild(input);
       input.select();
       document.execCommand("copy");
@@ -637,7 +1249,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showCandidateSource(candidate, row) {
-    setRowFeedback(row, `${sourceLabel(candidate.source, t)} / ${shortHost(candidate.url)}`);
+    const sourceCandidate = candidate.previewCandidate || candidate.browserFallbackCandidate || candidate;
+    setRowFeedback(row, `${sourceLabel(sourceCandidate.source, t)} / ${shortHost(sourceCandidate.url)}`);
   }
 
   async function scanPageMedia() {
@@ -646,6 +1259,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     scanStarted = true;
     scanInProgress = true;
+    clearActivePreviewState();
+    elements.mediaPreviewSlot.innerHTML = "";
+    elements.mediaPreviewSlot.hidden = true;
+    elements.mediaPreviewSlot.dataset.visible = "false";
     elements.refreshMediaButton.disabled = true;
     elements.refreshMediaButton.dataset.scanning = "true";
     elements.refreshMediaText.textContent = t("popup.media.scanning", "Scanning");
@@ -745,6 +1362,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closeImageLightbox();
       closeRowMenus();
       closeMoreMenu();
     }
@@ -807,6 +1425,8 @@ document.addEventListener("DOMContentLoaded", () => {
     event.stopPropagation();
     toggleMoreMenu();
   });
+  elements.imageLightboxBackdrop.addEventListener("click", closeImageLightbox);
+  elements.imageLightboxClose.addEventListener("click", closeImageLightbox);
   elements.repositoryLinkButton.addEventListener("click", () => openExternalLink(REPOSITORY_URL));
   elements.gettingStartedLinkButton.addEventListener("click", () => {
     openExternalLink(getGettingStartedUrl(currentBundle.language));

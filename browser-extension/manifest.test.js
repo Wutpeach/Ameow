@@ -23,6 +23,14 @@ describe("browser extension manifest", () => {
     expect(manifest.permissions).not.toContain("contextMenus");
   });
 
+  it("requests downloads permission for offline browser fallback downloads", () => {
+    expect(manifest.permissions).toContain("downloads");
+  });
+
+  it("requests webRequest permission for passive media discovery", () => {
+    expect(manifest.permissions).toContain("webRequest");
+  });
+
   it("declares the extension options page", () => {
     expect(manifest.options_page).toBe("options.html");
   });
@@ -33,9 +41,25 @@ describe("browser extension manifest", () => {
     expect(popupHtml.indexOf("site-session-icons.js")).toBeLessThan(popupHtml.indexOf("popup.js"));
   });
 
+  it("loads download capability helper before the popup renderer", () => {
+    const popupHtml = readFileSync(path.resolve("browser-extension/popup.html"), "utf8");
+    expect(popupHtml.indexOf("download-capability-utils.js")).toBeGreaterThanOrEqual(0);
+    expect(popupHtml.indexOf("download-capability-utils.js")).toBeLessThan(popupHtml.indexOf("popup.js"));
+  });
+
   it("packages the action icon indicator helper for the background worker", () => {
     const backgroundSource = readFileSync(path.resolve("browser-extension/background.js"), "utf8");
     expect(backgroundSource).toContain("\"action-icon-indicator.js\"");
+    expect(backgroundSource).toContain("\"media-network-cache.js\"");
+    expect(backgroundSource.indexOf("\"generic-video-selection-utils.js\"")).toBeLessThan(
+      backgroundSource.indexOf("\"download-capability-utils.js\""),
+    );
+    expect(backgroundSource.indexOf("\"download-capability-utils.js\"")).toBeLessThan(
+      backgroundSource.indexOf("\"media-network-cache.js\""),
+    );
+    expect(backgroundSource.indexOf("\"media-network-cache.js\"")).toBeLessThan(
+      backgroundSource.indexOf("\"injection-debug-config.js\""),
+    );
     expect(backgroundSource).not.toContain("'•'");
   });
 

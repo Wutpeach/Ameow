@@ -21,6 +21,7 @@
         </button>
       </div>
       <div class="ameow-media-summary" id="mediaSummary">Scanning current page.</div>
+      <div class="ameow-media-preview-slot" id="mediaPreviewSlot" hidden></div>
       <div class="ameow-media-list" id="mediaList"></div>
       <div class="ameow-media-empty" id="mediaEmpty">
         <div class="ameow-empty-mark" aria-hidden="true">o</div>
@@ -56,6 +57,17 @@
       </section>
     </section>
 
+    <div class="ameow-image-lightbox" id="imageLightbox" data-open="false" hidden aria-hidden="true" role="dialog" aria-modal="true">
+      <button type="button" class="ameow-image-lightbox-backdrop" id="imageLightboxBackdrop" aria-label="Close image preview"></button>
+      <div class="ameow-image-lightbox-frame">
+        <button type="button" class="ameow-image-lightbox-close" id="imageLightboxClose" aria-label="Close image preview">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.7 5.3L12 10.6l5.3-5.3l1.4 1.4L13.4 12l5.3 5.3l-1.4 1.4L12 13.4l-5.3 5.3l-1.4-1.4l5.3-5.3l-5.3-5.3l1.4-1.4Z"/></svg>
+        </button>
+        <img id="imageLightboxImage" class="ameow-image-lightbox-image" alt="">
+        <div class="ameow-image-lightbox-caption" id="imageLightboxCaption"></div>
+      </div>
+    </div>
+
     <footer class="ameow-popup-footer">
       <div class="ameow-footer-slot ameow-footer-slot-left">
         <button type="button" class="ameow-footer-btn" id="openOptionsButton">
@@ -82,6 +94,7 @@
     </footer>
   </main>
   <script src="direct-download-quality.js"></script>
+  <script src="download-capability-utils.js"></script>
   <script src="locale-utils.js"></script>
   <script src="site-session-icons.js"></script>
   <script src="popup.js"></script>

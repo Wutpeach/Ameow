@@ -18,8 +18,8 @@ You can start with the Ameow desktop app alone. The browser extension is an opti
 	<Card title="Install It" icon="puzzle">
 		Use it when a page plays in the browser but copied links fail, when login state or cookies are needed, or when you want current-page media.
 	</Card>
-	<Card title="Not Standalone" icon="warning">
-		The extension must connect to the running Ameow desktop app. If the desktop app is closed, the popup shows Disconnected.
+	<Card title="Direct Links Work Alone" icon="download">
+		When the desktop app is not connected, the extension can still save ordinary image, audio, video, and file direct links through the browser downloader.
 	</Card>
 </CardGrid>
 
@@ -31,7 +31,7 @@ You can start with the Ameow desktop app alone. The browser extension is an opti
 3. Extract the extension zip.
 4. Turn on Developer Mode in Chrome or Edge extension management.
 5. Click `Load unpacked` and choose the extracted extension folder.
-6. Open the extension popup and confirm the status shows `Connected`.
+6. Open the extension popup. If the desktop app is running, confirm the status shows `Connected`; if it is not running, ordinary direct links can still fall back to the browser downloader.
 7. Open a specific video page, post page, work page, or image-detail page, then send the task from the extension.
 </Steps>
 
@@ -42,7 +42,7 @@ Success state: the popup shows `Connected`, the Ameow desktop app is running, an
 ## What Do Connected and Disconnected Mean?
 
 - `Connected`: the extension is linked to the Ameow desktop app on this machine and can send tasks.
-- `Disconnected`: the extension is not linked to the desktop app. The desktop app may be closed, or the extension may need to be reloaded.
+- `Disconnected`: the extension is not linked to the desktop app. Ordinary direct resources can still use browser download fallback; resources marked `[Desktop]` require the desktop app first.
 
 <Aside type="note" title="This is a local connection">
 	The extension talks to the desktop app through the local address `127.0.0.1:39527`. This is machine-local communication. Cookies saved by Ameow stay in the local app data directory and are not uploaded by Ameow.
@@ -60,9 +60,27 @@ You should see:
 
 If the page needs login state, confirm you are already logged in inside the browser before sending the task. You can also enable download-time login-state sync in the desktop app; after that, Ameow tries to sync cookies for the matching site when you download, instead of syncing every known site when you enable the feature.
 
+## What Does the `[Desktop]` Badge Mean?
+
+If a resource row in the popup has no extra badge, the extension can usually save it through the browser downloader when the desktop app is offline.
+
+An orange `[Desktop]` badge means the resource needs or strongly prefers desktop handling, for example:
+
+- login state, cookies, or site-specific extraction;
+- `m3u8`, `mpd`, stream fragments, `blob:`, or other resources the browser cannot save as one complete file;
+- high-quality video, separate audio/video streams, merge work, or transcode work.
+
+When the desktop app is connected, the extension still sends downloads to the desktop app by default. When it is disconnected, only direct resources without the `[Desktop]` badge use browser fallback.
+
 ## How Should I Use Current-Page Media?
 
-The popup scans resources from the current active tab. It works best on:
+The popup scans resources from the current active tab. In addition to `<video>`, `<audio>`, `<img>`, links, and browser performance records from the page DOM, the extension background passively records recent media responses and merges them into the popup results when you refresh the scan.
+
+You can inspect scan results inside the popup: ordinary video resources can expand into a native player preview, audio can be sampled, and images appear in a thumbnail grid with format and dimensions. Complex resources marked `[Desktop]` still require desktop handling for download.
+
+That background discovery only stores bounded media-candidate metadata such as URL, media type, Content-Type, Content-Length, tab/page URL, and capture time. It does not store request headers, cookies, referrers, or response bodies, and the cache is pruned by age, tab, and total size.
+
+It works best on:
 
 - a specific video page, post page, work page, or image-detail page;
 - a page where the target content has fully loaded and can already play or display in the browser;
@@ -76,6 +94,8 @@ The stable workflow is simple: open the specific content page first, then use th
 
 The extension targets Chromium browsers such as Chrome and Edge. Installation uses Developer Mode plus `Load unpacked`. Browsers that cannot load Manifest V3 extensions may not work.
 
+The extension needs to read resources from the current page, call the browser downloader, and passively observe media responses from pages. During an extension update, the browser may therefore show added download or network-request permissions. Ameow uses those permissions to identify downloadable candidates in the current tab; it does not upload your cookies or login state.
+
 ## Common Issues
 
 ### I selected the zip in the browser and it failed
@@ -84,7 +104,7 @@ The browser needs the extracted extension directory, not the zip file itself. Ex
 
 ### The extension is installed but shows Disconnected
 
-Launch the Ameow desktop app first, then reopen the popup. If it still does not connect, reload the extension and restart Ameow. Firewalls or security tools can also block the local connection.
+For resources marked `[Desktop]`, launch the Ameow desktop app first, then reopen the popup. If it still does not connect, reload the extension and restart Ameow. Firewalls or security tools can also block the local connection. Ordinary direct links can still fall back to the browser downloader while disconnected.
 
 ### There is no download entry on the page
 

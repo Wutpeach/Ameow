@@ -18,8 +18,8 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 	<Card title="建议安装" icon="puzzle">
 		网页能播放但复制链接失败、内容需要登录态或 Cookies，或你要从当前页面资源里选择媒体。
 	</Card>
-	<Card title="不是独立下载器" icon="warning">
-		扩展必须连接正在运行的 Ameow 桌面端。桌面端没启动时，扩展会显示 Disconnected。
+	<Card title="可独立下载直链" icon="download">
+		桌面端未连接时，扩展可以用浏览器下载器保存普通图片、音频、视频直链和文件直链。
 	</Card>
 </CardGrid>
 
@@ -31,7 +31,7 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 3. 解压扩展 zip。
 4. 在 Chrome 或 Edge 的扩展管理页开启开发者模式。
 5. 点击 `Load unpacked`，选择解压后的扩展目录。
-6. 打开扩展弹窗，确认状态为 `Connected`。
+6. 打开扩展弹窗。若桌面端已运行，确认状态为 `Connected`；若未运行，普通直链仍可由浏览器下载器兜底。
 7. 进入具体视频页、帖子页、作品页或图片详情页，再通过扩展发送任务。
 </Steps>
 
@@ -42,7 +42,7 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 ## Connected 和 Disconnected 是什么意思？
 
 - `Connected`：扩展已经连上本机 Ameow 桌面端，可以发送任务。
-- `Disconnected`：扩展没有连上桌面端。最常见原因是桌面端没启动，或者扩展需要重新加载。
+- `Disconnected`：扩展没有连上桌面端。普通直链资源仍可尝试由浏览器下载；带有 `[桌面端]` 标记的资源需要先启动桌面端。
 
 <Aside type="note" title="这是本机连接">
 	扩展默认通过本机地址 `127.0.0.1:39527` 与桌面端通信。这个连接只发生在你的电脑本地；Ameow 保存的 Cookies 也只写入本机应用数据目录，不会上传 Cookie 或登录态内容。
@@ -60,9 +60,27 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 如果网页内容需要登录态，请先确认你在浏览器里已经登录该站点，再从扩展发送任务。你也可以在桌面端启用“下载时自动同步登录态”，之后 Ameow 会在下载匹配站点时尝试按站点同步 Cookies，而不是在启用时同步所有站点。
 
+## `[桌面端]` 标记是什么意思？
+
+扩展弹窗里的资源行如果没有额外标记，通常表示扩展可以在桌面端离线时直接调用浏览器下载器保存这个资源。
+
+如果资源旁边显示橙色 `[桌面端]` 标记，表示它需要或更适合由桌面端接管，例如：
+
+- 需要登录态、Cookies 或站点解析；
+- `m3u8`、`mpd`、分片流、`blob:` 等浏览器无法直接保存成完整文件的资源；
+- 高清视频、音视频分离或需要合并/转码的下载。
+
+桌面端已连接时，扩展默认仍把下载交给桌面端处理。桌面端未连接时，只有没有 `[桌面端]` 标记的直链资源会走浏览器下载兜底。
+
 ## “当前页面资源”怎么用？
 
-扩展弹窗扫描的是当前活动标签页里已经打开的页面资源。它最适合这些页面：
+扩展弹窗扫描的是当前活动标签页里已经打开的页面资源。除了页面 DOM 里的 `<video>`、`<audio>`、`<img>`、链接和浏览器 performance 记录，扩展后台也会被动记录最近的媒体响应，并在你刷新弹窗扫描结果时合并进去。
+
+扫描结果可以直接在弹窗里检查：普通视频资源可展开原生播放器预览，音频可试听，图片会以缩略图网格展示格式和分辨率。带有 `[桌面端]` 标记的复杂资源仍需要桌面端接管下载。
+
+这个后台发现只保存有限的媒体候选元数据，例如 URL、媒体类型、Content-Type、Content-Length、标签页和页面 URL、捕获时间。它不会保存请求头、Cookies、Referer 或响应内容；缓存也会按时间、标签页和总数量自动裁剪。
+
+它最适合这些页面：
 
 - 具体视频页、帖子页、作品页或图片详情页。
 - 目标内容已经加载完成，并且你能在浏览器里正常播放或查看。
@@ -76,6 +94,8 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 当前扩展面向 Chromium 内核浏览器，例如 Chrome 和 Edge。安装方式使用开发者模式下的 `Load unpacked`。如果你的浏览器不支持加载 Manifest V3 扩展，可能无法使用。
 
+扩展需要读取当前网页资源、调用浏览器下载器，并被动观察网页里的媒体响应。因此更新扩展时，浏览器可能提示新增下载或网络请求相关权限。这些权限用于识别当前标签页里的可下载候选，不会让扩展上传你的 Cookies 或登录态内容。
+
 ## 常见问题
 
 ### 我把 zip 直接选进浏览器了，为什么失败？
@@ -84,7 +104,7 @@ import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 ### 扩展装好了但显示 Disconnected
 
-先启动 Ameow 桌面端，再重新打开扩展弹窗。如果仍未连接，重新加载扩展并重启 Ameow。防火墙或安全软件也可能阻止本地连接。
+如果要下载带 `[桌面端]` 标记的资源，先启动 Ameow 桌面端，再重新打开扩展弹窗。如果仍未连接，重新加载扩展并重启 Ameow。防火墙或安全软件也可能阻止本地连接。普通直链资源可以在离线状态下由浏览器下载器兜底。
 
 ### 网页里没有下载入口
 

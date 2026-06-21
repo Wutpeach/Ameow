@@ -96,9 +96,16 @@
         "copy": "Copy link",
         "source": "View source"
       },
+      "badges": {
+        "desktop": "Desktop",
+        "desktopTitle": "Requires the desktop app"
+      },
       "feedback": {
         "submitting": "Submitting",
         "submitted": "Submitted",
+        "browserDownloaded": "Downloaded by browser",
+        "browserFailed": "Browser download failed",
+        "desktopRequired": "Desktop required",
         "offline": "Desktop offline",
         "failed": "Failed",
         "copied": "Copied"
