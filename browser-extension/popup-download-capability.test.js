@@ -166,9 +166,19 @@ describe("browser extension popup download capability UI", () => {
     expect(popupCss).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
     expect(popupCss).toContain(".ameow-drawer-overlay");
     expect(popupCss).toContain(".ameow-drawer-panel");
+    expect(popupCss).toContain(".ameow-drawer-panel[hidden]");
+    expect(popupCss).toContain(".ameow-drawer-panel[data-open=\"true\"]");
+    expect(popupCss).toContain("transform: translateY(14px) scale(0.985)");
     expect(popupJs).toContain("function openDrawer(drawerId");
     expect(popupJs).toContain("function closeDrawer()");
+    expect(popupJs).toContain("drawerCloseTimer");
     expect(popupJs).toContain("getBrowserExtensionDocsUrl");
+  });
+
+  it("keeps the media browser height stable when scan results are sparse", () => {
+    expect(popupCss).toMatch(/\.ameow-media-panel\s*\{[\s\S]*?height:\s*344px;/);
+    expect(popupCss).toMatch(/\.ameow-media-list\s*\{[\s\S]*?flex:\s*1 1 auto;/);
+    expect(popupCss).toMatch(/\.ameow-media-empty\s*\{[\s\S]*?flex:\s*1 1 auto;/);
   });
 
   it("moves download quality into the drawer while keeping the quick-action summary", () => {

@@ -204,6 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeImagePreviewId = null;
   let activeDrawer = null;
   let drawerReturnFocus = null;
+  let drawerCloseTimer = null;
   const downloadCooldown = new Set();
 
   function t(key, fallback) {
@@ -238,6 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!drawer) {
       return;
     }
+    if (drawerCloseTimer !== null) {
+      window.clearTimeout(drawerCloseTimer);
+      drawerCloseTimer = null;
+    }
     closeRowMenus();
     closeMoreMenu();
     closeImageLightbox();
@@ -246,11 +251,15 @@ document.addEventListener("DOMContentLoaded", () => {
     [elements.downloadSettingsDrawer, elements.loginStateDrawer].forEach((panel) => {
       const isActive = panel === drawer;
       panel.hidden = !isActive;
-      panel.dataset.open = isActive ? "true" : "false";
+      panel.dataset.open = "false";
+      panel.dataset.closing = "false";
     });
     elements.drawerOverlay.hidden = false;
-    elements.drawerOverlay.dataset.open = "true";
     elements.drawerOverlay.setAttribute("aria-hidden", "false");
+    window.requestAnimationFrame(() => {
+      elements.drawerOverlay.dataset.open = "true";
+      drawer.dataset.open = "true";
+    });
     window.setTimeout(() => {
       drawer.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")?.focus?.();
     }, 0);
@@ -263,18 +272,37 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeDrawer) {
       return;
     }
+    const closingDrawer = drawerById(activeDrawer);
     activeDrawer = null;
     elements.drawerOverlay.dataset.open = "false";
     elements.drawerOverlay.setAttribute("aria-hidden", "true");
-    elements.drawerOverlay.hidden = true;
+    if (closingDrawer) {
+      closingDrawer.dataset.open = "false";
+      closingDrawer.dataset.closing = "true";
+    }
     [elements.downloadSettingsDrawer, elements.loginStateDrawer].forEach((panel) => {
-      panel.hidden = true;
-      panel.dataset.open = "false";
+      if (panel !== closingDrawer) {
+        panel.hidden = true;
+        panel.dataset.open = "false";
+        panel.dataset.closing = "false";
+      }
     });
     if (drawerReturnFocus?.isConnected) {
       drawerReturnFocus.focus?.();
     }
     drawerReturnFocus = null;
+    if (drawerCloseTimer !== null) {
+      window.clearTimeout(drawerCloseTimer);
+    }
+    drawerCloseTimer = window.setTimeout(() => {
+      elements.drawerOverlay.hidden = true;
+      [elements.downloadSettingsDrawer, elements.loginStateDrawer].forEach((panel) => {
+        panel.hidden = true;
+        panel.dataset.open = "false";
+        panel.dataset.closing = "false";
+      });
+      drawerCloseTimer = null;
+    }, 190);
   }
 
   function setMoreMenuOpen(open) {
