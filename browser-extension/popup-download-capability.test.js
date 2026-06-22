@@ -116,14 +116,24 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("imageFormatLabel(candidate)");
     expect(popupJs).toContain("candidate.width && candidate.height");
     expect(popupJs).toContain("formatByteSize(candidateByteSize(candidate))");
-    expect(popupJs).toContain("titleText.textContent = metaParts.join(\" / \") || imageFormatLabel(candidate)");
-    expect(popupJs).toContain("meta.textContent = \"\"");
+    expect(popupJs).toContain("footer.className = \"ameow-image-card-footer\"");
+    expect(popupJs).toContain("meta.textContent = metaParts.join(\" / \") || imageFormatLabel(candidate)");
+    expect(popupJs).toContain("footer.append(meta, menuButton)");
+    expect(popupJs).toContain("body.append(footer)");
+    expect(popupJs).not.toContain("ameow-image-card-title");
+    expect(popupJs).not.toContain("imageTitleLabel");
     expect(popupJs).toContain("downloadCandidate(candidate, card)");
     expect(popupJs).toContain("copyCandidateLink(candidate, card)");
     expect(popupJs).toContain("showCandidateSource(candidate, card)");
     expect(popupCss).toContain(".ameow-media-list[data-media-type=\"image\"][data-visible=\"true\"]");
+    expect(popupCss).toContain("grid-auto-rows: 154px");
+    expect(popupCss).toContain("align-content: start");
     expect(popupCss).toContain(".ameow-image-card");
-    expect(popupCss).toContain("grid-template-rows: 96px auto");
+    expect(popupCss).toMatch(/\.ameow-image-card\s*\{[\s\S]*?height:\s*154px;/);
+    expect(popupCss).toContain("grid-template-rows: 112px 22px");
+    expect(popupCss).toContain(".ameow-image-card-footer");
+    expect(popupCss).toContain("grid-template-columns: minmax(0, 1fr) 22px");
+    expect(popupCss).not.toContain(".ameow-image-card-title");
   });
 
   it("renders useful media detail metadata instead of host/source/link text", () => {

@@ -1403,14 +1403,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = document.createElement("div");
     const thumbnail = document.createElement("span");
     const body = document.createElement("div");
-    const title = document.createElement("div");
-    const titleText = document.createElement("span");
     const meta = document.createElement("div");
+    const footer = document.createElement("div");
     const menuButton = document.createElement("button");
     const menu = document.createElement("div");
 
     const id = candidateStableId(candidate, index);
-    const capability = downloadCapabilityUtils?.resolveDownloadCapability?.(candidate) || null;
     const dimensions = candidate.width && candidate.height ? `${candidate.width}x${candidate.height}` : "";
     const metaParts = [
       imageFormatLabel(candidate),
@@ -1445,14 +1443,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     body.className = "ameow-image-card-body";
-    title.className = "ameow-image-card-title";
-    titleText.className = "ameow-image-card-title-text";
-    titleText.textContent = metaParts.join(" / ") || imageFormatLabel(candidate);
-    title.appendChild(titleText);
-    appendDesktopBadge(title, capability);
     meta.className = "ameow-image-card-meta";
-    meta.textContent = "";
+    meta.textContent = metaParts.join(" / ") || imageFormatLabel(candidate);
 
+    footer.className = "ameow-image-card-footer";
     menuButton.type = "button";
     menuButton.className = "ameow-row-menu-btn";
     menuButton.textContent = "...";
@@ -1475,8 +1469,9 @@ document.addEventListener("DOMContentLoaded", () => {
       createMenuItem(t("popup.media.actions.source", "View source"), () => showCandidateSource(candidate, card)),
     );
 
-    body.append(title, meta);
-    card.append(thumbnail, body, menuButton, menu);
+    footer.append(meta, menuButton);
+    body.append(footer);
+    card.append(thumbnail, body, menu);
     return card;
   }
 

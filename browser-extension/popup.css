@@ -502,6 +502,9 @@ body::-webkit-scrollbar-thumb:hover {
 .ameow-media-list[data-media-type="image"][data-visible="true"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 154px;
+  align-content: start;
+  align-items: start;
   gap: 8px;
 }
 
@@ -827,8 +830,9 @@ body.ameow-theme-white .ameow-media-desktop-badge {
 .ameow-image-card {
   position: relative;
   min-width: 0;
+  height: 154px;
   display: grid;
-  grid-template-rows: 96px auto;
+  grid-template-rows: 112px 22px;
   gap: 6px;
   padding: 7px;
   border: 1px solid var(--ameow-card-border);
@@ -840,7 +844,7 @@ body.ameow-theme-white .ameow-media-desktop-badge {
 .ameow-image-card-thumb {
   position: relative;
   width: 100%;
-  height: 96px;
+  height: 112px;
   border: 1px solid var(--ameow-card-border);
   border-radius: 8px;
   display: inline-flex;
@@ -880,28 +884,7 @@ body.ameow-theme-white .ameow-media-desktop-badge {
 
 .ameow-image-card-body {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding-right: 26px;
-}
-
-.ameow-image-card-title {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--ameow-text-primary);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.ameow-image-card-title-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  height: 22px;
 }
 
 .ameow-image-card-meta {
@@ -916,10 +899,18 @@ body.ameow-theme-white .ameow-media-desktop-badge {
   white-space: nowrap;
 }
 
-.ameow-image-card > .ameow-row-menu-btn {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
+.ameow-image-card-footer {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+}
+
+.ameow-image-card-footer > .ameow-row-menu-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
 }
 
 .ameow-image-card > .ameow-row-menu {
