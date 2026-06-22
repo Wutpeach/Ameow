@@ -1274,6 +1274,413 @@ body.ameow-theme-white .ameow-image-lightbox-frame {
   margin-bottom: 7px;
 }
 
+.ameow-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.ameow-quick-action {
+  appearance: none;
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 11px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
+  color: var(--ameow-text-primary);
+  box-shadow: var(--ameow-card-shadow);
+  cursor: pointer;
+  text-align: left;
+  font-family: "SF Pro Text", "Segoe UI", sans-serif;
+  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ameow-quick-action:hover,
+.ameow-quick-action:focus-visible {
+  border-color: var(--ameow-accent-border);
+  color: var(--ameow-accent);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.ameow-quick-action[disabled] {
+  cursor: default;
+  opacity: 0.66;
+  transform: none;
+}
+
+.ameow-quick-action[data-state="sync"],
+.ameow-quick-action[data-state="working"] {
+  border-color: var(--ameow-accent-border);
+}
+
+.ameow-quick-action[data-state="enable"] {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.ameow-quick-action[data-state="success"] {
+  border-color: rgba(52, 211, 153, 0.42);
+}
+
+.ameow-quick-action-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+}
+
+body.ameow-theme-white .ameow-quick-action-icon {
+  background: rgba(0, 0, 0, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.ameow-quick-action-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: currentColor;
+}
+
+.ameow-quick-action-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ameow-quick-action-label {
+  min-width: 0;
+  color: var(--ameow-text-primary);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-quick-action-value {
+  min-width: 0;
+  color: var(--ameow-text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: none;
+}
+
+.ameow-drawer-overlay[data-open="true"] {
+  display: block;
+}
+
+.ameow-drawer-backdrop {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(8, 8, 10, 0.54);
+  cursor: default;
+}
+
+body.ameow-theme-white .ameow-drawer-backdrop {
+  background: rgba(20, 20, 24, 0.28);
+}
+
+.ameow-drawer-panel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-height: min(430px, calc(100vh - 20px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 13px;
+  background: linear-gradient(180deg, var(--ameow-surface-elevated-start) 0%, var(--ameow-surface-elevated-end) 100%);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42), var(--ameow-card-shadow);
+  overflow: hidden;
+}
+
+.ameow-drawer-header {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--ameow-card-border);
+}
+
+.ameow-drawer-title-group {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ameow-drawer-title {
+  min-width: 0;
+  margin: 0;
+  color: var(--ameow-text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-drawer-close {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--ameow-text-secondary);
+  cursor: pointer;
+}
+
+.ameow-drawer-close:hover,
+.ameow-drawer-close:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ameow-text-primary);
+  outline: none;
+}
+
+body.ameow-theme-white .ameow-drawer-close:hover,
+body.ameow-theme-white .ameow-drawer-close:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ameow-drawer-close svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.ameow-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ameow-scrollbar-thumb) transparent;
+}
+
+.ameow-login-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.ameow-login-current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-login-current[data-state="sync"],
+.ameow-login-current[data-state="working"] {
+  border-color: var(--ameow-accent-border);
+}
+
+.ameow-login-current[data-state="enable"] {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.ameow-login-current[data-state="success"] {
+  border-color: rgba(52, 211, 153, 0.42);
+}
+
+.ameow-login-current[data-state="error"] {
+  border-color: rgba(248, 113, 113, 0.42);
+}
+
+.ameow-login-current-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ameow-login-list-header {
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ameow-login-list-count {
+  min-width: 18px;
+  height: 18px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ameow-text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.ameow-login-sites {
+  min-height: 96px;
+  max-height: 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ameow-scrollbar-thumb) transparent;
+}
+
+.ameow-login-site-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--ameow-card-border);
+  border-radius: 9px;
+  background: linear-gradient(180deg, var(--ameow-surface-start) 0%, var(--ameow-surface-end) 100%);
+  box-shadow: var(--ameow-card-shadow);
+}
+
+.ameow-login-site-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ameow-accent);
+  background: var(--ameow-accent-soft);
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.ameow-login-site-icon svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
+.ameow-login-site-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ameow-login-site-name {
+  min-width: 0;
+  color: var(--ameow-text-primary);
+  font-size: 11.5px;
+  font-weight: 750;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-login-site-meta {
+  min-width: 0;
+  color: var(--ameow-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-login-site-badge {
+  max-width: 58px;
+  padding: 3px 6px;
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  border-radius: 999px;
+  color: var(--ameow-success);
+  background: var(--ameow-success-soft);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ameow-login-site-badge[data-availability="partial"] {
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+body.ameow-theme-white .ameow-login-site-badge[data-availability="partial"] {
+  color: #b45309;
+}
+
+.ameow-login-empty {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px dashed var(--ameow-card-border);
+  border-radius: 10px;
+  color: var(--ameow-text-secondary);
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.ameow-login-empty-title {
+  color: var(--ameow-text-primary);
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.ameow-login-empty-copy {
+  max-width: 220px;
+}
+
 .ameow-popup-footer {
   position: relative;
   min-height: 36px;

@@ -24,6 +24,32 @@
       "hiddenSites": "隐藏站点",
       "loginState": "登录态"
     },
+    "quickActions": {
+      "downloadSettings": {
+        "label": "下载设置"
+      },
+      "pickDownload": {
+        "label": "拾取下载",
+        "hint": "在页面选择",
+        "starting": "启动中",
+        "active": "点击页面内容",
+        "unavailable": "当前页不可用",
+        "failed": "启动失败"
+      },
+      "helpDocs": {
+        "label": "帮助文档",
+        "hint": "打开指南"
+      }
+    },
+    "drawers": {
+      "downloadSettings": {
+        "title": "下载设置"
+      },
+      "loginState": {
+        "kicker": "浏览器桥接",
+        "title": "登录态"
+      }
+    },
     "footer": {
       "settings": "设置",
       "openSettings": "打开设置",
@@ -150,7 +176,16 @@
       "syncedTitle": "登录态已同步",
       "syncedHint": "Ameow 已保存 Cookies 供后续下载。",
       "failedTitle": "同步失败",
-      "failedHint": "请先在浏览器登录此站点，然后重试。"
+      "failedHint": "请先在浏览器登录此站点，然后重试。",
+      "listTitle": "已同步站点",
+      "loadingSites": "正在加载已同步站点",
+      "emptyTitle": "还没有同步过站点",
+      "emptyCopy": "打开支持的站点，然后在上方同步登录态。",
+      "emptyOfflineTitle": "桌面端离线",
+      "emptyOfflineCopy": "打开桌面应用后查看已同步站点。",
+      "statusReady": "可用",
+      "statusPartial": "部分",
+      "sourceUnknown": "浏览器扩展"
     },
     "sites": {
       "count": "{count} 个隐藏站点",

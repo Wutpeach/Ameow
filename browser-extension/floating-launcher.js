@@ -10,6 +10,7 @@
   const STATUS_MESSAGE = "ameow_launcher_status";
   const DOWNLOAD_CURRENT_MESSAGE = "ameow_download_current_content";
   const CAPTURE_CURRENT_MESSAGE = "ameow_capture_current_content";
+  const START_PICKER_MESSAGE = "ameow_start_picker";
   const RESTORE_MESSAGE = "ameow_launcher_restore";
   const CONFIG_UPDATE_MESSAGE = "ameow_launcher_config_update";
   const SIDE_SWITCH_DRAG_DISTANCE_PX = 240;
@@ -717,6 +718,14 @@
       sendResponse({
         success: true,
         payload: captureEvidence.buildCurrentContentPayload(),
+      });
+      return true;
+    }
+
+    if (message?.type === START_PICKER_MESSAGE) {
+      startPicker();
+      sendResponse({
+        success: true,
       });
       return true;
     }

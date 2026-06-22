@@ -55,6 +55,7 @@ const INTERNAL_LAUNCHER_RESTORE_MESSAGE = 'ameow_launcher_restore';
 const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
 const INTERNAL_THEME_UPDATE_MESSAGE = 'theme_update';
 const INTERNAL_SCAN_PAGE_MEDIA_MESSAGE = 'ameow_scan_page_media';
+const INTERNAL_START_PICKER_MESSAGE = 'ameow_start_picker';
 const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
 const MEDIA_NETWORK_CACHE_KEY = 'ameowMediaNetworkCache';
@@ -1257,6 +1258,135 @@ async function buildSiteSessionStatusForActiveTab() {
     canEnableCurrentSite,
     registryEntryCount: siteSessionCookieSync.getRegistryEntries().length,
   };
+}
+
+function normalizeSiteSessionSyncSource(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  return {
+    browser: typeof value.browser === 'string' && value.browser.trim() ? value.browser.trim() : null,
+    profileLabel: typeof value.profileLabel === 'string' && value.profileLabel.trim()
+      ? value.profileLabel.trim()
+      : typeof value.profile_label === 'string' && value.profile_label.trim()
+        ? value.profile_label.trim()
+        : null,
+    extensionId: typeof value.extensionId === 'string' && value.extensionId.trim()
+      ? value.extensionId.trim()
+      : typeof value.extension_id === 'string' && value.extension_id.trim()
+        ? value.extension_id.trim()
+        : null,
+  };
+}
+
+function normalizeSynchronizedSiteSummary(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const siteId = typeof value.siteId === 'string' && value.siteId.trim()
+    ? value.siteId.trim()
+    : typeof value.site_id === 'string' && value.site_id.trim()
+      ? value.site_id.trim()
+      : null;
+  if (!siteId) {
+    return null;
+  }
+
+  const updatedAtMs = Number(value.updatedAtMs ?? value.updated_at_ms);
+  return {
+    siteId,
+    displayName: typeof value.displayName === 'string' && value.displayName.trim()
+      ? value.displayName.trim()
+      : typeof value.display_name === 'string' && value.display_name.trim()
+        ? value.display_name.trim()
+        : siteId,
+    primaryHost: typeof value.primaryHost === 'string' && value.primaryHost.trim()
+      ? value.primaryHost.trim()
+      : typeof value.primary_host === 'string' && value.primary_host.trim()
+        ? value.primary_host.trim()
+        : null,
+    icon: value.icon && typeof value.icon === 'object' ? value.icon : null,
+    availability: value.availability === 'ready' || value.availability === 'partial'
+      ? value.availability
+      : null,
+    updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : null,
+    lastSyncSource: normalizeSiteSessionSyncSource(value.lastSyncSource ?? value.last_sync_source),
+  };
+}
+
+function normalizeSynchronizedSiteSummaries(value) {
+  const rawEntries = Array.isArray(value?.synchronizedSites)
+    ? value.synchronizedSites
+    : Array.isArray(value?.entries)
+      ? value.entries
+      : [];
+  return rawEntries
+    .map(normalizeSynchronizedSiteSummary)
+    .filter(Boolean);
+}
+
+async function getSiteSessionDrawerState() {
+  const currentTab = await buildSiteSessionStatusForActiveTab();
+  if (!isConnected()) {
+    return {
+      connected: false,
+      currentTab,
+      synchronizedSites: [],
+      reason: 'desktop_offline',
+    };
+  }
+
+  const response = await sendRequestToApp(
+    'site_session_synced_summary',
+    {},
+    REQUEST_TIMEOUT_MS,
+    {
+      forceConnect: true,
+    },
+  );
+
+  return {
+    connected: response?.success === true && isConnected(),
+    currentTab,
+    synchronizedSites: response?.success === true
+      ? normalizeSynchronizedSiteSummaries(response.data)
+      : [],
+    reason: response?.success === true
+      ? null
+      : response?.data?.code || response?.message || 'site_session_summary_failed',
+  };
+}
+
+async function startPickDownloadForActiveTab() {
+  const tab = await getActiveTab();
+  const pageUrl = normalizeHttpUrl(tab?.url);
+  if (!pageUrl || typeof tab?.id !== 'number') {
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'unsupported_page',
+    };
+  }
+
+  try {
+    const response = await sendMessageToTab(tab.id, {
+      type: INTERNAL_START_PICKER_MESSAGE,
+    });
+    return {
+      success: response?.success !== false,
+      connected: isConnected(),
+      reason: response?.success === false ? response?.reason || 'picker_start_failed' : null,
+    };
+  } catch (error) {
+    console.warn('[Ameow] Failed to start picker from popup:', error);
+    return {
+      success: false,
+      connected: isConnected(),
+      reason: 'picker_start_failed',
+    };
+  }
 }
 
 function updateActionConnectionIndicator() {
@@ -3602,6 +3732,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         success: false,
         connected: isConnected(),
         reason: 'site_session_enable_failed',
+      });
+    });
+    return true;
+  } else if (message.type === 'get_site_session_drawer_state') {
+    getSiteSessionDrawerState().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to get site-session drawer state:', error);
+      sendResponse({
+        connected: isConnected(),
+        currentTab: null,
+        synchronizedSites: [],
+        reason: 'site_session_drawer_state_failed',
+      });
+    });
+    return true;
+  } else if (message.type === 'start_pick_download') {
+    startPickDownloadForActiveTab().then(sendResponse).catch((error) => {
+      console.error('[Ameow] Failed to start pick download:', error);
+      sendResponse({
+        success: false,
+        connected: isConnected(),
+        reason: 'picker_start_failed',
       });
     });
     return true;

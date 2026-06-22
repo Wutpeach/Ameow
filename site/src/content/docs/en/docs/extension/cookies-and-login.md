@@ -44,6 +44,8 @@ For example, a Bilibili download can trigger Bilibili cookie sync. A later YouTu
 
 Saved site login states can be reviewed, refreshed, or cleared from the desktop Settings page under Site login states.
 
+The extension popup's `Login state` drawer also shows a compact list of synchronized sites. This list is only a summary read from the desktop app, so you can confirm which sites have already been synchronized. Supported sites that have never been synchronized are not shown. The extension itself is not the long-term cookie store, and it does not replace the desktop Settings page for refreshing, clearing, or using saved login state during downloads.
+
 ## Do Douyin videos need login state?
 
 Public Douyin videos can usually be downloaded by pasting the video link or short link directly, including `v.douyin.com` short links and `jingxuan?modal_id=...` page links. Ameow handles Douyin videos through the general `yt-dlp` download capability, so there is no separate Douyin downloader runtime to prepare.

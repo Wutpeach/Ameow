@@ -1819,6 +1819,34 @@ async function buildSiteSessionPendingActionsPayload() {
   };
 }
 
+async function buildSiteSessionSyncedSummaryPayload() {
+  const entries = [];
+  for (const entry of getSiteSessionRegistry().listEntries()) {
+    const state = await requireSiteSessionManager(entry.siteId).getState();
+    if (
+      (state.availability !== "ready" && state.availability !== "partial")
+      || typeof state.updatedAtMs !== "number"
+    ) {
+      continue;
+    }
+
+    entries.push({
+      siteId: entry.siteId,
+      displayName: entry.displayName,
+      primaryHost: entry.primaryHost,
+      icon: entry.icon ?? null,
+      availability: state.availability,
+      updatedAtMs: state.updatedAtMs,
+      lastSyncSource: state.lastSyncSource ?? null,
+    });
+  }
+
+  entries.sort((left, right) => right.updatedAtMs - left.updatedAtMs);
+  return {
+    entries,
+  };
+}
+
 async function broadcastSiteSessionPendingActions() {
   emitAppEvent("site-session-pending-actions-changed", await buildSiteSessionPendingActionsPayload());
 }
@@ -3023,6 +3051,21 @@ async function handleWsMessage(rawMessage) {
           success: false,
           message: error instanceof Error ? error.message : String(error),
           data: withRequest("site_session_enable_failed"),
+        };
+      }
+    }
+    case "site_session_synced_summary": {
+      try {
+        return {
+          success: true,
+          message: "site_session_synced_summary",
+          data: withRequest(null, await buildSiteSessionSyncedSummaryPayload()),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : String(error),
+          data: withRequest("site_session_synced_summary_failed"),
         };
       }
     }

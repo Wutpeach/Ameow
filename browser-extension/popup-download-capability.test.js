@@ -152,4 +152,54 @@ describe("browser extension popup download capability UI", () => {
     expect(popupCss).toContain(".ameow-image-lightbox[data-open=\"true\"]");
     expect(popupCss).toContain("cursor: zoom-in");
   });
+
+  it("renders the popup quick-action grid and popup-contained drawers", () => {
+    expect(popupHtml).toContain("ameow-quick-actions");
+    expect(popupHtml).toContain('id="downloadSettingsAction"');
+    expect(popupHtml).toContain('id="pickDownloadAction"');
+    expect(popupHtml).toContain('id="loginStateAction"');
+    expect(popupHtml).toContain('id="helpDocsAction"');
+    expect(popupHtml).toContain('id="drawerOverlay"');
+    expect(popupHtml).toContain('id="downloadSettingsDrawer"');
+    expect(popupHtml).toContain('id="loginStateDrawer"');
+    expect(popupCss).toContain(".ameow-quick-actions");
+    expect(popupCss).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
+    expect(popupCss).toContain(".ameow-drawer-overlay");
+    expect(popupCss).toContain(".ameow-drawer-panel");
+    expect(popupJs).toContain("function openDrawer(drawerId");
+    expect(popupJs).toContain("function closeDrawer()");
+    expect(popupJs).toContain("getBrowserExtensionDocsUrl");
+  });
+
+  it("moves download quality into the drawer while keeping the quick-action summary", () => {
+    expect(popupHtml).toContain('id="qualitySummaryText"');
+    expect(popupHtml).toContain('id="qualityGrid"');
+    expect(popupHtml.indexOf('id="qualitySummaryText"')).toBeLessThan(popupHtml.indexOf('id="qualityGrid"'));
+    expect(popupJs).toContain("renderQualityOptions(currentQualityPreference)");
+    expect(popupJs).toContain("elements.qualitySummaryText.textContent");
+    expect(popupJs).toContain("openDrawer(\"download-settings\"");
+  });
+
+  it("starts the floating-launcher picker from the popup instead of duplicating picker UI", () => {
+    const launcherJs = readFileSync(path.resolve("browser-extension/floating-launcher.js"), "utf8");
+    expect(popupJs).toContain('sendRuntimeMessage({ type: "start_pick_download" })');
+    expect(backgroundJs).toContain("INTERNAL_START_PICKER_MESSAGE = 'ameow_start_picker'");
+    expect(backgroundJs).toContain("async function startPickDownloadForActiveTab()");
+    expect(backgroundJs).toContain("type: INTERNAL_START_PICKER_MESSAGE");
+    expect(launcherJs).toContain('const START_PICKER_MESSAGE = "ameow_start_picker"');
+    expect(launcherJs).toContain("startPicker();");
+  });
+
+  it("uses desktop-authoritative synchronized login summaries in the popup drawer", () => {
+    const electronMain = readFileSync(path.resolve("electron/main.mts"), "utf8");
+    expect(popupJs).toContain('sendRuntimeMessage({ type: "get_site_session_drawer_state" })');
+    expect(popupJs).toContain("renderLoginDrawerSites");
+    expect(popupJs).toContain("No synchronized sites yet");
+    expect(backgroundJs).toContain("async function getSiteSessionDrawerState()");
+    expect(backgroundJs).toContain("'site_session_synced_summary'");
+    expect(backgroundJs).toContain("reason: 'desktop_offline'");
+    expect(electronMain).toContain("async function buildSiteSessionSyncedSummaryPayload()");
+    expect(electronMain).toContain('state.availability !== "ready" && state.availability !== "partial"');
+    expect(electronMain).toContain("typeof state.updatedAtMs !== \"number\"");
+  });
 });

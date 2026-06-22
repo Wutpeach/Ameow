@@ -16,6 +16,12 @@ function getGettingStartedUrl(language = FALLBACK_LANGUAGE) {
   return `${DOCS_SITE_URL}${localePrefix}/docs/getting-started/`;
 }
 
+function getBrowserExtensionDocsUrl(language = FALLBACK_LANGUAGE) {
+  const normalized = typeof language === "string" ? language.trim().toLowerCase() : "";
+  const localePrefix = normalized.startsWith("zh") ? "" : "/en";
+  return `${DOCS_SITE_URL}${localePrefix}/docs/browser-extension/`;
+}
+
 function applyTheme(theme) {
   document.body.classList.toggle("ameow-theme-white", theme === "white");
   document.body.classList.toggle("ameow-theme-black", theme !== "white");
@@ -119,12 +125,32 @@ function ageBucket(ageMs) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const elements = {
+    downloadSettingsAction: document.getElementById("downloadSettingsAction"),
+    downloadSettingsActionLabel: document.getElementById("downloadSettingsActionLabel"),
+    pickDownloadAction: document.getElementById("pickDownloadAction"),
+    pickDownloadActionLabel: document.getElementById("pickDownloadActionLabel"),
+    pickDownloadActionHint: document.getElementById("pickDownloadActionHint"),
+    loginStateAction: document.getElementById("loginStateAction"),
     loginStatePanel: document.getElementById("loginStatePanel"),
     loginStateIcon: document.getElementById("loginStateIcon"),
     loginStateLabel: document.getElementById("loginStateLabel"),
     loginStateTitle: document.getElementById("loginStateTitle"),
+    loginStateDrawerKicker: document.getElementById("loginStateDrawerKicker"),
+    loginStateDrawerTitle: document.getElementById("loginStateDrawerTitle"),
+    loginStateDrawerCurrentTitle: document.getElementById("loginStateDrawerCurrentTitle"),
     loginStateHint: document.getElementById("loginStateHint"),
     loginStateButton: document.getElementById("loginStateButton"),
+    loginStateListTitle: document.getElementById("loginStateListTitle"),
+    loginStateListCount: document.getElementById("loginStateListCount"),
+    loginStateSites: document.getElementById("loginStateSites"),
+    helpDocsAction: document.getElementById("helpDocsAction"),
+    helpDocsActionLabel: document.getElementById("helpDocsActionLabel"),
+    helpDocsActionHint: document.getElementById("helpDocsActionHint"),
+    drawerOverlay: document.getElementById("drawerOverlay"),
+    drawerBackdrop: document.getElementById("drawerBackdrop"),
+    downloadSettingsDrawer: document.getElementById("downloadSettingsDrawer"),
+    downloadSettingsDrawerTitle: document.getElementById("downloadSettingsDrawerTitle"),
+    loginStateDrawer: document.getElementById("loginStateDrawer"),
     refreshMediaButton: document.getElementById("refreshMediaButton"),
     refreshMediaText: document.getElementById("refreshMediaText"),
     mediaTabs: Array.from(document.querySelectorAll(".ameow-media-tab")),
@@ -165,6 +191,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentStatusState = STATUS_STATE_OFFLINE;
   let currentSiteSessionStatus = null;
   let loginStateBusy = false;
+  let loginDrawerState = null;
+  let loginDrawerLoading = false;
   let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
   let currentMediaType = "video";
   let mediaScanResult = null;
@@ -174,6 +202,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeVideoPreviewId = null;
   let activeAudioPreviewId = null;
   let activeImagePreviewId = null;
+  let activeDrawer = null;
+  let drawerReturnFocus = null;
   const downloadCooldown = new Set();
 
   function t(key, fallback) {
@@ -191,6 +221,60 @@ document.addEventListener("DOMContentLoaded", () => {
   function openExternalLink(url) {
     closeMoreMenu();
     openTab(url);
+  }
+
+  function drawerById(drawerId) {
+    if (drawerId === "download-settings") {
+      return elements.downloadSettingsDrawer;
+    }
+    if (drawerId === "login-state") {
+      return elements.loginStateDrawer;
+    }
+    return null;
+  }
+
+  function openDrawer(drawerId, trigger = null) {
+    const drawer = drawerById(drawerId);
+    if (!drawer) {
+      return;
+    }
+    closeRowMenus();
+    closeMoreMenu();
+    closeImageLightbox();
+    drawerReturnFocus = trigger || document.activeElement;
+    activeDrawer = drawerId;
+    [elements.downloadSettingsDrawer, elements.loginStateDrawer].forEach((panel) => {
+      const isActive = panel === drawer;
+      panel.hidden = !isActive;
+      panel.dataset.open = isActive ? "true" : "false";
+    });
+    elements.drawerOverlay.hidden = false;
+    elements.drawerOverlay.dataset.open = "true";
+    elements.drawerOverlay.setAttribute("aria-hidden", "false");
+    window.setTimeout(() => {
+      drawer.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")?.focus?.();
+    }, 0);
+    if (drawerId === "login-state") {
+      void refreshLoginDrawerState();
+    }
+  }
+
+  function closeDrawer() {
+    if (!activeDrawer) {
+      return;
+    }
+    activeDrawer = null;
+    elements.drawerOverlay.dataset.open = "false";
+    elements.drawerOverlay.setAttribute("aria-hidden", "true");
+    elements.drawerOverlay.hidden = true;
+    [elements.downloadSettingsDrawer, elements.loginStateDrawer].forEach((panel) => {
+      panel.hidden = true;
+      panel.dataset.open = "false";
+    });
+    if (drawerReturnFocus?.isConnected) {
+      drawerReturnFocus.focus?.();
+    }
+    drawerReturnFocus = null;
   }
 
   function setMoreMenuOpen(open) {
@@ -220,7 +304,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderStaticCopy() {
     renderMediaTabs();
+    elements.downloadSettingsActionLabel.textContent = t("popup.quickActions.downloadSettings.label", "Download settings");
+    elements.pickDownloadActionLabel.textContent = t("popup.quickActions.pickDownload.label", "Pick download");
+    elements.pickDownloadActionHint.textContent = t("popup.quickActions.pickDownload.hint", "Select on page");
     elements.loginStateLabel.textContent = t("popup.sections.loginState", "Login state");
+    elements.helpDocsActionLabel.textContent = t("popup.quickActions.helpDocs.label", "Help docs");
+    elements.helpDocsActionHint.textContent = t("popup.quickActions.helpDocs.hint", "Open guide");
+    elements.downloadSettingsDrawerTitle.textContent = t("popup.drawers.downloadSettings.title", "Download settings");
+    elements.loginStateDrawerKicker.textContent = t("popup.drawers.loginState.kicker", "Browser bridge");
+    elements.loginStateDrawerTitle.textContent = t("popup.drawers.loginState.title", "Login state");
+    elements.loginStateListTitle.textContent = t("popup.loginState.listTitle", "Synchronized sites");
     elements.refreshMediaText.textContent = t("popup.media.refresh", "Refresh");
     elements.refreshMediaButton.title = t("popup.media.refreshTitle", "Refresh current page media");
     elements.refreshMediaButton.setAttribute("aria-label", t("popup.media.refreshTitle", "Refresh current page media"));
@@ -290,15 +383,19 @@ document.addEventListener("DOMContentLoaded", () => {
     return safeText(site?.displayName, site?.siteId || shortHost(currentSiteSessionStatus?.currentTabUrl));
   }
 
-  function renderLoginStateIcon(site, fallbackLabel) {
+  function renderSiteSessionIcon(target, site, fallbackLabel) {
     const icons = globalThis.AmeowSiteSessionIcons;
     const knownKey = icons?.resolveKnownIconKey?.(site) || null;
     const path = knownKey ? icons?.KNOWN_ICON_PATHS?.[knownKey] : null;
     if (path) {
-      elements.loginStateIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true"><path d="${path}"></path></svg>`;
+      target.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true"><path d="${path}"></path></svg>`;
       return;
     }
-    elements.loginStateIcon.textContent = icons?.placeholderLabel?.(fallbackLabel) || "?";
+    target.textContent = icons?.placeholderLabel?.(fallbackLabel) || "?";
+  }
+
+  function renderLoginStateIcon(site, fallbackLabel) {
+    renderSiteSessionIcon(elements.loginStateIcon, site, fallbackLabel);
   }
 
   function renderLoginStatePanel(feedback = null) {
@@ -314,27 +411,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (feedback) {
       elements.loginStatePanel.dataset.state = feedback.tone || "sync";
-      elements.loginStateTitle.textContent = feedback.title;
+      elements.loginStateAction.dataset.state = feedback.tone || "sync";
+      elements.loginStateTitle.textContent = feedback.actionTitle || feedback.title;
+      elements.loginStateDrawerCurrentTitle.textContent = feedback.title;
       elements.loginStateHint.textContent = feedback.hint;
     } else if (loginStateBusy) {
       elements.loginStatePanel.dataset.state = "working";
-      elements.loginStateTitle.textContent = t("popup.loginState.workingTitle", "Syncing login state");
+      elements.loginStateAction.dataset.state = "working";
+      elements.loginStateTitle.textContent = t("popup.loginState.working", "Syncing");
+      elements.loginStateDrawerCurrentTitle.textContent = t("popup.loginState.workingTitle", "Syncing login state");
       elements.loginStateHint.textContent = siteName || t("popup.loginState.workingHint", "Saving browser cookies for downloads.");
     } else if (!connected) {
       elements.loginStatePanel.dataset.state = "offline";
+      elements.loginStateAction.dataset.state = "offline";
       elements.loginStateTitle.textContent = t("popup.loginState.offlineTitle", "Desktop offline");
+      elements.loginStateDrawerCurrentTitle.textContent = t("popup.loginState.offlineTitle", "Desktop offline");
       elements.loginStateHint.textContent = t("popup.loginState.offlineHint", "Open the desktop app, then try again.");
     } else if (canSync) {
       elements.loginStatePanel.dataset.state = "sync";
-      elements.loginStateTitle.textContent = tt("popup.loginState.syncTitle", { site: siteName }, `Sync ${siteName}`);
+      elements.loginStateAction.dataset.state = "sync";
+      elements.loginStateTitle.textContent = siteName || t("popup.loginState.syncButton", "Sync");
+      elements.loginStateDrawerCurrentTitle.textContent = tt("popup.loginState.syncTitle", { site: siteName }, `Sync ${siteName}`);
       elements.loginStateHint.textContent = t("popup.loginState.syncHint", "Use this browser's login cookies for future downloads.");
     } else if (canEnable) {
       elements.loginStatePanel.dataset.state = "enable";
-      elements.loginStateTitle.textContent = tt("popup.loginState.enableTitle", { host: pageHost }, `Enable ${pageHost}`);
+      elements.loginStateAction.dataset.state = "enable";
+      elements.loginStateTitle.textContent = pageHost || t("popup.loginState.enableButton", "Enable");
+      elements.loginStateDrawerCurrentTitle.textContent = tt("popup.loginState.enableTitle", { host: pageHost }, `Enable ${pageHost}`);
       elements.loginStateHint.textContent = t("popup.loginState.enableHint", "Allow Ameow to use cookies for this exact host.");
     } else {
       elements.loginStatePanel.dataset.state = "unavailable";
+      elements.loginStateAction.dataset.state = "unavailable";
       elements.loginStateTitle.textContent = t("popup.loginState.unavailableTitle", "Unavailable");
+      elements.loginStateDrawerCurrentTitle.textContent = t("popup.loginState.unavailableTitle", "Unavailable");
       elements.loginStateHint.textContent = t("popup.loginState.unavailableHint", "This page does not support login sync.");
     }
 
@@ -346,6 +455,117 @@ document.addEventListener("DOMContentLoaded", () => {
           ? t("popup.loginState.enableButton", "Enable")
           : t("popup.loginState.syncButton", "Sync");
     elements.loginStateButton.disabled = loginStateBusy || (!canSync && !canEnable);
+  }
+
+  function formatSyncTime(updatedAtMs) {
+    if (!Number.isFinite(updatedAtMs)) {
+      return "";
+    }
+    const age = formatAge(Date.now() - updatedAtMs);
+    if (age) {
+      return age;
+    }
+    try {
+      return new Date(updatedAtMs).toLocaleDateString(currentBundle.language || undefined);
+    } catch {
+      return "";
+    }
+  }
+
+  function syncSourceLabel(source) {
+    const browser = safeText(source?.browser, "");
+    const profile = safeText(source?.profileLabel, "");
+    if (browser && profile) {
+      return `${browser} / ${profile}`;
+    }
+    return browser || profile || t("popup.loginState.sourceUnknown", "Browser extension");
+  }
+
+  function renderLoginSiteRow(site) {
+    const row = document.createElement("div");
+    const icon = document.createElement("span");
+    const copy = document.createElement("div");
+    const name = document.createElement("span");
+    const meta = document.createElement("span");
+    const badge = document.createElement("span");
+    const host = safeText(site.primaryHost, "");
+    const syncedAt = formatSyncTime(site.updatedAtMs);
+    const source = syncSourceLabel(site.lastSyncSource);
+
+    row.className = "ameow-login-site-row";
+    icon.className = "ameow-login-site-icon";
+    renderSiteSessionIcon(icon, site, site.displayName || site.siteId || host);
+    copy.className = "ameow-login-site-copy";
+    name.className = "ameow-login-site-name";
+    name.textContent = safeText(site.displayName, site.siteId);
+    meta.className = "ameow-login-site-meta";
+    meta.textContent = [host, source, syncedAt].filter(Boolean).join(" / ");
+    badge.className = "ameow-login-site-badge";
+    badge.dataset.availability = site.availability || "ready";
+    badge.textContent = site.availability === "partial"
+      ? t("popup.loginState.statusPartial", "Partial")
+      : t("popup.loginState.statusReady", "Ready");
+
+    copy.append(name, meta);
+    row.append(icon, copy, badge);
+    return row;
+  }
+
+  function renderLoginDrawerSites() {
+    const sites = Array.isArray(loginDrawerState?.synchronizedSites)
+      ? loginDrawerState.synchronizedSites
+      : [];
+    elements.loginStateListCount.textContent = String(sites.length);
+    elements.loginStateSites.innerHTML = "";
+
+    if (loginDrawerLoading) {
+      const loading = document.createElement("div");
+      loading.className = "ameow-login-empty";
+      loading.textContent = t("popup.loginState.loadingSites", "Loading synchronized sites");
+      elements.loginStateSites.appendChild(loading);
+      return;
+    }
+
+    if (sites.length === 0) {
+      const empty = document.createElement("div");
+      const title = document.createElement("span");
+      const copy = document.createElement("span");
+      empty.className = "ameow-login-empty";
+      title.className = "ameow-login-empty-title";
+      copy.className = "ameow-login-empty-copy";
+      title.textContent = loginDrawerState?.connected === false
+        ? t("popup.loginState.emptyOfflineTitle", "Desktop offline")
+        : t("popup.loginState.emptyTitle", "No synchronized sites yet");
+      copy.textContent = loginDrawerState?.connected === false
+        ? t("popup.loginState.emptyOfflineCopy", "Open the desktop app to view synchronized sites.")
+        : t("popup.loginState.emptyCopy", "Open a supported site, then sync login state above.");
+      empty.append(title, copy);
+      elements.loginStateSites.appendChild(empty);
+      return;
+    }
+
+    sites.forEach((site) => {
+      elements.loginStateSites.appendChild(renderLoginSiteRow(site));
+    });
+  }
+
+  async function refreshLoginDrawerState() {
+    loginDrawerLoading = true;
+    renderLoginDrawerSites();
+    const response = await sendRuntimeMessage({ type: "get_site_session_drawer_state" });
+    loginDrawerLoading = false;
+    if (response?.currentTab) {
+      currentSiteSessionStatus = response.currentTab;
+    }
+    loginDrawerState = response && typeof response === "object"
+      ? response
+      : {
+        connected: currentStatusState === STATUS_STATE_CONNECTED,
+        synchronizedSites: [],
+        reason: "drawer_state_failed",
+      };
+    renderLoginStatePanel();
+    renderLoginDrawerSites();
   }
 
   function mediaTabLabel(mediaType) {
@@ -1370,6 +1590,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQualityOptions(currentQualityPreference);
     updateStatus(currentStatusState);
     renderLoginStatePanel();
+    renderLoginDrawerSites();
     renderMediaState();
   }
 
@@ -1390,6 +1611,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (message.type === "site_session_registry_update") {
       void checkStatus();
+      if (activeDrawer === "login-state") {
+        void refreshLoginDrawerState();
+      }
       return;
     }
 
@@ -1423,6 +1647,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (activeDrawer) {
+        closeDrawer();
+        return;
+      }
       closeImageLightbox();
       closeRowMenus();
       closeMoreMenu();
@@ -1440,6 +1668,30 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   elements.refreshMediaButton.addEventListener("click", () => {
     void scanPageMedia();
+  });
+  elements.downloadSettingsAction.addEventListener("click", () => {
+    openDrawer("download-settings", elements.downloadSettingsAction);
+  });
+  elements.loginStateAction.addEventListener("click", () => {
+    openDrawer("login-state", elements.loginStateAction);
+  });
+  elements.helpDocsAction.addEventListener("click", () => {
+    openExternalLink(getBrowserExtensionDocsUrl(currentBundle.language));
+  });
+  elements.pickDownloadAction.addEventListener("click", async () => {
+    const previousHint = elements.pickDownloadActionHint.textContent;
+    elements.pickDownloadAction.disabled = true;
+    elements.pickDownloadActionHint.textContent = t("popup.quickActions.pickDownload.starting", "Starting");
+    const response = await sendRuntimeMessage({ type: "start_pick_download" });
+    elements.pickDownloadAction.disabled = false;
+    elements.pickDownloadActionHint.textContent = response?.success
+      ? t("popup.quickActions.pickDownload.active", "Click page content")
+      : response?.reason === "unsupported_page"
+        ? t("popup.quickActions.pickDownload.unavailable", "Unavailable here")
+        : t("popup.quickActions.pickDownload.failed", "Failed");
+    window.setTimeout(() => {
+      elements.pickDownloadActionHint.textContent = previousHint || t("popup.quickActions.pickDownload.hint", "Select on page");
+    }, 1400);
   });
   elements.loginStateButton.addEventListener("click", async () => {
     if (loginStateBusy) {
@@ -1465,10 +1717,14 @@ document.addEventListener("DOMContentLoaded", () => {
       renderLoginStatePanel({
         tone: "success",
         title: t("popup.loginState.syncedTitle", "Login state synced"),
+        actionTitle: t("popup.loginState.statusReady", "Ready"),
         hint: t("popup.loginState.syncedHint", "Ameow saved cookies for future downloads."),
       });
       window.setTimeout(() => {
         void checkStatus();
+        if (activeDrawer === "login-state") {
+          void refreshLoginDrawerState();
+        }
       }, 900);
       return;
     }
@@ -1480,6 +1736,10 @@ document.addEventListener("DOMContentLoaded", () => {
         ? t("popup.loginState.offlineHint", "Open the desktop app, then try again.")
         : t("popup.loginState.failedHint", "Log in to this site in the browser, then retry."),
     });
+  });
+  elements.drawerBackdrop.addEventListener("click", closeDrawer);
+  elements.drawerOverlay.querySelectorAll("[data-close-drawer]").forEach((button) => {
+    button.addEventListener("click", closeDrawer);
   });
   elements.openOptionsButton.addEventListener("click", openOptionsPage);
   elements.moreMenuButton.addEventListener("click", (event) => {

@@ -35,7 +35,7 @@ You can start with the Ameow desktop app alone. The browser extension is an opti
 7. Open a specific video page, post page, work page, or image-detail page, then send the task from the extension.
 </Steps>
 
-[Screenshot: extension popup showing Connected and download-quality options]
+[Screenshot: extension popup showing Connected, current-page resources, and the 2x2 quick actions]
 
 Success state: the popup shows `Connected`, the Ameow desktop app is running, and a task sent from the page appears in the desktop queue or state display.
 
@@ -59,6 +59,17 @@ You should see:
 - the finished file lands in the current output folder.
 
 If the page needs login state, confirm you are already logged in inside the browser before sending the task. You can also enable download-time login-state sync in the desktop app; after that, Ameow tries to sync cookies for the matching site when you download, instead of syncing every known site when you enable the feature.
+
+## Popup Quick Actions
+
+The extension popup has 4 quick actions below the current-page media list:
+
+- `Download settings`: opens an in-popup drawer for the default download-quality setting.
+- `Pick download`: starts page-pick mode. Click the content you want to download; right-click or press `Esc` to cancel.
+- `Login state`: opens an in-popup drawer. The top area can sync or enable the current site, and the list below shows only sites you have actively synchronized.
+- `Help docs`: opens this page.
+
+The login-state drawer is an information view plus a current-page sync entry. It is not a full copy of the desktop Settings page. The extension does not take over desktop downloads, and it does not list every supported site. Sites that have never been synchronized are not shown in this compact list.
 
 ## What Does the `[Desktop]` Badge Mean?
 
