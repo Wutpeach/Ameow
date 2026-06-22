@@ -53,6 +53,14 @@ Douyin video downloads now use the shared `yt-dlp` path. Common video inputs inc
 
 Douyin note and gallery pages are not a current public download target. Even though Douyin is listed as a focus site, non-video pages may still be unsupported.
 
+## Pinterest resource shapes
+
+Pinterest pages can expose images, directly saveable `.mp4` videos, and HLS/CMAF streaming resources at the same time. The extension popup tries to keep direct images and direct `.mp4` resources; those may also fall back to the browser downloader when the desktop app is offline.
+
+Resources such as `.cmfv`, `.m3u8`, and `.mpd` are not complete video files. They are usually stream fragments or manifests used by the web player, so they should not be treated as ordinary previewable or downloadable direct links. For those Pin videos, the extension prefers a page-level `[Desktop]` candidate so the desktop app can resolve the actual Pin page instead of trying to download a `.cmfv` segment as the final file.
+
+Test Pinterest from the actual Pin detail page. The home feed loads many cards, covers, and preview resources at once, so it is not a reliable place to judge whether one target resource is downloadable.
+
 ## Use the extension and popup on the actual content page first
 
 Both in-page download entries and the popup's "current page media" list work best on the actual content page:

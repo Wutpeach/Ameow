@@ -74,11 +74,13 @@ When the desktop app is connected, the extension still sends downloads to the de
 
 Browser fallback downloads are handed to the browser's own download manager. The popup does not show an extra completion message; start, completion, failure, and conflict handling remain in the browser downloads UI.
 
+The boundary is simple: the extension can identify and save ordinary direct links that are already complete files. The desktop app handles downloads that need extraction, login state, high-quality tracks, merging, transcoding, or post-processing.
+
 ## How Should I Use Current-Page Media?
 
 The popup scans resources from the current active tab. In addition to `<video>`, `<audio>`, `<img>`, links, and browser performance records from the page DOM, the extension background passively records recent media responses and merges them into the popup results when you refresh the scan.
 
-You can inspect scan results inside the popup: ordinary video resources can expand into a native player preview, audio can be sampled, and images appear in a thumbnail grid with format and dimensions. Complex resources marked `[Desktop]` still require desktop handling for download.
+You can inspect scan results inside the popup: ordinary video resources can expand into a native player preview, audio can be sampled, and images appear in a thumbnail grid with format and dimensions. Clicking an image thumbnail opens a larger in-popup preview. Resource details focus on media facts such as format, size, duration, and dimensions instead of internal source links. Complex resources marked `[Desktop]` still require desktop handling for download.
 
 That background discovery only stores bounded media-candidate metadata such as URL, media type, Content-Type, Content-Length, tab/page URL, and capture time. It does not store request headers, cookies, referrers, or response bodies, and the cache is pruned by age, tab, and total size.
 

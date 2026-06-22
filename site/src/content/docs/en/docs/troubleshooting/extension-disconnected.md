@@ -18,6 +18,14 @@ Answer these before going deeper:
 - Did you just install or update the extension?
 - Is the machine running a firewall, security tool, or managed browser policy?
 
+## What still works while Disconnected?
+
+`Disconnected` does not mean the extension is unusable. Ordinary image, audio, video, and file direct links can still be saved through the browser downloader when the resource row has no `[Desktop]` badge.
+
+Resources marked `[Desktop]` need the desktop app, for example login state, cookies, site extraction, stream fragments, high-quality track merging, or transcoding. While disconnected, those resources do not fall back to browser download; reconnect the desktop app first.
+
+Browser fallback download start, completion, failure, and filename-conflict prompts belong to the browser downloads UI. The extension popup does not show a separate completion message.
+
 ## Branch A: the desktop app is not running
 
 1. Launch the Ameow desktop app.

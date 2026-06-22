@@ -62,6 +62,12 @@ Open it in the browser. If the browser cannot open it either, Ameow cannot downl
 
 Log in to the site in the browser first, then send the task through the Ameow extension. Pasting only the URL may not give the desktop app enough session context.
 
+### The popup shows a resource, but it cannot preview or download
+
+First check whether the row has a `[Desktop]` badge. Badged resources are usually not complete files that the browser can save directly. Common examples include `m3u8`, `mpd`, `.cmfv`, `.m4s`, `ts`, `blob:` URLs, separate audio/video tracks, or resources that need login state.
+
+These resources need the desktop app to resolve the page, choose tracks, merge, transcode, or use login state. Confirm the desktop app is connected and send the task from the actual content page. If it still fails while connected, continue with site support, login state, proxy environment, and page-type checks.
+
 ### YouTube plays in the browser, but Ameow still fails
 
 This is often not a bad link. It is often a proxy-environment mismatch:
