@@ -1007,3 +1007,41 @@ Repurposed the browser extension toolbar dot from site-session sync availability
 ### Next Steps
 
 - None - task complete
+
+
+## Session 227: Finish extension standalone downloader
+
+**Date**: 2026-06-22
+**Task**: Finish extension standalone downloader
+**Branch**: `main`
+
+### Summary
+
+Implemented browser-extension standalone direct-download fallback, popup media previews, metadata cleanup, Pinterest direct-media and CMAF handling, and synchronized docs for the extension/desktop capability boundary.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fd681bd` | (see git log) |
+| `6d49238` | (see git log) |
+| `70daf55` | (see git log) |
+| `971b540` | (see git log) |
+| `fbb9066` | (see git log) |
+| `2dbb6b2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
