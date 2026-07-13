@@ -43,13 +43,13 @@ The first planning decision is which action buttons should appear in the new but
 
 ## Acceptance Criteria
 
-- [ ] Popup includes a compact action-button area with agreed button labels and behaviors.
-- [ ] At least one action opens a popup-contained drawer with keyboard and click-away dismissal.
-- [ ] Drawer content uses existing extension/background capabilities where available.
-- [ ] Existing popup media scan/download, login sync, quality preference, Settings, and More flows continue to work.
-- [ ] Chinese and English extension locale files include all new user-facing copy.
-- [ ] Relevant docs-site page is updated if the new popup workflow changes user-facing extension guidance.
-- [ ] Task-relevant tests or checks are run before implementation is reported complete.
+- [x] Popup includes a compact action-button area with agreed button labels and behaviors.
+- [x] At least one action opens a popup-contained drawer with keyboard and click-away dismissal.
+- [x] Drawer content uses existing extension/background capabilities where available.
+- [x] Existing popup media scan/download, login sync, quality preference, Settings, and More flows continue to work.
+- [x] Chinese and English extension locale files include all new user-facing copy.
+- [x] Relevant docs-site page is updated if the new popup workflow changes user-facing extension guidance.
+- [x] Task-relevant tests or checks are run before implementation is reported complete.
 
 ## Button Behavior Direction
 
