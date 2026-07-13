@@ -1045,3 +1045,38 @@ Implemented browser-extension standalone direct-download fallback, popup media p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 228: Complete browser extension popup drawer
+
+**Date**: 2026-07-13
+**Task**: Complete browser extension popup drawer
+**Branch**: `main`
+
+### Summary
+
+Added the browser extension popup quick-action grid and popup-contained drawers, wired pick download and login-state drawer behavior, polished drawer/media layout, and simplified image cards to show only bottom metadata.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e99a3f9` | (see git log) |
+| `c2cf815` | (see git log) |
+| `bed6bc1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
