@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 228
-- **Last Active**: 2026-07-13
+- **Total Sessions**: 229
+- **Last Active**: 2026-07-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1082 | Active |
+| `journal-5.md` | ~1115 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 229 | 2026-07-15 | Remove main window blue status dot | `f7d9b26` | `main` |
 | 228 | 2026-07-13 | Complete browser extension popup drawer | `e99a3f9`, `c2cf815`, `bed6bc1` | `main` |
 | 227 | 2026-06-22 | Finish extension standalone downloader | `fd681bd`, `6d49238`, `70daf55`, `971b540`, `fbb9066`, `2dbb6b2` | `main` |
 | 226 | 2026-06-20 | Use toolbar status dot for desktop connection | `4615187` | `main` |

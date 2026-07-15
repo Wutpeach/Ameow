@@ -1080,3 +1080,36 @@ Added the browser extension popup quick-action grid and popup-contained drawers,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 229: Remove main window blue status dot
+
+**Date**: 2026-07-15
+**Task**: Remove main window blue status dot
+**Branch**: `main`
+
+### Summary
+
+Removed the main window site-session discovery blue status dot while keeping runtime bootstrap indicators and Settings automatic cookie sync intact. Verified with type-check, lint, and tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f7d9b26` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
