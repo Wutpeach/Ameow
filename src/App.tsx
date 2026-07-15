@@ -35,10 +35,6 @@ import {
   desktopUpdater,
   desktopWindows,
 } from "./desktop/runtime";
-import {
-  resolveSiteSessionAutoSyncEnabled,
-  resolveSiteSessionDiscoveryDismissed,
-} from "./siteSessionPreferences";
 import type {
   RuntimeDependencyGatePhase,
   RuntimeDependencyGateStatePayload,
@@ -509,8 +505,6 @@ function App({
     useState<RuntimeDependencyGateStatePayload | null>(null);
   const [siteSessionPendingActions, setSiteSessionPendingActions] =
     useState<SiteSessionPendingActionsPayload>({ count: 0, entries: [] });
-  const [siteSessionAutoSyncEnabled, setSiteSessionAutoSyncEnabled] = useState(false);
-  const [siteSessionDiscoveryDismissed, setSiteSessionDiscoveryDismissed] = useState(false);
   const [isRuntimeIndicatorHovered, setIsRuntimeIndicatorHovered] = useState(false);
   const [isSiteSessionIndicatorHovered, setIsSiteSessionIndicatorHovered] = useState(false);
   const [isRuntimeRetryFeedbackVisible, setIsRuntimeRetryFeedbackVisible] = useState(false);
@@ -1655,8 +1649,6 @@ function App({
       setOutputPath(config.outputPath);
     }
     setRenameMediaOnDownload(resolveRenameMediaEnabled(config));
-    setSiteSessionAutoSyncEnabled(resolveSiteSessionAutoSyncEnabled(config));
-    setSiteSessionDiscoveryDismissed(resolveSiteSessionDiscoveryDismissed(config));
   }, []);
 
   const refreshRuntimeDependencyStatus = useCallback(async () => {
@@ -2252,20 +2244,6 @@ function App({
   useEffect(() => {
     const unlisten = desktopEvents.on<{ enabled: boolean }>("rename-setting-changed", (event) => {
       setRenameMediaOnDownload(Boolean(event.payload.enabled));
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, []);
-
-  useEffect(() => {
-    const unlisten = desktopEvents.on<{
-      enabled: boolean;
-      discoveryDismissed?: boolean;
-    }>("site-session-auto-sync-setting-changed", (event) => {
-      setSiteSessionAutoSyncEnabled(event.payload.enabled === true);
-      if (event.payload.discoveryDismissed === true) {
-        setSiteSessionDiscoveryDismissed(true);
-        setIsSiteSessionIndicatorHovered(false);
-      }
     });
     return () => { unlisten.then(fn => fn()); };
   }, []);
@@ -4220,17 +4198,11 @@ function App({
     showRuntimeSuccessIndicator
     || hasRuntimeGateIssue
   );
-  const shouldShowSiteSessionDiscoveryIndicator = !visualIsMinimized
-    && !isQueuePopoverOpen
-    && !shouldShowRuntimeIndicator
-    && !siteSessionAutoSyncEnabled
-    && !siteSessionDiscoveryDismissed;
   const shouldShowSiteSessionPendingIndicator = !visualIsMinimized
     && !isQueuePopoverOpen
     && siteSessionPendingActions.count > 0
-    && !shouldShowSiteSessionDiscoveryIndicator;
-  const shouldShowSiteSessionIndicator = shouldShowSiteSessionDiscoveryIndicator
-    || shouldShowSiteSessionPendingIndicator;
+    && !shouldShowRuntimeIndicator;
+  const shouldShowSiteSessionIndicator = shouldShowSiteSessionPendingIndicator;
   const siteSessionPendingPrimary = siteSessionPendingActions.entries[0] ?? null;
   const siteSessionPendingTitle = siteSessionPendingPrimary
     ? t("app.siteSessionPending.titleWithSite", {
@@ -4332,18 +4304,10 @@ function App({
     height: 6,
     boxShadow: `0 0 8px ${colors.warningGlow}`,
   };
-  const siteSessionIndicatorColor = shouldShowSiteSessionDiscoveryIndicator
-    ? colors.accentSolid
-    : colors.warningSolid;
-  const siteSessionIndicatorBorder = shouldShowSiteSessionDiscoveryIndicator
-    ? colors.accentBorder
-    : colors.warningBorder;
-  const siteSessionIndicatorGlow = shouldShowSiteSessionDiscoveryIndicator
-    ? colors.accentGlow
-    : colors.warningGlow;
-  const siteSessionIndicatorTextColor = shouldShowSiteSessionDiscoveryIndicator
-    ? colors.accentText
-    : colors.warningText;
+  const siteSessionIndicatorColor = colors.warningSolid;
+  const siteSessionIndicatorBorder = colors.warningBorder;
+  const siteSessionIndicatorGlow = colors.warningGlow;
+  const siteSessionIndicatorTextColor = colors.warningText;
   const siteSessionIndicatorStatusDotStyle: CSSProperties = {
     ...getStatusDotStyle(siteSessionIndicatorColor, siteSessionIndicatorGlow),
     width: 6,
@@ -5732,9 +5696,7 @@ function App({
         <AnimatePresence>
           {shouldShowSiteSessionIndicator ? (
             <motion.div
-              key={shouldShowSiteSessionDiscoveryIndicator
-                ? "site-session-discovery-indicator"
-                : "site-session-pending-indicator"}
+              key="site-session-pending-indicator"
               initial={shouldReduceMotion
                 ? { opacity: 0 }
                 : { opacity: 0, scale: 0.9, y: 6, filter: "blur(1.5px)" }}
@@ -5812,20 +5774,10 @@ function App({
                 type="button"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => {
-                  if (shouldShowSiteSessionDiscoveryIndicator) {
-                    setIsSiteSessionIndicatorHovered(false);
-                    void openSettings({
-                      page: "sites",
-                      highlightSiteSessionAutoSync: true,
-                    });
-                    return;
-                  }
                   setIsSiteSessionIndicatorHovered(false);
                   void openSettings();
                 }}
-                title={shouldShowSiteSessionDiscoveryIndicator
-                  ? t("app.siteSessionDiscovery.title")
-                  : siteSessionPendingTitle}
+                title={siteSessionPendingTitle}
                 style={{
                   position: "relative",
                   width: 24,
@@ -5842,92 +5794,42 @@ function App({
                 whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
                 transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
               >
-                {shouldShowSiteSessionPendingIndicator ? (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      inset: 4,
-                      borderRadius: "50%",
-                      border: `1px solid ${siteSessionIndicatorBorder}`,
-                      opacity: 0.72,
-                      pointerEvents: "none",
-                    }}
-                  />
-                ) : null}
-                {shouldShowSiteSessionDiscoveryIndicator ? (
-                  <>
-                    <motion.span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        inset: 5,
-                        borderRadius: "50%",
-                        backgroundColor: siteSessionIndicatorColor,
-                        boxShadow: `0 0 10px ${siteSessionIndicatorGlow}`,
-                        pointerEvents: "none",
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 4,
+                    borderRadius: "50%",
+                    border: `1px solid ${siteSessionIndicatorBorder}`,
+                    opacity: 0.72,
+                    pointerEvents: "none",
+                  }}
+                />
+                <motion.span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 4,
+                    borderRadius: "50%",
+                    backgroundColor: "transparent",
+                    border: `1px solid ${siteSessionIndicatorBorder}`,
+                    boxShadow: `0 0 10px ${siteSessionIndicatorGlow}`,
+                    pointerEvents: "none",
+                  }}
+                  animate={shouldReduceMotion
+                    ? { scale: 1, opacity: 0.64 }
+                    : {
+                        scale: [1, 1.18, 1.34],
+                        opacity: [0.24, 0.72, 0.24],
                       }}
-                      animate={shouldReduceMotion
-                        ? { opacity: 0.32 }
-                        : { opacity: [0.16, 0.4, 0.16] }}
-                      transition={shouldReduceMotion
-                        ? { duration: 0.18 }
-                        : {
-                            duration: 2.1,
-                            repeat: Number.POSITIVE_INFINITY,
-                            ease: "easeInOut",
-                          }}
-                    />
-                    <motion.span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        inset: 1,
-                        borderRadius: "50%",
-                        backgroundColor: siteSessionIndicatorColor,
-                        boxShadow: `0 0 16px ${siteSessionIndicatorGlow}, 0 0 24px ${siteSessionIndicatorGlow}`,
-                        pointerEvents: "none",
-                        filter: "blur(1px)",
+                  transition={shouldReduceMotion
+                    ? { duration: 0.16 }
+                    : {
+                        duration: 2.4,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
                       }}
-                      animate={shouldReduceMotion
-                        ? { opacity: 0.14 }
-                        : { opacity: [0.05, 0.18, 0.05] }}
-                      transition={shouldReduceMotion
-                        ? { duration: 0.18 }
-                        : {
-                            duration: 2.8,
-                            repeat: Number.POSITIVE_INFINITY,
-                            ease: "easeInOut",
-                          }}
-                    />
-                  </>
-                ) : (
-                  <motion.span
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      inset: 4,
-                      borderRadius: "50%",
-                      backgroundColor: "transparent",
-                      border: `1px solid ${siteSessionIndicatorBorder}`,
-                      boxShadow: `0 0 10px ${siteSessionIndicatorGlow}`,
-                      pointerEvents: "none",
-                    }}
-                    animate={shouldReduceMotion
-                      ? { scale: 1, opacity: 0.64 }
-                      : {
-                          scale: [1, 1.18, 1.34],
-                          opacity: [0.24, 0.72, 0.24],
-                        }}
-                    transition={shouldReduceMotion
-                      ? { duration: 0.16 }
-                      : {
-                          duration: 2.4,
-                          repeat: Number.POSITIVE_INFINITY,
-                          ease: "easeInOut",
-                        }}
-                  />
-                )}
+                />
                 <span
                   aria-hidden="true"
                   style={{
