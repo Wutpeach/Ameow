@@ -1179,3 +1179,36 @@ Unified site-session cookie acquisition and refresh through the desktop-owned sc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 232: Implement network proxy settings
+
+**Date**: 2026-07-16
+**Task**: Implement network proxy settings
+**Branch**: `main`
+
+### Summary
+
+Implemented explicit system/manual HTTP(S) proxy settings with automatic validation, fallback to system proxy, runtime/bootstrap wiring, Settings UI, docs, tests, and proxy contract spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cce9a2e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
