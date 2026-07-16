@@ -156,9 +156,6 @@ import {
   buildProxyResolutionFailedDiagnostic,
   buildSkippedNonYtdlpProxyDiagnostic,
 } from "../src/config/cliProxy.js";
-import {
-  resolveSiteSessionAutoSyncEnabled,
-} from "../src/siteSessionPreferences.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -1456,7 +1453,6 @@ function getElectronDownloadRuntime() {
         },
         onRegistryChanged() {
           broadcastSiteSessionRegistryUpdate();
-          void broadcastSiteSessionPendingActions();
         },
         log(message, details) {
           logInfo(
@@ -1527,8 +1523,8 @@ function getSiteSessionRefreshScheduler() {
     getConnectedExtensionClientCount() {
       return wsClients.size;
     },
-    refreshSiteSession(siteId, manager) {
-      return syncSiteSessionFromExtensionRaw(siteId, manager);
+    refreshSiteSession(siteId, manager, reason) {
+      return syncSiteSessionFromExtensionRaw(siteId, manager, reason);
     },
     log(message, details) {
       logInfo(
@@ -1572,7 +1568,7 @@ function getExtensionRequestBridge() {
   return extensionRequestBridge;
 }
 
-async function syncSiteSessionFromExtensionRaw(siteId, manager) {
+async function syncSiteSessionFromExtensionRaw(siteId, manager, reason = "scheduled") {
   const entry = getSiteSessionRegistry().requireEntry(siteId);
   const resolution = await getExtensionRequestBridge().requestSiteSessionCookieSync({
     siteId,
@@ -1595,11 +1591,12 @@ async function syncSiteSessionFromExtensionRaw(siteId, manager) {
     throw new Error(nextState.lastError);
   }
 
-  getSiteSessionRegistry().activateEntry(siteId, "user_sync");
+  if (reason === "manual") {
+    getSiteSessionRegistry().recordUserSync(siteId);
+  }
   getSiteSessionRefreshScheduler().markSuccess(siteId);
   broadcastSiteSessionRegistryUpdate();
   emitSiteSessionStateChanged(siteId, nextState);
-  void broadcastSiteSessionPendingActions();
   return nextState;
 }
 
@@ -1684,11 +1681,6 @@ async function refreshSiteSessionBeforeDownload({
   pageUrl,
   url,
 }) {
-  const config = await readConfigObject();
-  if (!resolveSiteSessionAutoSyncEnabled(config)) {
-    return;
-  }
-
   const entry = resolveSiteSessionEntryForDownload({ siteId, pageUrl, url });
   const manager = entry ? getSiteSessionManager(entry.siteId) : null;
   if (!entry || !manager) {
@@ -1797,28 +1789,6 @@ async function refreshSiteSessionBeforeAdvancedQualityProbe({
   );
 }
 
-async function buildSiteSessionPendingActionsPayload() {
-  const entries = [];
-  for (const entry of getSiteSessionRegistry().listVisibleEntries()) {
-    if (entry.syncAuthorization !== "auto_discovered") {
-      continue;
-    }
-    const state = await requireSiteSessionManager(entry.siteId).getState();
-    if (state.availability === "ready") {
-      continue;
-    }
-    entries.push({
-      siteId: entry.siteId,
-      displayName: entry.displayName,
-      primaryHost: entry.primaryHost,
-    });
-  }
-  return {
-    count: entries.length,
-    entries,
-  };
-}
-
 async function buildSiteSessionSyncedSummaryPayload() {
   const entries = [];
   for (const entry of getSiteSessionRegistry().listEntries()) {
@@ -1845,10 +1815,6 @@ async function buildSiteSessionSyncedSummaryPayload() {
   return {
     entries,
   };
-}
-
-async function broadcastSiteSessionPendingActions() {
-  emitAppEvent("site-session-pending-actions-changed", await buildSiteSessionPendingActionsPayload());
 }
 
 function getVideoDownloadCommandBridge() {
@@ -1887,7 +1853,6 @@ function getSiteSessionCommandController() {
       getSiteSessionRegistry().removeActivationSource(siteId, "user_sync");
       broadcastSiteSessionRegistryUpdate();
       emitSiteSessionStateChanged(siteId, state);
-      void broadcastSiteSessionPendingActions();
     },
   });
   return siteSessionCommandController;
@@ -3040,7 +3005,6 @@ async function handleWsMessage(rawMessage) {
           displayName: normalizeOptionalString(data?.displayName ?? data?.display_name),
         });
         broadcastSiteSessionRegistryUpdate();
-        void broadcastSiteSessionPendingActions();
         return {
           success: true,
           message: "site_session_current_tab_enabled",
@@ -3069,7 +3033,7 @@ async function handleWsMessage(rawMessage) {
         };
       }
     }
-    case "site_session_cookie_sync_direct": {
+    case "site_session_sync_request": {
       const siteId = normalizeOptionalString(data?.siteId ?? data?.site_id);
       if (!siteId) {
         return {
@@ -3080,34 +3044,17 @@ async function handleWsMessage(rawMessage) {
       }
       try {
         const manager = requireSiteSessionManager(siteId);
-        const nextState = await manager.importSnapshot({
-          cookies: Array.isArray(data?.cookies) ? data.cookies : [],
-          source: data?.source && typeof data.source === "object"
-            ? {
-                browser: normalizeOptionalString(data.source.browser) ?? null,
-                profileLabel: normalizeOptionalString(data.source.profileLabel ?? data.source.profile_label) ?? null,
-                extensionId: normalizeOptionalString(data.source.extensionId ?? data.source.extension_id) ?? null,
-              }
-            : null,
-        });
-        if (nextState.lastError) {
-          throw new Error(nextState.lastError);
-        }
-        getSiteSessionRegistry().activateEntry(siteId, "user_sync");
-        getSiteSessionRefreshScheduler().markSuccess(siteId);
-        broadcastSiteSessionRegistryUpdate();
-        emitSiteSessionStateChanged(siteId, nextState);
-        void broadcastSiteSessionPendingActions();
+        const nextState = await syncSiteSessionFromExtension(siteId, manager, "manual");
         return {
           success: true,
-          message: "site_session_cookie_sync_direct_received",
+          message: "site_session_sync_completed",
           data: withRequest(null, { state: nextState }),
         };
       } catch (error) {
         return {
           success: false,
           message: error instanceof Error ? error.message : String(error),
-          data: withRequest("site_session_cookie_sync_direct_failed"),
+          data: withRequest("site_session_sync_failed"),
         };
       }
     }
@@ -3244,9 +3191,6 @@ async function handleCommand(command, payload = {}) {
     payload,
   );
   if (controllerResult.handled) {
-    if (command === "clear_site_session" || command === "clear_douyin_session") {
-      void broadcastSiteSessionPendingActions();
-    }
     return controllerResult.value;
   }
 
@@ -3279,8 +3223,6 @@ async function handleCommand(command, payload = {}) {
       const config = await readConfigObject();
       return typeof config.shortcut === "string" ? config.shortcut : "";
     }
-    case "get_site_session_pending_actions":
-      return buildSiteSessionPendingActionsPayload();
     case "register_shortcut":
       await registerShortcut(String(payload.shortcut ?? ""));
       return;

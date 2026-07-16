@@ -45,7 +45,7 @@ export type SiteSessionRefreshSchedulerOptions = {
   listSiteSessionEntries(): SiteSessionRegistryEntry[];
   getSiteSessionManager(siteId: string): SiteSessionManager | null;
   getConnectedExtensionClientCount(): number;
-  refreshSiteSession(siteId: string, manager: SiteSessionManager): Promise<SiteSessionState>;
+  refreshSiteSession(siteId: string, manager: SiteSessionManager, reason: RefreshReason): Promise<SiteSessionState>;
   now?(): number;
   setTimeout?: typeof setTimeout;
   clearTimeout?: typeof clearTimeout;
@@ -333,7 +333,7 @@ export const createSiteSessionRefreshScheduler = (
     });
     try {
       const nextState = await withTimeout(
-        options.refreshSiteSession(entry.siteId, manager),
+        options.refreshSiteSession(entry.siteId, manager, refreshOptions.reason),
         {
           timeoutMs: refreshOptions.timeoutMs,
           siteId: entry.siteId,

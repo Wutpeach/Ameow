@@ -26,6 +26,7 @@ const REQUEST_TIMEOUT_MS = 7000;
 const CONNECTING_WAIT_TIMEOUT_MS = 500;
 const VIDEO_SELECTION_CONNECT_TIMEOUT_MS = 3500;
 const VIDEO_SELECTION_RETRY_CONNECT_TIMEOUT_MS = 5000;
+const SITE_SESSION_SYNC_REQUEST_TIMEOUT_MS = 25000;
 const PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS = 20000;
 const PROTECTED_IMAGE_DRAG_TTL_MS = 2 * 60 * 1000;
 const PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS = 15000;
@@ -1414,7 +1415,7 @@ function updateActionConnectionIndicator() {
   }
 }
 
-async function syncSiteSessionEntryDirect(entry) {
+async function requestDesktopSiteSessionSync(entry) {
   const normalizedEntry = normalizeSiteSessionRegistryEntry(entry);
   if (!normalizedEntry) {
     return {
@@ -1424,28 +1425,12 @@ async function syncSiteSessionEntryDirect(entry) {
     };
   }
 
-  const cookies = await collectSiteSessionCookies(normalizedEntry);
-  if (cookies.length === 0) {
-    return {
-      success: false,
-      connected: isConnected(),
-      siteId: normalizedEntry.siteId,
-      reason: 'no_site_session_cookies',
-    };
-  }
-
   const response = await sendRequestToApp(
-    'site_session_cookie_sync_direct',
+    'site_session_sync_request',
     {
       siteId: normalizedEntry.siteId,
-      cookies,
-      source: {
-        browser: resolveExtensionSyncBrowserLabel(),
-        profileLabel: null,
-        extensionId: chrome.runtime?.id || null,
-      },
     },
-    REQUEST_TIMEOUT_MS,
+    SITE_SESSION_SYNC_REQUEST_TIMEOUT_MS,
     {
       forceConnect: true,
     },
@@ -1470,7 +1455,7 @@ async function syncCurrentSiteSessionFromActiveTab() {
       reason: status.currentTabUrl ? 'site_session_not_enabled' : 'unsupported_page',
     };
   }
-  const result = await syncSiteSessionEntryDirect(status.currentSiteSession);
+  const result = await requestDesktopSiteSessionSync(status.currentSiteSession);
   return result;
 }
 
@@ -1510,7 +1495,7 @@ async function enableCurrentSiteSessionFromActiveTab() {
     type: 'site_session_registry_update',
     entries: siteSessionCookieSync.getRegistryEntries(),
   }).catch(() => {});
-  return syncSiteSessionEntryDirect(entry);
+  return requestDesktopSiteSessionSync(entry);
 }
 
 async function handleSiteSessionCookieSyncRequest(data) {

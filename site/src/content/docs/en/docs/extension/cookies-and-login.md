@@ -36,11 +36,13 @@ The docs will not ask you to copy raw cookie strings manually, and you should no
 
 Site cookies saved by Ameow are written only to the app data directory on your computer. They are used later by `yt-dlp` or `gallery-dl` for downloads from the same site. Ameow does not upload cookie or login-state content.
 
-## Download-Time Login-State Sync
+## Per-Site Login-State Sync And Maintenance
 
-The desktop main window may show a blue login-state discovery dot. If you enable it, Ameow does not sync every known site immediately. It only tries to sync cookies for the matching site when you start a download, using the connected browser extension, and saves that site snapshot locally.
+After you manually sync a site from desktop Settings or the browser extension popup, Ameow treats that site as authorized on this computer. Later, Ameow may refresh cookies for that same site locally, such as during scheduled maintenance, before a download starts, or when a saved login state needs to be refreshed for a download.
 
-For example, a Bilibili download can trigger Bilibili cookie sync. A later YouTube download can trigger YouTube cookie sync. If sync fails, the extension is disconnected, or the short wait times out, Ameow continues the normal download attempt.
+This is not a global sync for every website. Ameow only handles sites you have already synchronized or explicitly enabled; it does not silently read cookies for sites you have never synced. The browser extension remains the component that reads browser cookies. The desktop app requests the sync, validates the site scope, saves the snapshot, and creates temporary cookie files for downloads.
+
+For example, after you manually sync Bilibili once, later Bilibili downloads may refresh Bilibili cookies locally. That does not authorize YouTube. Ameow only maintains YouTube after you sync YouTube too. If sync fails, the extension is disconnected, or the wait times out, Ameow continues the normal download attempt.
 
 Saved site login states can be reviewed, refreshed, or cleared from the desktop Settings page under Site login states.
 

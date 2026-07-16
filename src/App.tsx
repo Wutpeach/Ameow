@@ -40,7 +40,6 @@ import type {
   RuntimeDependencyGateStatePayload,
   RuntimeDependencyStatusSnapshot,
 } from "./types/runtimeDependencies";
-import type { SiteSessionPendingActionsPayload } from "./types/siteSession";
 import type {
   DownloadProgressPayload,
   DownloadResultPayload as DownloadResult,
@@ -503,10 +502,7 @@ function App({
   const [runtimeDependencyStatus, setRuntimeDependencyStatus] = useState<RuntimeDependencyStatusSnapshot | null>(null);
   const [runtimeDependencyGateState, setRuntimeDependencyGateState] =
     useState<RuntimeDependencyGateStatePayload | null>(null);
-  const [siteSessionPendingActions, setSiteSessionPendingActions] =
-    useState<SiteSessionPendingActionsPayload>({ count: 0, entries: [] });
   const [isRuntimeIndicatorHovered, setIsRuntimeIndicatorHovered] = useState(false);
-  const [isSiteSessionIndicatorHovered, setIsSiteSessionIndicatorHovered] = useState(false);
   const [isRuntimeRetryFeedbackVisible, setIsRuntimeRetryFeedbackVisible] = useState(false);
   const [isRuntimeRetryInFlight, setIsRuntimeRetryInFlight] = useState(false);
   const [showRuntimeSuccessIndicator, setShowRuntimeSuccessIndicator] = useState(false);
@@ -2307,30 +2303,6 @@ function App({
   }, [refreshRuntimeDependencyStatus]);
 
   useEffect(() => {
-    let mounted = true;
-    void desktopCommands.invoke<SiteSessionPendingActionsPayload>(
-      "get_site_session_pending_actions",
-    ).then((payload) => {
-      if (mounted) {
-        setSiteSessionPendingActions(payload);
-      }
-    }).catch((error) => {
-      console.error("Failed to load pending site-session actions:", error);
-    });
-
-    const unlisten = desktopEvents.on<SiteSessionPendingActionsPayload>(
-      "site-session-pending-actions-changed",
-      (event) => {
-        setSiteSessionPendingActions(event.payload);
-      },
-    );
-    return () => {
-      mounted = false;
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  useEffect(() => {
     const previousPhase = previousRuntimeGatePhaseRef.current;
     const currentPhase = runtimeDependencyGateState?.phase ?? "idle";
     previousRuntimeGatePhaseRef.current = currentPhase;
@@ -3770,7 +3742,6 @@ function App({
   // Open settings window
   const openSettings = async (options?: {
     page?: "sites";
-    highlightSiteSessionAutoSync?: boolean;
   }) => {
     if (isContextMenuOpen) {
       await closeContextMenuWindow();
@@ -3781,7 +3752,6 @@ function App({
       if (options?.page === "sites") {
         await desktopEvents.emit("settings-page-requested", {
           page: "sites",
-          highlightSiteSessionAutoSync: options.highlightSiteSessionAutoSync === true,
         });
       }
       return;
@@ -3793,7 +3763,7 @@ function App({
       height: SETTINGS_WINDOW_HEIGHT,
       alwaysOnTop: true,
       routePath: options?.page === "sites"
-        ? `/settings?docsPage=sites${options.highlightSiteSessionAutoSync ? "&highlightSiteSessionAutoSync=1" : ""}`
+        ? "/settings?docsPage=sites"
         : undefined,
     });
   };
@@ -4198,20 +4168,6 @@ function App({
     showRuntimeSuccessIndicator
     || hasRuntimeGateIssue
   );
-  const shouldShowSiteSessionPendingIndicator = !visualIsMinimized
-    && !isQueuePopoverOpen
-    && siteSessionPendingActions.count > 0
-    && !shouldShowRuntimeIndicator;
-  const shouldShowSiteSessionIndicator = shouldShowSiteSessionPendingIndicator;
-  const siteSessionPendingPrimary = siteSessionPendingActions.entries[0] ?? null;
-  const siteSessionPendingTitle = siteSessionPendingPrimary
-    ? t("app.siteSessionPending.titleWithSite", {
-        site: siteSessionPendingPrimary.displayName || siteSessionPendingPrimary.primaryHost,
-      })
-    : t("app.siteSessionPending.title");
-  const siteSessionPendingHint = t("app.siteSessionPending.hint", {
-    count: siteSessionPendingActions.count,
-  });
   const runtimeIndicatorHeadline = getRuntimeGateHeadline(t, runtimeDependencyGateState);
   const runtimeIndicatorProgressLabel = getRuntimeGateProgressLabel(t, runtimeDependencyGateState);
   const runtimeIndicatorNextLabel = getRuntimeGateNextLabel(t, runtimeDependencyGateState);
@@ -4304,16 +4260,6 @@ function App({
     height: 6,
     boxShadow: `0 0 8px ${colors.warningGlow}`,
   };
-  const siteSessionIndicatorColor = colors.warningSolid;
-  const siteSessionIndicatorBorder = colors.warningBorder;
-  const siteSessionIndicatorGlow = colors.warningGlow;
-  const siteSessionIndicatorTextColor = colors.warningText;
-  const siteSessionIndicatorStatusDotStyle: CSSProperties = {
-    ...getStatusDotStyle(siteSessionIndicatorColor, siteSessionIndicatorGlow),
-    width: 6,
-    height: 6,
-    boxShadow: `0 0 8px ${siteSessionIndicatorGlow}`,
-  };
   const runtimeIndicatorProgressTrackStyle: CSSProperties = {
     width: "100%",
     height: 5,
@@ -4334,23 +4280,6 @@ function App({
     transformOrigin: "left center",
     transition: runtimeIndicatorIsIndeterminate ? "none" : "width 0.22s ease",
   };
-  const siteSessionPendingPopoverStyle: CSSProperties = {
-    position: "absolute",
-    left: 0,
-    bottom: 0,
-    marginBottom: 24,
-    width: 158,
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-    padding: "9px 10px 8px",
-    ...getPanelShellStyle(colors, {
-      radius: 12,
-      boxShadow: `inset 0 0 0 1px ${siteSessionIndicatorBorder}, inset 0 1px 0 ${colors.fieldInset}, ${colors.panelShadowStrong}`,
-    }),
-    transformOrigin: "bottom left",
-  };
-
   return (
     <div
 	      style={{
@@ -5690,164 +5619,6 @@ function App({
               </motion.button>
             )}
           </motion.div>
-          ) : null}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {shouldShowSiteSessionIndicator ? (
-            <motion.div
-              key="site-session-pending-indicator"
-              initial={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.9, y: 6, filter: "blur(1.5px)" }}
-              animate={shouldReduceMotion
-                ? { opacity: 1 }
-                : { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-              exit={shouldReduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, scale: 0.78, y: 8, filter: "blur(1.5px)" }}
-              transition={runtimeIndicatorPresenceTransition}
-              style={{
-                position: "absolute",
-                left: shouldShowRuntimeIndicator ? 42 : 12,
-                bottom: 12,
-                zIndex: 12,
-                transformOrigin: "bottom left",
-              }}
-              data-panel-double-click="ignore"
-              onMouseEnter={() => {
-                if (shouldShowSiteSessionPendingIndicator) {
-                  setIsSiteSessionIndicatorHovered(true);
-                }
-              }}
-              onMouseLeave={() => {
-                setIsSiteSessionIndicatorHovered(false);
-              }}
-            >
-              <AnimatePresence>
-                {shouldShowSiteSessionPendingIndicator && isSiteSessionIndicatorHovered ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.94, y: 4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: 4 }}
-                    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                    style={siteSessionPendingPopoverStyle}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      <span style={siteSessionIndicatorStatusDotStyle} />
-                      <span
-                        style={{
-                          minWidth: 0,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: colors.textPrimary,
-                          lineHeight: 1.1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          userSelect: "none",
-                        }}
-                      >
-                        {siteSessionPendingTitle}
-                      </span>
-                    </div>
-                    <span
-                      title={siteSessionPendingHint}
-                      style={{
-                        fontSize: 9,
-                        lineHeight: 1.24,
-                        color: siteSessionIndicatorTextColor,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {siteSessionPendingHint}
-                    </span>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-
-              <motion.button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  setIsSiteSessionIndicatorHovered(false);
-                  void openSettings();
-                }}
-                title={siteSessionPendingTitle}
-                style={{
-                  position: "relative",
-                  width: 24,
-                  height: 24,
-                  padding: 0,
-                  border: "none",
-                  borderRadius: 999,
-                  background: "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                }}
-                whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
-                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 4,
-                    borderRadius: "50%",
-                    border: `1px solid ${siteSessionIndicatorBorder}`,
-                    opacity: 0.72,
-                    pointerEvents: "none",
-                  }}
-                />
-                <motion.span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 4,
-                    borderRadius: "50%",
-                    backgroundColor: "transparent",
-                    border: `1px solid ${siteSessionIndicatorBorder}`,
-                    boxShadow: `0 0 10px ${siteSessionIndicatorGlow}`,
-                    pointerEvents: "none",
-                  }}
-                  animate={shouldReduceMotion
-                    ? { scale: 1, opacity: 0.64 }
-                    : {
-                        scale: [1, 1.18, 1.34],
-                        opacity: [0.24, 0.72, 0.24],
-                      }}
-                  transition={shouldReduceMotion
-                    ? { duration: 0.16 }
-                    : {
-                        duration: 2.4,
-                        repeat: Number.POSITIVE_INFINITY,
-                        ease: "easeInOut",
-                      }}
-                />
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: "50%",
-                    width: 8,
-                    height: 8,
-                    marginLeft: -4,
-                    marginTop: -4,
-                    borderRadius: "50%",
-                    backgroundColor: siteSessionIndicatorColor,
-                    display: "block",
-                    pointerEvents: "none",
-                    boxShadow: `0 0 10px ${siteSessionIndicatorGlow}, 0 0 18px ${siteSessionIndicatorGlow}`,
-                  }}
-                />
-              </motion.button>
-            </motion.div>
           ) : null}
         </AnimatePresence>
 

@@ -88,17 +88,6 @@ export type SiteSessionDiagnostics = {
   policy: SiteSessionPolicyEvaluation;
 };
 
-export type SiteSessionPendingAction = {
-  siteId: string;
-  displayName: string;
-  primaryHost: string;
-};
-
-export type SiteSessionPendingActionsPayload = {
-  count: number;
-  entries: SiteSessionPendingAction[];
-};
-
 export type SiteSessionStateChangedPayload = {
   siteId: string;
   state: SiteSessionState;

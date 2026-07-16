@@ -153,6 +153,30 @@ describe("createSiteSessionRegistry", () => {
     expect(registry.listVisibleEntries().map((item) => item.siteId)).toContain("bilibili");
   });
 
+  it("promotes auto-discovered entries after successful user sync", async () => {
+    const userDataDir = await createTempUserDataDir();
+    const registry = createSiteSessionRegistry({
+      getUserDataDir: () => userDataDir,
+      now: () => 1_779_428_739_315,
+    });
+    const discovered = registry.upsertAuthRequiredSite({
+      pageUrl: "https://members.example.com/video/1",
+      siteHint: "generic",
+      displayName: "Protected Example",
+      engineHint: "yt-dlp",
+    });
+
+    const entry = registry.recordUserSync(discovered?.siteId ?? "");
+
+    expect(entry).toMatchObject({
+      siteId: "site-members-example-com",
+      syncAuthorization: "user_enabled",
+      autoSyncAllowed: true,
+      visibility: "visible",
+      discoverySources: expect.arrayContaining(["auth_required", "user_sync"]),
+    });
+  });
+
   it("hides seed-only entries after user-sync activation is removed", async () => {
     const userDataDir = await createTempUserDataDir();
     const registry = createSiteSessionRegistry({

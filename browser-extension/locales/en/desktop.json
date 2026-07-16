@@ -250,9 +250,7 @@
         "refresh": "Failed to refresh site download credentials",
         "sync": "Failed to sync from the browser extension. Make sure the Ameow extension is connected and YouTube is logged in in that browser.",
         "clear": "Failed to clear the site session"
-      },
-      "autoSyncTitle": "Auto-sync login state",
-      "autoSyncHint": "Auto-sync cookies for matching sites (saved locally)"
+      }
     },
     "douyinSession": {
       "title": "Douyin session",

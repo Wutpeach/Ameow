@@ -18,6 +18,7 @@ export type SiteSessionRegistry = {
   requireEntry(siteId: string): SiteSessionRegistryEntry;
   matchEntryForUrl(url: string): SiteSessionRegistryEntry | null;
   activateEntry(siteId: string, source: SiteSessionRegistryEntry["discoverySources"][number]): SiteSessionRegistryEntry;
+  recordUserSync(siteId: string): SiteSessionRegistryEntry;
   removeActivationSource(siteId: string, source: SiteSessionRegistryEntry["discoverySources"][number]): SiteSessionRegistryEntry;
   upsertAuthRequiredSite(options: {
     pageUrl?: string | null;
@@ -382,6 +383,31 @@ export const createSiteSessionRegistry = (
         discoverySources: Array.from(new Set([
           ...matchedEntry.discoverySources,
           source,
+        ])),
+        updatedAtMs: now(),
+      };
+      entries = currentEntries.map((entry) => (
+        entry.siteId === nextEntry.siteId ? nextEntry : entry
+      ));
+      persistEntries(entries);
+      return nextEntry;
+    },
+    recordUserSync(siteId) {
+      const currentEntries = loadEntries();
+      const matchedEntry = currentEntries.find((entry) => entry.siteId === siteId);
+      if (!matchedEntry) {
+        throw new Error(`Unsupported site session: ${siteId}`);
+      }
+      const nextEntry: SiteSessionRegistryEntry = {
+        ...matchedEntry,
+        syncAuthorization: matchedEntry.syncAuthorization === "seeded"
+          ? "seeded"
+          : "user_enabled",
+        autoSyncAllowed: true,
+        visibility: "visible",
+        discoverySources: Array.from(new Set([
+          ...matchedEntry.discoverySources,
+          "user_sync" as const,
         ])),
         updatedAtMs: now(),
       };

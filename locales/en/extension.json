@@ -24,6 +24,32 @@
       "hiddenSites": "Hidden sites",
       "loginState": "Login state"
     },
+    "quickActions": {
+      "downloadSettings": {
+        "label": "Download settings"
+      },
+      "pickDownload": {
+        "label": "Pick download",
+        "hint": "Select on page",
+        "starting": "Starting",
+        "active": "Click page content",
+        "unavailable": "Unavailable here",
+        "failed": "Failed"
+      },
+      "helpDocs": {
+        "label": "Help docs",
+        "hint": "Open guide"
+      }
+    },
+    "drawers": {
+      "downloadSettings": {
+        "title": "Download settings"
+      },
+      "loginState": {
+        "kicker": "Browser bridge",
+        "title": "Login state"
+      }
+    },
     "footer": {
       "settings": "Settings",
       "openSettings": "Open settings",
@@ -150,7 +176,16 @@
       "syncedTitle": "Login state synced",
       "syncedHint": "Ameow saved cookies for future downloads.",
       "failedTitle": "Sync failed",
-      "failedHint": "Log in to this site in the browser, then retry."
+      "failedHint": "Log in to this site in the browser, then retry.",
+      "listTitle": "Synchronized sites",
+      "loadingSites": "Loading synchronized sites",
+      "emptyTitle": "No synchronized sites yet",
+      "emptyCopy": "Open a supported site, then sync login state above.",
+      "emptyOfflineTitle": "Desktop offline",
+      "emptyOfflineCopy": "Open the desktop app to view synchronized sites.",
+      "statusReady": "Ready",
+      "statusPartial": "Partial",
+      "sourceUnknown": "Browser extension"
     },
     "sites": {
       "count": "{count} hidden sites",

@@ -147,7 +147,7 @@ describe("createSiteSessionRefreshScheduler", () => {
     await scheduler.checkDueSessions("scheduled");
 
     expect(refreshSiteSession).toHaveBeenCalledTimes(1);
-    expect(refreshSiteSession).toHaveBeenCalledWith("youtube", expect.any(Object));
+    expect(refreshSiteSession).toHaveBeenCalledWith("youtube", expect.any(Object), "scheduled");
     expect(scheduler.getRefreshState("youtube")).toMatchObject({
       failureCount: 0,
       lastError: null,

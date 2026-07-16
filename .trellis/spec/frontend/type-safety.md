@@ -103,7 +103,6 @@ type DownloadProgress = {
 | `get_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("get_runtime_dependency_gate_state")` |
 | `refresh_runtime_dependency_gate_state` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("refresh_runtime_dependency_gate_state")` |
 | `start_runtime_dependency_bootstrap` | `invoke<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>("start_runtime_dependency_bootstrap", { reason? })` |
-| `get_site_session_pending_actions` | `invoke<{ count: number; entries: { siteId: string; displayName: string; primaryHost: string }[] }>("get_site_session_pending_actions")` |
 | `download_video` | `invoke<{ traceId: string; success: boolean; file_path?: string; error?: string }>(...)` |
 | `queue_pasted_video_download` | `invoke<{ accepted: boolean; traceId: string }>("queue_pasted_video_download", { url, pageUrl?, siteHint? })` |
 | `queue_video_download` | `invoke<{ accepted: boolean; traceId: string }>("queue_video_download", { url, pageUrl?, videoUrl?, videoCandidates? })` |
@@ -130,7 +129,6 @@ type DownloadProgress = {
 | `theme-changed` | `listen<Theme>(...)` |
 | `shortcut-show` | `listen<void>(...)` |
 | `runtime-dependency-gate-state` | `listen<{ phase: "idle" \| "checking" \| "awaiting_confirmation" \| "downloading" \| "ready" \| "blocked_by_user" \| "failed"; missingComponents: string[]; lastError: string \| null; updatedAtMs: number; currentComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null; currentStage: "checking" \| "downloading" \| "verifying" \| "installing" \| null; progressPercent: number \| null; downloadedBytes: number \| null; totalBytes: number \| null; nextComponent: "ytDlp" \| "galleryDl" \| "ffmpeg" \| "deno" \| null }>(...)` |
-| `site-session-pending-actions-changed` | `listen<{ count: number; entries: { siteId: string; displayName: string; primaryHost: string }[] }>(...)` |
 | `site-session-state-changed` | `listen<{ siteId: string; state: SiteSessionState; registryEntries: SiteSessionRegistryEntry[] }>(...)` |
 
 #### Support Log Export Contract
@@ -635,21 +633,19 @@ Behavior contract in frontend:
 - Treat the payload as managed Python package metadata backed by the bundled Python runtime.
 - Settings copy must describe `gallery-dl` as app-managed through the bundled Python runtime; it must not imply a standalone bundled binary updater.
 
-#### Site Login-State Pending Reminder Contract
+#### Site Login-State Entry Points Contract
 
-- Source files: `src/App.tsx`, `src/types/siteSession.ts`, `src/types/electronBridge.ts`
-- Command: `get_site_session_pending_actions`
-- Event: `site-session-pending-actions-changed`
-- Payload fields:
-  - `count: number`
-  - `entries: { siteId: string; displayName: string; primaryHost: string }[]`
+- Source files: `src/pages/SettingsPage.tsx`, `browser-extension/popup.js`, `src/types/siteSession.ts`, `src/types/electronBridge.ts`
+- Settings command: `sync_site_session_from_extension`
+- Extension popup WS action: `site_session_sync_request`
+- Event: `site-session-state-changed`
 
 Behavior contract in frontend:
-- Load pending actions once on main-window mount with `invoke<SiteSessionPendingActionsPayload>("get_site_session_pending_actions")`.
-- Subscribe to `site-session-pending-actions-changed` with the same payload type and update local state from the event payload.
-- Render the lower-left login-state warning dot only in the full main window when `count > 0`; compact/minimized mode and the queue popover should keep it hidden.
-- Clicking the warning dot opens Settings. The main window must not attempt to read cookies or activate site sessions directly.
-- Treat `entries[0]` as display-only copy. The backend remains authoritative for which sites are pending.
+- The main window must not render a site-session pending dot, subscribe to `site-session-pending-actions-changed`, or call `get_site_session_pending_actions`.
+- Settings remains the desktop UI for visible site-session rows. Manual sync uses `invoke<SiteSessionState>("sync_site_session_from_extension", { siteId })`.
+- The browser-extension popup may initiate current-site sync, but it must ask desktop to run `site_session_sync_request { siteId }`; it must not push persistent cookies through a separate direct-import action.
+- `site-session-state-changed` is the Settings live-refresh event. Treat its registry entries and site state as desktop-owned truth.
+- Auth-required discovery should surface in Settings, the extension login-state drawer, or task-specific recovery UI, not as a main-window status dot.
 
 #### Site Login-State Settings Refresh Contract
 

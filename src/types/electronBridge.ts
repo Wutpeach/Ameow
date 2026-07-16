@@ -21,7 +21,6 @@ export type AmeowRendererCommand =
   | "get_douyin_session_state"
   | "get_site_session_registry"
   | "get_site_session_diagnostics"
-  | "get_site_session_pending_actions"
   | "get_site_session_state"
   | "get_autostart"
   | "get_clipboard_files"
@@ -62,8 +61,6 @@ export type AmeowAppEvent =
   | "rename-setting-changed"
   | "runtime-dependency-gate-state"
   | "settings-page-requested"
-  | "site-session-auto-sync-setting-changed"
-  | "site-session-pending-actions-changed"
   | "site-session-state-changed"
   | "shortcut-show"
   | "theme-changed"
@@ -88,7 +85,6 @@ export type AmeowRendererEvent =
   | "output-path-changed"
   | "rename-setting-changed"
   | "settings-page-requested"
-  | "site-session-auto-sync-setting-changed"
   | "theme-changed"
   | "ytdlp-version-refresh";
 
