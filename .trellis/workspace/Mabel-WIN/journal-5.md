@@ -1146,3 +1146,36 @@ Updated Ameow's managed yt-dlp Python package pin to 2026.07.04, aligned runtime
 ### Next Steps
 
 - None - task complete
+
+
+## Session 231: Unify site-session cookies refresh
+
+**Date**: 2026-07-16
+**Task**: Unify site-session cookies refresh
+**Branch**: `main`
+
+### Summary
+
+Unified site-session cookie acquisition and refresh through the desktop-owned scheduler path, removed obsolete global auto-sync and pending indicators, updated tests/docs/specs.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a7a2bf7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

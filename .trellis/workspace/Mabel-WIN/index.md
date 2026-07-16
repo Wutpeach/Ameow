@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 230
+- **Total Sessions**: 231
 - **Last Active**: 2026-07-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1148 | Active |
+| `journal-5.md` | ~1181 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 231 | 2026-07-16 | Unify site-session cookies refresh | `a7a2bf7` | `main` |
 | 230 | 2026-07-16 | Update packaged yt-dlp pin | `8714396` | `main` |
 | 229 | 2026-07-15 | Remove main window blue status dot | `f7d9b26` | `main` |
 | 228 | 2026-07-13 | Complete browser extension popup drawer | `e99a3f9`, `c2cf815`, `bed6bc1` | `main` |
