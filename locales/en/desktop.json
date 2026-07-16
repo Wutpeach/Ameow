@@ -192,6 +192,22 @@
       "title": "Receive test builds",
       "hint": "Enable beta / rc prerelease updates. Leave off to stay on stable releases only."
     },
+    "networkProxy": {
+      "title": "Network proxy",
+      "hint": "Use system proxy by default. Manual proxy applies to Ameow network requests and supported download tools.",
+      "system": "System proxy",
+      "manual": "Manual proxy",
+      "placeholder": "http://127.0.0.1:7890",
+      "status": {
+        "system": "Using system or ambient proxy settings.",
+        "empty": "Enter an HTTP(S) proxy address.",
+        "invalid": "Only HTTP(S) proxy URLs without credentials or paths are supported.",
+        "saving": "Saving and applying after input settles...",
+        "validating": "Checking Ameow infrastructure through this proxy...",
+        "manual": "Manual proxy is active.",
+        "fallback": "Manual proxy is unavailable. Ameow is using system proxy settings."
+      }
+    },
     "outputFolder": {
       "title": "Output Folder",
       "choose": "Choose a folder...",

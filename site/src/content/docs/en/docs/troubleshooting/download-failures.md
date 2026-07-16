@@ -76,17 +76,22 @@ This is often not a bad link. It is often a proxy-environment mismatch:
 - the proxy tool only handles the browser and not Ameow or its downloader subprocesses;
 - domestic sites such as Bilibili still work, but YouTube exposes the proxy mismatch immediately as format-probe failures, explicit failures, or a task stuck in `Preparing`.
 
-The current recommendation is to let your own proxy tool own network routing instead of trying to configure a separate proxy inside Ameow. Ameow does not manage a dedicated in-app proxy layer.
+The first recommendation is still to let your proxy tool own network routing, because the browser, Ameow, pip, and yt-dlp / gallery-dl may contact different hosts. TUN, global, VPN, or system-proxy takeover mode is usually the easiest way to keep the path consistent.
+
+Ameow also has a low-interaction manual proxy setting: open **Settings → System & Support → Network proxy**, choose **Manual proxy**, and enter an HTTP(S) proxy without credentials or paths, such as `http://127.0.0.1:7890`. Once the format is valid, Ameow saves and applies it automatically. Ameow checks fixed infrastructure targets such as GitHub, Deno, and PyPI. If the manual proxy is unavailable, Ameow automatically falls back to system proxy behavior.
+
+Do not use the proxy setting as a test box for a failed video URL. A single content URL can fail because of login state, region limits, account access, anti-bot checks, or site-rule changes, not only because of proxy routing.
 
 Try this order:
 
 1. confirm the specific YouTube video page plays normally in the browser;
 2. send the task from that actual video page, not from the homepage, search page, or recommendation feed;
 3. if you are using a proxy tool, switch it to TUN, global, VPN, or system-proxy takeover mode;
-4. retry with a public YouTube video that does not require login;
-5. if Highest quality fails, switch to Balanced first and confirm the path recovers.
+4. if system proxy mode does not cover Ameow or its downloader subprocesses, configure the manual HTTP(S) proxy in Settings;
+5. retry with a public YouTube video that does not require login;
+6. if Highest quality fails, switch to Balanced first and confirm the path recovers.
 
-If the problem improves once your proxy tool takes over globally, the failure point is usually the proxy environment rather than a missing Ameow-side proxy setting.
+If the problem improves once your proxy tool takes over globally or the manual HTTP(S) proxy becomes active, the failure point is usually the proxy environment rather than the link itself.
 
 ### The site is outside the current support range
 

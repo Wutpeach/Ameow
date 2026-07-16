@@ -722,8 +722,8 @@ function buildManagedRuntimeBootstrapOptions(
 
 ### 1. Scope / Trigger
 
-- Trigger: Any task that changes desktop-side proxy behavior for bootstrap, update checks, Electron-owned fetch requests, or app-managed downloader CLI invocations.
-- Why this needs code-spec depth: Proxy handling crosses Electron session wiring, managed runtime bootstrap, update checks, and yt-dlp/ffmpeg child-process downloads.
+- Trigger: Any task that changes desktop-side proxy behavior for Settings, bootstrap, update checks, Electron-owned fetch requests, or app-managed downloader CLI invocations.
+- Why this needs code-spec depth: Proxy handling crosses persisted config, Electron session wiring, managed runtime bootstrap, renderer Settings state, and yt-dlp/gallery-dl child-process downloads.
 
 ### 2. Signatures
 
@@ -731,6 +731,39 @@ Electron main ownership:
 
 ```ts
 async function applyDesktopSystemProxy(): Promise<void>
+
+async function applyDesktopManualProxy(proxyUrl: string): Promise<void>
+
+type EffectiveNetworkProxyPolicy =
+  | { mode: "system"; reason: "user_system" | "invalid_manual" | "manual_unverified" | "manual_unavailable" }
+  | { mode: "manual"; proxyUrl: string; verifiedAtMs: number };
+
+type NetworkProxyStatePayload = {
+  preferenceMode: "system" | "manual";
+  configuredProxy: {
+    url: string;
+    scheme: "http" | "https";
+    host: string;
+    port: string | null;
+  } | null;
+  effectivePolicy: EffectiveNetworkProxyPolicy;
+  validationStatus: "idle" | "validating" | "available" | "unavailable" | "invalid";
+  validationResults: Array<{
+    id: "github" | "deno" | "pypi";
+    url: string;
+    ok: boolean;
+    status: number | null;
+    error: string | null;
+  }>;
+  updatedAtMs: number;
+};
+```
+
+Renderer command / event contract:
+
+```ts
+type AmeowRendererCommand = "get_network_proxy_state" | "save_config" | ...;
+type AmeowAppEvent = "network-proxy-state-changed" | ...;
 ```
 
 CLI proxy diagnostic helpers:
@@ -757,61 +790,87 @@ function buildCliProxyDiagnosticFromEnvironment(
 
 ### 3. Contracts
 
-- Ameow does not expose or consume manual global proxy configuration. Proxy setup guidance belongs in documentation/troubleshooting, not first-run or failure-time UI.
-- `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches.
-- The default desktop network session should stay in `mode: "system"` proxy behavior so Electron-owned fetches inherit OS / Chromium proxy resolution.
-- Saving config through `save_config` must not re-apply or mutate any Ameow-owned proxy setting.
-- yt-dlp / ffmpeg CLI downloads default to the user's ambient network environment. Ameow must not silently translate a single Electron `session.resolveProxy(targetUrl)` result into a default yt-dlp `--proxy`.
+- Default behavior is system/ambient proxy. `networkProxyMode` missing or `"system"` must keep Electron session in `mode: "system"` and CLI tools on their ambient environment.
+- Manual proxy support is explicit and user-owned: `networkProxyMode: "manual"` plus a valid `networkProxyUrl` enables manual HTTP(S) proxy as the preferred policy. Supported manual URLs are only `http:` / `https:` with host and optional port, no credentials, path, query, hash, SOCKS, PAC, or per-site rules.
+- Persisted preference and effective runtime policy are separate. Saved manual proxy remains preferred across restarts, but effective policy may fall back to system/ambient when the manual proxy is invalid, unverified, or unavailable.
+- `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches. The default session applies either system mode or manual fixed-server mode according to the effective policy.
+- Manual Electron fixed-server mode must include local bypass rules for `<local>`, `localhost`, `127.0.0.1`, and `127.0.0.1:39527` so the browser-extension WebSocket bridge is never proxied.
+- Saving config through `save_config` must re-evaluate proxy policy when `networkProxyMode` or `networkProxyUrl` changes. It must not activate stale historical proxy-like keys such as `globalProxyEnabled/globalProxyUrl`.
+- Manual proxy validation is automatic and fixed-target only. Settings must not ask users to paste arbitrary content URLs or click a separate test button.
+- Validation targets are app infrastructure: GitHub, Deno downloads, and PyPI. Use HEAD with bounded GET fallback, short timeouts, and concurrent probes. A single target failure may be shown as partial diagnostics; all-target failure or clear local proxy connection failure means manual proxy is unavailable and future work falls back to system/ambient.
+- When effective manual proxy is active, pass it only through explicit supported paths:
+  - Electron default session fixed-server proxy for Electron-owned fetches.
+  - Managed Python package install environment as `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, and `https_proxy`.
+  - yt-dlp `proxyUrl` path, which becomes `--proxy <url>`.
+  - gallery-dl child-process proxy environment.
+- yt-dlp / gallery-dl CLI downloads must not receive proxy values by collapsing Electron `session.resolveProxy(targetUrl)` output. The old implicit Electron-to-CLI translation remains forbidden.
 - Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment variables may be sampled for diagnostics only. Diagnostic entries must include the sampled target host and classify direct, HTTP/HTTPS, SOCKS-unsupported, mixed/PAC-like, malformed, environment, skipped-non-yt-dlp, and resolution-failed cases.
-- If a future advanced path reintroduces CLI proxy injection, it must be explicit, disabled by default, and preserve diagnostics that recommend TUN/global/VPN mode for YouTube.
+- Proxy-shaped failures while effective manual proxy is active should mark manual proxy suspect, switch future work to system/ambient, and revalidate the saved manual proxy through an isolated manual-proxy validation session. Do not fallback for HTTP 403/404/412/416/429, auth/login/cookie failures, private or region-limited content, extractor/site-rule failures, or ffmpeg merge/transcode failures.
+- Diagnostics and support logs may include sanitized manual proxy scheme, host, and port. They must not log credentials, cookies, or raw unparsed proxy rules.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Validation Point | Expected Behavior | Action |
 |-----------|------------------|-------------------|--------|
-| Desktop app startup | Electron session apply | Desktop session uses system proxy mode | Continue shared session-backed fetch flow |
-| `save_config` receives stale `globalProxyEnabled/globalProxyUrl` keys | config save | Persist as ordinary unknown config only; do not apply as proxy | Keep system proxy mode |
+| Desktop app startup with no proxy config | Electron session apply | Desktop session uses system proxy mode | Continue shared session-backed fetch flow |
+| Desktop app startup with saved valid manual proxy | policy controller | Apply manual fixed-server proxy immediately, then validate in background | Keep manual if validation succeeds; fallback if unavailable |
+| Manual proxy URL has credentials/path/query/hash/SOCKS | config parser / Settings | Treat as invalid manual config | Save only valid URLs from Settings; effective policy uses system |
+| `save_config` receives valid `networkProxyMode/manual` and `networkProxyUrl` | config save | Reconfigure session and start validation | Emit `network-proxy-state-changed` |
+| `save_config` receives stale `globalProxyEnabled/globalProxyUrl` keys | config save | Persist as ordinary unknown config only; do not apply as proxy | Keep current canonical policy |
+| Manual proxy validation has one success and two failures | validation controller | Manual proxy remains available | Show partial diagnostic status without disabling manual |
+| Manual proxy validation has all failures | validation controller | Effective policy becomes system/manual_unavailable | Use system/ambient for future requests |
+| Manual proxy effective and yt-dlp reports `ERR_PROXY_CONNECTION_FAILED` | failure feedback | Mark manual proxy suspect and revalidate | Fallback to system/ambient while revalidating |
+| Manual proxy effective and content site returns HTTP 403 | failure feedback | Do not mark proxy unavailable | Continue normal download troubleshooting |
 | `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | proxy diagnostics | Log sanitized HTTP proxy diagnostic for the sampled target; do not inject default `--proxy` | Continue ambient download path |
 | `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | proxy diagnostics | Log SOCKS-unsupported diagnostic | Prefer TUN/global/VPN mode or docs-level troubleshooting |
-| yt-dlp context receives an explicit `proxyUrl` from a test or future advanced path | command planning | Include `--proxy <url>` | Preserve explicit hook behavior |
+| yt-dlp context receives effective manual `proxyUrl` | command planning | Include `--proxy <url>` | Preserve explicit hook behavior |
+| gallery-dl context receives effective manual `proxyUrl` | process runner | Set HTTP(S) proxy env vars for the child process | Do not add unsupported rule/PAC translation |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: user enables TUN/global/VPN mode in their proxy tool, and Electron, yt-dlp, ffmpeg, Python, Deno, and update/bootstrap traffic share the same ambient network route.
+- Good: user enables TUN/global/VPN mode in their proxy tool, leaves Ameow on system proxy, and Electron, yt-dlp, gallery-dl, Python, Deno, and update/bootstrap traffic share the same ambient network route.
+- Good: user selects manual proxy `http://127.0.0.1:7890`; Electron session, pip install, yt-dlp, and gallery-dl use that proxy while validation succeeds.
+- Good: a saved manual proxy is down on restart; Ameow attempts it first, validation fails, and future work falls back to system/ambient without the user clearing the saved preference.
 - Base: Electron resolves `PROXY 127.0.0.1:7897` for the sampled YouTube page URL, Ameow logs the sanitized diagnostic, and yt-dlp still runs without a default `--proxy` so the user's proxy tool owns routing.
+- Base: user types an invalid manual proxy value in Settings; the value is not applied, and effective policy remains system/ambient.
 - Bad: one feature uses a hand-written proxy setting while another uses Electron/system proxy resolution.
 - Bad: Ameow collapses a single YouTube page `resolveProxy(...)` result into `--proxy` for the entire yt-dlp/ffmpeg run, even though `googlevideo.com`, `ytimg.com`, and remote component endpoints may use different proxy rules.
 - Bad: stale persisted `globalProxyEnabled/globalProxyUrl` changes downloader behavior after the Settings UI has removed proxy controls.
-- Bad: Settings reintroduces a first-run or failure-time proxy setup flow instead of keeping proxy configuration in documentation/troubleshooting.
+- Bad: Settings adds arbitrary content-link testing or failure-screen deep links as part of proxy setup.
+- Bad: HTTP 403 or login-required content disables the user-selected manual proxy.
 
 ### 6. Tests Required
 
-- `src/config/cliProxy.test.ts`
-  - Electron proxy-rule parsing for CLI-compatible HTTP(S) proxy URLs
-  - environment proxy parsing
-- `electron/desktopProxy.test.mts`
-  - desktop session remains in system proxy mode
-- `npm run type-check`
-  - main-process and settings-page wiring compile
-- `npm run lint`
-  - settings page remains lint-clean without exposing the proxy entry UI
+- `src/config/networkProxy.test.ts`: manual URL validation rejects credentials, paths, query, hash, SOCKS, and stale historical keys.
+- `electron/desktopProxy.test.mts`: system mode, manual fixed-server mode, and local bypass rules including `127.0.0.1:39527`.
+- `electron/networkProxyPolicy.test.mts`: startup manual preference, partial validation success, all-target fallback, and proxy-shaped failure feedback.
+- `electron/managedRuntimeBootstrap.test.mts`: managed Python package env includes proxy variables only when effective manual proxy is present.
+- `src/electron-runtime/service.test.ts`: default path has no proxy, explicit/effective manual path populates execution context, and failed proxy resolution degrades to null.
+- `src/electron-runtime/galleryDlDownload.test.ts`: gallery-dl gets proxy env only with effective manual proxy.
+- `src/config/cliProxy.test.ts`: Electron/environment proxy samples remain diagnostics and are not default CLI proxy injection.
+- `npm run type-check`, `npm run lint`, `npm test`, `npm run docs:build`, and `git diff --check`.
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
 ```ts
-await fetch(url, init);
+const proxyRules = await session.defaultSession.resolveProxy(targetUrl);
+const proxyUrl = resolveCliProxyUrlFromElectronProxyRules(proxyRules);
+args.push("--proxy", proxyUrl);
 ```
 
 #### Correct
 
 ```ts
-await fetchWithDesktopSession(url, init);
+const effectiveProxy = networkProxyPolicyController.resolveProxyUrl();
+if (effectiveProxy) {
+  args.push("--proxy", effectiveProxy);
+}
 ```
 
 Why wrong:
-- A direct fetch path can silently bypass the configured Electron desktop proxy and reintroduce environment-specific network failures.
+- `resolveProxy(...)` samples one target and may represent PAC/rule-based behavior that is unsafe to collapse into a global CLI proxy. CLI proxy injection must come only from the explicit effective manual proxy policy.
 
 ### 6. Tests Required
 

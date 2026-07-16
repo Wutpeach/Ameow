@@ -30,6 +30,7 @@ import {
   type ManagedPythonPackageSpec,
   type ManagedPythonPackageToolId,
 } from "./managedPythonPackageManifest.mjs";
+import { buildManualProxyEnv } from "../src/config/networkProxy.js";
 
 export { resolvePinnedManagedPythonPackage } from "./managedPythonPackageManifest.mjs";
 
@@ -49,6 +50,7 @@ export type ManagedRuntimeBootstrapOptions = {
   fetch: typeof fetch;
   bundledPythonRoot?: string;
   bundledPythonPath?: string;
+  manualProxyUrl?: string | null;
   log?(message: string): void;
   onActivity?(activity: ManagedRuntimeActivity): void | Promise<void>;
   now?(): number;
@@ -428,10 +430,11 @@ const shouldRebuildManagedPythonRuntime = async (
   return false;
 };
 
-const buildManagedPythonEnv = (
+export const buildManagedPythonEnv = (
   paths: ManagedPythonRuntimePaths,
+  proxyUrl: string | null | undefined = null,
 ): NodeJS.ProcessEnv => ({
-  ...process.env,
+  ...(proxyUrl ? buildManualProxyEnv(proxyUrl) : process.env),
   PLAYWRIGHT_BROWSERS_PATH: join(paths.root, "playwright-browsers"),
   PYTHONIOENCODING: "utf-8",
   PYTHONUTF8: "1",
@@ -768,7 +771,9 @@ const ensureManagedPythonPackageReady = async (
       "--disable-pip-version-check",
       "--no-cache-dir",
       spec.installSource,
-    ]);
+    ], {
+      env: buildManagedPythonEnv(paths, options.manualProxyUrl),
+    });
     if (!existsSync(targetPath)) {
       throw new Error(`Managed ${toolId} entrypoint is missing after install: ${targetPath}`);
     }

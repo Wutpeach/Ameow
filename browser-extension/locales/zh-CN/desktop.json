@@ -192,6 +192,22 @@
       "title": "接收测试版更新",
       "hint": "开启后会接收 beta / rc 等预发布版本；关闭时只接收正式稳定版。"
     },
+    "networkProxy": {
+      "title": "网络代理",
+      "hint": "默认使用系统代理。手动代理会应用到 Ameow 自己的网络请求和支持的下载工具。",
+      "system": "系统代理",
+      "manual": "手动代理",
+      "placeholder": "http://127.0.0.1:7890",
+      "status": {
+        "system": "正在使用系统或环境代理设置。",
+        "empty": "输入 HTTP(S) 代理地址。",
+        "invalid": "仅支持不带账号、路径的 HTTP(S) 代理 URL。",
+        "saving": "输入稳定后会保存并应用...",
+        "validating": "正在通过该代理检查 Ameow 基础服务...",
+        "manual": "手动代理已生效。",
+        "fallback": "手动代理不可用，Ameow 正在使用系统代理。"
+      }
+    },
     "outputFolder": {
       "title": "输出文件夹",
       "choose": "选择文件夹...",

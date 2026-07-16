@@ -424,6 +424,7 @@ export const runYtDlpDownload = async (
       });
     }
   } catch (error) {
+    await context.reportNetworkProxyFailure?.(error);
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {
         traceId: context.traceId,

@@ -55,6 +55,12 @@ import {
 } from "../i18n/contract";
 import { normalizeAppLanguage } from "../i18n/language";
 import {
+  normalizeManualNetworkProxyUrl,
+  normalizeNetworkProxyMode,
+  type NetworkProxyMode,
+  type NetworkProxyStatePayload,
+} from "../config/networkProxy";
+import {
   APP_UPDATE_PRERELEASE_CONFIG_KEY,
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
@@ -116,6 +122,7 @@ const SETTINGS_HUB_SEARCH_HEIGHT = 34;
 const SETTINGS_HUB_DESTINATION_MIN_HEIGHT = 54;
 const SETTINGS_HUB_SEARCH_TO_LIST_GAP = 14;
 const SETTINGS_HUB_DESTINATION_GAP = 9;
+const NETWORK_PROXY_SAVE_DEBOUNCE_MS = 650;
 const UI_LAB_WINDOW_WIDTH = 420;
 const UI_LAB_WINDOW_HEIGHT = 560;
 const formatSiteSessionSyncSource = (state: SiteSessionState | undefined): string | null => {
@@ -295,6 +302,12 @@ function SettingsPage() {
   const [aeExePath, setAeExePath] = useState("");
   const [extensionInjectionDebugEnabled, setExtensionInjectionDebugEnabled] = useState(false);
   const [receivePrereleaseUpdates, setReceivePrereleaseUpdates] = useState(false);
+  const [networkProxyMode, setNetworkProxyMode] = useState<NetworkProxyMode>("system");
+  const [networkProxyInput, setNetworkProxyInput] = useState("");
+  const [networkProxyInputInvalid, setNetworkProxyInputInvalid] = useState(false);
+  const [networkProxySavePending, setNetworkProxySavePending] = useState(false);
+  const [networkProxyState, setNetworkProxyState] =
+    useState<NetworkProxyStatePayload | null>(null);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
@@ -317,6 +330,7 @@ function SettingsPage() {
   const [hoveredShortcutAction, setHoveredShortcutAction] = useState<"confirm" | "cancel" | null>(null);
   const [hoveredSavingAction, setHoveredSavingAction] = useState<"outputFolder" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const networkProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
 
   const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
@@ -382,6 +396,13 @@ function SettingsPage() {
         if (typeof config.extensionInjectionDebugEnabled === "boolean") {
           setExtensionInjectionDebugEnabled(config.extensionInjectionDebugEnabled);
         }
+        const parsedProxyMode = normalizeNetworkProxyMode(config.networkProxyMode);
+        setNetworkProxyMode(parsedProxyMode);
+        if (typeof config.networkProxyUrl === "string") {
+          setNetworkProxyInput(config.networkProxyUrl);
+          setNetworkProxyInputInvalid(parsedProxyMode === "manual"
+            && !normalizeManualNetworkProxyUrl(config.networkProxyUrl));
+        }
         setReceivePrereleaseUpdates(resolveReceivePrereleaseUpdates(config));
       } catch (err) {
         console.error("Failed to load config:", err);
@@ -432,6 +453,30 @@ function SettingsPage() {
       cleanup?.();
     };
   }, [applyAppUpdateState]);
+
+  useEffect(() => {
+    void desktopCommands.invoke<NetworkProxyStatePayload>("get_network_proxy_state")
+      .then((state) => {
+        setNetworkProxyState(state);
+      })
+      .catch((err) => {
+        console.error("Failed to load network proxy state:", err);
+      });
+
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<NetworkProxyStatePayload>(
+      "network-proxy-state-changed",
+      (event) => {
+        setNetworkProxyState(event.payload);
+      },
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDevBuild) {
@@ -523,6 +568,10 @@ function SettingsPage() {
       if (supportLogHintTimerRef.current) {
         clearTimeout(supportLogHintTimerRef.current);
         supportLogHintTimerRef.current = null;
+      }
+      if (networkProxySaveTimerRef.current) {
+        clearTimeout(networkProxySaveTimerRef.current);
+        networkProxySaveTimerRef.current = null;
       }
     };
   }, []);
@@ -688,6 +737,70 @@ function SettingsPage() {
       setReceivePrereleaseUpdates(previousValue);
       console.error("Failed to toggle prerelease app updates:", err);
     }
+  };
+
+  const clearNetworkProxySaveTimer = () => {
+    if (networkProxySaveTimerRef.current) {
+      clearTimeout(networkProxySaveTimerRef.current);
+      networkProxySaveTimerRef.current = null;
+    }
+  };
+
+  const selectNetworkProxyMode = async (nextMode: NetworkProxyMode) => {
+    if (nextMode === networkProxyMode) {
+      return;
+    }
+
+    clearNetworkProxySaveTimer();
+    const previousMode = networkProxyMode;
+    setNetworkProxyMode(nextMode);
+    setNetworkProxyInputInvalid(false);
+    setNetworkProxySavePending(false);
+
+    try {
+      const normalizedProxy = normalizeManualNetworkProxyUrl(networkProxyInput);
+      await saveConfigPatch((draft) => {
+        draft.networkProxyMode = nextMode;
+        if (nextMode === "manual" && normalizedProxy) {
+          draft.networkProxyUrl = normalizedProxy;
+        }
+      });
+    } catch (err) {
+      setNetworkProxyMode(previousMode);
+      console.error("Failed to switch network proxy mode:", err);
+    }
+  };
+
+  const handleNetworkProxyInputChange = (value: string) => {
+    setNetworkProxyInput(value);
+    clearNetworkProxySaveTimer();
+
+    if (networkProxyMode !== "manual") {
+      setNetworkProxyInputInvalid(false);
+      setNetworkProxySavePending(false);
+      return;
+    }
+
+    const normalizedProxy = normalizeManualNetworkProxyUrl(value);
+    if (!normalizedProxy) {
+      setNetworkProxyInputInvalid(value.trim().length > 0);
+      setNetworkProxySavePending(false);
+      return;
+    }
+
+    setNetworkProxyInputInvalid(false);
+    setNetworkProxySavePending(true);
+    networkProxySaveTimerRef.current = setTimeout(() => {
+      networkProxySaveTimerRef.current = null;
+      void saveConfigPatch({
+        networkProxyMode: "manual",
+        networkProxyUrl: normalizedProxy,
+      }).catch((err) => {
+        console.error("Failed to save network proxy URL:", err);
+      }).finally(() => {
+        setNetworkProxySavePending(false);
+      });
+    }, NETWORK_PROXY_SAVE_DEBOUNCE_MS);
   };
 
   const navigateSettingsPage = useCallback((nextPage: SettingsPageId) => {
@@ -1213,9 +1326,42 @@ function SettingsPage() {
   const pluginsSummary = aePortalEnabled
     ? t("desktop:settings.hub.summary.pluginsActive")
     : t("desktop:settings.hub.summary.pluginsAvailable");
+  const normalizedNetworkProxyInput = normalizeManualNetworkProxyUrl(networkProxyInput);
+  const networkProxySavedUrl = networkProxyState?.configuredProxy?.url ?? null;
+  const networkProxyStateMatchesInput = Boolean(
+    normalizedNetworkProxyInput
+    && networkProxySavedUrl === normalizedNetworkProxyInput,
+  );
+  const networkProxyStatusKind = networkProxyMode === "system"
+    ? "system"
+    : networkProxyInputInvalid
+      ? "invalid"
+      : networkProxySavePending
+        ? "saving"
+        : networkProxyState?.validationStatus === "validating" && networkProxyStateMatchesInput
+          ? "validating"
+          : networkProxyState?.effectivePolicy.mode === "manual" && networkProxyStateMatchesInput
+            ? "manual"
+            : networkProxyState?.effectivePolicy.mode === "system"
+              && networkProxyState?.effectivePolicy.reason === "manual_unavailable"
+              && networkProxyStateMatchesInput
+                ? "fallback"
+                : normalizedNetworkProxyInput
+                  ? "saving"
+                  : "empty";
+  const networkProxyStatusTone = networkProxyStatusKind === "invalid" || networkProxyStatusKind === "fallback"
+    ? "danger"
+    : networkProxyStatusKind === "manual"
+      ? "accent"
+      : "muted";
+  const networkProxyStatusText = t(`desktop:settings.networkProxy.status.${networkProxyStatusKind}`);
   const systemSummary = appUpdateInfo
     ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
-    : t("desktop:settings.hub.summary.systemIdle", { version: APP_VERSION });
+    : networkProxyStatusKind === "manual"
+      ? t("desktop:settings.hub.summary.systemProxyOn", { version: APP_VERSION })
+      : networkProxyStatusKind === "invalid" || networkProxyStatusKind === "fallback"
+        ? t("desktop:settings.hub.summary.systemProxyError")
+        : t("desktop:settings.hub.summary.systemIdle", { version: APP_VERSION });
   const buildSearchText = (parts: string[]): string => parts
     .filter(Boolean)
     .join(" ")
@@ -1297,6 +1443,9 @@ function SettingsPage() {
         t("desktop:settings.versionCard.checkButton"),
         t("desktop:settings.versionCard.updateButton"),
         t("desktop:settings.appUpdates.title"),
+        t("desktop:settings.networkProxy.title"),
+        t("desktop:settings.networkProxy.system"),
+        t("desktop:settings.networkProxy.manual"),
         t("desktop:settings.supportLog.title"),
         t("desktop:settings.supportLog.button"),
         isDevBuild ? t("desktop:settings.uiLab.developerSectionTitle") : "",
@@ -1304,7 +1453,13 @@ function SettingsPage() {
         isDevBuild ? t("desktop:settings.uiLab.injectionDebug.title") : "",
       ]),
       matchSummary: t("desktop:settings.hub.search.match.system"),
-      attentionTone: appUpdateInfo ? "warning" : null,
+      attentionTone: appUpdateInfo
+        ? "warning"
+        : networkProxyStatusKind === "invalid" || networkProxyStatusKind === "fallback"
+          ? "danger"
+          : networkProxyStatusKind === "manual"
+            ? "accent"
+            : null,
     },
   ];
   const normalizedSettingsSearchQuery = settingsSearchQuery.trim().toLocaleLowerCase();
@@ -2116,6 +2271,57 @@ function SettingsPage() {
             checked={receivePrereleaseUpdates}
             onChange={toggleReceivePrereleaseUpdates}
           />
+        </div>
+      </NeonSection>
+
+      <NeonSection
+        title={t("desktop:settings.networkProxy.title")}
+        hint={t("desktop:settings.networkProxy.hint")}
+      >
+        <div style={{ display: "grid", gap: 10 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+            }}
+          >
+            <NeonButton
+              type="button"
+              variant={networkProxyMode === "system" ? "outline" : "ghost"}
+              size="sm"
+              onClick={() => void selectNetworkProxyMode("system")}
+              style={{ minHeight: 32, fontSize: 10.5 }}
+            >
+              {t("desktop:settings.networkProxy.system")}
+            </NeonButton>
+            <NeonButton
+              type="button"
+              variant={networkProxyMode === "manual" ? "outline" : "ghost"}
+              size="sm"
+              onClick={() => void selectNetworkProxyMode("manual")}
+              style={{ minHeight: 32, fontSize: 10.5 }}
+            >
+              {t("desktop:settings.networkProxy.manual")}
+            </NeonButton>
+          </div>
+
+          {networkProxyMode === "manual" ? (
+            <NeonInput
+              value={networkProxyInput}
+              onChange={(event) => handleNetworkProxyInputChange(event.target.value)}
+              placeholder={t("desktop:settings.networkProxy.placeholder")}
+              spellCheck={false}
+              aria-invalid={networkProxyInputInvalid}
+            />
+          ) : null}
+
+          <NeonHint
+            tone={networkProxyStatusTone === "muted" ? "default" : networkProxyStatusTone}
+            size="sm"
+          >
+            {networkProxyStatusText}
+          </NeonHint>
         </div>
       </NeonSection>
 

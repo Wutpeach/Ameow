@@ -17,6 +17,7 @@ export type EngineExecutionContext = {
   binaries: RuntimeBinaryPaths;
   abortSignal: AbortSignal;
   fetch?: typeof fetch;
+  reportNetworkProxyFailure?(error: unknown): void | Promise<void>;
   onProgress(payload: DownloadProgressPayload): void | Promise<void>;
 };
 

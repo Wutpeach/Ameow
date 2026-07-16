@@ -113,6 +113,74 @@ describe("runGalleryDlDownload", () => {
     } satisfies Partial<DownloadRuntimeError>);
   });
 
+  it("passes manual proxy to gallery-dl through child-process environment", async () => {
+    readdirMock.mockResolvedValue([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toMatchObject({
+        HTTP_PROXY: "http://127.0.0.1:7890",
+        HTTPS_PROXY: "http://127.0.0.1:7890",
+      });
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-proxy",
+      outputDir: "D:/downloads",
+      outputStem: "pin",
+      proxyUrl: "http://127.0.0.1:7890",
+      binaries: {
+        galleryDl: "D:/gallery-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.pinterest.com/pin/123/",
+      },
+      intent: {
+        originalUrl: "https://www.pinterest.com/pin/123/",
+      },
+      plan: {
+        providerId: "pinterest",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runGalleryDlDownload(context)).rejects.toMatchObject({
+      message: "gallery-dl finished without producing an output file",
+    } satisfies Partial<DownloadRuntimeError>);
+  });
+
+  it("does not set gallery-dl proxy environment without an effective manual proxy", async () => {
+    readdirMock.mockResolvedValue([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      expect(options.env).toBeUndefined();
+      return 0;
+    });
+
+    const context = {
+      traceId: "trace-no-proxy",
+      outputDir: "D:/downloads",
+      outputStem: "pin",
+      binaries: {
+        galleryDl: "D:/gallery-dl.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.pinterest.com/pin/123/",
+      },
+      intent: {
+        originalUrl: "https://www.pinterest.com/pin/123/",
+      },
+      plan: {
+        providerId: "pinterest",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runGalleryDlDownload(context)).rejects.toMatchObject({
+      message: "gallery-dl finished without producing an output file",
+    } satisfies Partial<DownloadRuntimeError>);
+  });
+
   it("maps gallery-dl output lines to human-friendly activity labels", async () => {
     readdirMock
       .mockResolvedValueOnce([])

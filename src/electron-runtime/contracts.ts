@@ -146,6 +146,9 @@ export interface ElectronDownloadRuntimeOptions {
   resolveNetworkProxy?(
     context: RuntimeNetworkProxyContext,
   ): Promise<string | null | undefined>;
+  reportNetworkProxyFailure?(
+    context: RuntimeNetworkProxyContext & { error: unknown },
+  ): Promise<void> | void;
   diagnoseNetworkProxy?(
     context: RuntimeNetworkProxyDiagnosticContext,
   ): Promise<void>;

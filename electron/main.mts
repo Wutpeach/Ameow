@@ -80,7 +80,11 @@ import {
   buildStartupWindowModeArgument,
   resolveMainWindowStartupMode,
 } from "./startupWindowMode.mjs";
-import { applySystemProxyToSession } from "./desktopProxy.mjs";
+import {
+  applyManualProxyToSession,
+  applySystemProxyToSession,
+} from "./desktopProxy.mjs";
+import { createNetworkProxyPolicyController } from "./networkProxyPolicy.mjs";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -216,6 +220,7 @@ let videoDownloadCommandBridge = null;
 let siteSessionCommandController = null;
 let supportLogCommandController = null;
 let siteSessionRefreshScheduler = null;
+let networkProxyPolicyController = null;
 const siteSessionManagers = new Map();
 let siteSessionRegistry = null;
 let nextOpaqueSequence = 1;
@@ -943,6 +948,46 @@ async function applyDesktopSystemProxy() {
   logInfo("Network", "Using system proxy settings");
 }
 
+async function applyDesktopManualProxy(proxyUrl) {
+  const activeSession = getDesktopNetworkSession();
+  if (!activeSession?.setProxy) {
+    return;
+  }
+
+  const result = await applyManualProxyToSession(activeSession, proxyUrl);
+  if (result.mode === "manual") {
+    logInfo("Network", "Using manual proxy settings");
+    return;
+  }
+  logInfo("Network", "Manual proxy was invalid; using system proxy settings");
+}
+
+async function fetchWithIsolatedManualProxy(proxyUrl, input, init = {}) {
+  const validationSession = session.fromPartition("ameow-network-proxy-validation");
+  await applyManualProxyToSession(validationSession, proxyUrl);
+  return validationSession.fetch(input, init);
+}
+
+function getNetworkProxyPolicyController() {
+  if (networkProxyPolicyController) {
+    return networkProxyPolicyController;
+  }
+
+  networkProxyPolicyController = createNetworkProxyPolicyController({
+    readConfigObject,
+    applySystemProxy: applyDesktopSystemProxy,
+    applyManualProxy: applyDesktopManualProxy,
+    fetchWithManualProxy: fetchWithIsolatedManualProxy,
+    log(message) {
+      logInfo("NetworkProxy", message);
+    },
+    emitStateChanged(state) {
+      emitAppEvent("network-proxy-state-changed", state);
+    },
+  });
+  return networkProxyPolicyController;
+}
+
 function summarizeCliProxyDiagnostic(diagnostic) {
   return JSON.stringify({
     kind: diagnostic.kind,
@@ -956,6 +1001,30 @@ function summarizeCliProxyDiagnostic(diagnostic) {
 }
 
 async function logCliProxyDiagnosticsForTarget({ targetUrl, engineId }) {
+  const effectivePolicy = getNetworkProxyPolicyController().getEffectivePolicy();
+  if (effectivePolicy.mode === "manual") {
+    const proxy = new URL(effectivePolicy.proxyUrl);
+    let targetHost = null;
+    try {
+      targetHost = new URL(targetUrl).host || null;
+    } catch {
+      targetHost = null;
+    }
+    logInfo(
+      "ElectronRuntime",
+      `Proxy diagnostic: ${summarizeCliProxyDiagnostic({
+        kind: "http",
+        source: "runtime",
+        targetUrl,
+        targetHost,
+        proxyScheme: proxy.protocol === "https:" ? "https" : "http",
+        proxyHost: proxy.hostname,
+        proxyPort: proxy.port || null,
+        reason: "Ameow is using the saved manual HTTP(S) proxy for supported CLI paths.",
+      })}`,
+    );
+  }
+
   if (engineId !== "yt-dlp") {
     logInfo(
       "ElectronRuntime",
@@ -992,13 +1061,28 @@ async function logCliProxyDiagnosticsForTarget({ targetUrl, engineId }) {
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
 async function fetchWithDesktopSession(input, init = {}) {
   const activeSession = getDesktopNetworkSession();
-  if (activeSession?.fetch) {
-    return activeSession.fetch(input, init);
+  try {
+    if (activeSession?.fetch) {
+      return await activeSession.fetch(input, init);
+    }
+    if (typeof globalThis.fetch !== "function") {
+      throw new Error("Global fetch is unavailable in Electron main process");
+    }
+    return await globalThis.fetch(input, init);
+  } catch (error) {
+    getNetworkProxyPolicyController().markManualProxySuspect({
+      layer: "electron_fetch",
+      targetHost: (() => {
+        try {
+          return new URL(String(input)).host || null;
+        } catch {
+          return null;
+        }
+      })(),
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-  if (typeof globalThis.fetch !== "function") {
-    throw new Error("Global fetch is unavailable in Electron main process");
-  }
-  return globalThis.fetch(input, init);
 }
 
 async function fetchWithDesktopSessionTimeout(
@@ -1366,11 +1450,13 @@ function buildElectronRuntimeEnvironment() {
 function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity = null) {
   const environment = buildElectronRuntimeEnvironment();
   const bundledPython = resolveBundledPythonRuntime(environment);
+  const manualProxyUrl = getNetworkProxyPolicyController().resolveProxyUrl();
   return {
     configDir: getUserDataDir(),
     platform: process.platform,
     arch: process.arch,
     fetch: fetchWithDesktopSession,
+    manualProxyUrl,
     bundledPythonRoot: bundledPython.root,
     bundledPythonPath: bundledPython.executable,
     missingComponents: _missingComponents,
@@ -1403,21 +1489,53 @@ function getElectronDownloadRuntime() {
     },
     ensureEngineRuntimeReady: async (engineId, reason) => {
       const options = buildManagedRuntimeBootstrapOptions();
-      if (engineId === "yt-dlp") {
-        await ensureManagedYtDlpRuntimeReady(reason, options);
-        await ensureManagedFfmpegRuntimeReady(reason, options);
-        await ensureManagedDenoRuntimeReady(reason, options);
-        return;
-      }
-      if (engineId === "gallery-dl") {
-        await ensureManagedGalleryDlRuntimeReady(reason, options);
-        return;
+      try {
+        if (engineId === "yt-dlp") {
+          await ensureManagedYtDlpRuntimeReady(reason, options);
+          await ensureManagedFfmpegRuntimeReady(reason, options);
+          await ensureManagedDenoRuntimeReady(reason, options);
+          return;
+        }
+        if (engineId === "gallery-dl") {
+          await ensureManagedGalleryDlRuntimeReady(reason, options);
+          return;
+        }
+      } catch (error) {
+        getNetworkProxyPolicyController().markManualProxySuspect({
+          layer: "managed_bootstrap",
+          targetHost: null,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
       }
     },
     diagnoseNetworkProxy: logCliProxyDiagnosticsForTarget,
+    resolveNetworkProxy: async () => getNetworkProxyPolicyController().resolveProxyUrl(),
+    reportNetworkProxyFailure: async ({ engineId, targetUrl, error }) => {
+      let targetHost = null;
+      try {
+        targetHost = new URL(targetUrl).host || null;
+      } catch {
+        targetHost = null;
+      }
+      getNetworkProxyPolicyController().markManualProxySuspect({
+        layer: engineId === "gallery-dl" ? "gallery_dl" : "yt_dlp",
+        targetHost,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    },
     bootstrapManagedComponents: async ({ reason }) => {
-      await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
-      return getRuntimeDependencyStatus();
+      try {
+        await ensureMissingManagedRuntimesReady(reason || "electron_runtime");
+        return getRuntimeDependencyStatus();
+      } catch (error) {
+        getNetworkProxyPolicyController().markManualProxySuspect({
+          layer: "managed_bootstrap",
+          targetHost: null,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
     },
     refreshSiteSessionBeforeAdvancedQualityProbe,
     refreshSiteSessionBeforeDownload,
@@ -1972,11 +2090,29 @@ async function refreshRuntimeDependencyGateState() {
 }
 
 async function ensureMissingManagedRuntimesReady(trigger) {
-  return runtimeDependencyGateController.ensureMissingManagedRuntimesReady(trigger);
+  try {
+    return await runtimeDependencyGateController.ensureMissingManagedRuntimesReady(trigger);
+  } catch (error) {
+    getNetworkProxyPolicyController().markManualProxySuspect({
+      layer: "managed_bootstrap",
+      targetHost: null,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 async function startRuntimeDependencyBootstrap(reason = "frontend_after_visible") {
-  return runtimeDependencyGateController.startBootstrap(reason);
+  try {
+    return await runtimeDependencyGateController.startBootstrap(reason);
+  } catch (error) {
+    getNetworkProxyPolicyController().markManualProxySuspect({
+      layer: "managed_bootstrap",
+      targetHost: null,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 function normalizeVersionString(value) {
@@ -3200,7 +3336,11 @@ async function handleCommand(command, payload = {}) {
     case "save_config": {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
+      await getNetworkProxyPolicyController().reconfigureFromConfig();
       return;
+    }
+    case "get_network_proxy_state": {
+      return getNetworkProxyPolicyController().getState();
     }
     case "broadcast_theme":
       await broadcastTheme(String(payload.theme ?? FALLBACK_THEME));
@@ -3754,8 +3894,8 @@ async function bootstrap() {
   });
 
   await app.whenReady();
-  await applyDesktopSystemProxy().catch((error) => {
-    console.error(">>> [Electron] Failed to apply system proxy:", error);
+  await getNetworkProxyPolicyController().initializeFromConfig().catch((error) => {
+    console.error(">>> [Electron] Failed to apply network proxy policy:", error);
   });
   applyMacTrayAppMode(app);
   registerIpcHandlers();

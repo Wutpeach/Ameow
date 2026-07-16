@@ -10,6 +10,7 @@ import {
   currentManagedRuntimeTarget,
   managedDenoPath,
   managedFfmpegPaths,
+  buildManagedPythonEnv,
   managedGalleryDlPath,
   managedPythonVirtualenvArgs,
   managedYtDlpPaths,
@@ -103,5 +104,23 @@ describe("managed runtime bootstrap helpers", () => {
     expect(() =>
       assertPythonVersionSatisfiesManagedPackage("gallery-dl", "not-a-version", [3, 8, 0]),
     ).toThrow("Unable to parse bundled Python version for gallery-dl");
+  });
+
+  it("adds manual proxy variables to managed Python package environments", () => {
+    const env = buildManagedPythonEnv({
+      root: "/tmp/ameow-config/runtimes/yt-dlp",
+      venvDir: "/tmp/ameow-config/runtimes/yt-dlp/venv",
+      python: "/tmp/ameow-config/runtimes/yt-dlp/venv/bin/python",
+      entrypoint: "/tmp/ameow-config/runtimes/yt-dlp/venv/bin/yt-dlp",
+      metadata: "/tmp/ameow-config/runtimes/yt-dlp/metadata.json",
+    }, "http://127.0.0.1:7890");
+
+    expect(env).toMatchObject({
+      HTTP_PROXY: "http://127.0.0.1:7890",
+      HTTPS_PROXY: "http://127.0.0.1:7890",
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1",
+    });
+    expect(env.PLAYWRIGHT_BROWSERS_PATH).toContain("playwright-browsers");
   });
 });

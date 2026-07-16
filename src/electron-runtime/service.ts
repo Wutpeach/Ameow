@@ -590,6 +590,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       binaries,
       abortSignal: abortController.signal,
       fetch: this.options.environment.fetch,
+      reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
+        ? (error) => this.options.reportNetworkProxyFailure?.({
+            targetUrl: proxyTargetUrl,
+            providerId: plan.providerId,
+            engineId: enginePlan.engine,
+            error,
+          })
+        : undefined,
       onProgress: async () => undefined,
     };
 
@@ -1085,7 +1093,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
               this.logger.log(`>>> [ElectronRuntime] proxy diagnostics failed: ${String(error)}`);
             });
           }
-          const proxyUrl = enginePlan.engine === "yt-dlp" && this.options.resolveNetworkProxy
+          const proxyUrl = this.options.resolveNetworkProxy
             ? await this.options.resolveNetworkProxy({
                 targetUrl: proxyTargetUrl,
                 providerId: plan.providerId,
@@ -1107,6 +1115,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             binaries,
             abortSignal: activeTask.abortController.signal,
             fetch: this.options.environment.fetch,
+            reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
+              ? (error) => this.options.reportNetworkProxyFailure?.({
+                  targetUrl: proxyTargetUrl,
+                  providerId: plan.providerId,
+                  engineId: enginePlan.engine,
+                  error,
+                })
+              : undefined,
             onProgress: async (payload: DownloadProgressPayload) => {
               await this.options.eventSink.emit("video-download-progress", payload);
             },

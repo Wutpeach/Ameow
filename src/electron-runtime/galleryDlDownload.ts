@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
+import { buildManualProxyEnv } from "../config/networkProxy.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest } from "./engineManifest.js";
@@ -157,7 +158,11 @@ export const runGalleryDlDownload = async (
       args.unshift("--cookies");
     }
     await emitGalleryDlActivity();
+    const proxyEnv = context.proxyUrl
+      ? buildManualProxyEnv(context.proxyUrl)
+      : undefined;
     const exitCode = await runStreamingCommand(context.binaries.galleryDl, args, {
+      env: proxyEnv,
       signal: context.abortSignal,
       onStdoutLine: async (line: string) => {
         pushTailLine(stdoutLines, line);
@@ -210,6 +215,7 @@ export const runGalleryDlDownload = async (
       file_path: finalPath,
     };
   } catch (error) {
+    await context.reportNetworkProxyFailure?.(error);
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, context.outputStem);
     const runtimeError = error instanceof DownloadRuntimeError ? error : null;
     throw new DownloadRuntimeError(
