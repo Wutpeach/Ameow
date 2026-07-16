@@ -1113,3 +1113,36 @@ Removed the main window site-session discovery blue status dot while keeping run
 ### Next Steps
 
 - None - task complete
+
+
+## Session 230: Update packaged yt-dlp pin
+
+**Date**: 2026-07-16
+**Task**: Update packaged yt-dlp pin
+**Branch**: `main`
+
+### Summary
+
+Updated Ameow's managed yt-dlp Python package pin to 2026.07.04, aligned runtime bootstrap metadata tests, and verified official release/PyPI resolution plus type-check, lint, tests, and Electron build.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8714396` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
