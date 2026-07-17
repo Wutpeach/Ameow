@@ -1212,3 +1212,37 @@ Implemented explicit system/manual HTTP(S) proxy settings with automatic validat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 233: Refactor drag file intake semantics
+
+**Date**: 2026-07-17
+**Task**: Refactor drag file intake semantics
+**Branch**: `main`
+
+### Summary
+
+Restored local file drop handling, then refactored drag/file intake semantics so native local drops move files, external and clipboard payloads copy or save, process_files returns structured results, docs and Trellis contracts were updated, and validation passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `69ccb4b` | (see git log) |
+| `5e3b44f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
