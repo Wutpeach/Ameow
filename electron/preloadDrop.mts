@@ -53,39 +53,18 @@ export const resolveLocalPathFromDataTransfer = (
   dataTransfer: DataTransferLike,
   resolvePathFromFile: ResolvePathFromFile,
 ): string | null => {
-  if (!dataTransfer) {
-    return null;
+  return resolveLocalFilePathsFromDataTransfer(dataTransfer, resolvePathFromFile)[0] ?? null;
+};
+
+const parseLocalPathsFromDropText = (value: string | null | undefined): string[] => {
+  if (typeof value !== "string") {
+    return [];
   }
 
-  for (const item of getItems(dataTransfer.items)) {
-    if (item.kind !== "file") {
-      continue;
-    }
-
-    const file = item.getAsFile?.();
-    if (!file) {
-      continue;
-    }
-
-    const resolvedFromItem = resolvePathFromFile(file);
-    if (resolvedFromItem) {
-      return resolvedFromItem;
-    }
-  }
-
-  for (const file of getItems(dataTransfer.files)) {
-    const resolvedFromFile = resolvePathFromFile(file);
-    if (resolvedFromFile) {
-      return resolvedFromFile;
-    }
-  }
-
-  const fallbackFromUriList = parseLocalPathFromDropText(dataTransfer.getData("text/uri-list"));
-  if (fallbackFromUriList) {
-    return fallbackFromUriList;
-  }
-
-  return parseLocalPathFromDropText(dataTransfer.getData("text/plain"));
+  return value
+    .split(/\r?\n/)
+    .map((line) => parseLocalPathFromDropText(line))
+    .filter((path): path is string => Boolean(path));
 };
 
 export const resolveLocalFilePathsFromDataTransfer = (
@@ -127,8 +106,12 @@ export const resolveLocalFilePathsFromDataTransfer = (
     return paths;
   }
 
-  addPath(parseLocalPathFromDropText(dataTransfer.getData("text/uri-list")));
-  addPath(parseLocalPathFromDropText(dataTransfer.getData("text/plain")));
+  for (const path of parseLocalPathsFromDropText(dataTransfer.getData("text/uri-list"))) {
+    addPath(path);
+  }
+  for (const path of parseLocalPathsFromDropText(dataTransfer.getData("text/plain"))) {
+    addPath(path);
+  }
 
   return paths;
 };
@@ -144,17 +127,28 @@ export const resolvePendingFolderDrop = async (
     return null;
   }
 
-  const path = resolveLocalPathFromDataTransfer(dataTransfer, dependencies.resolvePathFromFile);
-  if (!path) {
+  const paths = resolveLocalFilePathsFromDataTransfer(
+    dataTransfer,
+    dependencies.resolvePathFromFile,
+  );
+  if (paths.length === 0) {
     return null;
   }
 
+  let firstFailure: DroppedFolderPathResult | null = null;
   try {
-    return await dependencies.validateDroppedFolderPath(path);
+    for (const path of paths) {
+      const result = await dependencies.validateDroppedFolderPath(path);
+      if (result.success) {
+        return result;
+      }
+      firstFailure ??= result;
+    }
+    return firstFailure;
   } catch {
     return {
       success: false,
-      path,
+      path: paths[0] ?? "",
       error: "Failed to validate the dropped folder.",
       reason: "PRELOAD_ERROR",
     };

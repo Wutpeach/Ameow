@@ -184,6 +184,9 @@ Behavior contract in backend naming paths:
 - Applied uniformly to:
   - `download_video_internal` (yt-dlp naming template)
   - `download_image` / `save_data_url` / `process_files` (source-name preservation vs sequence naming)
+  - `process_files` returns a structured `ProcessFilesResult` with `operation`, `processedCount`, `targetDir`, `items`, and `message`; frontend callers must not branch on English strings such as `Copied 0 files`.
+  - `process_files.operation` defaults to `"copy"`; native local file-system drops may pass `"move"` to consume the source after the destination write succeeds.
+  - When `process_files.operation === "move"` and the source is already a direct child of the target folder, backend must skip it instead of creating a duplicate collision suffix.
 
 Contract rules:
 - Keep command names and payload keys stable.

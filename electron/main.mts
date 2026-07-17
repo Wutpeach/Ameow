@@ -3395,6 +3395,7 @@ async function handleCommand(command, payload = {}) {
         Array.isArray(payload.paths) ? payload.paths : [],
         payload.targetDir ?? null,
         fileIntakeDependencies,
+        payload.operation === "move" ? "move" : "copy",
       );
     case "download_image":
       return saveDownloadedImage(

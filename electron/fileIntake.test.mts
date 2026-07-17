@@ -68,7 +68,18 @@ describe("processFiles", () => {
 
       const result = await processFiles([sourcePath], targetDir, createDependencies());
 
-      expect(result).toBe(`Copied 1 files to ${targetDir}`);
+      expect(result).toMatchObject({
+        operation: "copy",
+        processedCount: 1,
+        targetDir,
+        items: [
+          {
+            sourcePath,
+            status: "processed",
+            targetPath: join(targetDir, "source_2.txt"),
+          },
+        ],
+      });
       await expect(readFile(join(targetDir, "source_2.txt"), "utf8")).resolves.toBe("copied");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -85,11 +96,81 @@ describe("processFiles", () => {
         readConfigObject: vi.fn(async () => ({ renameEnabled: true })),
       });
 
-      await expect(processFiles([sourcePath], targetDir, dependencies)).resolves.toBe(
-        `Copied 1 files to ${targetDir}`,
-      );
+      await expect(processFiles([sourcePath], targetDir, dependencies)).resolves.toMatchObject({
+        operation: "copy",
+        processedCount: 1,
+        targetDir,
+        items: [
+          {
+            sourcePath,
+            status: "processed",
+            targetPath: join(targetDir, "AMEOW-001.mov"),
+          },
+        ],
+      });
 
       await expect(readFile(join(targetDir, "AMEOW-001.mov"), "utf8")).resolves.toBe("renamed");
+      expect(dependencies.releaseRenameStem).toHaveBeenCalledWith(targetDir, "AMEOW-001");
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("moves files with collision-safe names when requested", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "ameow-file-intake-move-"));
+    try {
+      const sourcePath = join(tempDir, "source.txt");
+      const targetDir = join(tempDir, "target");
+      await mkdir(targetDir);
+      await writeFile(sourcePath, "moved");
+      await writeFile(join(targetDir, "source.txt"), "existing");
+
+      const result = await processFiles([sourcePath], targetDir, createDependencies(), "move");
+
+      expect(result).toMatchObject({
+        operation: "move",
+        processedCount: 1,
+        targetDir,
+        items: [
+          {
+            sourcePath,
+            status: "processed",
+            targetPath: join(targetDir, "source_2.txt"),
+          },
+        ],
+      });
+      await expect(readFile(join(targetDir, "source_2.txt"), "utf8")).resolves.toBe("moved");
+      await expect(readFile(sourcePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("moves files through rename allocation and releases the reserved stem", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "ameow-file-intake-move-rename-"));
+    try {
+      const sourcePath = join(tempDir, "source.mov");
+      const targetDir = join(tempDir, "target");
+      await writeFile(sourcePath, "renamed");
+      const dependencies = createDependencies({
+        readConfigObject: vi.fn(async () => ({ renameEnabled: true })),
+      });
+
+      await expect(processFiles([sourcePath], targetDir, dependencies, "move")).resolves.toMatchObject({
+        operation: "move",
+        processedCount: 1,
+        targetDir,
+        items: [
+          {
+            sourcePath,
+            status: "processed",
+            targetPath: join(targetDir, "AMEOW-001.mov"),
+          },
+        ],
+      });
+
+      await expect(readFile(join(targetDir, "AMEOW-001.mov"), "utf8")).resolves.toBe("renamed");
+      await expect(readFile(sourcePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
       expect(dependencies.releaseRenameStem).toHaveBeenCalledWith(targetDir, "AMEOW-001");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -104,9 +185,18 @@ describe("processFiles", () => {
       await mkdir(sourceDir);
       await writeFile(join(sourceDir, "nested.txt"), "nested");
 
-      await expect(processFiles([sourceDir], targetDir, createDependencies())).resolves.toBe(
-        `Copied 1 files to ${targetDir}`,
-      );
+      await expect(processFiles([sourceDir], targetDir, createDependencies())).resolves.toMatchObject({
+        operation: "copy",
+        processedCount: 1,
+        targetDir,
+        items: [
+          {
+            sourcePath: sourceDir,
+            status: "processed",
+            targetPath: join(targetDir, "folder"),
+          },
+        ],
+      });
 
       await expect(readFile(join(targetDir, "folder", "nested.txt"), "utf8")).resolves.toBe("nested");
     } finally {
@@ -121,7 +211,54 @@ describe("processFiles", () => {
         "",
         null,
         join(tempDir, "missing.txt"),
-      ], tempDir, createDependencies())).resolves.toBe(`Copied 0 files to ${tempDir}`);
+      ], tempDir, createDependencies())).resolves.toMatchObject({
+        operation: "copy",
+        processedCount: 0,
+        targetDir: tempDir,
+        items: [
+          {
+            sourcePath: "",
+            status: "skipped",
+            reason: "invalid_path",
+          },
+          {
+            sourcePath: "",
+            status: "skipped",
+            reason: "invalid_path",
+          },
+          {
+            sourcePath: join(tempDir, "missing.txt"),
+            status: "skipped",
+            reason: "stat_failed",
+          },
+        ],
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not move files that are already direct children of the target folder", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "ameow-file-intake-same-target-"));
+    try {
+      const sourcePath = join(tempDir, "source.txt");
+      await writeFile(sourcePath, "already there");
+
+      await expect(processFiles([sourcePath], tempDir, createDependencies(), "move")).resolves.toMatchObject({
+        operation: "move",
+        processedCount: 0,
+        targetDir: tempDir,
+        items: [
+          {
+            sourcePath,
+            status: "skipped",
+            reason: "already_in_target",
+            targetPath: sourcePath,
+          },
+        ],
+      });
+
+      await expect(readFile(sourcePath, "utf8")).resolves.toBe("already there");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

@@ -106,7 +106,8 @@ type DownloadProgress = {
 | `download_video` | `invoke<{ traceId: string; success: boolean; file_path?: string; error?: string }>(...)` |
 | `queue_pasted_video_download` | `invoke<{ accepted: boolean; traceId: string }>("queue_pasted_video_download", { url, pageUrl?, siteHint? })` |
 | `queue_video_download` | `invoke<{ accepted: boolean; traceId: string }>("queue_video_download", { url, pageUrl?, videoUrl?, videoCandidates? })` |
-| `download_image` / `save_data_url` / `process_files` | `invoke<string>(...)` |
+| `download_image` / `save_data_url` | `invoke<string>(...)` |
+| `process_files` | `invoke<ProcessFilesResult>("process_files", { paths, targetDir?, operation?: "copy" \| "move" })` |
 | `get_clipboard_files` | `invoke<string[]>("get_clipboard_files")` |
 | `cancel_download` | `invoke<boolean>("cancel_download", { traceId })` |
 | `reset_rename_counter` | `invoke<boolean>("reset_rename_counter")` |

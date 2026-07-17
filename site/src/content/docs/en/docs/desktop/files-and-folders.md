@@ -3,13 +3,13 @@ title: Files and Folders
 description: Collect local files with Ameow and understand the difference between dropping files and dropping folders.
 ---
 
-Ameow accepts both local files and folders, but they do not mean the same thing. Dropping files collects files. Dropping a folder changes the output folder.
+Ameow accepts both local files and folders, but they do not mean the same thing. Dropping files moves files. Dropping a folder changes the output folder.
 
-If you remember only one rule: **files are copied, folders become the save location.** This is the cause behind many "where did my file go?" cases.
+If you remember only one rule: **files are moved, folders become the save location.** This is the cause behind many "where did my file go?" cases.
 
-[Diagram: dropping files copies them into the output folder; dropping a folder changes the output folder]
+[Diagram: dropping files moves them into the output folder; dropping a folder changes the output folder]
 
-## Drop files: copy them into the output folder
+## Drop files: move them into the output folder
 
 Use this for screenshots, images, videos, text files, project assets, and similar local files.
 
@@ -20,7 +20,7 @@ Steps:
 3. Release the pointer.
 4. Open the current output folder and confirm the files appear there.
 
-Success state: the files show up in the current output folder, while the originals stay where they were.
+Success state: the files show up in the current output folder, and the originals no longer remain in their previous location.
 
 ## Drop a folder: change the output folder
 
@@ -44,12 +44,12 @@ On Windows, you can also copy files in Explorer and paste them into Ameow:
 3. Make sure Ameow can receive input.
 4. Press `Ctrl+V`.
 
-This is handy when dragging is inconvenient or when you already selected files in the file manager.
+This is handy when dragging is inconvenient, when you already selected files in the file manager, or when you want to keep the originals.
 
 ## Easy mistakes
 
-- You wanted the contents of a folder, but dropped the folder itself: that changes the output folder.
-- You cannot find a copied file: the output folder may already have changed.
-- A large file does not appear instantly: wait for the copy to finish, then open the output folder again.
+- You wanted to move the contents of a folder, but dropped the folder itself: that changes the output folder.
+- You cannot find a file: it may already have moved to the current output folder, or the output folder may already have changed.
+- A large file does not appear instantly: wait for the move to finish, then open the output folder again.
 
 When in doubt, opening the current output folder from Ameow is the fastest confirmation.

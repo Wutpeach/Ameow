@@ -25,6 +25,7 @@ import type {
   AmeowCurrentWindowInteractionMode,
   AmeowStartupWindowMode,
 } from "./types/electronBridge";
+import type { ProcessFilesResult } from "./types/fileIntake";
 import {
   desktopClipboard,
   desktopCommands,
@@ -295,27 +296,6 @@ const saveDroppedFilesToOutput = async (
 
   for (const file of files) {
     try {
-      const filePath = typeof (file as File & { path?: unknown }).path === "string"
-        ? (file as File & { path?: string }).path?.trim() ?? ""
-        : "";
-
-      if (filePath) {
-        const copyResult = await desktopCommands.invoke<string>("process_files", {
-          paths: [filePath],
-          targetDir,
-        });
-        if (!copyResult.includes("Copied 0 files")) {
-          savedCount += 1;
-          continue;
-        }
-
-        console.warn(
-          "Dropped browser file path did not resolve on disk, falling back to in-memory blob:",
-          file.name || "<unnamed>",
-          filePath,
-        );
-      }
-
       if (file.size > MAX_IN_MEMORY_DROPPED_FILE_BYTES) {
         throw new Error(
           `Dropped file is too large to copy without a local path: ${file.name || "<unnamed>"}`,
@@ -3192,10 +3172,13 @@ function App({
         await startForegroundProcessing();
 
         try {
-          await desktopCommands.invoke("process_files", {
+          const result = await desktopCommands.invoke<ProcessFilesResult>("process_files", {
             paths,
             targetDir: outputPath || null
           });
+          if (result.items.some((item) => item.status === "failed")) {
+            console.warn("Some clipboard files failed to process:", result);
+          }
         } catch (err) {
           console.warn("Failed to process clipboard files:", err);
           checkSequenceOverflow(err);
@@ -3293,17 +3276,21 @@ function App({
 
     const droppedFilePaths = await desktopDrop.consumePendingFileDropPaths();
     if (droppedFilePaths.length > 0) {
-      console.log("Detected dragged local file path payload, copying via process_files:", droppedFilePaths);
+      console.log("Detected dragged local file path payload, moving via process_files:", droppedFilePaths);
       resetDownloadOutcome();
       await startForegroundProcessing();
 
       try {
-        await desktopCommands.invoke<string>("process_files", {
+        const result = await desktopCommands.invoke<ProcessFilesResult>("process_files", {
           paths: droppedFilePaths,
           targetDir: outputPath || null,
+          operation: "move",
         });
+        if (result.items.some((item) => item.status === "failed")) {
+          console.error("Some dropped local files failed to move:", result);
+        }
       } catch (err) {
-        console.error("Failed to copy dropped local files:", err);
+        console.error("Failed to move dropped local files:", err);
         checkSequenceOverflow(err);
       }
 
@@ -3372,7 +3359,7 @@ function App({
       await startForegroundProcessing();
 
       try {
-        const copyResult = await desktopCommands.invoke<string>("process_files", {
+        const copyResult = await desktopCommands.invoke<ProcessFilesResult>("process_files", {
           paths: [localPath],
           targetDir: outputPath || null,
         });
@@ -3650,14 +3637,14 @@ function App({
           console.log("Detected local file:", localPath);
 
           // First try to copy from local path
-          const copyResult = await desktopCommands.invoke<string>("process_files", {
+          const copyResult = await desktopCommands.invoke<ProcessFilesResult>("process_files", {
             paths: [localPath],
             targetDir: outputPath || null,
           });
           console.log("Copy result:", copyResult);
 
           // If copy failed (0 files), try reading from dataTransfer.files
-          if (copyResult.includes("Copied 0 files") && e.dataTransfer.files.length > 0) {
+          if (copyResult.processedCount === 0 && e.dataTransfer.files.length > 0) {
             console.log("Local file not found, trying dataTransfer.files...");
             const droppedImageFiles = filterDroppedFilesByMimePrefix(e.dataTransfer, "image/");
             const savedCount = await saveDroppedFilesToOutput(droppedImageFiles, outputPath || null);
@@ -3717,36 +3704,11 @@ function App({
       resetDownloadOutcome();
       await startForegroundProcessing();
 
-      // 收集所有文件路径
-      const filePaths: string[] = [];
-      for (const file of Array.from(e.dataTransfer.files)) {
-        // 尝试获取本地路径（桌面环境）
-        const path = (file as any).path;
-        if (path) {
-          filePaths.push(path);
-        }
-      }
-
-      if (filePaths.length > 0) {
-        // 有本地路径，直接复制文件
-        try {
-          const copyResult = await desktopCommands.invoke<string>("process_files", {
-            paths: filePaths,
-            targetDir: outputPath || null,
-          });
-          console.log("Copy result:", copyResult);
-        } catch (err) {
-          console.error("Failed to copy files:", err);
-          checkSequenceOverflow(err);
-        }
-      } else {
-        // 无本地路径，尝试读取文件内容并保存
-        const savedCount = await saveDroppedFilesToOutput(
-          Array.from(e.dataTransfer.files),
-          outputPath || null,
-        );
-        console.log("Saved files from dataTransfer.files fallback:", savedCount);
-      }
+      const savedCount = await saveDroppedFilesToOutput(
+        Array.from(e.dataTransfer.files),
+        outputPath || null,
+      );
+      console.log("Saved files from dataTransfer.files fallback:", savedCount);
 
       scheduleForegroundProcessingDismiss(1000);
       return;

@@ -82,6 +82,21 @@ describe("resolveLocalFilePathsFromDataTransfer", () => {
       data: { "text/uri-list": "file:///C:/Users/Test/example.png" },
     }), () => null)).toEqual(["C:\\Users\\Test\\example.png"]);
   });
+
+  it("falls back to multiple local paths from drag text payloads", () => {
+    expect(resolveLocalFilePathsFromDataTransfer(createDataTransfer({
+      data: {
+        "text/uri-list": [
+          "# comment",
+          "file:///C:/Users/Test/first.png",
+          "file:///C:/Users/Test/second.png",
+        ].join("\n"),
+      },
+    }), () => null)).toEqual([
+      "C:\\Users\\Test\\first.png",
+      "C:\\Users\\Test\\second.png",
+    ]);
+  });
 });
 
 describe("resolvePendingFolderDrop", () => {
@@ -122,6 +137,43 @@ describe("resolvePendingFolderDrop", () => {
     });
 
     expect(validateDroppedFolderPath).toHaveBeenCalledWith("C:\\Users\\Test\\Export");
+  });
+
+  it("prefers a folder from mixed native file and folder drops", async () => {
+    const validateDroppedFolderPath = vi.fn(async (path: string) => (
+      path.endsWith("\\Export")
+        ? {
+            success: true as const,
+            path,
+            name: "Export",
+          }
+        : {
+            success: false as const,
+            path,
+            error: "Dropped item is not a folder.",
+            reason: "NOT_DIRECTORY" as const,
+          }
+    ));
+
+    await expect(resolvePendingFolderDrop(createDataTransfer({
+      items: [
+        { kind: "file", getAsFile: () => ({ id: "file" }) },
+        { kind: "file", getAsFile: () => ({ id: "folder" }) },
+      ],
+    }), {
+      resolvePathFromFile: (candidate) => (
+        (candidate as { id?: string }).id === "folder"
+          ? "C:\\Users\\Test\\Export"
+          : "C:\\Users\\Test\\image.png"
+      ),
+      validateDroppedFolderPath,
+    })).resolves.toEqual({
+      success: true,
+      path: "C:\\Users\\Test\\Export",
+      name: "Export",
+    });
+
+    expect(validateDroppedFolderPath).toHaveBeenCalledTimes(2);
   });
 
   it("surfaces preload validation failures once a local path has been resolved", async () => {

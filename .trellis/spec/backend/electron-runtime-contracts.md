@@ -1235,7 +1235,9 @@ Required tests:
   - once a `gallery-dl` task has used sidecar metadata for naming, runtime should remove those transient metadata sidecars from the output directory on success so the user only sees the final media file
 - Config compatibility:
   - when `renameMediaOnDownload === true` or legacy `videoKeepOriginalName === false`, all resource saves must route through the shared rename-rule allocator instead of provider-specific stems
-  - `download_image(...)`, `save_data_url(...)`, and `process_files(...)` in `electron/main.mts` share the same rename-rule entrypoint so screenshots and copied files follow the same global rename toggle
+  - `download_image(...)`, `save_data_url(...)`, and `process_files(...)` in `electron/main.mts` share the same rename-rule entrypoint so screenshots, copied files, and moved local files follow the same global rename toggle
+  - `process_files(...)` keeps the command name stable but returns structured `ProcessFilesResult` data for renderer control flow; callers must use `processedCount` / item statuses instead of parsing localized or English status text
+  - native local file-system drops may call `process_files` with `operation: "move"`; clipboard files, browser/chat payloads, and `file://` fallback paths remain copy/save semantics
   - tray menu contains `show`, `settings`, `quit`
   - tray labels continue to resolve from native locale resources
   - Windows tray and BrowserWindow icons should resolve from packaged app assets, preferring `desktop-assets/icons/icon.ico` so dev and packaged runs do not fall back to the default Electron icon
