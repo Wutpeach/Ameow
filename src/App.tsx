@@ -3291,6 +3291,26 @@ function App({
       return;
     }
 
+    const droppedFilePaths = await desktopDrop.consumePendingFileDropPaths();
+    if (droppedFilePaths.length > 0) {
+      console.log("Detected dragged local file path payload, copying via process_files:", droppedFilePaths);
+      resetDownloadOutcome();
+      await startForegroundProcessing();
+
+      try {
+        await desktopCommands.invoke<string>("process_files", {
+          paths: droppedFilePaths,
+          targetDir: outputPath || null,
+        });
+      } catch (err) {
+        console.error("Failed to copy dropped local files:", err);
+        checkSequenceOverflow(err);
+      }
+
+      scheduleForegroundProcessingDismiss(1000);
+      return;
+    }
+
     // 2. Debug logging
     console.log("Drop types:", e.dataTransfer.types);
     console.log("text/uri-list:", e.dataTransfer.getData("text/uri-list"));

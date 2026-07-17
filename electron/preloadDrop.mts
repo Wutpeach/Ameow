@@ -88,6 +88,51 @@ export const resolveLocalPathFromDataTransfer = (
   return parseLocalPathFromDropText(dataTransfer.getData("text/plain"));
 };
 
+export const resolveLocalFilePathsFromDataTransfer = (
+  dataTransfer: DataTransferLike,
+  resolvePathFromFile: ResolvePathFromFile,
+): string[] => {
+  if (!dataTransfer) {
+    return [];
+  }
+
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  const addPath = (path: string | null) => {
+    if (!path || seen.has(path)) {
+      return;
+    }
+    seen.add(path);
+    paths.push(path);
+  };
+
+  for (const item of getItems(dataTransfer.items)) {
+    if (item.kind !== "file") {
+      continue;
+    }
+
+    const file = item.getAsFile?.();
+    if (!file) {
+      continue;
+    }
+
+    addPath(resolvePathFromFile(file));
+  }
+
+  for (const file of getItems(dataTransfer.files)) {
+    addPath(resolvePathFromFile(file));
+  }
+
+  if (paths.length > 0) {
+    return paths;
+  }
+
+  addPath(parseLocalPathFromDropText(dataTransfer.getData("text/uri-list")));
+  addPath(parseLocalPathFromDropText(dataTransfer.getData("text/plain")));
+
+  return paths;
+};
+
 export const resolvePendingFolderDrop = async (
   dataTransfer: DataTransferLike,
   dependencies: {

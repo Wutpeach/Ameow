@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   hasLocalFileItems,
+  resolveLocalFilePathsFromDataTransfer,
   resolveLocalPathFromDataTransfer,
   resolvePendingFolderDrop,
 } from "./preloadDrop.mjs";
@@ -48,6 +49,38 @@ describe("resolveLocalPathFromDataTransfer", () => {
       items: [{ kind: "file", getAsFile: () => ({}) }],
       data: { "text/uri-list": "file:///C:/Users/Test/Export%20Folder" },
     }), () => null)).toBe("C:\\Users\\Test\\Export Folder");
+  });
+});
+
+describe("resolveLocalFilePathsFromDataTransfer", () => {
+  it("returns all unique native file-system paths from file-like items", () => {
+    const firstFile = { id: "first" };
+    const secondFile = { id: "second" };
+
+    expect(resolveLocalFilePathsFromDataTransfer(createDataTransfer({
+      items: [
+        { kind: "file", getAsFile: () => firstFile },
+        { kind: "file", getAsFile: () => secondFile },
+      ],
+      files: [firstFile],
+    }), (candidate) => {
+      if (candidate === firstFile) {
+        return "C:\\Users\\Test\\first.png";
+      }
+      if (candidate === secondFile) {
+        return "C:\\Users\\Test\\second.mp4";
+      }
+      return null;
+    })).toEqual([
+      "C:\\Users\\Test\\first.png",
+      "C:\\Users\\Test\\second.mp4",
+    ]);
+  });
+
+  it("falls back to one local path from drag text payloads", () => {
+    expect(resolveLocalFilePathsFromDataTransfer(createDataTransfer({
+      data: { "text/uri-list": "file:///C:/Users/Test/example.png" },
+    }), () => null)).toEqual(["C:\\Users\\Test\\example.png"]);
   });
 });
 

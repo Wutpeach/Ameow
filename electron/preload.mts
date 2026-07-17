@@ -2,12 +2,16 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import { VALIDATE_DROPPED_FOLDER_PATH_CHANNEL } from "./folderDrop.mjs";
-import { resolvePendingFolderDrop } from "./preloadDrop.mjs";
+import {
+  resolveLocalFilePathsFromDataTransfer,
+  resolvePendingFolderDrop,
+} from "./preloadDrop.mjs";
 import { parseStartupWindowModeArgument } from "./startupWindowMode.mjs";
 
 const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
 const eventChannel = (event) => `ameow:event:${event}`;
 let pendingFolderDropPromise = null;
+let pendingFileDropPaths = [];
 const startupWindowMode = parseStartupWindowModeArgument(process.argv);
 
 const resolvePathFromFile = (file) => {
@@ -20,6 +24,10 @@ const resolvePathFromFile = (file) => {
 };
 
 window.addEventListener("drop", (event) => {
+  pendingFileDropPaths = resolveLocalFilePathsFromDataTransfer(
+    event.dataTransfer ?? null,
+    resolvePathFromFile,
+  );
   pendingFolderDropPromise = resolvePendingFolderDrop(event.dataTransfer ?? null, {
     resolvePathFromFile,
     validateDroppedFolderPath: async (path) => (
@@ -147,6 +155,11 @@ contextBridge.exposeInMainWorld("ameow", {
     },
   },
   drop: {
+    async consumePendingFileDropPaths() {
+      const paths = pendingFileDropPaths;
+      pendingFileDropPaths = [];
+      return paths;
+    },
     async consumePendingFolderDrop() {
       const pending = pendingFolderDropPromise;
       pendingFolderDropPromise = null;

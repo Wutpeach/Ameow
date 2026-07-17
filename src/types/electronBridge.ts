@@ -218,6 +218,7 @@ export interface AmeowSystemApi {
 }
 
 export interface AmeowDropApi {
+  consumePendingFileDropPaths(): Promise<string[]>;
   consumePendingFolderDrop(): Promise<AmeowDroppedFolderPathResult | null>;
 }
 

@@ -113,6 +113,9 @@ export const desktopSystem = {
 };
 
 export const desktopDrop = {
+  async consumePendingFileDropPaths(): Promise<string[]> {
+    return resolveElectronBridge().drop.consumePendingFileDropPaths();
+  },
   async consumePendingFolderDrop(): Promise<AmeowDroppedFolderPathResult | null> {
     return resolveElectronBridge().drop.consumePendingFolderDrop();
   },
