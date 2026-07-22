@@ -2,7 +2,7 @@ import type { ComponentType, CSSProperties, SVGProps } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { CircularProgressIndicator } from "./CircularProgressIndicator";
-import { CheckIcon, CloseIcon } from "./icons/AppIcons";
+import { CheckIcon, CloseIcon, CopyIcon } from "./icons/AppIcons";
 import { MOTION_EASE } from "./ui/motion";
 
 const FIXED_CENTER_ICON_FRAME_STYLE: CSSProperties = {
@@ -27,6 +27,9 @@ export type ForegroundOutcomeOverlayProps = {
   loadingStrokeColor: string;
   loadingTrackColor: string;
   loadingTextColor: string;
+  showCopyAction?: boolean;
+  onCopyDiagnostic?: () => void;
+  copyDiagnosticLabel?: string;
   SuccessIcon?: ComponentType<OutcomeIconProps>;
   successIconStrokeWidth?: number;
 };
@@ -40,6 +43,9 @@ export const ForegroundOutcomeOverlay = ({
   loadingStrokeColor,
   loadingTrackColor,
   loadingTextColor,
+  showCopyAction = false,
+  onCopyDiagnostic,
+  copyDiagnosticLabel,
   SuccessIcon = CheckIcon,
   successIconStrokeWidth = 3,
 }: ForegroundOutcomeOverlayProps) => {
@@ -146,22 +152,72 @@ export const ForegroundOutcomeOverlay = ({
         </motion.div>
       </div>
       {outcomeVisible && cancelled && errorMessage ? (
-        <motion.span
+        <motion.div
           animate={errorMessageAnimate}
           transition={errorMessageTransition}
           title={errorMessage}
           style={{
-            fontSize: 9,
-            lineHeight: 1.2,
-            color: loadingTextColor,
-            textAlign: "center",
-            userSelect: "none",
-            pointerEvents: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 5,
+            width: "100%",
+            minWidth: 0,
             padding: "0 8px",
+            pointerEvents: "none",
           }}
         >
-          {errorMessage}
-        </motion.span>
+          <span
+            style={{
+              minWidth: 0,
+              maxWidth: showCopyAction ? 128 : 154,
+              fontSize: 9,
+              lineHeight: 1.2,
+              color: loadingTextColor,
+              textAlign: "center",
+              userSelect: "none",
+              pointerEvents: "none",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {errorMessage}
+          </span>
+          {showCopyAction && onCopyDiagnostic ? (
+            <button
+              type="button"
+              aria-label={copyDiagnosticLabel}
+              title={copyDiagnosticLabel}
+              onMouseDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                onCopyDiagnostic();
+              }}
+              style={{
+                width: 18,
+                height: 18,
+                flex: "0 0 auto",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                border: "none",
+                borderRadius: 6,
+                background: "transparent",
+                color: loadingTextColor,
+                cursor: "pointer",
+                opacity: 0.9,
+                pointerEvents: "auto",
+              }}
+            >
+              <CopyIcon size={13} strokeWidth={2} style={{ pointerEvents: "none" }} />
+            </button>
+          ) : null}
+        </motion.div>
       ) : null}
     </div>
   );

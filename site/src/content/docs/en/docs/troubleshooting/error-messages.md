@@ -9,6 +9,14 @@ When a download fails, the English text you see often comes from `yt-dlp`, `gall
 
 Fast rule: **start with the text you can see, use the error code as supporting evidence, then keep the full message when reporting the issue.**
 
+## Copy Diagnostics From The Center Prompt
+
+When a download or transcode fails, Ameow's main window now shows a short plain-language reason first, such as expired login state, network trouble, unavailable save location, or video processing failure. If a copy icon appears next to that message, click it to copy diagnostics for that specific failure.
+
+The copied content is multi-line JSON. It includes the Ameow version, platform, task trace id, original link, internal error code, original downloader error, and a recent runtime log excerpt. Paste that JSON to the developer when reporting a problem. It is usually more useful than a screenshot of the short message alone.
+
+The **Export diagnostic log** button in Settings remains available for full environment and settings snapshots. The center-prompt copy icon is the faster path for sending one failed task to the developer.
+
 ## Start With The Text You See
 
 | Message or keyword | Usually means | First action |
@@ -115,11 +123,12 @@ This is usually not an error-code problem. Open the current output folder from A
 
 Include as much of this as possible:
 
-1. The full error message or a screenshot with the error code.
-2. Ameow version and operating system.
-3. Site type, such as YouTube, Bilibili, X / Twitter, Douyin, or Xiaohongshu.
-4. Task state: no task, preparing, failed, or done but missing file.
-5. Whether you sent it through the browser extension, and whether the extension showed `Connected`.
-6. Whether login is required, whether you use a proxy, and whether the output folder is writable.
+1. If the center prompt has a copy icon, paste the copied diagnostic JSON first.
+2. The full error message or a screenshot with the error code.
+3. Ameow version and operating system.
+4. Site type, such as YouTube, Bilibili, X / Twitter, Douyin, or Xiaohongshu.
+5. Task state: no task, preparing, failed, or done but missing file.
+6. Whether you sent it through the browser extension, and whether the extension showed `Connected`.
+7. Whether login is required, whether you use a proxy, and whether the output folder is writable.
 
 This is much easier to debug than only saying "download failed".

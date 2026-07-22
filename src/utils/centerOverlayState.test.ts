@@ -108,6 +108,51 @@ describe("centerOverlayState", () => {
     expect(isCenterOverlayTaskOutcomeVisible(visible)).toBe(true);
   });
 
+  it("carries diagnostic copy data only through the task outcome visual", () => {
+    const diagnostic = {
+      surface: "download" as const,
+      traceId: "download-1",
+      userMessage: "网络连接异常，请检查代理",
+      category: "network_proxy" as const,
+      failure: {
+        rawMessage: "HTTP Error 429",
+        userUrl: "https://example.com/watch",
+      },
+    };
+    const loading = reduceCenterOverlayState(createCenterOverlayState(), {
+      type: "beginTaskOutcomeLoading",
+      status: "error",
+      message: diagnostic.userMessage,
+      durationMs: 5000,
+      diagnostic,
+    });
+    const visible = reduceCenterOverlayState(loading, {
+      type: "showTaskOutcome",
+      requestId: loading.requestId,
+    });
+
+    expect(selectCenterOverlayVisual({
+      primaryTask: null,
+      centerOverlayState: visible,
+      visualIsMinimized: false,
+    })).toEqual({
+      kind: "task-outcome",
+      key: `task-outcome:${loading.requestId}`,
+      requestId: loading.requestId,
+      status: "error",
+      message: diagnostic.userMessage,
+      outcomeVisible: true,
+      source: "download",
+      diagnostic,
+    });
+
+    expect(reduceCenterOverlayState(visible, { type: "dismissTransient" }))
+      .toEqual({
+        kind: "idle",
+        requestId: loading.requestId + 1,
+      });
+  });
+
   it("falls back to minimized only when no progress or transient outcome owns the center", () => {
     const state = reduceCenterOverlayState(createCenterOverlayState(), {
       type: "showFolderOutcome",

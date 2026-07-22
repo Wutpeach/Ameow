@@ -126,6 +126,19 @@
       "hint": "Sync cookies per site while downloading.",
       "ignore": "Ignore",
       "enable": "Enable"
+    },
+    "errorDiagnostic": {
+      "copy": "Copy diagnostics",
+      "category": {
+        "auth_login_state": "Login may have expired. Sync again",
+        "network_proxy": "Network issue. Check proxy",
+        "content_unavailable": "Content may be unavailable",
+        "output_write": "Save location may be unavailable",
+        "quality_format_unavailable": "Selected quality may be unavailable",
+        "runtime_downloader_unavailable": "Downloader is not ready",
+        "transcode_merge": "Video processing failed. Copy diagnostics",
+        "unclassified": "Processing failed. Copy diagnostics to report it"
+      }
     }
   },
   "settings": {

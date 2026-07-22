@@ -1,3 +1,5 @@
+import type { ErrorDiagnosticCopyRequest } from "../types/errorDiagnostics";
+
 export type CenterOverlayOutcomeStatus = "success" | "error" | "cancelled";
 
 export type CenterOverlayOutcomeSource = "download" | "transcode" | "image" | "folder";
@@ -12,6 +14,7 @@ export type CenterOverlayState =
       status: CenterOverlayOutcomeStatus;
       message: string | null;
       durationMs: number;
+      diagnostic: ErrorDiagnosticCopyRequest | null;
     }
   | {
       kind: "task-outcome-visible";
@@ -20,6 +23,7 @@ export type CenterOverlayState =
       status: CenterOverlayOutcomeStatus;
       message: string | null;
       durationMs: number;
+      diagnostic: ErrorDiagnosticCopyRequest | null;
     }
   | {
       kind: "folder-outcome-visible";
@@ -39,6 +43,7 @@ export type CenterOverlayAction =
       status: CenterOverlayOutcomeStatus;
       message?: string | null;
       durationMs: number;
+      diagnostic?: ErrorDiagnosticCopyRequest | null;
     }
   | { type: "showTaskOutcome"; requestId: number }
   | { type: "finishTaskOutcome"; requestId: number }
@@ -84,6 +89,7 @@ export const reduceCenterOverlayState = (
         status: action.status,
         message: action.message ?? null,
         durationMs: action.durationMs,
+        diagnostic: action.diagnostic ?? null,
       };
 
     case "showTaskOutcome":
@@ -143,6 +149,7 @@ export type CenterOverlayVisual =
       message: string | null;
       outcomeVisible: boolean;
       source: Exclude<CenterOverlayOutcomeSource, "folder">;
+      diagnostic: ErrorDiagnosticCopyRequest | null;
     }
   | {
       kind: "folder-outcome";
@@ -201,6 +208,7 @@ export const selectCenterOverlayVisual = ({
       message: centerOverlayState.message,
       outcomeVisible: centerOverlayState.kind === "task-outcome-visible",
       source: centerOverlayState.source,
+      diagnostic: centerOverlayState.diagnostic,
     };
   }
 

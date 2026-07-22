@@ -56,6 +56,10 @@ import type {
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
 } from "./types/videoRuntime";
+import type {
+  ErrorDiagnosticCopyRequest,
+  RuntimeFailureDiagnostic,
+} from "./types/errorDiagnostics";
 import {
   buildPinterestDragDiagnostic,
   extractEmbeddedPinterestDragPayload,
@@ -135,8 +139,14 @@ import {
   isCenterOverlayLockActive,
   reduceCenterOverlayState,
   selectCenterOverlayVisual,
+  type CenterOverlayOutcomeSource,
+  type CenterOverlayOutcomeStatus,
   type CenterOverlayState,
 } from "./utils/centerOverlayState";
+import {
+  errorDiagnosticCategoryTranslationKey,
+  resolveErrorDiagnosticCategory,
+} from "./utils/errorDiagnosticCategories";
 import {
   createMainWindowShellState,
   reduceMainWindowShell,
@@ -1220,21 +1230,80 @@ function App({
     });
   }, [dispatchShellEvent, ensureMainWindowFullMode]);
 
+  const buildErrorDiagnosticRequest = useCallback(({
+    surface,
+    traceId,
+    failure,
+    fallbackMessage,
+  }: {
+    surface: ErrorDiagnosticCopyRequest["surface"];
+    traceId?: string;
+    failure?: RuntimeFailureDiagnostic | null;
+    fallbackMessage?: string | null;
+  }): ErrorDiagnosticCopyRequest => {
+    const normalizedFallback = typeof fallbackMessage === "string" && fallbackMessage.trim()
+      ? fallbackMessage.trim()
+      : null;
+    const normalizedFailure = failure ?? (
+      normalizedFallback
+        ? { rawMessage: normalizedFallback }
+        : null
+    );
+    const category = resolveErrorDiagnosticCategory({
+      surface,
+      failure: normalizedFailure,
+      fallbackMessage: normalizedFallback,
+    });
+    const userMessage = t(errorDiagnosticCategoryTranslationKey(category));
+
+    return {
+      surface,
+      traceId,
+      userMessage,
+      category,
+      language: i18n.resolvedLanguage ?? i18n.language,
+      failure: normalizedFailure,
+    };
+  }, [t]);
+
+  const handleCopyErrorDiagnostic = useCallback((diagnostic: ErrorDiagnosticCopyRequest) => {
+    void desktopCommands.invoke<boolean>("copy_error_diagnostics", diagnostic)
+      .then((copied) => {
+        if (!copied) {
+          return;
+        }
+        clearForegroundTaskOutcomeTimer();
+        updateCenterOverlayState({ type: "dismissTransient" });
+      })
+      .catch((error) => {
+        console.error("Failed to copy error diagnostics:", error);
+      });
+  }, [clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
+
   const showForegroundTaskOutcome = useCallback(({
+    status,
     cancelled,
     error,
     durationMs,
+    source,
+    diagnostic,
   }: {
-    cancelled: boolean;
+    status?: CenterOverlayOutcomeStatus;
+    cancelled?: boolean;
     error: string | null;
     durationMs: number;
+    source?: Exclude<CenterOverlayOutcomeSource, "folder">;
+    diagnostic?: ErrorDiagnosticCopyRequest | null;
   }) => {
     clearForegroundTaskOutcomeTimer();
+    const outcomeStatus = status ?? (cancelled ? "cancelled" : "success");
     const loadingState = updateCenterOverlayState({
       type: "beginTaskOutcomeLoading",
-      status: cancelled ? "cancelled" : "success",
-      message: cancelled ? error : null,
+      source: source ?? diagnostic?.surface ?? "download",
+      status: outcomeStatus,
+      message: outcomeStatus === "success" ? null : error,
       durationMs,
+      diagnostic: outcomeStatus === "error" ? diagnostic ?? null : null,
     });
     const requestId = loadingState.requestId;
     void (async () => {
@@ -1337,7 +1406,7 @@ function App({
       await task();
       await prepareMainWindowForForegroundTask();
       showForegroundTaskOutcome({
-        cancelled: false,
+        status: "success",
         error: null,
         durationMs: 1400,
       });
@@ -1345,7 +1414,7 @@ function App({
       console.error(failureLogLabel, error);
       await prepareMainWindowForForegroundTask();
       showForegroundTaskOutcome({
-        cancelled: true,
+        status: "error",
         error: summarizeForegroundTaskError(error),
         durationMs: 1800,
       });
@@ -1748,23 +1817,44 @@ function App({
         runtimeStatusForRequest?.galleryDl.error ?? "Missing managed gallery-dl runtime",
       ) ?? "Missing managed gallery-dl runtime";
       console.error("Cannot queue Pinterest download because gallery-dl is unavailable:", missingGalleryDlMessage);
+      const diagnostic = buildErrorDiagnosticRequest({
+        surface: "download",
+        failure: {
+          code: "E_ENGINE_UNAVAILABLE",
+          rawMessage: missingGalleryDlMessage,
+          userUrl: payload.pageUrl ?? payload.url,
+        },
+        fallbackMessage: missingGalleryDlMessage,
+      });
       showForegroundTaskOutcome({
-        cancelled: true,
-        error: missingGalleryDlMessage,
-        durationMs: 1800,
+        status: "error",
+        error: diagnostic.userMessage,
+        durationMs: 5000,
+        diagnostic,
       });
       return;
     }
     void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_video_download", payload).catch((err) => {
       console.error("Failed to queue video download:", err);
       checkSequenceOverflow(err);
+      const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);
+      const diagnostic = buildErrorDiagnosticRequest({
+        surface: "download",
+        failure: {
+          rawMessage: fallbackMessage,
+          userUrl: payload.pageUrl ?? payload.url,
+        },
+        fallbackMessage,
+      });
       showForegroundTaskOutcome({
-        cancelled: true,
-        error: summarizeDownloadError(String(err)),
-        durationMs: 1800,
+        status: "error",
+        error: diagnostic.userMessage,
+        durationMs: 5000,
+        diagnostic,
       });
     });
   }, [
+    buildErrorDiagnosticRequest,
     prepareMainWindowForForegroundTask,
     refreshRuntimeDependencyContext,
     resetDownloadOutcome,
@@ -1778,13 +1868,24 @@ function App({
     void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_pasted_video_download", { url }).catch((err) => {
       console.error("Failed to queue pasted video download:", err);
       checkSequenceOverflow(err);
+      const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);
+      const diagnostic = buildErrorDiagnosticRequest({
+        surface: "download",
+        failure: {
+          rawMessage: fallbackMessage,
+          userUrl: url,
+        },
+        fallbackMessage,
+      });
       showForegroundTaskOutcome({
-        cancelled: true,
-        error: summarizeDownloadError(String(err)),
-        durationMs: 1800,
+        status: "error",
+        error: diagnostic.userMessage,
+        durationMs: 5000,
+        diagnostic,
       });
     });
   }, [
+    buildErrorDiagnosticRequest,
     prepareMainWindowForForegroundTask,
     resetDownloadOutcome,
     showForegroundTaskOutcome,
@@ -2118,11 +2219,33 @@ function App({
         );
         removeCancellingTraceId(payload.traceId);
 
-        showForegroundTaskOutcome({
-          cancelled: !outcome.success,
-          error: outcome.success ? null : outcome.errorSummary,
-          durationMs: 1500,
-        });
+        if (outcome.success) {
+          showForegroundTaskOutcome({
+            status: "success",
+            error: null,
+            durationMs: 1500,
+          });
+        } else if (outcome.cancelled) {
+          showForegroundTaskOutcome({
+            status: "cancelled",
+            error: outcome.errorSummary,
+            durationMs: 1500,
+          });
+        } else {
+          const fallbackMessage = payload.error ?? outcome.errorSummary ?? "Unknown download error";
+          const diagnostic = buildErrorDiagnosticRequest({
+            surface: "download",
+            traceId: payload.traceId,
+            failure: payload.failure ?? { rawMessage: fallbackMessage },
+            fallbackMessage,
+          });
+          showForegroundTaskOutcome({
+            status: "error",
+            error: diagnostic.userMessage,
+            durationMs: 5000,
+            diagnostic,
+          });
+        }
         if (!outcome.success) {
           console.error(">>> [Frontend] Video download failed:", payload?.error ?? "Unknown error");
         }
@@ -2133,6 +2256,7 @@ function App({
       unlistenComplete.then(fn => fn());
     };
   }, [
+    buildErrorDiagnosticRequest,
     dismissTransientCenterOverlay,
     prepareMainWindowForForegroundTask,
     removeCancellingTraceId,
@@ -2440,10 +2564,19 @@ function App({
       setTranscodeProgressByTrace((current) =>
         removeTranscodeProgressTrace(current, normalized.traceId)
       );
+      const fallbackMessage = normalized.error ?? getTranscodeStageLabel(i18n.t, "failed");
+      const diagnostic = buildErrorDiagnosticRequest({
+        surface: "transcode",
+        traceId: normalized.traceId,
+        failure: normalized.failure ?? { rawMessage: fallbackMessage },
+        fallbackMessage,
+      });
       showForegroundTaskOutcome({
-        cancelled: true,
-        error: normalized.error ?? getTranscodeStageLabel(i18n.t, "failed"),
-        durationMs: 1800,
+        status: "error",
+        source: "transcode",
+        error: diagnostic.userMessage,
+        durationMs: 5000,
+        diagnostic,
       });
       showQueueNotice(t("app.queue.transcodeFailedNotice"));
     });
@@ -2458,7 +2591,8 @@ function App({
         removeTranscodeProgressTrace(current, payload.traceId)
       );
       showForegroundTaskOutcome({
-        cancelled: false,
+        status: "success",
+        source: "transcode",
         error: null,
         durationMs: 1400,
       });
@@ -2476,6 +2610,7 @@ function App({
       unlistenComplete.then((fn) => fn());
     };
   }, [
+    buildErrorDiagnosticRequest,
     dismissTransientCenterOverlay,
     prepareMainWindowForForegroundTask,
     removePendingTranscodeActionTraceId,
@@ -5260,6 +5395,15 @@ function App({
               outcomeVisible={centerOverlayVisual.outcomeVisible}
               cancelled={centerOverlayVisual.status !== "success"}
               errorMessage={centerOverlayVisual.message}
+              showCopyAction={centerOverlayVisual.status === "error" && Boolean(centerOverlayVisual.diagnostic)}
+              onCopyDiagnostic={centerOverlayVisual.diagnostic
+                ? () => {
+                    if (centerOverlayVisual.diagnostic) {
+                      handleCopyErrorDiagnostic(centerOverlayVisual.diagnostic);
+                    }
+                  }
+                : undefined}
+              copyDiagnosticLabel={t("app.errorDiagnostic.copy")}
               successColor={colors.successIcon}
               errorColor={colors.errorIcon}
               loadingStrokeColor={colors.accentSolid}

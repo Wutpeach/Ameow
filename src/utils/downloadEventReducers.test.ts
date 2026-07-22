@@ -59,6 +59,7 @@ const transcodeTask = (
   sourceFormat: "mov",
   targetFormat: "mp4",
   error: null,
+  failure: null,
   ...overrides,
 });
 

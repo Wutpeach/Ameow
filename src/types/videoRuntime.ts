@@ -1,3 +1,5 @@
+import type { RuntimeFailureDiagnostic } from "./errorDiagnostics.js";
+
 export type DownloadStage =
   | "preparing"
   | "downloading"
@@ -18,6 +20,7 @@ export type DownloadResultPayload = {
   file_path?: string;
   title?: string;
   error?: string;
+  failure?: RuntimeFailureDiagnostic;
 };
 
 export type VideoQueueTaskStatus = "active" | "pending";
@@ -88,6 +91,7 @@ export type VideoTranscodeTaskPayload = {
   sourceFormat?: string | null;
   targetFormat?: string | null;
   error?: string | null;
+  failure?: RuntimeFailureDiagnostic | null;
 };
 
 export type VideoTranscodeQueueDetailPayload = {

@@ -323,6 +323,7 @@ describe("video transcode queue helpers", () => {
       stage: null,
       progressPercent: 100,
       etaSeconds: 0,
+      failure: null,
       sourcePath: "C:/input.mov",
       sourceFormat: "mov",
       targetFormat: null,

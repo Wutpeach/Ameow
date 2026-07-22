@@ -44,6 +44,7 @@ import type {
   VideoQueueStatePayload,
   VideoQueueTaskPhase,
 } from "../types/videoRuntime.js";
+import type { RuntimeFailureDiagnostic } from "../types/errorDiagnostics.js";
 import type {
   EngineExecutionContext,
   EnginePlan,
@@ -106,11 +107,13 @@ type DownloadExecutionAttempt = {
 };
 
 type TranscodeTaskState = PreparedVideoTranscodeTask & {
+  userUrl?: string;
   status: "pending" | "active" | "failed";
   stage: VideoTranscodeStage | null;
   progressPercent: number | null;
   etaSeconds: number | null;
   error: string | null;
+  failure: RuntimeFailureDiagnostic | null;
   abortController?: AbortController;
 };
 
@@ -125,6 +128,38 @@ const queueTaskLabel = (request: RawDownloadInput): string =>
   || request.pageUrl?.trim()
   || request.videoUrl?.trim()
   || request.url.trim();
+
+const resolveDiagnosticUserUrl = (request: RawDownloadInput): string | undefined => (
+  request.pageUrl?.trim()
+  || request.url.trim()
+  || undefined
+);
+
+const toDownloadFailureDiagnostic = (
+  error: DownloadRuntimeError,
+  request: RawDownloadInput,
+): RuntimeFailureDiagnostic => ({
+  code: error.code,
+  classification: error.classification,
+  rawMessage: error.message,
+  userUrl: resolveDiagnosticUserUrl(request),
+  context: error.context,
+});
+
+const toTranscodeFailureDiagnostic = (
+  errorMessage: string,
+  task: TranscodeTaskState,
+): RuntimeFailureDiagnostic => ({
+  code: "E_EXECUTION_FAILED",
+  rawMessage: errorMessage,
+  userUrl: task.userUrl,
+  context: {
+    sourcePath: task.sourcePath,
+    sourceFormat: task.sourceFormat,
+    targetFormat: task.targetFormat,
+    plan: task.plan,
+  },
+});
 
 const EARLY_VIDEO_ACTIVITY_PAYLOAD = {
   percent: -1,
@@ -470,6 +505,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         traceId,
         success: false,
         error: "更多画质探测失败",
+        failure: {
+          code: "E_EXECUTION_FAILED",
+          rawMessage: summarizeError(error),
+          userUrl: resolveDiagnosticUserUrl(task.request),
+        },
       } satisfies DownloadResultPayload);
     }
   }
@@ -636,6 +676,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       progressPercent: null,
       etaSeconds: null,
       error: null,
+      failure: null,
       abortController: undefined,
     };
     this.pendingTranscodes.push(retriedTask);
@@ -712,6 +753,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       sourceFormat: task.sourceFormat,
       targetFormat: task.targetFormat,
       error: task.error,
+      failure: task.failure,
     };
   }
 
@@ -756,6 +798,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         progressPercent: null,
         etaSeconds: null,
         error: null,
+        failure: null,
         abortController: new AbortController(),
       };
       await this.emitTranscodeQueueState();
@@ -772,7 +815,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
   }
 
-  private async enqueuePreparedTranscodeTask(task: PreparedVideoTranscodeTask): Promise<void> {
+  private async enqueuePreparedTranscodeTask(task: PreparedVideoTranscodeTask, userUrl?: string): Promise<void> {
     const alreadyPresent = this.pendingTranscodes.some((existing) => existing.traceId === task.traceId)
       || this.failedTranscodes.some((existing) => existing.traceId === task.traceId)
       || this.activeTranscode?.traceId === task.traceId;
@@ -782,11 +825,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
     const pendingTask: TranscodeTaskState = {
       ...task,
+      userUrl,
       status: "pending",
       stage: null,
       progressPercent: null,
       etaSeconds: null,
       error: null,
+      failure: null,
     };
     this.pendingTranscodes.push(pendingTask);
     await this.emitTranscodeQueueState();
@@ -816,7 +861,10 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       if (!prepared) {
         return;
       }
-      await this.enqueuePreparedTranscodeTask(prepared);
+      await this.enqueuePreparedTranscodeTask(
+        prepared,
+        telemetry?.request ? resolveDiagnosticUserUrl(telemetry.request) : undefined,
+      );
     } catch (error) {
       this.logger.log(
         `>>> [ElectronRuntime] transcode follow-up for ${traceId} failed: ${summarizeError(error)}`,
@@ -886,6 +934,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       }
 
       const errorMessage = summarizeError(error);
+      const failure = toTranscodeFailureDiagnostic(errorMessage, failedTask);
       const nextFailedTask: TranscodeTaskState = {
         ...failedTask,
         status: "failed",
@@ -893,6 +942,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         progressPercent: null,
         etaSeconds: null,
         error: errorMessage,
+        failure,
         abortController: undefined,
       };
       this.failedTranscodes.push(nextFailedTask);
@@ -1264,6 +1314,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         traceId,
         success: false,
         error: runtimeError.message,
+        failure: toDownloadFailureDiagnostic(runtimeError, activeTask.request),
       } satisfies DownloadResultPayload);
     } finally {
       const reservedOutputStem = this.reservedOutputStems.get(traceId);

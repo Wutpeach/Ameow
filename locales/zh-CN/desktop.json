@@ -126,6 +126,19 @@
       "hint": "下载时按站点同步 Cookies。",
       "ignore": "忽略",
       "enable": "启用"
+    },
+    "errorDiagnostic": {
+      "copy": "复制诊断信息",
+      "category": {
+        "auth_login_state": "登录状态可能失效，请重新同步",
+        "network_proxy": "网络连接异常，请检查代理",
+        "content_unavailable": "内容可能不可访问",
+        "output_write": "保存位置可能不可用",
+        "quality_format_unavailable": "当前画质可能不可用",
+        "runtime_downloader_unavailable": "下载组件未准备好",
+        "transcode_merge": "视频处理失败，可复制诊断信息",
+        "unclassified": "处理失败，可复制诊断信息反馈"
+      }
     }
   },
   "settings": {

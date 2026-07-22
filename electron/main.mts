@@ -112,6 +112,7 @@ import {
   resolveSiteSessionIdFromPayload,
 } from "./siteSessionCommands.mjs";
 import { createSupportLogCommandController } from "./supportLogCommands.mjs";
+import { createErrorDiagnosticCommandController } from "./errorDiagnosticCommands.mjs";
 import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaResult.mjs";
 import {
   currentManagedRuntimeTarget,
@@ -219,6 +220,7 @@ let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
 let siteSessionCommandController = null;
 let supportLogCommandController = null;
+let errorDiagnosticCommandController = null;
 let siteSessionRefreshScheduler = null;
 let networkProxyPolicyController = null;
 const siteSessionManagers = new Map();
@@ -1987,11 +1989,29 @@ function getSupportLogCommandController() {
   return supportLogCommandController;
 }
 
+function getErrorDiagnosticCommandController() {
+  if (errorDiagnosticCommandController) {
+    return errorDiagnosticCommandController;
+  }
+
+  errorDiagnosticCommandController = createErrorDiagnosticCommandController({
+    appVersion: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    readRecentRuntimeLogLines,
+    writeClipboardText(text) {
+      clipboard.writeText(text);
+    },
+  });
+  return errorDiagnosticCommandController;
+}
+
 // Order matters: first supporting controller wins.
 const rendererCommandControllerGetters = [
   getVideoDownloadCommandBridge,
   getSiteSessionCommandController,
   getSupportLogCommandController,
+  getErrorDiagnosticCommandController,
 ];
 
 function readyRuntimeEntry(entryPath, source) {

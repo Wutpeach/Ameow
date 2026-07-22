@@ -323,6 +323,7 @@ export const normalizeVideoTranscodeTask = (
     sourceFormat: trimOptional(task.sourceFormat),
     targetFormat: trimOptional(task.targetFormat),
     error: trimOptional(task.error),
+    failure: task.failure ?? null,
   };
 };
 
