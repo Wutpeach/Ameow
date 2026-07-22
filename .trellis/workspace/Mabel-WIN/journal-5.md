@@ -1246,3 +1246,36 @@ Restored local file drop handling, then refactored drag/file intake semantics so
 ### Next Steps
 
 - None - task complete
+
+
+## Session 234: User-facing error diagnostics copy
+
+**Date**: 2026-07-22
+**Task**: User-facing error diagnostics copy
+**Branch**: `main`
+
+### Summary
+
+Implemented localized center-prompt error explanations for download/transcode failures, Electron-owned diagnostic JSON copy with redaction and runtime log excerpts, tests, locale sync, and docs-site troubleshooting updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `914b552` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
