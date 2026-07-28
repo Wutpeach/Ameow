@@ -1279,3 +1279,36 @@ Implemented localized center-prompt error explanations for download/transcode fa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 235: Update gallery-dl for Weibo video quality
+
+**Date**: 2026-07-28
+**Task**: Update gallery-dl for Weibo video quality
+**Branch**: `main`
+
+### Summary
+
+Updated managed gallery-dl to 1.32.8, preserved Weibo gallery-dl-first routing, added regression coverage for lower-quality currentSrc not overriding Weibo page extraction, and documented Weibo quality behavior.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f5505a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
