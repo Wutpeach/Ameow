@@ -15,6 +15,7 @@ type BaseIntent = {
   referer?: string;
   priority: number;
   candidates: MediaCandidate[];
+  selectedVideoVariant?: MediaCandidate;
   selectionScope?: DownloadSelectionScope;
   videoQuality?: VideoQualityPreference;
   advancedQualitySelector?: string;

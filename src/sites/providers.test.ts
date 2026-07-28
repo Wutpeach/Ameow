@@ -316,6 +316,36 @@ describe("builtin site providers", () => {
     expect(plan?.engines[0]?.sourceUrl).toBe(pageUrl);
   });
 
+  it("routes explicit Weibo quality variants through yt-dlp without gallery-dl fallback", () => {
+    const selectedUrl = "https://f.video.weibocdn.com/best-1080.mp4";
+    const plan = resolvePlan({
+      url: "https://weibo.com/detail/N12345",
+      pageUrl: "https://weibo.com/detail/N12345",
+      siteHint: "weibo",
+      selectedVideoVariant: {
+        url: selectedUrl,
+        label: "1080p",
+        type: "direct_mp4",
+        source: "weibo_variant_parser",
+        confidence: "high",
+        mediaType: "video",
+      },
+    });
+
+    expect(plan.providerId).toBe("weibo");
+    expect(plan.engines).toEqual([
+      expect.objectContaining({
+        engine: "yt-dlp",
+        sourceUrl: selectedUrl,
+      }),
+    ]);
+    expect(plan.engines[0]?.fallbackOn).toBeUndefined();
+    expect(expectVideoIntent(plan.intent).selectedVideoVariant).toMatchObject({
+      url: selectedUrl,
+      label: "1080p",
+    });
+  });
+
   it("does not depend on Xiaohongshu direct candidates while using yt-dlp", () => {
     const pageUrl = "https://www.xiaohongshu.com/explore/66112233445566778899";
     const directCandidate = {

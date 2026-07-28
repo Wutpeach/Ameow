@@ -777,6 +777,26 @@ body::-webkit-scrollbar-thumb:hover {
   gap: 2px;
 }
 
+.ameow-variant-select {
+  width: fit-content;
+  max-width: 108px;
+  height: 20px;
+  margin-top: 1px;
+  padding: 0 20px 0 7px;
+  border: 1px solid var(--ameow-border);
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--ameow-surface-elevated-start), var(--ameow-surface-elevated-end));
+  color: var(--ameow-text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.ameow-variant-select:focus-visible {
+  outline: 2px solid var(--ameow-accent-border);
+  outline-offset: 1px;
+}
+
 .ameow-media-title {
   min-width: 0;
   display: flex;

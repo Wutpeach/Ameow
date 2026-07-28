@@ -3,6 +3,7 @@
 
   const domUtils = window.AmeowDomInjectionUtils || null;
   const selectionUtils = window.AmeowGenericVideoSelectionUtils || null;
+  const siteVideoParserRegistry = window.AmeowSiteVideoParserRegistry || null;
   const CONTEXT_TTL_MS = 10000;
   const MIN_VIDEO_WIDTH = 120;
   const MIN_VIDEO_HEIGHT = 68;
@@ -1171,7 +1172,16 @@
   function collectPageMediaCandidates() {
     const startedAt = Date.now();
     const primaryVideo = resolveBestVideo(document);
-    const videos = collectVideoScanCandidates();
+    const siteVideos = siteVideoParserRegistry?.collectSiteVideoCandidates
+      ? siteVideoParserRegistry.collectSiteVideoCandidates({
+          pageUrl: window.location.href,
+          document,
+        })
+      : [];
+    const videos = dedupeCandidates(
+      [...siteVideos, ...collectVideoScanCandidates()],
+      (candidate) => selectionUtils.candidateStrength?.(candidate) || (candidate.source === "site_extractor" ? 160 : 0),
+    );
     const audios = collectAudioScanCandidates();
     const images = collectImageScanCandidates();
     const total = videos.length + audios.length + images.length;

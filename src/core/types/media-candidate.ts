@@ -4,4 +4,9 @@ export type MediaCandidate = {
   source?: string;
   confidence?: string;
   mediaType?: "video" | "image";
+  label?: string;
+  width?: number;
+  height?: number;
+  bitrate?: number;
+  qualityIndex?: number;
 };

@@ -28,12 +28,18 @@ export const mediaCandidateSchema = z.object({
   source: z.string().trim().optional(),
   confidence: z.string().trim().optional(),
   mediaType: z.enum(["video", "image"]).optional(),
+  label: z.string().trim().optional(),
+  width: z.number().finite().positive().optional(),
+  height: z.number().finite().positive().optional(),
+  bitrate: z.number().finite().positive().optional(),
+  qualityIndex: z.number().finite().positive().optional(),
 });
 
 export const rawDownloadInputSchema = z.object({
   url: z.url(),
   pageUrl: z.url().optional(),
   videoUrl: z.url().optional(),
+  selectedVideoVariant: mediaCandidateSchema.optional(),
   videoCandidates: z.array(mediaCandidateSchema).optional(),
   title: z.string().trim().optional(),
   cookies: z.string().trim().optional(),

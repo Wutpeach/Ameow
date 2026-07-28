@@ -329,6 +329,7 @@ function normalizeMediaSelectionPayload(message) {
   const selectionScope = normalizeSelectionScope(message?.selectionScope) || 'current_item';
   const videoCandidates = normalizeVideoCandidates(message?.videoCandidates);
   const videoUrl = normalizeHttpUrl(message?.videoUrl);
+  const selectedVideoVariant = normalizeSelectedVideoVariant(message?.selectedVideoVariant);
   const rawExtensionData = message?.extensionData && typeof message.extensionData === 'object'
     ? message.extensionData
     : message?.extension_data && typeof message.extension_data === 'object'
@@ -353,6 +354,7 @@ function normalizeMediaSelectionPayload(message) {
     selectionScope,
     videoCandidates,
     videoUrl,
+    selectedVideoVariant,
     siteHint,
     extensionData: normalizedExtensionData,
     clipStartSec,
@@ -810,6 +812,7 @@ function summarizeVideoSelectionForDebug(payload) {
     url: normalizeHttpUrl(payload?.url) || null,
     pageUrl: normalizeHttpUrl(payload?.pageUrl) || null,
     videoUrl: normalizeHttpUrl(payload?.videoUrl) || null,
+    selectedVideoVariantUrl: normalizeHttpUrl(payload?.selectedVideoVariant?.url) || null,
     selectionScope: typeof payload?.selectionScope === 'string' ? payload.selectionScope : null,
     siteHint: typeof payload?.siteHint === 'string' ? payload.siteHint : null,
     titlePresent: normalizedTitle.length > 0,
@@ -2295,6 +2298,33 @@ function normalizeVideoCandidates(rawCandidates) {
   return normalized;
 }
 
+function normalizeSelectedVideoVariant(rawVariant) {
+  if (!rawVariant || typeof rawVariant !== 'object') {
+    return undefined;
+  }
+  const url = normalizeHttpUrl(rawVariant.url);
+  if (!url || url.startsWith('blob:')) {
+    return undefined;
+  }
+  const normalized = {
+    url,
+    type: typeof rawVariant.type === 'string' ? rawVariant.type : 'direct_mp4',
+    confidence: typeof rawVariant.confidence === 'string' ? rawVariant.confidence : 'high',
+    source: typeof rawVariant.source === 'string' ? rawVariant.source : 'selected_variant',
+    mediaType: 'video',
+  };
+  if (typeof rawVariant.label === 'string' && rawVariant.label.trim()) {
+    normalized.label = rawVariant.label.trim().slice(0, 40);
+  }
+  for (const key of ['width', 'height', 'bitrate', 'qualityIndex']) {
+    const value = Number(rawVariant[key]);
+    if (Number.isFinite(value) && value > 0) {
+      normalized[key] = Math.round(value);
+    }
+  }
+  return normalized;
+}
+
 function normalizeVideoIntentConfidence(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return undefined;
@@ -2442,6 +2472,7 @@ async function buildForwardedVideoSelectionPayload(message, senderContext = {}) 
       siteHint,
       title: normalized.title,
       videoUrl: normalized.videoUrl,
+      selectedVideoVariant: normalized.selectedVideoVariant,
       videoCandidates,
       selectionScope,
       clipStartSec: normalized.clipStartSec,
@@ -3112,12 +3143,14 @@ async function downloadMediaCandidate(candidate) {
   const desktopCandidate = candidate.desktopCandidate && typeof candidate.desktopCandidate === 'object'
     ? candidate.desktopCandidate
     : candidate;
+  const selectedVideoVariant = normalizeSelectedVideoVariant(candidate.selectedVideoVariant);
   const browserFallbackCandidate = candidate.browserFallbackCandidate && typeof candidate.browserFallbackCandidate === 'object'
     ? candidate.browserFallbackCandidate
     : null;
   const mediaType = desktopCandidate.mediaType || candidate.mediaType;
   const url = normalizeHttpUrl(desktopCandidate.url);
-  const fallbackUrl = normalizeHttpUrl(browserFallbackCandidate?.url);
+  const fallbackCandidate = selectedVideoVariant || browserFallbackCandidate;
+  const fallbackUrl = normalizeHttpUrl(fallbackCandidate?.url);
   const pageUrl = selectFirstHttpUrl(desktopCandidate.pageUrl, candidate.pageUrl, tab?.url, url, fallbackUrl);
   const capability = downloadCapabilityUtils?.resolveDownloadCapability
     ? downloadCapabilityUtils.resolveDownloadCapability(desktopCandidate)
@@ -3126,15 +3159,15 @@ async function downloadMediaCandidate(candidate) {
       requiresDesktop: true,
       desktopReason: 'capability_unavailable',
     };
-  const fallbackCapability = browserFallbackCandidate && downloadCapabilityUtils?.resolveDownloadCapability
-    ? downloadCapabilityUtils.resolveDownloadCapability(browserFallbackCandidate)
+  const fallbackCapability = fallbackCandidate && downloadCapabilityUtils?.resolveDownloadCapability
+    ? downloadCapabilityUtils.resolveDownloadCapability(fallbackCandidate)
     : null;
   const canUseBrowserFallback = Boolean(
-    browserFallbackCandidate
+    fallbackCandidate
     && fallbackUrl
     && (
       downloadCapabilityUtils?.canUseBrowserFallback
-        ? downloadCapabilityUtils.canUseBrowserFallback(browserFallbackCandidate)
+        ? downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)
         : fallbackCapability?.requiresDesktop !== true && fallbackCapability?.browserDownloadable === true
     )
   );
@@ -3150,7 +3183,7 @@ async function downloadMediaCandidate(candidate) {
 
   const browserDownload = () => startBrowserDownload({
     url: canUseBrowserFallback ? fallbackUrl : url,
-    filename: deriveBrowserDownloadFilename(canUseBrowserFallback ? browserFallbackCandidate : desktopCandidate, canUseBrowserFallback ? fallbackUrl : url),
+    filename: deriveBrowserDownloadFilename(canUseBrowserFallback ? fallbackCandidate : desktopCandidate, canUseBrowserFallback ? fallbackUrl : url),
   });
 
   if (capability.requiresDesktop && !isConnected() && !isConnecting()) {
@@ -3199,13 +3232,14 @@ async function downloadMediaCandidate(candidate) {
     type: INTERNAL_VIDEO_SELECTION_MESSAGE,
     url,
     pageUrl,
-    videoUrl: url,
+    videoUrl: selectedVideoVariant?.url || url,
     title: desktopCandidate.title || candidate.title || tab?.title,
+    selectedVideoVariant,
     videoCandidates: [{
-      url,
-      type: typeof desktopCandidate.type === 'string' ? desktopCandidate.type : 'unknown',
-      confidence: typeof desktopCandidate.confidence === 'string' ? desktopCandidate.confidence : 'low',
-      source: typeof desktopCandidate.source === 'string' ? desktopCandidate.source : 'popup_media_browser',
+      url: selectedVideoVariant?.url || url,
+      type: typeof selectedVideoVariant?.type === 'string' ? selectedVideoVariant.type : typeof desktopCandidate.type === 'string' ? desktopCandidate.type : 'unknown',
+      confidence: typeof selectedVideoVariant?.confidence === 'string' ? selectedVideoVariant.confidence : typeof desktopCandidate.confidence === 'string' ? desktopCandidate.confidence : 'low',
+      source: typeof selectedVideoVariant?.source === 'string' ? selectedVideoVariant.source : typeof desktopCandidate.source === 'string' ? desktopCandidate.source : 'popup_media_browser',
       mediaType: mediaType === 'audio' ? 'audio' : 'video',
     }],
     selectionScope: 'current_item',
@@ -3214,7 +3248,8 @@ async function downloadMediaCandidate(candidate) {
         version: 1,
         action: 'popup_fallback',
         pageUrl: pageUrl || url,
-        targetHref: url,
+        targetHref: selectedVideoVariant?.url || url,
+        targetSrc: selectedVideoVariant?.url || undefined,
         title: desktopCandidate.title || candidate.title || tab?.title,
       },
     },

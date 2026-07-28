@@ -52,6 +52,8 @@
         "capture-evidence.js",
         "extension-data-utils.js",
         "generic-video-selection-utils.js",
+        "weibo-variant-parser.js",
+        "site-video-parser-registry.js",
         "generic-video-detector.js",
         "floating-launcher.js",
         "protected-image-detector.js"

@@ -33,6 +33,7 @@ const baseIntentSchema = z.object({
   referer: z.string().trim().optional(),
   priority: z.number().int(),
   candidates: z.array(mediaCandidateSchema),
+  selectedVideoVariant: mediaCandidateSchema.optional(),
   selectionScope: z.enum(["current_item", "playlist"]).optional(),
   videoQuality: z.enum(["best", "balanced", "data_saver"]).optional(),
   advancedQualitySelector: z.string().trim().optional(),

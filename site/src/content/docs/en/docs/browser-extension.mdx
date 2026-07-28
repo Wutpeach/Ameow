@@ -93,6 +93,8 @@ The popup scans resources from the current active tab. In addition to `<video>`,
 
 You can inspect scan results inside the popup: ordinary video resources can expand into a native player preview, audio can be sampled, and images appear in a thumbnail grid with format and dimensions. Clicking an image thumbnail opens a larger in-popup preview. Resource details focus on media facts such as format, size, duration, and dimensions instead of internal source links. Complex resources marked `[Desktop]` still require desktop handling for download.
 
+On Weibo video pages, the popup also tries to read multiple quality variants from data already loaded by the page and merge them into one resource row. If that row shows a quality dropdown, the selected quality affects download, copy-link, and source actions for that row. Pasting a Weibo link into the desktop app still uses desktop extraction and defaults to the highest available quality.
+
 That background discovery only stores bounded media-candidate metadata such as URL, media type, Content-Type, Content-Length, tab/page URL, and capture time. It does not store request headers, cookies, referrers, or response bodies, and the cache is pruned by age, tab, and total size.
 
 It works best on:

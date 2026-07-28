@@ -447,6 +447,7 @@ export const buildGalleryDlVideoIntent = (
   referer: input.pageUrl,
   priority: 72,
   candidates: input.videoCandidates ?? [],
+  selectedVideoVariant: input.selectedVideoVariant,
   selectionScope: input.selectionScope,
   videoQuality: input.videoQuality,
   advancedQualitySelector: input.advancedQualitySelector,

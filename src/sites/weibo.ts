@@ -8,6 +8,21 @@ import {
   resolveWeiboGalleryDlSourceUrl,
 } from "./gallery-dl-support.js";
 
+const resolveSelectedWeiboVariantUrl = (input: RawDownloadInput): string | undefined => {
+  if (!input.selectedVideoVariant?.url || input.siteHint !== "weibo") {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(input.selectedVideoVariant.url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+};
+
 export const weiboProvider: SiteProvider = {
   id: "weibo",
   matches(input: RawDownloadInput): boolean {
@@ -19,6 +34,30 @@ export const weiboProvider: SiteProvider = {
     const originalSourceUrl = input.pageUrl ?? input.url;
     const resolvedSourceUrl = resolveWeiboSourceUrl(originalSourceUrl) ?? originalSourceUrl;
     const strategy = getRuntimeManualSiteStrategy("weibo");
+    const selectedVariantUrl = resolveSelectedWeiboVariantUrl(input);
+    const selectedVariant = input.selectedVideoVariant;
+    if (selectedVariantUrl && selectedVariant) {
+      return {
+        providerId: "weibo",
+        label: input.title?.trim()
+          || selectedVariant.label?.trim()
+          || input.pageUrl
+          || input.url,
+        intent: {
+          ...buildGalleryDlVideoIntent(input, "weibo"),
+          candidates: [selectedVariant],
+          selectedVideoVariant: selectedVariant,
+          preferredFormat: "mp4",
+        },
+        engines: [{
+          engine: "yt-dlp",
+          priority: 100,
+          when: "primary",
+          reason: "Use the Weibo quality variant explicitly selected in the browser extension",
+          sourceUrl: selectedVariantUrl,
+        }],
+      };
+    }
 
     if (isWeiboTvShowUrl(resolvedSourceUrl)) {
       return {

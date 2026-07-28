@@ -47,6 +47,41 @@ const toRuntimeError = (error: unknown, code: DownloadErrorCode): DownloadRuntim
   );
 };
 
+const isExplicitWeiboSelectedVariantRequest = (
+  input: RawDownloadInput,
+  plan: ResolvedDownloadPlan,
+): boolean => (
+  plan.providerId === "weibo"
+  && input.siteHint === "weibo"
+  && Boolean(input.selectedVideoVariant?.url)
+);
+
+const wrapSelectedVariantError = (
+  error: DownloadRuntimeError,
+  input: RawDownloadInput,
+  plan: ResolvedDownloadPlan,
+): DownloadRuntimeError => {
+  if (!isExplicitWeiboSelectedVariantRequest(input, plan)) {
+    return error;
+  }
+  const label = input.selectedVideoVariant?.label?.trim()
+    || input.selectedVideoVariant?.url
+    || "selected variant";
+  return new DownloadRuntimeError(
+    error.code,
+    `Selected Weibo quality failed (${label}): ${error.message}`,
+    {
+      cause: error,
+      classification: error.classification,
+      context: {
+        ...error.context,
+        selectedVideoVariant: input.selectedVideoVariant,
+        providerId: plan.providerId,
+      },
+    },
+  );
+};
+
 export class DownloadOrchestrator {
   constructor(
     private readonly siteRegistry: SiteRegistry,
@@ -99,7 +134,7 @@ export class DownloadOrchestrator {
         if (shouldContinueEngineChain(validationError, enginePlan)) {
           continue;
         }
-        throw validationError;
+        throw wrapSelectedVariantError(validationError, normalizedInput, resolvedPlan);
       }
 
       try {
@@ -116,13 +151,13 @@ export class DownloadOrchestrator {
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw lastError;
+        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
       } catch (error) {
         lastError = toRuntimeError(error, "E_EXECUTION_FAILED");
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw lastError;
+        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
       }
     }
 

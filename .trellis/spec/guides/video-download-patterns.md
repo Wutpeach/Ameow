@@ -219,6 +219,15 @@ sourceUrl = `https://www.iesdouyin.com/share/video/${modalId}/`;
 `clipStartSec/clipEndSec` are optional and must be provided together for section download.
 `ytdlpQualityPreference` is optional. The browser extension popup defaults to `balanced`, while the backend still coerces absent or unknown values to `best`.
 
+### Site Variant Selection Contract
+
+- `selectedVideoVariant` is an explicit user choice, not a passive browser-discovered hint.
+- Browser-extension grouped resources may send `selectedVideoVariant` when the user picks a concrete quality variant from a resource row.
+- Ordinary `videoCandidates[]` remain hints. They must not force a provider to bypass its canonical extraction path.
+- For Weibo, `selectedVideoVariant` with `siteHint="weibo"` routes through a single `yt-dlp` engine plan using the selected variant URL as `sourceUrl`.
+- Explicit Weibo selected-variant failures must not fall back to gallery-dl page extraction because that can download a different quality than the user selected.
+- Pasted Weibo page links without `selectedVideoVariant` keep the gallery-dl-first highest-quality extraction path.
+
 ### yt-dlp Quality Tier Contract
 
 - Trigger: browser extension popup quality selector changes, then `background.js` forwards the preference through `video_selected_v2`.

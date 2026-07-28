@@ -205,6 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeDrawer = null;
   let drawerReturnFocus = null;
   let drawerCloseTimer = null;
+  const selectedVariantByGroup = new Map();
   const downloadCooldown = new Set();
 
   function t(key, fallback) {
@@ -761,6 +762,39 @@ document.addEventListener("DOMContentLoaded", () => {
     return safeText(candidate?.title, safeText(candidate?.url, ""));
   }
 
+  function variantGroupKey(candidate) {
+    return safeText(candidate?.groupId, safeText(candidate?.canonicalId, candidateStableId(candidate, 0)));
+  }
+
+  function normalizeVariantList(value) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const seen = new Set();
+    return value
+      .filter((variant) => variant && typeof variant === "object" && safeText(variant.url, ""))
+      .filter((variant) => {
+        const url = safeText(variant.url, "");
+        if (seen.has(url)) {
+          return false;
+        }
+        seen.add(url);
+        return true;
+      });
+  }
+
+  function selectedVariantForCandidate(candidate) {
+    const variants = normalizeVariantList(candidate?.variants);
+    if (variants.length === 0) {
+      return null;
+    }
+    const selectedUrl = selectedVariantByGroup.get(variantGroupKey(candidate));
+    return variants.find((variant) => variant.url === selectedUrl)
+      || variants.find((variant) => variant.url === candidate?.preferredVariantUrl)
+      || variants[0]
+      || null;
+  }
+
   function normalizeDisplayKeyPart(value) {
     return typeof value === "string"
       ? value.trim().toLowerCase().replace(/\s+/g, " ")
@@ -842,6 +876,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function candidateDetailLabel(candidate) {
+    const selectedVariant = selectedVariantForCandidate(candidate);
+    if (selectedVariant) {
+      const count = normalizeVariantList(candidate?.variants).length;
+      const label = safeText(selectedVariant.label, candidate?.preferredVariantLabel || "");
+      const dimensions = dimensionsKey(selectedVariant);
+      const format = candidateFormatLabel(selectedVariant);
+      const variantLabel = label || dimensions || format;
+      return count > 1
+        ? tt("popup.media.variants.detail", { quality: variantLabel, count }, `${variantLabel} / ${count} variants`)
+        : variantLabel;
+    }
     const format = candidateFormatLabel(candidate);
     const size = formatByteSize(candidateByteSize(candidate));
     const duration = formatDuration(candidate?.duration);
@@ -976,6 +1021,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function createDisplayCandidate(group, index) {
     const previewCandidate = group.previewCandidate || group.primaryCandidate;
     const desktopCandidate = group.desktopCandidate || group.primaryCandidate;
+    const variants = normalizeVariantList(group.candidates.flatMap((candidate) => candidate?.variants || []));
+    const selectedVariant = variants.find((variant) => variant.url === selectedVariantByGroup.get(variantGroupKey(desktopCandidate)))
+      || variants.find((variant) => variant.url === desktopCandidate?.preferredVariantUrl)
+      || variants[0]
+      || null;
     const capability = group.hasDesktopCapability
       ? { browserDownloadable: Boolean(candidateCapability(previewCandidate)?.browserDownloadable), requiresDesktop: true, desktopReason: "desktop_capable" }
       : candidateCapability(previewCandidate) || candidateCapability(group.primaryCandidate);
@@ -987,9 +1037,15 @@ document.addEventListener("DOMContentLoaded", () => {
       mediaType: previewCandidate?.mediaType || desktopCandidate?.mediaType || currentMediaType,
       previewCandidate,
       desktopCandidate,
-      browserFallbackCandidate: previewCandidate,
+      browserFallbackCandidate: selectedVariant || previewCandidate,
       displayCapability: capability,
       displayCandidates: group.candidates,
+      ...(variants.length > 0 ? { variants } : {}),
+      ...(selectedVariant ? {
+        selectedVideoVariant: selectedVariant,
+        preferredVariantUrl: selectedVariant.url,
+        preferredVariantLabel: selectedVariant.label,
+      } : {}),
     };
   }
 
@@ -1296,6 +1352,45 @@ document.addEventListener("DOMContentLoaded", () => {
     return svg;
   }
 
+  function createVariantSelector(candidate, row) {
+    const variants = normalizeVariantList(candidate?.variants);
+    if (variants.length <= 1) {
+      return null;
+    }
+
+    const selector = document.createElement("select");
+    selector.className = "ameow-variant-select";
+    selector.setAttribute("aria-label", t("popup.media.variants.select", "Quality"));
+    const selectedVariant = selectedVariantForCandidate(candidate);
+    variants.forEach((variant, index) => {
+      const option = document.createElement("option");
+      option.value = variant.url;
+      option.textContent = safeText(variant.label, dimensionsKey(variant) || `#${index + 1}`);
+      option.selected = selectedVariant?.url === variant.url;
+      selector.appendChild(option);
+    });
+    selector.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    selector.addEventListener("change", (event) => {
+      event.stopPropagation();
+      const nextVariant = variants.find((variant) => variant.url === selector.value) || variants[0];
+      if (!nextVariant) {
+        return;
+      }
+      selectedVariantByGroup.set(variantGroupKey(candidate), nextVariant.url);
+      candidate.selectedVideoVariant = nextVariant;
+      candidate.preferredVariantUrl = nextVariant.url;
+      candidate.preferredVariantLabel = nextVariant.label;
+      candidate.browserFallbackCandidate = nextVariant;
+      const meta = row?.querySelector?.(".ameow-media-meta");
+      if (meta) {
+        meta.textContent = candidateDetailLabel(candidate);
+      }
+    });
+    return selector;
+  }
+
   function appendPreviewImage(container, candidate) {
     if (!candidate.previewUrl) {
       return;
@@ -1366,8 +1461,12 @@ document.addEventListener("DOMContentLoaded", () => {
     title.appendChild(titleText);
     appendDesktopBadge(title, capability);
     meta.className = "ameow-media-meta";
-    meta.textContent = candidateDetailLabel(previewCandidate) || candidateDetailLabel(candidate);
+    meta.textContent = candidateDetailLabel(candidate) || candidateDetailLabel(previewCandidate);
     main.append(title, meta);
+    const variantSelector = createVariantSelector(candidate, row);
+    if (variantSelector) {
+      main.appendChild(variantSelector);
+    }
 
     menuButton.type = "button";
     menuButton.className = "ameow-row-menu-btn";
@@ -1511,7 +1610,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function downloadCandidate(candidate, row) {
-    const key = candidate.url || candidate.desktopCandidate?.url || candidate.browserFallbackCandidate?.url;
+    const selectedVariant = selectedVariantForCandidate(candidate);
+    if (selectedVariant) {
+      candidate.selectedVideoVariant = selectedVariant;
+      candidate.preferredVariantUrl = selectedVariant.url;
+      candidate.preferredVariantLabel = selectedVariant.label;
+      candidate.browserFallbackCandidate = selectedVariant;
+    }
+    const key = selectedVariant?.url || candidate.url || candidate.desktopCandidate?.url || candidate.browserFallbackCandidate?.url;
     if (downloadCooldown.has(key)) {
       return;
     }
@@ -1537,7 +1643,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function copyCandidateLink(candidate, row) {
-    const link = candidate.previewCandidate?.url || candidate.browserFallbackCandidate?.url || candidate.url;
+    const selectedVariant = selectedVariantForCandidate(candidate);
+    const link = selectedVariant?.url || candidate.previewCandidate?.url || candidate.browserFallbackCandidate?.url || candidate.url;
     try {
       await navigator.clipboard.writeText(link);
       setRowFeedback(row, t("popup.media.feedback.copied", "Copied"));
@@ -1553,7 +1660,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showCandidateSource(candidate, row) {
-    const sourceCandidate = candidate.previewCandidate || candidate.browserFallbackCandidate || candidate;
+    const sourceCandidate = selectedVariantForCandidate(candidate) || candidate.previewCandidate || candidate.browserFallbackCandidate || candidate;
     setRowFeedback(row, `${sourceLabel(sourceCandidate.source, t)} / ${shortHost(sourceCandidate.url)}`);
   }
 

@@ -314,4 +314,26 @@ describe("buildVideoSelectedV2QueuePayload", () => {
       advancedQualityRequest: true,
     });
   });
+
+  it("preserves explicit selected video variants when building the queue payload", () => {
+    expect(buildVideoSelectedV2QueuePayload({
+      url: "https://weibo.com/detail/N12345",
+      pageUrl: "https://weibo.com/detail/N12345",
+      siteHint: "weibo",
+      selectedVideoVariant: {
+        url: "https://f.video.weibocdn.com/best-1080.mp4",
+        label: "1080p",
+        type: "direct_mp4",
+        mediaType: "video",
+      },
+    })).toMatchObject({
+      url: "https://weibo.com/detail/N12345",
+      pageUrl: "https://weibo.com/detail/N12345",
+      siteHint: "weibo",
+      selectedVideoVariant: {
+        url: "https://f.video.weibocdn.com/best-1080.mp4",
+        label: "1080p",
+      },
+    });
+  });
 });

@@ -90,8 +90,10 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("downloadCandidate(candidate, row)");
     expect(backgroundJs).toContain("candidate.desktopCandidate");
     expect(backgroundJs).toContain("candidate.browserFallbackCandidate");
+    expect(backgroundJs).toContain("candidate.selectedVideoVariant");
+    expect(backgroundJs).toContain("selectedVideoVariant: normalized.selectedVideoVariant");
     expect(backgroundJs).toContain("canUseBrowserFallback");
-    expect(backgroundJs).toContain("downloadCapabilityUtils.canUseBrowserFallback(browserFallbackCandidate)");
+    expect(backgroundJs).toContain("downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)");
   });
 
   it("tracks browser download lifecycle without building a popup download manager", () => {
@@ -141,7 +143,7 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("function formatByteSize(bytes)");
     expect(popupJs).toContain("function formatDuration(seconds)");
     expect(popupJs).toContain("[format, size, duration, dimensions].filter(Boolean).join(\" / \")");
-    expect(popupJs).toContain("meta.textContent = candidateDetailLabel(previewCandidate) || candidateDetailLabel(candidate)");
+    expect(popupJs).toContain("meta.textContent = candidateDetailLabel(candidate) || candidateDetailLabel(previewCandidate)");
     expect(popupJs).not.toContain("sourceLabel(previewCandidate.source || candidate.source, t)");
     expect(popupJs).not.toContain("candidate.host || shortHost(candidate.url)");
   });

@@ -122,6 +122,10 @@
         "copy": "复制链接",
         "source": "查看来源"
       },
+      "variants": {
+        "select": "画质",
+        "detail": "{quality} / {count} 档"
+      },
       "badges": {
         "desktop": "桌面端",
         "desktopTitle": "需要桌面端接管"

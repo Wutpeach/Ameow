@@ -18,6 +18,7 @@ export type RawDownloadInput = {
   url: string;
   pageUrl?: string;
   videoUrl?: string;
+  selectedVideoVariant?: MediaCandidate;
   videoCandidates?: MediaCandidate[];
   title?: string;
   cookies?: string;

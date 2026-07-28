@@ -49,6 +49,7 @@ export const buildVideoSelectedV2QueuePayload = (
   url: data.url,
   pageUrl: data.pageUrl,
   videoUrl: data.videoUrl,
+  selectedVideoVariant: data.selectedVideoVariant,
   videoCandidates: data.videoCandidates,
   siteHint: data.siteHint,
   title: data.title,
@@ -129,6 +130,10 @@ const summarizeQueuePayload = (payload: Record<string, unknown>) => ({
     : Array.isArray(payload.video_candidates)
       ? payload.video_candidates.length
       : 0,
+  selectedVideoVariantPresent: Boolean(
+    payload.selectedVideoVariant
+    && typeof payload.selectedVideoVariant === "object",
+  ),
   videoQuality:
     payload.videoQuality
     ?? payload.ytdlpQuality

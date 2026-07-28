@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 
 const detectorPath = path.resolve("browser-extension/generic-video-detector.js");
 const detectorSource = readFileSync(detectorPath, "utf8");
+const weiboParserPath = path.resolve("browser-extension/weibo-variant-parser.js");
+const weiboParserSource = readFileSync(weiboParserPath, "utf8");
+const siteParserRegistryPath = path.resolve("browser-extension/site-video-parser-registry.js");
+const siteParserRegistrySource = readFileSync(siteParserRegistryPath, "utf8");
 
 function createSelectionUtils() {
   return {
@@ -154,6 +158,8 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     },
   };
 
+  vm.runInNewContext(weiboParserSource, context, { filename: weiboParserPath });
+  vm.runInNewContext(siteParserRegistrySource, context, { filename: siteParserRegistryPath });
   vm.runInNewContext(detectorSource, context, { filename: detectorPath });
   return {
     hooks: context.window.AmeowGenericVideoDetectorTestHooks,
@@ -321,6 +327,53 @@ describe("generic video detector", () => {
         },
       ],
     });
+  });
+
+  it("adds Weibo site parser variants to popup media scans", () => {
+    const { hooks } = loadDetectorHooks("https://weibo.com/detail/N12345", {
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Weibo video_微博" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll(selector) {
+          if (selector === "script") {
+            return [{
+              textContent: `window.__WEIBO_DETAIL__ = {
+                "page_info": {
+                  "media_info": {
+                    "playback_list": [
+                      { "play_info": { "url": "https://f.video.weibocdn.com/current-720.mp4", "quality_index": 720, "label": "720p" } },
+                      { "play_info": { "url": "https://f.video.weibocdn.com/best-1080.mp4", "quality_index": 1080, "label": "1080p" } }
+                    ]
+                  }
+                }
+              };`,
+            }];
+          }
+          return [];
+        },
+        title: "Weibo video",
+      },
+    });
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos[0]).toMatchObject({
+      source: "site_extractor",
+      type: "weibo_variants",
+      siteHint: "weibo",
+      preferredVariantUrl: "https://f.video.weibocdn.com/best-1080.mp4",
+      preferredVariantLabel: "1080p",
+    });
+    expect(result.videos[0].variants.map((variant) => variant.label)).toEqual(["1080p", "720p"]);
   });
 
   it("adds nearby title and cover metadata to popup video candidates", () => {

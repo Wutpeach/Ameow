@@ -122,6 +122,10 @@
         "copy": "Copy link",
         "source": "View source"
       },
+      "variants": {
+        "select": "Quality",
+        "detail": "{quality} / {count} variants"
+      },
       "badges": {
         "desktop": "Desktop",
         "desktopTitle": "Requires the desktop app"

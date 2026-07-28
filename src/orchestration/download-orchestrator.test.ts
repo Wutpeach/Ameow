@@ -119,6 +119,59 @@ describe("DownloadOrchestrator", () => {
     });
   });
 
+  it("labels explicit Weibo selected-variant failures without falling back", async () => {
+    const plan = {
+      ...createVideoPlan([
+        {
+          engine: "yt-dlp" as const,
+          priority: 100,
+          when: "primary" as const,
+          reason: "selected Weibo variant",
+          sourceUrl: "https://f.video.weibocdn.com/best-1080.mp4",
+        },
+      ]),
+      providerId: "weibo",
+      intent: {
+        ...createVideoPlan([]).intent,
+        siteId: "weibo",
+        selectedVideoVariant: {
+          url: "https://f.video.weibocdn.com/best-1080.mp4",
+          label: "1080p",
+          type: "direct_mp4",
+          mediaType: "video" as const,
+        },
+      },
+    };
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          execute: async (context) => ({
+            traceId: context.traceId,
+            success: false,
+            error: "HTTP 403",
+          }),
+        }),
+        createEngine("gallery-dl"),
+      ]),
+    );
+
+    await expect(orchestrator.execute(
+      {
+        url: "https://weibo.com/detail/N12345",
+        pageUrl: "https://weibo.com/detail/N12345",
+        siteHint: "weibo",
+        selectedVideoVariant: {
+          url: "https://f.video.weibocdn.com/best-1080.mp4",
+          label: "1080p",
+          type: "direct_mp4",
+          mediaType: "video",
+        },
+      },
+      createContext,
+    )).rejects.toThrow("Selected Weibo quality failed (1080p): HTTP 403");
+  });
+
   it("stops the engine chain for auth-required failures even when the plan says any", async () => {
     const fallbackExecute = vi.fn();
     const plan = createVideoPlan([
