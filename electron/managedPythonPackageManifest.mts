@@ -20,9 +20,9 @@ export const MANAGED_PYTHON_PACKAGE_SPECS: Record<ManagedPythonPackageToolId, Ma
   },
   "gallery-dl": {
     component: "galleryDl",
-    installSource: "gallery-dl==1.32.1",
+    installSource: "gallery-dl==1.32.8",
     minPython: [3, 8, 0],
-    packageVersion: "1.32.1",
+    packageVersion: "1.32.8",
     staleDirectories: ["real"],
   },
 };

@@ -16,6 +16,7 @@ The public docs currently call out:
 - X / Twitter
 - Douyin
 - Xiaohongshu
+- Weibo
 
 Some releases may also include improvements for Pinterest, Instagram, Zhihu, or similar sites and page types. Check [Release Notes](../../releases/) for the latest behavior changes.
 
@@ -52,6 +53,12 @@ Douyin video downloads now use the shared `yt-dlp` path. Common video inputs inc
 - `https://www.douyin.com/jingxuan?modal_id={id}`
 
 Douyin note and gallery pages are not a current public download target. Even though Douyin is listed as a focus site, non-video pages may still be unsupported.
+
+## Weibo video quality
+
+For Weibo detail, status, and common share pages, Ameow prefers `gallery-dl` page extraction and lets the downloader choose the highest available quality. If `gallery-dl` cannot resolve the page, Ameow keeps `yt-dlp` as the fallback path.
+
+Direct media URLs seen by the browser extension usually reflect the quality currently selected in the page player. For example, if the page is playing 720p, the discovered `.mp4` may only be the 720p rendition. Ameow keeps those direct URLs as hints instead of letting them override the Weibo page extraction route.
 
 ## Pinterest resource shapes
 

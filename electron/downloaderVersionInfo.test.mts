@@ -160,13 +160,13 @@ describe("getGalleryDlInfo", () => {
         galleryDl: { state: "missing", source: null, path: null, error: "Missing runtime" },
       })),
       getLocalDownloaderVersion: vi.fn(),
-      resolvePinnedManagedPythonPackage: vi.fn(() => ({ packageVersion: "1.32.1" })),
+      resolvePinnedManagedPythonPackage: vi.fn(() => ({ packageVersion: "1.32.8" })),
       compareLooseVersions: vi.fn(),
     });
 
     expect(info).toMatchObject({
       current: "missing",
-      latest: "1.32.1",
+      latest: "1.32.8",
       source: "missing",
       updateChannel: "unavailable",
     });

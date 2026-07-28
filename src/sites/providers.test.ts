@@ -674,6 +674,52 @@ describe("builtin site providers", () => {
     expect(intent.siteId).toBe("weibo");
   });
 
+  it("keeps Weibo page extraction ahead of a currently playing lower-quality direct URL", () => {
+    const pageUrl = "https://weibo.com/status/4913212871149937";
+    const currentPlaybackUrl = "https://f.video.weibocdn.com/example/video_720p.mp4";
+    const plan = resolvePlan({
+      url: currentPlaybackUrl,
+      pageUrl,
+      videoUrl: currentPlaybackUrl,
+      siteHint: "weibo",
+      videoQuality: "best",
+      videoCandidates: [
+        {
+          url: currentPlaybackUrl,
+          type: "direct_mp4",
+          source: "video_element",
+          confidence: "high",
+          mediaType: "video",
+        },
+      ],
+    });
+    const intent = expectVideoIntent(plan.intent);
+
+    expect(plan.providerId).toBe("weibo");
+    expect(plan.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(plan.engines[0]).toMatchObject({
+      engine: "gallery-dl",
+      sourceUrl: "https://weibo.com/detail/4913212871149937",
+      when: "primary",
+    });
+    expect(plan.engines[1]).toMatchObject({
+      engine: "yt-dlp",
+      sourceUrl: pageUrl,
+      when: "fallback",
+    });
+    expect(intent.siteId).toBe("weibo");
+    expect(intent.videoQuality).toBe("best");
+    expect(intent.candidates).toEqual([
+      {
+        url: currentPlaybackUrl,
+        type: "direct_mp4",
+        source: "video_element",
+        confidence: "high",
+        mediaType: "video",
+      },
+    ]);
+  });
+
   it("does not guess a synthetic Weibo detail URL from a tv/show fid without a status id", () => {
     const url = "https://weibo.com/tv/show/1034:4913203381993532";
     const plan = resolvePlan({ url });

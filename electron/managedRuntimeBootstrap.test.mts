@@ -53,8 +53,8 @@ describe("managed runtime bootstrap helpers", () => {
       installSource: "yt-dlp==2026.07.04",
     });
     expect(resolvePinnedManagedPythonPackage("gallery-dl")).toMatchObject({
-      packageVersion: "1.32.1",
-      installSource: "gallery-dl==1.32.1",
+      packageVersion: "1.32.8",
+      installSource: "gallery-dl==1.32.8",
     });
     expect(() => resolvePinnedManagedPythonPackage("unknown" as never)).toThrow(
       "Unsupported managed Python package tool: unknown",
