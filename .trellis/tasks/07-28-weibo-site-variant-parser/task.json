@@ -3,7 +3,7 @@
   "name": "weibo-site-variant-parser",
   "title": "Add extensible site-specific video variant parsing for Weibo",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
