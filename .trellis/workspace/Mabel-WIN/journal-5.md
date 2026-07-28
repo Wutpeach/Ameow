@@ -1312,3 +1312,37 @@ Updated managed gallery-dl to 1.32.8, preserved Weibo gallery-dl-first routing, 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 236: Weibo variant quality selection
+
+**Date**: 2026-07-28
+**Task**: Weibo variant quality selection
+**Branch**: `main`
+
+### Summary
+
+Added extension-side Weibo page-local variant parsing, grouped popup quality selection, explicit selectedVideoVariant routing through Electron/runtime, strict selected-quality failure handling, docs, specs, and tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2c18e88` | (see git log) |
+| `476b990` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
