@@ -237,13 +237,34 @@ type PopupMediaCandidate = {
     | "picture_source"
     | "direct_link"
     | "open_graph"
-    | "performance_resource";
+    | "performance_resource"
+    | "site_extractor";
   type?: string;
   confidence?: "high" | "medium" | "low";
   previewUrl?: string;
   width?: number;
   height?: number;
   duration?: number;
+  siteHint?: string;
+  groupId?: string;
+  canonicalId?: string;
+  variants?: PopupVideoVariant[];
+  preferredVariantUrl?: string;
+  preferredVariantLabel?: string;
+  selectedVideoVariant?: PopupVideoVariant;
+};
+
+type PopupVideoVariant = {
+  url: string;
+  label?: string;
+  type?: "direct_mp4" | "manifest_m3u8" | string;
+  source?: "weibo_variant_parser" | "weibo_api_observer" | string;
+  confidence?: "high" | "medium" | "low";
+  mediaType: "video";
+  qualityIndex?: number;
+  width?: number;
+  height?: number;
+  bitrate?: number;
 };
 
 type PopupMediaScanResult = {
@@ -310,6 +331,13 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 - Pinterest pin pages may expose direct `i.pinimg.com` images, direct `v1.pinimg.com` `.mp4` files, and adaptive `.m3u8/.mpd` variants for the same asset. Popup scans should keep direct image/`.mp4` resources browser-downloadable and filter Pinterest manifest variants from generic scan/network-cache rows so the popup does not show multiple desktop-required formats for one direct-downloadable pin.
 - Pinterest `.cmfv` resources are HLS/CMAF stream parts, not complete browser-downloadable files. Popup scans must filter them from video-element, performance, and network-cache rows. If a visible Pinterest pin video exposes only `.cmfv`/HLS-style resources and no direct `.mp4`, the popup should show one page-level `[Desktop]` candidate using the canonical `/pin/<id>/` URL so the desktop app can resolve the page instead of trying to download the segment URL.
 - Popup resource metadata should be user-facing media facts, not implementation/source details. Video/audio rows should show format, file size, duration, and dimensions when known; image cards should show format, dimensions, and size when known, and should not show image titles in the details area.
+- Site-specific popup parsers may emit `source: "site_extractor"` candidates with optional `variants[]`, `groupId`, `canonicalId`, `preferredVariantUrl`, and `siteHint`. The popup must keep this contract generic: render one grouped resource row and show a row-level quality selector only when `variants.length > 1`; do not expand quality variants into separate top-level rows.
+- Popup grouping must merge a direct media candidate with a grouped `site_extractor` candidate when the direct URL appears in the grouped candidate's `variants[]`. This lets a concrete current-playback URL provide preview/browser-fallback behavior while the grouped row keeps desktop routing and quality selection.
+- If a site's variant metadata is available only through page-owned runtime API responses, use a host-scoped document-start page bridge that observes already-requested `fetch` / `XMLHttpRequest` responses and posts bounded sanitized variant records back to the content script. Do not add proactive site API requests just to populate popup variants unless a later product task explicitly changes that scope.
+- Page bridges must not post whole API responses. They may publish only direct variant URLs plus bounded metadata needed for grouping and display: `statusId/pageUrl/groupKey`, `label`, `qualityIndex`, `width`, `height`, `bitrate`, `type`, `source`, and `mediaType`.
+- Observed runtime variant caches must be bounded by total records, total variants per record, and freshness/TTL. Parser output should merge observed runtime variants with DOM-script variants and then sort by the same quality ranking used for DOM-derived variants.
+- On detail/status pages with a known current content id, site parsers must filter both DOM-script and runtime-observed variants to the current id or canonical page URL. Unscoped response-level URLs and variants belonging to recommendation/sidebar items must not be included in the current video's selector.
+- Site variant ownership must come from the nearest content/status object on the path to the media URL. Nested recommendation/sidebar media must not inherit an outer current status id as a fallback.
 
 ### 4. Validation & Error Matrix
 
@@ -337,6 +365,12 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 | Pinterest pin exposes multiple direct `.mp4` encodes/resolutions for one asset | `mergeNetworkCandidatesIntoScanResult` | Popup shows one best direct `.mp4` candidate instead of every variant | Group by Pinterest video asset hash and prefer larger/higher-resolution direct candidates |
 | Pinterest pin exposes only `.cmfv` / HLS-style video URLs | `collectVideoScanCandidates` / `normalizeNetworkMediaEntry` | Popup does not list `.cmfv`; it shows one page-level `[Desktop]` candidate for the canonical pin URL | Treat `.cmfv` as a stream part and route desktop handoff by page URL |
 | Popup media row has URL/source-heavy metadata | `popup.js` render path | Row displays format/size/duration/dimensions only | Use `candidateDetailLabel(...)` for video/audio and image card metadata |
+| Site parser emits one logical candidate with two or more variants | `mergeDisplayCandidates` / `createVariantSelector` | Popup shows one row with a resource-scoped selector and highest-ranked variant selected by default | Preserve `variants[]`, `preferredVariantUrl`, and `selectedVideoVariant` through display candidate creation |
+| Direct current-playback URL is also present inside a grouped variant list | `mergeDisplayCandidates` compatibility check | Popup shows one logical resource row, not one direct row plus one `[Desktop]` row | Treat variant URL membership as row compatibility |
+| Runtime API response contains variants but DOM scripts do not | Site page bridge + parser cache | Popup scan still receives one grouped `site_extractor` candidate with merged variants | Observe page-owned responses, cache sanitized records, and merge them in the parser |
+| Page bridge observes a large or sensitive JSON response | Page bridge serializer | Only bounded variant records cross into the content script; unrelated response fields are dropped | Do not post whole responses or unbounded nested objects |
+| Site variant task proposes proactive API probing | Code review / product scope | Implementation is rejected unless the task explicitly approves proactive calls | Keep page bridge observation passive by default |
+| Detail page API/script data includes current item plus recommendation items | Site parser grouping/filtering | Current popup row lists only variants for the active detail status id | Require status id/canonical page match before adding variants to the active grouped candidate |
 
 ### 5. Good / Base / Bad Cases
 
@@ -380,6 +414,10 @@ chrome.downloads.onChanged -> bounded BrowserDownloadTrackedState update
 - Pinterest popup scans keep direct `v1.pinimg.com` `.mp4` candidates, filter `.m3u8/.mpd` variants, and classify `i.pinimg.com` image URLs as browser-downloadable.
 - Pinterest `.cmfv` stream parts are filtered from popup resources; visible pin videos without direct `.mp4` get one canonical pin-page `[Desktop]` candidate.
 - Popup media metadata omits host/source/link-like text; image cards omit image titles from the details area.
+- Site-specific grouped candidates render one row with a row-level selector when `variants.length > 1`.
+- Direct current-playback candidates merge with a grouped variant row when their URL appears in `variants[]`.
+- A Weibo-style runtime API response with `playback_list` variants produces a grouped candidate even when DOM scripts contain no variants.
+- A Weibo-style response/script containing current and recommendation videos filters the selector to the current status id.
 
 ### 7. Wrong vs Correct
 
@@ -410,6 +448,26 @@ title.textContent = candidate.title || inferTitleFromPopupDocument();
 ```js
 title.textContent = safeText(candidate.title, candidate.url);
 // Detector owns title/previewUrl extraction while it still has access to the page DOM.
+```
+
+#### Wrong
+
+```js
+// Content script cannot reliably see page-owned response bodies, and this
+// actively probes the site instead of observing data the page already loaded.
+const response = await fetch("/ajax/statuses/show?id=" + statusId);
+candidate.variants = await response.json();
+```
+
+#### Correct
+
+```js
+// Page bridge observes the page's own response and posts only sanitized records.
+window.postMessage({
+  source: "ameow-weibo-page",
+  type: "AMEOW_WEIBO_VIDEO_VARIANTS",
+  records: [{ statusId, variants }],
+}, "*");
 ```
 
 #### Protected Image Drag Fallback Contract

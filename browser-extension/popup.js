@@ -940,6 +940,112 @@ document.addEventListener("DOMContentLoaded", () => {
     return hasCurrentPageDesktop && ((leftDesktop && rightPreviewable) || (rightDesktop && leftPreviewable));
   }
 
+  function variantUrlSet(candidate) {
+    const urls = new Set();
+    normalizeVariantList(candidate?.variants).forEach((variant) => {
+      const url = normalizeDisplayUrl(variant?.url);
+      if (url) {
+        urls.add(url);
+      }
+    });
+    return urls;
+  }
+
+  function areVariantLinkedCandidates(left, right) {
+    if (currentMediaType === "image" || !left || !right) {
+      return false;
+    }
+    if ((left.mediaType || currentMediaType) !== (right.mediaType || currentMediaType)) {
+      return false;
+    }
+    const leftUrl = normalizeDisplayUrl(left.url);
+    const rightUrl = normalizeDisplayUrl(right.url);
+    const leftVariants = variantUrlSet(left);
+    const rightVariants = variantUrlSet(right);
+    return Boolean(
+      leftUrl && rightVariants.has(leftUrl)
+      || rightUrl && leftVariants.has(rightUrl)
+      || leftVariants.size > 0 && Array.from(leftVariants).some((url) => rightVariants.has(url)),
+    );
+  }
+
+  function weiboStatusIdFromUrl(rawUrl) {
+    const normalized = normalizeDisplayUrl(rawUrl);
+    if (!normalized) {
+      return "";
+    }
+    try {
+      const parsed = new URL(normalized);
+      for (const key of ["layerid", "mid", "id"]) {
+        const value = parsed.searchParams.get(key);
+        if (value && /^[A-Za-z0-9]{5,40}$/.test(value.trim())) {
+          return value.trim();
+        }
+      }
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if ((segments[0] === "detail" || segments[0] === "status") && /^[A-Za-z0-9]{5,40}$/.test(segments[1] || "")) {
+        return segments[1];
+      }
+      if (/^\d+$/.test(segments[0] || "") && /^[A-Za-z0-9]{5,40}$/.test(segments[1] || "")) {
+        return segments[1];
+      }
+    } catch (_) {
+      return "";
+    }
+    return "";
+  }
+
+  function candidateWeiboStatusId(candidate) {
+    const explicit = safeText(candidate?.canonicalId, "");
+    if (/^[A-Za-z0-9]{5,40}$/.test(explicit)) {
+      return explicit;
+    }
+    const groupId = safeText(candidate?.groupId, "");
+    const grouped = groupId.match(/^weibo:([A-Za-z0-9]{5,40})$/i)?.[1];
+    if (grouped) {
+      return grouped;
+    }
+    return weiboStatusIdFromUrl(candidate?.pageUrl)
+      || weiboStatusIdFromUrl(candidate?.url)
+      || weiboStatusIdFromUrl(mediaScanResult?.pageUrl);
+  }
+
+  function isWeiboGroupedCandidate(candidate) {
+    return candidate?.siteHint === "weibo"
+      && candidate?.source === "site_extractor"
+      && normalizeVariantList(candidate?.variants).length > 0;
+  }
+
+  function isCurrentWeiboDirectCandidate(candidate) {
+    return [
+      "current_page",
+      "video_element",
+      "source_element",
+      "direct_link",
+    ].includes(candidate?.source);
+  }
+
+  function areSameWeiboStatusCandidates(left, right) {
+    if (currentMediaType === "image" || !left || !right) {
+      return false;
+    }
+    if ((left.mediaType || currentMediaType) !== "video" || (right.mediaType || currentMediaType) !== "video") {
+      return false;
+    }
+    const leftGrouped = isWeiboGroupedCandidate(left);
+    const rightGrouped = isWeiboGroupedCandidate(right);
+    if (leftGrouped === rightGrouped) {
+      return false;
+    }
+    const directCandidate = leftGrouped ? right : left;
+    if (!isCurrentWeiboDirectCandidate(directCandidate)) {
+      return false;
+    }
+    const leftStatusId = candidateWeiboStatusId(left);
+    const rightStatusId = candidateWeiboStatusId(right);
+    return Boolean(leftStatusId && rightStatusId && leftStatusId === rightStatusId);
+  }
+
   function candidateGroupKey(candidate) {
     const explicit = safeText(candidate?.groupId, safeText(candidate?.canonicalId, ""));
     if (explicit) {
@@ -969,7 +1075,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return false;
     }
 
-    return arePageScopedMediaCandidates(left, right);
+    return arePageScopedMediaCandidates(left, right)
+      || areVariantLinkedCandidates(left, right)
+      || areSameWeiboStatusCandidates(left, right);
   }
 
   function preferPreviewCandidate(left, right) {

@@ -7,17 +7,25 @@
   const MAX_SCAN_NODES = 5000;
   const MAX_VARIANTS = 24;
   const MAX_RECURSION_DEPTH = 12;
+  const MAX_OBSERVED_RECORDS = 24;
+  const OBSERVED_RECORD_TTL_MS = 5 * 60 * 1000;
+  const PAGE_BRIDGE_MESSAGE_SOURCE = "ameow-weibo-page";
+  const PAGE_BRIDGE_EVENT_TYPE = "AMEOW_WEIBO_VIDEO_VARIANTS";
+  const VARIANT_CACHE_KEY = "__AMEOW_WEIBO_VARIANT_CACHE";
   const WEIBO_HOST_RE = /(?:^|\.)weibo\.(?:com|cn)$/i;
   const WEIBO_EXTRA_HOST_RE = /(?:^|\.)m\.weibo\.(?:com|cn)$|(?:^|\.)video\.weibo\.com$/i;
   const VIDEO_URL_RE = /https?:\\?\/\\?\/[^"'<>\\\s]+?\.(?:mp4|m3u8)(?:\?[^"'<>\\\s]*)?/gi;
 
   function normalizeHttpUrl(rawUrl, baseUrl) {
+    if (typeof rawUrl !== "string") {
+      return null;
+    }
+    if (!rawUrl.trim()) {
+      return null;
+    }
     const genericUtils = root.AmeowGenericVideoSelectionUtils;
     if (genericUtils?.normalizeHttpUrl) {
       return genericUtils.normalizeHttpUrl(rawUrl, baseUrl);
-    }
-    if (typeof rawUrl !== "string") {
-      return null;
     }
     try {
       const resolved = new URL(rawUrl.trim(), baseUrl || root.location?.href).toString();
@@ -166,6 +174,19 @@
     return "";
   }
 
+  function isStatusRecordBoundary(object) {
+    return Boolean(
+      object
+      && typeof object === "object"
+      && (
+        object.page_info
+        || object.pageInfo
+        || object.retweeted_status
+        || object.retweetedStatus
+      )
+    );
+  }
+
   function numberFromKeys(object, keys) {
     if (!object || typeof object !== "object") {
       return null;
@@ -209,6 +230,53 @@
     };
   }
 
+  function deriveVariantStatusId(object, ancestors) {
+    const scopes = [object, ...ancestors].filter((item) => item && typeof item === "object");
+    for (const scope of scopes) {
+      const fromUrl = [
+        scope.pageUrl,
+        scope.page_url,
+        scope.status_url,
+        scope.url,
+        scope.scheme,
+      ].map((candidate) => typeof candidate === "string" ? extractWeiboStatusId(candidate) : "").find(Boolean);
+      if (fromUrl) {
+        return fromUrl;
+      }
+      for (const key of ["mblogid", "mid", "idstr", "status_id", "statusId", "object_id", "id"]) {
+        const resolved = normalizeWeiboStatusId(scope[key]);
+        if (resolved) {
+          return resolved;
+        }
+      }
+
+      if (isStatusRecordBoundary(scope)) {
+        return null;
+      }
+    }
+    return "";
+  }
+
+  function deriveVariantPageUrl(object, ancestors) {
+    const scopes = [object, ...ancestors].filter((item) => item && typeof item === "object");
+    for (const scope of scopes) {
+      for (const key of ["pageUrl", "page_url", "status_url", "url", "scheme"]) {
+        if (typeof scope[key] !== "string") {
+          continue;
+        }
+        const resolved = canonicalWeiboPageUrl(scope[key]);
+        if (resolved && isWeiboPageUrl(resolved)) {
+          return resolved;
+        }
+      }
+
+      if (isStatusRecordBoundary(scope)) {
+        return null;
+      }
+    }
+    return "";
+  }
+
   function variantScore(variant) {
     return (
       (Number(variant.qualityIndex) || 0) * 1000000
@@ -246,7 +314,9 @@
       url,
       label,
       type,
-      source: "weibo_variant_parser",
+      source: typeof rawVariant.source === "string" && rawVariant.source.trim()
+        ? rawVariant.source.trim().slice(0, 40)
+        : "weibo_variant_parser",
       confidence: "high",
       mediaType: "video",
       ...(Number.isFinite(qualityIndex) && qualityIndex > 0 ? { qualityIndex: Math.round(qualityIndex) } : {}),
@@ -265,6 +335,14 @@
     if (!existing || variantScore(variant) > variantScore(existing)) {
       variantsByUrl.set(variant.url, variant);
     }
+  }
+
+  function mergeVariants(...variantLists) {
+    const variantsByUrl = new Map();
+    variantLists.flat().forEach((variant) => addVariant(variantsByUrl, variant));
+    return Array.from(variantsByUrl.values())
+      .sort((left, right) => variantScore(right) - variantScore(left))
+      .slice(0, MAX_VARIANTS);
   }
 
   function scanObjectForVariants(value, variantsByUrl, state, ancestors = [], depth = 0) {
@@ -291,6 +369,56 @@
         scanObjectForVariants(item, variantsByUrl, state, [value, ...ancestors].slice(0, 4), depth + 1);
       }
       void key;
+    });
+  }
+
+  function addVariantRecord(recordsByKey, rawVariant, object, ancestors) {
+    const variant = normalizeVariant(rawVariant);
+    if (!variant) {
+      return;
+    }
+    const statusId = deriveVariantStatusId(object, ancestors);
+    const pageUrl = deriveVariantPageUrl(object, ancestors);
+    const key = statusId || pageUrl;
+    if (!key) {
+      return;
+    }
+    const record = recordsByKey.get(key) || {
+      key,
+      statusId,
+      pageUrl,
+      variantsByUrl: new Map(),
+    };
+    const existing = record.variantsByUrl.get(variant.url);
+    if (!existing || variantScore(variant) > variantScore(existing)) {
+      record.variantsByUrl.set(variant.url, variant);
+    }
+    recordsByKey.set(key, record);
+  }
+
+  function scanObjectForVariantRecords(value, recordsByKey, state, ancestors = [], depth = 0) {
+    if (!value || typeof value !== "object" || depth > MAX_RECURSION_DEPTH || state.nodes > MAX_SCAN_NODES) {
+      return;
+    }
+    state.nodes += 1;
+    if (Array.isArray(value)) {
+      value.forEach((item) => scanObjectForVariantRecords(item, recordsByKey, state, ancestors, depth + 1));
+      return;
+    }
+    Object.entries(value).forEach(([, item]) => {
+      if (typeof item === "string") {
+        const cleaned = cleanEscapedUrl(item);
+        if (/^https?:\/\//i.test(cleaned) && /\.(?:mp4|m3u8)(?:[?#]|$)/i.test(cleaned)) {
+          addVariantRecord(recordsByKey, {
+            url: cleaned,
+            ...deriveVariantMetadata(value, ancestors, cleaned),
+          }, value, ancestors);
+        }
+        return;
+      }
+      if (item && typeof item === "object") {
+        scanObjectForVariantRecords(item, recordsByKey, state, [value, ...ancestors].slice(0, 6), depth + 1);
+      }
     });
   }
 
@@ -370,7 +498,45 @@
     }
   }
 
-  function parseDocumentVariants(documentRef) {
+  function documentVariantRecords(documentRef) {
+    const recordsByKey = new Map();
+    const scripts = Array.from(documentRef?.querySelectorAll?.("script") || []).slice(0, SCRIPT_SCAN_LIMIT);
+    scripts.forEach((script) => {
+      const text = String(script?.textContent || "");
+      collectJsonFragments(text).forEach((fragment) => {
+        try {
+          scanObjectForVariantRecords(JSON.parse(fragment), recordsByKey, { nodes: 0 });
+        } catch {
+          // Weibo embeds some script data as JavaScript, not strict JSON.
+        }
+      });
+    });
+    return Array.from(recordsByKey.values()).map((record) => ({
+      statusId: record.statusId,
+      pageUrl: record.pageUrl,
+      variants: Array.from(record.variantsByUrl.values())
+        .sort((left, right) => variantScore(right) - variantScore(left))
+        .slice(0, MAX_VARIANTS),
+    }));
+  }
+
+  function parseDocumentVariants(documentRef, pageUrl = "") {
+    const currentPageUrl = canonicalWeiboPageUrl(pageUrl);
+    const currentStatusId = extractWeiboStatusId(currentPageUrl || pageUrl);
+    if (currentStatusId || currentPageUrl) {
+      const matchingRecords = documentVariantRecords(documentRef).filter((record) => (
+        currentStatusId && record.statusId === currentStatusId
+      ) || (
+        currentPageUrl && record.pageUrl === currentPageUrl
+      ));
+      if (matchingRecords.length > 0) {
+        return mergeVariants(...matchingRecords.map((record) => record.variants));
+      }
+      if (currentStatusId) {
+        return [];
+      }
+    }
+
     const variantsByUrl = new Map();
     const scripts = Array.from(documentRef?.querySelectorAll?.("script") || []).slice(0, SCRIPT_SCAN_LIMIT);
     scripts.forEach((script) => {
@@ -389,13 +555,126 @@
       .slice(0, MAX_VARIANTS);
   }
 
+  function normalizeObservedRecord(rawRecord) {
+    if (!rawRecord || typeof rawRecord !== "object") {
+      return null;
+    }
+    const variants = Array.isArray(rawRecord.variants)
+      ? mergeVariants(rawRecord.variants.map((variant) => ({
+          ...variant,
+          source: variant?.source || "weibo_api_observer",
+        })))
+      : [];
+    if (variants.length === 0) {
+      return null;
+    }
+    const pageUrl = typeof rawRecord.pageUrl === "string"
+      ? canonicalWeiboPageUrl(rawRecord.pageUrl)
+      : "";
+    const statusId = normalizeWeiboStatusId(rawRecord.statusId)
+      || extractWeiboStatusId(pageUrl)
+      || "";
+    return {
+      groupKey: typeof rawRecord.groupKey === "string" ? rawRecord.groupKey.trim().slice(0, 160) : "",
+      statusId,
+      pageUrl,
+      variants,
+      updatedAtMs: Number.isFinite(Number(rawRecord.updatedAtMs)) ? Number(rawRecord.updatedAtMs) : Date.now(),
+    };
+  }
+
+  function getObservedVariantCache() {
+    const existing = root[VARIANT_CACHE_KEY];
+    if (existing && typeof existing === "object" && Array.isArray(existing.records)) {
+      return existing;
+    }
+    const created = { records: [] };
+    root[VARIANT_CACHE_KEY] = created;
+    return created;
+  }
+
+  function upsertObservedVariantRecords(rawRecords) {
+    if (!Array.isArray(rawRecords) || rawRecords.length === 0) {
+      return [];
+    }
+    const cache = getObservedVariantCache();
+    const byKey = new Map();
+    const now = Date.now();
+    cache.records
+      .map(normalizeObservedRecord)
+      .filter((record) => record && now - Number(record.updatedAtMs || 0) <= OBSERVED_RECORD_TTL_MS)
+      .forEach((record) => {
+        const key = record.statusId || record.pageUrl || record.groupKey;
+        if (key) {
+          byKey.set(key, record);
+        }
+      });
+    rawRecords.map(normalizeObservedRecord).filter(Boolean).forEach((record) => {
+      const key = record.statusId || record.pageUrl || record.groupKey || record.variants.map((variant) => variant.url).join("|");
+      const existing = byKey.get(key);
+      const canMerge = Boolean(existing && (record.statusId || record.pageUrl));
+      byKey.set(key, canMerge
+        ? {
+            ...existing,
+            ...record,
+            variants: mergeVariants(existing.variants, record.variants),
+            updatedAtMs: now,
+          }
+        : {
+            ...record,
+            updatedAtMs: now,
+          });
+    });
+    cache.records = Array.from(byKey.values())
+      .sort((left, right) => Number(right.updatedAtMs || 0) - Number(left.updatedAtMs || 0))
+      .slice(0, MAX_OBSERVED_RECORDS);
+    return cache.records;
+  }
+
+  function observedRecordsForPage(pageUrl) {
+    const cache = getObservedVariantCache();
+    const now = Date.now();
+    const canonicalPageUrl = canonicalWeiboPageUrl(pageUrl);
+    const statusId = extractWeiboStatusId(canonicalPageUrl || pageUrl);
+    const normalizedRecords = cache.records
+      .map(normalizeObservedRecord)
+      .filter((record) => record && now - Number(record.updatedAtMs || 0) <= OBSERVED_RECORD_TTL_MS);
+    return normalizedRecords.filter((record) => (
+      statusId && record.statusId === statusId
+    ) || (
+      canonicalPageUrl && record.pageUrl === canonicalPageUrl
+    ));
+  }
+
+  function parseObservedVariants(pageUrl) {
+    return mergeVariants(...observedRecordsForPage(pageUrl).map((record) => record.variants));
+  }
+
+  function handlePageBridgeMessage(event) {
+    if (event.source !== root) {
+      return;
+    }
+    const data = event.data;
+    if (
+      !data
+      || data.source !== PAGE_BRIDGE_MESSAGE_SOURCE
+      || data.type !== PAGE_BRIDGE_EVENT_TYPE
+    ) {
+      return;
+    }
+    upsertObservedVariantRecords(data.records);
+  }
+
   function buildWeiboCandidates(options = {}) {
     const documentRef = options.document || root.document;
     const pageUrl = canonicalWeiboPageUrl(options.pageUrl || root.location?.href);
     if (!isWeiboPageUrl(pageUrl || options.pageUrl || root.location?.href)) {
       return [];
     }
-    const variants = parseDocumentVariants(documentRef);
+    const variants = mergeVariants(
+      parseDocumentVariants(documentRef, pageUrl || options.pageUrl || root.location?.href),
+      parseObservedVariants(pageUrl || options.pageUrl || root.location?.href),
+    );
     if (variants.length === 0) {
       return [];
     }
@@ -435,10 +714,24 @@
   root.AmeowWeiboVariantParserTestHooks = {
     buildWeiboCandidates,
     canonicalWeiboPageUrl,
+    clearObservedVariantCache() {
+      root[VARIANT_CACHE_KEY] = { records: [] };
+    },
     collectJsonFragments,
     extractWeiboStatusId,
+    getObservedVariantRecords() {
+      return getObservedVariantCache().records;
+    },
     isWeiboPageUrl,
+    mergeVariants,
     parseDocumentVariants,
+    documentVariantRecords,
+    parseObservedVariants,
+    upsertObservedVariantRecords,
     variantScore,
   };
+
+  if (typeof root.addEventListener === "function") {
+    root.addEventListener("message", handlePageBridgeMessage, true);
+  }
 })(typeof window !== "undefined" ? window : globalThis);

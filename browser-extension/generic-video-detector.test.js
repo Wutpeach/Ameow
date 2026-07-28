@@ -166,6 +166,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     messageListener,
     TestAudioElement,
     TestVideoElement,
+    window: context.window,
   };
 }
 
@@ -347,12 +348,15 @@ describe("generic video detector", () => {
           if (selector === "script") {
             return [{
               textContent: `window.__WEIBO_DETAIL__ = {
-                "page_info": {
-                  "media_info": {
-                    "playback_list": [
-                      { "play_info": { "url": "https://f.video.weibocdn.com/current-720.mp4", "quality_index": 720, "label": "720p" } },
-                      { "play_info": { "url": "https://f.video.weibocdn.com/best-1080.mp4", "quality_index": 1080, "label": "1080p" } }
-                    ]
+                "status": {
+                  "id": "N12345",
+                  "page_info": {
+                    "media_info": {
+                      "playback_list": [
+                        { "play_info": { "url": "https://f.video.weibocdn.com/current-720.mp4", "quality_index": 720, "label": "720p" } },
+                        { "play_info": { "url": "https://f.video.weibocdn.com/best-1080.mp4", "quality_index": 1080, "label": "1080p" } }
+                      ]
+                    }
                   }
                 }
               };`,
@@ -374,6 +378,54 @@ describe("generic video detector", () => {
       preferredVariantLabel: "1080p",
     });
     expect(result.videos[0].variants.map((variant) => variant.label)).toEqual(["1080p", "720p"]);
+  });
+
+  it("adds observed Weibo API variants to popup media scans when DOM scripts have no variants", () => {
+    const { hooks, window } = loadDetectorHooks("https://weibo.com/detail/N12345", {
+      document: {
+        addEventListener() {},
+        querySelector(selector) {
+          if (selector === 'meta[property="og:title"]') {
+            return {
+              getAttribute(name) {
+                return name === "content" ? "Weibo API video_微博" : null;
+              },
+            };
+          }
+          return null;
+        },
+        querySelectorAll() {
+          return [];
+        },
+        title: "Weibo API video",
+      },
+    });
+
+    window.AmeowWeiboVariantParserTestHooks.upsertObservedVariantRecords([
+      {
+        statusId: "N12345",
+        pageUrl: "https://weibo.com/detail/N12345",
+        variants: [
+          { url: "https://f.video.weibocdn.com/observed-720.mp4", qualityIndex: 720, label: "720p" },
+          { url: "https://f.video.weibocdn.com/observed-1080.mp4", qualityIndex: 1080, label: "1080p" },
+        ],
+      },
+    ]);
+
+    const result = hooks.collectPageMediaCandidates();
+
+    expect(result.videos[0]).toMatchObject({
+      source: "site_extractor",
+      type: "weibo_variants",
+      siteHint: "weibo",
+      preferredVariantUrl: "https://f.video.weibocdn.com/observed-1080.mp4",
+      preferredVariantLabel: "1080p",
+    });
+    expect(result.videos[0].variants.map((variant) => variant.label)).toEqual(["1080p", "720p"]);
+    expect(result.videos[0].variants.map((variant) => variant.source)).toEqual([
+      "weibo_api_observer",
+      "weibo_api_observer",
+    ]);
   });
 
   it("adds nearby title and cover metadata to popup video candidates", () => {

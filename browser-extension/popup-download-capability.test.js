@@ -96,6 +96,36 @@ describe("browser extension popup download capability UI", () => {
     expect(backgroundJs).toContain("downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)");
   });
 
+  it("renders a row-level quality selector for grouped video variants", () => {
+    expect(popupJs).toContain("function createVariantSelector(candidate, row)");
+    expect(popupJs).toContain("const variants = normalizeVariantList(candidate?.variants)");
+    expect(popupJs).toContain("if (variants.length <= 1)");
+    expect(popupJs).toContain("document.createElement(\"select\")");
+    expect(popupJs).toContain("selector.className = \"ameow-variant-select\"");
+    expect(popupJs).toContain("candidate.selectedVideoVariant = nextVariant");
+    expect(popupJs).toContain("candidate.preferredVariantUrl = nextVariant.url");
+    expect(popupCss).toContain(".ameow-variant-select");
+  });
+
+  it("merges direct media rows with grouped variant rows when the direct URL is a variant", () => {
+    expect(popupJs).toContain("function areVariantLinkedCandidates(left, right)");
+    expect(popupJs).toContain("const leftVariants = variantUrlSet(left)");
+    expect(popupJs).toContain("const rightVariants = variantUrlSet(right)");
+    expect(popupJs).toContain("rightVariants.has(leftUrl)");
+    expect(popupJs).toContain("leftVariants.has(rightUrl)");
+    expect(popupJs).toContain("return arePageScopedMediaCandidates(left, right)");
+    expect(popupJs).toContain("|| areVariantLinkedCandidates(left, right)");
+  });
+
+  it("merges Weibo direct player rows with grouped desktop variant rows for the same status id", () => {
+    expect(popupJs).toContain("function areSameWeiboStatusCandidates(left, right)");
+    expect(popupJs).toContain("function candidateWeiboStatusId(candidate)");
+    expect(popupJs).toContain("weiboStatusIdFromUrl(mediaScanResult?.pageUrl)");
+    expect(popupJs).toContain("isWeiboGroupedCandidate(left)");
+    expect(popupJs).toContain("isCurrentWeiboDirectCandidate(directCandidate)");
+    expect(popupJs).toContain("|| areSameWeiboStatusCandidates(left, right)");
+  });
+
   it("tracks browser download lifecycle without building a popup download manager", () => {
     expect(backgroundJs).toContain("browser-download-lifecycle.js");
     expect(backgroundJs).toContain("createBrowserDownloadTracker");

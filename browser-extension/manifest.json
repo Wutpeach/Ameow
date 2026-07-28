@@ -24,6 +24,7 @@
         "injected-cat-icon.svg",
         "locales/*/*.json",
         "protected-image-page-bridge.js",
+        "weibo-page-bridge.js",
         "xiaohongshu-page-bridge.js"
       ],
       "matches": [
@@ -40,6 +41,19 @@
     }
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://weibo.com/*",
+        "https://*.weibo.com/*",
+        "https://weibo.cn/*",
+        "https://*.weibo.cn/*"
+      ],
+      "js": [
+        "weibo-page-bridge-injector.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "<all_urls>"
