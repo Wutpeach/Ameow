@@ -4,16 +4,18 @@
 Task Management Script.
 
 Usage:
-    python task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>] [--package <pkg>]
+    python task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>] [--package <pkg>] [--no-start]
     python task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
     python task.py validate <dir>              # Validate jsonl files
+    python task.py audit-context               # Audit spec/research document sizes
     python task.py list-context <dir>          # List jsonl entries
     python task.py start <dir>                 # Set active task
-    python task.py current [--source]          # Show active task
+    python task.py current [--source] [--json] # Show active task
     python task.py finish                      # Clear active task
     python task.py set-branch <dir> <branch>   # Set git branch
     python task.py set-base-branch <dir> <branch>  # Set PR target branch
     python task.py set-scope <dir> <scope>     # Set scope for PR title
+    python task.py set-meta <dir> <key> <value>  # Set a task metadata key
     python task.py archive <task-dir>          # Archive completed task
     python task.py list                        # List active tasks
     python task.py list-archive [month]        # List archived tasks
@@ -24,6 +26,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from common.log import Colors, colored
@@ -53,13 +56,16 @@ from common.task_store import (
     cmd_set_branch,
     cmd_set_base_branch,
     cmd_set_scope,
+    cmd_set_meta,
     cmd_add_subtask,
     cmd_remove_subtask,
 )
 from common.task_context import (
     cmd_add_context,
+    cmd_audit_context,
     cmd_validate,
     cmd_list_context,
+    validate_task_context,
 )
 
 
@@ -91,6 +97,14 @@ def cmd_start(args: argparse.Namespace) -> int:
         task_dir = str(full_path)
 
     task_json_path = full_path / FILE_TASK_JSON
+
+    context_errors = validate_task_context(repo_root, full_path)
+    if context_errors:
+        print(colored(
+            f"Error: Context validation failed ({context_errors} errors); task not started",
+            Colors.RED,
+        ))
+        return 1
 
     if not resolve_context_key():
         # Degraded mode: no session identity available.
@@ -166,6 +180,27 @@ def cmd_current(args: argparse.Namespace) -> int:
     repo_root = get_repo_root()
     active = resolve_active_task(repo_root)
 
+    if getattr(args, "json", False):
+        task_obj = None
+        if active.task_path:
+            data = read_json(repo_root / active.task_path / FILE_TASK_JSON) or {}
+            task_obj = {
+                "dir": active.task_path,
+                "id": data.get("id") or data.get("name"),
+                "title": data.get("title"),
+                "status": data.get("status"),
+                "parent": data.get("parent"),
+                "children": data.get("children", []),
+                "branch": data.get("branch"),
+                "base_branch": data.get("base_branch"),
+            }
+        print(json.dumps({
+            "current_task": task_obj,
+            "source": active.source,
+            "stale": active.stale,
+        }, ensure_ascii=False))
+        return 0 if active.task_path else 1
+
     if args.source:
         print(f"Current task: {active.task_path or '(none)'}")
         print(f"Source: {active.source}")
@@ -184,6 +219,24 @@ def cmd_current(args: argparse.Namespace) -> int:
 # Command: list
 # =============================================================================
 
+def _display_status(t, all_statuses: dict) -> str:
+    """Return the status label to show for a task in `list` output.
+
+    A parent task's stored status stays "planning" until someone runs
+    `task.py start` on the parent directly, even while its children are
+    actively being worked — a misleading label for anyone scanning the
+    list (#399 item 3). Show "active" instead when at least one child is
+    past planning; the stored status.json value is left untouched.
+    """
+    if t.status == "planning" and t.children:
+        child_in_flight = any(
+            all_statuses.get(c) not in (None, "planning") for c in t.children
+        )
+        if child_in_flight:
+            return "active"
+    return t.status
+
+
 def cmd_list(args: argparse.Namespace) -> int:
     """List active tasks."""
     repo_root = get_repo_root()
@@ -192,6 +245,38 @@ def cmd_list(args: argparse.Namespace) -> int:
     developer = get_developer(repo_root)
     filter_mine = args.mine
     filter_status = args.status
+    as_json = getattr(args, "json", False)
+
+    # Single pass: collect all tasks via shared iterator
+    all_tasks = {t.dir_name: t for t in iter_active_tasks(tasks_dir)}
+    all_statuses = {name: t.status for name, t in all_tasks.items()}
+
+    if as_json:
+        if filter_mine and not developer:
+            print(json.dumps({"error": "No developer set"}), file=sys.stderr)
+            return 1
+
+        items = []
+        for dir_name in sorted(all_tasks.keys()):
+            t = all_tasks[dir_name]
+            if filter_mine and (t.assignee or "-") != developer:
+                continue
+            if filter_status and t.status != filter_status:
+                continue
+            items.append({
+                "dir": f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}",
+                "id": t.raw.get("id") or dir_name,
+                "title": t.title,
+                "status": t.status,
+                "display_status": _display_status(t, all_statuses),
+                "priority": t.priority,
+                "assignee": t.assignee or None,
+                "parent": t.parent,
+                "children": list(t.children),
+                "package": t.package,
+            })
+        print(json.dumps({"tasks": items}, ensure_ascii=False))
+        return 0
 
     if filter_mine:
         if not developer:
@@ -201,10 +286,6 @@ def cmd_list(args: argparse.Namespace) -> int:
     else:
         print(colored("All active tasks:", Colors.BLUE))
     print()
-
-    # Single pass: collect all tasks via shared iterator
-    all_tasks = {t.dir_name: t for t in iter_active_tasks(tasks_dir)}
-    all_statuses = {name: t.status for name, t in all_tasks.items()}
 
     # Display tasks hierarchically
     count = 0
@@ -228,6 +309,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
         # Children progress
         progress = children_progress(t.children, all_statuses)
+        status_label = _display_status(t, all_statuses)
 
         # Package tag
         pkg_tag = f" @{t.package}" if t.package else ""
@@ -235,9 +317,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         prefix = "  " * indent + "  - "
 
         if filter_mine:
-            print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress}{marker}")
+            print(f"{prefix}{dir_name}/ ({status_label}){pkg_tag}{progress}{marker}")
         else:
-            print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress} [{colored(t.assignee or '-', Colors.CYAN)}]{marker}")
+            print(f"{prefix}{dir_name}/ ({status_label}){pkg_tag}{progress} [{colored(t.assignee or '-', Colors.CYAN)}]{marker}")
         count += 1
 
         # Print children indented
@@ -245,9 +327,12 @@ def cmd_list(args: argparse.Namespace) -> int:
             if child_name in all_tasks:
                 _print_task(child_name, indent + 1)
 
-    # Display only top-level tasks (those without a parent)
+    # Display only top-level tasks: those without a parent, plus orphans
+    # whose recorded parent is not (or no longer) in the active set — a
+    # dangling parent ref must still render flat instead of disappearing.
     for dir_name in sorted(all_tasks.keys()):
-        if not all_tasks[dir_name].parent:
+        parent = all_tasks[dir_name].parent
+        if not parent or parent not in all_tasks:
             _print_task(dir_name)
 
     if count == 0:
@@ -307,8 +392,10 @@ Usage:
   python task.py create <title>                     Create new task directory
   python task.py create <title> --package <pkg>     Create task for a specific package
   python task.py create <title> --parent <dir>      Create task as child of parent
+  python task.py create <title> --no-start          Create without making it active in this session
   python task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python task.py validate <dir>                     Validate jsonl files
+  python task.py audit-context                      Audit spec/research document sizes
   python task.py list-context <dir>                 List jsonl entries
   python task.py start <dir>                        Set active task
   python task.py current [--source]                 Show active task
@@ -316,10 +403,11 @@ Usage:
   python task.py set-branch <dir> <branch>          Set git branch
   python task.py set-base-branch <dir> <branch>     Set PR target branch
   python task.py set-scope <dir> <scope>            Set scope for PR title
+  python task.py set-meta <dir> <key> <value>       Set/overwrite a task metadata key
   python task.py archive <task-dir>                 Archive completed task
   python task.py add-subtask <parent> <child>       Link child task to parent
   python task.py remove-subtask <parent> <child>    Unlink child from parent
-  python task.py list [--mine] [--status <status>]  List tasks
+  python task.py list [--mine] [--status <status>] [--json]  List tasks
   python task.py list-archive [YYYY-MM]             List archived tasks
 
 Monorepo options:
@@ -328,10 +416,12 @@ Monorepo options:
 List options:
   --mine, -m           Show only tasks assigned to current developer
   --status, -s <s>     Filter by status (planning, in_progress, review, completed)
+  --json               Output machine-readable JSON (also available on `current`)
 
 Examples:
   python task.py create "Add login feature" --slug add-login
   python task.py create "Add login feature" --slug add-login --package cli
+  python task.py create "Add login feature" --meta linear=ENG-123 --meta epic=auth
   python task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
   python task.py add-context <dir> implement .trellis/spec/cli/backend/auth.md "Auth guidelines"
   python task.py set-branch <dir> task/add-login
@@ -392,12 +482,26 @@ def main() -> int:
     # create
     p_create = subparsers.add_parser("create", help="Create new task")
     p_create.add_argument("title", help="Task title")
-    p_create.add_argument("--slug", "-s", help="Task slug")
+    p_create.add_argument("--slug", "-s", help="Task slug without the MM-DD date prefix")
     p_create.add_argument("--assignee", "-a", help="Assignee developer")
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
     p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
     p_create.add_argument("--package", help="Package name for monorepo projects")
+    p_create.add_argument(
+        "--base-branch",
+        help="PR target branch (overrides origin/HEAD detection and the checked-out-branch fallback)",
+    )
+    p_create.add_argument(
+        "--meta",
+        action="append",
+        help="Task metadata key=value (repeatable)",
+    )
+    p_create.add_argument(
+        "--no-start",
+        action="store_true",
+        help="Create the task without making it active in this session",
+    )
 
     # add-context
     p_add = subparsers.add_parser("add-context", help="Add context entry")
@@ -409,6 +513,9 @@ def main() -> int:
     # validate
     p_validate = subparsers.add_parser("validate", help="Validate context files")
     p_validate.add_argument("dir", help="Task directory")
+
+    # audit-context
+    subparsers.add_parser("audit-context", help="Audit spec/research document sizes")
 
     # list-context
     p_listctx = subparsers.add_parser("list-context", help="List context entries")
@@ -422,6 +529,8 @@ def main() -> int:
     p_current = subparsers.add_parser("current", help="Show active task")
     p_current.add_argument("--source", action="store_true",
                            help="Show active task source")
+    p_current.add_argument("--json", action="store_true",
+                           help="Output machine-readable JSON")
 
     # finish
     subparsers.add_parser("finish", help="Clear active task")
@@ -441,6 +550,12 @@ def main() -> int:
     p_scope.add_argument("dir", help="Task directory")
     p_scope.add_argument("scope", help="Scope name")
 
+    # set-meta
+    p_setmeta = subparsers.add_parser("set-meta", help="Set/overwrite a task metadata key")
+    p_setmeta.add_argument("dir", help="Task directory")
+    p_setmeta.add_argument("key", help="Metadata key")
+    p_setmeta.add_argument("value", help="Metadata value")
+
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task directory or name")
@@ -450,6 +565,7 @@ def main() -> int:
     p_list = subparsers.add_parser("list", help="List tasks")
     p_list.add_argument("--mine", "-m", action="store_true", help="My tasks only")
     p_list.add_argument("--status", "-s", help="Filter by status")
+    p_list.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     # add-subtask
     p_addsub = subparsers.add_parser("add-subtask", help="Link child task to parent")
@@ -475,6 +591,7 @@ def main() -> int:
         "create": cmd_create,
         "add-context": cmd_add_context,
         "validate": cmd_validate,
+        "audit-context": cmd_audit_context,
         "list-context": cmd_list_context,
         "start": cmd_start,
         "current": cmd_current,
@@ -482,6 +599,7 @@ def main() -> int:
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,
+        "set-meta": cmd_set_meta,
         "archive": cmd_archive,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,
