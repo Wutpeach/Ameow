@@ -27,12 +27,12 @@ FlowSelect desktop runtime is Electron-first. It handles file operations, video 
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | Done |
-| [Type Safety](./type-safety.md) | Desktop command and event type contracts | Done |
-| [Electron Runtime Contracts](./electron-runtime-contracts.md) | Preload, window, extension transport, config, and packaging boundaries | Done |
+| [Type Safety](./type-safety/index.md) | Layered desktop command and event type contracts | Done |
+| [Electron Runtime Contracts](./electron-runtime-contracts/index.md) | Layered preload, window, extension transport, config, and packaging boundaries | Done |
 | [Error Handling](./error-handling.md) | Result types, error propagation | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Done |
 | [Logging Guidelines](./logging-guidelines.md) | Log format, `>>>` prefix convention | Done |
-| [Sidecar Runtime Contracts](./sidecar-runtime-contracts.md) | Cross-platform sidecar executable/resource contracts | Done |
+| [Sidecar Runtime Contracts](./sidecar-runtime-contracts/index.md) | Layered cross-platform sidecar executable/resource contracts | Done |
 | [Direct Download Onboarding Contracts](./direct-download-onboarding-contracts.md) | Cross-layer contract/template for adding new direct-download sites | Done |
 | [Database Guidelines](./database-guidelines.md) | N/A - uses JSON config files | N/A |
 

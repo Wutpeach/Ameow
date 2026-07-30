@@ -36,7 +36,7 @@ FlowSelect is an Electron desktop application with a React frontend. The UI is a
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, Electron bridge event patterns | Done |
 | [State Management](./state-management.md) | Local state, ThemeContext, config flow | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | Done |
-| [Type Safety](./type-safety.md) | Type patterns, validation | Done |
+| [Type Safety](./type-safety/index.md) | Layered type patterns and validation contracts | Done |
 | [Docs Site Contract](./docs-site.md) | Single-repo public docs-site ownership, i18n, deploy, and validation contract | Done |
 
 ---
