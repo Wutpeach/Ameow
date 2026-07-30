@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 236
-- **Last Active**: 2026-07-28
+- **Total Sessions**: 237
+- **Last Active**: 2026-07-30
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1348 | Active |
+| `journal-5.md` | ~1370 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 237 | 2026-07-30 | 约束 Trellis 上下文文档体积 | `08e62e0`, `d6cdc42` | `main` |
 | 236 | 2026-07-28 | Weibo variant quality selection | `2c18e88`, `476b990` | `main` |
 | 235 | 2026-07-28 | Update gallery-dl for Weibo video quality | `8f5505a` | `main` |
 | 234 | 2026-07-22 | User-facing error diagnostics copy | `914b552` | `main` |

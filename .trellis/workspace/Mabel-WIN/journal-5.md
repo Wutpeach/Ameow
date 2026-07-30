@@ -1346,3 +1346,25 @@ Added extension-side Weibo page-local variant parsing, grouped popup quality sel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 237: 约束 Trellis 上下文文档体积
+
+**Date**: 2026-07-30
+**Task**: 约束 Trellis 上下文文档体积
+**Branch**: `main`
+
+### Summary
+
+新增叶文档与路径门禁、上下文审计和 Hook 防御，拆分四个超限 spec，并完成测试、lint、type-check 与独立复核。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08e62e0` | (see git log) |
+| `d6cdc42` | (see git log) |
+
+### Status
+
+[OK] **Completed**
