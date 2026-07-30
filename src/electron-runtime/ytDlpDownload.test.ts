@@ -136,6 +136,59 @@ describe("runYtDlpDownload", () => {
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "trace-yt-title.txt"));
   });
 
+  it("retries Bilibili yt-dlp once after a transient SSL EOF webpage failure", async () => {
+    readdirMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["Bilibili Video.mp4.part", "Bilibili Video.mp4.ytdl"]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Bilibili Video"
+        : path.join("D:/downloads", "Bilibili Video.mp4")
+    ));
+    runStreamingCommandMock
+      .mockImplementationOnce(async (_command, _args, options) => {
+        await options?.onStderrLine?.(
+          "ERROR: [BiliBili] 1QCMjziEpq: Unable to download webpage: "
+          + "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol "
+          + "(_ssl.c:1016) (caused by SSLError('[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1016)'))",
+        );
+        return 1;
+      })
+      .mockResolvedValueOnce(0);
+
+    const context = {
+      traceId: "trace-bilibili-ssl-eof",
+      outputDir: "D:/downloads",
+      outputStem: "Bilibili Video",
+      config: {},
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.bilibili.com/video/BV1QCMjziEpq/",
+      },
+      intent: {
+        originalUrl: "https://www.bilibili.com/video/BV1QCMjziEpq/",
+        pageUrl: "https://www.bilibili.com/video/BV1QCMjziEpq/",
+        selectionScope: "current_item",
+        siteId: "bilibili",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "Bilibili Video.mp4"),
+    });
+    expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
+    expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "Bilibili Video.mp4.part"));
+    expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "Bilibili Video.mp4.ytdl"));
+  });
+
   it("emits an early downloading activity while yt-dlp is still resolving media", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (

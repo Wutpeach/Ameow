@@ -90,6 +90,8 @@
   - On Windows, internal CLI launches for ffmpeg/ffprobe probes and post-processing must use hidden-window process flags so AE-friendly normalization does not flash a transient console window.
   - Failure/cancel paths must remove captured yt-dlp split-stream artifacts such as `*.f30112.mp4` and `*.f30280.m4a`.
   - If the main yt-dlp route fails with `HTTP Error 416` / `Requested Range Not Satisfiable`, runtime must clean stale resume artifacts and retry exactly once with `--no-continue --no-part`.
+  - If the initial yt-dlp extraction fails with a clearly transient TLS/SSL/connection failure such as `UNEXPECTED_EOF_WHILE_READING`, `SSLError`, `EOF occurred in violation of protocol`, connection reset, or read timeout, runtime must clean task artifacts and retry the same yt-dlp plan exactly once.
+  - Transient yt-dlp network retry must not apply after cancellation and must not mask terminal availability errors such as private/unavailable videos, login/auth failures, region restrictions, or HTTP 403/404/412/416/429 responses.
 - Runtime contract for `deno` managed runtime:
   - `deno` is no longer bundled as a packaged Tauri resource or portable helper binary.
   - Runtime must bootstrap `deno` into `app_config_dir/runtimes/deno/<target>/deno(.exe)` from a pinned upstream asset when missing.
@@ -149,6 +151,7 @@
 | extension cookie temp file is created relative to `process.cwd()` in a packaged macOS app | app-managed YouTube download startup | writing `<trace>-cookies.txt` fails with `EROFS` before yt-dlp starts | write cookie temp files under `tmpdir()` and clean them up after the run |
 | Windows ffmpeg/ffprobe launches use default console flags | AE-friendly post-processing runtime | transient black console window appears during normalization/probing | apply hidden-window flags on Windows CLI child launches |
 | stale `.part` / `.ytdl` resume state exists | packaged Bilibili/generic yt-dlp download runtime | retry can fail with HTTP 416 on one machine but not another | clean temp artifacts and retry once without resume support |
+| Bilibili/generic yt-dlp extraction hits transient TLS EOF / `SSLError` before producing output | packaged Bilibili/generic yt-dlp download runtime | one transient network blip does not become a terminal user-visible failure | clean task artifacts and retry the same yt-dlp plan once |
 
 ### 5. Good / Base / Bad Cases
 
@@ -161,6 +164,7 @@
   - A clean config directory bootstraps `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/`, and Windows packaged builds can merge yt-dlp split streams without any system-installed ffmpeg.
   - The same managed yt-dlp runtime behaves identically on two Windows machines even if one host has custom yt-dlp config files installed.
   - A prior interrupted Bilibili `highest` download recovers automatically on the next attempt instead of surfacing raw HTTP 416 to the user.
+  - A Bilibili extraction that fails once with `[SSL: UNEXPECTED_EOF_WHILE_READING]` retries once and succeeds without changing the user's selected quality.
 - Base:
   - `yt-dlp` route works for generic platforms while direct path handles Douyin/Xiaohongshu CDN URLs.
 - Bad:
@@ -190,6 +194,7 @@
   - On a clean config directory without managed runtimes, startup or first yt-dlp JS-runtime use bootstraps `deno` into `app_config_dir/runtimes/deno/<target>/`.
   - On a clean config directory without managed runtimes, startup or first media-tool use bootstraps `ffmpeg` into `app_config_dir/runtimes/ffmpeg/<target>/` with both `ffmpeg` and `ffprobe`.
   - On a Windows portable package without external tooling installed, a merged yt-dlp download produces a single final file and no `.f*` residue.
+  - A mocked Bilibili yt-dlp run that first emits `UNEXPECTED_EOF_WHILE_READING` and exits non-zero is retried once with the same format profile after task artifact cleanup.
   - On Windows, a `highest` download path that triggers extra yt-dlp probe/retry work still completes without transient console windows.
   - Trigger a public injected YouTube download with no cookies and assert the first yt-dlp attempt includes `youtube:player_js_variant=tv` and `--remote-components ejs:github`.
   - Pass legacy YouTube extension mode hint fields through queue normalization and assert they are ignored rather than preserved as active runtime hints.

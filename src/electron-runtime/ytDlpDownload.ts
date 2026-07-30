@@ -55,9 +55,19 @@ class YtDlpAttemptError extends Error {
 }
 
 type YtDlpAttemptDescriptor = {
-  label: "primary" | "section_format_retry";
+  label: "primary" | "section_format_retry" | "transient_network_retry";
   formatProfile: YtdlpFormatProfile;
 };
+
+const TRANSIENT_YTDLP_NETWORK_PATTERNS = [
+  /\bUNEXPECTED_EOF_WHILE_READING\b/i,
+  /\bEOF occurred in violation of protocol\b/i,
+  /\bSSLError\b/i,
+  /\bTLSV1_ALERT/i,
+  /\bConnection (?:closed|reset|aborted|timed out)\b/i,
+  /\bRemote end closed connection\b/i,
+  /\bThe read operation timed out\b/i,
+];
 
 const isYtDlpPostProcessingLine = (line: string): boolean => {
   const normalized = line.toLowerCase();
@@ -134,6 +144,18 @@ const shouldRetryYouTubeSectionWithConservativeFormat = (
   && commandPlan.clipRange !== null
   && !signal.aborted
   && !hasTerminalYtDlpAvailabilityFailure(error.stderrLines)
+);
+
+const shouldRetryTransientYtDlpNetworkFailure = (
+  error: unknown,
+  signal: AbortSignal,
+): error is YtDlpAttemptError => (
+  error instanceof YtDlpAttemptError
+  && !signal.aborted
+  && !hasTerminalYtDlpAvailabilityFailure(error.stderrLines)
+  && error.stderrLines.some((line) => (
+    TRANSIENT_YTDLP_NETWORK_PATTERNS.some((pattern) => pattern.test(line))
+  ))
 );
 
 export const runYtDlpDownload = async (
@@ -397,6 +419,22 @@ export const runYtDlpDownload = async (
         formatProfile: commandPlan.formatProfile,
       });
     } catch (error) {
+      if (shouldRetryTransientYtDlpNetworkFailure(error, context.abortSignal)) {
+        logYtDlpTiming("transient network retry", {
+          traceId: context.traceId,
+          elapsedMs: formatElapsedMs(taskStartedAtMs),
+          previousError: summarizeError(error),
+        });
+        await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
+        if (context.abortSignal.aborted) {
+          throw new Error("Download cancelled");
+        }
+        return await runAttempt({
+          label: "transient_network_retry",
+          formatProfile: commandPlan.formatProfile,
+        });
+      }
+
       const retryFormatProfile = resolveYtdlpSectionRetryFormatProfile(
         context.intent.videoQuality,
         { isYouTube: commandPlan.isYouTube, siteId: context.intent.siteId },
