@@ -155,12 +155,8 @@ import {
   getClipboardFilePaths as readClipboardFilePaths,
   processFiles as processIncomingFiles,
 } from "./fileIntake.mjs";
-import {
-  buildCliProxyDiagnosticFromElectronProxyRules,
-  buildCliProxyDiagnosticFromEnvironment,
-  buildProxyResolutionFailedDiagnostic,
-  buildSkippedNonYtdlpProxyDiagnostic,
-} from "../src/config/cliProxy.js";
+import { createNetworkRouteService } from "../src/electron-runtime/networkRouteService.js";
+import { redactNetworkCredentials, toNetworkDiagnosticSnapshot } from "../src/config/networkRoute.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -990,74 +986,44 @@ function getNetworkProxyPolicyController() {
   return networkProxyPolicyController;
 }
 
-function summarizeCliProxyDiagnostic(diagnostic) {
-  return JSON.stringify({
-    kind: diagnostic.kind,
-    source: diagnostic.source,
-    targetHost: diagnostic.targetHost,
-    proxyScheme: diagnostic.proxyScheme,
-    proxyHost: diagnostic.proxyHost,
-    proxyPort: diagnostic.proxyPort,
-    reason: diagnostic.reason,
+// One shared NetworkRouteService per process: manual > URL-specific system
+// (proxy or explicit DIRECT) > target-resolved environment (only when system
+// is unavailable) > direct fallback. Engine consumers never read the system
+// proxy or ambient proxy variables themselves.
+let desktopNetworkRouteService = null;
+
+function getDesktopNetworkRouteService() {
+  if (desktopNetworkRouteService) {
+    return desktopNetworkRouteService;
+  }
+  desktopNetworkRouteService = createNetworkRouteService({
+    getEffectiveManualProxyUrl() {
+      return getNetworkProxyPolicyController().resolveProxyUrl();
+    },
+    async resolveSystemProxyRules(targetUrl) {
+      const activeSession = getDesktopNetworkSession();
+      if (activeSession?.resolveProxy) {
+        return await activeSession.resolveProxy(targetUrl);
+      }
+      return null;
+    },
+    getEnvironment() {
+      return process.env;
+    },
   });
+  return desktopNetworkRouteService;
 }
 
-async function logCliProxyDiagnosticsForTarget({ targetUrl, engineId }) {
-  const effectivePolicy = getNetworkProxyPolicyController().getEffectivePolicy();
-  if (effectivePolicy.mode === "manual") {
-    const proxy = new URL(effectivePolicy.proxyUrl);
-    let targetHost = null;
-    try {
-      targetHost = new URL(targetUrl).host || null;
-    } catch {
-      targetHost = null;
-    }
-    logInfo(
-      "ElectronRuntime",
-      `Proxy diagnostic: ${summarizeCliProxyDiagnostic({
-        kind: "http",
-        source: "runtime",
-        targetUrl,
-        targetHost,
-        proxyScheme: proxy.protocol === "https:" ? "https" : "http",
-        proxyHost: proxy.hostname,
-        proxyPort: proxy.port || null,
-        reason: "Ameow is using the saved manual HTTP(S) proxy for supported CLI paths.",
-      })}`,
-    );
-  }
-
-  if (engineId !== "yt-dlp") {
-    logInfo(
-      "ElectronRuntime",
-      `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildSkippedNonYtdlpProxyDiagnostic(targetUrl))}`,
-    );
-    return;
-  }
-
-  const activeSession = getDesktopNetworkSession();
-  if (activeSession?.resolveProxy) {
-    try {
-      const proxyRules = await activeSession.resolveProxy(targetUrl);
-      logInfo(
-        "ElectronRuntime",
-        `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildCliProxyDiagnosticFromElectronProxyRules(proxyRules, targetUrl))}`,
-      );
-    } catch (error) {
-      logInfo(
-        "ElectronRuntime",
-        `Proxy diagnostic: ${summarizeCliProxyDiagnostic(buildProxyResolutionFailedDiagnostic(targetUrl, error))}`,
-      );
-    }
-  }
-
-  const environmentDiagnostic = buildCliProxyDiagnosticFromEnvironment(process.env, targetUrl);
-  if (environmentDiagnostic.kind !== "direct") {
-    logInfo(
-      "ElectronRuntime",
-      `Proxy diagnostic: ${summarizeCliProxyDiagnostic(environmentDiagnostic)}`,
-    );
-  }
+async function resolveNetworkRouteForConsumer({ targetUrl, consumer, scope = "ElectronRuntime" }) {
+  const resolution = await getDesktopNetworkRouteService().resolveRoute({
+    targetUrl,
+    consumer,
+  });
+  logInfo(
+    scope,
+    `Network route: ${JSON.stringify(toNetworkDiagnosticSnapshot(resolution))}`,
+  );
+  return resolution;
 }
 
 // Use Chromium's network stack so main-process downloads inherit session/system proxy settings.
@@ -1081,10 +1047,35 @@ async function fetchWithDesktopSession(input, init = {}) {
           return null;
         }
       })(),
-      reason: error instanceof Error ? error.message : String(error),
+      reason: redactNetworkCredentials(error instanceof Error ? error.message : String(error)),
     });
     throw error;
   }
+}
+
+/**
+ * Route-aware Electron-session fetch for managed runtime asset downloads.
+ * Each bootstrap lifecycle owns an isolated in-memory session keyed by its
+ * context identity, so the resolved route is applied without mutating the
+ * shared default session or racing other lifecycles. Direct is explicit;
+ * supported proxy routes are pinned via fixed_servers; system routes delegate
+ * back to Chromium's system evaluation. Complex routes never reach this
+ * adapter — the bootstrap fails them typed before fetching.
+ */
+async function fetchWithBootstrapNetworkRoute({ url, resolution, identity, init = {} }) {
+  const route = resolution.route;
+  const isolatedSession = session.fromPartition(`bootstrap-network-${identity}`, { cache: false });
+  if (route.mode === "direct") {
+    await isolatedSession.setProxy({ mode: "direct" });
+  } else if (route.mode === "proxy") {
+    await isolatedSession.setProxy({
+      mode: "fixed_servers",
+      proxyRules: route.proxyUrl,
+    });
+  } else {
+    await isolatedSession.setProxy({ mode: "system" });
+  }
+  return await isolatedSession.fetch(url, init);
 }
 
 async function fetchWithDesktopSessionTimeout(
@@ -1452,13 +1443,17 @@ function buildElectronRuntimeEnvironment() {
 function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity = null) {
   const environment = buildElectronRuntimeEnvironment();
   const bundledPython = resolveBundledPythonRuntime(environment);
-  const manualProxyUrl = getNetworkProxyPolicyController().resolveProxyUrl();
   return {
     configDir: getUserDataDir(),
     platform: process.platform,
     arch: process.arch,
     fetch: fetchWithDesktopSession,
-    manualProxyUrl,
+    fetchRouteAware: fetchWithBootstrapNetworkRoute,
+    resolveRoute: async (targetUrl) => resolveNetworkRouteForConsumer({
+      targetUrl,
+      consumer: "runtime-bootstrap",
+      scope: "BootstrapNetwork",
+    }),
     bundledPythonRoot: bundledPython.root,
     bundledPythonPath: bundledPython.executable,
     missingComponents: _missingComponents,
@@ -1511,8 +1506,10 @@ function getElectronDownloadRuntime() {
         throw error;
       }
     },
-    diagnoseNetworkProxy: logCliProxyDiagnosticsForTarget,
-    resolveNetworkProxy: async () => getNetworkProxyPolicyController().resolveProxyUrl(),
+    resolveNetworkRoute: async ({ targetUrl, engineId }) => resolveNetworkRouteForConsumer({
+      targetUrl,
+      consumer: engineId === "gallery-dl" ? "gallery-dl" : "yt-dlp",
+    }),
     reportNetworkProxyFailure: async ({ engineId, targetUrl, error }) => {
       let targetHost = null;
       try {
@@ -1523,7 +1520,7 @@ function getElectronDownloadRuntime() {
       getNetworkProxyPolicyController().markManualProxySuspect({
         layer: engineId === "gallery-dl" ? "gallery_dl" : "yt_dlp",
         targetHost,
-        reason: error instanceof Error ? error.message : String(error),
+        reason: redactNetworkCredentials(error instanceof Error ? error.message : String(error)),
       });
     },
     bootstrapManagedComponents: async ({ reason }) => {
@@ -1534,7 +1531,7 @@ function getElectronDownloadRuntime() {
         getNetworkProxyPolicyController().markManualProxySuspect({
           layer: "managed_bootstrap",
           targetHost: null,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: redactNetworkCredentials(error instanceof Error ? error.message : String(error)),
         });
         throw error;
       }

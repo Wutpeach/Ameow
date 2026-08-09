@@ -4,6 +4,15 @@ import type {
   AdvancedQualityOptionPayload,
   AdvancedQualityPostProcessPlan,
 } from "../types/videoRuntime.js";
+import {
+  buildYtDlpNetworkApplication,
+  logNetworkApplication,
+} from "./engineNetworkAdapters.js";
+import {
+  classifyNetworkFailure,
+  NETWORK_FAILURE_CLASSIFICATIONS,
+  redactNetworkCredentials,
+} from "../config/networkRoute.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 import { runCapturedCommand } from "./processRunner.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
@@ -308,9 +317,18 @@ export const runAdvancedQualityProbe = async (
   if (context.intent.pageUrl) {
     args.push("--add-header", `Referer:${context.intent.pageUrl}`);
   }
-  if (context.proxyUrl) {
-    args.push("--proxy", context.proxyUrl);
-  }
+  // Reuse the yt-dlp adapter so the probe follows the same network route and
+  // failure semantics as the real download.
+  const networkApplication = context.network
+    ? buildYtDlpNetworkApplication(context.network.route)
+    : buildYtDlpNetworkApplication({
+        mode: "direct",
+        source: "direct",
+        reason: "no_proxy_source",
+        resolvedFor: sourceUrl,
+      });
+  logNetworkApplication(networkApplication.diagnostic);
+  args.push(...networkApplication.args);
   if (cookiesPath) {
     args.push("--cookies", cookiesPath);
   }
@@ -325,22 +343,36 @@ export const runAdvancedQualityProbe = async (
   try {
     const result = await runCapturedCommand(context.binaries.ytDlp, args, {
       env: {
-        ...process.env,
+        ...networkApplication.env,
         PATH: context.binaries.ffmpeg
-          ? `${path.dirname(context.binaries.ffmpeg)}${path.delimiter}${process.env.PATH ?? ""}`
-          : process.env.PATH,
+          ? `${path.dirname(context.binaries.ffmpeg)}${path.delimiter}${networkApplication.env.PATH ?? ""}`
+          : networkApplication.env.PATH,
       },
       signal: context.abortSignal,
     });
 
     if (result.exitCode !== 0) {
-      throw new DownloadRuntimeError(
-        "E_EXECUTION_FAILED",
-        summarizeYtDlpFailure(
-          result.stderr.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      const stderrLines = result.stderr.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const classification = classifyNetworkFailure(
+        new Error(summarizeYtDlpFailure(
+          stderrLines,
           `yt-dlp exited with code ${result.exitCode}`,
           { isYouTube: youtubeUrl },
-        ),
+        )),
+        stderrLines,
+      );
+      throw new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        redactNetworkCredentials(summarizeYtDlpFailure(
+          stderrLines,
+          `yt-dlp exited with code ${result.exitCode}`,
+          { isYouTube: youtubeUrl },
+        )),
+        {
+          context: classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+            ? { networkFailureClassification: classification }
+            : undefined,
+        },
       );
     }
 

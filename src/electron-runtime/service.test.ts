@@ -3,12 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DownloadRuntimeError,
   type DownloadEngine,
+  type DownloadIntent,
   type EngineExecutionContext,
   type RawDownloadInput,
+  type ResolvedDownloadPlan,
   type SiteProvider,
 } from "../core";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry";
+import type { NetworkRouteResolution } from "../config/networkRoute";
 import { genericProvider } from "../sites/generic";
 import { pinterestProvider } from "../sites/pinterest";
 import { xiaohongshuProvider } from "../sites/xiaohongshu";
@@ -142,16 +146,11 @@ const createRuntime = (options: {
   refreshSiteSessionBeforeDownload?(
     context: RuntimeDownloadSiteSessionRefreshContext,
   ): Promise<void>;
-  diagnoseNetworkProxy?: (context: {
+  resolveNetworkRoute?: (context: {
     targetUrl: string;
     providerId: string | null;
     engineId: "yt-dlp" | "gallery-dl";
-  }) => Promise<void>;
-  resolveNetworkProxy?: (context: {
-    targetUrl: string;
-    providerId: string | null;
-    engineId: "yt-dlp" | "gallery-dl";
-  }) => Promise<string | null | undefined>;
+  }) => Promise<NetworkRouteResolution>;
 }) => createElectronDownloadRuntime({
   environment: {
     repoRoot: options.environment?.repoRoot ?? process.cwd(),
@@ -181,8 +180,7 @@ const createRuntime = (options: {
   handleAuthRequiredFailure: options.handleAuthRequiredFailure,
   refreshSiteSessionBeforeAdvancedQualityProbe: options.refreshSiteSessionBeforeAdvancedQualityProbe,
   refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
-  diagnoseNetworkProxy: options.diagnoseNetworkProxy,
-  resolveNetworkProxy: options.resolveNetworkProxy,
+  resolveNetworkRoute: options.resolveNetworkRoute,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -890,13 +888,13 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(ensured[0]?.reason).toMatch(/^runtime_execute_.*_yt-dlp$/);
   });
 
-  it("does not populate proxy URLs by default for yt-dlp execution contexts", async () => {
-    let receivedProxyUrl: string | null | undefined = undefined;
+  it("attaches a direct default route to yt-dlp execution contexts without a resolver hook", async () => {
+    let receivedNetwork: unknown = undefined;
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
       engines: [
         createEngineStub("yt-dlp", async (context) => {
-          receivedProxyUrl = context.proxyUrl;
+          receivedNetwork = context.network;
           return {
             traceId: context.traceId,
             success: true,
@@ -911,58 +909,46 @@ describe("AmeowElectronDownloadRuntime", () => {
       pageUrl: "https://www.youtube.com/watch?v=abc123",
     });
 
-    await waitFor(() => receivedProxyUrl !== undefined);
-    expect(receivedProxyUrl).toBeNull();
+    await waitFor(() => receivedNetwork !== undefined);
+    expect(receivedNetwork).toMatchObject({
+      route: {
+        mode: "direct",
+        source: "direct",
+        reason: "no_proxy_source",
+      },
+    });
   });
 
-  it("keeps resolved network proxy URLs as an explicit runtime hook", async () => {
-    let receivedProxyUrl: string | null | undefined = undefined;
-    const runtime = createRuntime({
-      providers: [youtubeProvider, genericProvider],
-      resolveNetworkProxy: vi.fn(async (context) => {
-        expect(context).toMatchObject({
-          targetUrl: "https://www.youtube.com/watch?v=abc123",
-          providerId: "youtube",
-          engineId: "yt-dlp",
-        });
-        return "http://127.0.0.1:7897";
-      }),
-      engines: [
-        createEngineStub("yt-dlp", async (context) => {
-          receivedProxyUrl = context.proxyUrl;
-          return {
-            traceId: context.traceId,
-            success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
-          };
-        }),
-      ],
-    });
-
-    await runtime.queueVideoDownload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    await waitFor(() => receivedProxyUrl !== undefined);
-    expect(receivedProxyUrl).toBe("http://127.0.0.1:7897");
-  });
-
-  it("runs proxy diagnostics without injecting proxy URLs into execution contexts", async () => {
-    let receivedProxyUrl: string | null | undefined = undefined;
-    const diagnoseNetworkProxy = vi.fn(async (context) => {
+  it("resolves one network route per Job and attaches it to every engine context", async () => {
+    let receivedRoute: unknown = undefined;
+    const resolveNetworkRoute = vi.fn(async (context) => {
       expect(context).toMatchObject({
         targetUrl: "https://www.youtube.com/watch?v=abc123",
         providerId: "youtube",
         engineId: "yt-dlp",
       });
+      return {
+        preference: "system" as const,
+        effectivePolicyReason: null,
+        consumer: "yt-dlp" as const,
+        targetUrl: "https://www.youtube.com/watch?v=abc123",
+        route: {
+          mode: "proxy" as const,
+          source: "system" as const,
+          protocol: "http" as const,
+          proxyUrl: "http://127.0.0.1:7897",
+          resolvedFor: "https://www.youtube.com/watch?v=abc123",
+        },
+        status: "resolved" as const,
+        trace: [],
+      };
     });
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
-      diagnoseNetworkProxy,
+      resolveNetworkRoute,
       engines: [
         createEngineStub("yt-dlp", async (context) => {
-          receivedProxyUrl = context.proxyUrl;
+          receivedRoute = context.network?.route;
           return {
             traceId: context.traceId,
             success: true,
@@ -977,22 +963,26 @@ describe("AmeowElectronDownloadRuntime", () => {
       pageUrl: "https://www.youtube.com/watch?v=abc123",
     });
 
-    await waitFor(() => receivedProxyUrl !== undefined);
-    expect(diagnoseNetworkProxy).toHaveBeenCalledTimes(1);
-    expect(receivedProxyUrl).toBeNull();
+    await waitFor(() => receivedRoute !== undefined);
+    expect(resolveNetworkRoute).toHaveBeenCalledTimes(1);
+    expect(receivedRoute).toMatchObject({
+      mode: "proxy",
+      proxyUrl: "http://127.0.0.1:7897",
+    });
   });
 
-  it("continues yt-dlp downloads when explicit proxy resolution fails", async () => {
+  it("continues yt-dlp downloads with a direct fallback route when route resolution fails", async () => {
     let executed = false;
+    let receivedNetwork: unknown = undefined;
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
-      resolveNetworkProxy: vi.fn(async () => {
+      resolveNetworkRoute: vi.fn(async () => {
         throw new Error("resolveProxy failed");
       }),
       engines: [
         createEngineStub("yt-dlp", async (context) => {
           executed = true;
-          expect(context.proxyUrl).toBeNull();
+          receivedNetwork = context.network;
           return {
             traceId: context.traceId,
             success: true,
@@ -1008,6 +998,17 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     await waitFor(() => executed);
+    expect(receivedNetwork).toMatchObject({
+      status: "failed",
+      route: {
+        mode: "direct",
+        source: "fallback",
+        reason: "resolution_fallback",
+      },
+      failure: {
+        classification: "NETWORK_PROXY_RESOLUTION_FAILED",
+      },
+    });
   });
 
   it("waits for the selected engine runtime before executing the download", async () => {
@@ -1166,6 +1167,304 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
     expect(completed[0]).toMatchObject({
       success: true,
+    });
+  });
+
+  it("reuses one stable network route across auth recovery and engine fallback", async () => {
+    const completed: Array<{ success: boolean; error?: string }> = [];
+    let attempts = 0;
+    let firstAttemptRoute: unknown = undefined;
+    let retryAttemptRoute: unknown = undefined;
+    const resolveNetworkRoute = vi.fn(async () => ({
+      preference: "system" as const,
+      effectivePolicyReason: null,
+      consumer: "yt-dlp" as const,
+      targetUrl: "https://www.youtube.com/watch?v=abc123",
+      route: {
+        mode: "proxy" as const,
+        source: "system" as const,
+        protocol: "http" as const,
+        proxyUrl: "http://127.0.0.1:7897",
+        resolvedFor: "https://www.youtube.com/watch?v=abc123",
+      },
+      status: "resolved" as const,
+      trace: [],
+    }));
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      resolveNetworkRoute,
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          attempts += 1;
+          if (attempts === 1) {
+            firstAttemptRoute = context.network;
+            throw new Error("cookies required for this resource");
+          }
+          retryAttemptRoute = context.network;
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      async handleAuthRequiredFailure() {
+        return { shouldRetry: true };
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; error?: string });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => completed.length === 1);
+    expect(resolveNetworkRoute).toHaveBeenCalledTimes(1);
+    expect(attempts).toBe(2);
+    // The exact same resolution object is reused across the retry.
+    expect(retryAttemptRoute).toBe(firstAttemptRoute);
+  });
+
+  it("resolves a fresh network route for the next Job", async () => {
+    const completed: Array<{ success: boolean; error?: string }> = [];
+    const resolveNetworkRoute = vi.fn(async () => ({
+      preference: "system" as const,
+      effectivePolicyReason: null,
+      consumer: "yt-dlp" as const,
+      targetUrl: "https://example.com/video",
+      route: {
+        mode: "direct" as const,
+        source: "system" as const,
+        reason: "resolved_direct" as const,
+        resolvedFor: "https://example.com/video",
+      },
+      status: "resolved" as const,
+      trace: [],
+    }));
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      resolveNetworkRoute,
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          void context.network;
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; error?: string });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/1" });
+    await runtime.queueVideoDownload({ url: "https://example.com/2" });
+
+    await waitFor(() => completed.length === 2);
+    expect(resolveNetworkRoute).toHaveBeenCalledTimes(2);
+  });
+
+  it("records the actual applied engine outcome in success telemetry", async () => {
+    const completed: Array<{ success: boolean }> = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          await context.onNetworkApplication?.({
+            engine: "yt-dlp",
+            appliedToEngine: true,
+            reason: "system:http",
+            failureClassification: null,
+          });
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean });
+        }
+      },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/1" });
+
+    await waitFor(() => completed.length === 1);
+    const event = telemetry.find((entry) => entry.outcome === "success");
+    expect(event?.network).toMatchObject({
+      engine: "yt-dlp",
+      appliedToEngine: true,
+      routeMode: "direct",
+    });
+  });
+
+  it("shows the fallback engine that actually handled the download without re-resolving", async () => {
+    const completed: Array<{ success: boolean }> = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
+    const dualEngineProvider: SiteProvider = {
+      id: "dual-engine-test",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "dual",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "dual-engine-test",
+          label: "dual",
+          intent,
+          engines: [
+            { engine: "yt-dlp", priority: 100, when: "primary", reason: "primary" },
+            { engine: "gallery-dl", priority: 50, when: "fallback", reason: "fallback" },
+          ],
+        };
+      },
+    };
+    const resolveNetworkRoute = vi.fn(async () => ({
+      preference: "system" as const,
+      effectivePolicyReason: null,
+      consumer: "yt-dlp" as const,
+      targetUrl: "https://example.com/video",
+      route: {
+        mode: "proxy" as const,
+        source: "system" as const,
+        protocol: "http" as const,
+        proxyUrl: "http://127.0.0.1:7897",
+        resolvedFor: "https://example.com/video",
+      },
+      status: "resolved" as const,
+      trace: [],
+    }));
+    const runtime = createRuntime({
+      providers: [dualEngineProvider],
+      resolveNetworkRoute,
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          await context.onNetworkApplication?.({
+            engine: "yt-dlp",
+            appliedToEngine: true,
+            reason: "system:http",
+            failureClassification: null,
+          });
+          throw new Error("yt-dlp attempt failed");
+        }),
+        createEngineStub("gallery-dl", async (context) => {
+          await context.onNetworkApplication?.({
+            engine: "gallery-dl",
+            appliedToEngine: true,
+            reason: "system:http",
+            failureClassification: null,
+          });
+          return {
+            traceId: context.traceId,
+            success: true,
+            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean });
+        }
+      },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/1" });
+
+    await waitFor(() => completed.length === 1);
+    expect(resolveNetworkRoute).toHaveBeenCalledTimes(1);
+    const event = telemetry.find((entry) => entry.outcome === "success");
+    expect(event?.network).toMatchObject({
+      engine: "gallery-dl",
+      appliedToEngine: true,
+    });
+  });
+
+  it("records a rejected complex route with NETWORK_PROXY_UNSUPPORTED in failure telemetry", async () => {
+    const completed: Array<{ success: boolean; error?: string }> = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      resolveNetworkRoute: vi.fn(async () => ({
+        preference: "system" as const,
+        effectivePolicyReason: null,
+        consumer: "yt-dlp" as const,
+        targetUrl: "https://example.com/1",
+        route: {
+          mode: "complex" as const,
+          source: "system" as const,
+          reason: "multiple_candidates" as const,
+          candidates: [],
+          resolvedFor: "https://example.com/1",
+        },
+        status: "resolved" as const,
+        trace: [],
+      })),
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          await context.onNetworkApplication?.({
+            engine: "yt-dlp",
+            appliedToEngine: false,
+            reason: "multiple_candidates",
+            failureClassification: "NETWORK_PROXY_UNSUPPORTED",
+          });
+          throw new DownloadRuntimeError(
+            "E_EXECUTION_FAILED",
+            "Unsupported network route (multiple_candidates) for yt-dlp; the route is not applied.",
+            {
+              context: {
+                networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+              },
+            },
+          );
+        }),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; error?: string });
+        }
+      },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/1" });
+
+    await waitFor(() => completed.length === 1);
+    const event = telemetry.find((entry) => entry.outcome === "failure");
+    expect(event?.network).toMatchObject({
+      engine: "yt-dlp",
+      appliedToEngine: false,
+      routeMode: "complex",
+      failureClassification: "NETWORK_PROXY_UNSUPPORTED",
     });
   });
 

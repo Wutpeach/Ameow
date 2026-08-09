@@ -73,7 +73,7 @@ function buildCliProxyDiagnosticFromEnvironment(
 
 ### 3. Contracts
 
-- Default behavior is system/ambient proxy. `networkProxyMode` missing or `"system"` must keep Electron session in `mode: "system"` and CLI tools on their ambient environment.
+- Default behavior is the system preference. `networkProxyMode` missing or `"system"` keeps the Electron session in `mode: "system"`; CLI tools receive the resolved route (system single candidate, target-resolved environment route, or explicit direct) through the shared route service instead of inheriting ambient proxy state.
 - Manual proxy support is explicit and user-owned: `networkProxyMode: "manual"` plus a valid `networkProxyUrl` enables manual HTTP(S) proxy as the preferred policy. Supported manual URLs are only `http:` / `https:` with host and optional port, no credentials, path, query, hash, SOCKS, PAC, or per-site rules.
 - Persisted preference and effective runtime policy are separate. Saved manual proxy remains preferred across restarts, but effective policy may fall back to system/ambient when the manual proxy is invalid, unverified, or unavailable.
 - `fetchWithDesktopSession(...)` remains the shared network entrypoint for managed runtime bootstrap, update checks, and other Electron-owned desktop fetches. The default session applies either system mode or manual fixed-server mode according to the effective policy.
@@ -86,8 +86,13 @@ function buildCliProxyDiagnosticFromEnvironment(
   - Managed Python package install environment as `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, and `https_proxy`.
   - yt-dlp `proxyUrl` path, which becomes `--proxy <url>`.
   - gallery-dl child-process proxy environment.
-- yt-dlp / gallery-dl CLI downloads must not receive proxy values by collapsing Electron `session.resolveProxy(targetUrl)` output. The old implicit Electron-to-CLI translation remains forbidden.
-- Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment variables may be sampled for diagnostics only. Diagnostic entries must include the sampled target host and classify direct, HTTP/HTTPS, SOCKS-unsupported, mixed/PAC-like, malformed, environment, skipped-non-yt-dlp, and resolution-failed cases.
+- Network routing uses one shared precedence policy: effective manual proxy > URL-specific Electron/Chromium system result > target-resolved environment route > explicit direct. Every consumer (Electron session, yt-dlp, gallery-dl, pip/bootstrap, and runtime asset fetch) resolves through the same `NetworkRouteService` and never reads ambient proxy state itself.
+- A single supported system directive (`PROXY`/`HTTP`/`HTTPS`/`SOCKS4`/`SOCKS5`/`SOCKS`) resolved for the canonical target URL may be applied to CLI downloads as the resolved route, with one exception: actual yt-dlp downloads reject SOCKS4/SOCKS5 before spawn because yt-dlp may delegate the remote transfer to FFmpegFD (live HLS, `m3u8` protocol, native-HLS fallback, or `--download-sections`, all selected inside yt-dlp after spawn) and ffmpeg cannot use SOCKS proxies. gallery-dl and the non-downloading yt-dlp quality probe keep one `--proxy <socks-url>`. The route and its diagnostics record `resolvedFor` and must not be described as a guarantee for every downstream host (PAC single-candidate provenance limitation stays explicit).
+- System results that are multiple candidates, malformed, or unsupported become an explicit complex route with a typed diagnostic; they are never collapsed into a CLI proxy and never silently fall through to the environment tier. Complex routes fail before engine spawn with `NETWORK_PROXY_UNSUPPORTED`.
+- An explicit system `DIRECT` is a final direct route with source `system`; the target-resolved environment tier is never evaluated after it. The environment tier is evaluated only when the system tier is unavailable/not-applicable. `NO_PROXY`/`no_proxy` is evaluated for the canonical target first; a match produces an explicit direct route. Environment precedence is `HTTPS_PROXY > https_proxy > ALL_PROXY > all_proxy > HTTP_PROXY > http_proxy` for HTTPS targets and `HTTP_PROXY > http_proxy > ALL_PROXY > all_proxy` for HTTP targets; the first non-empty authoritative value wins, and a malformed/unsupported authoritative value is complex rather than silently downgraded.
+- Engine child environments remove every upper/lower HTTP(S)/ALL/NO proxy key before applying the selected route as CLI arguments. yt-dlp direct is the explicit `--proxy ""`; gallery-dl direct is `--proxy ""` plus `-o extractor.*.proxy-env=false` on every invocation, so Requests cannot discover a second routing authority from the environment or the Windows Registry.
+- Each queued download Job resolves its base network route once into a stable `DownloadExecutionContext`; engine retry, engine fallback, and auth recovery reuse it. Route refresh requires an explicit rebuild with a new context identity; P0 exposes no implicit refresh. Runtime bootstrap resolves its own per-target contexts through the same service.
+- Electron `resolveProxy(...)` and HTTP(S)/ALL proxy environment variables are no longer diagnostics-only: they feed the unified route resolution. Diagnostics entries include the sanitized `resolvedFor` target host/origin, source, route mode, proxy protocol, resolution status, consumer, applied flag, and failure classification; credentials, cookies, tokens, and raw rules are never logged.
 - Proxy-shaped failures while effective manual proxy is active should mark manual proxy suspect, switch future work to system/ambient, and revalidate the saved manual proxy through an isolated manual-proxy validation session. Do not fallback for HTTP 403/404/412/416/429, auth/login/cookie failures, private or region-limited content, extractor/site-rule failures, or ffmpeg merge/transcode failures.
 - Diagnostics and support logs may include sanitized manual proxy scheme, host, and port. They must not log credentials, cookies, or raw unparsed proxy rules.
 
@@ -104,20 +109,21 @@ function buildCliProxyDiagnosticFromEnvironment(
 | Manual proxy validation has all failures | validation controller | Effective policy becomes system/manual_unavailable | Use system/ambient for future requests |
 | Manual proxy effective and yt-dlp reports `ERR_PROXY_CONNECTION_FAILED` | failure feedback | Mark manual proxy suspect and revalidate | Fallback to system/ambient while revalidating |
 | Manual proxy effective and content site returns HTTP 403 | failure feedback | Do not mark proxy unavailable | Continue normal download troubleshooting |
-| `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | proxy diagnostics | Log sanitized HTTP proxy diagnostic for the sampled target; do not inject default `--proxy` | Continue ambient download path |
-| `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | proxy diagnostics | Log SOCKS-unsupported diagnostic | Prefer TUN/global/VPN mode or docs-level troubleshooting |
-| yt-dlp context receives effective manual `proxyUrl` | command planning | Include `--proxy <url>` | Preserve explicit hook behavior |
-| gallery-dl context receives effective manual `proxyUrl` | process runner | Set HTTP(S) proxy env vars for the child process | Do not add unsupported rule/PAC translation |
+| `session.resolveProxy(...)` returns `PROXY 127.0.0.1:7897; DIRECT` | route service | Apply the single system proxy route for the canonical target to CLI via the engine adapter | Sanitized `resolvedFor` diagnostics; downstream-host PAC equivalence is not claimed |
+| `session.resolveProxy(...)` returns `SOCKS5 127.0.0.1:7891` | route service | Map to a socks5 route; gallery-dl and the yt-dlp probe apply one `--proxy` socks URL, actual yt-dlp downloads fail closed with `NETWORK_PROXY_UNSUPPORTED` (FFmpegFD cannot use SOCKS) | SOCKS from system/environment is supported where the engine can consume it; no manual SOCKS setting is added |
+| `session.resolveProxy(...)` returns `PROXY a; PROXY b` or malformed output | route service | Produce an explicit complex route with typed diagnostic; never collapse or fall through to environment | Engines fail before spawn with `NETWORK_PROXY_UNSUPPORTED` |
+| yt-dlp context receives a resolved route | yt-dlp adapter | Include exactly one `--proxy` (empty string for direct); scrub all proxy env keys | Complex routes rejected before spawn |
+| gallery-dl context receives a resolved route | gallery-dl adapter | Always add `-o extractor.*.proxy-env=false`; exactly one `--proxy` (empty string for direct); scrub all proxy env keys | Windows Registry/environment auto-discovery cannot become a second routing authority |
 
 ### 5. Good / Base / Bad Cases
 
 - Good: user enables TUN/global/VPN mode in their proxy tool, leaves Ameow on system proxy, and Electron, yt-dlp, gallery-dl, Python, Deno, and update/bootstrap traffic share the same ambient network route.
 - Good: user selects manual proxy `http://127.0.0.1:7890`; Electron session, pip install, yt-dlp, and gallery-dl use that proxy while validation succeeds.
 - Good: a saved manual proxy is down on restart; Ameow attempts it first, validation fails, and future work falls back to system/ambient without the user clearing the saved preference.
-- Base: Electron resolves `PROXY 127.0.0.1:7897` for the sampled YouTube page URL, Ameow logs the sanitized diagnostic, and yt-dlp still runs without a default `--proxy` so the user's proxy tool owns routing.
-- Base: user types an invalid manual proxy value in Settings; the value is not applied, and effective policy remains system/ambient.
+- Base: Electron resolves `PROXY 127.0.0.1:7897` for the canonical YouTube page URL, the route service records the sanitized route with `resolvedFor` scope, and yt-dlp receives exactly one `--proxy http://127.0.0.1:7897` with a scrubbed environment.
+- Base: user types an invalid manual proxy value in Settings; the value is not applied, and effective policy remains system with unified route resolution.
 - Bad: one feature uses a hand-written proxy setting while another uses Electron/system proxy resolution.
-- Bad: Ameow collapses a single YouTube page `resolveProxy(...)` result into `--proxy` for the entire yt-dlp/ffmpeg run, even though `googlevideo.com`, `ytimg.com`, and remote component endpoints may use different proxy rules.
+- Bad: Ameow presents a single-page `resolveProxy(...)` route as a guarantee for every downstream host (`googlevideo.com`, `ytimg.com`, remote component endpoints) without the `resolvedFor` scope limitation in diagnostics.
 - Bad: stale persisted `globalProxyEnabled/globalProxyUrl` changes downloader behavior after the Settings UI has removed proxy controls.
 - Bad: Settings adds arbitrary content-link testing or failure-screen deep links as part of proxy setup.
 - Bad: HTTP 403 or login-required content disables the user-selected manual proxy.
@@ -143,7 +149,7 @@ const proxyUrl = resolveCliProxyUrlFromElectronProxyRules(proxyRules);
 args.push("--proxy", proxyUrl);
 ```
 
-#### Correct
+#### Wrong (pre-P0 diagnostics-only sampling)
 
 ```ts
 const effectiveProxy = networkProxyPolicyController.resolveProxyUrl();
@@ -152,8 +158,16 @@ if (effectiveProxy) {
 }
 ```
 
-Why wrong:
-- `resolveProxy(...)` samples one target and may represent PAC/rule-based behavior that is unsafe to collapse into a global CLI proxy. CLI proxy injection must come only from the explicit effective manual proxy policy.
+#### Correct
+
+```ts
+const resolution = await networkRouteService.resolveRoute({ targetUrl, consumer });
+const application = buildYtDlpNetworkApplication(resolution.route);
+args.push(...application.args);
+```
+
+Why correct:
+- `resolveProxy(...)` results are resolved through the unified precedence policy; a single supported directive for the canonical target may be applied, while multiple/malformed/unsupported results become explicit complex routes with diagnostics and never collapse into a global CLI proxy. Engine adapters own CLI conversion; manual-only injection would silently drop system and environment routes.
 
 ### 6. Tests Required
 

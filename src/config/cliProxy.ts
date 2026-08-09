@@ -1,4 +1,4 @@
-const CLI_PROXY_ENV_KEYS = [
+export const CLI_PROXY_ENV_KEYS = [
   "HTTPS_PROXY",
   "https_proxy",
   "HTTP_PROXY",
@@ -39,7 +39,7 @@ const summarizeTargetHost = (value: string | null | undefined): string | null =>
   }
 };
 
-const normalizeHttpProxyUrl = (value: string): string | null => {
+export const normalizeHttpProxyUrl = (value: string): string | null => {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
@@ -68,7 +68,7 @@ const normalizeHttpProxyUrl = (value: string): string | null => {
   return `${parsed.protocol}//${parsed.host}`;
 };
 
-const parseProxyAddress = (
+export const parseProxyAddress = (
   scheme: "http" | "https" | "socks4" | "socks5",
   hostPort: string,
 ): Pick<CliProxyDiagnostic, "proxyScheme" | "proxyHost" | "proxyPort"> | null => {
@@ -109,7 +109,7 @@ const createDiagnostic = (
   reason: diagnostic.reason,
 });
 
-const parseElectronProxyEntries = (proxyRules: string | null | undefined): string[] => (
+export const parseElectronProxyEntries = (proxyRules: string | null | undefined): string[] => (
   proxyRules
     ? proxyRules.split(";").map((entry) => entry.trim()).filter(Boolean)
     : []

@@ -80,6 +80,8 @@ The first recommendation is still to let your proxy tool own network routing, be
 
 Ameow also has a low-interaction manual proxy setting: open **Settings → System & Support → Network proxy**, choose **Manual proxy**, and enter an HTTP(S) proxy without credentials or paths, such as `http://127.0.0.1:7890`. Once the format is valid, Ameow saves and applies it automatically. Ameow checks fixed infrastructure targets such as GitHub, Deno, and PyPI. If the manual proxy is unavailable, Ameow automatically falls back to system proxy behavior.
 
+Every download task resolves one network route with a single precedence: manual proxy > system proxy (resolved per target URL) > environment-variable proxy > direct. The resolved route is applied to the yt-dlp / gallery-dl subprocesses (environment proxy variables are resolved for the target URL too, and a `NO_PROXY` match explicitly goes direct); downloaders no longer inherit unselected ambient proxy variables. If the system result contains multiple proxy candidates or malformed/unsupported entries, Ameow does not guess a proxy — it emits an explicit unsupported diagnostic and stops that download. Electron cannot tell whether a single-candidate result came from a PAC script or a fixed system route; either way Ameow treats it as one system route for the entry URL and does not claim the same decision for other hosts. System/environment routes apply to the canonical entry URL only and do not guarantee that downstream hosts such as media CDNs take the same route.
+
 Do not use the proxy setting as a test box for a failed video URL. A single content URL can fail because of login state, region limits, account access, anti-bot checks, or site-rule changes, not only because of proxy routing.
 
 Try this order:

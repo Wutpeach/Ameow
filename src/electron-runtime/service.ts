@@ -68,6 +68,16 @@ import {
 } from "./downloadTelemetry.js";
 import { DownloadRuntimeError } from "../core/index.js";
 import { resolveYtdlpFormatProfile } from "./engineManifest.js";
+import {
+  buildDirectRouteResolution,
+  buildResolutionFailureFallbackRoute,
+  redactNetworkCredentials,
+  toNetworkDiagnosticSnapshot,
+  type NetworkDiagnosticSnapshot,
+  type NetworkFailureClassification,
+} from "../config/networkRoute.js";
+import type { NetworkApplicationOutcome } from "../core/index.js";
+import type { DownloadExecutionContext } from "./contracts.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 
 type PendingTask = {
@@ -99,6 +109,17 @@ type DownloadTelemetryContext = {
   request: RawDownloadInput;
   plan: ResolvedDownloadPlan | null;
   chosenEngine: EnginePlan["engine"] | null;
+  network?: NetworkDiagnosticSnapshot | null;
+};
+
+const resolveCanonicalNetworkTarget = (
+  request: RawDownloadInput,
+  plan: ResolvedDownloadPlan | null,
+): string => {
+  const primaryEngine = plan?.engines
+    .slice()
+    .sort((left, right) => right.priority - left.priority)[0];
+  return primaryEngine?.sourceUrl ?? request.pageUrl ?? request.url;
 };
 
 type DownloadExecutionAttempt = {
@@ -521,6 +542,43 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     return await runAdvancedQualityProbe(context);
   }
 
+  /**
+   * Creates one stable DownloadExecutionContext. The network route is
+   * resolved once for the canonical entry target and the same resolution is
+   * reused across engine retry, engine fallback, and auth recovery. A future
+   * refresh must be an explicit rebuild with a new identity; P0 exposes no
+   * implicit refresh path.
+   */
+  private createDownloadExecutionContext(
+    traceId: string,
+    targetUrl: string,
+    providerId: string | null,
+    engineId: EnginePlan["engine"],
+  ): DownloadExecutionContext {
+    const consumer = engineId === "gallery-dl" ? "gallery-dl" as const : "yt-dlp" as const;
+    const network = this.options.resolveNetworkRoute
+      ? this.options.resolveNetworkRoute({
+          targetUrl,
+          providerId,
+          engineId,
+        }).catch((error) => {
+          this.logger.log(
+            `>>> [ElectronRuntime] network route resolution failed for ${traceId}: ${redactNetworkCredentials(summarizeError(error))}`,
+          );
+          return buildResolutionFailureFallbackRoute(targetUrl, consumer, error);
+        })
+      : Promise.resolve(buildDirectRouteResolution(targetUrl, consumer, {
+          source: "direct",
+          reason: "no_proxy_source",
+        }));
+
+    return {
+      identity: `download-ctx-${traceId}`,
+      createdAtMs: Date.now(),
+      network,
+    };
+  }
+
   private async buildAdvancedQualityProbeContext(
     task: AdvancedQualityTaskState,
   ): Promise<EngineExecutionContext> {
@@ -592,25 +650,15 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
 
     const proxyTargetUrl = enginePlan.sourceUrl ?? task.request.pageUrl ?? task.request.url;
-    if (this.options.diagnoseNetworkProxy) {
-      await this.options.diagnoseNetworkProxy({
-        targetUrl: proxyTargetUrl,
-        providerId: plan.providerId,
-        engineId: enginePlan.engine,
-      }).catch((error) => {
-        this.logger.log(`>>> [ElectronRuntime] proxy diagnostics failed: ${String(error)}`);
-      });
-    }
-    const proxyUrl = this.options.resolveNetworkProxy
-      ? await this.options.resolveNetworkProxy({
-          targetUrl: proxyTargetUrl,
-          providerId: plan.providerId,
-          engineId: enginePlan.engine,
-        }).catch((error) => {
-          this.logger.log(`>>> [ElectronRuntime] proxy resolution failed: ${String(error)}`);
-          return null;
-        })
-      : null;
+    // Probe-scoped execution context: one lazy route resolution for the
+    // probe lifecycle; reuses the shared resolver but never a Job context.
+    const executionContext = this.createDownloadExecutionContext(
+      task.traceId,
+      proxyTargetUrl,
+      plan.providerId,
+      enginePlan.engine,
+    );
+    const network = await executionContext.network;
 
     const context: EngineExecutionContext = {
       traceId: task.traceId,
@@ -626,7 +674,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         task.request.siteHint,
       ),
       config,
-      proxyUrl,
+      network,
       binaries,
       abortSignal: abortController.signal,
       fetch: this.options.environment.fetch,
@@ -1073,6 +1121,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     let telemetryPlan: ResolvedDownloadPlan | null = null;
     let executedProviderId: string | null = null;
     let executedEngineId: EnginePlan["engine"] | null = null;
+    let networkSnapshot: NetworkDiagnosticSnapshot | null = null;
     try {
       const config = parseJsonObject(await this.options.configStore.readConfigString());
       const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
@@ -1114,6 +1163,33 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         preferredOutputStem,
         config,
       );
+      // One stable execution context per Job: the network route is resolved
+      // once and reused across engine fallback and auth recovery.
+      const canonicalNetworkTarget = resolveCanonicalNetworkTarget(
+        activeTask.request,
+        telemetryPlan,
+      );
+      const executionContext = this.createDownloadExecutionContext(
+        traceId,
+        canonicalNetworkTarget,
+        telemetryPlan?.providerId ?? null,
+        telemetryPlan?.engines.slice().sort((left, right) => right.priority - left.priority)[0]?.engine
+          ?? "yt-dlp",
+      );
+      const network = await executionContext.network;
+      const baseNetworkSnapshot = toNetworkDiagnosticSnapshot(network);
+      networkSnapshot = baseNetworkSnapshot;
+      // Per-attempt application outcome: the engine that actually applied (or
+      // rejected) the stable route wins the diagnostic; never re-resolves.
+      const reportNetworkApplication = (application: NetworkApplicationOutcome): void => {
+        networkSnapshot = {
+          ...baseNetworkSnapshot,
+          engine: application.engine,
+          appliedToEngine: application.appliedToEngine,
+          reason: application.reason,
+          failureClassification: application.failureClassification,
+        };
+      };
       const executeDownloadAttempt = async (): Promise<DownloadResultPayload> => this.orchestrator.execute(
         activeTask.request,
         async (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
@@ -1133,26 +1209,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             reason: enginePlan.reason,
             when: enginePlan.when,
           })}`);
-          const proxyTargetUrl = enginePlan.sourceUrl ?? activeTask.request.pageUrl ?? activeTask.request.url;
-          if (this.options.diagnoseNetworkProxy) {
-            await this.options.diagnoseNetworkProxy({
-              targetUrl: proxyTargetUrl,
-              providerId: plan.providerId,
-              engineId: enginePlan.engine,
-            }).catch((error) => {
-              this.logger.log(`>>> [ElectronRuntime] proxy diagnostics failed: ${String(error)}`);
-            });
-          }
-          const proxyUrl = this.options.resolveNetworkProxy
-            ? await this.options.resolveNetworkProxy({
-                targetUrl: proxyTargetUrl,
-                providerId: plan.providerId,
-                engineId: enginePlan.engine,
-              }).catch((error) => {
-                this.logger.log(`>>> [ElectronRuntime] proxy resolution failed: ${String(error)}`);
-                return null;
-              })
-            : null;
+          const network = await executionContext.network;
           const context: EngineExecutionContext = {
             traceId,
             plan,
@@ -1161,13 +1218,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             outputDir: resolvedOutputDir,
             outputStem,
             config,
-            proxyUrl,
+            network,
             binaries,
             abortSignal: activeTask.abortController.signal,
+            onNetworkApplication: reportNetworkApplication,
             fetch: this.options.environment.fetch,
             reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
               ? (error) => this.options.reportNetworkProxyFailure?.({
-                  targetUrl: proxyTargetUrl,
+                  targetUrl: canonicalNetworkTarget,
                   providerId: plan.providerId,
                   engineId: enginePlan.engine,
                   error,
@@ -1280,6 +1338,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             request: activeTask.request,
             plan: telemetryPlan,
             chosenEngine: executedEngineId,
+            network: networkSnapshot,
           },
         );
       } else {
@@ -1289,12 +1348,20 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             request: activeTask.request,
             plan: telemetryPlan,
             chosenEngine: executedEngineId,
+            network: networkSnapshot,
           },
           null,
         );
       }
     } catch (error) {
       const runtimeError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
+      const errorClassification = runtimeError.context?.networkFailureClassification;
+      if (networkSnapshot && typeof errorClassification === "string") {
+        networkSnapshot = {
+          ...networkSnapshot,
+          failureClassification: errorClassification as NetworkFailureClassification,
+        };
+      }
       this.logger.log(`>>> [ElectronRuntime] task ${traceId} failed: ${runtimeError.message}`);
       this.logger.log(`>>> [ElectronRuntimeTiming] task failed: ${JSON.stringify({
         traceId,
@@ -1307,6 +1374,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           request: activeTask.request,
           plan: telemetryPlan,
           chosenEngine: executedEngineId,
+          network: networkSnapshot,
         },
         runtimeError,
       );
@@ -1417,6 +1485,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       error,
       downloadProfile: resolveDownloadTelemetryProfile(telemetry.plan),
       compatibility,
+      network: telemetry.network ?? null,
     }));
   }
 }

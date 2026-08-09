@@ -1,6 +1,6 @@
 import { once } from "node:events";
 import { createWriteStream, existsSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -30,9 +30,37 @@ import {
   type ManagedPythonPackageSpec,
   type ManagedPythonPackageToolId,
 } from "./managedPythonPackageManifest.mjs";
-import { buildManualProxyEnv } from "../src/config/networkProxy.js";
+import {
+  buildUnsupportedRouteError,
+  scrubProxyEnvKeys,
+} from "../src/electron-runtime/engineNetworkAdapters.js";
+import {
+  redactNetworkCredentials,
+  toNetworkDiagnosticSnapshot,
+  type NetworkRouteResolution,
+} from "../src/config/networkRoute.js";
 
 export { resolvePinnedManagedPythonPackage } from "./managedPythonPackageManifest.mjs";
+
+/**
+ * Bootstrap-owned execution context. Asset fetch and pip installs reuse the
+ * shared NetworkRouteService/precedence but never a DownloadExecutionContext;
+ * each bootstrap lifecycle resolves its own route for its concrete target.
+ */
+export type RuntimeBootstrapExecutionContext = {
+  identity: string;
+  createdAtMs: number;
+  network: NetworkRouteResolution | null;
+};
+
+/** One collision-safe bootstrap-owned context per asset/pip lifecycle. */
+export const createRuntimeBootstrapExecutionContext = (
+  options: Pick<ManagedRuntimeBootstrapOptions, "now">,
+): RuntimeBootstrapExecutionContext => ({
+  identity: randomUUID(),
+  createdAtMs: options.now?.() ?? Date.now(),
+  network: null,
+});
 
 export type ManagedRuntimeStage = "checking" | "downloading" | "installing" | "verifying";
 
@@ -48,9 +76,27 @@ export type ManagedRuntimeBootstrapOptions = {
   platform: NodeJS.Platform;
   arch: NodeJS.Architecture;
   fetch: typeof fetch;
+  /**
+   * Route-aware Electron-session fetch for managed asset downloads. Receives
+   * the bootstrap-owned route resolution and applies it to an isolated
+   * session without mutating the shared default session or racing other
+   * lifecycles. When absent, `fetch` is used and environment-sourced proxy
+   * routes are reported as not applied.
+   */
+  fetchRouteAware?(input: {
+    url: string;
+    resolution: NetworkRouteResolution;
+    identity: string;
+    init?: RequestInit;
+  }): Promise<Response>;
   bundledPythonRoot?: string;
   bundledPythonPath?: string;
-  manualProxyUrl?: string | null;
+  /**
+   * Resolves one network route for a concrete bootstrap target (asset URL or
+   * package index URL). The bootstrap owns its context lifecycle; it never
+   * receives a DownloadExecutionContext.
+   */
+  resolveRoute?(targetUrl: string): Promise<NetworkRouteResolution>;
   log?(message: string): void;
   onActivity?(activity: ManagedRuntimeActivity): void | Promise<void>;
   now?(): number;
@@ -172,8 +218,35 @@ const managedPythonRuntimePathsFor = (
 };
 
 const summarizeBootstrapError = (error: unknown): string => (
-  error instanceof Error && error.message ? error.message : String(error ?? "unknown error")
+  redactNetworkCredentials(
+    error instanceof Error && error.message ? error.message : String(error ?? "unknown error"),
+  )
 );
+
+export type BootstrapRoutePolicy = { kind: "apply" } | { kind: "unsupported"; reason: string };
+
+/**
+ * Decides whether a bootstrap consumer can deterministically consume the
+ * resolved route: pip accepts HTTP(S) only; asset fetch accepts every proxy
+ * protocol and rejects complex routes. Unsupported routes fail typed before
+ * spawn/fetch instead of being silently ignored.
+ */
+export const resolveBootstrapRoutePolicy = (
+  resolution: NetworkRouteResolution | null,
+  scope: "asset-fetch" | "pip-install",
+): BootstrapRoutePolicy => {
+  const route = resolution?.route;
+  if (!route || route.mode === "direct") {
+    return { kind: "apply" };
+  }
+  if (route.mode === "complex") {
+    return { kind: "unsupported", reason: route.reason };
+  }
+  if (scope === "pip-install" && route.protocol !== "http" && route.protocol !== "https") {
+    return { kind: "unsupported", reason: route.protocol };
+  }
+  return { kind: "apply" };
+};
 
 const sha256Hex = async (filePath: string): Promise<string> => {
   const buffer = await readFile(filePath);
@@ -430,15 +503,44 @@ const shouldRebuildManagedPythonRuntime = async (
   return false;
 };
 
+/**
+ * Deterministic pip child environment: every ambient proxy key is scrubbed,
+ * then the resolved HTTP(S) route (if any) is applied. SOCKS/complex routes
+ * are never smuggled into env; callers fail typed before spawn instead.
+ */
 export const buildManagedPythonEnv = (
   paths: ManagedPythonRuntimePaths,
-  proxyUrl: string | null | undefined = null,
-): NodeJS.ProcessEnv => ({
-  ...(proxyUrl ? buildManualProxyEnv(proxyUrl) : process.env),
-  PLAYWRIGHT_BROWSERS_PATH: join(paths.root, "playwright-browsers"),
-  PYTHONIOENCODING: "utf-8",
-  PYTHONUTF8: "1",
-});
+  resolution: NetworkRouteResolution | null = null,
+): NodeJS.ProcessEnv => {
+  const env = scrubProxyEnvKeys(process.env);
+  const route = resolution?.route;
+  if (route?.mode === "proxy" && (route.protocol === "http" || route.protocol === "https")) {
+    env.HTTP_PROXY = route.proxyUrl;
+    env.HTTPS_PROXY = route.proxyUrl;
+    env.http_proxy = route.proxyUrl;
+    env.https_proxy = route.proxyUrl;
+  }
+  env.PLAYWRIGHT_BROWSERS_PATH = join(paths.root, "playwright-browsers");
+  env.PYTHONIOENCODING = "utf-8";
+  env.PYTHONUTF8 = "1";
+  return env;
+};
+
+const PIP_INDEX_TARGET_URL = "https://pypi.org/simple/";
+
+const logBootstrapNetworkRoute = (
+  options: ManagedRuntimeBootstrapOptions,
+  resolution: NetworkRouteResolution,
+  fetchApplied: boolean,
+): void => {
+  const snapshot = toNetworkDiagnosticSnapshot(resolution);
+  options.log?.(
+    `>>> [BootstrapNetwork] route: ${JSON.stringify({
+      ...snapshot,
+      appliedToFetch: fetchApplied,
+    })}`,
+  );
+};
 
 const extractZipArchive = async (
   archivePath: string,
@@ -487,10 +589,11 @@ const findFileRecursive = async (
   return null;
 };
 
-const downloadToFile = async (
+export const downloadToFile = async (
   url: string,
   destinationPath: string,
   options: ManagedRuntimeBootstrapOptions & {
+    bootstrapContext?: RuntimeBootstrapExecutionContext;
     timeoutMs?: number;
     timeoutErrorMessage?: string;
     headers?: Record<string, string>;
@@ -521,12 +624,64 @@ const downloadToFile = async (
     }, timeoutMs);
   };
 
+  // Bootstrap-owned route resolution for this concrete asset URL. The
+  // route-aware adapter applies the resolved route to an isolated Electron
+  // session; complex routes fail typed before any request is issued. Without
+  // the adapter, the shared-session fetch applies manual/system routes only,
+  // and that non-application is recorded explicitly.
+  let performFetch: ((init: RequestInit) => Promise<Response>) | null = null;
+  let fetchRouteApplied: boolean | null = null;
+  if (options.resolveRoute) {
+    const resolution = await options.resolveRoute(url).catch((error) => {
+      options.log?.(`>>> [BootstrapNetwork] asset route resolution failed: ${summarizeBootstrapError(error)}`);
+      return null;
+    });
+    if (resolution) {
+      const policy = resolveBootstrapRoutePolicy(resolution, "asset-fetch");
+      if (policy.kind === "unsupported") {
+        options.log?.(
+          `>>> [BootstrapNetwork] asset route is unsupported (${policy.reason}); fetch aborted before request.`,
+        );
+        throw buildUnsupportedRouteError(resolution.route, "runtime-bootstrap asset fetch");
+      }
+      if (options.fetchRouteAware) {
+        performFetch = (init) => options.fetchRouteAware!({
+          url,
+          resolution,
+          identity: options.bootstrapContext?.identity ?? "runtime-bootstrap-assets",
+          init,
+        });
+        fetchRouteApplied = true;
+      } else {
+        const route = resolution.route;
+        fetchRouteApplied = route.mode !== "proxy"
+          || route.source === "manual"
+          || route.source === "system";
+        if (!fetchRouteApplied) {
+          options.log?.(
+            ">>> [BootstrapNetwork] route-aware fetch adapter is unavailable; "
+            + "environment-sourced proxy route is not applied to Electron session fetch.",
+          );
+        }
+      }
+      if (options.bootstrapContext) {
+        options.bootstrapContext.network = resolution;
+      }
+      logBootstrapNetworkRoute(options, resolution, fetchRouteApplied);
+    }
+  }
+
   try {
     resetTimeout();
-    const response = await options.fetch(url, {
-      headers: options.headers,
-      signal: controller?.signal,
-    });
+    const response = performFetch
+      ? await performFetch({
+          headers: options.headers,
+          signal: controller?.signal,
+        })
+      : await options.fetch(url, {
+          headers: options.headers,
+          signal: controller?.signal,
+        });
     if (!response.ok || !response.body) {
       throw new Error(`Download failed: ${response.status} ${response.statusText}`);
     }
@@ -598,6 +753,9 @@ const downloadRuntimeAssetWithFallbacks = async (
   componentId: RuntimeDependencyManagedComponent,
   options: ManagedRuntimeBootstrapOptions,
 ): Promise<string> => {
+  // One asset lifecycle = one bootstrap-owned context identity; every
+  // fallback URL in this lifecycle shares it (each resolves its own route).
+  const bootstrapContext = createRuntimeBootstrapExecutionContext(options);
   let lastError: unknown = null;
   const timeoutErrorMessage =
     `request timed out after ${Math.round(RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS / 1000)}s`;
@@ -606,6 +764,7 @@ const downloadRuntimeAssetWithFallbacks = async (
       await rm(tempPath, { force: true });
       await downloadToFile(downloadUrl, tempPath, {
         ...options,
+        bootstrapContext,
         timeoutMs: RUNTIME_DOWNLOAD_STALL_TIMEOUT_MS,
         timeoutErrorMessage,
         onProgress: ({ downloaded, total }) => {
@@ -757,6 +916,25 @@ const ensureManagedPythonPackageReady = async (
     assertPythonVersionSatisfiesManagedPackage(toolId, bundledPythonVersion, spec.minPython);
     await cleanupManagedPythonRuntimeRoot(paths.root);
     await ensureManagedPythonVirtualenvReady(bundledPythonPath, paths);
+    // Bootstrap-owned execution context: one route resolution for this
+    // package install lifecycle; the route is never a DownloadExecutionContext.
+    const context = createRuntimeBootstrapExecutionContext(options);
+    context.network = options.resolveRoute
+      ? await options.resolveRoute(PIP_INDEX_TARGET_URL).catch((error) => {
+          options.log?.(`>>> [BootstrapNetwork] pip route resolution failed: ${summarizeBootstrapError(error)}`);
+          return null;
+        })
+      : null;
+    if (context.network) {
+      logBootstrapNetworkRoute(options, context.network, false);
+      const policy = resolveBootstrapRoutePolicy(context.network, "pip-install");
+      if (policy.kind === "unsupported") {
+        options.log?.(
+          `>>> [BootstrapNetwork] pip cannot consume ${policy.reason} route; install aborted before pip spawn.`,
+        );
+        throw buildUnsupportedRouteError(context.network.route, "runtime-bootstrap pip install");
+      }
+    }
     await options.onActivity?.({
       component: spec.component,
       stage: "installing",
@@ -772,7 +950,7 @@ const ensureManagedPythonPackageReady = async (
       "--no-cache-dir",
       spec.installSource,
     ], {
-      env: buildManagedPythonEnv(paths, options.manualProxyUrl),
+      env: buildManagedPythonEnv(paths, context.network),
     });
     if (!existsSync(targetPath)) {
       throw new Error(`Managed ${toolId} entrypoint is missing after install: ${targetPath}`);

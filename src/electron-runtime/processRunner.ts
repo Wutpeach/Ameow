@@ -141,7 +141,9 @@ export const runStreamingCommand = async (
     if (typeof code === "number") {
       return code;
     }
-    throw new Error(`Command exited without status: ${command} ${args.join(" ")}`);
+    // Args are deliberately excluded: they may carry proxy credentials or
+    // cookie paths and this message is an ordinary error surface.
+    throw new Error(`Command exited without status: ${command}`);
   } finally {
     if (abortHandler) {
       options.signal?.removeEventListener("abort", abortHandler);

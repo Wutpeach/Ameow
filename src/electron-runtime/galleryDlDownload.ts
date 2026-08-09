@@ -1,9 +1,19 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
-import { buildManualProxyEnv } from "../config/networkProxy.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
+import {
+  applyNetworkRouteForContext,
+  logNetworkApplication,
+  withNetworkFailureClassification,
+} from "./engineNetworkAdapters.js";
+import {
+  classifyNetworkFailure,
+  NETWORK_FAILURE_CLASSIFICATIONS,
+  redactNetworkCredentials,
+  type NetworkRoute,
+} from "../config/networkRoute.js";
 import { getCliEngineManifest } from "./engineManifest.js";
 import { createGalleryDlCommandPlan, isGalleryDlSidecar } from "./galleryDlCommandPlan.js";
 import { runStreamingCommand } from "./processRunner.js";
@@ -133,6 +143,25 @@ export const runGalleryDlDownload = async (
     eta: "",
   });
 
+  // One stable route per Job, applied exactly once via the gallery-dl
+  // adapter. Every invocation includes `-o extractor.*.proxy-env=false` so
+  // Requests cannot discover a second routing authority from the environment
+  // or the Windows Registry; direct is an explicit `--proxy ""`. The actual
+  // applied/rejected outcome is reported for per-download diagnostics.
+  const networkApplication = applyNetworkRouteForContext(
+    "gallery-dl",
+    context.network,
+    {
+      mode: "direct",
+      source: "direct",
+      reason: "no_proxy_source",
+      resolvedFor: commandPlan.sourceUrl,
+    } satisfies NetworkRoute,
+    context.onNetworkApplication,
+  );
+  logNetworkApplication(networkApplication.diagnostic);
+  args.push(...networkApplication.args);
+
   let cookiesPath: string | null = null;
   try {
     const stdoutLines: string[] = [];
@@ -158,11 +187,8 @@ export const runGalleryDlDownload = async (
       args.unshift("--cookies");
     }
     await emitGalleryDlActivity();
-    const proxyEnv = context.proxyUrl
-      ? buildManualProxyEnv(context.proxyUrl)
-      : undefined;
     const exitCode = await runStreamingCommand(context.binaries.galleryDl, args, {
-      env: proxyEnv,
+      env: networkApplication.env,
       signal: context.abortSignal,
       onStdoutLine: async (line: string) => {
         pushTailLine(stdoutLines, line);
@@ -178,14 +204,19 @@ export const runGalleryDlDownload = async (
     });
 
     if (exitCode !== 0) {
+      const failureSummary = summarizeGalleryDlFailure(exitCode, stderrLines, stdoutLines);
+      const classification = classifyNetworkFailure(new Error(failureSummary), stderrLines);
       throw new DownloadRuntimeError(
         "E_EXECUTION_FAILED",
-        summarizeGalleryDlFailure(exitCode, stderrLines, stdoutLines),
+        redactNetworkCredentials(failureSummary),
         {
           context: {
             sourceUrl: commandPlan.sourceUrl,
-            stderrTail: stderrLines,
-            stdoutTail: stdoutLines,
+            stderrTail: stderrLines.map((line) => redactNetworkCredentials(line)),
+            stdoutTail: stdoutLines.map((line) => redactNetworkCredentials(line)),
+            ...(classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+              ? { networkFailureClassification: classification }
+              : {}),
           },
         },
       );
@@ -217,12 +248,31 @@ export const runGalleryDlDownload = async (
   } catch (error) {
     await context.reportNetworkProxyFailure?.(error);
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, context.outputStem);
-    const runtimeError = error instanceof DownloadRuntimeError ? error : null;
+    if (error instanceof DownloadRuntimeError) {
+      const existing = error.context?.networkFailureClassification;
+      const classification = typeof existing === "string"
+        ? null
+        : context.abortSignal.aborted
+          ? null
+          : classifyNetworkFailure(error);
+      throw withNetworkFailureClassification(
+        error,
+        classification === NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN ? null : classification,
+      );
+    }
+    const classification = context.abortSignal.aborted
+      ? null
+      : classifyNetworkFailure(error);
     throw new DownloadRuntimeError(
-      runtimeError?.code ?? "E_EXECUTION_FAILED",
-      summarizeError(error),
+      "E_EXECUTION_FAILED",
+      redactNetworkCredentials(summarizeError(error)),
       {
         cause: error,
+        context: classification === NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+          ? undefined
+          : classification
+            ? { networkFailureClassification: classification }
+            : undefined,
       },
     );
   } finally {

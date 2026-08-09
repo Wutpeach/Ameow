@@ -10,6 +10,17 @@ import { summarizeError } from "./runtimeUtils.js";
 import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import { hasTerminalYtDlpAvailabilityFailure, summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
+import {
+  applyNetworkRouteForContext,
+  logNetworkApplication,
+  withNetworkFailureClassification,
+} from "./engineNetworkAdapters.js";
+import {
+  classifyNetworkFailure,
+  NETWORK_FAILURE_CLASSIFICATIONS,
+  redactNetworkCredentials,
+  type NetworkRoute,
+} from "../config/networkRoute.js";
 
 const YTDLP_ACTIVITY_FALLBACK = "Resolving media...";
 
@@ -191,8 +202,13 @@ export const runYtDlpDownload = async (
     formatSelectorLength: commandPlan.formatProfile.selector.length,
   });
   const clipDurationSec = resolveClipDurationSec(commandPlan.clipRange);
-  const proxyUrl = context.proxyUrl ?? null;
   let latestStderrLines: string[] = [];
+  const fallbackNetworkRoute: NetworkRoute = {
+    mode: "direct",
+    source: "direct",
+    reason: "no_proxy_source",
+    resolvedFor: commandPlan.sourceUrl,
+  };
 
   const runAttempt = async (attempt: YtDlpAttemptDescriptor): Promise<DownloadResultPayload> => {
     if (context.abortSignal.aborted) {
@@ -201,13 +217,33 @@ export const runYtDlpDownload = async (
     const attemptStartedAtMs = Date.now();
     const stderrLines: string[] = [];
 
+    // One stable route per Job, applied exactly once per attempt via the
+    // yt-dlp adapter (explicit `--proxy ""` for direct, one `--proxy` for
+    // supported proxy routes, scrubbed ambient proxy env). The actual
+    // applied/rejected outcome is reported for per-download diagnostics.
+    // A real download may delegate the remote transfer to FFmpegFD (live HLS,
+    // `m3u8` protocol, native-HLS fallback, --download-sections) with no
+    // pre-spawn signal, and ffmpeg cannot use SOCKS proxies — so SOCKS routes
+    // fail closed before spawn instead of silently going direct inside ffmpeg.
+    const networkApplication = applyNetworkRouteForContext(
+      "yt-dlp",
+      context.network,
+      fallbackNetworkRoute,
+      context.onNetworkApplication,
+      { mayDelegateRemoteNetwork: true },
+    );
+    const proxyUrl = networkApplication.args.length > 1
+      ? networkApplication.args[networkApplication.args.indexOf("--proxy") + 1]
+      : null;
+    logNetworkApplication(networkApplication.diagnostic);
+
     const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
     const args = buildYtdlpCommandArgs(commandPlan, {
       cookiesPath,
       hasFfmpeg: Boolean(context.binaries.ffmpeg),
       hasDeno: Boolean(context.binaries.deno),
       formatProfile: attempt.formatProfile,
-      proxyUrl,
+      proxyArgs: networkApplication.args,
       selectionScope: context.intent.selectionScope,
       pageUrl: context.intent.pageUrl,
       platform: process.platform,
@@ -235,7 +271,7 @@ export const runYtDlpDownload = async (
         formatSort: attempt.formatProfile.sort,
         mergeOutputFormat: attempt.formatProfile.mergeOutputFormat,
         youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
-        args,
+        args: args.map((arg) => redactNetworkCredentials(arg)),
       });
     }
 
@@ -256,10 +292,10 @@ export const runYtDlpDownload = async (
       let loggedFirstProgress = false;
       const exitCode = await runStreamingCommand(context.binaries.ytDlp, args, {
         env: {
-          ...process.env,
+          ...networkApplication.env,
           PATH: commandPlan.ffmpegDir
-            ? `${commandPlan.ffmpegDir}${path.delimiter}${process.env.PATH ?? ""}`
-            : process.env.PATH,
+            ? `${commandPlan.ffmpegDir}${path.delimiter}${networkApplication.env.PATH ?? ""}`
+            : networkApplication.env.PATH,
         },
         signal: context.abortSignal,
         onStdoutLine: async (line: string) => {
@@ -463,24 +499,41 @@ export const runYtDlpDownload = async (
     }
   } catch (error) {
     await context.reportNetworkProxyFailure?.(error);
+    const classification = context.abortSignal.aborted
+      ? null
+      : classifyNetworkFailure(error, latestStderrLines);
+    const normalizedClassification = classification === NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+      ? null
+      : classification;
+    const redactedError = redactNetworkCredentials(summarizeError(error));
+    const redactedStderrTail = latestStderrLines.map((line) => redactNetworkCredentials(line));
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {
         traceId: context.traceId,
         sourceUrl: commandPlan.sourceUrl,
-        error: summarizeError(error),
-        stderrTail: latestStderrLines.slice(-5),
+        error: redactedError,
+        stderrTail: redactedStderrTail.slice(-5),
       });
     }
     logYtDlpTiming("task failed", {
       traceId: context.traceId,
       elapsedMs: formatElapsedMs(taskStartedAtMs),
-      error: summarizeError(error),
-      stderrTail: latestStderrLines.slice(-3),
+      error: redactedError,
+      stderrTail: redactedStderrTail.slice(-3),
     });
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
     if (error instanceof DownloadRuntimeError) {
-      throw error;
+      throw withNetworkFailureClassification(error, normalizedClassification);
     }
-    throw new Error(summarizeError(error));
+    throw new DownloadRuntimeError(
+      "E_EXECUTION_FAILED",
+      redactedError,
+      {
+        cause: error,
+        context: normalizedClassification
+          ? { networkFailureClassification: normalizedClassification }
+          : undefined,
+      },
+    );
   }
 };

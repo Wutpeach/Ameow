@@ -26,7 +26,8 @@ type BuildYtdlpCommandArgsOptions = {
   hasFfmpeg: boolean;
   hasDeno: boolean;
   formatProfile?: YtdlpFormatProfile;
-  proxyUrl?: string | null;
+  /** Proxy-related args produced by the yt-dlp network adapter. */
+  proxyArgs?: string[];
   selectionScope?: string;
   pageUrl?: string;
   platform: NodeJS.Platform;
@@ -233,8 +234,8 @@ export const buildYtdlpCommandArgs = (
   if (options.hasFfmpeg) {
     args.push("--ffmpeg-location", plan.ffmpegDir);
   }
-  if (options.proxyUrl) {
-    args.push("--proxy", options.proxyUrl);
+  if (options.proxyArgs && options.proxyArgs.length > 0) {
+    args.push(...options.proxyArgs);
   }
   if (options.selectionScope === "current_item") {
     args.push("--no-playlist");

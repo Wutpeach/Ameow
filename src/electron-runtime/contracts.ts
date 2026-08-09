@@ -23,8 +23,21 @@ import type {
   SiteProvider,
 } from "../core/index.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
+import type { NetworkRouteResolution } from "../config/networkRoute.js";
 
 export type RuntimeManagedComponent = RuntimeDependencyManagedComponent;
+
+/**
+ * One stable network execution context per queued Job. Created once at the
+ * Job boundary and reused across engine retry, engine fallback, and auth
+ * recovery. A future refresh must be an explicit rebuild with a new identity;
+ * P0 exposes no implicit refresh path.
+ */
+export type DownloadExecutionContext = {
+  identity: string;
+  createdAtMs: number;
+  network: Promise<NetworkRouteResolution>;
+};
 
 export type RuntimeEmitterEvent =
   | Extract<
@@ -77,8 +90,6 @@ export type RuntimeNetworkProxyContext = {
   providerId: string | null;
   engineId: EngineId;
 };
-
-export type RuntimeNetworkProxyDiagnosticContext = RuntimeNetworkProxyContext;
 
 export type RuntimeAdvancedQualitySiteSessionRefreshContext = {
   traceId: string;
@@ -143,15 +154,17 @@ export interface ElectronDownloadRuntimeOptions {
   refreshSiteSessionBeforeDownload?(
     context: RuntimeDownloadSiteSessionRefreshContext,
   ): Promise<void>;
-  resolveNetworkProxy?(
+  /**
+   * Resolves the single network route for a queued Job. Called once per Job;
+   * the returned resolution is reused across retry/fallback/auth recovery.
+   * The injected implementation must sanitize everything it logs.
+   */
+  resolveNetworkRoute?(
     context: RuntimeNetworkProxyContext,
-  ): Promise<string | null | undefined>;
+  ): Promise<NetworkRouteResolution>;
   reportNetworkProxyFailure?(
     context: RuntimeNetworkProxyContext & { error: unknown },
   ): Promise<void> | void;
-  diagnoseNetworkProxy?(
-    context: RuntimeNetworkProxyDiagnosticContext,
-  ): Promise<void>;
 }
 
 export interface RuntimeDependencyResolver {

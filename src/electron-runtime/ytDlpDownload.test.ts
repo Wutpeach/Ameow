@@ -281,16 +281,21 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("uses explicit execution proxy URLs for yt-dlp invocations", async () => {
+  it("applies a resolved proxy route as exactly one --proxy argument with scrubbed env", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
         ? "Proxy Video"
         : path.join("D:/downloads", "Proxy Video.mp4")
     ));
-    runStreamingCommandMock.mockImplementation(async (_command, args) => {
-      expect(args).toContain("--proxy");
+    runStreamingCommandMock.mockImplementation(async (_command, args, options) => {
+      const proxyOccurrences = args.filter((arg: string) => arg === "--proxy").length;
+      expect(proxyOccurrences).toBe(1);
       expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7897");
+      expect(options.env).not.toHaveProperty("HTTP_PROXY");
+      expect(options.env).not.toHaveProperty("http_proxy");
+      expect(options.env).not.toHaveProperty("ALL_PROXY");
+      expect(options.env).not.toHaveProperty("no_proxy");
       return 0;
     });
 
@@ -299,7 +304,15 @@ describe("runYtDlpDownload", () => {
       outputDir: "D:/downloads",
       outputStem: "Proxy Video",
       config: {},
-      proxyUrl: "http://127.0.0.1:7897",
+      network: {
+        route: {
+          mode: "proxy",
+          source: "system",
+          protocol: "http",
+          proxyUrl: "http://127.0.0.1:7897",
+          resolvedFor: "https://www.youtube.com/watch?v=proxy123",
+        },
+      },
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
         ffmpeg: "D:/ffmpeg/ffmpeg.exe",
@@ -322,15 +335,19 @@ describe("runYtDlpDownload", () => {
     });
   });
 
-  it("omits proxy args when no explicit execution proxy URL is present", async () => {
+  it("makes direct explicit with --proxy \"\" and scrubbed ambient proxy env", async () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockImplementation(async (filePath: string) => (
       filePath.endsWith("-title.txt")
         ? "Direct Video"
         : path.join("D:/downloads", "Direct Video.mp4")
     ));
-    runStreamingCommandMock.mockImplementation(async (_command, args) => {
-      expect(args).not.toContain("--proxy");
+    runStreamingCommandMock.mockImplementation(async (_command, args, options) => {
+      expect(args).toContain("--proxy");
+      expect(args[args.indexOf("--proxy") + 1]).toBe("");
+      expect(options.env).not.toHaveProperty("HTTP_PROXY");
+      expect(options.env).not.toHaveProperty("ALL_PROXY");
+      expect(options.env).not.toHaveProperty("NO_PROXY");
       return 0;
     });
 
@@ -339,7 +356,14 @@ describe("runYtDlpDownload", () => {
       outputDir: "D:/downloads",
       outputStem: "Direct Video",
       config: {},
-      proxyUrl: null,
+      network: {
+        route: {
+          mode: "direct",
+          source: "system",
+          reason: "resolved_direct",
+          resolvedFor: "https://www.youtube.com/watch?v=direct123",
+        },
+      },
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
         ffmpeg: "D:/ffmpeg/ffmpeg.exe",
@@ -359,6 +383,440 @@ describe("runYtDlpDownload", () => {
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
       file_path: path.join("D:/downloads", "Direct Video.mp4"),
+    });
+  });
+
+  it("rejects complex routes before spawning yt-dlp with NETWORK_PROXY_UNSUPPORTED", async () => {
+    readdirMock.mockResolvedValue([]);
+    const context = {
+      traceId: "trace-complex-route",
+      outputDir: "D:/downloads",
+      outputStem: "Complex Video",
+      config: {},
+      network: {
+        route: {
+          mode: "complex",
+          source: "system",
+          reason: "multiple_candidates",
+          candidates: [],
+          resolvedFor: "https://www.youtube.com/watch?v=complex123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=complex123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=complex123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      context: {
+        networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      },
+    });
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the rejected complex outcome through onNetworkApplication", async () => {
+    readdirMock.mockResolvedValue([]);
+    const onNetworkApplication = vi.fn();
+    const context = {
+      traceId: "trace-complex-outcome",
+      outputDir: "D:/downloads",
+      outputStem: "Complex Outcome",
+      config: {},
+      onNetworkApplication,
+      network: {
+        route: {
+          mode: "complex",
+          source: "system",
+          reason: "multiple_candidates",
+          candidates: [],
+          resolvedFor: "https://www.youtube.com/watch?v=complexOutcome123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=complexOutcome123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=complexOutcome123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).rejects.toMatchObject({
+      code: "E_EXECUTION_FAILED",
+    });
+    expect(onNetworkApplication).toHaveBeenCalledWith(expect.objectContaining({
+      engine: "yt-dlp",
+      appliedToEngine: false,
+      failureClassification: "NETWORK_PROXY_UNSUPPORTED",
+    }));
+  });
+
+  it("fails closed on SOCKS routes before spawning yt-dlp for ordinary downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    const onNetworkApplication = vi.fn();
+    const context = {
+      traceId: "trace-socks-ordinary",
+      outputDir: "D:/downloads",
+      outputStem: "Socks Video",
+      config: {},
+      onNetworkApplication,
+      network: {
+        route: {
+          mode: "proxy",
+          source: "system",
+          protocol: "socks5",
+          proxyUrl: "socks5://user:supersecret@127.0.0.1:7891",
+          resolvedFor: "https://www.youtube.com/watch?v=socksOrdinary123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=socksOrdinary123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=socksOrdinary123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    const error = await runYtDlpDownload(context).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      context: {
+        networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      },
+    });
+    // Credentials never leak into the ordinary error surface.
+    expect((error as Error).message).not.toContain("supersecret");
+    expect(JSON.stringify((error as Error).message)).not.toContain("socks5://");
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
+    expect(onNetworkApplication).toHaveBeenCalledWith(expect.objectContaining({
+      engine: "yt-dlp",
+      appliedToEngine: false,
+      failureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      proxyProtocol: "socks5",
+    }));
+  });
+
+  it("fails closed on SOCKS routes for section downloads before spawning yt-dlp", async () => {
+    readdirMock.mockResolvedValue([]);
+    const onNetworkApplication = vi.fn();
+    const context = {
+      traceId: "trace-socks-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Socks Clip",
+      config: {},
+      onNetworkApplication,
+      network: {
+        route: {
+          mode: "proxy",
+          source: "system",
+          protocol: "socks4",
+          proxyUrl: "socks4://127.0.0.1:7891",
+          resolvedFor: "https://www.youtube.com/watch?v=socksClip123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=socksClip123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=socksClip123",
+        pageUrl: "https://www.youtube.com/watch?v=socksClip123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        clipStartSec: 5,
+        clipEndSec: 15,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    const error = await runYtDlpDownload(context).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      context: {
+        networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      },
+    });
+    expect(runStreamingCommandMock).not.toHaveBeenCalled();
+    expect(onNetworkApplication).toHaveBeenCalledWith(expect.objectContaining({
+      engine: "yt-dlp",
+      appliedToEngine: false,
+      failureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      proxyProtocol: "socks4",
+    }));
+  });
+
+  it("supports direct routes for section downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Direct Clip"
+        : path.join("D:/downloads", "5000-15000_Direct Clip.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("--download-sections");
+      expect(args[args.indexOf("--proxy") + 1]).toBe("");
+      return 0;
+    });
+    const context = {
+      traceId: "trace-direct-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Direct Clip",
+      config: {},
+      network: {
+        route: {
+          mode: "direct",
+          source: "direct",
+          reason: "no_proxy_source",
+          resolvedFor: "https://www.youtube.com/watch?v=directClip123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=directClip123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=directClip123",
+        pageUrl: "https://www.youtube.com/watch?v=directClip123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        clipStartSec: 5,
+        clipEndSec: 15,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "5000-15000_Direct Clip.mp4"),
+    });
+  });
+
+  it("still applies HTTP(S) routes to section downloads", async () => {
+    readdirMock.mockResolvedValue([]);
+    readFileMock.mockImplementation(async (filePath: string) => (
+      filePath.endsWith("-title.txt")
+        ? "Http Clip"
+        : path.join("D:/downloads", "5000-15000_Http Clip.mp4")
+    ));
+    runStreamingCommandMock.mockImplementation(async (_command, args) => {
+      expect(args).toContain("--download-sections");
+      expect(args[args.indexOf("--proxy") + 1]).toBe("http://127.0.0.1:7897");
+      return 0;
+    });
+    const context = {
+      traceId: "trace-http-clip",
+      outputDir: "D:/downloads",
+      outputStem: "Http Clip",
+      config: {},
+      network: {
+        route: {
+          mode: "proxy",
+          source: "system",
+          protocol: "http",
+          proxyUrl: "http://127.0.0.1:7897",
+          resolvedFor: "https://www.youtube.com/watch?v=httpClip123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=httpClip123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=httpClip123",
+        pageUrl: "https://www.youtube.com/watch?v=httpClip123",
+        selectionScope: "current_item",
+        siteId: "youtube",
+        videoQuality: "best",
+        clipStartSec: 5,
+        clipEndSec: 15,
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await expect(runYtDlpDownload(context)).resolves.toMatchObject({
+      success: true,
+      file_path: path.join("D:/downloads", "5000-15000_Http Clip.mp4"),
+    });
+  });
+
+  it("classifies proxy connection failures from stderr evidence", async () => {
+    readdirMock.mockResolvedValue([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options.onStderrLine?.(
+        "ERROR: Unable to download webpage: <url> (caused by ProxyError('Cannot connect to proxy'))",
+      );
+      await options.onStderrLine?.("Traceback (most recent call last):");
+      return 1;
+    });
+    const context = {
+      traceId: "trace-proxy-conn",
+      outputDir: "D:/downloads",
+      outputStem: "Proxy Conn",
+      config: {},
+      network: {
+        route: {
+          mode: "direct",
+          source: "system",
+          reason: "resolved_direct",
+          resolvedFor: "https://www.youtube.com/watch?v=proxyConn123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=proxyConn123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=proxyConn123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await runYtDlpDownload(context).catch((error) => {
+      expect(error.code).toBe("E_EXECUTION_FAILED");
+      expect(error.context?.networkFailureClassification)
+        .toBe("NETWORK_PROXY_CONNECTION_FAILED");
+    });
+  });
+
+  it("redacts credentials in stderr-derived error messages without losing the classification", async () => {
+    readdirMock.mockResolvedValue([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options.onStderrLine?.(
+        "ERROR: Cannot connect to proxy http://user:supersecret@127.0.0.1:7897",
+      );
+      return 1;
+    });
+    const context = {
+      traceId: "trace-proxy-leak",
+      outputDir: "D:/downloads",
+      outputStem: "Proxy Leak",
+      config: {},
+      network: {
+        route: {
+          mode: "direct",
+          source: "system",
+          reason: "resolved_direct",
+          resolvedFor: "https://www.youtube.com/watch?v=proxyLeak123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=proxyLeak123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=proxyLeak123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await runYtDlpDownload(context).catch((error) => {
+      // Raw stderr stays as internal evidence on the cause; the ordinary
+      // error surfaces (message/context) must be credential-free.
+      expect(error.message).not.toContain("supersecret");
+      expect(JSON.stringify(error.context)).not.toContain("supersecret");
+      expect(error.context?.networkFailureClassification)
+        .toBe("NETWORK_PROXY_CONNECTION_FAILED");
+    });
+  });
+
+  it("never classifies content-level failures (403/login/ffmpeg) as proxy failures", async () => {
+    readdirMock.mockResolvedValue([]);
+    runStreamingCommandMock.mockImplementation(async (_command, _args, options) => {
+      await options.onStderrLine?.(
+        "ERROR: Unable to download webpage: https://example.com/video (caused by HTTPError('HTTP Error 403: Forbidden'))",
+      );
+      await options.onStderrLine?.("ERROR: ffmpeg failed to merge output files");
+      return 1;
+    });
+    const context = {
+      traceId: "trace-content-failure",
+      outputDir: "D:/downloads",
+      outputStem: "Content Failure",
+      config: {},
+      network: {
+        route: {
+          mode: "direct",
+          source: "system",
+          reason: "resolved_direct",
+          resolvedFor: "https://www.youtube.com/watch?v=contentFailure123",
+        },
+      },
+      binaries: {
+        ytDlp: "D:/yt-dlp.exe",
+        ffmpeg: "D:/ffmpeg/ffmpeg.exe",
+        deno: "D:/deno/deno.exe",
+      },
+      enginePlan: {
+        sourceUrl: "https://www.youtube.com/watch?v=contentFailure123",
+      },
+      intent: {
+        originalUrl: "https://www.youtube.com/watch?v=contentFailure123",
+        videoQuality: "best",
+      },
+      abortSignal: new AbortController().signal,
+      onProgress: vi.fn(async () => undefined),
+    } as never;
+
+    await runYtDlpDownload(context).catch((error) => {
+      expect(error.code).toBe("E_EXECUTION_FAILED");
+      expect(error.context?.networkFailureClassification).toBeUndefined();
     });
   });
 
@@ -1189,7 +1647,15 @@ describe("runYtDlpDownload", () => {
       outputDir: "D:/downloads",
       outputStem: "Clip Video",
       config: {},
-      proxyUrl: "http://127.0.0.1:7890",
+      network: {
+        route: {
+          mode: "proxy",
+          source: "system",
+          protocol: "http",
+          proxyUrl: "http://127.0.0.1:7890",
+          resolvedFor: "https://www.bilibili.com/video/BV1xx411c7mD",
+        },
+      },
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
         ffmpeg: "D:/ffmpeg/ffmpeg.exe",

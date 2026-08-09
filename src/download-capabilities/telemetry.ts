@@ -38,6 +38,18 @@ export const downloadTelemetryProfileSchema = z.object({
   ytdlpFormatSort: z.string().trim().min(1).max(80).nullable(),
 });
 
+export const downloadTelemetryNetworkSchema = z.object({
+  preference: z.enum(["manual", "system"]),
+  source: z.enum(["manual", "system", "environment", "direct", "fallback"]),
+  resolvedFor: z.string().trim().min(1).nullable(),
+  routeMode: z.enum(["direct", "proxy", "complex"]),
+  proxyProtocol: z.enum(["http", "https", "socks4", "socks5"]).nullable(),
+  resolutionStatus: z.enum(["resolved", "fallback", "failed"]),
+  engine: z.string().trim().min(1).nullable(),
+  appliedToEngine: z.boolean(),
+  failureClassification: z.string().trim().min(1).nullable(),
+});
+
 export const downloadTelemetryEventSchema = z.object({
   schemaVersion: z.literal(1),
   eventType: z.literal("download_outcome"),
@@ -61,6 +73,7 @@ export const downloadTelemetryEventSchema = z.object({
   errorMessage: z.string().trim().min(1).nullable(),
   downloadProfile: downloadTelemetryProfileSchema.optional(),
   compatibility: downloadTelemetryCompatibilitySchema.optional(),
+  network: downloadTelemetryNetworkSchema.optional(),
 });
 
 export type DownloadTelemetryInteractionMode = z.infer<
@@ -70,6 +83,7 @@ export type DownloadTelemetryCompatibility = z.infer<
   typeof downloadTelemetryCompatibilitySchema
 >;
 export type DownloadTelemetryProfile = z.infer<typeof downloadTelemetryProfileSchema>;
+export type DownloadTelemetryNetwork = z.infer<typeof downloadTelemetryNetworkSchema>;
 export type DownloadTelemetryEvent = z.infer<typeof downloadTelemetryEventSchema>;
 
 const resolveDiagnosticsSource = (request: RawDownloadInput): string | undefined => {
@@ -123,6 +137,7 @@ export const createDownloadTelemetryEvent = (input: {
   error?: Pick<DownloadRuntimeError, "code" | "classification" | "message"> | null;
   downloadProfile?: DownloadTelemetryProfile | null;
   compatibility?: DownloadTelemetryCompatibility | null;
+  network?: DownloadTelemetryNetwork | null;
 }): DownloadTelemetryEvent => downloadTelemetryEventSchema.parse({
   schemaVersion: 1,
   eventType: "download_outcome",
@@ -139,6 +154,7 @@ export const createDownloadTelemetryEvent = (input: {
   errorMessage: input.error?.message ?? null,
   downloadProfile: input.downloadProfile ?? undefined,
   compatibility: input.compatibility ?? undefined,
+  network: input.network ?? undefined,
 });
 
 export const isFailureTelemetryClassification = (

@@ -53,7 +53,7 @@ describe("yt-dlp command planning", () => {
       cookiesPath: "D:/temp/trace-plan-cookies.txt",
       hasFfmpeg: true,
       hasDeno: true,
-      proxyUrl: "http://127.0.0.1:7890",
+      proxyArgs: ["--proxy", "http://127.0.0.1:7890"],
       selectionScope: "current_item",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       platform: "darwin",
@@ -86,19 +86,44 @@ describe("yt-dlp command planning", () => {
     expect(args[args.length - 1]).toBe("https://www.youtube.com/watch?v=abc123");
   });
 
-  it("does not include proxy args when no explicit proxy URL is provided", () => {
+  it("never delegates downloads to an external downloader and only supplies local ffmpeg-location", () => {
+    const plan = createYtdlpCommandPlan(createContext());
+    const args = buildYtdlpCommandArgs(plan, {
+      cookiesPath: "D:/temp/trace-plan-cookies.txt",
+      hasFfmpeg: true,
+      hasDeno: true,
+      platform: "win32",
+    });
+
+    // yt-dlp must keep downloading with its native downloaders; ffmpeg only
+    // receives remote URLs through yt-dlp's own internal FFmpegFD selection
+    // (forced by --download-sections / live HLS), never via an explicit
+    // external-downloader argument from Ameow.
+    expect(args).not.toContain("--external-downloader");
+    expect(args).not.toContain("--downloader");
+    expect(args.some((arg) => String(arg).startsWith("--external-downloader"))).toBe(false);
+    expect(args.some((arg) => String(arg).startsWith("--downloader"))).toBe(false);
+
+    const ffmpegLocationIndex = args.indexOf("--ffmpeg-location");
+    expect(ffmpegLocationIndex).toBeGreaterThanOrEqual(0);
+    expect(args[ffmpegLocationIndex + 1]).toBe("D:/tools/ffmpeg/bin");
+    expect(args[ffmpegLocationIndex + 1]).not.toMatch(/^[a-z][a-z0-9+.-]*:\/\//i);
+  });
+
+  it("includes adapter-provided proxy args verbatim when present", () => {
     const plan = createYtdlpCommandPlan(createContext());
     const args = buildYtdlpCommandArgs(plan, {
       cookiesPath: null,
       hasFfmpeg: true,
       hasDeno: true,
-      proxyUrl: null,
+      proxyArgs: ["--proxy", ""],
       selectionScope: "current_item",
       pageUrl: "https://www.youtube.com/watch?v=abc123",
       platform: "win32",
     });
 
-    expect(args).not.toContain("--proxy");
+    expect(args).toContain("--proxy");
+    expect(args[args.indexOf("--proxy") + 1]).toBe("");
   });
 
   it("adds clip section args and clip output stem for supported sites", () => {
