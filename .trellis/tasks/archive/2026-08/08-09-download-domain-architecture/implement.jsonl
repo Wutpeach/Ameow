@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/electron-runtime-contracts/01-overview.md","reason":"Core runtime-neutral dependency direction and Electron composition-root contract."}
+{"file":".trellis/spec/backend/sidecar-runtime-contracts/03-electron-download-runtime-core.md","reason":"Queue/progress/result compatibility and framework-light runtime ownership."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/08-electron-proxy-resolution-contract-part-01.md","reason":"P0 NetworkRoute, stable DownloadExecutionContext, adapter mapping and redaction invariants."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/10-downloader-owned-url-extraction-contract.md","reason":"Provider URL planning versus downloader-owned extraction boundary."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Typed runtime error and evidence-preservation conventions."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Request/domain/application/infrastructure/protocol data-flow ownership review."}
+{"file":".trellis/tasks/08-09-download-domain-architecture/research/current-download-domain-audit.md","reason":"Evidence-backed current dependency graph, real violations and reusable abstractions."}

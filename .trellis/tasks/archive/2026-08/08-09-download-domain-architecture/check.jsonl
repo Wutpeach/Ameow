@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/electron-runtime-contracts/01-overview.md","reason":"Verify runtime-neutral core and explicit Electron composition."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/04-electron-download-command-bridge-contract.md","reason":"Verify IPC/WS queue fields, selected variant, events and queue ownership remain compatible."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/08-electron-proxy-resolution-contract-part-01.md","reason":"Verify no P0 network authority/context/redaction regression."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/10-downloader-owned-url-extraction-contract.md","reason":"Verify SiteProvider refactor preserves downloader-owned redirects and canonicalization exceptions."}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Verify runtime evidence remains useful and sensitive values stay redacted."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Verify existing registries/planners/runners were reused without parallel abstractions."}
+{"file":".trellis/tasks/08-09-download-domain-architecture/research/current-download-domain-audit.md","reason":"Compare final imports, policies and tests against the audited baseline."}
