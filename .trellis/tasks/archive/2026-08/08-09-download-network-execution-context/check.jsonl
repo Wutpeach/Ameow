@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/08-09-download-network-execution-context/research/current-network-execution-audit.md", "reason": "Verify implementation against confirmed old behavior"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify end-to-end route and diagnostic data flow"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify typed errors and cleanup"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify redaction and structured logs"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Run project quality gates"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts/08-electron-proxy-resolution-contract-part-01.md", "reason": "Verify intentional contract evolution"}
+{"file": ".trellis/spec/frontend/docs-site.md", "reason": "Verify public docs are updated in the correct source"}
