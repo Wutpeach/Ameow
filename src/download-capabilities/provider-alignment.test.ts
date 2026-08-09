@@ -103,4 +103,69 @@ describe("manual capability overlay stays aligned with current provider routing"
     expect(plan.providerId).toBe("generic");
     expect(plan.engines.map((engine) => engine.engine)).toEqual(strategy.engineOrder);
   });
+
+  it("keeps exact candidate order and counts per provider", () => {
+    const weibo = resolvePlan({
+      url: "https://weibo.com/detail/4913212871149937",
+    });
+    expect(weibo.engines.map((engine) => engine.engine)).toEqual(["gallery-dl", "yt-dlp"]);
+    expect(weibo.engines.map((engine) => engine.when)).toEqual(["primary", "fallback"]);
+    expect(weibo.engines[0]?.priority).toBeGreaterThan(weibo.engines[1]?.priority ?? 0);
+
+    const pinterest = resolvePlan({
+      url: "https://www.pinterest.com/pin/1234567890/",
+      pageUrl: "https://www.pinterest.com/pin/1234567890/",
+    });
+    expect(pinterest.engines.map((engine) => engine.engine)).toEqual(["gallery-dl"]);
+
+    const instagram = resolvePlan({
+      url: "https://www.instagram.com/p/AbCdEfGh123/",
+      pageUrl: "https://www.instagram.com/p/AbCdEfGh123/",
+    });
+    expect(instagram.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "gallery-dl"]);
+
+    const generic = resolvePlan({
+      url: "https://example.com/post/42",
+      pageUrl: "https://example.com/post/42",
+    });
+    expect(generic.engines.map((engine) => engine.engine)).toEqual(["yt-dlp"]);
+  });
+
+  it("declares advanced-quality requirements only when the download needs probing", () => {
+    const youtube = resolvePlan({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+    const youtubeProbing = resolvePlan({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      advancedQualityRequest: true,
+    });
+    const youtubeSelected = resolvePlan({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+      advancedQualitySelector: "1080p",
+    });
+    const bilibili = resolvePlan({
+      url: "https://www.bilibili.com/video/BV1xx411c7mD",
+      pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD",
+    });
+    const bilibiliProbing = resolvePlan({
+      url: "https://www.bilibili.com/video/BV1xx411c7mD",
+      pageUrl: "https://www.bilibili.com/video/BV1xx411c7mD",
+      advancedQualityRequest: true,
+    });
+    const twitter = resolvePlan({
+      url: "https://x.com/ameow/status/1234567890",
+    });
+
+    // Normal downloads express no capability need and accept any engine.
+    expect(youtube.requirements).toBeUndefined();
+    expect(bilibili.requirements).toBeUndefined();
+    expect(twitter.requirements).toBeUndefined();
+    // Probing or a selected option requires advanced-quality capability.
+    expect(youtubeProbing.requirements).toEqual({ advancedQuality: true });
+    expect(youtubeSelected.requirements).toEqual({ advancedQuality: true });
+    expect(bilibiliProbing.requirements).toEqual({ advancedQuality: true });
+  });
 });

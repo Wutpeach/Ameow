@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
-import type { DownloadResultPayload } from "../types/videoRuntime.js";
+import { DownloadRuntimeError, type DownloadResult } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
+import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import type { EngineInvocationContext } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
   logNetworkApplication,
@@ -101,8 +102,8 @@ const cleanupTaskArtifacts = async (
 };
 
 export const runGalleryDlDownload = async (
-  context: EngineExecutionContext,
-): Promise<DownloadResultPayload> => {
+  context: EngineInvocationContext,
+): Promise<DownloadResult> => {
   let commandPlan: ReturnType<typeof createGalleryDlCommandPlan>;
   try {
     commandPlan = createGalleryDlCommandPlan(context);
@@ -181,7 +182,7 @@ export const runGalleryDlDownload = async (
         eta: "",
       });
     };
-    cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
+    cookiesPath = await writeCookiesFile(context.traceId, context.cookies);
     if (cookiesPath) {
       args.unshift(cookiesPath);
       args.unshift("--cookies");
@@ -206,14 +207,23 @@ export const runGalleryDlDownload = async (
     if (exitCode !== 0) {
       const failureSummary = summarizeGalleryDlFailure(exitCode, stderrLines, stdoutLines);
       const classification = classifyNetworkFailure(new Error(failureSummary), stderrLines);
+      const redactedSummary = redactNetworkCredentials(failureSummary);
+      const redactedStderrTail = stderrLines.map((line) => redactNetworkCredentials(line));
+      const redactedStdoutTail = stdoutLines.map((line) => redactNetworkCredentials(line));
       throw new DownloadRuntimeError(
         "E_EXECUTION_FAILED",
-        redactNetworkCredentials(failureSummary),
+        redactedSummary,
         {
+          // Raw evidence is classified here (Infrastructure); Application
+          // fallback consumes only the stable classification below.
+          classification: classifyEngineFailure({
+            message: redactedSummary,
+            context: { stderrTail: redactedStderrTail, stdoutTail: redactedStdoutTail },
+          }),
           context: {
             sourceUrl: commandPlan.sourceUrl,
-            stderrTail: stderrLines.map((line) => redactNetworkCredentials(line)),
-            stdoutTail: stdoutLines.map((line) => redactNetworkCredentials(line)),
+            stderrTail: redactedStderrTail,
+            stdoutTail: redactedStdoutTail,
             ...(classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
               ? { networkFailureClassification: classification }
               : {}),
@@ -243,7 +253,7 @@ export const runGalleryDlDownload = async (
     return {
       traceId: context.traceId,
       success: true,
-      file_path: finalPath,
+      filePath: finalPath,
     };
   } catch (error) {
     await context.reportNetworkProxyFailure?.(error);
@@ -263,11 +273,13 @@ export const runGalleryDlDownload = async (
     const classification = context.abortSignal.aborted
       ? null
       : classifyNetworkFailure(error);
+    const redactedMessage = redactNetworkCredentials(summarizeError(error));
     throw new DownloadRuntimeError(
       "E_EXECUTION_FAILED",
-      redactNetworkCredentials(summarizeError(error)),
+      redactedMessage,
       {
         cause: error,
+        classification: classifyEngineFailure({ message: redactedMessage }),
         context: classification === NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
           ? undefined
           : classification

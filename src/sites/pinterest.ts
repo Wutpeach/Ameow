@@ -24,14 +24,10 @@ export const pinterestProvider: SiteProvider = {
       originalUrl: input.url,
       pageUrl: input.pageUrl,
       title: input.title,
-      cookies: input.cookies,
-      referer: input.pageUrl,
       priority: 95,
       candidates: [],
       selectionScope: input.selectionScope,
       videoQuality: input.videoQuality,
-      advancedQualitySelector: input.advancedQualitySelector,
-      advancedQualityLabel: input.advancedQualityLabel,
       preferredFormat: "mp4",
     };
 

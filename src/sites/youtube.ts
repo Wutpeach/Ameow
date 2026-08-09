@@ -23,15 +23,10 @@ export const youtubeProvider: SiteProvider = {
       originalUrl: input.url,
       pageUrl: input.pageUrl,
       title: input.title,
-      cookies: input.cookies,
-      referer: input.pageUrl,
       priority: 100,
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       videoQuality: input.videoQuality,
-      advancedQualitySelector: input.advancedQualitySelector,
-      advancedQualityLabel: input.advancedQualityLabel,
-      extensionData: input.extensionData,
       preferredFormat: "best",
       clipStartSec: input.clipStartSec,
       clipEndSec: input.clipEndSec,
@@ -41,6 +36,12 @@ export const youtubeProvider: SiteProvider = {
       label: input.title?.trim() || input.pageUrl || input.url,
       intent,
       engines: buildEnginePlansFromStrategy(strategy, input.url),
+      // The plan requires advanced-quality capability only when the download
+      // itself needs probing (a pending probe or a chosen option); a normal
+      // download must not reject an otherwise-eligible engine.
+      requirements: input.advancedQualityRequest === true || Boolean(input.advancedQualitySelector)
+        ? { advancedQuality: true }
+        : undefined,
     };
   },
 };

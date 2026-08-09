@@ -58,20 +58,11 @@ describe("builtin site providers", () => {
         },
       },
     });
-    const intent = expectVideoIntent(plan.intent);
-
     expect(plan.providerId).toBe("douyin");
     expectDouyinYtDlpOnly(
       plan,
       "https://www.iesdouyin.com/share/video/7637912431158644014/",
     );
-    expect(intent.extensionData).toMatchObject({
-      ameowCapture: {
-        contentIds: {
-          modal_id: "7637912431158644014",
-        },
-      },
-    });
   });
 
   it("prefers accepted Douyin canonical evidence over modal id synthesis", () => {
@@ -370,7 +361,6 @@ describe("builtin site providers", () => {
       engine: "yt-dlp",
       sourceUrl: pageUrl,
     });
-    expect(intent.cookies).toContain("Netscape HTTP Cookie File");
     expect(intent.candidates).toEqual([]);
   });
 
@@ -653,11 +643,6 @@ describe("builtin site providers", () => {
     expect(plan.engines.map((engine) => engine.engine)).toEqual(["yt-dlp", "gallery-dl"]);
     expect(plan.engines.every((engine) => engine.sourceUrl === permalink)).toBe(true);
     expect(intent.siteId).toBe("instagram");
-    expect(intent.extensionData).toMatchObject({
-      ameowCapture: {
-        canonicalUrl: permalink,
-      },
-    });
   });
 
   it("synthesizes Instagram permalink source from shortcode evidence inside the provider", () => {

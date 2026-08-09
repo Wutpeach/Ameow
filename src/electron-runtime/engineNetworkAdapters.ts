@@ -16,6 +16,17 @@ import {
  * conversion; NetworkRouteService never builds engine arguments.
  */
 
+/**
+ * Actual per-attempt route application outcome reported by an engine.
+ * Infrastructure-owned; the runtime attaches it to per-download diagnostics.
+ */
+export type NetworkApplicationOutcome = {
+  engine: "yt-dlp" | "gallery-dl";
+  appliedToEngine: boolean;
+  reason: string;
+  failureClassification: NetworkFailureClassification | null;
+};
+
 export type EngineNetworkApplicationDiagnostic = {
   engine: "yt-dlp" | "gallery-dl";
   appliedToEngine: boolean;
@@ -74,6 +85,12 @@ export const buildUnsupportedRouteError = (
   "E_EXECUTION_FAILED",
   `Unsupported network route (${routeReasonLabel(route)}) for ${scope}; the route is not applied.`,
   {
+    // Explicit classification preserves the pre-P1 behavior: an engine that
+    // cannot consume the resolved route (e.g. yt-dlp + SOCKS download) stops
+    // the candidate chain and surfaces the P0 NETWORK_PROXY_UNSUPPORTED
+    // failure instead of silently falling through to another engine. Core no
+    // longer derives this from the message text.
+    classification: "retry_same_engine",
     context: {
       networkFailureClassification: NETWORK_FAILURE_CLASSIFICATIONS.UNSUPPORTED,
       networkResolvedFor: sanitizeOrigin(route.resolvedFor) ?? "[invalid-target]",

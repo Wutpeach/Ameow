@@ -1,8 +1,5 @@
 import type { MediaCandidate } from "./media-candidate.js";
-import type {
-  DownloadExtensionData,
-  DownloadSelectionScope,
-} from "./raw-download-input.js";
+import type { DownloadSelectionScope } from "./raw-download-input.js";
 import type { VideoQualityPreference } from "../download-preferences.js";
 
 type BaseIntent = {
@@ -10,17 +7,11 @@ type BaseIntent = {
   originalUrl: string;
   pageUrl?: string;
   title?: string;
-  cookies?: string;
-  userAgent?: string;
-  referer?: string;
   priority: number;
   candidates: MediaCandidate[];
   selectedVideoVariant?: MediaCandidate;
   selectionScope?: DownloadSelectionScope;
   videoQuality?: VideoQualityPreference;
-  advancedQualitySelector?: string;
-  advancedQualityLabel?: string;
-  extensionData?: DownloadExtensionData;
 };
 
 export type VideoDownloadIntent = BaseIntent & {

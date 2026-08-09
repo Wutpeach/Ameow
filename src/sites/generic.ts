@@ -19,15 +19,10 @@ export const genericProvider: SiteProvider = {
       originalUrl: input.url,
       pageUrl: input.pageUrl,
       title: input.title,
-      cookies: input.cookies,
-      referer: input.pageUrl,
       priority: 10,
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       videoQuality: input.videoQuality,
-      advancedQualitySelector: input.advancedQualitySelector,
-      advancedQualityLabel: input.advancedQualityLabel,
-      extensionData: input.extensionData,
       preferredFormat: "best",
     };
     const strategy = getRuntimeManualSiteStrategy("generic");

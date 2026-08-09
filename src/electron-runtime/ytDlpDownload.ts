@@ -1,15 +1,19 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
+import {
+  DownloadRuntimeError,
+  type DownloadResult,
+} from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { buildYtdlpCommandArgs, createYtdlpCommandPlan } from "./ytDlpCommandPlan.js";
 import { resolveYtdlpSectionRetryFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { runStreamingCommand } from "./processRunner.js";
 import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
-import type { DownloadResultPayload } from "../types/videoRuntime.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import { hasTerminalYtDlpAvailabilityFailure, summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
+import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import type { EngineInvocationContext } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
   logNetworkApplication,
@@ -170,8 +174,8 @@ const shouldRetryTransientYtDlpNetworkFailure = (
 );
 
 export const runYtDlpDownload = async (
-  context: EngineExecutionContext,
-): Promise<DownloadResultPayload> => {
+  context: EngineInvocationContext,
+): Promise<DownloadResult> => {
   const taskStartedAtMs = Date.now();
   let commandPlan: ReturnType<typeof createYtdlpCommandPlan>;
   try {
@@ -210,7 +214,7 @@ export const runYtDlpDownload = async (
     resolvedFor: commandPlan.sourceUrl,
   };
 
-  const runAttempt = async (attempt: YtDlpAttemptDescriptor): Promise<DownloadResultPayload> => {
+  const runAttempt = async (attempt: YtDlpAttemptDescriptor): Promise<DownloadResult> => {
     if (context.abortSignal.aborted) {
       throw new Error("Download cancelled");
     }
@@ -237,7 +241,7 @@ export const runYtDlpDownload = async (
       : null;
     logNetworkApplication(networkApplication.diagnostic);
 
-    const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
+    const cookiesPath = await writeCookiesFile(context.traceId, context.cookies);
     const args = buildYtdlpCommandArgs(commandPlan, {
       cookiesPath,
       hasFfmpeg: Boolean(context.binaries.ffmpeg),
@@ -261,7 +265,7 @@ export const runYtDlpDownload = async (
         selectionScope: context.intent.selectionScope ?? null,
         siteId: context.intent.siteId,
         titlePresent: Boolean(context.intent.title),
-        cookiesPresent: Boolean(context.intent.cookies?.trim()),
+        cookiesPresent: Boolean(context.cookies?.trim()),
         cookiesPath,
         proxyPresent: Boolean(proxyUrl),
         proxyScheme: proxyUrl ? new URL(proxyUrl).protocol.replace(/:$/, "") : null,
@@ -438,7 +442,7 @@ export const runYtDlpDownload = async (
       return {
         traceId: context.traceId,
         success: true,
-        file_path: reportedPath,
+        filePath: reportedPath,
         title: reportedTitle ?? undefined,
       };
     } finally {
@@ -522,6 +526,12 @@ export const runYtDlpDownload = async (
       stderrTail: redactedStderrTail.slice(-3),
     });
     await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
+    // Raw stderr evidence is classified here (Infrastructure), then thrown as
+    // a typed error with a stable code/classification for the Orchestrator.
+    const engineClassification = classifyEngineFailure({
+      message: redactedError,
+      context: { stderrTail: redactedStderrTail },
+    });
     if (error instanceof DownloadRuntimeError) {
       throw withNetworkFailureClassification(error, normalizedClassification);
     }
@@ -530,6 +540,7 @@ export const runYtDlpDownload = async (
       redactedError,
       {
         cause: error,
+        classification: engineClassification,
         context: normalizedClassification
           ? { networkFailureClassification: normalizedClassification }
           : undefined,

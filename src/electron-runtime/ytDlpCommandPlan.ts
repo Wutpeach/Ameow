@@ -1,5 +1,6 @@
 import path from "node:path";
-import type { EngineExecutionContext, VideoQualityPreference } from "../core/index.js";
+import type { VideoQualityPreference } from "../core/index.js";
+import type { EngineInvocationContext } from "./engineExecutionContext.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest, resolveYtdlpFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { resolveRenameEnabled } from "./renameRules.js";
@@ -88,7 +89,7 @@ const formatClipTimeForYtdlp = (seconds: number): string => {
 };
 
 const resolveClipRangeSeconds = (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
 ): YtdlpClipRange | null => {
   const rawIntent = context.intent as Record<string, unknown>;
   const rawStartSec = rawIntent.clipStartSec;
@@ -125,7 +126,7 @@ const buildYtdlpDownloadSectionArg = (
 ): string => `*${formatClipTimeForYtdlp(clipRange.startSec)}-${formatClipTimeForYtdlp(clipRange.endSec)}`;
 
 const resolveClipRangeStemPrefix = (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
   clipRange: YtdlpClipRange | null,
 ): string | null => {
   if (!clipRange) {
@@ -137,7 +138,7 @@ const resolveClipRangeStemPrefix = (
 };
 
 const resolveYtdlpArtifactPrefixes = (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
   clipRange: YtdlpClipRange | null,
 ): string[] => {
   const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
@@ -147,7 +148,7 @@ const resolveYtdlpArtifactPrefixes = (
 };
 
 const buildYtdlpOutputTemplate = (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
   clipRange: YtdlpClipRange | null,
 ): string => {
   const runtimeConfig = context.config ?? {};
@@ -168,7 +169,7 @@ const buildYtdlpOutputTemplate = (
 };
 
 export const createYtdlpCommandPlan = (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
 ): YtdlpCommandPlan => {
   const clipRange = resolveClipRangeSeconds(context);
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
@@ -181,7 +182,7 @@ export const createYtdlpCommandPlan = (
     Boolean(context.binaries.ffmpeg),
     { isYouTube: youtubeUrl, siteId: context.intent.siteId },
   );
-  const advancedQualitySelector = context.intent.advancedQualitySelector?.trim();
+  const advancedQualitySelector = context.advancedQualitySelector?.trim();
   const resolvedFormatProfile = advancedQualitySelector
     ? {
         ...formatProfile,

@@ -8,6 +8,10 @@ import type { DownloadErrorCode } from "../constants/error-codes.js";
 export class DownloadRuntimeError extends Error {
   readonly code: DownloadErrorCode;
   readonly classification: DownloadFailureClassification;
+  /** True when the caller supplied the classification explicitly (Infrastructure
+   * adapters classify raw evidence); false when it was derived from the
+   * code-only map and may still be refined from evidence at the boundary. */
+  readonly classificationExplicit: boolean;
   readonly context?: Record<string, unknown>;
   readonly fallbackable: boolean;
   declare readonly cause?: unknown;
@@ -24,6 +28,7 @@ export class DownloadRuntimeError extends Error {
     super(message);
     this.name = "DownloadRuntimeError";
     this.code = code;
+    this.classificationExplicit = options.classification !== undefined;
     this.classification = options.classification ?? classifyDownloadFailure({
       code,
       message,

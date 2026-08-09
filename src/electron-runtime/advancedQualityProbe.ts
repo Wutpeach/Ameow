@@ -1,5 +1,6 @@
 import path from "node:path";
-import { DownloadRuntimeError, type EngineExecutionContext } from "../core/index.js";
+import { DownloadRuntimeError } from "../core/index.js";
+import type { EngineInvocationContext } from "./engineExecutionContext.js";
 import type {
   AdvancedQualityOptionPayload,
   AdvancedQualityPostProcessPlan,
@@ -280,7 +281,7 @@ export const extractAdvancedQualityOptionsFromYtDlpJson = (
   };
 };
 
-const resolveProbeSourceUrl = (context: EngineExecutionContext): string => {
+const resolveProbeSourceUrl = (context: EngineInvocationContext): string => {
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
   if (!sourceUrl) {
     throw new DownloadRuntimeError(
@@ -298,12 +299,12 @@ const resolveProbeSourceUrl = (context: EngineExecutionContext): string => {
 };
 
 export const runAdvancedQualityProbe = async (
-  context: EngineExecutionContext,
+  context: EngineInvocationContext,
 ): Promise<AdvancedQualityProbeResult> => {
   const sourceUrl = resolveProbeSourceUrl(context);
   const manifest = getCliEngineManifest("yt-dlp");
   const youtubeUrl = isYouTubeUrl(sourceUrl);
-  const cookiesPath = await writeCookiesFile(context.traceId, context.intent.cookies);
+  const cookiesPath = await writeCookiesFile(context.traceId, context.cookies);
   const args = [
     ...manifest.baseArgs,
     ...manifest.configIsolationArgs,
@@ -318,15 +319,9 @@ export const runAdvancedQualityProbe = async (
     args.push("--add-header", `Referer:${context.intent.pageUrl}`);
   }
   // Reuse the yt-dlp adapter so the probe follows the same network route and
-  // failure semantics as the real download.
-  const networkApplication = context.network
-    ? buildYtDlpNetworkApplication(context.network.route)
-    : buildYtDlpNetworkApplication({
-        mode: "direct",
-        source: "direct",
-        reason: "no_proxy_source",
-        resolvedFor: sourceUrl,
-      });
+  // failure semantics as the real download. The per-Job resolution is always
+  // present in the execution contract; it is never re-resolved here.
+  const networkApplication = buildYtDlpNetworkApplication(context.network.route);
   logNetworkApplication(networkApplication.diagnostic);
   args.push(...networkApplication.args);
   if (cookiesPath) {

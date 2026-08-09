@@ -35,6 +35,11 @@ export const mediaCandidateSchema = z.object({
   qualityIndex: z.number().finite().positive().optional(),
 });
 
+/**
+ * Application entry schema. Legacy `ytdlpQuality` is normalized once here into
+ * the canonical `videoQuality` field consumed by providers/plans; protocol
+ * callers may still send either key.
+ */
 export const rawDownloadInputSchema = z.object({
   url: z.url(),
   pageUrl: z.url().optional(),
@@ -54,4 +59,7 @@ export const rawDownloadInputSchema = z.object({
   advancedQualityLabel: z.string().trim().optional(),
   extensionData: downloadExtensionDataSchema.optional(),
   diagnostics: z.record(z.string(), z.unknown()).optional(),
-});
+}).transform((input) => ({
+  ...input,
+  videoQuality: input.videoQuality ?? input.ytdlpQuality,
+}));

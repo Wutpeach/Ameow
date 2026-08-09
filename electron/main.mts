@@ -35,6 +35,7 @@ import {
 import {
   allocateRenameStem,
   createElectronDownloadRuntime,
+  GalleryDlEngineAdapter,
   inspectRuntimeDependencyStatus,
   releaseRenameStem,
   resolveBundledPythonRuntime,
@@ -42,6 +43,7 @@ import {
   resolveXiaohongshuDragMedia,
   resolveRuntimeBinaryPaths,
   resolveRenameEnabled,
+  YtDlpEngineAdapter,
 } from "../src/electron-runtime/index.js";
 import {
   normalizeVideoQualityPreference,
@@ -1469,11 +1471,19 @@ function getElectronDownloadRuntime() {
     return electronDownloadRuntime;
   }
 
+  const environment = buildElectronRuntimeEnvironment();
   electronDownloadRuntime = createElectronDownloadRuntime({
-    environment: buildElectronRuntimeEnvironment(),
+    environment,
     configStore: {
       readConfigString,
     },
+    // Outer composition root: concrete Infrastructure adapters are registered
+    // here, never constructed inside core/application paths. Static runtime
+    // dependencies (binary paths) are injected through adapter construction.
+    engines: [
+      new YtDlpEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
+      new GalleryDlEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
+    ],
     eventSink: {
       emit(event, payload) {
         emitAppEvent(event, payload);
@@ -1549,13 +1559,9 @@ function getElectronDownloadRuntime() {
         : null;
       return {
         ...context,
-        intent: appOwnedCookies
-          ? {
-              ...context.intent,
-              cookies: appOwnedCookies,
-            }
-            : context.intent,
-        userDataDir: getUserDataDir(),
+        // Enrich the per-attempt auth material with the app-owned site session.
+        // Never clones or mutates the shared intent/plan object.
+        cookies: appOwnedCookies ?? context.cookies,
       };
     },
     handleAuthRequiredFailure(context) {

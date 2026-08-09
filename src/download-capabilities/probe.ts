@@ -3,6 +3,7 @@ import {
   DownloadRuntimeError,
   type DownloadFailureClassification,
 } from "../core/index.js";
+import { classifyEngineFailure } from "../electron-runtime/engineErrorClassifier.js";
 import {
   capabilityAuthRequirementSchema,
   capabilityEngineIdSchema,
@@ -134,7 +135,13 @@ const createCommandFailureProbeResult = (
   stderrTail: string[],
 ): CapabilityProbeResult => {
   const summary = summarizeCommandFailure(engine, exitCode, stdoutTail, stderrTail);
+  // Raw command evidence is classified by the Infrastructure classifier; the
+  // probe only maps the stable classification to a probe status.
   const error = new DownloadRuntimeError("E_EXECUTION_FAILED", summary, {
+    classification: classifyEngineFailure({
+      message: summary,
+      context: { stdoutTail, stderrTail },
+    }),
     context: {
       stdoutTail,
       stderrTail,

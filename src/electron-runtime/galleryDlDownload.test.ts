@@ -99,8 +99,8 @@ describe("runGalleryDlDownload", () => {
       },
       intent: {
         originalUrl: "https://www.pinterest.com/pin/123/",
-        cookies: "# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tFALSE\t0\tsid\tabc",
       },
+      cookies: "# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tFALSE\t0\tsid\tabc",
       plan: {
         providerId: "pinterest",
       },
@@ -443,7 +443,7 @@ describe("runGalleryDlDownload", () => {
 
     await expect(runGalleryDlDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "pin.mp4"),
+      filePath: path.join("D:/downloads", "pin.mp4"),
     });
 
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({

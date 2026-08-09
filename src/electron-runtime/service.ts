@@ -33,7 +33,6 @@ import {
 import type {
   AdvancedQualityOptionPayload,
   DownloadResultPayload,
-  DownloadProgressPayload,
   QueuedVideoDownloadAck,
   VideoTranscodeCompletePayload,
   VideoTranscodeQueueDetailPayload,
@@ -46,12 +45,13 @@ import type {
 } from "../types/videoRuntime.js";
 import type { RuntimeFailureDiagnostic } from "../types/errorDiagnostics.js";
 import type {
-  EngineExecutionContext,
+  DownloadProgress,
+  DownloadResult,
   EnginePlan,
   RawDownloadInput,
   ResolvedDownloadPlan,
 } from "../core/index.js";
-import { builtinEngines, createEngineRegistry } from "../engines/index.js";
+import { createEngineRegistry } from "../engines/engine-registry.js";
 import { DownloadOrchestrator } from "../orchestration/download-orchestrator.js";
 import { loadBuiltinProviders } from "../sites/provider-loader.js";
 import { createSiteRegistry } from "../sites/site-registry.js";
@@ -76,8 +76,11 @@ import {
   type NetworkDiagnosticSnapshot,
   type NetworkFailureClassification,
 } from "../config/networkRoute.js";
-import type { NetworkApplicationOutcome } from "../core/index.js";
+import { classifyEngineFailure } from "./engineErrorClassifier.js";
 import type { DownloadExecutionContext } from "./contracts.js";
+import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
+import type { NetworkApplicationOutcome } from "./engineNetworkAdapters.js";
+import { toDownloadProgressPayload, toDownloadResultPayload } from "./protocolMappers.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 
 type PendingTask = {
@@ -123,7 +126,7 @@ const resolveCanonicalNetworkTarget = (
 };
 
 type DownloadExecutionAttempt = {
-  result: DownloadResultPayload;
+  result: DownloadResult;
   retriedAfterAuthSync: boolean;
 };
 
@@ -248,7 +251,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   private activeTranscode: TranscodeTaskState | null = null;
   private transcodePumpScheduled = false;
   private readonly resolver;
-  private readonly orchestrator: DownloadOrchestrator;
+  private readonly orchestrator: DownloadOrchestrator<EngineExecutionContextWithRuntime>;
   private readonly siteRegistry;
   private readonly telemetrySink: DownloadTelemetrySink;
 
@@ -257,7 +260,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     this.maxConcurrent = options.maxConcurrent ?? 3;
     this.logger = options.logger ?? NOOP_LOGGER;
     const providers = options.providers ?? loadBuiltinProviders();
-    const engines = options.engines ?? builtinEngines();
+    // Concrete engines are registered by the outer Electron composition; the
+    // runtime never constructs hidden built-in adapters.
+    const engines = options.engines ?? [];
     this.siteRegistry = createSiteRegistry(providers);
     this.orchestrator = new DownloadOrchestrator(
       this.siteRegistry,
@@ -539,7 +544,12 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     task: AdvancedQualityTaskState,
   ): Promise<AdvancedQualityProbeResult> {
     const context = await this.buildAdvancedQualityProbeContext(task);
-    return await runAdvancedQualityProbe(context);
+    // Explicit composition at the probe boundary: static binary paths are
+    // supplied by the runtime, never smuggled through the execution contract.
+    return await runAdvancedQualityProbe({
+      ...context,
+      binaries: resolveRuntimeBinaryPaths(this.options.environment),
+    });
   }
 
   /**
@@ -581,7 +591,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
   private async buildAdvancedQualityProbeContext(
     task: AdvancedQualityTaskState,
-  ): Promise<EngineExecutionContext> {
+  ): Promise<EngineExecutionContextWithRuntime> {
     const abortController = task.abortController;
     if (!abortController) {
       throw new DownloadRuntimeError(
@@ -594,7 +604,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
     const config = parseJsonObject(await this.options.configStore.readConfigString());
     const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
-    const binaries = resolveRuntimeBinaryPaths(this.options.environment);
     const plan = this.siteRegistry.resolve(task.request);
     if (!plan) {
       throw new DownloadRuntimeError(
@@ -660,7 +669,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     );
     const network = await executionContext.network;
 
-    const context: EngineExecutionContext = {
+    const context: EngineExecutionContextWithRuntime = {
       traceId: task.traceId,
       plan,
       enginePlan,
@@ -674,10 +683,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         task.request.siteHint,
       ),
       config,
+      cookies: task.request.cookies,
       network,
-      binaries,
       abortSignal: abortController.signal,
-      fetch: this.options.environment.fetch,
       reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
         ? (error) => this.options.reportNetworkProxyFailure?.({
             targetUrl: proxyTargetUrl,
@@ -1131,7 +1139,12 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         traceId,
         ...EARLY_VIDEO_ACTIVITY_PAYLOAD,
       });
-      telemetryPlan = this.siteRegistry.resolve(activeTask.request);
+      // Validate and resolve the plan exactly once per Job. The same
+      // normalized input and ResolvedDownloadPlan object are reused by
+      // telemetry, every engine attempt and auth recovery; recovery never
+      // re-resolves the plan or the network route.
+      const prepared = this.orchestrator.prepare(activeTask.request);
+      telemetryPlan = prepared.plan;
       this.logger.log(`>>> [ElectronRuntimeTiming] task pre-engine complete: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
@@ -1190,8 +1203,8 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           failureClassification: application.failureClassification,
         };
       };
-      const executeDownloadAttempt = async (): Promise<DownloadResultPayload> => this.orchestrator.execute(
-        activeTask.request,
+      const executeDownloadAttempt = async (): Promise<DownloadResult> => this.orchestrator.executePrepared(
+        prepared,
         async (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
           executedProviderId = plan.providerId;
           executedEngineId = enginePlan.engine;
@@ -1210,7 +1223,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             when: enginePlan.when,
           })}`);
           const network = await executionContext.network;
-          const context: EngineExecutionContext = {
+          const context: EngineExecutionContextWithRuntime = {
             traceId,
             plan,
             enginePlan,
@@ -1218,11 +1231,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             outputDir: resolvedOutputDir,
             outputStem,
             config,
+            // Attempt auth material and engine-specific execution data come
+            // from the raw request, not the Domain intent.
+            cookies: activeTask.request.cookies,
+            advancedQualitySelector: activeTask.request.advancedQualitySelector,
+            advancedQualityLabel: activeTask.request.advancedQualityLabel,
             network,
-            binaries,
             abortSignal: activeTask.abortController.signal,
             onNetworkApplication: reportNetworkApplication,
-            fetch: this.options.environment.fetch,
             reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
               ? (error) => this.options.reportNetworkProxyFailure?.({
                   targetUrl: canonicalNetworkTarget,
@@ -1231,8 +1247,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
                   error,
                 })
               : undefined,
-            onProgress: async (payload: DownloadProgressPayload) => {
-              await this.options.eventSink.emit("video-download-progress", payload);
+            onProgress: async (payload: DownloadProgress) => {
+              await this.options.eventSink.emit(
+                "video-download-progress",
+                toDownloadProgressPayload(payload),
+              );
             },
           };
           return this.options.buildExecutionContext
@@ -1252,7 +1271,8 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           error,
         }),
       });
-      let result = execution.result;
+      // Core result -> protocol payload at the runtime boundary (stable keys).
+      let result = toDownloadResultPayload(execution.result);
       this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
@@ -1402,6 +1422,31 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     aborted: boolean,
   ): DownloadRuntimeError {
     if (error instanceof DownloadRuntimeError) {
+      // Engine adapters classify raw evidence and supply the classification
+      // explicitly before throwing; those must never be re-derived from
+      // message text. Only unstamped execution failures (an unclassified
+      // E_EXECUTION_FAILED from a legacy or injected source) are refined at
+      // this Infrastructure boundary, preserving cause and context.
+      if (
+        error.code === "E_EXECUTION_FAILED"
+        && !error.classificationExplicit
+      ) {
+        const classification = classifyEngineFailure({
+          message: error.message,
+          context: error.context,
+        });
+        if (classification !== error.classification) {
+          return new DownloadRuntimeError(
+            error.code,
+            error.message,
+            {
+              cause: error.cause,
+              classification,
+              context: error.context,
+            },
+          );
+        }
+      }
       return error;
     }
 
@@ -1416,11 +1461,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       );
     }
 
+    const message = summarizeError(error);
     return new DownloadRuntimeError(
       "E_EXECUTION_FAILED",
-      summarizeError(error),
+      message,
       {
         cause: error,
+        classification: classifyEngineFailure({ message }),
       },
     );
   }
@@ -1428,7 +1475,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   private async executeDownloadWithAuthRecovery(options: {
     activeTask: ActiveTask;
     traceId: string;
-    executeDownloadAttempt(): Promise<DownloadResultPayload>;
+    executeDownloadAttempt(): Promise<DownloadResult>;
     getRecoveryContext(error: DownloadRuntimeError): RuntimeAuthFailureRecoveryContext;
   }): Promise<DownloadExecutionAttempt> {
     try {

@@ -23,15 +23,10 @@ export const bilibiliProvider: SiteProvider = {
       originalUrl: input.url,
       pageUrl: input.pageUrl,
       title: input.title,
-      cookies: input.cookies,
-      referer: input.pageUrl,
       priority: 84,
       candidates: input.videoCandidates ?? [],
       selectionScope: input.selectionScope,
       videoQuality: input.videoQuality,
-      advancedQualitySelector: input.advancedQualitySelector,
-      advancedQualityLabel: input.advancedQualityLabel,
-      extensionData: input.extensionData,
       preferredFormat: "best",
       clipStartSec: input.clipStartSec,
       clipEndSec: input.clipEndSec,
@@ -51,6 +46,12 @@ export const bilibiliProvider: SiteProvider = {
           fallbackOn: "any",
         },
       ],
+      // The plan requires advanced-quality capability only when the download
+      // itself needs probing (a pending probe or a chosen option); a normal
+      // download must not reject an otherwise-eligible engine.
+      requirements: input.advancedQualityRequest === true || Boolean(input.advancedQualitySelector)
+        ? { advancedQuality: true }
+        : undefined,
     };
   },
 };

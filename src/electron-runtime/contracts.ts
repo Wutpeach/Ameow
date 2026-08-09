@@ -16,12 +16,12 @@ import type {
   DownloadRuntimeError,
   DownloadEngine,
   EngineId,
-  EngineExecutionContext,
   RawDownloadInput,
   RuntimeBinaryPaths as CoreRuntimeBinaryPaths,
   ResolvedDownloadPlan,
   SiteProvider,
 } from "../core/index.js";
+import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
 import type { NetworkRouteResolution } from "../config/networkRoute.js";
 
@@ -133,11 +133,17 @@ export interface ElectronDownloadRuntimeOptions {
   telemetrySink?: DownloadTelemetrySink;
   maxConcurrent?: number;
   providers?: SiteProvider[];
-  engines?: DownloadEngine[];
+  /**
+   * Concrete engines registered by the outer composition. The declared
+   * execution contract (the Electron runtime per-job context) is preserved
+   * through the registry and orchestrator: the runtime always builds this
+   * exact context for engine attempts.
+   */
+  engines?: DownloadEngine<EngineExecutionContextWithRuntime>[];
   buildExecutionContext?(
-    context: EngineExecutionContext,
+    context: EngineExecutionContextWithRuntime,
     input: RawDownloadInput,
-  ): EngineExecutionContext;
+  ): EngineExecutionContextWithRuntime;
   ensureEngineRuntimeReady?(
     engineId: EngineId,
     reason: string,

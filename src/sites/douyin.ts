@@ -168,15 +168,10 @@ const buildIntent = (input: RawDownloadInput): DownloadIntent => ({
   originalUrl: input.url,
   pageUrl: input.pageUrl,
   title: input.title,
-  cookies: input.cookies,
-  referer: input.pageUrl,
   priority: 90,
   candidates: input.videoCandidates ?? [],
   selectionScope: input.selectionScope,
   videoQuality: input.videoQuality,
-  advancedQualitySelector: input.advancedQualitySelector,
-  advancedQualityLabel: input.advancedQualityLabel,
-  extensionData: input.extensionData,
   preferredFormat: "mp4",
 });
 

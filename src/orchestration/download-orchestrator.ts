@@ -2,16 +2,16 @@ import {
   DownloadRuntimeError,
   downloadIntentSchema,
   enginePlanSchema,
+  type DownloadResult,
+  type EngineExecutionContext,
   type EnginePlan,
   rawDownloadInputSchema,
   type DownloadErrorCode,
-  type EngineExecutionContext,
   type RawDownloadInput,
   type ResolvedDownloadPlan,
 } from "../core/index.js";
 import type { EngineRegistry } from "../engines/engine-registry.js";
 import type { SiteRegistry } from "../sites/site-registry.js";
-import type { DownloadResultPayload } from "../types/videoRuntime.js";
 
 const shouldFallbackForError = (
   error: DownloadRuntimeError,
@@ -82,19 +82,40 @@ const wrapSelectedVariantError = (
   );
 };
 
-export class DownloadOrchestrator {
+export type PreparedDownloadRequest = {
+  /** Validated/normalized input; the exact object handed to site providers. */
+  input: RawDownloadInput;
+  /** Resolved plan; the exact same object is reused across every attempt. */
+  plan: ResolvedDownloadPlan;
+};
+
+export type DownloadBuildContext<
+  TExecutionContext extends EngineExecutionContext = EngineExecutionContext,
+> = (
+  plan: ResolvedDownloadPlan,
+  enginePlan: EnginePlan,
+) => TExecutionContext | Promise<TExecutionContext>;
+
+/**
+ * Executes resolved download plans through the registered engines. The
+ * execution-context type propagates from the registry: callers must supply
+ * exactly the context the registered engines declared, so an adapter's
+ * per-job requirement cannot be hidden behind the application default.
+ */
+export class DownloadOrchestrator<
+  TExecutionContext extends EngineExecutionContext = EngineExecutionContext,
+> {
   constructor(
     private readonly siteRegistry: SiteRegistry,
-    private readonly engineRegistry: EngineRegistry,
+    private readonly engineRegistry: EngineRegistry<TExecutionContext>,
   ) {}
 
-  async execute(
-    input: RawDownloadInput,
-    buildContext: (
-      plan: ResolvedDownloadPlan,
-      enginePlan: EnginePlan,
-    ) => EngineExecutionContext | Promise<EngineExecutionContext>,
-  ): Promise<DownloadResultPayload> {
+  /**
+   * Validates the raw input and resolves the plan once. The caller keeps the
+   * returned request and reuses it across attempts (auth recovery, retry),
+   * guaranteeing the exact same normalized input and plan object identity.
+   */
+  prepare(input: RawDownloadInput): PreparedDownloadRequest {
     const normalizedInput = rawDownloadInputSchema.parse(input);
     const resolvedPlan = this.siteRegistry.resolve(normalizedInput);
     if (!resolvedPlan) {
@@ -109,6 +130,22 @@ export class DownloadOrchestrator {
     }
 
     downloadIntentSchema.parse(resolvedPlan.intent);
+    return { input: normalizedInput, plan: resolvedPlan };
+  }
+
+  /** Compatibility convenience: prepare once and execute immediately. */
+  async execute(
+    input: RawDownloadInput,
+    buildContext: DownloadBuildContext<TExecutionContext>,
+  ): Promise<DownloadResult> {
+    return this.executePrepared(this.prepare(input), buildContext);
+  }
+
+  async executePrepared(
+    prepared: PreparedDownloadRequest,
+    buildContext: DownloadBuildContext<TExecutionContext>,
+  ): Promise<DownloadResult> {
+    const { input: normalizedInput, plan: resolvedPlan } = prepared;
     const orderedPlans = resolvedPlan.engines
       .slice()
       .sort((left, right) => right.priority - left.priority);
@@ -128,13 +165,33 @@ export class DownloadOrchestrator {
         continue;
       }
 
-      const validationError = engine.validateIntent(resolvedPlan.intent, enginePlan);
-      if (validationError) {
-        lastError = validationError;
-        if (shouldContinueEngineChain(validationError, enginePlan)) {
+      // Static capability eligibility: plan requirements filter registered
+      // engines; explicit provider preferred/required engines are never
+      // erased by capability data.
+      if (!this.engineRegistry.isEligible(engine.id, resolvedPlan.requirements)) {
+        lastError = new DownloadRuntimeError(
+          "E_ENGINE_REJECTED_INTENT",
+          `Engine ${engine.id} does not satisfy the plan capability requirements`,
+          {
+            context: {
+              providerId: resolvedPlan.providerId,
+              requirements: resolvedPlan.requirements,
+            },
+          },
+        );
+        if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw wrapSelectedVariantError(validationError, normalizedInput, resolvedPlan);
+        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
+      }
+
+      const support = engine.supports(resolvedPlan, { intent: resolvedPlan.intent });
+      if (!support.supported) {
+        lastError = support.error;
+        if (shouldContinueEngineChain(lastError, enginePlan)) {
+          continue;
+        }
+        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
       }
 
       try {

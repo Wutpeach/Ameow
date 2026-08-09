@@ -6,11 +6,12 @@ import {
   DownloadRuntimeError,
   type DownloadEngine,
   type DownloadIntent,
-  type EngineExecutionContext,
+  type DownloadResult,
   type RawDownloadInput,
   type ResolvedDownloadPlan,
   type SiteProvider,
 } from "../core";
+import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry";
 import type { NetworkRouteResolution } from "../config/networkRoute";
 import { genericProvider } from "../sites/generic";
@@ -108,25 +109,29 @@ const waitFor = async (
 
 const createEngineStub = (
   id: "yt-dlp" | "gallery-dl",
-  execute: DownloadEngine["execute"],
-): DownloadEngine => ({
+  execute: (context: EngineExecutionContextWithRuntime) => Promise<DownloadResult>,
+): DownloadEngine<EngineExecutionContextWithRuntime> => ({
   id,
-  validateIntent() {
-    return null;
-  },
+  // Stubs mirror the real adapters' declared capabilities so plan
+  // requirements (e.g. YouTube/Bilibili advancedQuality) filter as in prod.
+  capabilities: id === "yt-dlp"
+    ? { advancedQuality: true }
+    : { advancedQuality: false },
+  supports: () => ({ supported: true }),
+  // Typed directly against the runtime per-job contract; no contract-hiding cast.
   execute,
 });
 
 const createRuntime = (options: {
   providers?: SiteProvider[];
-  engines?: DownloadEngine[];
+  engines?: DownloadEngine<EngineExecutionContextWithRuntime>[];
   maxConcurrent?: number;
   configString?: string;
   ensureEngineRuntimeReady?: (engineId: "yt-dlp" | "gallery-dl", reason: string) => Promise<void>;
   buildExecutionContext?: (
-    context: EngineExecutionContext,
+    context: EngineExecutionContextWithRuntime,
     input: RawDownloadInput,
-  ) => EngineExecutionContext;
+  ) => EngineExecutionContextWithRuntime;
   environment?: {
     repoRoot?: string;
     configDir?: string;
@@ -230,7 +235,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -273,7 +278,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "ignored",
+            filePath: "ignored",
           };
         }),
       ],
@@ -342,7 +347,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       onEmit(event, payload) {
@@ -389,7 +394,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       onEmit(event, payload) {
@@ -399,7 +404,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
     });
 
-    runAdvancedQualityProbeMock.mockImplementationOnce(async (context: EngineExecutionContext) => {
+    runAdvancedQualityProbeMock.mockImplementationOnce(async (context: EngineExecutionContextWithRuntime) => {
       await new Promise<never>((_resolve, reject) => {
         if (context.abortSignal.aborted) {
           reject(new Error("probe aborted"));
@@ -436,7 +441,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
     });
@@ -499,7 +504,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
     });
@@ -547,7 +552,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       async refreshSiteSessionBeforeAdvancedQualityProbe(context) {
@@ -558,10 +563,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         calls.push(`build:${savedCookies}`);
         return {
           ...context,
-          intent: {
-            ...context.intent,
-            cookies: savedCookies,
-          },
+          cookies: savedCookies,
         };
       },
     });
@@ -584,7 +586,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       "refresh:youtube:https://www.youtube.com/watch?v=abc123",
       "build:fresh-cookies",
     ]);
-    expect(runAdvancedQualityProbeMock.mock.calls[0]?.[0].intent.cookies).toBe("fresh-cookies");
+    expect(runAdvancedQualityProbeMock.mock.calls[0]?.[0].cookies).toBe("fresh-cookies");
   });
 
   it("continues advanced-quality probing when pre-probe site-session refresh fails", async () => {
@@ -597,7 +599,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       refreshSiteSessionBeforeAdvancedQualityProbe,
@@ -629,7 +631,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       refreshSiteSessionBeforeAdvancedQualityProbe,
@@ -656,11 +658,11 @@ describe("AmeowElectronDownloadRuntime", () => {
       providers: [youtubeProvider, genericProvider],
       engines: [
         createEngineStub("yt-dlp", async (context) => {
-          calls.push(`execute:${context.intent.cookies ?? "none"}`);
+          calls.push(`execute:${context.cookies ?? "none"}`);
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -669,10 +671,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         calls.push(`build:${savedCookies}`);
         return {
           ...context,
-          intent: {
-            ...context.intent,
-            cookies: savedCookies,
-          },
+          cookies: savedCookies,
         };
       },
     });
@@ -696,10 +695,10 @@ describe("AmeowElectronDownloadRuntime", () => {
     const refreshSiteSessionBeforeDownload = vi.fn(async () => {
       throw new Error("extension unavailable");
     });
-    const engineExecute = vi.fn(async (context: EngineExecutionContext) => ({
+    const engineExecute = vi.fn(async (context: EngineExecutionContextWithRuntime) => ({
       traceId: context.traceId,
       success: true,
-      file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+      filePath: `${context.outputDir}/${context.outputStem}.mp4`,
     }));
     const runtime = createRuntime({
       providers: [youtubeProvider, genericProvider],
@@ -727,12 +726,12 @@ describe("AmeowElectronDownloadRuntime", () => {
       engines: [
         createEngineStub("yt-dlp", async (context) => {
           seenTraceIds.push(context.traceId);
-          expect(context.intent.advancedQualitySelector).toBe("bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba");
-          expect(context.intent.advancedQualityLabel).toBe("1080p");
+          expect(context.advancedQualitySelector).toBe("bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba");
+          expect(context.advancedQualityLabel).toBe("1080p");
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -769,7 +768,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       onEmit(event, payload) {
@@ -819,7 +818,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       onTelemetry(event) {
@@ -873,7 +872,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
     });
@@ -898,7 +897,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -952,7 +951,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -986,7 +985,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1029,7 +1028,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1084,6 +1083,76 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
   });
 
+  it("reclassifies unstamped execution failures at the runtime boundary", async () => {
+    // Legacy/unstamped E_EXECUTION_FAILED errors keep the compat behavior:
+    // raw evidence is classified once at the Infrastructure boundary.
+    const cases = [
+      { message: "cookies required for this resource", expected: "auth_required" },
+      { message: "connection timed out while downloading webpage", expected: "retry_same_engine" },
+    ];
+
+    for (const testCase of cases) {
+      const telemetry: DownloadTelemetryEvent[] = [];
+      const runtime = createRuntime({
+        providers: [genericProvider],
+        engines: [
+          createEngineStub("yt-dlp", async () => {
+            throw new DownloadRuntimeError("E_EXECUTION_FAILED", testCase.message);
+          }),
+        ],
+        onTelemetry(event) {
+          telemetry.push(event);
+        },
+      });
+
+      await runtime.queueVideoDownload({ url: "https://example.com/protected" });
+      await waitFor(() => telemetry.length === 1);
+      expect(telemetry[0]).toMatchObject({
+        outcome: "failure",
+        errorCode: "E_EXECUTION_FAILED",
+        errorClassification: testCase.expected,
+      });
+    }
+  });
+
+  it("keeps an explicitly classified fallback failure unchanged at the runtime boundary", async () => {
+    const completed: Array<{ success: boolean; failure?: unknown }> = [];
+    const explicitContext = { probe: "explicit-context" };
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async () => {
+          throw new DownloadRuntimeError(
+            "E_EXECUTION_FAILED",
+            "network auth 403 requires login",
+            {
+              classification: "fallback_to_other_engine",
+              context: explicitContext,
+              cause: new Error("original cause"),
+            },
+          );
+        }),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean; failure?: unknown });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/protected" });
+
+    await waitFor(() => completed.length === 1);
+    expect(completed[0]).toMatchObject({
+      success: false,
+      failure: {
+        code: "E_EXECUTION_FAILED",
+        classification: "fallback_to_other_engine",
+        context: explicitContext,
+      },
+    });
+  });
+
   it("does not retry auth-required failures through app-owned credential refresh", async () => {
     const completed: Array<{ success: boolean; error?: string }> = [];
     let attempts = 0;
@@ -1130,7 +1199,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1204,7 +1273,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1228,6 +1297,66 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(attempts).toBe(2);
     // The exact same resolution object is reused across the retry.
     expect(retryAttemptRoute).toBe(firstAttemptRoute);
+  });
+
+  it("reuses the exact resolved plan object across auth recovery while cookies refresh", async () => {
+    const completed: Array<{ success: boolean }> = [];
+    const attemptPlans: unknown[] = [];
+    const attemptCookies: Array<string | undefined> = [];
+    let savedCookies = "stale-cookies";
+    let attempts = 0;
+    const runtime = createRuntime({
+      providers: [youtubeProvider, genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => {
+          attempts += 1;
+          attemptPlans.push(context.plan);
+          attemptCookies.push(context.cookies);
+          if (attempts === 1) {
+            throw new DownloadRuntimeError(
+              "E_EXECUTION_FAILED",
+              "cookies required for this resource",
+              { classification: "auth_required" },
+            );
+          }
+          return {
+            traceId: context.traceId,
+            success: true,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+          };
+        }),
+      ],
+      buildExecutionContext(context) {
+        // Mirrors the app composition: enriches per-attempt auth material
+        // from the app-owned site session, never the shared plan.
+        return {
+          ...context,
+          cookies: savedCookies,
+        };
+      },
+      async handleAuthRequiredFailure() {
+        savedCookies = "refreshed-cookies";
+        return { shouldRetry: true };
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(payload as { success: boolean });
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://www.youtube.com/watch?v=abc123",
+      pageUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+
+    await waitFor(() => completed.length === 1);
+    expect(attempts).toBe(2);
+    // The exact same ResolvedDownloadPlan object survives auth recovery; only
+    // the attempt auth material is refreshed.
+    expect(attemptPlans[1]).toBe(attemptPlans[0]);
+    expect(attemptCookies[0]).toBe("stale-cookies");
+    expect(attemptCookies[1]).toBe("refreshed-cookies");
   });
 
   it("resolves a fresh network route for the next Job", async () => {
@@ -1255,7 +1384,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1289,7 +1418,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1382,7 +1511,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1512,7 +1641,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
         createEngineStub("gallery-dl", async (context) => {
@@ -1520,7 +1649,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "gallery.mp4",
+            filePath: "gallery.mp4",
           };
         }),
       ],
@@ -1547,7 +1676,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -1590,7 +1719,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: filePath,
+            filePath: filePath,
           };
         }),
       ],
@@ -1645,7 +1774,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: filePath,
+            filePath: filePath,
           };
         }),
       ],
@@ -1686,7 +1815,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "gallery.mp4",
+            filePath: "gallery.mp4",
           };
         }),
       ],
@@ -1750,7 +1879,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
       ],
@@ -1791,7 +1920,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
       ],
@@ -1820,7 +1949,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
       ],
@@ -1849,7 +1978,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
       ],
@@ -1901,7 +2030,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
         })),
       ],
       onEmit(event) {
@@ -1966,7 +2095,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/Probe Failure Source.mp4",
+          filePath: "D:/downloads/Probe Failure Source.mp4",
         })),
       ],
       onEmit(event) {
@@ -2041,7 +2170,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "gallery.mp4",
+            filePath: "gallery.mp4",
           };
         }),
         createEngineStub("yt-dlp", async (context) => {
@@ -2049,7 +2178,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: "yt.mp4",
+            filePath: "yt.mp4",
           };
         }),
       ],
@@ -2083,7 +2212,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -2125,7 +2254,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -2170,7 +2299,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -2219,7 +2348,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: `${context.outputDir}/${context.outputStem}.mp4`,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
           };
         }),
       ],
@@ -2263,7 +2392,7 @@ describe("AmeowElectronDownloadRuntime", () => {
           return {
             traceId: context.traceId,
             success: true,
-            file_path: filePath,
+            filePath: filePath,
             title: "Recovered YouTube Title",
           };
         }),
@@ -2301,7 +2430,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/youtube_abc123.mp4",
+          filePath: "D:/downloads/youtube_abc123.mp4",
         })),
       ],
       onEmit(event, payload) {
@@ -2367,7 +2496,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/Recovered YouTube Title.mkv",
+          filePath: "D:/downloads/Recovered YouTube Title.mkv",
         })),
       ],
       onEmit(event) {
@@ -2441,7 +2570,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/Bilibili Archive.mkv",
+          filePath: "D:/downloads/Bilibili Archive.mkv",
         })),
       ],
       onEmit(event) {
@@ -2495,7 +2624,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/Bilibili Preview[1920x1080][highest].mp4",
+          filePath: "D:/downloads/Bilibili Preview[1920x1080][highest].mp4",
         })),
       ],
       onEmit(event) {
@@ -2565,7 +2694,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: "D:/downloads/Failure Case.mkv",
+          filePath: "D:/downloads/Failure Case.mkv",
         })),
       ],
       onEmit(event) {
@@ -2601,7 +2730,7 @@ describe("AmeowElectronDownloadRuntime", () => {
         createEngineStub("yt-dlp", async (context) => ({
           traceId: context.traceId,
           success: true,
-          file_path: `D:/downloads/${context.traceId}.mkv`,
+          filePath: `D:/downloads/${context.traceId}.mkv`,
         })),
       ],
     });

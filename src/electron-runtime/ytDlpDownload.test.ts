@@ -97,7 +97,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Sample Video[1920x1080][highest].mp4"),
+      filePath: path.join("D:/downloads", "Sample Video[1920x1080][highest].mp4"),
     });
   });
 
@@ -182,7 +182,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Bilibili Video.mp4"),
+      filePath: path.join("D:/downloads", "Bilibili Video.mp4"),
     });
     expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "Bilibili Video.mp4.part"));
@@ -225,7 +225,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Sample Video.mp4"),
+      filePath: path.join("D:/downloads", "Sample Video.mp4"),
     });
 
     expect(onProgress).toHaveBeenCalledOnce();
@@ -277,7 +277,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Plain URL Video.mp4"),
+      filePath: path.join("D:/downloads", "Plain URL Video.mp4"),
     });
   });
 
@@ -331,7 +331,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Proxy Video.mp4"),
+      filePath: path.join("D:/downloads", "Proxy Video.mp4"),
     });
   });
 
@@ -382,7 +382,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Direct Video.mp4"),
+      filePath: path.join("D:/downloads", "Direct Video.mp4"),
     });
   });
 
@@ -627,7 +627,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "5000-15000_Direct Clip.mp4"),
+      filePath: path.join("D:/downloads", "5000-15000_Direct Clip.mp4"),
     });
   });
 
@@ -680,7 +680,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "5000-15000_Http Clip.mp4"),
+      filePath: path.join("D:/downloads", "5000-15000_Http Clip.mp4"),
     });
   });
 
@@ -862,7 +862,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Retry Video.mp4"),
+      filePath: path.join("D:/downloads", "Retry Video.mp4"),
     });
   });
 
@@ -911,7 +911,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Balanced Video.mp4"),
+      filePath: path.join("D:/downloads", "Balanced Video.mp4"),
     });
   });
 
@@ -954,7 +954,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Data Saver Video.mp4"),
+      filePath: path.join("D:/downloads", "Data Saver Video.mp4"),
     });
   });
 
@@ -1008,7 +1008,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Injected Public Video.mp4"),
+      filePath: path.join("D:/downloads", "Injected Public Video.mp4"),
     });
   });
 
@@ -1126,7 +1126,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Balanced Video.mp4"),
+      filePath: path.join("D:/downloads", "Balanced Video.mp4"),
     });
   });
 
@@ -1169,7 +1169,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Data Saver Video.mp4"),
+      filePath: path.join("D:/downloads", "Data Saver Video.mp4"),
     });
   });
 
@@ -1226,7 +1226,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Injected Video.mp4"),
+      filePath: path.join("D:/downloads", "Injected Video.mp4"),
     });
     expect(cleanupCookiesFileMock).toHaveBeenCalledWith("D:/temp/trace-injected-cookies.txt");
   });
@@ -1279,7 +1279,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "5250-8750_Clip Video.mp4"),
+      filePath: path.join("D:/downloads", "5250-8750_Clip Video.mp4"),
     });
   });
 
@@ -1325,7 +1325,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "5000-25000_Clip Video.mp4"),
+      filePath: path.join("D:/downloads", "5000-25000_Clip Video.mp4"),
     });
 
     expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({
@@ -1385,7 +1385,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "12000-24000_Bilibili Clip.mp4"),
+      filePath: path.join("D:/downloads", "12000-24000_Bilibili Clip.mp4"),
     });
   });
 
@@ -1545,7 +1545,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "Injected Public Video.mp4"),
+      filePath: path.join("D:/downloads", "Injected Public Video.mp4"),
     });
   });
 
@@ -1679,7 +1679,7 @@ describe("runYtDlpDownload", () => {
 
     await expect(runYtDlpDownload(context)).resolves.toMatchObject({
       success: true,
-      file_path: path.join("D:/downloads", "5000-8000_Clip Video.mp4"),
+      filePath: path.join("D:/downloads", "5000-8000_Clip Video.mp4"),
     });
     expect(runStreamingCommandMock).toHaveBeenCalledTimes(2);
     expect(unlinkMock).toHaveBeenCalledWith(path.join("D:/downloads", "5000-8000_Clip Video.mp4.part"));
