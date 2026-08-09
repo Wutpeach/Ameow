@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 238
-- **Last Active**: 2026-08-09
+- **Total Sessions**: 239
+- **Last Active**: 2026-08-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1391 | Active |
+| `journal-5.md` | ~1412 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 239 | 2026-08-10 | Complete P1 download domain architecture | `1426c57` | `main` |
 | 238 | 2026-08-09 | 统一下载网络执行上下文 | `c73cb27` | `main` |
 | 237 | 2026-07-30 | 约束 Trellis 上下文文档体积 | `08e62e0`, `d6cdc42` | `main` |
 | 236 | 2026-07-28 | Weibo variant quality selection | `2c18e88`, `476b990` | `main` |

@@ -1389,3 +1389,24 @@ Added extension-side Weibo page-local variant parsing, grouped popup quality sel
 ### Status
 
 [OK] **Completed**
+
+
+## Session 239: Complete P1 download domain architecture
+
+**Date**: 2026-08-10
+**Task**: Complete P1 download domain architecture
+**Branch**: `main`
+
+### Summary
+
+Stabilized the Download Domain, formalized typed engine ports and infrastructure adapters, preserved P0 execution context identity, added architecture and contract guards, and completed all validation gates.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1426c57` | (see git log) |
+
+### Status
+
+[OK] **Completed**
