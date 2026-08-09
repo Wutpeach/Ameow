@@ -1368,3 +1368,24 @@ Added extension-side Weibo page-local variant parsing, grouped popup quality sel
 ### Status
 
 [OK] **Completed**
+
+
+## Session 238: 统一下载网络执行上下文
+
+**Date**: 2026-08-09
+**Task**: 统一下载网络执行上下文
+**Branch**: `main`
+
+### Summary
+
+完成 P0 DownloadExecutionContext、NetworkRouteService、yt-dlp/gallery-dl 网络适配、bootstrap 路由与诊断测试；最终验收覆盖 system DIRECT 和 yt-dlp FFmpegFD 下游网络安全。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c73cb27` | (see git log) |
+
+### Status
+
+[OK] **Completed**
