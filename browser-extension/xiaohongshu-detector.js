@@ -2294,25 +2294,22 @@
       }
     }, 800);
 
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
-        void buildPastedVideoSelectionPayload().then((payload) => {
-          sendResponse(
-            payload
-              ? { success: true, payload }
-              : { success: false, reason: 'no_video_found' },
-          );
-        }).catch((error) => {
+    // Resolution messages are owned by the content message router; this
+    // detector registers its site-specific resolvers (priority 0).
+    const messageRouter = window.AmeowContentMessageRouter;
+    if (messageRouter) {
+      messageRouter.registerResolver(RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE, () => {
+        return buildPastedVideoSelectionPayload().then((payload) => (
+          payload
+            ? { success: true, payload }
+            : { success: false, reason: 'no_video_found' }
+        )).catch((error) => {
           console.warn('[Ameow XHS] Failed to resolve pasted video selection:', error);
-          sendResponse({
-            success: false,
-            reason: 'resolve_failed',
-          });
+          return { success: false, reason: 'resolve_failed' };
         });
-        return true;
-      }
+      }, 0);
 
-      if (message?.type === RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE) {
+      messageRouter.registerResolver(RESOLVE_XIAOHONGSHU_CONTEXT_MEDIA_MESSAGE, (message) => {
         const cached = getFreshContextPayload();
         const pageUrl = normalizeNoteUrl(message.pageUrl)
           || normalizeNoteUrl(message.linkUrl)
@@ -2334,11 +2331,7 @@
         const title = cached?.title || null;
 
         if (!pageUrl) {
-          sendResponse({
-            success: false,
-            code: 'xiaohongshu_context_note_missing',
-          });
-          return true;
+          return { success: false, code: 'xiaohongshu_context_note_missing' };
         }
 
         console.info('[Ameow XHS] Resolving context media in content script', {
@@ -2356,7 +2349,7 @@
             : cached?.videoIntentSources || [],
         });
 
-        void resolveXiaohongshuMedia({
+        return resolveXiaohongshuMedia({
           pageUrl,
           detailUrl,
           noteId,
@@ -2372,121 +2365,111 @@
           videoIntentSources: Array.isArray(message.videoIntentSources) && message.videoIntentSources.length > 0
             ? message.videoIntentSources
             : cached?.videoIntentSources || [],
-        }).then((result) => {
-          sendResponse({
-            success: true,
-            payload: {
-              ...result,
-              pageUrl: result?.pageUrl || pageUrl,
-              detailUrl,
-              title,
-            },
-          });
-        }).catch((error) => {
+        }).then((result) => ({
+          success: true,
+          payload: {
+            ...result,
+            pageUrl: result?.pageUrl || pageUrl,
+            detailUrl,
+            title,
+          },
+        })).catch((error) => {
           console.warn('[Ameow XHS] Failed to resolve context media in content script', error);
-          sendResponse({
+          return {
             success: false,
             code: 'xiaohongshu_context_resolution_failed',
             error: error instanceof Error ? error.message : String(error),
-          });
+          };
         });
+      }, 0);
 
-        return true;
-      }
-
-      if (message?.type === NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE) {
-        const result = navigateToXiaohongshuNote({
+      messageRouter.registerResolver(NAVIGATE_XIAOHONGSHU_NOTE_MESSAGE, (message) => {
+        return navigateToXiaohongshuNote({
           noteId: typeof message.noteId === 'string' ? message.noteId : null,
           pageUrl: normalizeNoteUrl(message.pageUrl) || normalizeNoteUrl(window.location.href),
           detailUrl: normalizeUrl(message.detailUrl),
         });
-        sendResponse(result);
-        return true;
-      }
+      }, 0);
 
-      if (message?.type !== RESOLVE_XIAOHONGSHU_DRAG_MESSAGE) {
-        return true;
-      }
-
-      const dragPageUrl = typeof message.pageUrl === 'string'
-        ? message.pageUrl
-        : window.location.href;
-      const dragNoteId = typeof message.noteId === 'string' ? message.noteId : null;
-      const dragDetailUrl = resolvePreferredDetailUrl({
-        detailUrl: normalizeUrl(message.detailUrl),
-        noteId: dragNoteId,
-        stateNote: null,
-        fallbackPageUrl: dragPageUrl,
-      });
-
-      console.info('[Ameow XHS] Resolving drag media in content script', {
-        token: redactToken(typeof message.token === 'string' ? message.token : ''),
-        pageUrl: dragPageUrl,
-        detailUrl: dragDetailUrl,
-        noteId: dragNoteId,
-        preferredImageUrl: resolveImageUrlCandidate(message.imageUrl),
-        mediaType: message.mediaType === 'image' || message.mediaType === 'video'
-          ? message.mediaType
-          : null,
-        videoIntentConfidence:
-          typeof message.videoIntentConfidence === 'number'
-            ? message.videoIntentConfidence
-            : null,
-        videoIntentSources: Array.isArray(message.videoIntentSources)
-          ? message.videoIntentSources
-          : [],
-      });
-
-      void resolveXiaohongshuMedia({
-        pageUrl: dragPageUrl,
-        detailUrl: dragDetailUrl,
-        noteId: dragNoteId,
-        preferredImageUrl: resolveImageUrlCandidate(message.imageUrl),
-        expectedMediaType:
-          message.mediaType === 'image' || message.mediaType === 'video'
-            ? message.mediaType
-            : null,
-        videoIntentConfidence:
-          typeof message.videoIntentConfidence === 'number'
-            ? message.videoIntentConfidence
-            : null,
-        videoIntentSources: Array.isArray(message.videoIntentSources)
-          ? message.videoIntentSources
-          : [],
-      }).then((result) => {
-        console.info('[Ameow XHS] Resolved drag media in content script', {
-          kind: result?.kind ?? 'unknown',
-          pageUrl: result?.pageUrl ?? null,
-          imageUrl: result?.imageUrl ?? null,
-          videoUrl: result?.videoUrl ?? null,
-          videoIntentConfidence: result?.videoIntentConfidence ?? null,
-          videoIntentSources: result?.videoIntentSources ?? [],
-          videoCandidatesCount: Array.isArray(result?.videoCandidates)
-            ? result.videoCandidates.length
-            : 0,
+      messageRouter.registerResolver(RESOLVE_XIAOHONGSHU_DRAG_MESSAGE, (message) => {
+        const dragPageUrl = typeof message.pageUrl === 'string'
+          ? message.pageUrl
+          : window.location.href;
+        const dragNoteId = typeof message.noteId === 'string' ? message.noteId : null;
+        const dragDetailUrl = resolvePreferredDetailUrl({
+          detailUrl: normalizeUrl(message.detailUrl),
+          noteId: dragNoteId,
+          stateNote: null,
+          fallbackPageUrl: dragPageUrl,
         });
-        sendResponse({
-          success: true,
-          detailUrl: dragDetailUrl,
-          ...result,
-        });
-      }).catch((error) => {
-        console.warn('[Ameow XHS] Failed to resolve drag media in content script', error);
-        sendResponse({
-          success: false,
-          kind: 'unknown',
+
+        console.info('[Ameow XHS] Resolving drag media in content script', {
+          token: redactToken(typeof message.token === 'string' ? message.token : ''),
           pageUrl: dragPageUrl,
           detailUrl: dragDetailUrl,
-          imageUrl: resolveImageUrlCandidate(message.imageUrl),
-          videoUrl: null,
-          videoCandidates: [],
-          code: 'xiaohongshu_drag_resolution_failed',
-          error: error instanceof Error ? error.message : String(error),
+          noteId: dragNoteId,
+          preferredImageUrl: resolveImageUrlCandidate(message.imageUrl),
+          mediaType: message.mediaType === 'image' || message.mediaType === 'video'
+            ? message.mediaType
+            : null,
+          videoIntentConfidence:
+            typeof message.videoIntentConfidence === 'number'
+              ? message.videoIntentConfidence
+              : null,
+          videoIntentSources: Array.isArray(message.videoIntentSources)
+            ? message.videoIntentSources
+            : [],
         });
-      });
 
-      return true;
-    });
+        return resolveXiaohongshuMedia({
+          pageUrl: dragPageUrl,
+          detailUrl: dragDetailUrl,
+          noteId: dragNoteId,
+          preferredImageUrl: resolveImageUrlCandidate(message.imageUrl),
+          expectedMediaType:
+            message.mediaType === 'image' || message.mediaType === 'video'
+              ? message.mediaType
+              : null,
+          videoIntentConfidence:
+            typeof message.videoIntentConfidence === 'number'
+              ? message.videoIntentConfidence
+              : null,
+          videoIntentSources: Array.isArray(message.videoIntentSources)
+            ? message.videoIntentSources
+            : [],
+        }).then((result) => {
+          console.info('[Ameow XHS] Resolved drag media in content script', {
+            kind: result?.kind ?? 'unknown',
+            pageUrl: result?.pageUrl ?? null,
+            imageUrl: result?.imageUrl ?? null,
+            videoUrl: result?.videoUrl ?? null,
+            videoIntentConfidence: result?.videoIntentConfidence ?? null,
+            videoIntentSources: result?.videoIntentSources ?? [],
+            videoCandidatesCount: Array.isArray(result?.videoCandidates)
+              ? result.videoCandidates.length
+              : 0,
+          });
+          return {
+            success: true,
+            detailUrl: dragDetailUrl,
+            ...result,
+          };
+        }).catch((error) => {
+          console.warn('[Ameow XHS] Failed to resolve drag media in content script', error);
+          return {
+            success: false,
+            kind: 'unknown',
+            pageUrl: dragPageUrl,
+            detailUrl: dragDetailUrl,
+            imageUrl: resolveImageUrlCandidate(message.imageUrl),
+            videoUrl: null,
+            videoCandidates: [],
+            code: 'xiaohongshu_drag_resolution_failed',
+            error: error instanceof Error ? error.message : String(error),
+          };
+        });
+      }, 0);
+    }
   }
 
   if (document.readyState === 'loading') {

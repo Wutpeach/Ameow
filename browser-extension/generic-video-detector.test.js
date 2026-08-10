@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
+import { loadContentWithRouter } from "./test-content-router.js";
 
 const detectorPath = path.resolve("browser-extension/generic-video-detector.js");
 const detectorSource = readFileSync(detectorPath, "utf8");
@@ -84,7 +85,6 @@ function createSelectionUtils() {
 
 function loadDetectorHooks(currentUrl, overrides = {}) {
   const parsedCurrentUrl = new URL(currentUrl);
-  let messageListener = null;
   const documentOverride = overrides.document || {};
   const domUtilsOverride = overrides.domUtils || {};
   const selectionUtils = overrides.selectionUtils || createSelectionUtils();
@@ -135,9 +135,7 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
     chrome: {
       runtime: {
         onMessage: {
-          addListener(listener) {
-            messageListener = listener;
-          },
+          addListener() {},
         },
       },
     },
@@ -160,10 +158,10 @@ function loadDetectorHooks(currentUrl, overrides = {}) {
 
   vm.runInNewContext(weiboParserSource, context, { filename: weiboParserPath });
   vm.runInNewContext(siteParserRegistrySource, context, { filename: siteParserRegistryPath });
-  vm.runInNewContext(detectorSource, context, { filename: detectorPath });
+  const loaded = loadContentWithRouter(detectorSource, detectorPath, () => context);
   return {
     hooks: context.window.AmeowGenericVideoDetectorTestHooks,
-    messageListener,
+    handleMessage: loaded.handleMessage,
     TestAudioElement,
     TestVideoElement,
     window: context.window,
@@ -227,21 +225,13 @@ describe("generic video detector", () => {
     ).toBe("https://www.instagram.com/reel/C9abc123/");
   });
 
-  it("responds to pasted video resolution messages with requested url fallback", () => {
-    const { messageListener } = loadDetectorHooks("https://www.instagram.com/reel/C9abc123/");
-    let response = null;
+  it("responds to pasted video resolution messages with requested url fallback", async () => {
+    const { handleMessage } = loadDetectorHooks("https://www.instagram.com/reel/C9abc123/");
 
-    expect(typeof messageListener).toBe("function");
-    const handled = messageListener(
-      {
-        type: "ameow_resolve_pasted_video_selection",
-        requestedSrcUrl: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
-      },
-      {},
-      (payload) => {
-        response = payload;
-      },
-    );
+    const { handled, response } = await handleMessage({
+      type: "ameow_resolve_pasted_video_selection",
+      requestedSrcUrl: "https://cdninstagram.com/v/t50.2886-16/example.mp4",
+    });
 
     expect(handled).toBe(true);
     expect(response).toEqual({

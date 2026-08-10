@@ -270,4 +270,32 @@ describe("site session cookie sync helper", () => {
       },
     ]);
   });
+
+  it("keeps registry readiness per connection generation", () => {
+    const helper = loadHelper();
+    expect(helper.isRegistryReady()).toBe(false);
+
+    helper.setRegistryEntries([{ siteId: "douyin", cookieDomains: ["douyin.com"] }]);
+    // Entries alone do not make the registry current: readiness requires a
+    // fresh Desktop push on the current connection generation.
+    expect(helper.isRegistryReady()).toBe(false);
+
+    helper.setRegistryReady(true);
+    expect(helper.isRegistryReady()).toBe(true);
+
+    // Connection close/replacement resets readiness until the next push.
+    helper.resetRegistryReadiness();
+    expect(helper.isRegistryReady()).toBe(false);
+    // The cached entries remain readable but are not treated as current.
+    expect(helper.getRegistryEntries()).toHaveLength(1);
+  });
+
+  it("reaches ready state through the Desktop registry push flow", () => {
+    const helper = loadHelper();
+    helper.setRegistryReady(true);
+    helper.setRegistryEntries([{ siteId: "youtube", cookieDomains: ["youtube.com"] }]);
+
+    expect(helper.isRegistryReady()).toBe(true);
+    expect(helper.findRegistryEntryBySiteId("youtube").siteId).toBe("youtube");
+  });
 });

@@ -4,6 +4,7 @@
   const domUtils = window.AmeowDomInjectionUtils || null;
   const selectionUtils = window.AmeowGenericVideoSelectionUtils || null;
   const siteVideoParserRegistry = window.AmeowSiteVideoParserRegistry || null;
+  const messageRouter = window.AmeowContentMessageRouter || null;
   const CONTEXT_TTL_MS = 10000;
   const MIN_VIDEO_WIDTH = 120;
   const MIN_VIDEO_HEIGHT = 68;
@@ -1498,42 +1499,34 @@
 
   document.addEventListener("contextmenu", rememberContextSelection, true);
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (
-      message?.type !== MESSAGE_RESOLVE_VIDEO_SELECTION
-      && message?.type !== MESSAGE_RESOLVE_PASTED_VIDEO_SELECTION
-      && message?.type !== MESSAGE_SCAN_PAGE_MEDIA
-    ) {
-      return false;
-    }
+  // The content message router owns every resolution/scan response; this
+  // detector registers the generic fallback resolvers (priority 1) behind
+  // site-specific resolvers instead of competing with them.
+  if (messageRouter) {
+    messageRouter.registerResolver(MESSAGE_SCAN_PAGE_MEDIA, () => {
+      return collectPageMediaCandidates();
+    }, 1);
 
-    try {
-      if (message?.type === MESSAGE_SCAN_PAGE_MEDIA) {
-        sendResponse(collectPageMediaCandidates());
-        return true;
+    messageRouter.registerResolver(MESSAGE_RESOLVE_VIDEO_SELECTION, (message) => {
+      try {
+        const payload = resolveSelectionPayload(message);
+        return payload ? { success: true, payload } : { success: false, reason: "no_video_found" };
+      } catch (error) {
+        console.error("[Ameow Generic] Failed to resolve video selection:", error);
+        return { success: false, reason: "resolve_failed" };
       }
+    }, 1);
 
-      const payload = resolveSelectionPayload(message);
-      if (!payload) {
-        sendResponse({
-          success: false,
-          reason: "no_video_found",
-        });
-        return true;
+    messageRouter.registerResolver(MESSAGE_RESOLVE_PASTED_VIDEO_SELECTION, (message) => {
+      try {
+        const payload = resolveSelectionPayload(message);
+        return payload ? { success: true, payload } : { success: false, reason: "no_video_found" };
+      } catch (error) {
+        console.error("[Ameow Generic] Failed to resolve pasted video selection:", error);
+        return { success: false, reason: "resolve_failed" };
       }
+    }, 1);
 
-      sendResponse({
-        success: true,
-        payload,
-      });
-    } catch (error) {
-      console.error("[Ameow Generic] Failed to resolve video selection:", error);
-      sendResponse({
-        success: false,
-        reason: "resolve_failed",
-      });
-    }
-
-    return true;
-  });
+    messageRouter.attach();
+  }
 })();

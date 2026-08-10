@@ -952,18 +952,23 @@
     }
   }
 
+  // Pasted-video resolution is owned by the content message router; this
+  // detector registers its site-specific resolver (priority 0) and keeps
+  // the unrelated language_update listener.
+  window.AmeowContentMessageRouter?.registerResolver(
+    RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE,
+    () => {
+      const payload = buildCurrentVideoSelectionPayload();
+      return payload
+        ? { success: true, payload }
+        : { success: false, reason: 'no_video_found' };
+    },
+    0,
+  );
+
   if (chrome?.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type !== 'language_update') {
-        if (message?.type === RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
-          const payload = buildCurrentVideoSelectionPayload();
-          sendResponse(
-            payload
-              ? { success: true, payload }
-              : { success: false, reason: 'no_video_found' },
-          );
-          return true;
-        }
         return false;
       }
 

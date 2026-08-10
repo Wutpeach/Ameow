@@ -46,6 +46,11 @@
   };
 
   let registryEntries = [];
+  // Registry readiness belongs to the current Desktop connection
+  // generation: entries are only current after the Desktop pushes the
+  // registry over the current connection. Connection close/replacement
+  // resets readiness until the next push.
+  let registryReady = false;
 
   function isRecord(value) {
     return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -139,6 +144,20 @@
       ? entries.map(normalizeRegistryEntry).filter(Boolean)
       : [];
     return registryEntries;
+  }
+
+  function setRegistryReady(ready) {
+    registryReady = ready === true;
+    return registryReady;
+  }
+
+  function isRegistryReady() {
+    return registryReady;
+  }
+
+  function resetRegistryReadiness() {
+    registryReady = false;
+    return registryReady;
   }
 
   function upsertRegistryEntry(entry) {
@@ -301,8 +320,11 @@
     findRegistryEntryBySiteId,
     findRegistryEntryForUrl,
     getRegistryEntries,
+    isRegistryReady,
     normalizeCookieRecords,
+    resetRegistryReadiness,
     setRegistryEntries,
+    setRegistryReady,
     upsertRegistryEntry,
     resolveSiteSessionCookieSyncRequest,
   };

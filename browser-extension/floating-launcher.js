@@ -29,6 +29,11 @@
   }
 
   let config = launcherConfig.normalizeConfig();
+  // Set once a config push has been applied. The init-time storage read is
+  // stale by definition afterwards (the push's storage write precedes its
+  // broadcast), so init must not let an older read win the mount decision.
+  let configPushApplied = false;
+  let themePushCount = 0;
   let launcher = null;
   let rootHost = null;
   let pickerStyle = null;
@@ -110,7 +115,13 @@
   }
 
   async function refreshTheme() {
+    // A theme push landing while this request is in flight already applied
+    // the newer theme; the request response would be stale.
+    const themePushCountAtStart = themePushCount;
     const response = await sendMessage({ type: "get_theme" });
+    if (themePushCount !== themePushCountAtStart) {
+      return;
+    }
     theme = response?.theme === "white" ? "white" : DEFAULT_THEME;
     if (launcher) {
       launcher.dataset.theme = theme;
@@ -746,6 +757,7 @@
     }
 
     if (message?.type === CONFIG_UPDATE_MESSAGE) {
+      configPushApplied = true;
       config = launcherConfig.normalizeConfig(message.config);
       if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
         unmountLauncher();
@@ -774,6 +786,7 @@
     }
 
     if (message?.type === "theme_update") {
+      themePushCount += 1;
       theme = message.theme === "white" ? "white" : DEFAULT_THEME;
       if (launcher) {
         launcher.dataset.theme = theme;
@@ -812,6 +825,12 @@
     await loadQualityPreference();
     await refreshTheme();
     config = await launcherConfig.getConfig();
+    if (configPushApplied) {
+      // A config push landed while the storage read was in flight: the push
+      // applied the newer config and already mounted/unmounted. The stale
+      // read must not win the mount decision.
+      return;
+    }
     if (!config.enabled || launcherConfig.isSiteDisabled(config, window.location.href)) {
       return;
     }

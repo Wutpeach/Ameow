@@ -189,6 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     extension: {},
   };
   let currentStatusState = STATUS_STATE_OFFLINE;
+  let statusRequestGeneration = 0;
   let currentSiteSessionStatus = null;
   let loginStateBusy = false;
   let loginDrawerState = null;
@@ -196,6 +197,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentQualityPreference = directDownloadQuality.DEFAULT_QUALITY_PREFERENCE;
   let currentMediaType = "video";
   let mediaScanResult = null;
+  let mediaScanPageContextKey = null;
+  let mediaScanSelectionGeneration = null;
   let scanStarted = false;
   let scanInProgress = false;
   let openMenuId = null;
@@ -402,7 +405,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function checkStatus() {
+    // Status polling gate: a push or a newer poll supersedes an in-flight
+    // get_status response so stale responses cannot overwrite newer state.
+    statusRequestGeneration += 1;
+    const requestGeneration = statusRequestGeneration;
     const response = await sendRuntimeMessage({ type: "get_status" });
+    if (requestGeneration !== statusRequestGeneration) {
+      return;
+    }
     currentSiteSessionStatus = response?.siteSession || null;
     updateStatus(normalizeConnectionState(response));
   }
@@ -1719,12 +1729,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function downloadCandidate(candidate, row) {
     const selectedVariant = selectedVariantForCandidate(candidate);
-    if (selectedVariant) {
-      candidate.selectedVideoVariant = selectedVariant;
-      candidate.preferredVariantUrl = selectedVariant.url;
-      candidate.preferredVariantLabel = selectedVariant.label;
-      candidate.browserFallbackCandidate = selectedVariant;
-    }
+    // The popup emits an immutable selection intent bound to the scan's
+    // page context and generation; the application operation builds the
+    // submission command and rejects stale intents.
+    const selectionIntent = {
+      ...candidate,
+      ...(selectedVariant
+        ? {
+            selectedVideoVariant: selectedVariant,
+            preferredVariantUrl: selectedVariant.url,
+            preferredVariantLabel: selectedVariant.label,
+            browserFallbackCandidate: selectedVariant,
+          }
+        : {}),
+      pageContextKey: mediaScanPageContextKey,
+      selectionGeneration: mediaScanSelectionGeneration,
+    };
     const key = selectedVariant?.url || candidate.url || candidate.desktopCandidate?.url || candidate.browserFallbackCandidate?.url;
     if (downloadCooldown.has(key)) {
       return;
@@ -1733,7 +1753,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setRowFeedback(row, t("popup.media.feedback.submitting", "Submitting"));
     const response = await sendRuntimeMessage({
       type: "download_media_candidate",
-      candidate,
+      candidate: selectionIntent,
     });
     const failureFeedback = response?.reason === "desktop_required"
       ? t("popup.media.feedback.desktopRequired", "Desktop required")
@@ -1801,6 +1821,12 @@ document.addEventListener("DOMContentLoaded", () => {
     mediaScanResult = response && typeof response === "object"
       ? response
       : { success: false, reason: "scan_failed" };
+    mediaScanPageContextKey = typeof mediaScanResult?.pageContextKey === "string"
+      ? mediaScanResult.pageContextKey
+      : null;
+    mediaScanSelectionGeneration = typeof mediaScanResult?.selectionGeneration === "number"
+      ? mediaScanResult.selectionGeneration
+      : null;
     scanInProgress = false;
     elements.refreshMediaButton.disabled = false;
     elements.refreshMediaButton.dataset.scanning = "false";
@@ -1815,6 +1841,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (response?.cached && response.result && response.stale !== true) {
       scanStarted = true;
       mediaScanResult = response.result;
+      mediaScanPageContextKey = typeof response.pageContextKey === "string"
+        ? response.pageContextKey
+        : null;
+      mediaScanSelectionGeneration = typeof response.selectionGeneration === "number"
+        ? response.selectionGeneration
+        : null;
       renderMediaState();
       return;
     }
@@ -1843,6 +1875,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (message.type === "connection_update") {
+      // A push is newer than any in-flight status poll.
+      statusRequestGeneration += 1;
       updateStatus(normalizeConnectionState(message));
       return;
     }

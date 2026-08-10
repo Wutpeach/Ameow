@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
+import { loadContentWithRouter } from "./test-content-router.js";
 
 const detectorPath = path.resolve("browser-extension/bilibili-detector.js");
 const detectorSource = readFileSync(detectorPath, "utf8");
@@ -69,7 +70,6 @@ class FakeHtmlElement extends FakeElement {
 
 function loadHooks() {
   const selectorMap = new Map();
-  let messageListener = null;
   const window = {
     location: {
       href: "https://www.bilibili.com/video/BV1xx411c7mD?p=1",
@@ -116,9 +116,7 @@ function loadHooks() {
     chrome: {
       runtime: {
         onMessage: {
-          addListener(listener) {
-            messageListener = listener;
-          },
+          addListener() {},
         },
       },
     },
@@ -139,10 +137,10 @@ function loadHooks() {
     },
   };
 
-  vm.runInNewContext(detectorSource, context, { filename: detectorPath });
+  const loaded = loadContentWithRouter(detectorSource, detectorPath, () => context);
   return {
     hooks: context.window.AmeowBilibiliDetectorTestHooks,
-    messageListener,
+    handleMessage: loaded.handleMessage,
     selectorMap,
   };
 }
@@ -217,18 +215,10 @@ describe("bilibili detector", () => {
     expect(hooks.findNativeControlButtonCandidate()).toBe(nativeButton);
   });
 
-  it("responds to pasted video resolution with the current item bilibili url", () => {
-    const { messageListener } = loadHooks();
-    let response = null;
+  it("responds to pasted video resolution with the current item bilibili url", async () => {
+    const { handleMessage } = loadHooks();
 
-    expect(typeof messageListener).toBe("function");
-    const handled = messageListener(
-      { type: "ameow_resolve_pasted_video_selection" },
-      {},
-      (payload) => {
-        response = payload;
-      },
-    );
+    const { handled, response } = await handleMessage({ type: "ameow_resolve_pasted_video_selection" });
 
     expect(handled).toBe(true);
     expect(response).toEqual({

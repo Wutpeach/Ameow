@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
+import { loadContentWithRouter } from "./test-content-router.js";
 
 const detectorPath = path.resolve("browser-extension/pinterest-detector.js");
 const detectorSource = readFileSync(detectorPath, "utf8");
@@ -223,7 +224,6 @@ class FakeDocument {
 }
 
 function loadDetector() {
-  let messageListener = null;
   const body = new FakeElement("body");
   const video = new FakeVideoElement();
   body.appendChild(video);
@@ -278,9 +278,7 @@ function loadDetector() {
     chrome: {
       runtime: {
         onMessage: {
-          addListener(listener) {
-            messageListener = listener;
-          },
+          addListener() {},
         },
         sendMessage(message) {
           sentMessages.push(message);
@@ -294,10 +292,10 @@ function loadDetector() {
     },
   };
 
-  vm.runInNewContext(detectorSource, context, { filename: detectorPath });
+  const loaded = loadContentWithRouter(detectorSource, detectorPath, () => context);
   return {
     actionBar,
-    messageListener,
+    handleMessage: loaded.handleMessage,
     sentMessages,
   };
 }
@@ -323,17 +321,10 @@ describe("pinterest detector", () => {
     ]);
   });
 
-  it("responds to generic current-video resolution with a Pinterest current pin payload", () => {
-    const { messageListener } = loadDetector();
-    let response = null;
+  it("responds to generic current-video resolution with a Pinterest current pin payload", async () => {
+    const { handleMessage } = loadDetector();
 
-    const handled = messageListener(
-      { type: "ameow_resolve_video_selection" },
-      {},
-      (payload) => {
-        response = payload;
-      },
-    );
+    const { handled, response } = await handleMessage({ type: "ameow_resolve_video_selection" });
 
     expect(handled).toBe(true);
     expect(response).toEqual({

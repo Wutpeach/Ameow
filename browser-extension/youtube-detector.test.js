@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
+import { loadContentWithRouter } from "./test-content-router.js";
 
 const detectorPath = path.resolve("browser-extension/youtube-detector.js");
 const detectorSource = readFileSync(detectorPath, "utf8");
 
 function loadDetector() {
-  let messageListener = null;
   const window = {
     location: {
       href: "https://www.youtube.com/watch?v=UBqh6ud5LqY&list=PL123",
@@ -23,7 +23,7 @@ function loadDetector() {
     setInterval() {},
   };
 
-  const context = {
+  const buildContext = () => ({
     window,
     self: {},
     globalThis: {},
@@ -52,9 +52,7 @@ function loadDetector() {
     chrome: {
       runtime: {
         onMessage: {
-          addListener(listener) {
-            messageListener = listener;
-          },
+          addListener() {},
         },
       },
     },
@@ -73,25 +71,16 @@ function loadDetector() {
       },
       body: {},
     },
-  };
+  });
 
-  vm.runInNewContext(detectorSource, context, { filename: detectorPath });
-  return { messageListener };
+  return loadContentWithRouter(detectorSource, detectorPath, buildContext);
 }
 
 describe("youtube detector", () => {
-  it("responds to pasted video resolution with the same current-item payload shape", () => {
-    const { messageListener } = loadDetector();
-    let response = null;
+  it("responds to pasted video resolution with the same current-item payload shape", async () => {
+    const { handleMessage } = loadDetector();
 
-    expect(typeof messageListener).toBe("function");
-    const handled = messageListener(
-      { type: "ameow_resolve_pasted_video_selection" },
-      {},
-      (payload) => {
-        response = payload;
-      },
-    );
+    const { handled, response } = await handleMessage({ type: "ameow_resolve_pasted_video_selection" });
 
     expect(handled).toBe(true);
     expect(response).toEqual({

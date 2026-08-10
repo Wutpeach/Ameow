@@ -1083,29 +1083,28 @@
   }
 
   function init() {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === RESOLVE_VIDEO_SELECTION_MESSAGE) {
+    // Resolution messages are owned by the content message router; this
+    // detector registers its site-specific resolvers (priority 0).
+    window.AmeowContentMessageRouter?.registerResolver(
+      RESOLVE_VIDEO_SELECTION_MESSAGE,
+      () => {
         const payload = buildCurrentVideoSelectionPayload();
-        sendResponse(
-          payload
-            ? { success: true, payload }
-            : { success: false, reason: "no_video_found" },
-        );
-        return true;
-      }
-
-      if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
-        return false;
-      }
-
-      const payload = buildPastedVideoSelectionPayload();
-      sendResponse(
-        payload
+        return payload
           ? { success: true, payload }
-          : { success: false, reason: "no_video_found" },
-      );
-      return true;
-    });
+          : { success: false, reason: "no_video_found" };
+      },
+      0,
+    );
+    window.AmeowContentMessageRouter?.registerResolver(
+      RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE,
+      () => {
+        const payload = buildPastedVideoSelectionPayload();
+        return payload
+          ? { success: true, payload }
+          : { success: false, reason: "no_video_found" };
+      },
+      0,
+    );
 
     scheduleDetect();
 

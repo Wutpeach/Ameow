@@ -209,8 +209,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return localeUtils.resolveCurrentLanguage(navigator.language);
   }
 
+  let themePushCount = 0;
+
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "theme_update") {
+      themePushCount += 1;
       applyTheme(message.theme);
       return;
     }
@@ -273,7 +276,12 @@ document.addEventListener("DOMContentLoaded", () => {
   void (async () => {
     await applyLanguage(await resolveInitialLanguage());
     await refreshLauncherControls();
+    // A theme push landing while this request is in flight already applied
+    // the newer theme; the request response would be stale.
+    const themePushCountAtInit = themePushCount;
     const themeResponse = await sendRuntimeMessage({ type: "get_theme" });
-    applyTheme(themeResponse?.theme || "black");
+    if (themePushCount === themePushCountAtInit) {
+      applyTheme(themeResponse?.theme || "black");
+    }
   })();
 });

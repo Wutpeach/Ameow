@@ -102,11 +102,40 @@
       return Array.from(states.values()).map((state) => ({ ...state }));
     }
 
+    // Reconstructs tracked state after an MV3 service-worker restart from
+    // bounded persisted metadata. `restarted: true` marks every
+    // rehydrated record so callers can distinguish a reconstructed state
+    // from one observed live.
+    function rehydrateStored(records, options = {}) {
+      const now = safeNow(options.now);
+      const recordsList = Array.isArray(records) ? records : [];
+      for (const record of recordsList) {
+        const downloadId = Number(record?.downloadId);
+        if (!Number.isInteger(downloadId)) {
+          continue;
+        }
+        const status = normalizeState(record?.status) || "accepted";
+        states.set(downloadId, {
+          downloadId,
+          url: typeof record?.url === "string" ? record.url : "",
+          filename: typeof record?.filename === "string" ? record.filename : "",
+          status,
+          error: normalizeState(record?.error) || undefined,
+          createdAt: safeNow(record?.createdAt || now),
+          updatedAt: safeNow(record?.updatedAt || now),
+          restarted: options.restarted === true,
+        });
+      }
+      prune(now);
+      return snapshot();
+    }
+
     return {
       getState,
       handleChanged,
       prune,
       recordAccepted,
+      rehydrateStored,
       snapshot,
     };
   }

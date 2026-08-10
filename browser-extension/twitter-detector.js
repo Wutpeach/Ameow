@@ -119,19 +119,18 @@
   // 初始化
   function init() {
     console.log('[Ameow Twitter] Detector initialized');
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type !== RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE) {
-        return false;
-      }
-
-      const payload = buildCurrentVideoSelectionPayload();
-      sendResponse(
-        payload
+    // Pasted-video resolution is owned by the content message router; this
+    // detector registers its site-specific resolver (priority 0).
+    window.AmeowContentMessageRouter?.registerResolver(
+      RESOLVE_PASTED_VIDEO_SELECTION_MESSAGE,
+      () => {
+        const payload = buildCurrentVideoSelectionPayload();
+        return payload
           ? { success: true, payload }
-          : { success: false, reason: 'no_video_found' },
-      );
-      return true;
-    });
+          : { success: false, reason: 'no_video_found' };
+      },
+      0,
+    );
     detectVideoTweets();
     observer.observe(document.body, { childList: true, subtree: true });
   }

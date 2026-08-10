@@ -265,7 +265,10 @@
       return null;
     }
 
-    const pageUrl = normalizeHttpUrl(tab?.url || details?.documentUrl);
+    // Page identity is the document URL captured at webRequest time, not a
+    // later tab lookup: a navigation between the event and this call must
+    // not relabel old evidence as the current page.
+    const pageUrl = normalizeHttpUrl(details?.documentUrl || details?.frameUrl || tab?.url);
     if (!pageUrl) {
       return null;
     }

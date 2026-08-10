@@ -6,6 +6,7 @@ const popupJs = readFileSync(path.resolve("browser-extension/popup.js"), "utf8")
 const popupCss = readFileSync(path.resolve("browser-extension/popup.css"), "utf8");
 const popupHtml = readFileSync(path.resolve("browser-extension/popup.html"), "utf8");
 const backgroundJs = readFileSync(path.resolve("browser-extension/background.js"), "utf8");
+const portSource = readFileSync(path.resolve("browser-extension/desktop-port.js"), "utf8");
 
 describe("browser extension popup download capability UI", () => {
   it("renders only the compact Desktop capability badge from download capability state", () => {
@@ -88,12 +89,16 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("displayCapability");
     expect(popupJs).toContain("renderMediaPreviewSlot(displayCandidates)");
     expect(popupJs).toContain("downloadCandidate(candidate, row)");
-    expect(backgroundJs).toContain("candidate.desktopCandidate");
-    expect(backgroundJs).toContain("candidate.browserFallbackCandidate");
-    expect(backgroundJs).toContain("candidate.selectedVideoVariant");
+    // Candidate routing lives in the selection operations module; the
+    // service worker delegates to it.
+    const selectionOpsSource = readFileSync(path.resolve("browser-extension/selection-ops.js"), "utf8");
+    expect(selectionOpsSource).toContain("candidate.desktopCandidate");
+    expect(selectionOpsSource).toContain("candidate.browserFallbackCandidate");
+    expect(selectionOpsSource).toContain("candidate.selectedVideoVariant");
+    expect(selectionOpsSource).toContain("downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)");
+    expect(backgroundJs).toContain("selectionOps?.downloadCandidate(candidate)");
     expect(backgroundJs).toContain("selectedVideoVariant: normalized.selectedVideoVariant");
-    expect(backgroundJs).toContain("canUseBrowserFallback");
-    expect(backgroundJs).toContain("downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)");
+    expect(selectionOpsSource).toContain("canUseBrowserFallback");
   });
 
   it("renders a row-level quality selector for grouped video variants", () => {
@@ -248,8 +253,13 @@ describe("browser extension popup download capability UI", () => {
     expect(popupJs).toContain("renderLoginDrawerSites");
     expect(popupJs).toContain("No synchronized sites yet");
     expect(backgroundJs).toContain("async function getSiteSessionDrawerState()");
-    expect(backgroundJs).toContain("'site_session_synced_summary'");
-    expect(backgroundJs).toContain("reason: 'desktop_offline'");
+    // The raw Desktop action and offline projection live in the site-session
+    // operations module; the service worker delegates to it.
+    const siteSessionOpsSource = readFileSync(path.resolve("browser-extension/site-session-ops.js"), "utf8");
+    expect(portSource).toContain("site_session_synced_summary");
+    expect(siteSessionOpsSource).toContain("desktopPort?.getSiteSessionSummary");
+    expect(siteSessionOpsSource).toContain("reason: \"desktop_offline\"");
+    expect(backgroundJs).toContain("siteSessionOps?.getDrawerState()");
     expect(electronMain).toContain("async function buildSiteSessionSyncedSummaryPayload()");
     expect(electronMain).toContain('state.availability !== "ready" && state.availability !== "partial"');
     expect(electronMain).toContain("typeof state.updatedAtMs !== \"number\"");

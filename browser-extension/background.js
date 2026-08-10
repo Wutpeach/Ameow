@@ -5,23 +5,27 @@ importScripts(
   "action-icon-indicator.js",
   "browser-download-lifecycle.js",
   "desktop-download-protocol.js",
+  "desktop-port.js",
   "direct-download-quality.js",
+  "drag-token-ops.js",
+  "drag-token-registry.js",
   "extension-data-utils.js",
+  "extension-store.js",
   "generic-video-selection-utils.js",
   "download-capability-utils.js",
   "media-network-cache.js",
   "injection-debug-config.js",
   "launcher-config.js",
   "media-scan-cache.js",
+  "media-scan-ops.js",
+  "page-context.js",
+  "selection-ops.js",
   "site-session-cookie-sync.js",
+  "site-session-ops.js",
   "video-selection-routing.js",
   "xiaohongshu-drag-resolution-utils.js",
 );
 
-let ws = null;
-let reconnectAttempts = 0;
-let reconnectTimer = null;
-const WS_URL = 'ws://127.0.0.1:39527';
 const WS_RECONNECT_ALARM = 'ameow-ws-reconnect';
 const REQUEST_TIMEOUT_MS = 7000;
 const CONNECTING_WAIT_TIMEOUT_MS = 500;
@@ -35,12 +39,10 @@ const PROTECTED_IMAGE_BACKGROUND_FETCH_TIMEOUT_MS = 12000;
 const XIAOHONGSHU_DRAG_TTL_MS = 2 * 60 * 1000;
 const XIAOHONGSHU_DRAG_RESOLUTION_TIMEOUT_MS = 30000;
 const XIAOHONGSHU_BACKGROUND_TAB_TIMEOUT_MS = 18000;
-const CONNECTING_STATUS_TEXT = 'Connecting';
 const OFFLINE_STATUS_TEXT = 'Offline';
 const FALLBACK_LANGUAGE = 'en';
 const LANGUAGE_STORAGE_KEY = 'ameowCurrentLanguage';
 const PENDING_DOWNLOAD_PREFERENCES_SYNC_KEY = 'ameowPendingDownloadPreferencesSync';
-const WS_ACTION_GET_LANGUAGE = 'get_language';
 const WS_ACTION_LANGUAGE_INFO = 'language_info';
 const WS_ACTION_LANGUAGE_CHANGED = 'language_changed';
 const INTERNAL_VIDEO_SELECTION_MESSAGE = 'video_selection';
@@ -58,7 +60,6 @@ const INTERNAL_LAUNCHER_CONFIG_UPDATE_MESSAGE = 'ameow_launcher_config_update';
 const INTERNAL_THEME_UPDATE_MESSAGE = 'theme_update';
 const INTERNAL_SCAN_PAGE_MEDIA_MESSAGE = 'ameow_scan_page_media';
 const INTERNAL_START_PICKER_MESSAGE = 'ameow_start_picker';
-const APP_VIDEO_SELECTION_ACTION = 'video_selected_v2';
 const MEDIA_SCAN_CACHE_KEY = 'ameowMediaScanCache';
 const MEDIA_NETWORK_CACHE_KEY = 'ameowMediaNetworkCache';
 const MEDIA_SCAN_CACHE_TTL_MS = 60 * 1000;
@@ -70,20 +71,53 @@ const MEDIA_SCAN_TIMEOUT_MS = 5000;
 const MEDIA_SCAN_TOTAL_LIMIT = 100;
 const BROWSER_DOWNLOAD_STATE_TTL_MS = 30 * 60 * 1000;
 const BROWSER_DOWNLOAD_STATE_TOTAL_LIMIT = 50;
+const BROWSER_DOWNLOAD_STATE_KEY = 'ameowBrowserDownloadState';
 const desktopDownloadProtocol = self.AmeowDesktopDownloadProtocol;
 const buildRequestFailure = desktopDownloadProtocol.buildRequestFailure;
-const requestClient = desktopDownloadProtocol.createDesktopDownloadRequestClient({
-  isConnected,
-  ensureConnection: (timeoutMs, options) => ensureConnection(timeoutMs, options),
-  send(payload) {
-    ws.send(JSON.stringify(payload));
-  },
-});
-const protectedImageDragRegistry = new Map();
-const xiaohongshuDragRegistry = new Map();
-const mediaScanInFlight = new Map();
-let lastConnectionIssue = OFFLINE_STATUS_TEXT;
+const protectedImageDragRegistry = self.AmeowDragTokenRegistry?.createDragTokenRegistry
+  ? self.AmeowDragTokenRegistry.createDragTokenRegistry({
+      ttlMs: PROTECTED_IMAGE_DRAG_TTL_MS,
+      totalLimit: 20,
+    })
+  : null;
+const xiaohongshuDragRegistry = self.AmeowDragTokenRegistry?.createDragTokenRegistry
+  ? self.AmeowDragTokenRegistry.createDragTokenRegistry({
+      ttlMs: XIAOHONGSHU_DRAG_TTL_MS,
+      totalLimit: 20,
+    })
+  : null;
+const scanGenerations = new Map();
+// Capture snapshots and selection snapshots have their own per-tab
+// generations, distinct from scan generations and from each other.
+const captureGenerations = new Map();
+const selectionGenerations = new Map();
 let actionIndicatorConnectionState = null;
+const extensionStore = self.AmeowExtensionStore?.createSerializedStorageStore
+  ? self.AmeowExtensionStore.createSerializedStorageStore({
+      storageGet: (key) => storageGet(key),
+      storageSet: (payload) => storageSet(payload),
+      logger: (level, ...args) => {
+        const method = level === 'error' ? console.error : console.warn;
+        method(...args);
+      },
+    })
+  : null;
+const pageContextStore = self.AmeowPageContext?.createPageContextStore
+  ? self.AmeowPageContext.createPageContextStore()
+  : null;
+const dragTokenOps = self.AmeowDragTokenOps?.createDragTokenOps
+  ? self.AmeowDragTokenOps.createDragTokenOps({
+      getTab: (tabId) => getTab(tabId),
+      pageContextStore,
+      normalizeHttpUrl,
+    })
+  : null;
+const pageSnapshotValidator = self.AmeowPageContext?.createPageSnapshotValidator
+  ? self.AmeowPageContext.createPageSnapshotValidator({
+      getActiveTab: () => getActiveTab(),
+      pageContextStore,
+    })
+  : null;
 
 // Store current theme from desktop app
 let currentTheme = 'black';
@@ -101,6 +135,55 @@ const actionIconIndicator = self.AmeowActionIconIndicator;
 const browserDownloadLifecycle = self.AmeowBrowserDownloadLifecycle;
 const videoSelectionRouting = self.AmeowVideoSelectionRouting;
 const xiaohongshuDragResolutionUtils = self.AmeowXiaohongshuDragResolutionUtils;
+const selectionOps = self.AmeowSelectionOps?.createSelectionOps
+  ? self.AmeowSelectionOps.createSelectionOps({
+      getActiveTab: () => getActiveTab(),
+      pageContextStore,
+      pageSnapshotValidator,
+      getSelectionGeneration,
+      nextCaptureGeneration,
+      getCaptureGeneration,
+      isConnected,
+      isConnecting,
+      downloadCapabilityUtils,
+      normalizeHttpUrl,
+      selectFirstHttpUrl,
+      normalizeSelectedVideoVariant,
+      deriveBrowserDownloadFilename,
+      startBrowserDownload,
+      isRecoverableDesktopConnectionFailure,
+      submitVideoSelection: (payload, context) => handleVideoSelectionRequest(payload, context),
+      submitImageSelection: (payload, context) => handlePageImageSelectionRequest(payload, context),
+      submitSelectionPayload: (payload, context) => handleVideoSelectionRequest(payload, context),
+      sendMessageToTab,
+      captureMessageType: INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE,
+      selectionMessageType: INTERNAL_VIDEO_SELECTION_MESSAGE,
+    })
+  : null;
+const mediaScanOps = self.AmeowMediaScanOps?.createMediaScanOps
+  ? self.AmeowMediaScanOps.createMediaScanOps({
+      getActiveTab: () => getActiveTab(),
+      sendMessageToTab,
+      storageGet,
+      getNetworkMediaEntriesForTab,
+      extensionStore,
+      mediaScanCache,
+      mediaNetworkCache,
+      pageContextStore,
+      pageSnapshotValidator,
+      nextScanGeneration,
+      getScanGeneration,
+      nextSelectionGeneration,
+      normalizeHttpUrl,
+      hashString,
+      storageKey: MEDIA_SCAN_CACHE_KEY,
+      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
+      cacheTtlMs: MEDIA_SCAN_CACHE_TTL_MS * 5,
+      totalLimit: MEDIA_SCAN_CACHE_TOTAL_LIMIT,
+      scanTotalLimit: MEDIA_SCAN_TOTAL_LIMIT,
+      scanTimeoutMs: MEDIA_SCAN_TIMEOUT_MS,
+    })
+  : null;
 const languageInitializationPromise = initializeLanguageState();
 const browserDownloadTracker = browserDownloadLifecycle?.createBrowserDownloadTracker
   ? browserDownloadLifecycle.createBrowserDownloadTracker({
@@ -247,88 +330,121 @@ async function initializeLanguageState() {
   return currentLanguage;
 }
 
-function requestLanguageFromApp(socket = ws) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return false;
-  }
+// The Desktop protocol client owns the raw socket, connection generation,
+// reconnect, envelope handling, and pending correlation. Background is the
+// composition root: it injects the socket factory, the Chrome alarm adapter,
+// the Desktop command dispatcher, and the post-connect bootstrap.
+const desktopClient = desktopDownloadProtocol.createDesktopProtocolClient({
+  createSocket(url) {
+    return new WebSocket(url);
+  },
+  scheduleReconnectAlarm(delayMs) {
+    if (!chrome?.alarms?.create) {
+      return;
+    }
+    try {
+      chrome.alarms.create(WS_RECONNECT_ALARM, {
+        when: Date.now() + Math.max(1000, delayMs),
+      });
+    } catch (error) {
+      console.error('[Ameow] Failed to schedule reconnect alarm:', error);
+    }
+  },
+  clearReconnectAlarm() {
+    if (!chrome?.alarms?.clear) {
+      return;
+    }
+    try {
+      chrome.alarms.clear(WS_RECONNECT_ALARM, () => {});
+    } catch (error) {
+      console.error('[Ameow] Failed to clear reconnect alarm:', error);
+    }
+  },
+  onOpen: handleConnectedBootstrap,
+  onClose: clearExtensionInjectionDebugConfigOnDisconnect,
+  onCommand: handleMessage,
+});
 
-  try {
-    socket.send(JSON.stringify({ action: WS_ACTION_GET_LANGUAGE }));
-    return true;
-  } catch (error) {
-    console.error('[Ameow] Failed to request language from desktop app:', error);
-    return false;
+const desktopPort = self.AmeowDesktopPort?.createDesktopPort
+  ? self.AmeowDesktopPort.createDesktopPort(desktopClient)
+  : null;
+
+// Composition order: the Desktop client and named port exist before any
+// operation that captures them, so module evaluation cannot hit a TDZ
+// ReferenceError even though the dependency is only used later.
+const siteSessionOps = self.AmeowSiteSessionOps?.createSiteSessionOps
+  ? self.AmeowSiteSessionOps.createSiteSessionOps({
+      getActiveTab: () => getActiveTab(),
+      normalizeHttpUrl,
+      isConnected,
+      siteSessionCookieSync,
+      desktopPort,
+      requestDesktopSiteSessionSync,
+      normalizeSiteSessionRegistryEntry,
+      broadcastRegistryUpdate: (entries) => {
+        chrome.runtime.sendMessage({
+          type: 'site_session_registry_update',
+          entries,
+        }).catch(() => {});
+      },
+      normalizeSynchronizedSiteSummaries,
+      buildRequestFailure,
+      requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    })
+  : null;
+
+desktopClient.subscribeConnection((state) => {
+  if (!state.connected) {
+    // Registry entries belong to the previous connection generation; they
+    // become stale on close/replacement until Desktop pushes again.
+    siteSessionCookieSync?.resetRegistryReadiness?.();
   }
+  notifyConnectionStatus();
+});
+
+function requestLanguageFromApp() {
+  return desktopPort?.requestLanguage ? desktopPort.requestLanguage() : false;
 }
 
 function isConnected() {
-  return ws && ws.readyState === WebSocket.OPEN;
+  return desktopClient.isConnected();
 }
 
 function isConnecting() {
-  return ws && ws.readyState === WebSocket.CONNECTING;
-}
-
-function unavailableStatusText() {
-  return OFFLINE_STATUS_TEXT;
-}
-
-function hasUnavailableIssue() {
-  return lastConnectionIssue === OFFLINE_STATUS_TEXT;
-}
-
-function isCurrentSocket(socket) {
-  return ws === socket;
-}
-
-function detachSocketHandlers(socket) {
-  if (!socket) {
-    return;
-  }
-
-  socket.onopen = null;
-  socket.onmessage = null;
-  socket.onclose = null;
-  socket.onerror = null;
+  return desktopClient.isConnecting();
 }
 
 function connectionState() {
-  if (isConnected()) {
-    return 'connected';
-  }
-
-  if (lastConnectionIssue === CONNECTING_STATUS_TEXT && !hasUnavailableIssue()) {
-    return 'connecting';
-  }
-
-  return 'offline';
+  return desktopClient.connectionState();
 }
 
 function connectionStatusText() {
-  if (isConnected()) {
-    return 'Connected';
-  }
-  if (isConnecting()) {
-    if (hasUnavailableIssue()) {
-      return lastConnectionIssue;
-    }
-    return lastConnectionIssue || CONNECTING_STATUS_TEXT;
-  }
-  if (reconnectTimer !== null) {
-    return lastConnectionIssue || unavailableStatusText();
-  }
-  return lastConnectionIssue || OFFLINE_STATUS_TEXT;
+  return desktopClient.connectionStatusText();
 }
 
 function notifyConnectionStatus() {
   chrome.runtime.sendMessage({
     type: 'connection_update',
     connected: isConnected(),
-    connecting: Boolean(isConnecting() || reconnectTimer !== null),
+    connecting: desktopClient.getConnectionState().connecting,
     state: connectionState(),
     statusText: connectionStatusText(),
   }).catch(() => {});
   updateActionConnectionIndicator();
+}
+
+// Post-connect bootstrap: query theme/language and sync desktop-owned
+// extension settings after every successful open.
+function handleConnectedBootstrap() {
+  try {
+    desktopPort?.requestTheme?.();
+  } catch (error) {
+    console.warn('[Ameow] Failed to request theme from desktop app:', error);
+  }
+
+  requestLanguageFromApp();
+  void bootstrapDownloadPreferencesSync();
+  void syncExtensionInjectionDebugConfigFromApp();
 }
 
 function normalizeMediaSelectionPayload(message) {
@@ -507,6 +623,7 @@ function startBrowserDownload({ url, filename }) {
         url,
         filename,
       }) || null;
+      void persistBrowserDownloadState();
 
       resolve({
         success: true,
@@ -519,8 +636,36 @@ function startBrowserDownload({ url, filename }) {
   });
 }
 
+// Bounded persisted metadata lets the MV3 worker reconstruct active
+// browser-download state after suspension instead of silently losing it.
+async function persistBrowserDownloadState() {
+  if (!extensionStore || !browserDownloadTracker?.snapshot) {
+    return;
+  }
+  const snapshot = browserDownloadTracker.snapshot();
+  await extensionStore.update(BROWSER_DOWNLOAD_STATE_KEY, () => (
+    snapshot.slice(0, BROWSER_DOWNLOAD_STATE_TOTAL_LIMIT)
+  ));
+}
+
+async function rehydrateBrowserDownloadState() {
+  if (!browserDownloadTracker?.rehydrateStored) {
+    return;
+  }
+  const stored = await storageGet(BROWSER_DOWNLOAD_STATE_KEY).catch(() => ({}));
+  const records = stored?.[BROWSER_DOWNLOAD_STATE_KEY];
+  browserDownloadTracker.rehydrateStored(
+    Array.isArray(records) ? records : [],
+    { restarted: true, now: Date.now() },
+  );
+}
+
 function handleBrowserDownloadChanged(delta) {
-  return browserDownloadTracker?.handleChanged?.(delta) || null;
+  const result = browserDownloadTracker?.handleChanged?.(delta) || null;
+  if (result) {
+    void persistBrowserDownloadState();
+  }
+  return result;
 }
 
 function getBrowserDownloadState(downloadId) {
@@ -618,14 +763,13 @@ async function setExtensionInjectionDebugEnabled(enabled) {
 }
 
 function syncExtensionInjectionDebugConfigFromApp() {
-  return sendRequestToApp(
-    'get_extension_debug_config',
-    {},
-    REQUEST_TIMEOUT_MS,
-    {
-      forceConnect: true,
-    }
-  ).then((response) => {
+  if (!desktopPort?.requestExtensionDebugConfig) {
+    return Promise.resolve(false);
+  }
+  return desktopPort.requestExtensionDebugConfig({
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    forceConnect: true,
+  }).then((response) => {
     if (!response?.success) {
       console.warn(
         '[Ameow] Failed to sync extension injection debug config:',
@@ -647,25 +791,7 @@ function clearExtensionInjectionDebugConfigOnDisconnect() {
 }
 
 function resetSocketForRetry() {
-  if (reconnectTimer !== null) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  clearReconnectAlarm();
-
-  if (!ws) {
-    return;
-  }
-
-  const socket = ws;
-  detachSocketHandlers(socket);
-  ws = null;
-
-  try {
-    socket.close();
-  } catch (_) {
-    // Ignore close failures while forcing a fresh connection for retry.
-  }
+  desktopClient.resetSocketForRetry();
 }
 
 function normalizeHttpUrl(raw) {
@@ -834,24 +960,6 @@ function logInjectedVideoSelectionDebug(message, payload) {
   console.info(`[Ameow] ${message}`, payload);
 }
 
-function cleanupProtectedImageDragRegistry() {
-  const now = Date.now();
-  for (const [token, entry] of protectedImageDragRegistry.entries()) {
-    if (!entry || typeof entry.createdAt !== 'number' || now - entry.createdAt > PROTECTED_IMAGE_DRAG_TTL_MS) {
-      protectedImageDragRegistry.delete(token);
-    }
-  }
-}
-
-function cleanupXiaohongshuDragRegistry() {
-  const now = Date.now();
-  for (const [token, entry] of xiaohongshuDragRegistry.entries()) {
-    if (!entry || typeof entry.createdAt !== 'number' || now - entry.createdAt > XIAOHONGSHU_DRAG_TTL_MS) {
-      xiaohongshuDragRegistry.delete(token);
-    }
-  }
-}
-
 function deriveFilenameFromUrl(rawUrl) {
   const normalized = normalizeHttpUrl(rawUrl);
   if (!normalized) {
@@ -997,8 +1105,10 @@ async function downloadProtectedImageViaDesktopApp(imageUrl, pageUrl, targetDir,
     headers.Cookie = cookieHeader;
   }
 
-  return sendRequestToApp(
-    'save_image',
+  if (!desktopPort?.saveImage) {
+    return buildRequestFailure('not_connected');
+  }
+  return desktopPort.saveImage(
     {
       url: normalizedUrl,
       targetDir,
@@ -1006,7 +1116,7 @@ async function downloadProtectedImageViaDesktopApp(imageUrl, pageUrl, targetDir,
       requestHeaders: headers,
       referrer: normalizedPageUrl || undefined,
     },
-    PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS,
+    { timeoutMs: PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS },
   );
 }
 
@@ -1036,17 +1146,19 @@ async function reportProtectedImageResolutionResult(requestId, result) {
   if (!requestId) {
     return;
   }
+  if (!desktopPort?.reportProtectedImageResolution) {
+    return;
+  }
 
-  const response = await sendRequestToApp(
-    'protected_image_resolution_result',
+  const response = await desktopPort.reportProtectedImageResolution(
+    requestId,
     {
-      correlationRequestId: requestId,
       success: result?.success === true,
       filePath: typeof result?.filePath === 'string' ? result.filePath : undefined,
       code: typeof result?.code === 'string' ? result.code : undefined,
       error: typeof result?.error === 'string' ? result.error : undefined,
     },
-    PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS,
+    { timeoutMs: PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS },
   );
 
   if (!response?.success) {
@@ -1061,11 +1173,13 @@ async function reportXiaohongshuDragResolutionResult(requestId, result) {
   if (!requestId) {
     return;
   }
+  if (!desktopPort?.reportDragResolution) {
+    return;
+  }
 
-  const response = await sendRequestToApp(
-    'xiaohongshu_drag_resolution_result',
+  const response = await desktopPort.reportDragResolution(
+    requestId,
     {
-      correlationRequestId: requestId,
       success: result?.success === true,
       kind: typeof result?.kind === 'string' ? result.kind : 'unknown',
       pageUrl: normalizeHttpUrl(result?.pageUrl),
@@ -1082,7 +1196,7 @@ async function reportXiaohongshuDragResolutionResult(requestId, result) {
       code: typeof result?.code === 'string' ? result.code : undefined,
       error: typeof result?.error === 'string' ? result.error : undefined,
     },
-    XIAOHONGSHU_DRAG_RESOLUTION_TIMEOUT_MS,
+    { timeoutMs: XIAOHONGSHU_DRAG_RESOLUTION_TIMEOUT_MS },
   );
 
   if (!response?.success) {
@@ -1097,11 +1211,13 @@ async function reportPastedVideoSelectionResolutionResult(requestId, result) {
   if (!requestId) {
     return;
   }
+  if (!desktopPort?.reportPasteResolution) {
+    return;
+  }
 
-  const response = await sendRequestToApp(
-    'pasted_video_selection_result',
+  const response = await desktopPort.reportPasteResolution(
+    requestId,
     {
-      correlationRequestId: requestId,
       success: result?.success === true,
       url: normalizeHttpUrl(result?.url),
       pageUrl: normalizeHttpUrl(result?.pageUrl),
@@ -1129,7 +1245,7 @@ async function reportPastedVideoSelectionResolutionResult(requestId, result) {
       code: typeof result?.code === 'string' ? result.code : undefined,
       error: typeof result?.error === 'string' ? result.error : undefined,
     },
-    PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS,
+    { timeoutMs: PASTED_VIDEO_SELECTION_RESOLUTION_TIMEOUT_MS },
   );
 
   if (!response?.success) {
@@ -1144,11 +1260,13 @@ async function reportSiteSessionCookieSyncResult(requestId, result) {
   if (!requestId) {
     return;
   }
+  if (!desktopPort?.reportCookieSync) {
+    return;
+  }
 
-  const response = await sendRequestToApp(
-    'site_session_cookie_sync_result',
+  const response = await desktopPort.reportCookieSync(
+    requestId,
     {
-      correlationRequestId: requestId,
       success: result?.success === true,
       siteId: typeof result?.siteId === 'string' ? result.siteId : undefined,
       source: result?.source && typeof result.source === 'object'
@@ -1158,7 +1276,7 @@ async function reportSiteSessionCookieSyncResult(requestId, result) {
       code: typeof result?.code === 'string' ? result.code : undefined,
       error: typeof result?.error === 'string' ? result.error : undefined,
     },
-    REQUEST_TIMEOUT_MS,
+    { timeoutMs: REQUEST_TIMEOUT_MS },
   );
 
   if (!response?.success) {
@@ -1227,6 +1345,7 @@ function normalizeSiteSessionRegistryEntry(value) {
 
 function applySiteSessionRegistryUpdate(data) {
   const entries = siteSessionCookieSync.setRegistryEntries(data?.entries || []);
+  siteSessionCookieSync.setRegistryReady(true);
   chrome.runtime.sendMessage({
     type: 'site_session_registry_update',
     entries,
@@ -1238,24 +1357,14 @@ function findCurrentSiteSessionForUrl(url) {
 }
 
 async function buildSiteSessionStatusForActiveTab() {
-  const tab = await getActiveTab().catch(() => null);
-  const pageUrl = normalizeHttpUrl(tab?.url);
-  const currentSiteSession = pageUrl
-    ? findCurrentSiteSessionForUrl(pageUrl)
-    : null;
-  const canEnableCurrentSite = Boolean(
-    isConnected()
-    && pageUrl
-    && !currentSiteSession,
-  );
-
-  return {
-    currentTabUrl: pageUrl,
-    currentTabTitle: typeof tab?.title === 'string' ? tab.title : null,
-    currentSiteSession,
-    canSyncCurrentSite: Boolean(isConnected() && currentSiteSession),
-    canEnableCurrentSite,
-    registryEntryCount: siteSessionCookieSync.getRegistryEntries().length,
+  return siteSessionOps?.buildStatus() ?? {
+    currentTabUrl: null,
+    currentTabTitle: null,
+    currentSiteSession: null,
+    canSyncCurrentSite: false,
+    canEnableCurrentSite: false,
+    registryReady: false,
+    registryEntryCount: 0,
   };
 }
 
@@ -1327,34 +1436,11 @@ function normalizeSynchronizedSiteSummaries(value) {
 }
 
 async function getSiteSessionDrawerState() {
-  const currentTab = await buildSiteSessionStatusForActiveTab();
-  if (!isConnected()) {
-    return {
-      connected: false,
-      currentTab,
-      synchronizedSites: [],
-      reason: 'desktop_offline',
-    };
-  }
-
-  const response = await sendRequestToApp(
-    'site_session_synced_summary',
-    {},
-    REQUEST_TIMEOUT_MS,
-    {
-      forceConnect: true,
-    },
-  );
-
-  return {
-    connected: response?.success === true && isConnected(),
-    currentTab,
-    synchronizedSites: response?.success === true
-      ? normalizeSynchronizedSiteSummaries(response.data)
-      : [],
-    reason: response?.success === true
-      ? null
-      : response?.data?.code || response?.message || 'site_session_summary_failed',
+  return siteSessionOps?.getDrawerState() ?? {
+    connected: false,
+    currentTab: null,
+    synchronizedSites: [],
+    reason: 'site_session_ops_unavailable',
   };
 }
 
@@ -1372,7 +1458,7 @@ async function startPickDownloadForActiveTab() {
   try {
     const response = await sendMessageToTab(tab.id, {
       type: INTERNAL_START_PICKER_MESSAGE,
-    });
+    }, { frameId: 0 });
     return {
       success: response?.success !== false,
       connected: isConnected(),
@@ -1423,16 +1509,12 @@ async function requestDesktopSiteSessionSync(entry) {
     };
   }
 
-  const response = await sendRequestToApp(
-    'site_session_sync_request',
-    {
-      siteId: normalizedEntry.siteId,
-    },
-    SITE_SESSION_SYNC_REQUEST_TIMEOUT_MS,
-    {
-      forceConnect: true,
-    },
-  );
+  const response = desktopPort?.requestSiteSessionSync
+    ? await desktopPort.requestSiteSessionSync(normalizedEntry.siteId, {
+        timeoutMs: SITE_SESSION_SYNC_REQUEST_TIMEOUT_MS,
+        forceConnect: true,
+      })
+    : buildRequestFailure('not_connected');
 
   return {
     success: response?.success === true,
@@ -1445,55 +1527,19 @@ async function requestDesktopSiteSessionSync(entry) {
 }
 
 async function syncCurrentSiteSessionFromActiveTab() {
-  const status = await buildSiteSessionStatusForActiveTab();
-  if (!status.currentSiteSession) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: status.currentTabUrl ? 'site_session_not_enabled' : 'unsupported_page',
-    };
-  }
-  const result = await requestDesktopSiteSessionSync(status.currentSiteSession);
-  return result;
+  return siteSessionOps?.syncCurrentSite() ?? {
+    success: false,
+    connected: isConnected(),
+    reason: 'site_session_ops_unavailable',
+  };
 }
 
 async function enableCurrentSiteSessionFromActiveTab() {
-  const tab = await getActiveTab();
-  const pageUrl = normalizeHttpUrl(tab?.url);
-  if (!pageUrl) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: 'unsupported_page',
-    };
-  }
-
-  const response = await sendRequestToApp(
-    'site_session_enable_current_tab',
-    {
-      pageUrl,
-      displayName: typeof tab?.title === 'string' ? tab.title : undefined,
-    },
-    REQUEST_TIMEOUT_MS,
-    {
-      forceConnect: true,
-    },
-  );
-  const entry = normalizeSiteSessionRegistryEntry(response?.data?.entry);
-  if (!response?.success || !entry) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: response?.data?.code || response?.message || 'site_session_enable_failed',
-    };
-  }
-
-  siteSessionCookieSync.upsertRegistryEntry(entry);
-  chrome.runtime.sendMessage({
-    type: 'site_session_registry_update',
-    entries: siteSessionCookieSync.getRegistryEntries(),
-  }).catch(() => {});
-  return requestDesktopSiteSessionSync(entry);
+  return siteSessionOps?.enableCurrentSite() ?? {
+    success: false,
+    connected: isConnected(),
+    reason: 'site_session_ops_unavailable',
+  };
 }
 
 async function handleSiteSessionCookieSyncRequest(data) {
@@ -1543,9 +1589,8 @@ async function handleSiteSessionCookieSyncRequest(data) {
   });
 }
 
+// Revalidates a token's registered page context against the live tab.
 async function handleProtectedImageResolveRequest(data) {
-  cleanupProtectedImageDragRegistry();
-
   const requestId = typeof data?.requestId === 'string' ? data.requestId : '';
   const token = typeof data?.token === 'string' ? data.token.trim() : '';
   if (!requestId || !token) {
@@ -1557,16 +1602,32 @@ async function handleProtectedImageResolveRequest(data) {
     return;
   }
 
-  const entry = protectedImageDragRegistry.get(token);
-  if (!entry) {
+  // Atomic one-shot consumption: a duplicate Desktop command cannot repeat
+  // resolution work or downloads.
+  const consumed = protectedImageDragRegistry?.consume
+    ? protectedImageDragRegistry.consume(token)
+    : null;
+  if (!consumed || !consumed.success) {
+    const code = consumed?.workerRestarted ? 'protected_image_token_restart_invalidated' : 'protected_image_token_missing';
     await reportProtectedImageResolutionResult(requestId, {
       success: false,
-      code: 'protected_image_token_missing',
-      error: 'Protected image drag token was missing or expired',
+      code,
+      error: consumed?.workerRestarted
+        ? 'Protected image drag token was lost in a background worker restart'
+        : 'Protected image drag token was missing, consumed, or expired',
     });
     return;
   }
-  protectedImageDragRegistry.delete(token);
+  const entry = consumed.entry;
+
+  if (!(await dragTokenOps?.revalidateEntry(entry))) {
+    await reportProtectedImageResolutionResult(requestId, {
+      success: false,
+      code: 'protected_image_stale_context',
+      error: 'Protected image drag token page context changed or the tab was closed',
+    });
+    return;
+  }
 
   const imageUrl = normalizeHttpUrl(data?.imageUrl) || entry.imageUrl;
   const pageUrl = normalizeHttpUrl(data?.pageUrl) || entry.pageUrl;
@@ -1658,18 +1719,19 @@ async function handleProtectedImageResolveRequest(data) {
       return;
     }
 
-    const saveResult = await sendRequestToApp(
-      'save_data_url',
-      {
-        dataUrl: resolution.dataUrl,
-        originalFilename:
-          typeof resolution.filename === 'string' && resolution.filename.trim()
-            ? resolution.filename.trim()
-            : deriveFilenameFromUrl(imageUrl) || undefined,
-        targetDir,
-      },
-      PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS,
-    );
+    const saveResult = desktopPort?.saveDataUrl
+      ? await desktopPort.saveDataUrl(
+          {
+            dataUrl: resolution.dataUrl,
+            originalFilename:
+              typeof resolution.filename === 'string' && resolution.filename.trim()
+                ? resolution.filename.trim()
+                : deriveFilenameFromUrl(imageUrl) || undefined,
+            targetDir,
+          },
+          { timeoutMs: PROTECTED_IMAGE_RESOLUTION_TIMEOUT_MS },
+        )
+      : buildRequestFailure('not_connected');
 
     if (saveResult?.success && typeof saveResult.message === 'string' && saveResult.message.trim()) {
       console.info('[Ameow] Protected image fallback saved via Ameow:', saveResult.message.trim());
@@ -1700,8 +1762,6 @@ async function handleProtectedImageResolveRequest(data) {
 }
 
 async function handleXiaohongshuDragResolveRequest(data) {
-  cleanupXiaohongshuDragRegistry();
-
   const requestId = typeof data?.requestId === 'string' ? data.requestId.trim() : '';
   const token = typeof data?.token === 'string' ? data.token.trim() : '';
   console.info('[Ameow] Resolving Xiaohongshu drag in extension background:', {
@@ -1724,17 +1784,37 @@ async function handleXiaohongshuDragResolveRequest(data) {
     return;
   }
 
-  const entry = xiaohongshuDragRegistry.get(token);
-  if (!entry) {
-    console.warn('[Ameow] Xiaohongshu drag token was missing in registry:', {
+  // Atomic one-shot consumption: a duplicate Desktop command with the same
+  // token cannot repeat resolution work or downloads.
+  const consumed = xiaohongshuDragRegistry?.consume
+    ? xiaohongshuDragRegistry.consume(token)
+    : null;
+  if (!consumed || !consumed.success) {
+    console.warn('[Ameow] Xiaohongshu drag token was not consumable in registry:', {
       requestId,
       token,
+      code: consumed?.code || 'drag_token_missing',
     });
+    const code = consumed?.workerRestarted ? 'xiaohongshu_drag_token_restart_invalidated' : 'xiaohongshu_drag_token_missing';
     await reportXiaohongshuDragResolutionResult(requestId, {
       success: false,
       kind: 'unknown',
-      code: 'xiaohongshu_drag_token_missing',
-      error: 'Xiaohongshu drag token was missing or expired',
+      code,
+      error: consumed?.workerRestarted
+        ? 'Xiaohongshu drag token was lost in a background worker restart'
+        : 'Xiaohongshu drag token was missing, consumed, or expired',
+    });
+    return;
+  }
+  const entry = consumed.entry;
+
+  if (!(await dragTokenOps?.revalidateEntry(entry))) {
+    await reportXiaohongshuDragResolutionResult(requestId, {
+      success: false,
+      kind: 'unknown',
+      pageUrl: entry.pageUrl,
+      code: 'xiaohongshu_drag_stale_context',
+      error: 'Xiaohongshu drag token page context changed or the tab was closed',
     });
     return;
   }
@@ -1884,138 +1964,7 @@ async function handleXiaohongshuDragResolveRequest(data) {
 }
 
 function connect(options = {}) {
-  const force = options.force === true;
-
-  if (isConnected() || isConnecting()) return;
-  if (reconnectTimer !== null) {
-    if (!force) return;
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  clearReconnectAlarm();
-
-  if (ws) {
-    detachSocketHandlers(ws);
-  }
-
-  const shouldNotifyConnecting = reconnectAttempts === 0 && !hasUnavailableIssue();
-  if (shouldNotifyConnecting) {
-    lastConnectionIssue = CONNECTING_STATUS_TEXT;
-    notifyConnectionStatus();
-  }
-
-  const socket = new WebSocket(WS_URL);
-  ws = socket;
-
-  socket.onopen = () => {
-    if (!isCurrentSocket(socket)) {
-      return;
-    }
-
-    console.info('[Ameow] Connected to desktop app');
-    reconnectAttempts = 0;
-    lastConnectionIssue = '';
-    notifyConnectionStatus();
-    clearReconnectAlarm();
-
-    try {
-      // Query current theme after connection.
-      socket.send(JSON.stringify({ action: 'get_theme' }));
-    } catch (error) {
-      console.warn('[Ameow] Failed to request theme from desktop app:', error);
-    }
-
-    requestLanguageFromApp(socket);
-    void bootstrapDownloadPreferencesSync();
-    void syncExtensionInjectionDebugConfigFromApp();
-  };
-
-  socket.onmessage = (event) => {
-    if (!isCurrentSocket(socket)) {
-      return;
-    }
-
-    try {
-      const message = JSON.parse(event.data);
-      if (requestClient.handlePendingResponse(message)) {
-        return;
-      }
-      handleMessage(message);
-    } catch (e) {
-      console.error('[Ameow] Failed to parse message:', e);
-    }
-  };
-
-  socket.onclose = () => {
-    if (!isCurrentSocket(socket)) {
-      return;
-    }
-
-    console.info('[Ameow] Disconnected');
-    clearExtensionInjectionDebugConfigOnDisconnect();
-    requestClient.rejectPending('ws_closed');
-    detachSocketHandlers(socket);
-    ws = null;
-    lastConnectionIssue = unavailableStatusText();
-    notifyConnectionStatus();
-    scheduleReconnect();
-  };
-
-  socket.onerror = () => {
-    if (!isCurrentSocket(socket)) {
-      return;
-    }
-
-    if (!isConnected()) {
-      clearExtensionInjectionDebugConfigOnDisconnect();
-      lastConnectionIssue = unavailableStatusText();
-      console.warn('[Ameow] WebSocket unavailable. Open the Ameow desktop app to enable browser-extension features.');
-      notifyConnectionStatus();
-      scheduleReconnect();
-      return;
-    }
-    console.error('[Ameow] WebSocket error while connected.');
-  };
-}
-
-function scheduleReconnect() {
-  if (reconnectTimer !== null) {
-    return;
-  }
-
-  reconnectAttempts++;
-  const delay = Math.min(500 * Math.pow(1.5, reconnectAttempts), 5000);
-  scheduleReconnectAlarm(delay);
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connect();
-  }, delay);
-}
-
-function scheduleReconnectAlarm(delayMs) {
-  if (!chrome?.alarms?.create) {
-    return;
-  }
-
-  try {
-    chrome.alarms.create(WS_RECONNECT_ALARM, {
-      when: Date.now() + Math.max(1000, delayMs),
-    });
-  } catch (error) {
-    console.error('[Ameow] Failed to schedule reconnect alarm:', error);
-  }
-}
-
-function clearReconnectAlarm() {
-  if (!chrome?.alarms?.clear) {
-    return;
-  }
-
-  try {
-    chrome.alarms.clear(WS_RECONNECT_ALARM, () => {});
-  } catch (error) {
-    console.error('[Ameow] Failed to clear reconnect alarm:', error);
-  }
+  return desktopClient.connect(options);
 }
 
 function handleMessage(message) {
@@ -2066,29 +2015,16 @@ function handleMessage(message) {
   }
 }
 
-function sendToApp(data) {
-  if (isConnected()) {
-    ws.send(JSON.stringify(data));
-    return true;
-  }
-  connect({ force: true });
-  return false;
-}
-
 function syncDownloadPreferencesToApp() {
   return directDownloadQuality
     .getQualityPreference()
     .then(async (qualityPreference) => {
-      const response = await sendRequestToApp(
-        'sync_download_preferences',
-        {
-          videoQuality: qualityPreference,
-        },
-        REQUEST_TIMEOUT_MS,
-        {
-          forceConnect: true,
-        }
-      );
+      const response = await desktopPort?.syncDownloadPreferences
+        ? desktopPort.syncDownloadPreferences(
+            { videoQuality: qualityPreference },
+            { timeoutMs: REQUEST_TIMEOUT_MS, forceConnect: true },
+          )
+        : buildRequestFailure('not_connected');
       const success = Boolean(response?.success);
       await setPendingDownloadPreferencesSync(!success);
       if (!success) {
@@ -2116,57 +2052,22 @@ function markDownloadPreferencesDirtyAndSync() {
   void bootstrapDownloadPreferencesSync();
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function waitForConnection(timeoutMs) {
-  if (isConnected()) {
-    return true;
-  }
-
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    if (isConnected()) {
-      return true;
-    }
-    await sleep(80);
-  }
-  return isConnected();
-}
-
 async function ensureConnection(timeoutMs, options = {}) {
-  if (isConnected()) {
-    return true;
-  }
-
-  connect({ force: options.force === true });
-  return waitForConnection(timeoutMs);
-}
-
-async function sendRequestToApp(action, data = {}, timeoutMs = REQUEST_TIMEOUT_MS, options = {}) {
-  // Sender/correlation/timeout behavior lives in the desktop download
-  // protocol helper; this wrapper keeps existing call sites unchanged.
-  return requestClient.sendRequest(action, data, timeoutMs, {
-    connectTimeoutMs: options.connectTimeoutMs ?? CONNECTING_WAIT_TIMEOUT_MS,
-    forceConnect: options.forceConnect === true,
-  });
+  return desktopClient.connectAndWait(timeoutMs, { force: options.force === true });
 }
 
 function queueVideoSelectionToApp(data) {
-  const sendSelectionRequest = (action) => sendRequestToApp(
-    action,
-    data,
-    REQUEST_TIMEOUT_MS,
-    {
-      connectTimeoutMs: VIDEO_SELECTION_CONNECT_TIMEOUT_MS,
-      forceConnect: true,
-    }
-  );
+  if (!desktopPort?.queueVideoSelection) {
+    return Promise.resolve(buildRequestFailure('not_connected'));
+  }
 
-  return sendSelectionRequest(APP_VIDEO_SELECTION_ACTION).then(async (result) => {
+  const sendSelectionRequest = () => desktopPort.queueVideoSelection(data, {
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    connectTimeoutMs: VIDEO_SELECTION_CONNECT_TIMEOUT_MS,
+    forceConnect: true,
+  });
+
+  return sendSelectionRequest().then(async (result) => {
     if (!shouldRetryVideoSelectionRequest(result)) {
       return result;
     }
@@ -2185,7 +2086,7 @@ function queueVideoSelectionToApp(data) {
       return result;
     }
 
-    return sendSelectionRequest(APP_VIDEO_SELECTION_ACTION);
+    return sendSelectionRequest();
   });
 }
 
@@ -2438,7 +2339,7 @@ async function handleVideoSelectionRequest(message, senderContext = {}) {
         },
       );
       logInjectedVideoSelectionDebug(
-        'Forwarding video_selected_v2 payload',
+        'Forwarding video selection payload',
         summarizeVideoSelectionForDebug(prepared.forwardedPayload),
       );
     }
@@ -2789,139 +2690,6 @@ async function resetLauncherPosition() {
   ));
 }
 
-async function downloadCurrentContentFromActiveTab() {
-  const tab = await getActiveTab();
-  if (!tab?.id) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: 'no_active_tab',
-    };
-  }
-
-  const response = await sendMessageToTab(tab.id, {
-    type: INTERNAL_CAPTURE_CURRENT_CONTENT_MESSAGE,
-  }).catch(() => null);
-  const payload = response?.payload && typeof response.payload === 'object'
-    ? response.payload
-    : {
-        type: INTERNAL_VIDEO_SELECTION_MESSAGE,
-        url: tab.url,
-        pageUrl: tab.url,
-        title: tab.title,
-        selectionScope: 'current_item',
-      };
-
-  return handleVideoSelectionRequest(payload, {
-    tabUrl: tab.url,
-  });
-}
-
-function mediaScanCacheKey(tab) {
-  const tabId = typeof tab?.id === 'number' ? tab.id : 'none';
-  const url = typeof tab?.url === 'string' ? tab.url : '';
-  return `${tabId}-${hashString(url)}`;
-}
-
-function isRestrictedTabUrl(rawUrl) {
-  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
-    return true;
-  }
-
-  return /^(?:about|chrome|chrome-extension|edge|moz-extension|opera|vivaldi):/i.test(rawUrl.trim());
-}
-
-function normalizeMediaScanResponse(response, tab) {
-  if (!response?.success) {
-    return {
-      success: false,
-      reason: response?.reason || 'scan_failed',
-      pageUrl: tab?.url || null,
-      pageTitle: tab?.title || '',
-      videos: [],
-      audios: [],
-      images: [],
-      scannedAt: Date.now(),
-      scanDurationMs: 0,
-    };
-  }
-  const videos = Array.isArray(response.videos)
-    ? response.videos.slice(0, MEDIA_SCAN_TOTAL_LIMIT)
-    : [];
-  const audios = Array.isArray(response.audios)
-    ? response.audios.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length))
-    : [];
-  const images = Array.isArray(response.images)
-    ? response.images.slice(0, Math.max(0, MEDIA_SCAN_TOTAL_LIMIT - videos.length - audios.length))
-    : [];
-  const inputTotal =
-    (Array.isArray(response.videos) ? response.videos.length : 0)
-    + (Array.isArray(response.audios) ? response.audios.length : 0)
-    + (Array.isArray(response.images) ? response.images.length : 0);
-  return {
-    success: true,
-    pageUrl: normalizeHttpUrl(response.pageUrl) || tab?.url || null,
-    pageTitle: typeof response.pageTitle === 'string' ? response.pageTitle : tab?.title || '',
-    pagePreviewUrl: normalizeHttpUrl(response.pagePreviewUrl) || undefined,
-    videos,
-    audios,
-    images,
-    scannedAt: typeof response.scannedAt === 'number' ? response.scannedAt : Date.now(),
-    scanDurationMs: typeof response.scanDurationMs === 'number' ? response.scanDurationMs : 0,
-    truncated: response.truncated === true || videos.length + audios.length + images.length < inputTotal,
-  };
-}
-
-async function getMediaScanCacheForActiveTab() {
-  const tab = await getActiveTab();
-  if (!tab?.id) {
-    return {
-      success: false,
-      reason: 'no_active_tab',
-    };
-  }
-
-  const result = await storageGet(MEDIA_SCAN_CACHE_KEY).catch(() => ({}));
-  const storedCache = result?.[MEDIA_SCAN_CACHE_KEY];
-  const cache = storedCache && typeof storedCache === 'object' && !Array.isArray(storedCache)
-    ? storedCache
-    : {};
-  const key = mediaScanCacheKey(tab);
-  const entry = cache[key] || null;
-  if (!entry || normalizeHttpUrl(entry.pageUrl) !== normalizeHttpUrl(tab.url)) {
-    return {
-      success: true,
-      cached: false,
-      pageUrl: tab.url || null,
-      pageTitle: tab.title || '',
-      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
-    };
-  }
-
-  const ageMs = Date.now() - Number(entry.scannedAt || 0);
-  return {
-    success: true,
-    cached: true,
-    stale: ageMs > MEDIA_SCAN_CACHE_TTL_MS,
-    ageMs,
-    ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
-    result: entry,
-  };
-}
-
-async function storeMediaScanCache(tab, result) {
-  const key = mediaScanCacheKey(tab);
-  const current = await storageGet(MEDIA_SCAN_CACHE_KEY).catch(() => ({}));
-  const cache = current?.[MEDIA_SCAN_CACHE_KEY] && typeof current[MEDIA_SCAN_CACHE_KEY] === 'object'
-    ? current[MEDIA_SCAN_CACHE_KEY]
-    : {};
-  const nextCache = mediaScanCache.pruneMediaScanCacheEntries(cache, key, result, {
-    now: Date.now(),
-    ttlMs: MEDIA_SCAN_CACHE_TTL_MS * 5,
-    totalLimit: MEDIA_SCAN_CACHE_TOTAL_LIMIT,
-  });
-  await storageSet({ [MEDIA_SCAN_CACHE_KEY]: nextCache });
-}
 
 async function getStoredNetworkMediaCache() {
   const result = await storageGet(MEDIA_NETWORK_CACHE_KEY).catch(() => ({}));
@@ -2932,18 +2700,21 @@ async function getStoredNetworkMediaCache() {
 }
 
 async function storeNetworkMediaEntry(entry) {
-  if (!mediaNetworkCache?.pruneNetworkMediaCache) {
+  if (!mediaNetworkCache?.pruneNetworkMediaCache || !extensionStore) {
     return;
   }
 
-  const cache = await getStoredNetworkMediaCache();
-  const nextCache = mediaNetworkCache.pruneNetworkMediaCache(cache, entry, {
-    now: Date.now(),
-    ttlMs: MEDIA_NETWORK_CACHE_TTL_MS,
-    perTabLimit: MEDIA_NETWORK_CACHE_PER_TAB_LIMIT,
-    totalLimit: MEDIA_NETWORK_CACHE_TOTAL_LIMIT,
+  await extensionStore.update(MEDIA_NETWORK_CACHE_KEY, (cache) => {
+    const currentCache = cache && typeof cache === 'object' && !Array.isArray(cache)
+      ? cache
+      : {};
+    return mediaNetworkCache.pruneNetworkMediaCache(currentCache, entry, {
+      now: Date.now(),
+      ttlMs: MEDIA_NETWORK_CACHE_TTL_MS,
+      perTabLimit: MEDIA_NETWORK_CACHE_PER_TAB_LIMIT,
+      totalLimit: MEDIA_NETWORK_CACHE_TOTAL_LIMIT,
+    });
   });
-  await storageSet({ [MEDIA_NETWORK_CACHE_KEY]: nextCache });
 }
 
 async function getNetworkMediaEntriesForTab(tab) {
@@ -2977,227 +2748,29 @@ async function rememberNetworkMediaResponse(details) {
   }
 }
 
-function mergeNetworkMediaCandidates(normalized, networkEntries) {
-  if (!normalized?.success || !mediaNetworkCache?.mergeNetworkCandidatesIntoScanResult) {
-    return normalized;
-  }
 
-  return mediaNetworkCache.mergeNetworkCandidatesIntoScanResult(normalized, networkEntries, {
-    totalLimit: MEDIA_SCAN_TOTAL_LIMIT,
-  });
-}
-
-async function scanPageMediaForActiveTab() {
+async function downloadCurrentContentFromActiveTab() {
   const tab = await getActiveTab();
   if (!tab?.id) {
     return {
       success: false,
+      connected: isConnected(),
       reason: 'no_active_tab',
     };
   }
-
-  if (isRestrictedTabUrl(tab.url)) {
-    return {
-      success: false,
-      reason: 'scan_restricted_page',
-      pageUrl: tab.url || null,
-      pageTitle: tab.title || '',
-      videos: [],
-      audios: [],
-      images: [],
-      scannedAt: Date.now(),
-      scanDurationMs: 0,
-      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
-    };
-  }
-
-  const cacheKey = mediaScanCacheKey(tab);
-  const existingScan = mediaScanInFlight.get(cacheKey);
-  if (existingScan) {
-    return existingScan;
-  }
-
-  const scanPromise = (async () => {
-    let timeoutId = null;
-    const response = await Promise.race([
-      sendMessageToTab(tab.id, { type: INTERNAL_SCAN_PAGE_MEDIA_MESSAGE }, { frameId: 0 }).catch((error) => ({
-        success: false,
-        reason: error?.message || 'scan_unavailable',
-      })),
-      new Promise((resolve) => {
-        timeoutId = setTimeout(() => resolve({
-          success: false,
-          reason: 'scan_timeout',
-        }), MEDIA_SCAN_TIMEOUT_MS);
-      }),
-    ]);
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-    }
-    const normalized = normalizeMediaScanResponse(response, tab);
-    const networkEntries = normalized.success
-      ? await getNetworkMediaEntriesForTab(tab).catch(() => [])
-      : [];
-    const merged = mergeNetworkMediaCandidates(normalized, networkEntries);
-    if (merged.success) {
-      await storeMediaScanCache(tab, merged).catch((error) => {
-        console.warn('[Ameow] Failed to cache media scan result:', error);
-      });
-    }
-    return {
-      ...merged,
-      ttlMs: MEDIA_SCAN_CACHE_TTL_MS,
-    };
-  })();
-
-  mediaScanInFlight.set(cacheKey, scanPromise);
-  try {
-    return await scanPromise;
-  } finally {
-    mediaScanInFlight.delete(cacheKey);
-  }
+  return selectionOps?.captureCurrentContent(tab) ?? {
+    success: false,
+    connected: isConnected(),
+    reason: 'selection_ops_unavailable',
+  };
 }
 
 async function downloadMediaCandidate(candidate) {
-  if (!candidate || typeof candidate !== 'object') {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: 'invalid_candidate',
-    };
-  }
-  const tab = await getActiveTab();
-  const desktopCandidate = candidate.desktopCandidate && typeof candidate.desktopCandidate === 'object'
-    ? candidate.desktopCandidate
-    : candidate;
-  const selectedVideoVariant = normalizeSelectedVideoVariant(candidate.selectedVideoVariant);
-  const browserFallbackCandidate = candidate.browserFallbackCandidate && typeof candidate.browserFallbackCandidate === 'object'
-    ? candidate.browserFallbackCandidate
-    : null;
-  const mediaType = desktopCandidate.mediaType || candidate.mediaType;
-  const url = normalizeHttpUrl(desktopCandidate.url);
-  const fallbackCandidate = selectedVideoVariant || browserFallbackCandidate;
-  const fallbackUrl = normalizeHttpUrl(fallbackCandidate?.url);
-  const pageUrl = selectFirstHttpUrl(desktopCandidate.pageUrl, candidate.pageUrl, tab?.url, url, fallbackUrl);
-  const capability = downloadCapabilityUtils?.resolveDownloadCapability
-    ? downloadCapabilityUtils.resolveDownloadCapability(desktopCandidate)
-    : {
-      browserDownloadable: false,
-      requiresDesktop: true,
-      desktopReason: 'capability_unavailable',
-    };
-  const fallbackCapability = fallbackCandidate && downloadCapabilityUtils?.resolveDownloadCapability
-    ? downloadCapabilityUtils.resolveDownloadCapability(fallbackCandidate)
-    : null;
-  const canUseBrowserFallback = Boolean(
-    fallbackCandidate
-    && fallbackUrl
-    && (
-      downloadCapabilityUtils?.canUseBrowserFallback
-        ? downloadCapabilityUtils.canUseBrowserFallback(fallbackCandidate)
-        : fallbackCapability?.requiresDesktop !== true && fallbackCapability?.browserDownloadable === true
-    )
-  );
-
-  if (!url) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: capability.requiresDesktop ? 'desktop_required' : 'invalid_candidate_url',
-      desktopReason: capability.desktopReason,
-    };
-  }
-
-  const browserDownload = () => startBrowserDownload({
-    url: canUseBrowserFallback ? fallbackUrl : url,
-    filename: deriveBrowserDownloadFilename(canUseBrowserFallback ? fallbackCandidate : desktopCandidate, canUseBrowserFallback ? fallbackUrl : url),
-  });
-
-  if (capability.requiresDesktop && !isConnected() && !isConnecting()) {
-    if (canUseBrowserFallback) {
-      return browserDownload();
-    }
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: 'desktop_required',
-      desktopReason: capability.desktopReason,
-    };
-  }
-
-  if (!capability.requiresDesktop && !isConnected() && !isConnecting()) {
-    return browserDownload();
-  }
-
-  if (mediaType === 'image') {
-    const imageResult = await handlePageImageSelectionRequest({
-    type: INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE,
-    url,
-    pageUrl,
-    originalFilename: desktopCandidate.title || candidate.title || undefined,
-  }, {
-      tabUrl: tab?.url,
-    });
-
-    if (!imageResult?.success && !capability.requiresDesktop && isRecoverableDesktopConnectionFailure(imageResult)) {
-      return browserDownload();
-    }
-
-    if (!imageResult?.success && capability.requiresDesktop && isRecoverableDesktopConnectionFailure(imageResult)) {
-      return {
-        success: false,
-        connected: isConnected(),
-        reason: 'desktop_required',
-        desktopReason: capability.desktopReason,
-      };
-    }
-
-    return imageResult;
-  }
-
-  const desktopResult = await handleVideoSelectionRequest({
-    type: INTERNAL_VIDEO_SELECTION_MESSAGE,
-    url,
-    pageUrl,
-    videoUrl: selectedVideoVariant?.url || url,
-    title: desktopCandidate.title || candidate.title || tab?.title,
-    selectedVideoVariant,
-    videoCandidates: [{
-      url: selectedVideoVariant?.url || url,
-      type: typeof selectedVideoVariant?.type === 'string' ? selectedVideoVariant.type : typeof desktopCandidate.type === 'string' ? desktopCandidate.type : 'unknown',
-      confidence: typeof selectedVideoVariant?.confidence === 'string' ? selectedVideoVariant.confidence : typeof desktopCandidate.confidence === 'string' ? desktopCandidate.confidence : 'low',
-      source: typeof selectedVideoVariant?.source === 'string' ? selectedVideoVariant.source : typeof desktopCandidate.source === 'string' ? desktopCandidate.source : 'popup_media_browser',
-      mediaType: mediaType === 'audio' ? 'audio' : 'video',
-    }],
-    selectionScope: 'current_item',
-    extensionData: {
-      ameowCapture: {
-        version: 1,
-        action: 'popup_fallback',
-        pageUrl: pageUrl || url,
-        targetHref: selectedVideoVariant?.url || url,
-        targetSrc: selectedVideoVariant?.url || undefined,
-        title: desktopCandidate.title || candidate.title || tab?.title,
-      },
-    },
-  }, {
-    tabUrl: tab?.url,
-  });
-
-  if (!desktopResult?.success && !capability.requiresDesktop && isRecoverableDesktopConnectionFailure(desktopResult)) {
-    return browserDownload();
-  }
-
-  if (!desktopResult?.success && capability.requiresDesktop && isRecoverableDesktopConnectionFailure(desktopResult)) {
-    return {
-      success: false,
-      connected: isConnected(),
-      reason: 'desktop_required',
-      desktopReason: capability.desktopReason,
-    };
-  }
-
-  return desktopResult;
+  return selectionOps?.downloadCandidate(candidate) ?? {
+    success: false,
+    connected: isConnected(),
+    reason: 'selection_ops_unavailable',
+  };
 }
 
 function waitForTabComplete(tabId, options = {}) {
@@ -3439,6 +3012,65 @@ async function getActiveTab() {
   return tabs[0] || null;
 }
 
+// Scan/selection generation: a new scan supersedes earlier candidates and
+// selections for the tab. Combined with the page context key, this rejects
+// stale downloads after a newer scan or navigation.
+function nextScanGeneration(tabId) {
+  if (!Number.isInteger(tabId)) {
+    return null;
+  }
+  const next = (scanGenerations.get(tabId) || 0) + 1;
+  scanGenerations.set(tabId, next);
+  return next;
+}
+
+function getScanGeneration(tabId) {
+  return Number.isInteger(tabId) ? scanGenerations.get(tabId) || 0 : 0;
+}
+
+function nextCaptureGeneration(tabId) {
+  if (!Number.isInteger(tabId)) {
+    return null;
+  }
+  const next = (captureGenerations.get(tabId) || 0) + 1;
+  captureGenerations.set(tabId, next);
+  return next;
+}
+
+function getCaptureGeneration(tabId) {
+  return Number.isInteger(tabId) ? captureGenerations.get(tabId) || 0 : 0;
+}
+
+function nextSelectionGeneration(tabId) {
+  if (!Number.isInteger(tabId)) {
+    return null;
+  }
+  const next = (selectionGenerations.get(tabId) || 0) + 1;
+  selectionGenerations.set(tabId, next);
+  return next;
+}
+
+function getSelectionGeneration(tabId) {
+  return Number.isInteger(tabId) ? selectionGenerations.get(tabId) || 0 : 0;
+}
+
+// Current page context for popup/current-page operations: always the main
+// frame (frame 0) of the active tab.
+async function getActiveTabPageContext() {
+  const tab = await getActiveTab();
+  if (!tab) {
+    return { tab: null, pageContextKey: null, generation: 0 };
+  }
+  const pageContextKey = pageContextStore?.pageContextKey
+    ? pageContextStore.pageContextKey({ tabId: tab.id, frameId: 0, pageUrl: tab.url })
+    : null;
+  return {
+    tab,
+    pageContextKey,
+    generation: getScanGeneration(tab.id),
+  };
+}
+
 async function requestResolvedVideoSelection(tabId, options = {}) {
   try {
     const response = await sendMessageToTab(
@@ -3448,7 +3080,9 @@ async function requestResolvedVideoSelection(tabId, options = {}) {
         source: options.source || 'popup',
         requestedSrcUrl: options.requestedSrcUrl || undefined,
       },
-      typeof options.frameId === 'number' ? { frameId: options.frameId } : {},
+      // Popup/current-page operations deterministically target the main
+      // frame; frame-originated operations pass an explicit frameId.
+      { frameId: options.frameId ?? 0 },
     );
 
     if (response?.success && response.payload && typeof response.payload === 'object') {
@@ -3472,6 +3106,7 @@ async function requestResolvedPastedVideoSelection(tabId, options = {}) {
         pageUrl: options.pageUrl || undefined,
         siteHint: options.siteHint || undefined,
       },
+      { frameId: 0 },
     );
 
     if (response?.success && response.payload && typeof response.payload === 'object') {
@@ -3494,12 +3129,26 @@ async function findMatchingVideoSelectionTab(url) {
   return tabs.find((tab) => normalizeHttpUrl(tab.url) === normalizedUrl && typeof tab.id === 'number') || null;
 }
 
-// Listen for messages from content script
+// Listen for messages from content script. Every content-originated
+// message is normalized once into a BrowserMessageContext (tab/frame/
+// document/page identity) that is authoritative for where the interaction
+// happened; a later active-tab lookup must not replace it.
+function senderContextFor(sender) {
+  const context = pageContextStore?.normalizeBrowserMessageContext
+    ? pageContextStore.normalizeBrowserMessageContext(sender)
+    : {};
+  return {
+    tabUrl: sender.tab?.url,
+    tabId: context.tabId ?? sender.tab?.id,
+    frameId: context.frameId ?? sender.frameId,
+    documentId: context.documentId,
+    pageUrl: context.pageUrl,
+  };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === INTERNAL_VIDEO_SELECTION_MESSAGE) {
-    handleVideoSelectionRequest(message, {
-      tabUrl: sender.tab?.url,
-    }).then(sendResponse);
+    handleVideoSelectionRequest(message, senderContextFor(sender)).then(sendResponse);
     return true;
   } else if (message.type === INTERNAL_DOWNLOAD_CURRENT_CONTENT_MESSAGE) {
     const payload = message?.payload && typeof message.payload === 'object'
@@ -3513,9 +3162,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       return true;
     }
-    handleVideoSelectionRequest(payload, {
-      tabUrl: sender.tab?.url,
-    }).then(sendResponse).catch((error) => {
+    handleVideoSelectionRequest(payload, senderContextFor(sender)).then(sendResponse).catch((error) => {
       console.error('[Ameow] Failed to queue current-content selection:', error);
       sendResponse({
         success: false,
@@ -3525,9 +3172,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   } else if (message.type === INTERNAL_PAGE_IMAGE_SELECTION_MESSAGE) {
-    handlePageImageSelectionRequest(message, {
-      tabUrl: sender.tab?.url,
-    }).then(sendResponse);
+    handlePageImageSelectionRequest(message, senderContextFor(sender)).then(sendResponse);
     return true;
   } else if (message.type === 'connect') {
     connect({ force: true });
@@ -3549,14 +3194,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    cleanupProtectedImageDragRegistry();
-    protectedImageDragRegistry.set(token, {
-      tabId,
-      frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
-      imageUrl,
-      pageUrl,
-      createdAt: Date.now(),
-    });
+    const registration = dragTokenOps?.buildRegistration
+      ? dragTokenOps.buildRegistration(
+          {
+            tabId,
+            frameId: typeof sender.frameId === 'number' ? sender.frameId : 0,
+            documentId: sender.documentId,
+            pageUrl,
+          },
+          {
+            frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
+            documentId: sender.documentId,
+            imageUrl,
+            pageUrl,
+          },
+        )
+      : { success: false, code: 'drag_token_invalid' };
+    const registered = registration?.success && protectedImageDragRegistry?.register
+      ? protectedImageDragRegistry.register(token, registration.facts)
+      : { success: false, code: 'drag_token_registry_unavailable' };
+    if (!registered?.success) {
+      sendResponse({
+        success: false,
+        reason: registered?.code === 'drag_token_limit_reached'
+          ? 'protected_image_drag_limit_reached'
+          : 'invalid_protected_image_drag',
+      });
+      return true;
+    }
     console.info('[Ameow] Registered protected image drag token:', {
       token,
       tabId,
@@ -3592,20 +3257,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    cleanupXiaohongshuDragRegistry();
-    xiaohongshuDragRegistry.set(token, {
-      tabId,
-      frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
-      pageUrl,
-      sourcePageUrl,
-      detailUrl,
-      noteId,
-      imageUrl,
-      mediaType,
-      videoIntentConfidence,
-      videoIntentSources,
-      createdAt: Date.now(),
-    });
+    const registration = dragTokenOps?.buildRegistration
+      ? dragTokenOps.buildRegistration(
+          {
+            tabId,
+            frameId: typeof sender.frameId === 'number' ? sender.frameId : 0,
+            documentId: sender.documentId,
+            pageUrl,
+          },
+          {
+            frameId: typeof sender.frameId === 'number' ? sender.frameId : undefined,
+            documentId: sender.documentId,
+            pageUrl,
+            sourcePageUrl,
+            detailUrl,
+            noteId,
+            imageUrl,
+            mediaType,
+            videoIntentConfidence,
+            videoIntentSources,
+          },
+        )
+      : { success: false, code: 'drag_token_invalid' };
+    const registered = registration?.success && xiaohongshuDragRegistry?.register
+      ? xiaohongshuDragRegistry.register(token, registration.facts)
+      : { success: false, code: 'drag_token_registry_unavailable' };
+    if (!registered?.success) {
+      sendResponse({
+        success: false,
+        reason: registered?.code === 'drag_token_limit_reached'
+          ? 'xiaohongshu_drag_limit_reached'
+          : 'invalid_xiaohongshu_drag',
+      });
+      return true;
+    }
     console.info('[Ameow] Registered Xiaohongshu drag token:', {
       token,
       tabId,
@@ -3636,11 +3321,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    sendRequestToApp('save_data_url', {
-      dataUrl,
-      originalFilename: filename,
-      requireRenameEnabled: true,
-    }).then((result) => {
+    (desktopPort?.saveDataUrl
+      ? desktopPort.saveDataUrl({
+          dataUrl,
+          originalFilename: filename,
+          requireRenameEnabled: true,
+        })
+      : Promise.resolve(buildRequestFailure('not_connected'))
+    ).then((result) => {
       if (!result?.success) {
         console.warn('[Ameow] save_screenshot fallback reason:', result?.data?.code || result?.message || 'unknown');
       }
@@ -3655,7 +3343,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     buildSiteSessionStatusForActiveTab().then((siteSession) => {
       sendResponse({
         connected: isConnected(),
-        connecting: isConnecting() || reconnectTimer !== null,
+        connecting: desktopClient.getConnectionState().connecting,
         state: connectionState(),
         statusText: connectionStatusText(),
         siteSession,
@@ -3728,7 +3416,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     restoreAllHiddenSites().then(sendResponse);
     return true;
   } else if (message.type === 'scan_page_media') {
-    scanPageMediaForActiveTab().then(sendResponse).catch((error) => {
+    mediaScanOps?.scanPageMediaForActiveTab().then(sendResponse).catch((error) => {
       console.error('[Ameow] Failed to scan page media:', error);
       sendResponse({
         success: false,
@@ -3737,7 +3425,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   } else if (message.type === 'get_media_scan_cache') {
-    getMediaScanCacheForActiveTab().then(sendResponse);
+    mediaScanOps?.getMediaScanCacheForActiveTab().then(sendResponse);
     return true;
   } else if (message.type === 'download_media_candidate') {
     downloadMediaCandidate(message.candidate).then(sendResponse).catch((error) => {
@@ -3809,7 +3497,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   }
-  return true;
+  // Unknown/unowned message: every handled branch above returned true before
+  // falling through, so returning false here closes the channel instead of
+  // leaving an async response port open.
+  return false;
 });
 
 if (chrome?.alarms?.onAlarm) {
@@ -3874,7 +3565,36 @@ if (chrome?.storage?.onChanged) {
   });
 }
 
-// Auto-connect on startup
+// Page identity lifecycle: navigation advances the page context generation
+// (superseding page-scoped captures/selections) and tab removal removes all
+// page-scoped state.
+if (chrome?.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (!Number.isInteger(tabId)) {
+      return;
+    }
+    if (typeof changeInfo?.url === 'string' || changeInfo?.status === 'loading') {
+      pageContextStore?.advanceNavigation(tabId);
+    }
+  });
+}
+
+if (chrome?.tabs?.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    pageContextStore?.removeTab(tabId);
+    scanGenerations.delete(tabId);
+    captureGenerations.delete(tabId);
+    selectionGenerations.delete(tabId);
+    // Tab removal invalidates every drag token of that tab only.
+    protectedImageDragRegistry?.removeByTab?.(tabId);
+    xiaohongshuDragRegistry?.removeByTab?.(tabId);
+  });
+}
+
+// Auto-connect on startup. The worker may have been suspended: reconstruct
+// bounded browser-download state so active downloads survive normal MV3
+// restarts instead of being silently forgotten.
+void rehydrateBrowserDownloadState();
 clearExtensionInjectionDebugConfigOnDisconnect();
 connect();
 void bootstrapDownloadPreferencesSync();

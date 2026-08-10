@@ -63,12 +63,16 @@ function removeExtensionTestFiles(rootDir) {
   const entries = readdirSync(rootDir);
   for (const entry of entries) {
     const fullPath = join(rootDir, entry);
+    if (entry === "node_modules") {
+      rmSync(fullPath, { recursive: true, force: true });
+      continue;
+    }
     const stats = statSync(fullPath);
     if (stats.isDirectory()) {
       removeExtensionTestFiles(fullPath);
       continue;
     }
-    if (/\.test\.js$/i.test(entry)) {
+    if (/\.test\.js$/i.test(entry) || /^test-.*\.js$/i.test(entry)) {
       rmSync(fullPath, { force: true });
     }
   }
