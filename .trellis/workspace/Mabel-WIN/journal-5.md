@@ -1431,3 +1431,24 @@ P2: extract Electron-neutral DownloadJobService (application layer) with opaque 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 241: P3 Protocol Boundary Unification
+
+**Date**: 2026-08-10
+**Task**: P3 Protocol Boundary Unification
+**Branch**: `main`
+
+### Summary
+
+Unified Renderer IPC and Extension WS download paths behind one narrow canonical DownloadApplicationApi (src/application), with transport adapters (electron/downloadIpcAdapter, downloadWsAdapter), a single compatibility decoder and typed outcome mapping (src/protocol/download/ipcMappers), pure IPC/WS envelope decoders (src/protocol/envelopes), retired commandRouter/protocolMappers/videoRuntime.ts, runtime-validated capture evidence, full-chain selectedVideoVariant regression coverage, and Architecture Guard extension. Full gates green: 161 files / 1237 tests, type-check, lint, build, runtime smoke, diff check.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `06adfbe` | (see git log) |
+
+### Status
+
+[OK] **Completed**

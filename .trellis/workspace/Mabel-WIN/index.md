@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 240
+- **Total Sessions**: 241
 - **Last Active**: 2026-08-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1433 | Active |
+| `journal-5.md` | ~1454 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 241 | 2026-08-10 | P3 Protocol Boundary Unification | `06adfbe` | `main` |
 | 240 | 2026-08-10 | Refactor Electron application boundary | `bdc56d8` | `main` |
 | 239 | 2026-08-10 | Complete P1 download domain architecture | `1426c57` | `main` |
 | 238 | 2026-08-09 | 统一下载网络执行上下文 | `c73cb27` | `main` |
