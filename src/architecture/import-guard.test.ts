@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const srcRoot = path.join(repoRoot, "src");
 
-const GUARDED_DIRS = ["core", "orchestration", "engines", "sites"];
+const GUARDED_DIRS = ["core", "orchestration", "engines", "sites", "application"];
 
 const FORBIDDEN_PACKAGE_PREFIXES = ["electron"];
 
@@ -157,9 +157,17 @@ describe("runtime-neutral import guard", () => {
     ].join("\n")).toEqual([]);
   });
 
+  it("scans the application directory against the same forbidden imports", () => {
+    const violations = scanGuardedDir("application");
+    expect(violations, [
+      "Application must stay Electron-neutral: no Electron, electron-runtime, or protocol payload imports.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
   it("blocks Domain (src/core) imports of Application layers", () => {
     const violations: string[] = [];
-    const applicationDirs = ["orchestration", "engines", "sites", "download-capabilities", "config"];
+    const applicationDirs = ["orchestration", "engines", "sites", "download-capabilities", "config", "application"];
 
     for (const file of collectSourceFiles(path.join(srcRoot, "core"))) {
       const source = readFileSync(file, "utf8");

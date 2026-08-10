@@ -4,7 +4,6 @@ import path from "node:path";
 import type {
   ElectronDownloadRuntime,
   ElectronDownloadRuntimeOptions,
-  RuntimeAuthFailureRecoveryContext,
   RuntimeManagedComponent,
 } from "./contracts.js";
 import { inspectRuntimeDependencyStatus, resolveRuntimeBinaryPaths } from "./runtimePaths.js";
@@ -46,7 +45,6 @@ import type {
 import type { RuntimeFailureDiagnostic } from "../types/errorDiagnostics.js";
 import type {
   DownloadProgress,
-  DownloadResult,
   EnginePlan,
   RawDownloadInput,
   ResolvedDownloadPlan,
@@ -75,6 +73,7 @@ import {
   toNetworkDiagnosticSnapshot,
   type NetworkDiagnosticSnapshot,
   type NetworkFailureClassification,
+  type NetworkRouteResolution,
 } from "../config/networkRoute.js";
 import { classifyEngineFailure } from "./engineErrorClassifier.js";
 import type { DownloadExecutionContext } from "./contracts.js";
@@ -82,6 +81,7 @@ import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext
 import type { NetworkApplicationOutcome } from "./engineNetworkAdapters.js";
 import { toDownloadProgressPayload, toDownloadResultPayload } from "./protocolMappers.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
+import { DownloadJobService } from "../application/download-job-service.js";
 
 type PendingTask = {
   traceId: string;
@@ -125,9 +125,24 @@ const resolveCanonicalNetworkTarget = (
   return primaryEngine?.sourceUrl ?? request.pageUrl ?? request.url;
 };
 
-type DownloadExecutionAttempt = {
-  result: DownloadResult;
-  retriedAfterAuthSync: boolean;
+/**
+ * Opaque per-Job application context. The runtime places the already-resolved
+ * NetworkRoute, output/config values and diagnostic callbacks in it;
+ * DownloadJobService treats it as a generic and never reaches into runtime or
+ * Electron state. One object per Job, reused by fallback and auth retry.
+ */
+type RuntimeDownloadJobContext = {
+  traceId: string;
+  request: RawDownloadInput;
+  network: NetworkRouteResolution;
+  outputDir: string;
+  outputStem: string;
+  config: Record<string, unknown>;
+  abortSignal: AbortSignal;
+  canonicalNetworkTarget: string;
+  reportNetworkProxyFailure?: ElectronDownloadRuntimeOptions["reportNetworkProxyFailure"];
+  onNetworkApplication(application: NetworkApplicationOutcome): void | Promise<void>;
+  onProgress(payload: DownloadProgress): void | Promise<void>;
 };
 
 type TranscodeTaskState = PreparedVideoTranscodeTask & {
@@ -198,7 +213,7 @@ const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - started
 const hasYtDlpEngine = (plan: ResolvedDownloadPlan | null): boolean => (
   plan?.engines.some((enginePlan) => enginePlan.engine === "yt-dlp") ?? false
 );
-const ADVANCED_QUALITY_SUPPORTED_SITE_IDS = new Set(["youtube", "bilibili"]);
+export const ADVANCED_QUALITY_SUPPORTED_SITE_IDS = new Set(["youtube", "bilibili"]);
 
 const resolveYtdlpTelemetryProfileKey = (
   plan: ResolvedDownloadPlan | null,
@@ -1125,88 +1140,126 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       quality: activeTask.request.ytdlpQuality ?? "best",
     })}`);
 
+    // Static runtime dependencies are resolved before the application Job
+    // runs; the terminal settlement below reuses them.
+    const binaries = resolveRuntimeBinaryPaths(this.options.environment);
     let outputDir: string | null = null;
     let telemetryPlan: ResolvedDownloadPlan | null = null;
-    let executedProviderId: string | null = null;
     let executedEngineId: EnginePlan["engine"] | null = null;
-    let networkSnapshot: NetworkDiagnosticSnapshot | null = null;
+    // Diagnostics state updated by the per-attempt Job callbacks (closures)
+    // and read by the catch/terminal block. A property holder avoids the
+    // `let`-closure narrowing trap: closure assignments would otherwise leave
+    // the initializer's `null` narrowing in force at later reads.
+    const networkDiagnostics: { snapshot: NetworkDiagnosticSnapshot | null } = { snapshot: null };
+    // The single terminal protocol payload: success is the mapped application
+    // outcome, failure is the mapped typed error. Exactly one of these is
+    // produced and emitted per Job; no other branch decides the terminal.
+    let terminalResult: DownloadResultPayload;
+    let terminalRuntimeError: DownloadRuntimeError | null = null;
     try {
       const config = parseJsonObject(await this.options.configStore.readConfigString());
       const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
       outputDir = resolvedOutputDir;
-      const binaries = resolveRuntimeBinaryPaths(this.options.environment);
       await this.options.eventSink.emit("video-download-progress", {
         traceId,
         ...EARLY_VIDEO_ACTIVITY_PAYLOAD,
       });
-      // Validate and resolve the plan exactly once per Job. The same
-      // normalized input and ResolvedDownloadPlan object are reused by
-      // telemetry, every engine attempt and auth recovery; recovery never
-      // re-resolves the plan or the network route.
-      const prepared = this.orchestrator.prepare(activeTask.request);
-      telemetryPlan = prepared.plan;
-      this.logger.log(`>>> [ElectronRuntimeTiming] task pre-engine complete: ${JSON.stringify({
-        traceId,
-        elapsedMs: formatElapsedMs(taskStartedAtMs),
-        providerId: telemetryPlan?.providerId ?? null,
-        engineCandidates: telemetryPlan?.engines.map((plan) => plan.engine) ?? [],
-      })}`);
-      if (telemetryPlan && this.options.refreshSiteSessionBeforeDownload) {
-        await this.options.refreshSiteSessionBeforeDownload({
-          traceId,
-          siteId: telemetryPlan.intent.siteId,
-          pageUrl: activeTask.request.pageUrl,
-          url: activeTask.request.url,
-        }).catch((error) => {
-          this.logger.log(
-            `>>> [ElectronRuntime] download site-session refresh failed: ${summarizeError(error)}`,
+      // The ordinary Job lifecycle is delegated to the Electron-neutral
+      // application service: prepare exactly once, one opaque Job context,
+      // per-attempt contexts, at-most-one auth recovery and the single
+      // terminal outcome. Route resolution and output reservation stay here
+      // in the outer adapter (createJobContext) and happen once per Job.
+      const execution = await new DownloadJobService<
+        RuntimeDownloadJobContext,
+        EngineExecutionContextWithRuntime
+      >({
+        orchestrator: this.orchestrator,
+        onPrepared: (prepared) => {
+          telemetryPlan = prepared.plan;
+          this.logger.log(`>>> [ElectronRuntimeTiming] task pre-engine complete: ${JSON.stringify({
+            traceId,
+            elapsedMs: formatElapsedMs(taskStartedAtMs),
+            providerId: prepared.plan.providerId,
+            engineCandidates: prepared.plan.engines.map((plan) => plan.engine),
+          })}`);
+        },
+        refreshSiteSessionBeforeDownload: async (prepared) => {
+          if (this.options.refreshSiteSessionBeforeDownload) {
+            await this.options.refreshSiteSessionBeforeDownload({
+              traceId,
+              siteId: prepared.plan.intent.siteId,
+              pageUrl: activeTask.request.pageUrl,
+              url: activeTask.request.url,
+            });
+          }
+        },
+        createJobContext: async (prepared) => {
+          const preferredOutputStem = buildOutputStem(
+            traceId,
+            activeTask.request.pageUrl ?? activeTask.request.url,
+            config,
+            activeTask.request.title,
+            activeTask.request.siteHint,
           );
-        });
-      }
-      const preferredOutputStem = buildOutputStem(
-        traceId,
-        activeTask.request.pageUrl ?? activeTask.request.url,
-        config,
-        activeTask.request.title,
-        activeTask.request.siteHint,
-      );
-      const outputStem = await this.reserveOutputStem(
-        traceId,
-        resolvedOutputDir,
-        preferredOutputStem,
-        config,
-      );
-      // One stable execution context per Job: the network route is resolved
-      // once and reused across engine fallback and auth recovery.
-      const canonicalNetworkTarget = resolveCanonicalNetworkTarget(
-        activeTask.request,
-        telemetryPlan,
-      );
-      const executionContext = this.createDownloadExecutionContext(
-        traceId,
-        canonicalNetworkTarget,
-        telemetryPlan?.providerId ?? null,
-        telemetryPlan?.engines.slice().sort((left, right) => right.priority - left.priority)[0]?.engine
-          ?? "yt-dlp",
-      );
-      const network = await executionContext.network;
-      const baseNetworkSnapshot = toNetworkDiagnosticSnapshot(network);
-      networkSnapshot = baseNetworkSnapshot;
-      // Per-attempt application outcome: the engine that actually applied (or
-      // rejected) the stable route wins the diagnostic; never re-resolves.
-      const reportNetworkApplication = (application: NetworkApplicationOutcome): void => {
-        networkSnapshot = {
-          ...baseNetworkSnapshot,
-          engine: application.engine,
-          appliedToEngine: application.appliedToEngine,
-          reason: application.reason,
-          failureClassification: application.failureClassification,
-        };
-      };
-      const executeDownloadAttempt = async (): Promise<DownloadResult> => this.orchestrator.executePrepared(
-        prepared,
-        async (plan: ResolvedDownloadPlan, enginePlan: EnginePlan) => {
-          executedProviderId = plan.providerId;
+          const outputStem = await this.reserveOutputStem(
+            traceId,
+            resolvedOutputDir,
+            preferredOutputStem,
+            config,
+          );
+          // One stable network route per Job: resolved here, then reused by
+          // every engine attempt, fallback and auth retry through the opaque
+          // Job context. A future refresh is an explicit rebuild with a new
+          // identity; P0 exposes no implicit refresh path.
+          const canonicalNetworkTarget = resolveCanonicalNetworkTarget(
+            activeTask.request,
+            prepared.plan,
+          );
+          const executionContext = this.createDownloadExecutionContext(
+            traceId,
+            canonicalNetworkTarget,
+            prepared.plan.providerId,
+            prepared.plan.engines.slice().sort((left, right) => right.priority - left.priority)[0]?.engine
+              ?? "yt-dlp",
+          );
+          const network = await executionContext.network;
+          const baseNetworkSnapshot = toNetworkDiagnosticSnapshot(network);
+          networkDiagnostics.snapshot = baseNetworkSnapshot;
+          return {
+            traceId,
+            request: activeTask.request,
+            network,
+            outputDir: resolvedOutputDir,
+            outputStem,
+            config,
+            abortSignal: activeTask.abortController.signal,
+            canonicalNetworkTarget,
+            reportNetworkProxyFailure: this.options.reportNetworkProxyFailure,
+            // Per-attempt application outcome: the engine that actually
+            // applied (or rejected) the stable route wins the diagnostic;
+            // never re-resolves.
+            onNetworkApplication(application: NetworkApplicationOutcome): void {
+              networkDiagnostics.snapshot = {
+                ...baseNetworkSnapshot,
+                engine: application.engine,
+                appliedToEngine: application.appliedToEngine,
+                reason: application.reason,
+                failureClassification: application.failureClassification,
+              };
+            },
+            onProgress: async (payload: DownloadProgress) => {
+              await this.options.eventSink.emit(
+                "video-download-progress",
+                toDownloadProgressPayload(payload),
+              );
+            },
+          };
+        },
+        buildAttemptContext: async (
+          jobContext,
+          plan: ResolvedDownloadPlan,
+          enginePlan: EnginePlan,
+        ) => {
           executedEngineId = enginePlan.engine;
           if (this.options.ensureEngineRuntimeReady) {
             await this.options.ensureEngineRuntimeReady(
@@ -1222,69 +1275,69 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             reason: enginePlan.reason,
             when: enginePlan.when,
           })}`);
-          const network = await executionContext.network;
           const context: EngineExecutionContextWithRuntime = {
-            traceId,
+            traceId: jobContext.traceId,
             plan,
             enginePlan,
             intent: plan.intent,
-            outputDir: resolvedOutputDir,
-            outputStem,
-            config,
+            outputDir: jobContext.outputDir,
+            outputStem: jobContext.outputStem,
+            config: jobContext.config,
             // Attempt auth material and engine-specific execution data come
-            // from the raw request, not the Domain intent.
-            cookies: activeTask.request.cookies,
-            advancedQualitySelector: activeTask.request.advancedQualitySelector,
-            advancedQualityLabel: activeTask.request.advancedQualityLabel,
-            network,
-            abortSignal: activeTask.abortController.signal,
-            onNetworkApplication: reportNetworkApplication,
-            reportNetworkProxyFailure: this.options.reportNetworkProxyFailure
-              ? (error) => this.options.reportNetworkProxyFailure?.({
-                  targetUrl: canonicalNetworkTarget,
+            // from the raw request, not the Domain intent; the outer
+            // composition may enrich them per attempt.
+            cookies: jobContext.request.cookies,
+            advancedQualitySelector: jobContext.request.advancedQualitySelector,
+            advancedQualityLabel: jobContext.request.advancedQualityLabel,
+            network: jobContext.network,
+            abortSignal: jobContext.abortSignal,
+            onNetworkApplication: jobContext.onNetworkApplication,
+            reportNetworkProxyFailure: jobContext.reportNetworkProxyFailure
+              ? (error) => jobContext.reportNetworkProxyFailure?.({
+                  targetUrl: jobContext.canonicalNetworkTarget,
                   providerId: plan.providerId,
                   engineId: enginePlan.engine,
                   error,
                 })
               : undefined,
-            onProgress: async (payload: DownloadProgress) => {
-              await this.options.eventSink.emit(
-                "video-download-progress",
-                toDownloadProgressPayload(payload),
-              );
-            },
+            onProgress: jobContext.onProgress,
           };
           return this.options.buildExecutionContext
-            ? this.options.buildExecutionContext(context, activeTask.request)
+            ? this.options.buildExecutionContext(context, jobContext.request)
             : context;
         },
-      );
-      const execution = await this.executeDownloadWithAuthRecovery({
-        activeTask,
-        traceId,
-        executeDownloadAttempt,
-        getRecoveryContext: (error) => ({
-          traceId,
-          request: activeTask.request,
-          plan: telemetryPlan,
-          chosenEngine: executedEngineId,
+        handleAuthRequiredFailure: async ({ plan, chosenEngine, error }) => {
+          return this.options.handleAuthRequiredFailure?.({
+            traceId,
+            request: activeTask.request,
+            plan,
+            chosenEngine,
+            error,
+          });
+        },
+        classifyFailure: (error) => this.toTaskRuntimeError(
           error,
-        }),
-      });
+          activeTask.abortController.signal.aborted,
+        ),
+      }).executeJob(activeTask.request, activeTask.abortController.signal);
       // Core result -> protocol payload at the runtime boundary (stable keys).
       let result = toDownloadResultPayload(execution.result);
+      const chosenEngine = execution.chosenEngine;
+      // Output settlement metadata lives in the Job context: the same object
+      // reused by every attempt of this Job.
+      const outputStem = execution.jobContext.outputStem;
       this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
-        providerId: executedProviderId ?? telemetryPlan?.providerId ?? null,
-        engineId: executedEngineId ?? null,
+        providerId: execution.plan.providerId,
+        engineId: chosenEngine ?? null,
         success: result.success,
         filePathPresent: Boolean(result.file_path),
       })}`);
       if (
         result.success
         && result.file_path
-        && executedEngineId === "yt-dlp"
+        && chosenEngine === "yt-dlp"
         && !activeTask.request.title?.trim()
         && result.title?.trim()
       ) {
@@ -1308,7 +1361,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           };
         }
       }
-      if (result.success && result.file_path && executedEngineId === "gallery-dl") {
+      if (result.success && result.file_path && chosenEngine === "gallery-dl") {
         const originalFilePath = result.file_path;
         const metadataTitle = await resolveGalleryDlMetadataTitleFromSidecars(
           resolvedOutputDir,
@@ -1342,43 +1395,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           originalFilePath,
         );
       }
-      await this.options.eventSink.emit("video-download-complete", result);
-      this.logger.log(`>>> [ElectronRuntimeTiming] task complete event emitted: ${JSON.stringify({
-        traceId,
-        elapsedMs: formatElapsedMs(taskStartedAtMs),
-        success: result.success,
-      })}`);
-      if (result.success && result.file_path) {
-        void this.handleCompletedVideoSource(
-          traceId,
-          activeTask.label,
-          result.file_path,
-          binaries,
-          {
-            request: activeTask.request,
-            plan: telemetryPlan,
-            chosenEngine: executedEngineId,
-            network: networkSnapshot,
-          },
-        );
-      } else {
-        await this.recordDownloadTelemetry(
-          traceId,
-          {
-            request: activeTask.request,
-            plan: telemetryPlan,
-            chosenEngine: executedEngineId,
-            network: networkSnapshot,
-          },
-          null,
-        );
-      }
+      terminalResult = result;
     } catch (error) {
       const runtimeError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
       const errorClassification = runtimeError.context?.networkFailureClassification;
-      if (networkSnapshot && typeof errorClassification === "string") {
-        networkSnapshot = {
-          ...networkSnapshot,
+      if (networkDiagnostics.snapshot && typeof errorClassification === "string") {
+        networkDiagnostics.snapshot = {
+          ...networkDiagnostics.snapshot,
           failureClassification: errorClassification as NetworkFailureClassification,
         };
       }
@@ -1388,22 +1411,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         elapsedMs: formatElapsedMs(taskStartedAtMs),
         error: runtimeError.message,
       })}`);
-      await this.recordDownloadTelemetry(
-        traceId,
-        {
-          request: activeTask.request,
-          plan: telemetryPlan,
-          chosenEngine: executedEngineId,
-          network: networkSnapshot,
-        },
-        runtimeError,
-      );
-      await this.options.eventSink.emit("video-download-complete", {
+      terminalRuntimeError = runtimeError;
+      terminalResult = {
         traceId,
         success: false,
         error: runtimeError.message,
         failure: toDownloadFailureDiagnostic(runtimeError, activeTask.request),
-      } satisfies DownloadResultPayload);
+      } satisfies DownloadResultPayload;
     } finally {
       const reservedOutputStem = this.reservedOutputStems.get(traceId);
       if (outputDir && reservedOutputStem) {
@@ -1414,6 +1428,43 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       await this.emitQueueState();
       void this.pumpQueue();
       this.scheduleTranscodePump();
+    }
+
+    // Exactly one terminal completion per Job. The terminal outcome was
+    // decided by DownloadJobService (a resolved success outcome or a typed
+    // failure, including cancellation and auth recovery/retry) and mapped to
+    // the protocol payload exactly once above; the facade only emits,
+    // telemetries and settles it and never re-decides the terminal state.
+    await this.options.eventSink.emit("video-download-complete", terminalResult);
+    this.logger.log(`>>> [ElectronRuntimeTiming] task complete event emitted: ${JSON.stringify({
+      traceId,
+      elapsedMs: formatElapsedMs(taskStartedAtMs),
+      success: terminalResult.success,
+    })}`);
+    if (terminalResult.success && terminalResult.file_path) {
+      void this.handleCompletedVideoSource(
+        traceId,
+        activeTask.label,
+        terminalResult.file_path,
+        binaries,
+        {
+          request: activeTask.request,
+          plan: telemetryPlan,
+          chosenEngine: executedEngineId,
+          network: networkDiagnostics.snapshot,
+        },
+      );
+    } else {
+      await this.recordDownloadTelemetry(
+        traceId,
+        {
+          request: activeTask.request,
+          plan: telemetryPlan,
+          chosenEngine: executedEngineId,
+          network: networkDiagnostics.snapshot,
+        },
+        terminalRuntimeError,
+      );
     }
   }
 
@@ -1470,52 +1521,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         classification: classifyEngineFailure({ message }),
       },
     );
-  }
-
-  private async executeDownloadWithAuthRecovery(options: {
-    activeTask: ActiveTask;
-    traceId: string;
-    executeDownloadAttempt(): Promise<DownloadResult>;
-    getRecoveryContext(error: DownloadRuntimeError): RuntimeAuthFailureRecoveryContext;
-  }): Promise<DownloadExecutionAttempt> {
-    try {
-      return {
-        result: await options.executeDownloadAttempt(),
-        retriedAfterAuthSync: false,
-      };
-    } catch (error) {
-      const firstError = this.toTaskRuntimeError(
-        error,
-        options.activeTask.abortController.signal.aborted,
-      );
-      if (
-        firstError.classification !== "auth_required"
-        || options.activeTask.abortController.signal.aborted
-        || !this.options.handleAuthRequiredFailure
-      ) {
-        throw firstError;
-      }
-
-      const recovery = await this.options.handleAuthRequiredFailure(
-        options.getRecoveryContext(firstError),
-      );
-      if (recovery?.shouldRetry !== true || options.activeTask.abortController.signal.aborted) {
-        throw firstError;
-      }
-
-      this.logger.log(`>>> [ElectronRuntime] retrying ${options.traceId} after site-session sync`);
-      try {
-        return {
-          result: await options.executeDownloadAttempt(),
-          retriedAfterAuthSync: true,
-        };
-      } catch (retryError) {
-        throw this.toTaskRuntimeError(
-          retryError,
-          options.activeTask.abortController.signal.aborted,
-        );
-      }
-    }
   }
 
   private async recordDownloadTelemetry(

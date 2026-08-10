@@ -126,7 +126,7 @@ import {
 } from "./managedRuntimeBootstrap.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { createSiteSessionRegistry } from "./siteSessionRegistry.mjs";
-import { handleAuthRequiredSiteSessionRecovery } from "./siteSessionAuthRecovery.mjs";
+import { createDownloadSiteSessionIntegration } from "./downloadSiteSessionIntegration.mjs";
 import {
   createSiteSessionRefreshScheduler,
 } from "./siteSessionRefreshScheduler.mjs";
@@ -206,11 +206,6 @@ const DOCS_SCREENSHOT_CAPTURE_DELAY_MS = 600;
 const DOCS_SCREENSHOT_EXPANDED_CAPTURE_DELAY_MS = 1_000;
 const DOCS_SCREENSHOT_SETTINGS_CAPTURE_DELAY_MS = 900;
 const DOCS_SCREENSHOT_UI_LAB_APPLY_DELAY_MS = 800;
-const ADVANCED_QUALITY_SESSION_REFRESH_STALE_MS = 24 * 60 * 60 * 1000;
-const ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS = 2_500;
-const ADVANCED_QUALITY_SESSION_REFRESH_SITE_IDS = new Set(["youtube", "bilibili"]);
-const DOWNLOAD_START_SESSION_REFRESH_FRESH_MS = 60 * 60 * 1000;
-const DOWNLOAD_START_SESSION_REFRESH_TIMEOUT_MS = 5_000;
 let registeredShortcut = "";
 let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
@@ -1472,6 +1467,34 @@ function getElectronDownloadRuntime() {
   }
 
   const environment = buildElectronRuntimeEnvironment();
+  // Download-specific site-session policy is composed here, not owned here:
+  // the integration owns the refresh/cookie/auth-recovery hook bodies and
+  // Main only wires their injected dependencies.
+  const downloadSiteSession = createDownloadSiteSessionIntegration({
+    getRegistry: getSiteSessionRegistry,
+    getManager: getSiteSessionManager,
+    getRefreshScheduler: getSiteSessionRefreshScheduler,
+    getConnectedExtensionClientCount() {
+      return wsClients.size;
+    },
+    syncSiteSession(siteId) {
+      return syncSiteSessionFromExtension(
+        siteId,
+        requireSiteSessionManager(siteId),
+        "auth_required",
+      );
+    },
+    onRegistryChanged() {
+      broadcastSiteSessionRegistryUpdate();
+    },
+    log(scope, message, details) {
+      logInfo(
+        scope,
+        message,
+        details == null ? null : serializeDiagnosticPayload(details),
+      );
+    },
+  });
   electronDownloadRuntime = createElectronDownloadRuntime({
     environment,
     configStore: {
@@ -1546,46 +1569,10 @@ function getElectronDownloadRuntime() {
         throw error;
       }
     },
-    refreshSiteSessionBeforeAdvancedQualityProbe,
-    refreshSiteSessionBeforeDownload,
-    buildExecutionContext(context, input) {
-      const entry = resolveSiteSessionEntryForDownload({
-        siteId: context.intent.siteId,
-        pageUrl: context.intent.pageUrl ?? input?.pageUrl,
-        url: context.intent.originalUrl ?? input?.url,
-      });
-      const appOwnedCookies = entry
-        ? getSiteSessionManager(entry.siteId)?.getDownloadCookies() ?? null
-        : null;
-      return {
-        ...context,
-        // Enrich the per-attempt auth material with the app-owned site session.
-        // Never clones or mutates the shared intent/plan object.
-        cookies: appOwnedCookies ?? context.cookies,
-      };
-    },
-    handleAuthRequiredFailure(context) {
-      return handleAuthRequiredSiteSessionRecovery(context, {
-        registry: getSiteSessionRegistry(),
-        syncSiteSession(siteId) {
-          return syncSiteSessionFromExtension(
-            siteId,
-            requireSiteSessionManager(siteId),
-            "auth_required",
-          );
-        },
-        onRegistryChanged() {
-          broadcastSiteSessionRegistryUpdate();
-        },
-        log(message, details) {
-          logInfo(
-            "SiteSessionAuth",
-            message,
-            details == null ? null : serializeDiagnosticPayload(details),
-          );
-        },
-      });
-    },
+    refreshSiteSessionBeforeAdvancedQualityProbe: downloadSiteSession.refreshSiteSessionBeforeAdvancedQualityProbe,
+    refreshSiteSessionBeforeDownload: downloadSiteSession.refreshSiteSessionBeforeDownload,
+    buildExecutionContext: downloadSiteSession.buildDownloadExecutionContext,
+    handleAuthRequiredFailure: downloadSiteSession.handleAuthRequiredFailure,
   });
   return electronDownloadRuntime;
 }
@@ -1734,182 +1721,6 @@ async function syncSiteSessionFromExtension(siteId, manager, reason = "manual") 
     throw new Error(`Site session sync did not return state for ${siteId}`);
   }
   return state;
-}
-
-function shouldSkipAdvancedQualitySiteSessionRefresh(entry, state) {
-  if (!entry) {
-    return "unsupported_site";
-  }
-  if (!ADVANCED_QUALITY_SESSION_REFRESH_SITE_IDS.has(entry.siteId)) {
-    return "site_not_enabled";
-  }
-  if (entry.syncAuthorization !== "seeded" && entry.syncAuthorization !== "user_enabled") {
-    return "sync_not_authorized";
-  }
-  if (wsClients.size <= 0) {
-    return "extension_disconnected";
-  }
-  if (
-    typeof state.updatedAtMs === "number"
-    && Date.now() - state.updatedAtMs < ADVANCED_QUALITY_SESSION_REFRESH_STALE_MS
-  ) {
-    return "snapshot_fresh";
-  }
-  return null;
-}
-
-function resolveSiteSessionEntryForDownload({ siteId, pageUrl, url }) {
-  const registry = getSiteSessionRegistry();
-  const matchedByPageUrl = pageUrl ? registry.matchEntryForUrl(pageUrl) : null;
-  if (matchedByPageUrl) {
-    return matchedByPageUrl;
-  }
-  const matchedByUrl = url ? registry.matchEntryForUrl(url) : null;
-  if (matchedByUrl) {
-    return matchedByUrl;
-  }
-  return siteId ? registry.getEntry(siteId) : null;
-}
-
-function shouldSkipDownloadStartSiteSessionRefresh(entry, state) {
-  if (!entry) {
-    return "unsupported_site";
-  }
-  if (entry.syncAuthorization !== "seeded" && entry.syncAuthorization !== "user_enabled") {
-    return "sync_not_authorized";
-  }
-  if (wsClients.size <= 0) {
-    return "extension_disconnected";
-  }
-  if (
-    entry.requiredCookieKeys.length > 0
-    || entry.loginCookieKeys.length > 0
-  ) {
-    if (state.availability !== "ready") {
-      return null;
-    }
-  }
-  if (
-    typeof state.updatedAtMs === "number"
-    && Date.now() - state.updatedAtMs < DOWNLOAD_START_SESSION_REFRESH_FRESH_MS
-  ) {
-    return "snapshot_fresh";
-  }
-  return null;
-}
-
-async function refreshSiteSessionBeforeDownload({
-  traceId,
-  siteId,
-  pageUrl,
-  url,
-}) {
-  const entry = resolveSiteSessionEntryForDownload({ siteId, pageUrl, url });
-  const manager = entry ? getSiteSessionManager(entry.siteId) : null;
-  if (!entry || !manager) {
-    logInfo("DownloadStartSession", "sync skipped", serializeDiagnosticPayload({
-      traceId,
-      siteId,
-      reason: "unsupported_site",
-      url: pageUrl || url,
-    }));
-    return;
-  }
-
-  const state = await manager.getState();
-  const skipReason = shouldSkipDownloadStartSiteSessionRefresh(entry, state);
-  if (skipReason) {
-    logInfo("DownloadStartSession", "sync skipped", serializeDiagnosticPayload({
-      traceId,
-      siteId: entry.siteId,
-      requestedSiteId: siteId,
-      reason: skipReason,
-      updatedAtMs: state.updatedAtMs,
-      url: pageUrl || url,
-    }));
-    return;
-  }
-
-  await getSiteSessionRefreshScheduler().ensureRefreshed(
-    entry.siteId,
-    {
-      reason: "download_start",
-      onlyIfDue: false,
-      timeoutMs: DOWNLOAD_START_SESSION_REFRESH_TIMEOUT_MS,
-    },
-  ).then(
-    (nextState) => {
-      logInfo("DownloadStartSession", "sync completed", serializeDiagnosticPayload({
-        traceId,
-        siteId: entry.siteId,
-        availability: nextState?.availability ?? null,
-        cookieCount: nextState?.cookieCount ?? null,
-      }));
-    },
-    (error) => {
-      logInfo("DownloadStartSession", "sync failed; continuing download", serializeDiagnosticPayload({
-        traceId,
-        siteId: entry.siteId,
-        error: error?.message || String(error),
-      }));
-    },
-  );
-}
-
-async function refreshSiteSessionBeforeAdvancedQualityProbe({
-  traceId,
-  siteId,
-  pageUrl,
-  url,
-}) {
-  const entry = getSiteSessionRegistry().getEntry(siteId);
-  const manager = entry ? getSiteSessionManager(entry.siteId) : null;
-  if (!entry || !manager) {
-    logInfo("AdvancedQualitySession", "pre-probe sync skipped", serializeDiagnosticPayload({
-      traceId,
-      siteId,
-      reason: "unsupported_site",
-      url: pageUrl || url,
-    }));
-    return;
-  }
-
-  const state = await manager.getState();
-  const skipReason = shouldSkipAdvancedQualitySiteSessionRefresh(entry, state);
-  if (skipReason) {
-    logInfo("AdvancedQualitySession", "pre-probe sync skipped", serializeDiagnosticPayload({
-      traceId,
-      siteId: entry.siteId,
-      reason: skipReason,
-      updatedAtMs: state.updatedAtMs,
-      url: pageUrl || url,
-    }));
-    return;
-  }
-
-  await getSiteSessionRefreshScheduler().ensureRefreshed(
-    entry.siteId,
-    {
-      reason: "advanced_quality",
-      force: true,
-      onlyIfDue: false,
-      timeoutMs: ADVANCED_QUALITY_SESSION_REFRESH_TIMEOUT_MS,
-    },
-  ).then(
-    () => {
-      logInfo("AdvancedQualitySession", "pre-probe sync completed", serializeDiagnosticPayload({
-        traceId,
-        siteId: entry.siteId,
-      }));
-    },
-    (error) => {
-      logInfo("AdvancedQualitySession", "pre-probe sync failed; continuing with saved snapshot", serializeDiagnosticPayload({
-        traceId,
-        siteId: entry.siteId,
-        error: error?.message || String(error),
-      }));
-    },
-  );
 }
 
 async function buildSiteSessionSyncedSummaryPayload() {
