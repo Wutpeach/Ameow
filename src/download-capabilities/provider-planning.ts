@@ -5,10 +5,6 @@ import {
 } from "../core/index.js";
 import type { CapabilityRegistry } from "./seed.js";
 import { bundledCapabilityRegistry } from "./seed.js";
-import {
-  providerMigrationTargets,
-  type ProviderMigrationTarget,
-} from "./provider-migration-targets.js";
 import type { DownloadSiteStrategyEntry } from "./types.js";
 
 export type ProviderStrategyMatchSource =
@@ -101,9 +97,3 @@ export const resolveProviderStrategy = (
     resolvedSiteHint: "generic",
   };
 };
-
-export const getProviderMigrationTarget = (
-  providerId: string,
-): ProviderMigrationTarget | null => (
-  providerMigrationTargets.find((entry) => entry.providerId === providerId) ?? null
-);

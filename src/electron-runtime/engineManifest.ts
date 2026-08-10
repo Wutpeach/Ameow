@@ -1,6 +1,8 @@
-import type { EngineId, YtdlpQualityPreference } from "../core/index.js";
+import type { YtdlpQualityPreference } from "../core/index.js";
 
-type CliEngineId = Extract<EngineId, "yt-dlp" | "gallery-dl">;
+// Infrastructure keeps its own closed CLI union: only these two engines have
+// concrete CLI manifests. Domain/Application identity is open (`EngineId`).
+type CliEngineId = "yt-dlp" | "gallery-dl";
 
 type YtdlpMergeOutputFormat = "mp4" | "mp4/mkv" | null;
 

@@ -16,6 +16,11 @@ import type {
   RuntimeDependencyStatusEntry,
   RuntimeDependencyStatusSnapshot,
 } from "../types/runtimeDependencies.js";
+import type {
+  GalleryDlRuntimeDependencies,
+  SharedMediaRuntimeTools,
+  YtDlpRuntimeDependencies,
+} from "./engineExecutionContext.js";
 
 const createStatusEntry = (
   state: "ready" | "missing",
@@ -246,6 +251,37 @@ export const resolveRuntimeBinaryPaths = (
     ffmpeg: ffmpegPaths.ffmpeg,
     ffprobe: ffmpegPaths.ffprobe,
     deno: managedDenoPathFor(environment),
+  };
+};
+
+/** yt-dlp adapter dependencies: the yt-dlp executable plus shared tools it truly consumes. */
+export const resolveYtDlpRuntimeDependencies = (
+  environment: ElectronRuntimeEnvironment,
+): YtDlpRuntimeDependencies => {
+  const paths = resolveRuntimeBinaryPaths(environment);
+  return {
+    ytDlp: paths.ytDlp,
+    ffmpeg: paths.ffmpeg,
+    deno: paths.deno,
+  };
+};
+
+/** gallery-dl adapter dependencies: only the gallery-dl executable. */
+export const resolveGalleryDlRuntimeDependencies = (
+  environment: ElectronRuntimeEnvironment,
+): GalleryDlRuntimeDependencies => {
+  const paths = resolveRuntimeBinaryPaths(environment);
+  return { galleryDl: paths.galleryDl };
+};
+
+/** ffmpeg/ffprobe consumed explicitly by the transcode path, never by engines. */
+export const resolveSharedMediaRuntimeTools = (
+  environment: ElectronRuntimeEnvironment,
+): SharedMediaRuntimeTools => {
+  const paths = resolveRuntimeBinaryPaths(environment);
+  return {
+    ffmpeg: paths.ffmpeg,
+    ffprobe: paths.ffprobe,
   };
 };
 

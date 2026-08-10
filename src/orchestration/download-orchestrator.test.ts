@@ -73,6 +73,92 @@ const createContext = (
 });
 
 describe("DownloadOrchestrator", () => {
+  it("keeps the resolved plan identity from prepare to execute for an opaque fake site and engine", async () => {
+    const plan: ResolvedDownloadPlan = {
+      ...createVideoPlan([
+        {
+          engine: "fake-engine",
+          priority: 100,
+          when: "primary",
+          reason: "fake engine plan",
+          sourceUrl: "https://fake-site.example/page/42",
+        },
+      ]),
+      providerId: "fake-site-provider",
+      intent: {
+        ...createVideoPlan([]).intent,
+        siteId: "fake-site-id",
+        originalUrl: "https://fake-site.example/page/42",
+        pageUrl: "https://fake-site.example/page/42",
+      },
+    };
+
+    let preparedPlan: ResolvedDownloadPlan | null = null;
+    const provider: SiteProvider = {
+      id: "fake-site-provider",
+      matches: () => true,
+      resolvePlan: () => {
+        preparedPlan = plan;
+        return plan;
+      },
+    };
+    const executed = { context: null as EngineExecutionContext | null };
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([provider]),
+      createEngineRegistry([
+        createEngine("fake-engine", {
+          execute: async (context) => {
+            executed.context = context;
+            return {
+              traceId: context.traceId,
+              success: true,
+              filePath: "/tmp/fake-engine.mp4",
+            };
+          },
+        }),
+      ]),
+    );
+
+    const prepared = orchestrator.prepare({
+      url: "https://fake-site.example/page/42",
+      siteHint: "fake-site-id",
+    });
+    const result = await orchestrator.executePrepared(prepared, createContext);
+
+    expect(result).toMatchObject({
+      success: true,
+      filePath: "/tmp/fake-engine.mp4",
+    });
+    // The exact plan object resolved at prepare flows into the engine attempt
+    // without cloning or mutation.
+    expect(prepared.plan).toBe(plan);
+    expect(executed.context?.plan).toBe(preparedPlan);
+    expect(executed.context?.enginePlan.engine).toBe("fake-engine");
+    expect(executed.context?.intent.siteId).toBe("fake-site-id");
+  });
+
+  it("fails closed with a structured error for an unknown engine id", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "not-registered",
+        priority: 100,
+        when: "primary",
+        reason: "unknown engine",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([]),
+    );
+
+    await expect(
+      orchestrator.execute({ url: "https://example.com/page/42" }, createContext),
+    ).rejects.toMatchObject({
+      code: "E_ENGINE_NOT_FOUND",
+    });
+  });
+
   it("returns the first successful engine result", async () => {
     const plan = createVideoPlan([
       {
@@ -321,14 +407,14 @@ describe("DownloadOrchestrator", () => {
     expect(fallbackExecute).not.toHaveBeenCalled();
   });
 
-  it("labels explicit Weibo selected-variant failures without falling back", async () => {
+  it("labels explicit selected-variant failures without naming the site", async () => {
     const plan = {
       ...createVideoPlan([
         {
           engine: "yt-dlp" as const,
           priority: 100,
           when: "primary" as const,
-          reason: "selected Weibo variant",
+          reason: "selected variant",
           sourceUrl: "https://f.video.weibocdn.com/best-1080.mp4",
         },
       ]),
@@ -376,7 +462,59 @@ describe("DownloadOrchestrator", () => {
         },
       },
       createContext,
-    )).rejects.toThrow("Selected Weibo quality failed (1080p): HTTP 403");
+    )).rejects.toThrow("Selected variant quality failed (1080p): HTTP 403");
+  });
+
+  it("decorates explicit selected-variant failures for any provider", async () => {
+    const plan = {
+      ...createVideoPlan([
+        {
+          engine: "yt-dlp" as const,
+          priority: 100,
+          when: "primary" as const,
+          reason: "selected variant",
+          sourceUrl: "https://example.com/variant.mp4",
+        },
+      ]),
+      providerId: "test-provider",
+      intent: {
+        ...createVideoPlan([]).intent,
+        siteId: "generic",
+        selectedVideoVariant: {
+          url: "https://example.com/variant.mp4",
+          label: "4K",
+          type: "direct_mp4",
+          mediaType: "video" as const,
+        },
+      },
+    };
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          execute: async () => {
+            throw new DownloadRuntimeError(
+              "E_EXECUTION_FAILED",
+              "HTTP 403",
+              { classification: "auth_required" },
+            );
+          },
+        }),
+      ]),
+    );
+
+    await expect(orchestrator.execute(
+      {
+        url: "https://example.com/variant.mp4",
+        selectedVideoVariant: {
+          url: "https://example.com/variant.mp4",
+          label: "4K",
+          type: "direct_mp4",
+          mediaType: "video",
+        },
+      },
+      createContext,
+    )).rejects.toThrow("Selected variant quality failed (4K): HTTP 403");
   });
 
   it("stops the engine chain for auth-required failures even when the plan says any", async () => {

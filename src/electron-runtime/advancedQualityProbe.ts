@@ -1,6 +1,6 @@
 import path from "node:path";
 import { DownloadRuntimeError } from "../core/index.js";
-import type { EngineInvocationContext } from "./engineExecutionContext.js";
+import type { EngineInvocationContext, YtDlpRuntimeDependencies } from "./engineExecutionContext.js";
 import type {
   AdvancedQualityOption,
   AdvancedQualityPostProcessPlan,
@@ -281,7 +281,7 @@ export const extractAdvancedQualityOptionsFromYtDlpJson = (
   };
 };
 
-const resolveProbeSourceUrl = (context: EngineInvocationContext): string => {
+const resolveProbeSourceUrl = (context: EngineInvocationContext<YtDlpRuntimeDependencies>): string => {
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;
   if (!sourceUrl) {
     throw new DownloadRuntimeError(
@@ -298,8 +298,15 @@ const resolveProbeSourceUrl = (context: EngineInvocationContext): string => {
   return sourceUrl;
 };
 
-export const runAdvancedQualityProbe = async (
-  context: EngineInvocationContext,
+/**
+ * Advanced-quality probing is a yt-dlp-only Infrastructure feature: it
+ * invokes the concrete yt-dlp CLI to enumerate selectable formats. There is
+ * no probe port or second implementation; the Site declares the need through
+ * `plan.requirements.advancedQuality` and the runtime verifies a registered,
+ * capable yt-dlp engine before calling this.
+ */
+export const runYtDlpAdvancedQualityProbe = async (
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
 ): Promise<AdvancedQualityProbeResult> => {
   const sourceUrl = resolveProbeSourceUrl(context);
   const manifest = getCliEngineManifest("yt-dlp");

@@ -869,6 +869,12 @@ function normalizeSiteHint(value) {
     return 'generic';
   }
 
+  // Generic transport preserves an explicit unknown hint as a safe opaque id
+  // so a new Site needs no alias/URL edit here; provider matching decides.
+  if (/^[a-z0-9_-]{1,64}$/.test(normalized)) {
+    return normalized;
+  }
+
   return null;
 }
 

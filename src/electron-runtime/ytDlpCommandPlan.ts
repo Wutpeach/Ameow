@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { VideoQualityPreference } from "../core/index.js";
-import type { EngineInvocationContext } from "./engineExecutionContext.js";
+import type { EngineInvocationContext, YtDlpRuntimeDependencies } from "./engineExecutionContext.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { getCliEngineManifest, resolveYtdlpFormatProfile, type YtdlpFormatProfile } from "./engineManifest.js";
 import { resolveRenameEnabled } from "./renameRules.js";
@@ -89,7 +89,7 @@ const formatClipTimeForYtdlp = (seconds: number): string => {
 };
 
 const resolveClipRangeSeconds = (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
 ): YtdlpClipRange | null => {
   const rawIntent = context.intent as Record<string, unknown>;
   const rawStartSec = rawIntent.clipStartSec;
@@ -126,7 +126,7 @@ const buildYtdlpDownloadSectionArg = (
 ): string => `*${formatClipTimeForYtdlp(clipRange.startSec)}-${formatClipTimeForYtdlp(clipRange.endSec)}`;
 
 const resolveClipRangeStemPrefix = (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
   clipRange: YtdlpClipRange | null,
 ): string | null => {
   if (!clipRange) {
@@ -138,7 +138,7 @@ const resolveClipRangeStemPrefix = (
 };
 
 const resolveYtdlpArtifactPrefixes = (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
   clipRange: YtdlpClipRange | null,
 ): string[] => {
   const clipRangePrefix = resolveClipRangeStemPrefix(context, clipRange);
@@ -148,7 +148,7 @@ const resolveYtdlpArtifactPrefixes = (
 };
 
 const buildYtdlpOutputTemplate = (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
   clipRange: YtdlpClipRange | null,
 ): string => {
   const runtimeConfig = context.config ?? {};
@@ -169,7 +169,7 @@ const buildYtdlpOutputTemplate = (
 };
 
 export const createYtdlpCommandPlan = (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
 ): YtdlpCommandPlan => {
   const clipRange = resolveClipRangeSeconds(context);
   const sourceUrl = context.enginePlan.sourceUrl ?? context.intent.pageUrl ?? context.intent.originalUrl;

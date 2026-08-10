@@ -5,22 +5,25 @@ import {
   type DownloadResult,
   type EngineSupportContext,
   type ResolvedDownloadPlan,
-  type RuntimeBinaryPaths,
 } from "../core/index.js";
-import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
+import type {
+  EngineExecutionContextWithRuntime,
+  YtDlpRuntimeDependencies,
+} from "./engineExecutionContext.js";
 import { runYtDlpDownload } from "./ytDlpDownload.js";
 
 /**
  * Infrastructure adapter for the yt-dlp engine. Static runtime dependencies
- * (binary paths) are injected through construction; per-job execution data is
- * declared explicitly through the port generic. The adapter owns no CLI/process
- * logic itself and never widens the context it receives.
+ * (the narrowed yt-dlp set: ytDlp/ffmpeg/deno) are injected through
+ * construction; per-job execution data is declared explicitly through the port
+ * generic. The adapter owns no CLI/process logic itself and never widens the
+ * context it receives.
  */
 export class YtDlpEngineAdapter implements DownloadEngine<EngineExecutionContextWithRuntime> {
   readonly id = "yt-dlp" as const;
   readonly capabilities: DownloadCapabilities = { advancedQuality: true };
 
-  constructor(private readonly dependencies: { binaries: RuntimeBinaryPaths }) {}
+  constructor(private readonly dependencies: { binaries: YtDlpRuntimeDependencies }) {}
 
   supports(
     plan: ResolvedDownloadPlan,

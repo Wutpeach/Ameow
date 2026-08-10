@@ -35,14 +35,17 @@ import {
 import {
   allocateRenameStem,
   createElectronDownloadRuntime,
+  createEngineRuntimeBindingRegistry,
   GalleryDlEngineAdapter,
   inspectRuntimeDependencyStatus,
   releaseRenameStem,
   resolveBundledPythonRuntime,
   resetRenameSequenceState,
+  resolveGalleryDlRuntimeDependencies,
   resolveXiaohongshuDragMedia,
   resolveRuntimeBinaryPaths,
   resolveRenameEnabled,
+  resolveYtDlpRuntimeDependencies,
   YtDlpEngineAdapter,
 } from "../src/electron-runtime/index.js";
 import {
@@ -1446,6 +1449,32 @@ function buildElectronRuntimeEnvironment() {
   };
 }
 
+// Explicit production Engine bindings: engine id -> readiness -> network
+// consumer -> proxy-failure layer. main.mts only composes and looks up; the
+// registry rejects duplicate/blank ids and unknown engines fail closed.
+const engineRuntimeBindings = createEngineRuntimeBindingRegistry([
+  {
+    engineId: "yt-dlp",
+    networkConsumer: "yt-dlp",
+    proxyFailureLayer: "yt_dlp",
+    ensureReady: async (reason) => {
+      const options = buildManagedRuntimeBootstrapOptions();
+      await ensureManagedYtDlpRuntimeReady(reason, options);
+      await ensureManagedFfmpegRuntimeReady(reason, options);
+      await ensureManagedDenoRuntimeReady(reason, options);
+    },
+  },
+  {
+    engineId: "gallery-dl",
+    networkConsumer: "gallery-dl",
+    proxyFailureLayer: "gallery_dl",
+    ensureReady: async (reason) => {
+      const options = buildManagedRuntimeBootstrapOptions();
+      await ensureManagedGalleryDlRuntimeReady(reason, options);
+    },
+  },
+]);
+
 function buildManagedRuntimeBootstrapOptions(_missingComponents = [], onActivity = null) {
   const environment = buildElectronRuntimeEnvironment();
   const bundledPython = resolveBundledPythonRuntime(environment);
@@ -1512,10 +1541,16 @@ function getElectronDownloadRuntime() {
     // Outer composition root: concrete Infrastructure adapters are registered
     // here, never constructed inside core/application paths. Static runtime
     // dependencies (binary paths) are injected through adapter construction.
-    engines: [
-      new YtDlpEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
-      new GalleryDlEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
-    ],
+    engines: (() => {
+      const productionEngines = [
+        new YtDlpEngineAdapter({ binaries: resolveYtDlpRuntimeDependencies(environment) }),
+        new GalleryDlEngineAdapter({ binaries: resolveGalleryDlRuntimeDependencies(environment) }),
+      ];
+      // Completeness guard: production Engine registrations and runtime
+      // bindings cannot drift; missing/extra bindings fail closed at startup.
+      engineRuntimeBindings.assertCoversEngineIds(productionEngines.map((engine) => engine.id));
+      return productionEngines;
+    })(),
     // The runtime publishes protocol-neutral progress/terminal outcomes; the
     // outer composition maps them to the stable Renderer payloads exactly once
     // here. Queue/transcode event payloads are already protocol DTOs.
@@ -1538,18 +1573,11 @@ function getElectronDownloadRuntime() {
       },
     },
     ensureEngineRuntimeReady: async (engineId, reason) => {
-      const options = buildManagedRuntimeBootstrapOptions();
+      // Explicit binding lookup: unknown engines fail closed instead of
+      // silently resolving nothing.
+      const binding = engineRuntimeBindings.require(engineId);
       try {
-        if (engineId === "yt-dlp") {
-          await ensureManagedYtDlpRuntimeReady(reason, options);
-          await ensureManagedFfmpegRuntimeReady(reason, options);
-          await ensureManagedDenoRuntimeReady(reason, options);
-          return;
-        }
-        if (engineId === "gallery-dl") {
-          await ensureManagedGalleryDlRuntimeReady(reason, options);
-          return;
-        }
+        await binding.ensureReady?.(reason);
       } catch (error) {
         getNetworkProxyPolicyController().markManualProxySuspect({
           layer: "managed_bootstrap",
@@ -1559,9 +1587,13 @@ function getElectronDownloadRuntime() {
         throw error;
       }
     },
+    // Explicit engine -> consumer mapping through the production bindings:
+    // opaque engines carry their own canonical consumer label and unknown
+    // engines fail closed in require().
+    resolveNetworkConsumer: (engineId) => engineRuntimeBindings.require(engineId).networkConsumer,
     resolveNetworkRoute: async ({ targetUrl, engineId }) => resolveNetworkRouteForConsumer({
       targetUrl,
-      consumer: engineId === "gallery-dl" ? "gallery-dl" : "yt-dlp",
+      consumer: engineRuntimeBindings.require(engineId).networkConsumer,
     }),
     reportNetworkProxyFailure: async ({ engineId, targetUrl, error }) => {
       let targetHost = null;
@@ -1571,7 +1603,7 @@ function getElectronDownloadRuntime() {
         targetHost = null;
       }
       getNetworkProxyPolicyController().markManualProxySuspect({
-        layer: engineId === "gallery-dl" ? "gallery_dl" : "yt_dlp",
+        layer: engineRuntimeBindings.require(engineId).proxyFailureLayer,
         targetHost,
         reason: redactNetworkCredentials(error instanceof Error ? error.message : String(error)),
       });

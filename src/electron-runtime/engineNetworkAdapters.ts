@@ -4,6 +4,7 @@ import {
   redactNetworkCredentials,
   routeReasonLabel,
   sanitizeOrigin,
+  type NetworkConsumer,
   type NetworkFailureClassification,
   type NetworkProxyProtocol,
   type NetworkRoute,
@@ -21,14 +22,14 @@ import {
  * Infrastructure-owned; the runtime attaches it to per-download diagnostics.
  */
 export type NetworkApplicationOutcome = {
-  engine: "yt-dlp" | "gallery-dl";
+  engine: string;
   appliedToEngine: boolean;
   reason: string;
   failureClassification: NetworkFailureClassification | null;
 };
 
 export type EngineNetworkApplicationDiagnostic = {
-  engine: "yt-dlp" | "gallery-dl";
+  engine: string;
   appliedToEngine: boolean;
   proxyArgCount: number;
   proxyProtocol: NetworkProxyProtocol | null;
@@ -107,7 +108,7 @@ export const logNetworkApplication = (
 };
 
 const buildDiagnostic = (
-  engine: "yt-dlp" | "gallery-dl",
+  engine: string,
   route: NetworkRoute,
   proxyArgCount: number,
   envProxyKeysRemoved: string[],
@@ -124,7 +125,7 @@ const buildDiagnostic = (
 
 /** Application diagnostic emitted when a complex route is rejected before spawn. */
 export const buildRejectedNetworkApplicationDiagnostic = (
-  engine: "yt-dlp" | "gallery-dl",
+  engine: string,
   route: NetworkRoute,
 ): EngineNetworkApplicationDiagnostic => ({
   engine,
@@ -141,9 +142,11 @@ export const buildRejectedNetworkApplicationDiagnostic = (
  * Builds the engine network application for one attempt and reports the
  * actual applied/rejected outcome through the optional callback, so the
  * runtime can record per-download diagnostics without re-resolving the route.
+ * The concrete yt-dlp/gallery-dl CLI mapping stays locally closed here;
+ * an unknown engine fails closed instead of falling through to yt-dlp.
  */
 export const applyNetworkRouteForContext = (
-  engine: "yt-dlp" | "gallery-dl",
+  engine: string,
   network: NetworkRouteResolution | undefined,
   fallbackRoute: NetworkRoute,
   onApplication?: (diagnostic: EngineNetworkApplicationDiagnostic) => void,
@@ -151,15 +154,43 @@ export const applyNetworkRouteForContext = (
 ): EngineNetworkApplication => {
   const route = network?.route ?? fallbackRoute;
   try {
-    const application = engine === "yt-dlp"
-      ? buildYtDlpNetworkApplication(route, process.env, options)
-      : buildGalleryDlNetworkApplication(route);
+    let application: EngineNetworkApplication;
+    if (engine === "yt-dlp") {
+      application = buildYtDlpNetworkApplication(route, process.env, options);
+    } else if (engine === "gallery-dl") {
+      application = buildGalleryDlNetworkApplication(route, process.env);
+    } else {
+      throw buildUnsupportedRouteError(route, `engine ${engine}`);
+    }
     onApplication?.(application.diagnostic);
     return application;
   } catch (error) {
     onApplication?.(buildRejectedNetworkApplicationDiagnostic(engine, route));
     throw error;
   }
+};
+
+/**
+ * Locally closed engine -> NetworkConsumer mapping used when no explicit
+ * composition resolver is injected. Unknown engines fail closed instead of
+ * silently defaulting to yt-dlp.
+ */
+export const resolveEngineNetworkConsumer = (
+  engineId: string | undefined,
+): NetworkConsumer => {
+  if (engineId === "yt-dlp") {
+    return "yt-dlp";
+  }
+  if (engineId === "gallery-dl") {
+    return "gallery-dl";
+  }
+  throw new DownloadRuntimeError(
+    "E_ENGINE_NOT_FOUND",
+    `No network consumer binding for engine ${engineId ?? "unknown"}`,
+    {
+      classification: "terminal_for_site",
+    },
+  );
 };
 
 /**

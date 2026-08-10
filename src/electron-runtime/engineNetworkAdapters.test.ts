@@ -110,6 +110,25 @@ describe("applyNetworkRouteForContext", () => {
     }));
   });
 
+  it("fails closed for an unknown engine instead of defaulting to yt-dlp", () => {
+    const onApplication = vi.fn();
+    expect(() => applyNetworkRouteForContext(
+      "unknown-engine",
+      { route: directRoute } as never,
+      directRoute,
+      onApplication,
+    )).toThrowError(expect.objectContaining({
+      code: "E_EXECUTION_FAILED",
+      context: expect.objectContaining({
+        networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+      }),
+    }));
+    expect(onApplication).toHaveBeenCalledWith(expect.objectContaining({
+      engine: "unknown-engine",
+      appliedToEngine: false,
+    }));
+  });
+
   it("never falls back to a raw invalid resolvedFor in unsupported-route errors", () => {
     const invalidRoute: NetworkRoute = {
       mode: "complex",

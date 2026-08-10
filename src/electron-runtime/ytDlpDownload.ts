@@ -13,7 +13,7 @@ import { summarizeError } from "./runtimeUtils.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import { hasTerminalYtDlpAvailabilityFailure, summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
 import { classifyEngineFailure } from "./engineErrorClassifier.js";
-import type { EngineInvocationContext } from "./engineExecutionContext.js";
+import type { EngineInvocationContext, YtDlpRuntimeDependencies } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
   logNetworkApplication,
@@ -174,7 +174,7 @@ const shouldRetryTransientYtDlpNetworkFailure = (
 );
 
 export const runYtDlpDownload = async (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<YtDlpRuntimeDependencies>,
 ): Promise<DownloadResult> => {
   const taskStartedAtMs = Date.now();
   let commandPlan: ReturnType<typeof createYtdlpCommandPlan>;

@@ -9,8 +9,11 @@ const downloadFailureClassificationSchema = z.enum([
   "cancelled",
 ]);
 
+/** Canonical non-blank engine identifier validation; existence is a registry decision. */
+export const engineIdSchema = z.string().trim().min(1);
+
 export const enginePlanSchema = z.object({
-  engine: z.enum(["yt-dlp", "gallery-dl"]),
+  engine: engineIdSchema,
   priority: z.number().int(),
   when: z.enum(["primary", "fallback"]),
   reason: z.string().trim().min(1),

@@ -13,6 +13,13 @@ export type InteractionCapabilityDiagnostic = {
   isModeSupported: boolean;
 };
 
+const genericInteractionCapability: InteractionCapabilityEntry = {
+  siteId: "generic",
+  sourceId: "ameow-manual-sites",
+  interactionStatus: "unknown",
+  supportedModes: ["paste", "drag", "context_menu"],
+};
+
 export const runtimeManualInteractionCapabilities = [
   {
     siteId: "youtube",
@@ -56,22 +63,16 @@ export const runtimeManualInteractionCapabilities = [
     interactionStatus: "needs_special_adapter",
     supportedModes: ["paste", "context_menu"],
   },
-  {
-    siteId: "generic",
-    sourceId: "ameow-manual-sites",
-    interactionStatus: "unknown",
-    supportedModes: ["paste", "drag", "context_menu"],
-  },
+  genericInteractionCapability,
 ] satisfies readonly InteractionCapabilityEntry[];
 
 export const getRuntimeManualInteractionCapability = (
   siteId: string,
 ): InteractionCapabilityEntry => {
   const entry = runtimeManualInteractionCapabilities.find((capability) => capability.siteId === siteId);
-  if (!entry) {
-    throw new Error(`Missing runtime interaction capability for ${siteId}`);
-  }
-  return entry;
+  // Unknown/new Sites fall back to the generic entry instead of throwing, so
+  // protocol command decode never rejects a valid request for their name.
+  return entry ?? genericInteractionCapability;
 };
 
 export const resolveRequestedInteractionMode = (input: {

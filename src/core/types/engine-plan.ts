@@ -2,7 +2,13 @@ import type { DownloadErrorCode } from "../constants/error-codes.js";
 import type { DownloadFailureClassification } from "../constants/error-classifications.js";
 import type { DownloadCapabilityRequirements } from "./download-capabilities.js";
 
-export type EngineId = "yt-dlp" | "gallery-dl";
+/**
+ * Open, non-blank engine identifier at Domain/Application boundaries.
+ * Existence is decided by EngineRegistry; non-blank validation lives in
+ * `engineIdSchema`. Infrastructure keeps its own closed CLI unions where a
+ * concrete engine is genuinely required.
+ */
+export type EngineId = string;
 
 export type EnginePlan = {
   engine: EngineId;

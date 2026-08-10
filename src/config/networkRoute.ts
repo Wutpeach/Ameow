@@ -12,11 +12,19 @@ import {
  * every downstream host (especially for system/PAC results).
  */
 
+/**
+ * Transport diagnostic / route consumer label. Known built-in values
+ * (electron, yt-dlp, gallery-dl, runtime-bootstrap) stay valid; opaque
+ * engines carry their own canonical non-blank consumer label so a new engine
+ * never requires editing this module. Composition points validate the label
+ * (see EngineRuntimeBindingRegistry.register).
+ */
 export type NetworkConsumer =
   | "electron"
   | "yt-dlp"
   | "gallery-dl"
-  | "runtime-bootstrap";
+  | "runtime-bootstrap"
+  | (string & {});
 
 export type NetworkProxyProtocol = "http" | "https" | "socks4" | "socks5";
 

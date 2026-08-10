@@ -89,8 +89,10 @@ export type DownloadSiteStrategyEntry = {
   displayName: string;
   sourceId: string;
   strategyKind: DownloadStrategyKind;
-  engineOrder: CapabilityEngineId[];
-  forbiddenEngines?: CapabilityEngineId[];
+  // Engine identifiers are open at the plan/registry boundary; the bundled
+  // seed JSON schema keeps validating the concrete seed data itself.
+  engineOrder: readonly string[];
+  forbiddenEngines?: readonly string[];
   matchHints?: CapabilityMatchHints;
   notes?: string[];
 };

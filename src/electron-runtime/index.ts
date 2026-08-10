@@ -1,6 +1,7 @@
 export * from "./contracts.js";
 export * from "./engineErrorClassifier.js";
 export * from "./engineExecutionContext.js";
+export * from "./engineRuntimeBindings.js";
 export * from "./galleryDlDownload.js";
 export * from "./galleryDlEngineAdapter.js";
 export * from "./platform.js";

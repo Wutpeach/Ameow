@@ -8,9 +8,17 @@ export type KnownSiteHint =
   | "weibo"
   | "generic";
 
+/**
+ * Safe charset for an opaque site hint carried across transports: site ids in
+ * this codebase are lowercase `[a-z0-9_-]` (e.g. `twitter-x`). Anything else
+ * is rejected so a new Site never needs to enumerate aliases here while
+ * log/telemetry consumers still receive a bounded safe value.
+ */
+const SAFE_OPAQUE_SITE_HINT_PATTERN = /^[a-z0-9_-]{1,64}$/;
+
 export const normalizeSiteHint = (
   value: string | null | undefined,
-): KnownSiteHint | undefined => {
+): string | undefined => {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -47,7 +55,9 @@ export const normalizeSiteHint = (
     case "generic":
       return "generic";
     default:
-      return undefined;
+      // Preserve an explicit unknown hint as a safe opaque id so a new Site
+      // can be matched by its own provider without editing this module.
+      return SAFE_OPAQUE_SITE_HINT_PATTERN.test(normalized) ? normalized : undefined;
   }
 };
 
@@ -109,7 +119,7 @@ export const detectSiteHintFromUrl = (
 
 export const resolveSiteHint = (
   ...values: Array<string | null | undefined>
-): KnownSiteHint | undefined => {
+): string | undefined => {
   for (const value of values) {
     const normalized = normalizeSiteHint(value);
     if (normalized) {

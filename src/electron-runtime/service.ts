@@ -6,7 +6,11 @@ import type {
   ElectronDownloadRuntimeOptions,
   RuntimeManagedComponent,
 } from "./contracts.js";
-import { inspectRuntimeDependencyStatus, resolveRuntimeBinaryPaths } from "./runtimePaths.js";
+import {
+  inspectRuntimeDependencyStatus,
+  resolveSharedMediaRuntimeTools,
+  resolveYtDlpRuntimeDependencies,
+} from "./runtimePaths.js";
 import { createRuntimeDependencyResolver } from "./runtimeDependencyGate.js";
 import {
   buildOutputStem,
@@ -26,7 +30,7 @@ import {
   resolveGalleryDlMetadataTitleFromSidecars,
 } from "./galleryDlMetadata.js";
 import {
-  runAdvancedQualityProbe,
+  runYtDlpAdvancedQualityProbe,
   type AdvancedQualityProbeResult,
 } from "./advancedQualityProbe.js";
 import type {
@@ -54,7 +58,7 @@ import type {
   RawDownloadInput,
   ResolvedDownloadPlan,
 } from "../core/index.js";
-import { createEngineRegistry } from "../engines/engine-registry.js";
+import { createEngineRegistry, type EngineRegistry } from "../engines/engine-registry.js";
 import { DownloadOrchestrator } from "../orchestration/download-orchestrator.js";
 import { loadBuiltinProviders } from "../sites/provider-loader.js";
 import { createSiteRegistry } from "../sites/site-registry.js";
@@ -82,8 +86,14 @@ import {
 } from "../config/networkRoute.js";
 import { classifyEngineFailure } from "./engineErrorClassifier.js";
 import type { DownloadExecutionContext } from "./contracts.js";
-import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
-import type { NetworkApplicationOutcome } from "./engineNetworkAdapters.js";
+import type {
+  EngineExecutionContextWithRuntime,
+  SharedMediaRuntimeTools,
+} from "./engineExecutionContext.js";
+import {
+  resolveEngineNetworkConsumer,
+  type NetworkApplicationOutcome,
+} from "./engineNetworkAdapters.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 import { DownloadJobService } from "../application/download-job-service.js";
 
@@ -206,7 +216,6 @@ const formatElapsedMs = (startedAtMs: number): string => `${Date.now() - started
 const hasYtDlpEngine = (plan: ResolvedDownloadPlan | null): boolean => (
   plan?.engines.some((enginePlan) => enginePlan.engine === "yt-dlp") ?? false
 );
-export const ADVANCED_QUALITY_SUPPORTED_SITE_IDS = new Set(["youtube", "bilibili"]);
 
 const resolveYtdlpTelemetryProfileKey = (
   plan: ResolvedDownloadPlan | null,
@@ -260,6 +269,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   private transcodePumpScheduled = false;
   private readonly resolver;
   private readonly orchestrator: DownloadOrchestrator<EngineExecutionContextWithRuntime>;
+  private readonly engineRegistry: EngineRegistry<EngineExecutionContextWithRuntime>;
   private readonly siteRegistry;
   private readonly telemetrySink: DownloadTelemetrySink;
 
@@ -272,9 +282,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     // runtime never constructs hidden built-in adapters.
     const engines = options.engines ?? [];
     this.siteRegistry = createSiteRegistry(providers);
+    // One EngineRegistry for the whole runtime: the orchestrator executes
+    // through it and the advanced-quality probe verifies capability
+    // eligibility against the same instance.
+    this.engineRegistry = createEngineRegistry(engines);
     this.orchestrator = new DownloadOrchestrator(
       this.siteRegistry,
-      createEngineRegistry(engines),
+      this.engineRegistry,
     );
     this.telemetrySink = options.telemetrySink
       ?? createDownloadTelemetrySink(options.environment, this.logger);
@@ -605,11 +619,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         return;
       }
       this.logger.log(`>>> [ElectronRuntime] advanced quality probe failed: ${summarizeError(error)}`);
-      const probeFailure = new DownloadRuntimeError(
-        "E_EXECUTION_FAILED",
-        summarizeError(error),
-        { cause: error },
-      );
+      // Preserve typed rejection (E_ENGINE_NOT_FOUND / E_ENGINE_REJECTED_INTENT)
+      // from the verification gate; only genuine probe crashes are wrapped.
+      const probeFailure = error instanceof DownloadRuntimeError
+        ? error
+        : new DownloadRuntimeError("E_EXECUTION_FAILED", summarizeError(error), { cause: error });
       await this.options.eventSink.emit("video-download-complete", {
         traceId,
         result: {
@@ -629,9 +643,10 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     const context = await this.buildAdvancedQualityProbeContext(task);
     // Explicit composition at the probe boundary: static binary paths are
     // supplied by the runtime, never smuggled through the execution contract.
-    return await runAdvancedQualityProbe({
+    // The probe is a yt-dlp-only Infrastructure feature (no probe port).
+    return await runYtDlpAdvancedQualityProbe({
       ...context,
-      binaries: resolveRuntimeBinaryPaths(this.options.environment),
+      binaries: resolveYtDlpRuntimeDependencies(this.options.environment),
     });
   }
 
@@ -646,9 +661,21 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     traceId: string,
     targetUrl: string,
     providerId: string | null,
-    engineId: EnginePlan["engine"],
+    engineId: EnginePlan["engine"] | undefined,
   ): DownloadExecutionContext {
-    const consumer = engineId === "gallery-dl" ? "gallery-dl" as const : "yt-dlp" as const;
+    if (!engineId) {
+      // Fail closed instead of defaulting to yt-dlp for an empty candidate
+      // list; plans always carry at least one candidate in practice.
+      throw new DownloadRuntimeError(
+        "E_ENGINE_NOT_FOUND",
+        "No engine candidates in the resolved download plan",
+        {
+          classification: "terminal_for_site",
+        },
+      );
+    }
+    const consumer = this.options.resolveNetworkConsumer?.(engineId)
+      ?? resolveEngineNetworkConsumer(engineId);
     const network = this.options.resolveNetworkRoute
       ? this.options.resolveNetworkRoute({
           targetUrl,
@@ -694,12 +721,17 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         "No site provider matched the advanced quality request",
       );
     }
-    if (!ADVANCED_QUALITY_SUPPORTED_SITE_IDS.has(plan.intent.siteId)) {
+    // The Site declares the need through the plan requirement; the runtime
+    // never re-decides Site support from an allowlist.
+    if (plan.requirements?.advancedQuality !== true) {
       throw new DownloadRuntimeError(
-        "E_INPUT_INVALID",
-        `Advanced quality selection is not supported for ${plan.intent.siteId}`,
+        "E_ENGINE_REJECTED_INTENT",
+        "Advanced quality probing requires a plan that declares the advanced-quality requirement",
         {
-          classification: "input_invalid",
+          context: {
+            traceId: task.traceId,
+            providerId: plan.providerId,
+          },
         },
       );
     }
@@ -716,6 +748,35 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           context: {
             traceId: task.traceId,
             providerId: plan.providerId,
+          },
+        },
+      );
+    }
+
+    if (!this.engineRegistry.get("yt-dlp")) {
+      throw new DownloadRuntimeError(
+        "E_ENGINE_NOT_FOUND",
+        "Advanced quality probing requires a registered yt-dlp engine",
+        {
+          context: {
+            traceId: task.traceId,
+            providerId: plan.providerId,
+          },
+        },
+      );
+    }
+
+    // Capability eligibility against the same registry the orchestrator uses;
+    // an unregistered or non-capable yt-dlp is rejected before any probe.
+    if (!this.engineRegistry.isEligible("yt-dlp", plan.requirements)) {
+      throw new DownloadRuntimeError(
+        "E_ENGINE_REJECTED_INTENT",
+        "Engine yt-dlp does not satisfy the plan capability requirements",
+        {
+          context: {
+            traceId: task.traceId,
+            providerId: plan.providerId,
+            requirements: plan.requirements,
           },
         },
       );
@@ -982,7 +1043,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     traceId: string,
     label: string,
     sourcePath: string,
-    binaries: ReturnType<typeof resolveRuntimeBinaryPaths>,
+    binaries: SharedMediaRuntimeTools,
     telemetry?: DownloadTelemetryContext,
   ): Promise<void> {
     let compatibility: VideoCompatibilityAnalysis | null = null;
@@ -1028,7 +1089,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
     try {
       const result = await runPreparedVideoTranscodeTask(activeTask, {
-        ffmpegPath: resolveRuntimeBinaryPaths(this.options.environment).ffmpeg,
+        ffmpegPath: resolveSharedMediaRuntimeTools(this.options.environment).ffmpeg,
         signal: activeTask.abortController.signal,
         onProgress: async (progress) => {
           if (!this.activeTranscode || this.activeTranscode.traceId !== activeTask.traceId) {
@@ -1210,7 +1271,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
     // Static runtime dependencies are resolved before the application Job
     // runs; the terminal settlement below reuses them.
-    const binaries = resolveRuntimeBinaryPaths(this.options.environment);
+    const binaries = resolveSharedMediaRuntimeTools(this.options.environment);
     let outputDir: string | null = null;
     let telemetryPlan: ResolvedDownloadPlan | null = null;
     let executedEngineId: EnginePlan["engine"] | null = null;
@@ -1288,8 +1349,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             traceId,
             canonicalNetworkTarget,
             prepared.plan.providerId,
-            prepared.plan.engines.slice().sort((left, right) => right.priority - left.priority)[0]?.engine
-              ?? "yt-dlp",
+            prepared.plan.engines.slice().sort((left, right) => right.priority - left.priority)[0]?.engine,
           );
           const network = await executionContext.network;
           const baseNetworkSnapshot = toNetworkDiagnosticSnapshot(network);

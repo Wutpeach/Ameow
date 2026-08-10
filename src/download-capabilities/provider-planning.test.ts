@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { detectSiteHintFromUrl, type RawDownloadInput } from "../core/index.js";
-import { builtinProviders } from "../sites/index.js";
 import {
   buildEnginePlansFromStrategy,
   bundledCapabilityRegistry,
-  getProviderMigrationTarget,
   providerMigrationTargets,
   resolveProviderStrategy,
 } from "./index.js";
@@ -84,13 +82,9 @@ describe("provider planning helpers", () => {
 });
 
 describe("provider migration targets", () => {
-  it("covers every builtin provider with an explicit migration target", () => {
-    const missingTargets = builtinProviders
-      .map((provider) => provider.id)
-      .filter((providerId) => !getProviderMigrationTarget(providerId));
-
-    expect(missingTargets).toEqual([]);
-  });
+  // The ledger is historical reporting for the telemetry report only; it is
+  // not a mandatory extension point for new providers. Coverage is by
+  // listed entries, not by scanning every builtin provider.
 
   it("maps strategy-backed providers to existing registry strategies", () => {
     const unresolvedTargets = providerMigrationTargets

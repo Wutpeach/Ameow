@@ -97,11 +97,7 @@ describe("probeGalleryDlMetadataTitle", () => {
     await expect(probeGalleryDlMetadataTitle({
       sourceUrl: "https://www.instagram.com/p/C7example/",
       binaries: {
-        ytDlp: "D:/yt-dlp.exe",
         galleryDl: "D:/gallery-dl.exe",
-        ffmpeg: "D:/ffmpeg.exe",
-        ffprobe: "D:/ffprobe.exe",
-        deno: "D:/deno.exe",
       },
     })).resolves.toBe("alice - Sunset over the lake");
   });
@@ -120,11 +116,7 @@ describe("probeGalleryDlMetadataTitle", () => {
       sourceUrl: "https://www.instagram.com/p/C7example/",
       cookies: "cookie-data",
       binaries: {
-        ytDlp: "D:/yt-dlp.exe",
         galleryDl: "D:/gallery-dl.exe",
-        ffmpeg: "D:/ffmpeg.exe",
-        ffprobe: "D:/ffprobe.exe",
-        deno: "D:/deno.exe",
       },
     });
 

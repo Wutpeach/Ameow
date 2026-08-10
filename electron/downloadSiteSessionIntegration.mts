@@ -5,7 +5,6 @@ import type {
   RuntimeDownloadSiteSessionRefreshContext,
 } from "../src/electron-runtime/contracts.js";
 import type { EngineExecutionContextWithRuntime } from "../src/electron-runtime/engineExecutionContext.js";
-import { ADVANCED_QUALITY_SUPPORTED_SITE_IDS } from "../src/electron-runtime/service.js";
 import type { RawDownloadInput } from "../src/core/index.js";
 import type {
   SiteSessionRegistryEntry,
@@ -109,9 +108,9 @@ const shouldSkipAdvancedQualitySiteSessionRefresh = (
   entry: SiteSessionRegistryEntry,
   state: SiteSessionState,
 ): string | null => {
-  if (!ADVANCED_QUALITY_SUPPORTED_SITE_IDS.has(entry.siteId)) {
-    return "site_not_enabled";
-  }
+  // No Site allowlist here: the confirmed probe flow (driven by the resolved
+  // plan requirement) already decided that this session is needed; this
+  // integration only applies registry/session/auth/freshness policy.
   if (entry.syncAuthorization !== "seeded" && entry.syncAuthorization !== "user_enabled") {
     return "sync_not_authorized";
   }

@@ -1,5 +1,6 @@
 import {
   capabilitiesSatisfy,
+  engineIdSchema,
   type DownloadCapabilityRequirements,
   type DownloadEngine,
   type EngineExecutionContext,
@@ -27,12 +28,22 @@ export class EngineRegistry<
     }
   }
 
-  /** Registers an engine; duplicate ids are rejected, never silently overwritten. */
+  /**
+   * Registers an engine; duplicate/blank/padded ids are rejected, never
+   * silently overwritten. The engine id must be its canonical schema form:
+   * `engineIdSchema` trims plan ids, so a padded registration key could never
+   * be found by a parsed plan. The engine object itself is not mutated.
+   */
   register(engine: DownloadEngine<TExecutionContext>): void {
-    if (this.engines.has(engine.id)) {
-      throw new Error(`Duplicate engine registration: ${engine.id}`);
+    const parsed = engineIdSchema.safeParse(engine.id);
+    const id = parsed.success ? parsed.data : "";
+    if (!parsed.success || id !== engine.id) {
+      throw new Error("Engine registration requires a canonical non-blank id");
     }
-    this.engines.set(engine.id, engine);
+    if (this.engines.has(id)) {
+      throw new Error(`Duplicate engine registration: ${id}`);
+    }
+    this.engines.set(id, engine);
   }
 
   get(id: EngineId): DownloadEngine<TExecutionContext> | undefined {

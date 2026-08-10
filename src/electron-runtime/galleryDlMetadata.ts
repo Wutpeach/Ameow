@@ -3,13 +3,13 @@ import path from "node:path";
 
 import { runStreamingCommand } from "./processRunner.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
-import type { RuntimeBinaryPaths } from "./contracts.js";
+import type { GalleryDlRuntimeDependencies } from "./engineExecutionContext.js";
 
 type GalleryDlMetadataProbeOptions = {
   sourceUrl: string;
   pageUrl?: string;
   cookies?: string;
-  binaries: RuntimeBinaryPaths;
+  binaries: GalleryDlRuntimeDependencies;
   signal?: AbortSignal;
 };
 

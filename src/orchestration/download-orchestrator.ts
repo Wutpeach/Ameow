@@ -47,35 +47,30 @@ const toRuntimeError = (error: unknown, code: DownloadErrorCode): DownloadRuntim
   );
 };
 
-const isExplicitWeiboSelectedVariantRequest = (
-  input: RawDownloadInput,
+const isExplicitSelectedVariantRequest = (
   plan: ResolvedDownloadPlan,
-): boolean => (
-  plan.providerId === "weibo"
-  && input.siteHint === "weibo"
-  && Boolean(input.selectedVideoVariant?.url)
-);
+): boolean => Boolean(plan.intent.selectedVideoVariant?.url);
 
 const wrapSelectedVariantError = (
   error: DownloadRuntimeError,
-  input: RawDownloadInput,
   plan: ResolvedDownloadPlan,
 ): DownloadRuntimeError => {
-  if (!isExplicitWeiboSelectedVariantRequest(input, plan)) {
+  if (!isExplicitSelectedVariantRequest(plan)) {
     return error;
   }
-  const label = input.selectedVideoVariant?.label?.trim()
-    || input.selectedVideoVariant?.url
+  const selected = plan.intent.selectedVideoVariant;
+  const label = selected?.label?.trim()
+    || selected?.url
     || "selected variant";
   return new DownloadRuntimeError(
     error.code,
-    `Selected Weibo quality failed (${label}): ${error.message}`,
+    `Selected variant quality failed (${label}): ${error.message}`,
     {
       cause: error,
       classification: error.classification,
       context: {
         ...error.context,
-        selectedVideoVariant: input.selectedVideoVariant,
+        selectedVideoVariant: selected,
         providerId: plan.providerId,
       },
     },
@@ -182,7 +177,7 @@ export class DownloadOrchestrator<
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
+        throw wrapSelectedVariantError(lastError, resolvedPlan);
       }
 
       const support = engine.supports(resolvedPlan, { intent: resolvedPlan.intent });
@@ -191,7 +186,7 @@ export class DownloadOrchestrator<
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
+        throw wrapSelectedVariantError(lastError, resolvedPlan);
       }
 
       try {
@@ -208,13 +203,13 @@ export class DownloadOrchestrator<
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
+        throw wrapSelectedVariantError(lastError, resolvedPlan);
       } catch (error) {
         lastError = toRuntimeError(error, "E_EXECUTION_FAILED");
         if (shouldContinueEngineChain(lastError, enginePlan)) {
           continue;
         }
-        throw wrapSelectedVariantError(lastError, normalizedInput, resolvedPlan);
+        throw wrapSelectedVariantError(lastError, resolvedPlan);
       }
     }
 

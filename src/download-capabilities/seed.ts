@@ -2,7 +2,6 @@ import capabilitiesManualJson from "../assets/capabilities-manual.json";
 import capabilitiesSeedJson from "../assets/capabilities-seed.json";
 import { capabilitySeedSchema } from "./schema.js";
 import type {
-  CapabilityEngineId,
   CapabilityMatchHints,
   InteractionMode,
   CapabilitySeed,
@@ -32,8 +31,8 @@ export type CapabilityRegistry = {
   getDownloadCapabilities(siteId: string): readonly DownloadCapabilityEntry[];
   getInteractionCapabilities(siteId: string): readonly InteractionCapabilityEntry[];
   getSiteStrategy(siteId: string): DownloadSiteStrategyEntry | null;
-  getPreferredEngine(siteId: string): CapabilityEngineId | null;
-  supportsEngine(siteId: string, engine: CapabilityEngineId): boolean;
+  getPreferredEngine(siteId: string): string | null;
+  supportsEngine(siteId: string, engine: string): boolean;
   supportsInteractionMode(siteId: string, mode: InteractionMode): boolean;
   findDownloadCapabilitiesForUrl(url: string): readonly DownloadCapabilityEntry[];
   findInteractionCapabilityForUrl(url: string): InteractionCapabilityEntry | null;
@@ -127,7 +126,7 @@ export const createCapabilityRegistry = (
     getPreferredEngine(siteId: string) {
       return strategyBySiteId.get(siteId)?.engineOrder[0] ?? null;
     },
-    supportsEngine(siteId: string, engine: CapabilityEngineId) {
+    supportsEngine(siteId: string, engine: string) {
       const strategy = strategyBySiteId.get(siteId);
       if (strategy) {
         if (strategy.forbiddenEngines?.includes(engine)) {

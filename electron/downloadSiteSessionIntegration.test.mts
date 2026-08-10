@@ -247,7 +247,9 @@ describe("createDownloadSiteSessionIntegration", () => {
     expect(ensureRefreshed).toHaveBeenCalledTimes(1);
   });
 
-  it("pre-probes only the advanced-quality enabled sites", async () => {
+  it("pre-probes any registered stale site once the probe flow is confirmed", async () => {
+    // No Site allowlist: the confirmed probe flow (plan requirement) drives
+    // the need; the integration applies registry/auth/freshness policy only.
     const youtubeEnsureRefreshed = vi.fn(async () => createState());
     const youtube = createIntegration({
       state: createState({ updatedAtMs: Date.now() - 25 * 60 * 60 * 1000 }),
@@ -279,7 +281,11 @@ describe("createDownloadSiteSessionIntegration", () => {
       url: "https://example.com/video",
     });
 
-    expect(genericEnsureRefreshed).not.toHaveBeenCalled();
+    expect(genericEnsureRefreshed).toHaveBeenCalledTimes(1);
+    expect(genericEnsureRefreshed.mock.calls[0][1]).toMatchObject({
+      reason: "advanced_quality",
+      force: true,
+    });
   });
 
   it("replaces attempt cookies with app-owned session cookies without mutating the plan", async () => {

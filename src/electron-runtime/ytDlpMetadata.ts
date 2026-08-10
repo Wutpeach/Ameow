@@ -1,6 +1,6 @@
 import { runStreamingCommand } from "./processRunner.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
-import type { RuntimeBinaryPaths } from "./contracts.js";
+import type { YtDlpRuntimeDependencies } from "./engineExecutionContext.js";
 import type { DownloadSelectionScope } from "../core/index.js";
 import { appendExtendedYouTubeYtdlpArgs, isYouTubeUrl } from "./ytDlpCommandPlan.js";
 
@@ -9,14 +9,14 @@ type YtDlpMetadataProbeOptions = {
   pageUrl?: string;
   cookies?: string;
   selectionScope?: DownloadSelectionScope;
-  binaries: RuntimeBinaryPaths;
+  binaries: YtDlpRuntimeDependencies;
   signal?: AbortSignal;
 };
 
 const appendYtDlpSiteArgs = (
   args: string[],
   sourceUrl: string,
-  binaries: RuntimeBinaryPaths,
+  binaries: YtDlpRuntimeDependencies,
 ): void => {
   if (!isYouTubeUrl(sourceUrl)) {
     return;

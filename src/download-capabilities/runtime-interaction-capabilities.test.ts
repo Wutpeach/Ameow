@@ -28,4 +28,21 @@ describe("runtime interaction capabilities", () => {
       isModeSupported: true,
     });
   });
+
+  it("returns the generic/unknown entry for unknown sites instead of throwing", () => {
+    expect(getRuntimeManualInteractionCapability("fakesite")).toEqual({
+      siteId: "generic",
+      sourceId: "ameow-manual-sites",
+      interactionStatus: "unknown",
+      supportedModes: ["paste", "drag", "context_menu"],
+    });
+    expect(createInteractionCapabilityDiagnostic({
+      siteHint: "fakesite",
+      url: "https://example.com/video/1",
+      source: "paste",
+    })).toMatchObject({
+      siteId: "generic",
+      interactionStatus: "unknown",
+    });
+  });
 });

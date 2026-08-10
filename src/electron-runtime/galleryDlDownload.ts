@@ -3,7 +3,7 @@ import path from "node:path";
 import { DownloadRuntimeError, type DownloadResult } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
 import { classifyEngineFailure } from "./engineErrorClassifier.js";
-import type { EngineInvocationContext } from "./engineExecutionContext.js";
+import type { EngineInvocationContext, GalleryDlRuntimeDependencies } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
   logNetworkApplication,
@@ -102,7 +102,7 @@ const cleanupTaskArtifacts = async (
 };
 
 export const runGalleryDlDownload = async (
-  context: EngineInvocationContext,
+  context: EngineInvocationContext<GalleryDlRuntimeDependencies>,
 ): Promise<DownloadResult> => {
   let commandPlan: ReturnType<typeof createGalleryDlCommandPlan>;
   try {

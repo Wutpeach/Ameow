@@ -6,8 +6,8 @@ import type {
   EnginePlan,
   RawDownloadInput,
   ResolvedDownloadPlan,
-  RuntimeBinaryPaths,
 } from "../core/index.js";
+import type { RuntimeBinaryPaths } from "./contracts.js";
 import { buildDirectRouteResolution } from "../config/networkRoute.js";
 import { createEngineRegistry } from "../engines/engine-registry.js";
 import { DownloadOrchestrator } from "../orchestration/download-orchestrator.js";

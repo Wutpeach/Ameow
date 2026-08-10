@@ -39,9 +39,7 @@ describe("probeYtDlpMetadataTitle", () => {
       sourceUrl: "https://www.youtube.com/watch?v=abc123",
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
-        galleryDl: "D:/gallery-dl.exe",
         ffmpeg: "D:/ffmpeg.exe",
-        ffprobe: "D:/ffprobe.exe",
         deno: "D:/deno.exe",
       },
     })).resolves.toBe("Recovered Title");
@@ -69,9 +67,7 @@ describe("probeYtDlpMetadataTitle", () => {
       selectionScope: "current_item",
       binaries: {
         ytDlp: "D:/yt-dlp.exe",
-        galleryDl: "D:/gallery-dl.exe",
         ffmpeg: "D:/ffmpeg.exe",
-        ffprobe: "D:/ffprobe.exe",
         deno: "D:/deno.exe",
       },
     });

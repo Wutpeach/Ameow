@@ -88,9 +88,9 @@ const {
 }));
 
 const {
-  runAdvancedQualityProbeMock,
+  runYtDlpAdvancedQualityProbeMock,
 } = vi.hoisted(() => ({
-  runAdvancedQualityProbeMock: vi.fn(),
+  runYtDlpAdvancedQualityProbeMock: vi.fn(),
 }));
 
 vi.mock("./galleryDlMetadata.js", () => ({
@@ -105,7 +105,7 @@ vi.mock("./transcode.js", () => ({
 }));
 
 vi.mock("./advancedQualityProbe.js", () => ({
-  runAdvancedQualityProbe: runAdvancedQualityProbeMock,
+  runYtDlpAdvancedQualityProbe: runYtDlpAdvancedQualityProbeMock,
 }));
 
 import {
@@ -184,6 +184,7 @@ const createRuntime = (options: {
     providerId: string | null;
     engineId: "yt-dlp" | "gallery-dl";
   }) => Promise<NetworkRouteResolution>;
+  resolveNetworkConsumer?: (engineId: string | undefined) => string;
 }) => createElectronDownloadRuntime({
   environment: {
     repoRoot: options.environment?.repoRoot ?? process.cwd(),
@@ -214,6 +215,7 @@ const createRuntime = (options: {
   refreshSiteSessionBeforeAdvancedQualityProbe: options.refreshSiteSessionBeforeAdvancedQualityProbe,
   refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
   resolveNetworkRoute: options.resolveNetworkRoute,
+  resolveNetworkConsumer: options.resolveNetworkConsumer,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
@@ -233,8 +235,8 @@ describe("AmeowElectronDownloadRuntime", () => {
     runPreparedVideoTranscodeTaskMock.mockImplementation(async (task: { finalPath: string }) => ({
       filePath: task.finalPath,
     }));
-    runAdvancedQualityProbeMock.mockReset();
-    runAdvancedQualityProbeMock.mockResolvedValue({
+    runYtDlpAdvancedQualityProbeMock.mockReset();
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValue({
       options: [],
     });
   });
@@ -392,7 +394,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
     });
 
-    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
         { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
@@ -419,8 +421,259 @@ describe("AmeowElectronDownloadRuntime", () => {
       return task?.phase === "selecting_quality";
     });
 
-    expect(runAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
+    expect(runYtDlpAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
     expect(events.some((entry) => entry.event === "video-download-progress")).toBe(false);
+  });
+
+  it("probes advanced quality for an opaque fake Site declaring the requirement, without any Site allowlist", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const opaqueFakeProvider: SiteProvider = {
+      id: "opaque-fake",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "opaque-fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "opaque-fake",
+          label: "opaque",
+          intent,
+          engines: [
+            { engine: "yt-dlp", priority: 100, when: "primary", reason: "primary" },
+          ],
+          // The Site itself declares the advanced-quality requirement; the
+          // runtime must not consult any generic Site allowlist.
+          requirements: { advancedQuality: true },
+        };
+      },
+    };
+    const runtime = createRuntime({
+      providers: [opaqueFakeProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
+      options: [
+        { id: "height_1080", label: "1080p", selector: "bv*[height=1080]+ba" },
+      ],
+    });
+
+    await runtime.queueVideoDownload({
+      url: "https://opaque.example/watch/1",
+      pageUrl: "https://opaque.example/watch/1",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => runYtDlpAdvancedQualityProbeMock.mock.calls.length === 1);
+    expect(runYtDlpAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
+    expect(completions).toHaveLength(0);
+  });
+
+  it("does not probe when the plan does not declare the advanced-quality requirement", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string; failure?: unknown }> = [];
+    const plainProvider: SiteProvider = {
+      id: "plain-fake",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "plain-fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "plain-fake",
+          label: "plain",
+          intent,
+          engines: [
+            { engine: "yt-dlp", priority: 100, when: "primary", reason: "primary" },
+          ],
+          // No requirements declared: probing must not start.
+        };
+      },
+    };
+    const runtime = createRuntime({
+      providers: [plainProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    runYtDlpAdvancedQualityProbeMock.mockClear();
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://plain.example/watch/1",
+      pageUrl: "https://plain.example/watch/1",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => completions.some((entry) => entry.traceId === ack.traceId));
+    expect(runYtDlpAdvancedQualityProbeMock).not.toHaveBeenCalled();
+    expect(completions.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: false,
+      error: "更多画质探测失败",
+    });
+    // A plan that omits the requirement is a rejected intent, not a missing
+    // engine: yt-dlp may well be registered, but probing is refused.
+    const failure = completions.find((entry) => entry.traceId === ack.traceId)?.failure as
+      | { code?: string }
+      | undefined;
+    expect(failure?.code).toBe("E_ENGINE_REJECTED_INTENT");
+  });
+
+  it("does not probe when yt-dlp is not registered", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string; failure?: unknown }> = [];
+    const fakeProvider: SiteProvider = {
+      id: "fake",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "fake",
+          label: "fake",
+          intent,
+          engines: [
+            { engine: "yt-dlp", priority: 100, when: "primary", reason: "primary" },
+          ],
+          requirements: { advancedQuality: true },
+        };
+      },
+    };
+    const runtime = createRuntime({
+      providers: [fakeProvider],
+      engines: [],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    runYtDlpAdvancedQualityProbeMock.mockClear();
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://fake.example/watch/1",
+      pageUrl: "https://fake.example/watch/1",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => completions.some((entry) => entry.traceId === ack.traceId));
+    expect(runYtDlpAdvancedQualityProbeMock).not.toHaveBeenCalled();
+    const failure = completions.find((entry) => entry.traceId === ack.traceId)?.failure as
+      | { code?: string }
+      | undefined;
+    expect(failure?.code).toBe("E_ENGINE_NOT_FOUND");
+  });
+
+  it("does not probe when the registered yt-dlp engine lacks the advanced-quality capability", async () => {
+    const completions: Array<{ traceId: string; success: boolean; error?: string; failure?: unknown }> = [];
+    const fakeProvider: SiteProvider = {
+      id: "fake",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "fake",
+          label: "fake",
+          intent,
+          engines: [
+            { engine: "yt-dlp", priority: 100, when: "primary", reason: "primary" },
+          ],
+          requirements: { advancedQuality: true },
+        };
+      },
+    };
+    const incapableYtDlpStub: DownloadEngine<EngineExecutionContextWithRuntime> = {
+      id: "yt-dlp",
+      capabilities: { advancedQuality: false },
+      supports: () => ({ supported: true }),
+      execute: async (context) => ({
+        traceId: context.traceId,
+        success: true,
+        filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+      }),
+    };
+    const runtime = createRuntime({
+      providers: [fakeProvider],
+      engines: [incapableYtDlpStub],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    runYtDlpAdvancedQualityProbeMock.mockClear();
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://fake.example/watch/1",
+      pageUrl: "https://fake.example/watch/1",
+      advancedQualityRequest: true,
+    });
+
+    await waitFor(() => completions.some((entry) => entry.traceId === ack.traceId));
+    expect(runYtDlpAdvancedQualityProbeMock).not.toHaveBeenCalled();
+    const failure = completions.find((entry) => entry.traceId === ack.traceId)?.failure as
+      | { code?: string }
+      | undefined;
+    expect(failure?.code).toBe("E_ENGINE_REJECTED_INTENT");
   });
 
   it("dismisses an advanced-quality task without emitting a cancelled completion", async () => {
@@ -441,7 +694,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
     });
 
-    runAdvancedQualityProbeMock.mockImplementationOnce(async (context: EngineExecutionContextWithRuntime) => {
+    runYtDlpAdvancedQualityProbeMock.mockImplementationOnce(async (context: EngineExecutionContextWithRuntime) => {
       await new Promise<never>((_resolve, reject) => {
         if (context.abortSignal.aborted) {
           reject(new Error("probe aborted"));
@@ -462,7 +715,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       advancedQualityRequest: true,
     });
 
-    await waitFor(() => runAdvancedQualityProbeMock.mock.calls.length === 1);
+    await waitFor(() => runYtDlpAdvancedQualityProbeMock.mock.calls.length === 1);
 
     await expect(runtime.cancelDownload(ack.traceId)).resolves.toBe(true);
     await waitFor(() => runtime.getQueueState().totalCount === 0);
@@ -483,7 +736,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
     });
 
-    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
       videoTitle: "Runtime resolved title",
       options: [
         {
@@ -547,7 +800,7 @@ describe("AmeowElectronDownloadRuntime", () => {
     });
 
     let releaseProbe: (() => void) | undefined;
-    runAdvancedQualityProbeMock.mockImplementationOnce(async () => {
+    runYtDlpAdvancedQualityProbeMock.mockImplementationOnce(async () => {
       await new Promise<void>((resolve) => {
         releaseProbe = () => resolve();
       });
@@ -605,7 +858,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
     });
 
-    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
         { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
@@ -618,12 +871,12 @@ describe("AmeowElectronDownloadRuntime", () => {
       advancedQualityRequest: true,
     });
 
-    await waitFor(() => runAdvancedQualityProbeMock.mock.calls.length === 1);
+    await waitFor(() => runYtDlpAdvancedQualityProbeMock.mock.calls.length === 1);
     expect(calls).toEqual([
       "refresh:youtube:https://www.youtube.com/watch?v=abc123",
       "build:fresh-cookies",
     ]);
-    expect(runAdvancedQualityProbeMock.mock.calls[0]?.[0].cookies).toBe("fresh-cookies");
+    expect(runYtDlpAdvancedQualityProbeMock.mock.calls[0]?.[0].cookies).toBe("fresh-cookies");
   });
 
   it("continues advanced-quality probing when pre-probe site-session refresh fails", async () => {
@@ -642,7 +895,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       refreshSiteSessionBeforeAdvancedQualityProbe,
     });
 
-    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
         { id: "height_720", label: "720p", selector: "bv*[height=720]+ba" },
       ],
@@ -657,7 +910,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     await waitFor(() => runtime.getQueueDetail().tasks[0]?.phase === "selecting_quality");
     expect(refreshSiteSessionBeforeAdvancedQualityProbe).toHaveBeenCalledTimes(1);
-    expect(runAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
+    expect(runYtDlpAdvancedQualityProbeMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not refresh site session before normal non-advanced downloads", async () => {
@@ -774,7 +1027,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
     });
 
-    runAdvancedQualityProbeMock.mockResolvedValueOnce({
+    runYtDlpAdvancedQualityProbeMock.mockResolvedValueOnce({
       options: [
         { id: "height_1080", label: "1080p", selector: "bv*[height=1080][vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/bv*[height=1080]+ba" },
       ],
@@ -815,7 +1068,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
     });
 
-    runAdvancedQualityProbeMock.mockRejectedValueOnce(new Error("probe failed"));
+    runYtDlpAdvancedQualityProbeMock.mockRejectedValueOnce(new Error("probe failed"));
 
     const ack = await runtime.queueVideoDownload({
       url: "https://www.youtube.com/watch?v=abc123",
@@ -1004,6 +1257,128 @@ describe("AmeowElectronDownloadRuntime", () => {
     expect(receivedRoute).toMatchObject({
       mode: "proxy",
       proxyUrl: "http://127.0.0.1:7897",
+    });
+  });
+
+  it("accepts an opaque fake engine through the injected network consumer resolver", async () => {
+    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const fakeEngineProvider: SiteProvider = {
+      id: "fake-engine-test",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "fake-engine-test",
+          label: "fake",
+          intent,
+          engines: [
+            { engine: "fake-engine", priority: 100, when: "primary", reason: "fake primary" },
+          ],
+        };
+      },
+    };
+    const runtime = createRuntime({
+      providers: [fakeEngineProvider],
+      resolveNetworkConsumer: (engineId) => `consumer:${engineId ?? "unknown"}`,
+      engines: [
+        {
+          id: "fake-engine",
+          capabilities: { advancedQuality: false },
+          supports: () => ({ supported: true }),
+          execute: async (context) => ({
+            traceId: context.traceId,
+            success: true,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+          }),
+        },
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://example.com/fake/1",
+      pageUrl: "https://example.com/fake/1",
+    });
+
+    await waitFor(() => completed.some((entry) => entry.traceId === ack.traceId));
+    expect(completed.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: true,
+    });
+  });
+
+  it("fails closed for an opaque fake engine when no consumer resolver is injected", async () => {
+    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const fakeEngineProvider: SiteProvider = {
+      id: "fake-engine-test",
+      matches() {
+        return true;
+      },
+      resolvePlan(input: RawDownloadInput): ResolvedDownloadPlan {
+        const intent: DownloadIntent = {
+          type: "video",
+          siteId: "fake",
+          originalUrl: input.url,
+          pageUrl: input.pageUrl,
+          title: input.title,
+          priority: 10,
+          candidates: input.videoCandidates ?? [],
+          preferredFormat: "best",
+        };
+        return {
+          providerId: "fake-engine-test",
+          label: "fake",
+          intent,
+          engines: [
+            { engine: "fake-engine", priority: 100, when: "primary", reason: "fake primary" },
+          ],
+        };
+      },
+    };
+    const runtime = createRuntime({
+      providers: [fakeEngineProvider],
+      engines: [
+        {
+          id: "fake-engine",
+          capabilities: { advancedQuality: false },
+          supports: () => ({ supported: true }),
+          execute: async (context) => ({
+            traceId: context.traceId,
+            success: true,
+            filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+          }),
+        },
+      ],
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    const ack = await runtime.queueVideoDownload({
+      url: "https://example.com/fake/1",
+      pageUrl: "https://example.com/fake/1",
+    });
+
+    await waitFor(() => completed.some((entry) => entry.traceId === ack.traceId));
+    expect(completed.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("No network consumer binding for engine fake-engine"),
     });
   });
 

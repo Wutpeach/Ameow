@@ -5,8 +5,8 @@ import type {
   RawDownloadInput,
   ResolvedDownloadPlan,
 } from "../core/index.js";
-import { resolveSiteHint } from "../core/index.js";
-import { capabilityEngineIdSchema, interactionModeSchema } from "./schema.js";
+import { engineIdSchema, resolveSiteHint } from "../core/index.js";
+import { interactionModeSchema } from "./schema.js";
 
 export const downloadTelemetryInteractionModeSchema = z.union([
   interactionModeSchema,
@@ -58,8 +58,8 @@ export const downloadTelemetryEventSchema = z.object({
   siteId: z.string().trim().min(1),
   providerId: z.string().trim().min(1),
   interactionMode: downloadTelemetryInteractionModeSchema,
-  engineChain: z.array(capabilityEngineIdSchema),
-  chosenEngine: capabilityEngineIdSchema.nullable(),
+  engineChain: z.array(engineIdSchema),
+  chosenEngine: engineIdSchema.nullable(),
   outcome: z.enum(["success", "failure"]),
   errorCode: z.string().trim().min(1).nullable(),
   errorClassification: z.enum([

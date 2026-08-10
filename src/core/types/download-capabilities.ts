@@ -3,9 +3,16 @@
  * engines and can influence engine selection are declared here; provider
  * special cases stay expressible through explicit preferred/required engine
  * plans (they are never erased by capability filtering).
+ *
+ * Contract: `plan.requirements.advancedQuality` declares that this Site
+ * request needs an engine able to execute a plan carrying an advanced-quality
+ * selector; `DownloadEngine.capabilities.advancedQuality` means the engine
+ * can execute such a plan. The advanced-quality *probe* itself is a yt-dlp
+ * only Infrastructure feature and is never advertised as a capability port;
+ * a capable engine that is not yt-dlp has nothing to probe.
  */
 export type DownloadCapabilities = {
-  /** Engine can serve advanced quality selection probing (yt-dlp only). */
+  /** Engine can execute a plan carrying an advanced-quality selector. */
   advancedQuality: boolean;
 };
 

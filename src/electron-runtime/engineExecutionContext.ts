@@ -1,9 +1,27 @@
-import type {
-  EngineExecutionContext,
-  RuntimeBinaryPaths,
-} from "../core/index.js";
+import type { EngineExecutionContext } from "../core/index.js";
 import type { NetworkRouteResolution } from "../config/networkRoute.js";
 import type { NetworkApplicationOutcome } from "./engineNetworkAdapters.js";
+
+/**
+ * Narrowed per-engine static runtime dependencies. Concrete adapters receive
+ * only the executables their runner actually consumes, injected through their
+ * constructor; no engine sees the global resolved path set.
+ */
+export type YtDlpRuntimeDependencies = {
+  ytDlp: string;
+  ffmpeg: string;
+  deno: string;
+};
+
+export type GalleryDlRuntimeDependencies = {
+  galleryDl: string;
+};
+
+/** Shared media tools consumed explicitly by the transcode path. */
+export type SharedMediaRuntimeTools = {
+  ffmpeg: string;
+  ffprobe: string;
+};
 
 /**
  * Explicit per-job engine execution contract (Infrastructure-side extension of
@@ -47,6 +65,7 @@ export type EngineExecutionContextWithRuntime = EngineExecutionContext & {
  * Adapters build this explicitly from their constructor-injected dependencies
  * and the declared per-job contract; engine runners consume it. No cast.
  */
-export type EngineInvocationContext = EngineExecutionContextWithRuntime & {
-  binaries: RuntimeBinaryPaths;
-};
+export type EngineInvocationContext<TBinaries extends object> =
+  EngineExecutionContextWithRuntime & {
+    binaries: TBinaries;
+  };

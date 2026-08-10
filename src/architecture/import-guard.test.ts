@@ -244,6 +244,35 @@ describe("runtime-neutral import guard", () => {
       coreFile,
     )).toEqual([`src/core/fake.ts imports "electron" (forbidden package)`]);
   });
+
+  it("enforces the guard at Site and Application layers in real specifier spellings", () => {
+    const sitesFile = path.join(srcRoot, "sites", "fake.ts");
+    const applicationFile = path.join(srcRoot, "application", "fake.ts");
+    const flag = (source: string, file: string, expectedTarget: string): void => {
+      const violations = collectRuntimeImportViolations(source, file);
+      expect(violations, `expected a violation for ${expectedTarget}`).toHaveLength(1);
+      expect(violations[0]).toContain(expectedTarget);
+    };
+
+    // Site layer -> concrete engine adapter.
+    flag(
+      'import { buildYtDlpEngineAdapter } from "../electron-runtime/ytDlpEngineAdapter.js";',
+      sitesFile,
+      "src/electron-runtime/ytDlpEngineAdapter.ts",
+    );
+    // Application layer -> protocol download DTO.
+    flag(
+      'import type { VideoQueueDetailPayload } from "../protocol/download/ipcTypes.js";',
+      applicationFile,
+      "src/protocol/download/ipcTypes.ts",
+    );
+    // Application layer -> concrete engine adapter.
+    flag(
+      'import { buildYtDlpEngineAdapter } from "../electron-runtime/ytDlpEngineAdapter.js";',
+      applicationFile,
+      "src/electron-runtime/ytDlpEngineAdapter.ts",
+    );
+  });
 });
 
 /**
@@ -458,5 +487,93 @@ describe("P4 feature import guard", () => {
       'import { desktopEvents } from "../../desktop/runtime.js";',
       "src/desktop/runtime.ts",
     );
+  });
+});
+
+/**
+ * P6 reverse guard. The concrete per-engine files in `src/electron-runtime`
+ * (adapters, runners, download commands) are per-engine Infrastructure: each
+ * executes one CLI and must never reach into Site providers (`src/sites`) or
+ * renderer features (`src/features`). The scan covers only those concrete
+ * files, never the service/composition layer, which legitimately composes
+ * providers and the registry.
+ */
+
+const RUNTIME_CONCRETE_FILE_PATTERN = /(?:EngineAdapter|EngineRunner|Download)\.ts$/;
+
+const RUNTIME_FORBIDDEN_SRC_DIRS = ["sites", "features"];
+
+/**
+ * Scans one concrete engine file for imports that would pull Site providers or
+ * renderer features into per-engine Infrastructure. Exported so the guard
+ * logic is provable against representative specifiers. Resolution is done at
+ * specifier level (matching the cross-feature check) so it also covers
+ * not-yet-existing targets.
+ */
+export const collectConcreteEngineImportViolations = (
+  source: string,
+  file: string,
+): string[] => {
+  const violations: string[] = [];
+  for (const match of source.matchAll(IMPORT_PATTERN)) {
+    const specifier = (match[1] ?? match[2]).trim();
+    if (!specifier || !specifier.startsWith(".")) {
+      continue;
+    }
+    const unresolvedTarget = toRepoRelative(path.resolve(path.dirname(file), specifier));
+    if (RUNTIME_FORBIDDEN_SRC_DIRS.some((forbidden) => (
+      unresolvedTarget === `src/${forbidden}` || unresolvedTarget.startsWith(`src/${forbidden}/`)
+    ))) {
+      violations.push(`${toRepoRelative(file)} imports "${specifier}" -> forbidden target ${unresolvedTarget}`);
+    }
+  }
+  return violations;
+};
+
+const scanConcreteEngineFiles = (): string[] => {
+  const violations: string[] = [];
+  for (const file of collectSourceFiles(path.join(srcRoot, "electron-runtime"))) {
+    if (!RUNTIME_CONCRETE_FILE_PATTERN.test(file)) {
+      continue;
+    }
+    violations.push(...collectConcreteEngineImportViolations(readFileSync(file, "utf8"), file));
+  }
+  return violations;
+};
+
+describe("P6 concrete engine import guard", () => {
+  it("keeps concrete engine adapters/runners/downloads free of Site and feature imports", () => {
+    const violations = scanConcreteEngineFiles();
+    expect(violations, [
+      "Concrete engine files must not import src/sites or src/features.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
+  it("flags Site and feature imports from concrete engine files", () => {
+    const adapterFile = path.join(srcRoot, "electron-runtime", "fakeEngineAdapter.ts");
+    const runnerFile = path.join(srcRoot, "electron-runtime", "fakeEngineRunner.ts");
+    const downloadFile = path.join(srcRoot, "electron-runtime", "fakeEngineDownload.ts");
+    const flag = (source: string, file: string, expectedTarget: string): void => {
+      const violations = collectConcreteEngineImportViolations(source, file);
+      expect(violations, `expected a violation for ${expectedTarget}`).toHaveLength(1);
+      expect(violations[0]).toContain(expectedTarget);
+    };
+
+    flag(
+      'import { resolveYoutubeProvider } from "../sites/youtube.js";',
+      adapterFile,
+      "src/sites/youtube.js",
+    );
+    flag(
+      'import { selectDownloadModel } from "../features/download/model.js";',
+      downloadFile,
+      "src/features/download/model.js",
+    );
+    // Unrelated relative imports stay allowed.
+    expect(collectConcreteEngineImportViolations(
+      'import { classifyNetworkFailure } from "../config/networkRoute.js";',
+      runnerFile,
+    )).toEqual([]);
   });
 });

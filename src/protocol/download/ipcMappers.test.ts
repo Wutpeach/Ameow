@@ -249,6 +249,20 @@ describe("decodeQueueDownloadCommand", () => {
     expect(command).not.toHaveProperty("extensionData");
   });
 
+  it("preserves an explicit opaque site hint through command decode", () => {
+    const command = decodeQueueDownloadCommand({
+      url: "https://example.com/video/1",
+      siteHint: "fakesite",
+      diagnostics: { source: "popup" },
+    });
+
+    expect(command.siteHint).toBe("fakesite");
+    expect(command.diagnostics?.interactionCapability).toMatchObject({
+      siteId: "generic",
+      interactionStatus: "unknown",
+    });
+  });
+
   it("preserves the selected video variant through the canonical command", () => {
     const command = decodeQueueDownloadCommand({
       url: "https://weibo.com/detail/N12345",

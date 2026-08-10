@@ -22,13 +22,12 @@ import type {
   DownloadEngine,
   EngineId,
   RawDownloadInput,
-  RuntimeBinaryPaths as CoreRuntimeBinaryPaths,
   ResolvedDownloadPlan,
   SiteProvider,
 } from "../core/index.js";
 import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
-import type { NetworkRouteResolution } from "../config/networkRoute.js";
+import type { NetworkConsumer, NetworkRouteResolution } from "../config/networkRoute.js";
 
 export type RuntimeManagedComponent = RuntimeDependencyManagedComponent;
 
@@ -122,7 +121,19 @@ export interface ElectronRuntimeEnvironment {
   fetch?: typeof fetch;
 }
 
-export type RuntimeBinaryPaths = CoreRuntimeBinaryPaths;
+/**
+ * Infrastructure-owned resolved binary paths (the single path source of
+ * truth, produced by `resolveRuntimeBinaryPaths`). Core/Application never
+ * import this shape; concrete engines receive narrowed per-engine dependency
+ * sets through their adapter constructors.
+ */
+export type RuntimeBinaryPaths = {
+  ytDlp: string;
+  galleryDl: string;
+  ffmpeg: string;
+  ffprobe: string;
+  deno: string;
+};
 
 export interface RuntimeBootstrapContext {
   missingComponents: RuntimeManagedComponent[];
@@ -173,6 +184,12 @@ export interface ElectronDownloadRuntimeOptions {
   resolveNetworkRoute?(
     context: RuntimeNetworkProxyContext,
   ): Promise<NetworkRouteResolution>;
+  /**
+   * Maps an engine id to its explicit NetworkConsumer for route resolution.
+   * Without it the runtime falls back to the locally closed engine mapping,
+   * which fails closed for unknown engines.
+   */
+  resolveNetworkConsumer?(engineId: EngineId | undefined): NetworkConsumer;
   reportNetworkProxyFailure?(
     context: RuntimeNetworkProxyContext & { error: unknown },
   ): Promise<void> | void;

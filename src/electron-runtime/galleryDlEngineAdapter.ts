@@ -5,22 +5,25 @@ import {
   type DownloadResult,
   type EngineSupportContext,
   type ResolvedDownloadPlan,
-  type RuntimeBinaryPaths,
 } from "../core/index.js";
-import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
+import type {
+  EngineExecutionContextWithRuntime,
+  GalleryDlRuntimeDependencies,
+} from "./engineExecutionContext.js";
 import { runGalleryDlDownload } from "./galleryDlDownload.js";
 
 /**
  * Infrastructure adapter for the gallery-dl engine. Static runtime dependencies
- * (binary paths) are injected through construction; per-job execution data is
- * declared explicitly through the port generic. The adapter owns no CLI/process
- * logic itself and never widens the context it receives.
+ * (the narrowed gallery-dl set: only the gallery-dl executable) are injected
+ * through construction; per-job execution data is declared explicitly through
+ * the port generic. The adapter owns no CLI/process logic itself and never
+ * widens the context it receives.
  */
 export class GalleryDlEngineAdapter implements DownloadEngine<EngineExecutionContextWithRuntime> {
   readonly id = "gallery-dl" as const;
   readonly capabilities: DownloadCapabilities = { advancedQuality: false };
 
-  constructor(private readonly dependencies: { binaries: RuntimeBinaryPaths }) {}
+  constructor(private readonly dependencies: { binaries: GalleryDlRuntimeDependencies }) {}
 
   supports(
     plan: ResolvedDownloadPlan,
