@@ -1410,3 +1410,24 @@ Stabilized the Download Domain, formalized typed engine ports and infrastructure
 ### Status
 
 [OK] **Completed**
+
+
+## Session 240: Refactor Electron application boundary
+
+**Date**: 2026-08-10
+**Task**: Refactor Electron application boundary
+**Branch**: `main`
+
+### Summary
+
+P2: extract Electron-neutral DownloadJobService (application layer) with opaque generic Job context, single terminal outcome, at-most-one auth recovery; delegate ordinary Job slice from electron-runtime service; extract bounded download site-session integration module (refresh/cookie/auth-recovery) composed into main.mts; extend Architecture Guard to src/application; post-simplify reuse of ADVANCED_QUALITY_SUPPORTED_SITE_IDS. Full gate green: 1170 tests, type-check, lint, build, runtime smoke ok.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bdc56d8` | (see git log) |
+
+### Status
+
+[OK] **Completed**
