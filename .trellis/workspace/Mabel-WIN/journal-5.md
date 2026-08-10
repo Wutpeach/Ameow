@@ -1452,3 +1452,24 @@ Unified Renderer IPC and Extension WS download paths behind one narrow canonical
 ### Status
 
 [OK] **Completed**
+
+
+## Session 242: Complete P4 Renderer Download lifecycle ownership
+
+**Date**: 2026-08-10
+**Task**: Complete P4 Renderer Download lifecycle ownership
+**Branch**: `main`
+
+### Summary
+
+Implemented and verified the P4 Download and Download Queue feature owner, selector-derived UI state, typed terminal authority, stale-event guards, lifecycle-safe subscriptions, Advanced Quality per-trace guards, App composition, and architecture import guards; Lead Architecture Review passed and the task was archived.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8c4aa3` | (see git log) |
+
+### Status
+
+[OK] **Completed**
