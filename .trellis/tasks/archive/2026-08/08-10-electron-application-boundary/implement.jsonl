@@ -1,0 +1,5 @@
+{"file":".trellis/tasks/08-10-electron-application-boundary/research/current-electron-runtime-audit.md","reason":"Current P2 responsibility/dependency audit, invariant anchors, scope classification, and approved minimum boundary."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/01-overview.md","reason":"Shared Electron runtime compatibility rules and ownership boundaries."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/04-electron-download-command-bridge-contract.md","reason":"Existing download command bridge behavior and transport compatibility contract."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/08-electron-proxy-resolution-contract-part-04.md","reason":"P0 per-Job route identity, fallback, redaction, and engine application requirements."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/11-electron-esm-main-initialization-order-contract.md","reason":"Top-level Electron Main wiring must not introduce ESM initialization-order crashes."}
