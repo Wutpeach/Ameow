@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/08-10-p4-renderer-feature-oriented-frontend/research/current-renderer-audit.md","reason":"Verify every P4 Blocker is closed, follow-up debt remains bounded, and no optional cleanup was promoted into unnecessary scope."}
+{"file":".trellis/spec/frontend/hook-guidelines.md","reason":"Check one subscription owner, stable dependencies, deferred disposer handling, and cleanup under unmount/rerender."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check Download lifecycle has one feature owner and no derived/global/protocol snapshot duplication remains in the migrated slice."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check focused tests, maintainability, compatibility, and minimal migration against frontend quality expectations."}
+{"file":".trellis/spec/frontend/type-safety/07-electron-preload-bridge-contract-for-renderer-migration.md","reason":"Check features do not bypass the P3/preload boundary or import Electron/raw transport implementation."}
+{"file":".trellis/spec/frontend/type-safety/02-tauri-command-event-type-contract-part-02.md","reason":"Check command/event DTO decoding stays at the client boundary and typed results drive UI state."}

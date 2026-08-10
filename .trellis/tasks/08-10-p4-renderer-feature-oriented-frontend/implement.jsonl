@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/08-10-p4-renderer-feature-oriented-frontend/research/current-renderer-audit.md","reason":"Implement the approved P4 slice against the audited feature inventory, lifecycle races, ownership violations, event table, and explicitly deferred scope."}
+{"file":".trellis/spec/frontend/hook-guidelines.md","reason":"Keep the Download subscription hook deterministic, dependency-safe, and correct across setup, rerender, deferred registration, and cleanup."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Establish one feature-local lifecycle owner while keeping app-global, protocol-derived, and temporary UI state distinct."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Preserve Renderer behavior and add focused maintainable tests without broad UI or framework churn."}
+{"file":".trellis/spec/frontend/type-safety/07-electron-preload-bridge-contract-for-renderer-migration.md","reason":"Consume the established preload/desktop boundary without importing raw Electron transport or leaking generic command/event knowledge into components."}
+{"file":".trellis/spec/frontend/type-safety/02-tauri-command-event-type-contract-part-02.md","reason":"Preserve typed command/event ownership and existing Renderer migration conventions while introducing the narrow Download client."}

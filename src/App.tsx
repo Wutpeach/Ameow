@@ -1,4 +1,4 @@
-import { startTransition, useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { startTransition, useState, useEffect, useMemo, useRef, useCallback, type CSSProperties } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { CatIcon } from "./components/CatIcon";
@@ -42,20 +42,11 @@ import type {
   RuntimeDependencyStatusSnapshot,
 } from "./types/runtimeDependencies";
 import type {
-  DownloadProgressPayload,
-  DownloadResultPayload as DownloadResult,
-  DownloadStage,
-  AdvancedQualityOptionPayload,
-  QueuedVideoDownloadRequest,
-  VideoQueueDetailPayload,
-  VideoQueueStatePayload,
-  VideoQueueTaskPayload,
   VideoTranscodeCompletePayload,
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
 } from "./protocol/download/ipcTypes";
-import type { DownloadQueueAck } from "./application/download-api";
 import type {
   ErrorDiagnosticCopyRequest,
   RuntimeFailureDiagnostic,
@@ -91,8 +82,6 @@ import {
   shouldHandleDroppedFolderResult,
 } from "./utils/folderDrop";
 import {
-  EMPTY_VIDEO_QUEUE_DETAIL,
-  EMPTY_VIDEO_QUEUE_STATE,
   EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL,
   EMPTY_VIDEO_TRANSCODE_QUEUE_STATE,
   getDownloadStatusText,
@@ -106,22 +95,37 @@ import {
   shouldShowVideoTaskBadge,
 } from "./utils/downloadViewHelpers";
 import {
-  applyDownloadProgressEvent,
   applyNormalizedTranscodeProgressToDetail,
   applyNormalizedTranscodeProgressToMap,
-  applyVideoQueueStateEvent,
   applyVideoTranscodeQueueStateEvent,
   clearTranscodeProgressWhenInactive,
-  normalizeVideoQueueDetailEvent,
-  pruneCancellingTraceIdsToQueueDetail,
-  pruneDownloadProgressToQueueDetail,
-  removeDownloadProgressTrace,
   removeTranscodeProgressTrace,
   removeTranscodeTaskFromDetail,
-  resolveDownloadCompleteOutcome,
   summarizeDownloadError,
   upsertTranscodeTaskToDetail,
 } from "./utils/downloadEventReducers";
+import type { DownloadQueueAck } from "./application/download-api";
+import {
+  createDownloadQueueClient,
+  type DownloadQueueRequest,
+} from "./features/download/client";
+import {
+  selectAdvancedQualitySelectionTask,
+  selectDownloadQueueRows,
+  selectIsTaskCancelling,
+  selectPrimaryDownloadProgress,
+  selectPrimaryDownloadStage,
+  selectPrimaryDownloadTask,
+  selectRemainingDownloadCount,
+  selectTaskProgress,
+  selectTaskProgressPercent,
+  selectVisibleTaskCount,
+} from "./features/download/selectors";
+import { useDownloadQueue } from "./features/download/useDownloadQueue";
+import type {
+  AdvancedQualityOption,
+  DownloadTask,
+} from "./features/download/model";
 import { extractEmbeddedProtectedImageDragPayload } from "./utils/protectedImageDrag";
 import {
   DEFERRED_STARTUP_IDLE_CALLBACK_TIMEOUT_MS,
@@ -354,16 +358,6 @@ const extractClipboardImageFile = (clipboardData: DataTransfer | null): File | n
   return null;
 };
 
-const isPinterestDownloadRequest = (request: QueuedVideoDownloadRequest): boolean => {
-  const pinterestUrlPattern = /(?:pinterest\.|pinimg\.com\/videos\/)/i;
-  return (
-    request.siteHint === "pinterest"
-    || pinterestUrlPattern.test(request.url)
-    || pinterestUrlPattern.test(request.pageUrl ?? "")
-    || pinterestUrlPattern.test(request.videoUrl ?? "")
-  );
-};
-
 const runtimeGatePhaseNeedsAttention = (phase: RuntimeDependencyGatePhase): boolean => (
   phase === "checking"
   || phase === "awaiting_confirmation"
@@ -476,14 +470,19 @@ function App({
   const [outputPath, setOutputPath] = useState("");
   const [renameMediaOnDownload, setRenameMediaOnDownload] = useState(false);
   const [isPanelHovered, setIsPanelHovered] = useState(false);
-  const [downloadProgressByTrace, setDownloadProgressByTrace] = useState<Record<string, DownloadProgressPayload>>({});
-  const [videoQueueState, setVideoQueueState] = useState<VideoQueueStatePayload>(EMPTY_VIDEO_QUEUE_STATE);
-  const [videoQueueDetail, setVideoQueueDetail] = useState<VideoQueueDetailPayload>(EMPTY_VIDEO_QUEUE_DETAIL);
   const [videoTranscodeQueueState, setVideoTranscodeQueueState] = useState<VideoTranscodeQueueStatePayload>(EMPTY_VIDEO_TRANSCODE_QUEUE_STATE);
   const [videoTranscodeQueueDetail, setVideoTranscodeQueueDetail] = useState<VideoTranscodeQueueDetailPayload>(EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL);
   const [transcodeProgressByTrace, setTranscodeProgressByTrace] = useState<Record<string, VideoTranscodeTaskPayload>>({});
-  const [cancellingTraceIds, setCancellingTraceIds] = useState<string[]>([]);
   const [pendingTranscodeActionTraceIds, setPendingTranscodeActionTraceIds] = useState<string[]>([]);
+  const downloadClient = useMemo(
+    () => createDownloadQueueClient({ commands: desktopCommands, events: desktopEvents }),
+    [],
+  );
+  const {
+    state: downloadState,
+    actions: downloadActions,
+    onTerminal: onDownloadTerminal,
+  } = useDownloadQueue(downloadClient);
   const [queueNoticeMessage, setQueueNoticeMessage] = useState<string | null>(null);
   const [isQueuePopoverOpen, setIsQueuePopoverOpen] = useState(false);
   const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
@@ -528,7 +527,6 @@ function App({
   const panelTransitionModeResetFrameRef = useRef<number | null>(null);
   const isContextMenuOpenRef = useRef(false);
   const isDraggingRef = useRef(false);
-  const cancellingTraceIdsRef = useRef<Set<string>>(new Set());
   const pendingTranscodeActionTraceIdsRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const isPanelHoveredRef = useRef(false);
@@ -579,37 +577,11 @@ function App({
   const CONTEXT_MENU_HEIGHT = 80;
   const SETTINGS_WINDOW_WIDTH = SETTINGS_WINDOW_CONTENT_WIDTH;
   const SETTINGS_WINDOW_HEIGHT = SETTINGS_WINDOW_CONTENT_HEIGHT;
-  const totalDownloadTaskCount = videoQueueState.totalCount;
-  const downloadQueueTasks = videoQueueDetail.tasks;
-  const activeDownloadQueueTasks = downloadQueueTasks.filter((task) => task.status === "active");
-  const downloadProgressTaskCount = Object.keys(downloadProgressByTrace).length;
-  const foregroundDownloadTaskCount = Math.max(
-    totalDownloadTaskCount,
-    downloadQueueTasks.length,
-    downloadProgressTaskCount,
-  );
-  const primaryDownloadTask = activeDownloadQueueTasks[0] ?? null;
-  const primaryDownloadProgress = primaryDownloadTask
-    ? downloadProgressByTrace[primaryDownloadTask.traceId] ?? null
-    : null;
-  const downloadProgress = primaryDownloadTask
-    ? primaryDownloadTask.phase === "probing_quality" || primaryDownloadTask.phase === "selecting_quality"
-      ? {
-          traceId: primaryDownloadTask.traceId,
-          percent: -1,
-          stage: "preparing" as DownloadStage,
-          speed: "Resolving media...",
-          eta: "",
-        }
-      : primaryDownloadProgress ?? {
-          traceId: primaryDownloadTask.traceId,
-          percent: -1,
-          stage: "preparing" as DownloadStage,
-          speed: "Resolving media...",
-          eta: "",
-        }
-    : null;
-  const downloadStage = primaryDownloadProgress?.stage ?? (primaryDownloadTask ? "preparing" : null);
+  const totalDownloadTaskCount = selectVisibleTaskCount(downloadState);
+  const downloadQueueTasks = selectDownloadQueueRows(downloadState);
+  const primaryDownloadTask = selectPrimaryDownloadTask(downloadState);
+  const downloadProgress = selectPrimaryDownloadProgress(downloadState);
+  const downloadStage = selectPrimaryDownloadStage(downloadState);
   const transcodeQueueTasks = videoTranscodeQueueDetail.tasks.map((task) =>
     mergeVideoTranscodeTask(task, transcodeProgressByTrace[task.traceId]),
   );
@@ -618,7 +590,7 @@ function App({
   const primaryTranscodeTask = activeTranscodeQueueTasks[0] ?? activeTranscodeProgressTask;
   const totalTranscodeTaskCount = videoTranscodeQueueState.totalCount;
   const ongoingTranscodeTaskCount = videoTranscodeQueueState.activeCount + videoTranscodeQueueState.pendingCount;
-  const ongoingTaskCount = foregroundDownloadTaskCount + ongoingTranscodeTaskCount;
+  const ongoingTaskCount = totalDownloadTaskCount + ongoingTranscodeTaskCount;
   const totalTaskCount = totalDownloadTaskCount + totalTranscodeTaskCount;
   const runtimeGatePhase = runtimeDependencyGateState?.phase ?? "idle";
   const runtimeGateIsBusy = runtimeGateIsActive(runtimeGatePhase);
@@ -678,9 +650,9 @@ function App({
     isUiLabPreviewActive,
     appUpdatePhase,
   });
-  const remainingDownloadCount = Math.max(
-    0,
-    totalDownloadTaskCount - (primaryTask?.kind === "download" ? 1 : 0),
+  const remainingDownloadCount = selectRemainingDownloadCount(
+    downloadState,
+    primaryTask?.kind === "download",
   );
   const remainingTranscodeCount = Math.max(
     0,
@@ -818,36 +790,9 @@ function App({
     }, 2400);
   }, []);
 
-  const addCancellingTraceId = useCallback((traceId: string) => {
-    setCancellingTraceIds((current) => {
-      if (current.includes(traceId)) {
-        return current;
-      }
-      const next = [...current, traceId];
-      cancellingTraceIdsRef.current = new Set(next);
-      return next;
-    });
-  }, []);
-
-  const removeCancellingTraceId = useCallback((traceId: string) => {
-    setCancellingTraceIds((current) => {
-      if (!current.includes(traceId)) {
-        return current;
-      }
-      const next = current.filter((item) => item !== traceId);
-      cancellingTraceIdsRef.current = new Set(next);
-      return next;
-    });
-  }, []);
-
   const updateContextMenuOpen = useCallback((open: boolean) => {
     isContextMenuOpenRef.current = open;
     setIsContextMenuOpen(open);
-  }, []);
-
-  const clearCancellingTraceIds = useCallback(() => {
-    cancellingTraceIdsRef.current = new Set();
-    setCancellingTraceIds([]);
   }, []);
 
   const addPendingTranscodeActionTraceId = useCallback((traceId: string) => {
@@ -1806,35 +1751,15 @@ function App({
     return { status, gate };
   }, [refreshRuntimeDependencyGateState, refreshRuntimeDependencyStatus]);
 
-  const enqueueVideoDownload = useCallback(async (request: string | QueuedVideoDownloadRequest) => {
+  const runDownloadEnqueue = useCallback(async (
+    attempt: () => Promise<DownloadQueueAck>,
+    userUrl: string,
+  ) => {
     await prepareMainWindowForForegroundTask();
     resetDownloadOutcome();
-    const payload = typeof request === "string" ? { url: request } : request;
-    const runtimeStatusForRequest = runtimeDependencyStatus
-      ?? (await refreshRuntimeDependencyContext()).status;
-    if (isPinterestDownloadRequest(payload) && runtimeStatusForRequest?.galleryDl.state !== "ready") {
-      const missingGalleryDlMessage = summarizeDownloadError(
-        runtimeStatusForRequest?.galleryDl.error ?? "Missing managed gallery-dl runtime",
-      ) ?? "Missing managed gallery-dl runtime";
-      console.error("Cannot queue Pinterest download because gallery-dl is unavailable:", missingGalleryDlMessage);
-      const diagnostic = buildErrorDiagnosticRequest({
-        surface: "download",
-        failure: {
-          code: "E_ENGINE_UNAVAILABLE",
-          rawMessage: missingGalleryDlMessage,
-          userUrl: payload.pageUrl ?? payload.url,
-        },
-        fallbackMessage: missingGalleryDlMessage,
-      });
-      showForegroundTaskOutcome({
-        status: "error",
-        error: diagnostic.userMessage,
-        durationMs: 5000,
-        diagnostic,
-      });
-      return;
-    }
-    void desktopCommands.invoke<DownloadQueueAck>("queue_video_download", payload).catch((err) => {
+    try {
+      await attempt();
+    } catch (err) {
       console.error("Failed to queue video download:", err);
       checkSequenceOverflow(err);
       const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);
@@ -1842,7 +1767,7 @@ function App({
         surface: "download",
         failure: {
           rawMessage: fallbackMessage,
-          userUrl: payload.pageUrl ?? payload.url,
+          userUrl,
         },
         fallbackMessage,
       });
@@ -1852,62 +1777,33 @@ function App({
         durationMs: 5000,
         diagnostic,
       });
-    });
+    }
   }, [
     buildErrorDiagnosticRequest,
     prepareMainWindowForForegroundTask,
-    refreshRuntimeDependencyContext,
     resetDownloadOutcome,
-    runtimeDependencyStatus,
     showForegroundTaskOutcome,
   ]);
 
-  const enqueuePastedVideoDownload = useCallback(async (url: string) => {
-    await prepareMainWindowForForegroundTask();
-    resetDownloadOutcome();
-    void desktopCommands.invoke<DownloadQueueAck>("queue_pasted_video_download", { url }).catch((err) => {
-      console.error("Failed to queue pasted video download:", err);
-      checkSequenceOverflow(err);
-      const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);
-      const diagnostic = buildErrorDiagnosticRequest({
-        surface: "download",
-        failure: {
-          rawMessage: fallbackMessage,
-          userUrl: url,
-        },
-        fallbackMessage,
-      });
-      showForegroundTaskOutcome({
-        status: "error",
-        error: diagnostic.userMessage,
-        durationMs: 5000,
-        diagnostic,
-      });
-    });
-  }, [
-    buildErrorDiagnosticRequest,
-    prepareMainWindowForForegroundTask,
-    resetDownloadOutcome,
-    showForegroundTaskOutcome,
-  ]);
+  const enqueueVideoDownload = useCallback((request: string | DownloadQueueRequest) => {
+    const payload = typeof request === "string" ? { url: request } : request;
+    return runDownloadEnqueue(() => downloadActions.queue(payload), payload.pageUrl ?? payload.url);
+  }, [downloadActions, runDownloadEnqueue]);
+
+  const enqueuePastedVideoDownload = useCallback((url: string) => (
+    runDownloadEnqueue(() => downloadActions.queuePasted(url), url)
+  ), [downloadActions, runDownloadEnqueue]);
 
   const cancelVideoTask = useCallback(async (traceId: string) => {
-    if (!traceId || cancellingTraceIdsRef.current.has(traceId)) {
+    if (!traceId) {
       return;
     }
-
-    addCancellingTraceId(traceId);
-
     try {
-      const cancelled = await desktopCommands.invoke<boolean>("cancel_download", { traceId });
-      if (!cancelled) {
-        removeCancellingTraceId(traceId);
-      }
+      await downloadActions.cancel(traceId);
     } catch (err) {
-      removeCancellingTraceId(traceId);
       console.error("Failed to cancel download:", err);
     }
-  }, [addCancellingTraceId, removeCancellingTraceId]);
+  }, [downloadActions]);
 
   const retryTranscodeTask = useCallback(async (traceId: string) => {
     if (!traceId || pendingTranscodeActionTraceIdsRef.current.has(traceId)) {
@@ -1953,10 +1849,7 @@ function App({
     }
 
     try {
-      const accepted = await desktopCommands.invoke<boolean>("select_advanced_quality_option", {
-        traceId,
-        optionId,
-      });
+      const accepted = await downloadActions.selectQuality(traceId, optionId);
       if (!accepted) {
         console.warn("Advanced quality selection was ignored for trace:", traceId);
         return;
@@ -1965,7 +1858,7 @@ function App({
     } catch (err) {
       console.error("Failed to select advanced quality option:", err);
     }
-  }, []);
+  }, [downloadActions]);
 
   const cancelTranscodeTask = useCallback(async (traceId: string) => {
     if (!traceId || pendingTranscodeActionTraceIdsRef.current.has(traceId)) {
@@ -2196,70 +2089,53 @@ function App({
     startRuntimeDependencyBootstrap,
   ]);
 
-  // Listen for video download progress events
+  // Download lifecycle shell effects: protocol events are reduced synchronously
+  // inside the feature controller (see useDownloadQueue), so these effects can
+  // never reorder lifecycle reduction — they only run shell preparation after
+  // the reduction has already happened.
   useEffect(() => {
-    const unlistenProgress = desktopEvents.on<DownloadProgressPayload>(
-      "video-download-progress",
-      async (event) => {
-        const payload = event.payload;
-        await prepareMainWindowForForegroundTask();
-        dismissTransientCenterOverlay();
-        setDownloadProgressByTrace((current) => applyDownloadProgressEvent(current, payload));
-      }
-    );
-    const unlistenComplete = desktopEvents.on<DownloadResult>(
-      "video-download-complete",
-      (event) => {
-        console.log(">>> [Frontend] video-download-complete received:", event);
-        const payload = event.payload;
-        setDownloadProgressByTrace((current) => removeDownloadProgressTrace(current, payload.traceId));
-        const outcome = resolveDownloadCompleteOutcome(
-          payload,
-          cancellingTraceIdsRef.current.has(payload.traceId),
-        );
-        removeCancellingTraceId(payload.traceId);
-
-        if (outcome.success) {
-          showForegroundTaskOutcome({
-            status: "success",
-            error: null,
-            durationMs: 1500,
-          });
-        } else if (outcome.cancelled) {
-          showForegroundTaskOutcome({
-            status: "cancelled",
-            error: outcome.errorSummary,
-            durationMs: 1500,
-          });
-        } else {
-          const fallbackMessage = payload.error ?? outcome.errorSummary ?? "Unknown download error";
-          const diagnostic = buildErrorDiagnosticRequest({
-            surface: "download",
-            traceId: payload.traceId,
-            failure: payload.failure ?? { rawMessage: fallbackMessage },
-            fallbackMessage,
-          });
-          showForegroundTaskOutcome({
-            status: "error",
-            error: diagnostic.userMessage,
-            durationMs: 5000,
-            diagnostic,
-          });
-        }
-        if (!outcome.success) {
-          console.error(">>> [Frontend] Video download failed:", payload?.error ?? "Unknown error");
-        }
-      }
-    );
-    return () => {
-      unlistenProgress.then(fn => fn());
-      unlistenComplete.then(fn => fn());
-    };
+    if (Object.keys(downloadState.progressByTrace).length === 0) {
+      return;
+    }
+    void prepareMainWindowForForegroundTask();
+    dismissTransientCenterOverlay();
   }, [
-    buildErrorDiagnosticRequest,
     dismissTransientCenterOverlay,
+    downloadState.progressByTrace,
     prepareMainWindowForForegroundTask,
-    removeCancellingTraceId,
+  ]);
+
+  useEffect(() => onDownloadTerminal((outcome) => {
+    if (outcome.kind === "success") {
+      showForegroundTaskOutcome({
+        status: "success",
+        error: null,
+        durationMs: 1500,
+      });
+    } else if (outcome.kind === "cancelled") {
+      showForegroundTaskOutcome({
+        status: "cancelled",
+        error: outcome.errorSummary,
+        durationMs: 1500,
+      });
+    } else {
+      const fallbackMessage = outcome.errorSummary ?? "Unknown download error";
+      const diagnostic = buildErrorDiagnosticRequest({
+        surface: "download",
+        traceId: outcome.traceId,
+        failure: outcome.failure ?? { rawMessage: fallbackMessage },
+        fallbackMessage,
+      });
+      showForegroundTaskOutcome({
+        status: "error",
+        error: diagnostic.userMessage,
+        durationMs: 5000,
+        diagnostic,
+      });
+    }
+  }), [
+    buildErrorDiagnosticRequest,
+    onDownloadTerminal,
     showForegroundTaskOutcome,
   ]);
 
@@ -2319,10 +2195,7 @@ function App({
 
       pendingTranscodeActionTraceIdsRef.current = new Set();
       setPendingTranscodeActionTraceIds([]);
-      setDownloadProgressByTrace({});
-      setVideoQueueState(EMPTY_VIDEO_QUEUE_STATE);
-      setVideoQueueDetail(EMPTY_VIDEO_QUEUE_DETAIL);
-      clearCancellingTraceIds();
+      downloadActions.reset();
       setVideoTranscodeQueueState(EMPTY_VIDEO_TRANSCODE_QUEUE_STATE);
       setVideoTranscodeQueueDetail(EMPTY_VIDEO_TRANSCODE_QUEUE_DETAIL);
       setTranscodeProgressByTrace({});
@@ -2338,7 +2211,7 @@ function App({
       }
     });
     return () => { unlisten.then(fn => fn()); };
-  }, [clearCancellingTraceIds, ensureMainWindowFullMode, refreshRuntimeDependencyContext, resetDownloadOutcome]);
+  }, [downloadActions, ensureMainWindowFullMode, refreshRuntimeDependencyContext, resetDownloadOutcome]);
 
   // Listen for rename toggle changes from settings window
   useEffect(() => {
@@ -2446,41 +2319,17 @@ function App({
     void refreshRuntimeDependencyContext();
   }, [refreshRuntimeDependencyContext, runtimeDependencyGateState?.phase, totalTaskCount]);
 
+  // A selecting-quality task appearing opens the queue popover, same as the
+  // legacy queue-detail handler. Tracked by task identity so later progress or
+  // snapshot events cannot re-open a popover the user closed.
+  const lastAdvancedQualityTaskIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const unlisten = desktopEvents.on<VideoQueueStatePayload>("video-queue-count", (event) => {
-      const { state, shouldClearCancellingTraceIds } = applyVideoQueueStateEvent(event.payload);
-      setVideoQueueState(state);
-      if (shouldClearCancellingTraceIds) {
-        clearCancellingTraceIds();
-      }
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, [clearCancellingTraceIds]);
-
-  useEffect(() => {
-    const unlisten = desktopEvents.on<VideoQueueDetailPayload>("video-queue-detail", (event) => {
-      const detail = normalizeVideoQueueDetailEvent(event.payload);
-      setVideoQueueDetail(detail);
-      if (detail.tasks.some((task) => task.phase === "selecting_quality")) {
-        setIsQueuePopoverOpen(true);
-      }
-      // Detail reflects the task list the UI is actually rendering, so reconcile progress here
-      // instead of clearing it on count events that may arrive slightly earlier.
-      setDownloadProgressByTrace((current) =>
-        pruneDownloadProgressToQueueDetail(current, detail)
-      );
-      setCancellingTraceIds((current) => {
-        const next = pruneCancellingTraceIdsToQueueDetail(current, detail);
-        if (next.length === current.length) {
-          return current;
-        }
-        // Keep the synchronous ref aligned with the pruned state; completion events read this ref.
-        cancellingTraceIdsRef.current = new Set(next);
-        return next;
-      });
-    });
-    return () => { unlisten.then(fn => fn()); };
-  }, []);
+    const taskId = selectAdvancedQualitySelectionTask(downloadState)?.traceId ?? null;
+    if (taskId !== null && taskId !== lastAdvancedQualityTaskIdRef.current) {
+      setIsQueuePopoverOpen(true);
+    }
+    lastAdvancedQualityTaskIdRef.current = taskId;
+  }, [downloadState]);
 
   useEffect(() => {
     const unlistenCount = desktopEvents.on<VideoTranscodeQueueStatePayload>("video-transcode-queue-count", (event) => {
@@ -4078,12 +3927,12 @@ function App({
     });
   })();
   const isPrimaryTaskActionPending = primaryTask?.kind === "download"
-    ? cancellingTraceIds.includes(primaryTask.task.traceId)
+    ? selectIsTaskCancelling(downloadState, primaryTask.task.traceId)
     : primaryTask?.kind === "transcode"
       ? pendingTranscodeActionTraceIds.includes(primaryTask.task.traceId)
       : false;
-  const getDownloadQueueTaskProgressText = (task: VideoQueueTaskPayload): string => {
-    if (cancellingTraceIds.includes(task.traceId)) {
+  const getDownloadQueueTaskProgressText = (task: DownloadTask): string => {
+    if (selectIsTaskCancelling(downloadState, task.traceId)) {
       return t("app.queue.cancelling");
     }
     if (task.phase === "probing_quality") {
@@ -4095,7 +3944,7 @@ function App({
     if (task.status === "pending") {
       return t("app.queue.waiting");
     }
-    const progress = downloadProgressByTrace[task.traceId];
+    const progress = selectTaskProgress(downloadState, task.traceId);
     if (!progress) {
       return t("app.downloadStage.preparing");
     }
@@ -4107,22 +3956,8 @@ function App({
           status: statusText,
         });
   };
-  const getDownloadQueueTaskProgressPercent = (task: VideoQueueTaskPayload): number => {
-    if (task.phase === "selecting_quality") {
-      return 100;
-    }
-    if (task.phase === "probing_quality") {
-      return 18;
-    }
-    if (task.status !== "active") {
-      return 8;
-    }
-    const progress = downloadProgressByTrace[task.traceId];
-    if (!progress || progress.percent < 0) {
-      return 18;
-    }
-    return Math.max(8, Math.min(100, progress.percent));
-  };
+  const getDownloadQueueTaskProgressPercent = (task: DownloadTask): number =>
+    selectTaskProgressPercent(downloadState, task);
   const primaryTaskStatusText = primaryTask
     ? primaryTask.statusText
     : "";
@@ -4138,15 +3973,13 @@ function App({
             transcodeCount: remainingTranscodeCount,
         })
           : "";
-  const advancedQualitySelectionTask = downloadQueueTasks.find((task) => (
-    task.phase === "selecting_quality" && Boolean(task.qualityOptions?.length)
-  )) ?? null;
+  const advancedQualitySelectionTask = selectAdvancedQualitySelectionTask(downloadState);
   const isAdvancedQualitySelectionPopover = isQueuePopoverOpen && advancedQualitySelectionTask !== null;
-  const getAdvancedQualityTaskTitle = (task: VideoQueueTaskPayload): string => (
+  const getAdvancedQualityTaskTitle = (task: DownloadTask): string => (
     task.videoTitle?.trim() || task.label
   );
   const getAdvancedQualityPostProcessBadge = (
-    option: AdvancedQualityOptionPayload,
+    option: AdvancedQualityOption,
   ): string | null => {
     if (option.postProcessPlan === "remux_only") {
       return "封装";
@@ -4157,8 +3990,8 @@ function App({
     return null;
   };
   const renderAdvancedQualityOptionButton = (
-    task: VideoQueueTaskPayload,
-    option: AdvancedQualityOptionPayload,
+    task: DownloadTask,
+    option: AdvancedQualityOption,
     density: "popover" | "inline",
   ) => {
     const hoverKey = `${task.traceId}:${option.id}:${density}`;
@@ -4833,7 +4666,7 @@ function App({
                       </div>
 
                       {downloadQueueTasks.map((task) => {
-                        const isTaskCancelling = cancellingTraceIds.includes(task.traceId);
+                        const isTaskCancelling = selectIsTaskCancelling(downloadState, task.traceId);
                         return (
                           <div
                             key={task.traceId}

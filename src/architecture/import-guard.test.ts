@@ -245,3 +245,218 @@ describe("runtime-neutral import guard", () => {
     )).toEqual([`src/core/fake.ts imports "electron" (forbidden package)`]);
   });
 });
+
+/**
+ * P4 feature boundary guard. Renderer features (`src/features/**`) own their
+ * lifecycle and UI state; they must never depend on Electron, the project
+ * `electron/` host, `src/electron-runtime` implementations, Domain/Engine
+ * infrastructure (`src/core`, `src/engines`, `src/download-capabilities`), or
+ * another feature's internal paths. Top-level feature files are the explicit
+ * public surface for app-level composition.
+ *
+ * Download `model`/`reducer`/`selectors` additionally must not import
+ * `src/protocol` or desktop runtime modules (`src/desktop`): protocol DTOs
+ * stop at the concrete client adapter and never become feature state.
+ */
+
+const FEATURES_ROOT = path.join(srcRoot, "features");
+
+const FEATURE_FORBIDDEN_SRC_DIRS = ["core", "engines", "download-capabilities", "electron-runtime"];
+
+const DOWNLOAD_STATE_MODULES = [
+  "src/features/download/model.ts",
+  "src/features/download/reducer.ts",
+  "src/features/download/selectors.ts",
+];
+
+const DOWNLOAD_STATE_FORBIDDEN_SRC_DIRS = ["protocol", "desktop", "electron-runtime"];
+
+const featureDirOf = (file: string): string | null => {
+  const relative = path.relative(FEATURES_ROOT, file).replace(/\\/g, "/");
+  const firstSegment = relative.split("/")[0];
+  return firstSegment && firstSegment !== ".." ? firstSegment : null;
+};
+
+/**
+ * Scans one feature file for imports that would pull Electron, the runtime
+ * implementation, Domain/Engine infrastructure, or another feature's internal
+ * paths into the feature layer. Exported so the guard logic is provable
+ * against representative specifiers.
+ */
+export const collectFeatureImportViolations = (
+  source: string,
+  file: string,
+): string[] => {
+  const violations: string[] = [];
+  const featureDir = featureDirOf(file);
+
+  for (const match of source.matchAll(IMPORT_PATTERN)) {
+    const specifier = (match[1] ?? match[2]).trim();
+    if (!specifier) {
+      continue;
+    }
+
+    // Bare Electron package imports.
+    if (FORBIDDEN_PACKAGE_PREFIXES.some((prefix) => (
+      specifier === prefix || specifier.startsWith(`${prefix}/`)
+    ))) {
+      violations.push(`${toRepoRelative(file)} imports "${specifier}" (forbidden package)`);
+      continue;
+    }
+
+    // Cross-feature internal imports are banned; top-level feature files are
+    // the explicit public surface for app-level composition. Checked at
+    // specifier level so it also covers not-yet-existing targets (only one
+    // feature exists today, so it cannot fire on real code).
+    if (featureDir && specifier.startsWith(".")) {
+      const unresolvedTarget = toRepoRelative(path.resolve(path.dirname(file), specifier));
+      const otherFeaturePrefix = unresolvedTarget.startsWith("src/features/")
+        ? `src/features/${unresolvedTarget.slice("src/features/".length).split("/")[0]}/`
+        : null;
+      const remainder = otherFeaturePrefix && unresolvedTarget.startsWith(otherFeaturePrefix)
+        ? unresolvedTarget.slice(otherFeaturePrefix.length)
+        : null;
+      if (remainder !== null && remainder.includes("/")) {
+        violations.push(`${toRepoRelative(file)} imports "${specifier}" -> forbidden target ${unresolvedTarget}`);
+      }
+    }
+
+    const target = resolveSpecifierTarget(file, specifier);
+    if (!target) {
+      continue;
+    }
+    const repoRelative = toRepoRelative(target);
+
+    // Project `electron/` directory modules (electron/main.mts etc.).
+    if (repoRelative === FORBIDDEN_PROJECT_DIR || repoRelative.startsWith(`${FORBIDDEN_PROJECT_DIR}/`)) {
+      violations.push(describeViolation(file, specifier, target));
+      continue;
+    }
+
+    // Infrastructure/Domain/Engine and runtime implementation directories.
+    if (FEATURE_FORBIDDEN_SRC_DIRS.some((forbidden) => (
+      repoRelative === `src/${forbidden}` || repoRelative.startsWith(`src/${forbidden}/`)
+    ))) {
+      violations.push(describeViolation(file, specifier, target));
+      continue;
+    }
+  }
+
+  return violations;
+};
+
+const scanFeaturesDir = (): string[] => {
+  const violations: string[] = [];
+  for (const file of collectSourceFiles(FEATURES_ROOT)) {
+    violations.push(...collectFeatureImportViolations(readFileSync(file, "utf8"), file));
+  }
+  return violations;
+};
+
+/**
+ * Scans the Download lifecycle state modules for protocol/desktop runtime
+ * imports. These files must stay protocol-free so DTOs never become
+ * long-lived feature state.
+ */
+export const collectDownloadStateViolations = (source: string, file: string): string[] => {
+  const violations: string[] = [];
+  for (const match of source.matchAll(IMPORT_PATTERN)) {
+    const specifier = (match[1] ?? match[2]).trim();
+    if (!specifier) {
+      continue;
+    }
+    const target = resolveSpecifierTarget(file, specifier);
+    if (!target) {
+      continue;
+    }
+    const repoRelative = toRepoRelative(target);
+    if (DOWNLOAD_STATE_FORBIDDEN_SRC_DIRS.some((forbidden) => (
+      repoRelative === `src/${forbidden}` || repoRelative.startsWith(`src/${forbidden}/`)
+    ))) {
+      violations.push(describeViolation(file, specifier, target));
+    }
+  }
+  return violations;
+};
+
+describe("P4 feature import guard", () => {
+  it("keeps all feature files free of Electron, runtime, and Domain/Engine imports", () => {
+    const violations = scanFeaturesDir();
+    expect(violations, [
+      "Feature files must not depend on Electron, electron-runtime, or Domain/Engine infrastructure.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
+  it("keeps Download model/reducer/selectors free of protocol and desktop runtime imports", () => {
+    const violations: string[] = [];
+    for (const relative of DOWNLOAD_STATE_MODULES) {
+      const file = path.join(repoRoot, relative);
+      violations.push(...collectDownloadStateViolations(readFileSync(file, "utf8"), file));
+    }
+    expect(violations, [
+      "Download model/reducer/selectors must not import src/protocol or desktop runtime modules.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
+  it("flags representative forbidden feature specifiers in real repo spellings", () => {
+    const featureFile = path.join(srcRoot, "features", "download", "fake.ts");
+    const flag = (source: string, expectedTarget: string): void => {
+      const violations = collectFeatureImportViolations(source, featureFile);
+      expect(violations, `expected a violation for ${expectedTarget}`).toHaveLength(1);
+      expect(violations[0]).toContain(expectedTarget);
+    };
+
+    flag('import { app } from "electron";', "forbidden package");
+    flag(
+      'import { runYtDlpDownload } from "../../electron-runtime/ytDlpDownload.js";',
+      "src/electron-runtime/ytDlpDownload.ts",
+    );
+    flag(
+      'import { bootstrapMain } from "../../../electron/main.mts";',
+      "electron/main.mts",
+    );
+    // Domain (src/core) and Engine (src/engines) infrastructure.
+    flag(
+      'import { isVideoUrl } from "../../core/video-candidate-normalization.js";',
+      "src/core/video-candidate-normalization.ts",
+    );
+    flag(
+      'import { selectEngine } from "../../engines/engine-registry.js";',
+      "src/engines/engine-registry.ts",
+    );
+    // Downloader infrastructure.
+    flag(
+      'import { probeDownloader } from "../../download-capabilities/probe.js";',
+      "src/download-capabilities/probe.ts",
+    );
+    // Another feature's internal path is banned; top-level feature files stay allowed.
+    flag(
+      'import { useTranscode } from "../transcode/components/useTranscode.js";',
+      "src/features/transcode/components/useTranscode.js",
+    );
+    expect(collectFeatureImportViolations(
+      'import { useTranscode } from "../transcode/useTranscode.js";',
+      featureFile,
+    )).toEqual([]);
+  });
+
+  it("flags protocol/desktop imports in Download lifecycle state modules", () => {
+    const stateFile = path.join(srcRoot, "features", "download", "model.ts");
+    const flag = (source: string, expectedTarget: string): void => {
+      const violations = collectDownloadStateViolations(source, stateFile);
+      expect(violations, `expected a violation for ${expectedTarget}`).toHaveLength(1);
+      expect(violations[0]).toContain(expectedTarget);
+    };
+
+    flag(
+      'import type { VideoQueueDetailPayload } from "../../protocol/download/ipcTypes.js";',
+      "src/protocol/download/ipcTypes.ts",
+    );
+    flag(
+      'import { desktopEvents } from "../../desktop/runtime.js";',
+      "src/desktop/runtime.ts",
+    );
+  });
+});
