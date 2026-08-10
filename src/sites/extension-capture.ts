@@ -10,12 +10,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 export const readAmeowCaptureEvidence = (
   input: RawDownloadInput,
 ): AmeowCaptureEvidenceV1 | undefined => {
-  const ameowCapture = input.extensionData?.ameowCapture;
-  if (!isRecord(ameowCapture) || ameowCapture.version !== 1) {
+  // P3: the transport compatibility decoder maps the Extension
+  // `extensionData.ameowCapture` container into the canonical
+  // `captureEvidence` field; Sites must not read the Extension container shape.
+  const captureEvidence = input.captureEvidence;
+  if (!isRecord(captureEvidence) || captureEvidence.version !== 1) {
     return undefined;
   }
 
-  return ameowCapture as AmeowCaptureEvidenceV1;
+  return captureEvidence as AmeowCaptureEvidenceV1;
 };
 
 export const readCaptureContentId = (

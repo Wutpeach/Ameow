@@ -31,6 +31,14 @@ export type RawDownloadInput = {
   advancedQualityRequest?: boolean;
   advancedQualitySelector?: string;
   advancedQualityLabel?: string;
+  /**
+   * Transport-neutral capture evidence (canonical). The transport
+   * compatibility decoder maps the Extension `extensionData.ameowCapture`
+   * container into this field; Sites must not read the container shape.
+   */
+  captureEvidence?: AmeowCaptureEvidenceV1;
+  // Legacy compatibility fields accepted by the core schema but no longer
+  // populated by protocol decoders; see follow-up debt.
   extensionData?: DownloadExtensionData;
   diagnostics?: Record<string, unknown>;
 };

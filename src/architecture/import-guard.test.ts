@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
  * Architecture regression guard: Domain (`src/core`) and Application
  * (`src/orchestration`, `src/engines`, `src/sites`) must stay runtime-neutral
  * and may never import Electron, project Electron modules, `src/electron-runtime`
- * implementations, or renderer/protocol payload modules (`src/types`).
- * Infrastructure may import Domain/Application, never the reverse.
+ * implementations, or renderer/protocol payload modules (`src/types`,
+ * `src/protocol`). Infrastructure may import Domain/Application, never the
+ * reverse.
  *
  * This is a static import-scan test because ESLint `no-restricted-imports`
  * cannot reliably match the relative specifier spellings used across depths.
@@ -23,7 +24,7 @@ const GUARDED_DIRS = ["core", "orchestration", "engines", "sites", "application"
 
 const FORBIDDEN_PACKAGE_PREFIXES = ["electron"];
 
-const FORBIDDEN_SRC_DIRS = ["electron-runtime", "types"];
+const FORBIDDEN_SRC_DIRS = ["electron-runtime", "types", "protocol"];
 
 const FORBIDDEN_PROJECT_DIR = "electron";
 
@@ -215,8 +216,27 @@ describe("runtime-neutral import guard", () => {
     );
     // `.js` specifier pointing at renderer/protocol payload modules.
     flag(
-      'import type { VideoQueueDetailPayload } from "../types/videoRuntime.js";',
-      "src/types/videoRuntime.ts",
+      'import type { VideoQueueDetailPayload } from "../types/electronBridge.js";',
+      "src/types/electronBridge.ts",
+    );
+    // `.js` specifier pointing at the protocol download DTOs.
+    flag(
+      'import type { VideoQueueDetailPayload } from "../protocol/download/ipcTypes.js";',
+      "src/protocol/download/ipcTypes.ts",
+    );
+    // `.js` specifier pointing at the protocol compatibility mappers.
+    flag(
+      'import { decodeQueueDownloadCommand } from "../protocol/download/ipcMappers.js";',
+      "src/protocol/download/ipcMappers.ts",
+    );
+    // Project Electron download adapters.
+    flag(
+      'import { createDownloadIpcAdapter } from "../../electron/downloadIpcAdapter.mts";',
+      "electron/downloadIpcAdapter.mts",
+    );
+    flag(
+      'import { createDownloadWsAdapter } from "../../electron/downloadWsAdapter.mts";',
+      "electron/downloadWsAdapter.mts",
     );
     // Bare Electron package import; node built-ins stay allowed.
     expect(collectRuntimeImportViolations(

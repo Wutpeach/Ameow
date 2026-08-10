@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildVideoSelectedV2QueuePayload,
-  createVideoDownloadCommandBridge,
-} from "./videoDownloadCommands.mjs";
+import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
 import type { ElectronDownloadRuntime } from "../src/electron-runtime/index.js";
-import type { ExtensionRequestBridge } from "./extensionRequestBridge.mjs";
 
 const readyStatus = {
   state: "ready",
@@ -15,9 +11,9 @@ const readyStatus = {
 } as const;
 
 const createRuntimeStub = (): ElectronDownloadRuntime & {
-  queueVideoDownload: ReturnType<typeof vi.fn>;
-  selectAdvancedQualityOption: ReturnType<typeof vi.fn>;
-  cancelDownload: ReturnType<typeof vi.fn>;
+  cancelTranscode: ReturnType<typeof vi.fn>;
+  retryTranscode: ReturnType<typeof vi.fn>;
+  removeTranscode: ReturnType<typeof vi.fn>;
 } => ({
   maxConcurrent: 3,
   getRuntimeDependencyStatus: vi.fn(() => ({
@@ -41,12 +37,11 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
   })),
   refreshRuntimeDependencyGateState: vi.fn(),
   startRuntimeDependencyBootstrap: vi.fn(),
-  queueVideoDownload: vi.fn(async (request) => ({
-    accepted: true,
-    traceId: request.url,
-  })),
-  selectAdvancedQualityOption: vi.fn(async () => true),
-  cancelDownload: vi.fn(async () => true),
+  queueDownload: vi.fn(),
+  queuePastedDownload: vi.fn(),
+  queueVideoDownload: vi.fn(),
+  selectAdvancedQualityOption: vi.fn(),
+  cancelDownload: vi.fn(),
   cancelTranscode: vi.fn(async () => false),
   retryTranscode: vi.fn(async () => false),
   removeTranscode: vi.fn(async () => false),
@@ -67,273 +62,88 @@ const createRuntimeStub = (): ElectronDownloadRuntime & {
   getTranscodeQueueDetail: vi.fn(() => ({ tasks: [] })),
 });
 
-const createExtensionBridgeStub = (
-  resolution: Parameters<ExtensionRequestBridge["requestPastedVideoSelectionResolution"]>[0] | null,
-): ExtensionRequestBridge & {
-  requestPastedVideoSelectionResolution: ReturnType<typeof vi.fn>;
-} => ({
-  requestPastedVideoSelectionResolution: vi.fn(async () => {
-    if (!resolution) {
-      throw new Error("Browser extension is not connected");
-    }
-    return {
-      success: true,
-      videoCandidates: [],
-      ...resolution,
-    };
-  }),
-  handlePastedVideoSelectionResult: vi.fn(),
-});
-
-const createBridge = (
-  runtime = createRuntimeStub(),
-  extensionBridge: ExtensionRequestBridge = createExtensionBridgeStub(null),
-) => createVideoDownloadCommandBridge({
+const createBridge = (runtime = createRuntimeStub()) => createVideoDownloadCommandBridge({
   runtime,
-  extensionBridge,
-  readConfigObject: vi.fn(async () => ({ defaultVideoDownloadQuality: "balanced" })),
   getRuntimeDependencyStatus: vi.fn(),
   getRuntimeDependencyGateState: vi.fn(),
   refreshRuntimeDependencyGateState: vi.fn(),
   startRuntimeDependencyBootstrap: vi.fn(),
-  checkYtdlpVersion: vi.fn(),
-  getGalleryDlInfo: vi.fn(),
-  logInjectedDebug: vi.fn(),
+  checkYtdlpVersion: vi.fn(async () => ({ version: "2026.1.1" })),
+  getGalleryDlInfo: vi.fn(async () => ({ version: "v1.28.0" })),
 });
 
-describe("createVideoDownloadCommandBridge", () => {
-  it("dispatches normal queue requests through the runtime router", async () => {
+describe("createVideoDownloadCommandBridge (operational download-adjacent commands)", () => {
+  it("dispatches cancel_transcode with the trace id", async () => {
     const runtime = createRuntimeStub();
     const bridge = createBridge(runtime);
 
-    await bridge.invoke("queue_video_download", {
-      url: "https://www.youtube.com/watch?v=abc123",
-      page_url: "https://www.youtube.com/watch?v=abc123",
-    });
+    await bridge.invoke("cancel_transcode", { traceId: "trace-1" });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-      videoQuality: "balanced",
-    }));
+    expect(runtime.cancelTranscode).toHaveBeenCalledWith("trace-1");
   });
 
-  it("preserves injected clip ranges when queueing video downloads", async () => {
+  it("normalizes snake_case transcode payloads", async () => {
     const runtime = createRuntimeStub();
     const bridge = createBridge(runtime);
 
-    await bridge.invoke("queue_video_download", {
-      url: "https://www.youtube.com/watch?v=clip123",
-      pageUrl: "https://www.youtube.com/watch?v=clip123",
-      siteHint: "youtube",
-      selectionScope: "current_item",
-      clipStartSec: 35.25,
-      clipEndSec: 48.75,
-    });
+    await bridge.invoke("retry_transcode", { trace_id: "trace-2" });
+    await bridge.invoke("remove_transcode", { trace_id: "trace-3" });
 
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=clip123",
-      pageUrl: "https://www.youtube.com/watch?v=clip123",
-      siteHint: "youtube",
-      selectionScope: "current_item",
-      clipStartSec: 35.25,
-      clipEndSec: 48.75,
-      videoQuality: "balanced",
-    }));
+    expect(runtime.retryTranscode).toHaveBeenCalledWith("trace-2");
+    expect(runtime.removeTranscode).toHaveBeenCalledWith("trace-3");
   });
 
-  it("uses extension-assisted pasted payloads before queueing", async () => {
-    const runtime = createRuntimeStub();
-    const extensionBridge = createExtensionBridgeStub({
-      url: "https://www.youtube.com/watch?v=resolved",
-      pageUrl: "https://www.youtube.com/watch?v=resolved",
-      siteHint: "youtube",
+  it("dispatches runtime dependency queries to the injected handlers", async () => {
+    const getRuntimeDependencyStatus = vi.fn(() => ({ phase: "ready" }));
+    const getRuntimeDependencyGateState = vi.fn(() => ({ phase: "ready" }));
+    const refreshRuntimeDependencyGateState = vi.fn(() => ({ phase: "ready" }));
+    const bridge = createVideoDownloadCommandBridge({
+      runtime: createRuntimeStub(),
+      getRuntimeDependencyStatus,
+      getRuntimeDependencyGateState,
+      refreshRuntimeDependencyGateState,
+      startRuntimeDependencyBootstrap: vi.fn(),
+      checkYtdlpVersion: vi.fn(),
+      getGalleryDlInfo: vi.fn(),
     });
-    const bridge = createBridge(runtime, extensionBridge);
 
-    await bridge.invoke("queue_pasted_video_download", {
-      url: "https://www.youtube.com/watch?v=abc123",
-    });
+    await bridge.invoke("get_runtime_dependency_status");
+    await bridge.invoke("get_runtime_dependency_gate_state");
+    await bridge.invoke("refresh_runtime_dependency_gate_state");
 
-    expect(extensionBridge.requestPastedVideoSelectionResolution).toHaveBeenCalledWith({
-      url: "https://www.youtube.com/watch?v=abc123",
-      pageUrl: "https://www.youtube.com/watch?v=abc123",
-      siteHint: "youtube",
-    });
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=resolved",
-      pageUrl: "https://www.youtube.com/watch?v=resolved",
-      siteHint: "youtube",
-    }));
+    expect(getRuntimeDependencyStatus).toHaveBeenCalledTimes(1);
+    expect(getRuntimeDependencyGateState).toHaveBeenCalledTimes(1);
+    expect(refreshRuntimeDependencyGateState).toHaveBeenCalledTimes(1);
   });
 
-  it("queues pasted Douyin URLs directly without requesting extension assistance", async () => {
-    const runtime = createRuntimeStub();
-    const extensionBridge = createExtensionBridgeStub(null);
-    const bridge = createBridge(runtime, extensionBridge);
-
-    await bridge.invoke("queue_pasted_video_download", {
-      url: "https://v.douyin.com/5qqlazbdEoU/",
+  it("dispatches downloader version/info queries", async () => {
+    const checkYtdlpVersion = vi.fn(async () => ({ version: "2026.1.1" }));
+    const getGalleryDlInfo = vi.fn(async () => ({ version: "v1.28.0" }));
+    const bridge = createVideoDownloadCommandBridge({
+      runtime: createRuntimeStub(),
+      getRuntimeDependencyStatus: vi.fn(),
+      getRuntimeDependencyGateState: vi.fn(),
+      refreshRuntimeDependencyGateState: vi.fn(),
+      startRuntimeDependencyBootstrap: vi.fn(),
+      checkYtdlpVersion,
+      getGalleryDlInfo,
     });
 
-    expect(extensionBridge.requestPastedVideoSelectionResolution).not.toHaveBeenCalled();
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://v.douyin.com/5qqlazbdEoU/",
-      siteHint: "douyin",
-      videoQuality: "balanced",
-    }));
+    await bridge.invoke("check_ytdlp_version");
+    await bridge.invoke("get_gallery_dl_info");
+
+    expect(checkYtdlpVersion).toHaveBeenCalledTimes(1);
+    expect(getGalleryDlInfo).toHaveBeenCalledTimes(1);
   });
 
-  it("queues pasted Xiaohongshu URLs directly without requesting extension assistance", async () => {
-    const runtime = createRuntimeStub();
-    const extensionBridge = createExtensionBridgeStub({
-      url: "https://www.xiaohongshu.com/explore/resolved",
-      siteHint: "xiaohongshu",
-    });
-    const bridge = createBridge(runtime, extensionBridge);
+  it("does not claim ordinary download commands (owned by the IPC adapter)", async () => {
+    const bridge = createBridge();
 
-    await bridge.invoke("queue_pasted_video_download", {
-      url: "https://www.xiaohongshu.com/explore/abc123",
-    });
-
-    expect(extensionBridge.requestPastedVideoSelectionResolution).not.toHaveBeenCalled();
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.xiaohongshu.com/explore/abc123",
-      siteHint: "xiaohongshu",
-      videoQuality: "balanced",
-    }));
-  });
-
-  it("falls back to the original pasted URL when extension assistance fails", async () => {
-    const runtime = createRuntimeStub();
-    const bridge = createBridge(runtime, createExtensionBridgeStub(null));
-
-    await bridge.invoke("queue_pasted_video_download", {
-      url: "https://www.youtube.com/watch?v=abc123",
-    });
-
-    expect(runtime.queueVideoDownload).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.youtube.com/watch?v=abc123",
-    }));
-  });
-
-  it("dispatches cancel requests to the runtime", async () => {
-    const runtime = createRuntimeStub();
-    const bridge = createBridge(runtime);
-
-    await expect(bridge.invoke("cancel_download", { traceId: "trace-1" })).resolves.toBe(true);
-
-    expect(runtime.cancelDownload).toHaveBeenCalledWith("trace-1");
-  });
-
-  it("dispatches advanced quality selections to the runtime", async () => {
-    const runtime = createRuntimeStub();
-    const bridge = createBridge(runtime);
-
-    await expect(
-      bridge.invoke("select_advanced_quality_option", {
-        traceId: "trace-1",
-        optionId: "height_1080",
-      }),
-    ).resolves.toBe(true);
-
-    expect(runtime.selectAdvancedQualityOption).toHaveBeenCalledWith("trace-1", "height_1080");
-  });
-});
-
-describe("buildVideoSelectedV2QueuePayload", () => {
-  it("preserves injected clip range fields when building the queue payload", () => {
-    expect(buildVideoSelectedV2QueuePayload({
-      url: "https://www.youtube.com/watch?v=clip123",
-      pageUrl: "https://www.youtube.com/watch?v=clip123&t=35s",
-      siteHint: "youtube",
-      title: "Clip candidate",
-      selectionScope: "current_item",
-      clipStartSec: 35.25,
-      clipEndSec: 48.75,
-      extensionData: {
-        youtube: {
-          source: "injected",
-        },
-      },
-      videoQuality: "best",
-    })).toMatchObject({
-      url: "https://www.youtube.com/watch?v=clip123",
-      pageUrl: "https://www.youtube.com/watch?v=clip123&t=35s",
-      siteHint: "youtube",
-      title: "Clip candidate",
-      selectionScope: "current_item",
-      clipStartSec: 35.25,
-      clipEndSec: 48.75,
-      extensionData: {
-        youtube: {
-          source: "injected",
-        },
-      },
-      videoQuality: "best",
-    });
-  });
-
-  it("preserves snake_case extension metadata when building the queue payload", () => {
-    expect(buildVideoSelectedV2QueuePayload({
-      url: "https://www.youtube.com/watch?v=pasted123",
-      extension_data: {
-        youtube: {
-          source: "pasted",
-        },
-      },
-    })).toMatchObject({
-      url: "https://www.youtube.com/watch?v=pasted123",
-      extensionData: {
-        youtube: {
-          source: "pasted",
-        },
-      },
-    });
-  });
-
-  it("lets synced quality override incoming video selection quality", () => {
-    expect(buildVideoSelectedV2QueuePayload(
-      {
-        url: "https://www.bilibili.com/video/BV1xx411c7mD",
-        videoQuality: "best",
-      },
-      { videoQuality: "balanced" },
-    )).toMatchObject({
-      url: "https://www.bilibili.com/video/BV1xx411c7mD",
-      videoQuality: "balanced",
-    });
-  });
-
-  it("preserves advanced quality request when building the queue payload", () => {
-    expect(buildVideoSelectedV2QueuePayload({
-      url: "https://www.youtube.com/watch?v=abc123",
-      advancedQualityRequest: true,
-    })).toMatchObject({
-      url: "https://www.youtube.com/watch?v=abc123",
-      advancedQualityRequest: true,
-    });
-  });
-
-  it("preserves explicit selected video variants when building the queue payload", () => {
-    expect(buildVideoSelectedV2QueuePayload({
-      url: "https://weibo.com/detail/N12345",
-      pageUrl: "https://weibo.com/detail/N12345",
-      siteHint: "weibo",
-      selectedVideoVariant: {
-        url: "https://f.video.weibocdn.com/best-1080.mp4",
-        label: "1080p",
-        type: "direct_mp4",
-        mediaType: "video",
-      },
-    })).toMatchObject({
-      url: "https://weibo.com/detail/N12345",
-      pageUrl: "https://weibo.com/detail/N12345",
-      siteHint: "weibo",
-      selectedVideoVariant: {
-        url: "https://f.video.weibocdn.com/best-1080.mp4",
-        label: "1080p",
-      },
-    });
+    expect(bridge.supports("cancel_transcode")).toBe(true);
+    expect(bridge.supports("get_runtime_dependency_status")).toBe(true);
+    expect(bridge.supports("queue_video_download")).toBe(false);
+    expect(bridge.supports("queue_pasted_video_download")).toBe(false);
+    expect(bridge.supports("cancel_download")).toBe(false);
+    expect(bridge.supports("select_advanced_quality_option")).toBe(false);
   });
 });

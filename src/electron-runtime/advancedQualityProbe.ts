@@ -2,9 +2,9 @@ import path from "node:path";
 import { DownloadRuntimeError } from "../core/index.js";
 import type { EngineInvocationContext } from "./engineExecutionContext.js";
 import type {
-  AdvancedQualityOptionPayload,
+  AdvancedQualityOption,
   AdvancedQualityPostProcessPlan,
-} from "../types/videoRuntime.js";
+} from "../application/download-api.js";
 import {
   buildYtDlpNetworkApplication,
   logNetworkApplication,
@@ -20,7 +20,7 @@ import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import { summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
 import { appendExtendedYouTubeYtdlpArgs, isYouTubeUrl } from "./ytDlpCommandPlan.js";
 
-type AdvancedQualityInternalOption = AdvancedQualityOptionPayload & {
+type AdvancedQualityInternalOption = AdvancedQualityOption & {
   selector: string;
 };
 

@@ -30,9 +30,6 @@ import {
   type AdvancedQualityProbeResult,
 } from "./advancedQualityProbe.js";
 import type {
-  AdvancedQualityOptionPayload,
-  DownloadResultPayload,
-  QueuedVideoDownloadAck,
   VideoTranscodeCompletePayload,
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
@@ -41,7 +38,15 @@ import type {
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
   VideoQueueTaskPhase,
-} from "../types/videoRuntime.js";
+} from "../protocol/download/ipcTypes.js";
+import type {
+  AdvancedQualityOption,
+  DownloadQueueAck,
+  DownloadTerminalOutcome,
+  PastedSelectionPorts,
+  QueueDownloadCommand,
+} from "../application/download-api.js";
+import { toRawDownloadInput } from "../application/download-api.js";
 import type { RuntimeFailureDiagnostic } from "../types/errorDiagnostics.js";
 import type {
   DownloadProgress,
@@ -79,7 +84,6 @@ import { classifyEngineFailure } from "./engineErrorClassifier.js";
 import type { DownloadExecutionContext } from "./contracts.js";
 import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
 import type { NetworkApplicationOutcome } from "./engineNetworkAdapters.js";
-import { toDownloadProgressPayload, toDownloadResultPayload } from "./protocolMappers.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 import { DownloadJobService } from "../application/download-job-service.js";
 
@@ -93,7 +97,7 @@ type ActiveTask = PendingTask & {
   abortController: AbortController;
 };
 
-type AdvancedQualityRuntimeOption = AdvancedQualityOptionPayload & {
+type AdvancedQualityRuntimeOption = AdvancedQualityOption & {
   selector: string;
 };
 
@@ -173,17 +177,6 @@ const resolveDiagnosticUserUrl = (request: RawDownloadInput): string | undefined
   || request.url.trim()
   || undefined
 );
-
-const toDownloadFailureDiagnostic = (
-  error: DownloadRuntimeError,
-  request: RawDownloadInput,
-): RuntimeFailureDiagnostic => ({
-  code: error.code,
-  classification: error.classification,
-  rawMessage: error.message,
-  userUrl: resolveDiagnosticUserUrl(request),
-  context: error.context,
-});
 
 const toTranscodeFailureDiagnostic = (
   errorMessage: string,
@@ -368,7 +361,72 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     };
   }
 
-  async queueVideoDownload(request: RawDownloadInput): Promise<QueuedVideoDownloadAck> {
+  /**
+   * Application API entry: canonical command -> runtime input. Runtime-owned
+   * values (cookies, advanced-quality selectors) are added after this mapping
+   * by the advanced-quality continuation path.
+   */
+  async queueDownload(command: QueueDownloadCommand): Promise<DownloadQueueAck> {
+    return this.queueVideoDownload(toRawDownloadInput(command));
+  }
+
+  /**
+   * Application API entry for pasted URLs: optional injected extension
+   * selection-resolution port with direct-queue fallback. Eligibility and
+   * resolution are transport-injected ports; fallback policy lives here.
+   */
+  async queuePastedDownload(
+    command: QueueDownloadCommand,
+    ports: PastedSelectionPorts,
+  ): Promise<DownloadQueueAck> {
+    const siteHint = command.siteHint;
+    if (!ports.isEligible(siteHint)) {
+      return this.queueDownload(command);
+    }
+
+    try {
+      const resolved = await ports.resolveSelection({
+        url: command.url,
+        pageUrl: command.pageUrl ?? command.url,
+        siteHint,
+      });
+      if (resolved) {
+        this.logger.log(
+          `>>> [PastedVideo] Using extension-assisted selection payload: ${JSON.stringify({
+            url: resolved.url,
+            pageUrl: resolved.pageUrl ?? null,
+            videoUrl: resolved.videoUrl ?? null,
+            siteHint: resolved.siteHint ?? siteHint,
+            videoCandidatesCount: resolved.videoCandidates?.length ?? 0,
+            selectionScope: resolved.selectionScope ?? null,
+            videoQuality: resolved.videoQuality ?? null,
+          })}`,
+        );
+        // Config/preference quality precedence is preserved: the decoded
+        // command quality wins over the extension-resolved quality.
+        return this.queueDownload({
+          ...command,
+          ...resolved,
+          videoQuality: command.videoQuality ?? resolved.videoQuality,
+        });
+      }
+      this.logger.log(
+        `>>> [PastedVideo] Extension-assisted selection was unavailable, falling back to direct queue: ${
+          JSON.stringify({ siteHint })
+        }`,
+      );
+    } catch (error) {
+      this.logger.log(
+        `>>> [PastedVideo] Extension-assisted selection failed, falling back to direct queue: ${
+          summarizeError(error)
+        }`,
+      );
+    }
+
+    return this.queueDownload(command);
+  }
+
+  async queueVideoDownload(request: RawDownloadInput): Promise<DownloadQueueAck> {
     if (request.advancedQualityRequest === true) {
       return await this.queueAdvancedQualityDownload(request);
     }
@@ -433,9 +491,14 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       );
       await this.options.eventSink.emit("video-download-complete", {
         traceId,
-        success: false,
-        error: "Download cancelled",
-      } satisfies DownloadResultPayload);
+        result: {
+          traceId,
+          success: false,
+          error: "Download cancelled",
+        },
+        failure: cancellationError,
+        userUrl: resolveDiagnosticUserUrl(cancelledTask.request),
+      } satisfies DownloadTerminalOutcome);
       this.scheduleTranscodePump();
       return true;
     }
@@ -485,7 +548,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
   private async queueAdvancedQualityDownload(
     request: RawDownloadInput,
-  ): Promise<QueuedVideoDownloadAck> {
+  ): Promise<DownloadQueueAck> {
     const dedupeKey = this.buildAdvancedQualityDedupeKey(request);
     const existingTraceId = this.advancedQualityDedupe.get(dedupeKey);
     if (existingTraceId && this.advancedQualityTasks.has(existingTraceId)) {
@@ -542,16 +605,21 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         return;
       }
       this.logger.log(`>>> [ElectronRuntime] advanced quality probe failed: ${summarizeError(error)}`);
+      const probeFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        summarizeError(error),
+        { cause: error },
+      );
       await this.options.eventSink.emit("video-download-complete", {
         traceId,
-        success: false,
-        error: "更多画质探测失败",
-        failure: {
-          code: "E_EXECUTION_FAILED",
-          rawMessage: summarizeError(error),
-          userUrl: resolveDiagnosticUserUrl(task.request),
+        result: {
+          traceId,
+          success: false,
+          error: "更多画质探测失败",
         },
-      } satisfies DownloadResultPayload);
+        failure: probeFailure,
+        userUrl: resolveDiagnosticUserUrl(task.request),
+      } satisfies DownloadTerminalOutcome);
     }
   }
 
@@ -1151,10 +1219,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     // `let`-closure narrowing trap: closure assignments would otherwise leave
     // the initializer's `null` narrowing in force at later reads.
     const networkDiagnostics: { snapshot: NetworkDiagnosticSnapshot | null } = { snapshot: null };
-    // The single terminal protocol payload: success is the mapped application
-    // outcome, failure is the mapped typed error. Exactly one of these is
-    // produced and emitted per Job; no other branch decides the terminal.
-    let terminalResult: DownloadResultPayload;
+    // The single terminal protocol-neutral outcome: success is the application
+    // outcome, failure is the typed error. Exactly one is produced and emitted
+    // per Job; the outer adapter maps it to the protocol payload and no other
+    // branch decides the terminal.
+    let terminalOutcome: DownloadTerminalOutcome;
     let terminalRuntimeError: DownloadRuntimeError | null = null;
     try {
       const config = parseJsonObject(await this.options.configStore.readConfigString());
@@ -1163,7 +1232,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       await this.options.eventSink.emit("video-download-progress", {
         traceId,
         ...EARLY_VIDEO_ACTIVITY_PAYLOAD,
-      });
+      } satisfies DownloadProgress);
       // The ordinary Job lifecycle is delegated to the Electron-neutral
       // application service: prepare exactly once, one opaque Job context,
       // per-attempt contexts, at-most-one auth recovery and the single
@@ -1248,10 +1317,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
               };
             },
             onProgress: async (payload: DownloadProgress) => {
-              await this.options.eventSink.emit(
-                "video-download-progress",
-                toDownloadProgressPayload(payload),
-              );
+              await this.options.eventSink.emit("video-download-progress", payload);
             },
           };
         },
@@ -1320,8 +1386,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           activeTask.abortController.signal.aborted,
         ),
       }).executeJob(activeTask.request, activeTask.abortController.signal);
-      // Core result -> protocol payload at the runtime boundary (stable keys).
-      let result = toDownloadResultPayload(execution.result);
+      // Core result stays protocol-neutral; the outer adapter maps the
+      // terminal outcome to the protocol payload exactly once below.
+      let result = execution.result;
       const chosenEngine = execution.chosenEngine;
       // Output settlement metadata lives in the Job context: the same object
       // reused by every attempt of this Job.
@@ -1332,11 +1399,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         providerId: execution.plan.providerId,
         engineId: chosenEngine ?? null,
         success: result.success,
-        filePathPresent: Boolean(result.file_path),
+        filePathPresent: Boolean(result.filePath),
       })}`);
       if (
         result.success
-        && result.file_path
+        && result.filePath
         && chosenEngine === "yt-dlp"
         && !activeTask.request.title?.trim()
         && result.title?.trim()
@@ -1345,7 +1412,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           traceId,
           outputDir: resolvedOutputDir,
           outputStem,
-          filePath: result.file_path,
+          filePath: result.filePath,
           title: result.title,
           request: activeTask.request,
           config,
@@ -1356,13 +1423,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           await this.emitQueueState();
           result = {
             ...result,
-            file_path: renamed.filePath,
+            filePath: renamed.filePath,
             title: renamed.title,
           };
         }
       }
-      if (result.success && result.file_path && chosenEngine === "gallery-dl") {
-        const originalFilePath = result.file_path;
+      if (result.success && result.filePath && chosenEngine === "gallery-dl") {
+        const originalFilePath = result.filePath;
         const metadataTitle = await resolveGalleryDlMetadataTitleFromSidecars(
           resolvedOutputDir,
           outputStem,
@@ -1373,7 +1440,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             traceId,
             outputDir: resolvedOutputDir,
             outputStem,
-            filePath: result.file_path,
+            filePath: result.filePath,
             title: metadataTitle,
             request: activeTask.request,
             config,
@@ -1384,7 +1451,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             await this.emitQueueState();
             result = {
               ...result,
-              file_path: renamed.filePath,
+              filePath: renamed.filePath,
               title: renamed.title,
             };
           }
@@ -1395,7 +1462,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           originalFilePath,
         );
       }
-      terminalResult = result;
+      terminalOutcome = {
+        traceId,
+        result,
+        failure: null,
+      };
     } catch (error) {
       const runtimeError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
       const errorClassification = runtimeError.context?.networkFailureClassification;
@@ -1412,12 +1483,16 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         error: runtimeError.message,
       })}`);
       terminalRuntimeError = runtimeError;
-      terminalResult = {
+      terminalOutcome = {
         traceId,
-        success: false,
-        error: runtimeError.message,
-        failure: toDownloadFailureDiagnostic(runtimeError, activeTask.request),
-      } satisfies DownloadResultPayload;
+        result: {
+          traceId,
+          success: false,
+          error: runtimeError.message,
+        },
+        failure: runtimeError,
+        userUrl: resolveDiagnosticUserUrl(activeTask.request),
+      } satisfies DownloadTerminalOutcome;
     } finally {
       const reservedOutputStem = this.reservedOutputStems.get(traceId);
       if (outputDir && reservedOutputStem) {
@@ -1432,20 +1507,21 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
 
     // Exactly one terminal completion per Job. The terminal outcome was
     // decided by DownloadJobService (a resolved success outcome or a typed
-    // failure, including cancellation and auth recovery/retry) and mapped to
-    // the protocol payload exactly once above; the facade only emits,
-    // telemetries and settles it and never re-decides the terminal state.
-    await this.options.eventSink.emit("video-download-complete", terminalResult);
+    // failure, including cancellation and auth recovery/retry) and is mapped
+    // to the protocol payload exactly once by the outer adapter; the facade
+    // only emits, telemetries and settles it and never re-decides the
+    // terminal state.
+    await this.options.eventSink.emit("video-download-complete", terminalOutcome);
     this.logger.log(`>>> [ElectronRuntimeTiming] task complete event emitted: ${JSON.stringify({
       traceId,
       elapsedMs: formatElapsedMs(taskStartedAtMs),
-      success: terminalResult.success,
+      success: terminalOutcome.result.success,
     })}`);
-    if (terminalResult.success && terminalResult.file_path) {
+    if (terminalOutcome.result.success && terminalOutcome.result.filePath) {
       void this.handleCompletedVideoSource(
         traceId,
         activeTask.label,
-        terminalResult.file_path,
+        terminalOutcome.result.filePath,
         binaries,
         {
           request: activeTask.request,

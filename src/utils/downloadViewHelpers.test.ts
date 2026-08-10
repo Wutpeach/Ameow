@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   DownloadProgressPayload,
   VideoTranscodeTaskPayload,
-} from "../types/videoRuntime";
+} from "../protocol/download/ipcTypes";
 import {
   advanceDownloadStage,
   getDownloadActivityLabel,

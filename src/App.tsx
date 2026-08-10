@@ -46,7 +46,6 @@ import type {
   DownloadResultPayload as DownloadResult,
   DownloadStage,
   AdvancedQualityOptionPayload,
-  QueuedVideoDownloadAck,
   QueuedVideoDownloadRequest,
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
@@ -55,7 +54,8 @@ import type {
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
-} from "./types/videoRuntime";
+} from "./protocol/download/ipcTypes";
+import type { DownloadQueueAck } from "./application/download-api";
 import type {
   ErrorDiagnosticCopyRequest,
   RuntimeFailureDiagnostic,
@@ -1834,7 +1834,7 @@ function App({
       });
       return;
     }
-    void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_video_download", payload).catch((err) => {
+    void desktopCommands.invoke<DownloadQueueAck>("queue_video_download", payload).catch((err) => {
       console.error("Failed to queue video download:", err);
       checkSequenceOverflow(err);
       const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);
@@ -1865,7 +1865,7 @@ function App({
   const enqueuePastedVideoDownload = useCallback(async (url: string) => {
     await prepareMainWindowForForegroundTask();
     resetDownloadOutcome();
-    void desktopCommands.invoke<QueuedVideoDownloadAck>("queue_pasted_video_download", { url }).catch((err) => {
+    void desktopCommands.invoke<DownloadQueueAck>("queue_pasted_video_download", { url }).catch((err) => {
       console.error("Failed to queue pasted video download:", err);
       checkSequenceOverflow(err);
       const fallbackMessage = summarizeDownloadError(String(err)) ?? String(err);

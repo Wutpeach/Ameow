@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/08-10-p3-protocol-boundary-unification/research/current-protocol-audit.md","reason":"Verify every audited download IPC/WS action, envelope, alias, mapping field, and ownership violation is covered without widening scope."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/04-electron-download-command-bridge-contract.md","reason":"Check download command/event compatibility and the full selectedVideoVariant chain."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/05-electron-renderer-command-controller-registry-contract.md","reason":"Check ordered controller dispatch and unchanged fallback behavior."}
+{"file":".trellis/spec/backend/type-safety/05-browser-extension-ws-video-selected-v2-download-preference-contract.md","reason":"Check current/legacy WS quality aliases, queue acknowledgement, and inactive AE compatibility."}
+{"file":".trellis/spec/backend/type-safety/06-browser-extension-ws-sync-download-preferences-contract.md","reason":"Check preference sync validation, compatibility, and response shape."}
+{"file":".trellis/spec/backend/type-safety/07-video-download-source-completion-and-transcode-queue-contract.md","reason":"Check typed terminal/cancel mapping while preserving one completion and transcode lifecycle invariants."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/14-dynamic-site-session-registry-and-extension-cookie-sync-contract.md","reason":"Check download-auth correlation remains compatible and does not expand into a site-session rewrite."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/15-advanced-quality-selection-queue-metadata.md","reason":"Check selectors remain private, public option metadata stays valid, and dismissal/probe failure semantics remain distinct."}

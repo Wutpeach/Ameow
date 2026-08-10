@@ -47,8 +47,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "current_content",
           pageUrl,
@@ -56,7 +55,6 @@ describe("builtin site providers", () => {
             modal_id: "7637912431158644014",
           },
         },
-      },
     });
     expect(plan.providerId).toBe("douyin");
     expectDouyinYtDlpOnly(
@@ -72,8 +70,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "current_content",
           pageUrl,
@@ -82,7 +79,6 @@ describe("builtin site providers", () => {
             modal_id: "7637912431158644014",
           },
         },
-      },
     });
 
     expect(plan.providerId).toBe("douyin");
@@ -146,8 +142,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
@@ -156,7 +151,6 @@ describe("builtin site providers", () => {
             content_id: "7637912431158644014",
           },
         },
-      },
     });
 
     expect(plan.providerId).toBe("douyin");
@@ -170,14 +164,12 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
           targetSrc,
         },
-      },
     });
 
     expect(plan.providerId).toBe("douyin");
@@ -193,8 +185,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
@@ -203,14 +194,12 @@ describe("builtin site providers", () => {
             content_id: "7637912431158644016",
           },
         },
-      },
     });
     const galleryPlan = resolvePlan({
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
@@ -219,7 +208,6 @@ describe("builtin site providers", () => {
             content_id: "7637912431158644017",
           },
         },
-      },
     });
 
     expectDouyinYtDlpOnly(notePlan, pageUrl);
@@ -232,14 +220,12 @@ describe("builtin site providers", () => {
     const plan = resolvePlan({
       url: pageUrl,
       pageUrl,
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
           targetHref,
         },
-      },
     });
 
     expect(plan.providerId).toBe("douyin");
@@ -277,14 +263,12 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "douyin",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
           targetSrc: "blob:https://www.douyin.com/not-downloadable",
         },
-      },
     });
 
     expect(plan.providerId).toBe("douyin");
@@ -624,8 +608,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "instagram",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "current_content",
           pageUrl,
@@ -635,7 +618,6 @@ describe("builtin site providers", () => {
             instagram_shortcode: "C7example_",
           },
         },
-      },
     });
     const intent = expectVideoIntent(plan.intent);
 
@@ -651,8 +633,7 @@ describe("builtin site providers", () => {
       url: pageUrl,
       pageUrl,
       siteHint: "instagram",
-      extensionData: {
-        ameowCapture: {
+      captureEvidence: {
           version: 1,
           action: "pick_download",
           pageUrl,
@@ -661,7 +642,6 @@ describe("builtin site providers", () => {
             instagram_shortcode: "C7example_",
           },
         },
-      },
     });
 
     expect(plan.providerId).toBe("gallery-dl-supported");

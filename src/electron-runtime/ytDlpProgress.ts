@@ -1,4 +1,4 @@
-import type { DownloadProgressPayload, DownloadStage } from "../types/videoRuntime.js";
+import type { DownloadProgress, DownloadStage } from "../core/index.js";
 
 const percentPattern = /\[download\]\s+(\d+(?:\.\d+)?)%/i;
 const speedPattern = /at\s+(.+?)\s+ETA/i;
@@ -58,7 +58,7 @@ const parseFfmpegClipProgressLine = (
   traceId: string,
   line: string,
   clipDurationSec: number | null | undefined,
-): DownloadProgressPayload | null => {
+): DownloadProgress | null => {
   if (typeof clipDurationSec !== "number" || !Number.isFinite(clipDurationSec) || clipDurationSec <= 0) {
     return null;
   }
@@ -82,7 +82,7 @@ export const parseYtDlpProgressLine = (
   traceId: string,
   line: string,
   options: YtDlpProgressParseOptions = {},
-): DownloadProgressPayload | null => {
+): DownloadProgress | null => {
   const normalized = line.toLowerCase();
   const ffmpegProgress = parseFfmpegClipProgressLine(traceId, line, options.clipDurationSec);
   if (ffmpegProgress) {

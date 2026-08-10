@@ -4,6 +4,7 @@
 importScripts(
   "action-icon-indicator.js",
   "browser-download-lifecycle.js",
+  "desktop-download-protocol.js",
   "direct-download-quality.js",
   "extension-data-utils.js",
   "generic-video-selection-utils.js",
@@ -69,11 +70,18 @@ const MEDIA_SCAN_TIMEOUT_MS = 5000;
 const MEDIA_SCAN_TOTAL_LIMIT = 100;
 const BROWSER_DOWNLOAD_STATE_TTL_MS = 30 * 60 * 1000;
 const BROWSER_DOWNLOAD_STATE_TOTAL_LIMIT = 50;
-const pendingRequests = new Map();
+const desktopDownloadProtocol = self.AmeowDesktopDownloadProtocol;
+const buildRequestFailure = desktopDownloadProtocol.buildRequestFailure;
+const requestClient = desktopDownloadProtocol.createDesktopDownloadRequestClient({
+  isConnected,
+  ensureConnection: (timeoutMs, options) => ensureConnection(timeoutMs, options),
+  send(payload) {
+    ws.send(JSON.stringify(payload));
+  },
+});
 const protectedImageDragRegistry = new Map();
 const xiaohongshuDragRegistry = new Map();
 const mediaScanInFlight = new Map();
-let requestCounter = 0;
 let lastConnectionIssue = OFFLINE_STATUS_TEXT;
 let actionIndicatorConnectionState = null;
 
@@ -574,19 +582,6 @@ function handlePageImageSelectionRequest(message, senderContext = {}) {
       reason: 'prepare_failed',
     };
   });
-}
-
-function buildRequestFailure(code, requestId = null) {
-  const data = { code };
-  if (requestId) {
-    data.requestId = requestId;
-  }
-
-  return {
-    success: false,
-    message: code,
-    data,
-  };
 }
 
 function shouldRetryVideoSelectionRequest(result) {
@@ -1942,7 +1937,7 @@ function connect(options = {}) {
 
     try {
       const message = JSON.parse(event.data);
-      if (handlePendingRequestResponse(message)) {
+      if (requestClient.handlePendingResponse(message)) {
         return;
       }
       handleMessage(message);
@@ -1958,7 +1953,7 @@ function connect(options = {}) {
 
     console.info('[Ameow] Disconnected');
     clearExtensionInjectionDebugConfigOnDisconnect();
-    rejectPendingRequests('ws_closed');
+    requestClient.rejectPending('ws_closed');
     detachSocketHandlers(socket);
     ws = null;
     lastConnectionIssue = unavailableStatusText();
@@ -2021,36 +2016,6 @@ function clearReconnectAlarm() {
   } catch (error) {
     console.error('[Ameow] Failed to clear reconnect alarm:', error);
   }
-}
-
-function nextRequestId() {
-  requestCounter += 1;
-  return `req_${Date.now()}_${requestCounter}`;
-}
-
-function handlePendingRequestResponse(message) {
-  const requestId = message?.data?.requestId || message?.data?.request_id;
-  if (!requestId) {
-    return false;
-  }
-
-  const pending = pendingRequests.get(requestId);
-  if (!pending) {
-    return false;
-  }
-
-  pendingRequests.delete(requestId);
-  clearTimeout(pending.timer);
-  pending.resolve(message);
-  return true;
-}
-
-function rejectPendingRequests(reason) {
-  for (const [requestId, pending] of pendingRequests.entries()) {
-    clearTimeout(pending.timer);
-    pending.resolve(buildRequestFailure(reason, requestId));
-  }
-  pendingRequests.clear();
 }
 
 function handleMessage(message) {
@@ -2182,49 +2147,11 @@ async function ensureConnection(timeoutMs, options = {}) {
 }
 
 async function sendRequestToApp(action, data = {}, timeoutMs = REQUEST_TIMEOUT_MS, options = {}) {
-  const connectTimeoutMs = typeof options.connectTimeoutMs === 'number'
-    ? options.connectTimeoutMs
-    : CONNECTING_WAIT_TIMEOUT_MS;
-  const forceConnect = options.forceConnect === true;
-
-  if (!isConnected()) {
-    const connected = await ensureConnection(connectTimeoutMs, { force: forceConnect });
-    if (!connected) {
-      return buildRequestFailure('not_connected');
-    }
-  }
-
-  if (!isConnected()) {
-    return buildRequestFailure('not_connected');
-  }
-
-  const requestId = nextRequestId();
-  const payload = {
-    action,
-    data: {
-      ...data,
-      requestId,
-    },
-  };
-
-  return await new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      if (!pendingRequests.has(requestId)) {
-        return;
-      }
-      pendingRequests.delete(requestId);
-      resolve(buildRequestFailure('request_timeout', requestId));
-    }, timeoutMs);
-
-    pendingRequests.set(requestId, { resolve, timer });
-
-    try {
-      ws.send(JSON.stringify(payload));
-    } catch (error) {
-      clearTimeout(timer);
-      pendingRequests.delete(requestId);
-      resolve(buildRequestFailure('send_failed', requestId));
-    }
+  // Sender/correlation/timeout behavior lives in the desktop download
+  // protocol helper; this wrapper keeps existing call sites unchanged.
+  return requestClient.sendRequest(action, data, timeoutMs, {
+    connectTimeoutMs: options.connectTimeoutMs ?? CONNECTING_WAIT_TIMEOUT_MS,
+    forceConnect: options.forceConnect === true,
   });
 }
 

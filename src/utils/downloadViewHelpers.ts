@@ -12,7 +12,7 @@ import type {
   VideoTranscodeStage,
   VideoTranscodeTaskPayload,
   VideoTranscodeTaskStatus,
-} from "../types/videoRuntime";
+} from "../protocol/download/ipcTypes";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 

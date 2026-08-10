@@ -1,4 +1,16 @@
-import type { RuntimeFailureDiagnostic } from "./errorDiagnostics.js";
+import type { RuntimeFailureDiagnostic } from "../../types/errorDiagnostics.js";
+import type {
+  AdvancedQualityOption,
+  AdvancedQualityPostProcessPlan,
+} from "../../application/download-api.js";
+
+/**
+ * Renderer IPC protocol DTOs (stable wire shapes: `file_path`, event keys,
+ * queue/transcode payloads). Owned by the protocol layer; Domain/Application
+ * must never import this module. The public advanced-quality option model and
+ * the queue acknowledgement are canonical Application models re-exported here
+ * so Renderer ergonomics are unchanged.
+ */
 
 export type DownloadStage =
   | "preparing"
@@ -30,19 +42,9 @@ export type VideoQueueTaskPhase =
   | "probing_quality"
   | "selecting_quality";
 
-export type AdvancedQualityPostProcessPlan =
-  | "none"
-  | "remux_only"
-  | "audio_transcode"
-  | "full_transcode"
-  | "unknown";
+export type AdvancedQualityOptionPayload = AdvancedQualityOption;
 
-export type AdvancedQualityOptionPayload = {
-  id: string;
-  label: string;
-  tags?: string[];
-  postProcessPlan?: AdvancedQualityPostProcessPlan;
-};
+export type { AdvancedQualityPostProcessPlan };
 
 export type VideoQueueTaskPayload = {
   traceId: string;
@@ -139,10 +141,16 @@ export type PinterestDragDiagnostic = {
   videoCandidates: PinterestVideoCandidate[];
 };
 
+/**
+ * Renderer wire queue request (developer ergonomics; validated in Main).
+ * Raw advanced-quality selectors stay runtime-owned and are not part of the
+ * public wire input.
+ */
 export type QueuedVideoDownloadRequest = {
   url: string;
   pageUrl?: string;
   videoUrl?: string;
+  selectedVideoVariant?: VideoSelectionCandidate;
   videoCandidates?: VideoSelectionCandidate[];
   title?: string;
   cookies?: string;
@@ -152,8 +160,6 @@ export type QueuedVideoDownloadRequest = {
   videoQuality?: "best" | "balanced" | "data_saver";
   siteHint?: string;
   advancedQualityRequest?: boolean;
-  advancedQualitySelector?: string;
-  advancedQualityLabel?: string;
   extensionData?: {
     youtube?: {
       source?: "injected" | "pasted" | "context_menu";
@@ -163,26 +169,9 @@ export type QueuedVideoDownloadRequest = {
   diagnostics?: Record<string, unknown>;
 };
 
-export type QueuedVideoDownloadAck = {
-  accepted: boolean;
-  traceId: string;
-};
-
 export type PinterestAsset = {
   url: string;
   width?: number;
   height?: number;
   durationSeconds?: number;
-};
-
-export type PinterestRuntimePayload = {
-  traceId: string;
-  pageUrl: string;
-  pinId: number;
-  title: string;
-  origin: string;
-  cookiesHeader?: string | null;
-  image: PinterestAsset;
-  video?: PinterestAsset | null;
-  outputDir: string;
 };

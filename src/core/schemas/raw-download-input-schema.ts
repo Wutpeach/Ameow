@@ -4,7 +4,7 @@ const youtubeExtensionDataSchema = z.object({
   source: z.enum(["injected", "pasted", "context_menu"]).optional(),
 }).catchall(z.unknown());
 
-const ameowCaptureEvidenceSchema = z.object({
+export const ameowCaptureEvidenceSchema = z.object({
   version: z.literal(1),
   action: z.enum(["current_content", "pick_download", "popup_fallback"]),
   pageUrl: z.url(),
@@ -57,6 +57,7 @@ export const rawDownloadInputSchema = z.object({
   advancedQualityRequest: z.boolean().optional(),
   advancedQualitySelector: z.string().trim().optional(),
   advancedQualityLabel: z.string().trim().optional(),
+  captureEvidence: ameowCaptureEvidenceSchema.optional(),
   extensionData: downloadExtensionDataSchema.optional(),
   diagnostics: z.record(z.string(), z.unknown()).optional(),
 }).transform((input) => ({

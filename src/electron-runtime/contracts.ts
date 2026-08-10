@@ -6,12 +6,17 @@ import type {
   RuntimeDependencyStatusSnapshot,
 } from "../types/runtimeDependencies.js";
 import type {
-  QueuedVideoDownloadAck,
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
   VideoQueueDetailPayload,
   VideoQueueStatePayload,
-} from "../types/videoRuntime.js";
+} from "../protocol/download/ipcTypes.js";
+import type {
+  DownloadApplicationApi,
+  DownloadQueueAck,
+  PastedSelectionPorts,
+  QueueDownloadCommand,
+} from "../application/download-api.js";
 import type {
   DownloadRuntimeError,
   DownloadEngine,
@@ -184,7 +189,7 @@ export interface RuntimeDependencyResolver {
   ): void;
 }
 
-export interface ElectronDownloadRuntime {
+export interface ElectronDownloadRuntime extends DownloadApplicationApi {
   readonly maxConcurrent: number;
   getRuntimeDependencyStatus(): RuntimeDependencyStatusSnapshot;
   getRuntimeDependencyGateState(): RuntimeDependencyGateStatePayload;
@@ -192,9 +197,16 @@ export interface ElectronDownloadRuntime {
   startRuntimeDependencyBootstrap(
     reason?: string,
   ): Promise<RuntimeDependencyGateStatePayload>;
+  queueDownload(command: QueueDownloadCommand): Promise<DownloadQueueAck>;
+  queuePastedDownload(
+    command: QueueDownloadCommand,
+    ports: PastedSelectionPorts,
+  ): Promise<DownloadQueueAck>;
+  /** Internal raw-input queue path used by the Application API and advanced
+   * quality continuation; transport adapters call `queueDownload`. */
   queueVideoDownload(
     request: RawDownloadInput,
-  ): Promise<QueuedVideoDownloadAck>;
+  ): Promise<DownloadQueueAck>;
   selectAdvancedQualityOption(traceId: string, optionId: string): Promise<boolean>;
   cancelDownload(traceId: string): Promise<boolean>;
   cancelTranscode(traceId: string): Promise<boolean>;

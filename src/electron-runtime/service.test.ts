@@ -19,6 +19,34 @@ import { pinterestProvider } from "../sites/pinterest";
 import { xiaohongshuProvider } from "../sites/xiaohongshu";
 import { youtubeProvider } from "../sites/youtube";
 
+/**
+ * The runtime publishes protocol-neutral terminal outcomes
+ * (`{ traceId, result, failure, userUrl }`); tests view them through this
+ * flat shape so outcome semantics stay explicit without repeating the unwrap.
+ */
+const toCompletionView = (payload: unknown): {
+  traceId: string;
+  success: boolean;
+  error?: string;
+  file_path?: string;
+  title?: string;
+  failure?: unknown;
+} => {
+  const outcome = payload as {
+    traceId: string;
+    result: { success: boolean; error?: string; filePath?: string; title?: string };
+    failure?: unknown;
+  };
+  return {
+    traceId: outcome.traceId,
+    success: outcome.result.success,
+    error: outcome.result.error,
+    file_path: outcome.result.filePath,
+    title: outcome.result.title,
+    failure: outcome.failure ?? undefined,
+  };
+};
+
 const { probeGalleryDlMetadataTitleMock } = vi.hoisted(() => ({
   probeGalleryDlMetadataTitleMock: vi.fn<() => Promise<string | undefined>>(async () => undefined),
 }));
@@ -284,7 +312,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { traceId: string; success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -296,6 +324,15 @@ describe("AmeowElectronDownloadRuntime", () => {
 
     expect(cancelled).toBe(true);
     expect(completed.some((entry) => entry.traceId === pending.traceId)).toBe(true);
+    // Pending cancellation serializes the typed E_ABORTED failure in the
+    // protocol-neutral outcome (P3: no raw-message parsing needed downstream).
+    expect(completed.find((entry) => entry.traceId === pending.traceId)).toMatchObject({
+      success: false,
+      failure: expect.objectContaining({
+        code: "E_ABORTED",
+        classification: "cancelled",
+      }),
+    });
   });
 
   it("settles an active task after cancellation", async () => {
@@ -320,7 +357,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { traceId: string; success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -399,7 +436,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { traceId: string; success: boolean; error?: string });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -773,7 +810,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { traceId: string; success: boolean; error?: string });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -1135,7 +1172,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; failure?: unknown });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1166,7 +1203,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1209,7 +1246,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1282,7 +1319,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1340,7 +1377,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1390,7 +1427,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1424,7 +1461,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean });
+          completed.push(toCompletionView(payload));
         }
       },
       onTelemetry(event) {
@@ -1517,7 +1554,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean });
+          completed.push(toCompletionView(payload));
         }
       },
       onTelemetry(event) {
@@ -1577,7 +1614,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
       onTelemetry(event) {
@@ -1613,7 +1650,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       },
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completed.push(payload as { success: boolean; error?: string });
+          completed.push(toCompletionView(payload));
         }
       },
     });
@@ -1725,7 +1762,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { file_path?: string; success: boolean });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -1780,7 +1817,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { file_path?: string; success: boolean });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -1984,7 +2021,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { traceId: string; success: boolean; error?: string });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -2141,7 +2178,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { traceId: string; success: boolean; error?: string });
+          completions.push(toCompletionView(payload));
         }
       },
     });
@@ -2399,7 +2436,7 @@ describe("AmeowElectronDownloadRuntime", () => {
       ],
       onEmit(event, payload) {
         if (event === "video-download-complete") {
-          completions.push(payload as { file_path?: string; success: boolean; title?: string });
+          completions.push(toCompletionView(payload));
         }
       },
     });

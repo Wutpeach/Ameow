@@ -104,10 +104,18 @@ import {
   getSecondaryWindowOuterSize,
 } from "../src/constants/windowMetrics.js";
 import { createExtensionRequestBridge } from "./extensionRequestBridge.mjs";
+import { createVideoDownloadCommandBridge } from "./videoDownloadCommands.mjs";
+import { createDownloadIpcAdapter } from "./downloadIpcAdapter.mjs";
+import { createDownloadWsAdapter } from "./downloadWsAdapter.mjs";
 import {
-  buildVideoSelectedV2QueuePayload,
-  createVideoDownloadCommandBridge,
-} from "./videoDownloadCommands.mjs";
+  toDownloadProgressPayload,
+  toDownloadResultPayload,
+  decodeVideoQualityAlias,
+} from "../src/protocol/download/ipcMappers.js";
+import {
+  decodeIpcRequestEnvelope,
+  decodeWsRootEnvelope,
+} from "../src/protocol/envelopes.js";
 import { dispatchRendererCommandToControllers } from "./rendererCommandControllerRegistry.mjs";
 import {
   createSiteSessionCommandController,
@@ -211,6 +219,8 @@ let lastShortcutTriggerMs = 0;
 let electronDownloadRuntime = null;
 let extensionRequestBridge = null;
 let videoDownloadCommandBridge = null;
+let downloadIpcAdapter = null;
+let downloadWsAdapter = null;
 let siteSessionCommandController = null;
 let supportLogCommandController = null;
 let errorDiagnosticCommandController = null;
@@ -1332,10 +1342,9 @@ function resolveVideoDownloadPreferencesFromConfig(config) {
 }
 
 async function syncIncomingDownloadPreferences(data) {
-  const incomingQuality = normalizeVideoQualityPreference(
-    normalizeOptionalString(data?.videoQuality)
-    ?? normalizeOptionalString(data?.defaultVideoDownloadQuality),
-  );
+  // Current and documented legacy quality aliases are decoded at the single
+  // compatibility mapper (`decodeVideoQualityAlias`).
+  const incomingQuality = decodeVideoQualityAlias(data ?? {});
   const incomingAeFriendly = typeof data?.aeFriendlyConversionEnabled === "boolean"
     ? data.aeFriendlyConversionEnabled
     : null;
@@ -1507,8 +1516,19 @@ function getElectronDownloadRuntime() {
       new YtDlpEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
       new GalleryDlEngineAdapter({ binaries: resolveRuntimeBinaryPaths(environment) }),
     ],
+    // The runtime publishes protocol-neutral progress/terminal outcomes; the
+    // outer composition maps them to the stable Renderer payloads exactly once
+    // here. Queue/transcode event payloads are already protocol DTOs.
     eventSink: {
       emit(event, payload) {
+        if (event === "video-download-complete") {
+          emitAppEvent(event, toDownloadResultPayload(payload));
+          return;
+        }
+        if (event === "video-download-progress") {
+          emitAppEvent(event, toDownloadProgressPayload(payload));
+          return;
+        }
         emitAppEvent(event, payload);
       },
     },
@@ -1758,17 +1778,53 @@ function getVideoDownloadCommandBridge() {
 
   videoDownloadCommandBridge = createVideoDownloadCommandBridge({
     runtime: getElectronDownloadRuntime(),
-    extensionBridge: getExtensionRequestBridge(),
-    readConfigObject,
     getRuntimeDependencyStatus,
     getRuntimeDependencyGateState,
     refreshRuntimeDependencyGateState,
     startRuntimeDependencyBootstrap,
     checkYtdlpVersion,
     getGalleryDlInfo,
-    logInjectedDebug: logInjectedVideoSelectionDebug,
   });
   return videoDownloadCommandBridge;
+}
+
+function getDownloadIpcAdapter() {
+  if (downloadIpcAdapter) {
+    return downloadIpcAdapter;
+  }
+
+  downloadIpcAdapter = createDownloadIpcAdapter({
+    runtime: getElectronDownloadRuntime(),
+    extensionBridge: getExtensionRequestBridge(),
+    readConfigObject,
+    logInjectedDebug: logInjectedVideoSelectionDebug,
+  });
+  return downloadIpcAdapter;
+}
+
+function getDownloadWsAdapter() {
+  if (downloadWsAdapter) {
+    return downloadWsAdapter;
+  }
+
+  downloadWsAdapter = createDownloadWsAdapter({
+    queueDownload: (command) => getElectronDownloadRuntime().queueDownload(command),
+    syncPreferences: syncIncomingDownloadPreferences,
+    handlePastedVideoSelectionResult: (data) => (
+      getExtensionRequestBridge().handlePastedVideoSelectionResult(data)
+    ),
+    handleSiteSessionCookieSyncResult: (data) => (
+      getExtensionRequestBridge().handleSiteSessionCookieSyncResult(data)
+    ),
+    logInjectedVideoSelectionDebug: async (data) => {
+      logInjectedVideoSelectionDebug(
+        await readConfigObject(),
+        "Received websocket video_selected_v2 payload",
+        summarizeInjectedVideoSelectionPayload(data),
+      );
+    },
+  });
+  return downloadWsAdapter;
 }
 
 function getSiteSessionCommandController() {
@@ -1820,8 +1876,11 @@ function getErrorDiagnosticCommandController() {
   return errorDiagnosticCommandController;
 }
 
-// Order matters: first supporting controller wins.
+// Order matters: first supporting controller wins. The download IPC adapter
+// owns ordinary download commands; the operational bridge handles transcode,
+// runtime dependency and downloader version/info commands.
 const rendererCommandControllerGetters = [
+  getDownloadIpcAdapter,
   getVideoDownloadCommandBridge,
   getSiteSessionCommandController,
   getSupportLogCommandController,
@@ -2743,19 +2802,6 @@ function buildRequestData(requestId, code, extraData = {}) {
   };
 }
 
-function extractRequestId(data) {
-  if (!data || typeof data !== "object") {
-    return null;
-  }
-  if (typeof data.requestId === "string") {
-    return data.requestId;
-  }
-  if (typeof data.request_id === "string") {
-    return data.request_id;
-  }
-  return null;
-}
-
 async function handleWsMessage(rawMessage) {
   let parsed;
   try {
@@ -2768,12 +2814,22 @@ async function handleWsMessage(rawMessage) {
     };
   }
 
-  const action = parsed.action;
-  const data = parsed.data ?? null;
-  const requestId = extractRequestId(data);
+  // P3 boundary validation: every local WebSocket client is untrusted and the
+  // root envelope must be an object with a string action before dispatch.
+  const envelope = decodeWsRootEnvelope(parsed);
+  if (!envelope.ok) {
+    return envelope.failure;
+  }
+
+  const { action, data, requestId } = envelope;
   const withRequest = (code, extraData) => buildRequestData(requestId, code, extraData);
 
   switch (action) {
+    case "video_selected_v2":
+    case "sync_download_preferences":
+    case "pasted_video_selection_result":
+    case "site_session_cookie_sync_result":
+      return await getDownloadWsAdapter().handle(action, data, requestId);
     case "ping":
       return {
         success: true,
@@ -2807,31 +2863,6 @@ async function handleWsMessage(rawMessage) {
           enabled: resolveExtensionInjectionDebugEnabledFromConfigObject(await readConfigObject()),
         },
       };
-    case "sync_download_preferences": {
-      if (!data || typeof data !== "object") {
-        return {
-          success: false,
-          message: "Missing data",
-          data: withRequest("missing_data"),
-        };
-      }
-      const syncedPreferences = await syncIncomingDownloadPreferences(data);
-      if (!syncedPreferences) {
-        return {
-          success: false,
-          message: "Missing download preference fields",
-          data: withRequest("missing_download_preference_fields"),
-        };
-      }
-      return {
-        success: true,
-        message: "Download preferences synced",
-        data: withRequest(null, {
-          quality: syncedPreferences.quality,
-          aeFriendlyConversionEnabled: syncedPreferences.aeFriendlyConversionEnabled,
-        }),
-      };
-    }
     case "save_image": {
       if (!data?.url) {
         return {
@@ -2942,22 +2973,6 @@ async function handleWsMessage(rawMessage) {
         success: true,
         message: "protected_image_resolution_received",
         data: withRequest(null),
-      };
-    }
-    case "pasted_video_selection_result": {
-      const result = getExtensionRequestBridge().handlePastedVideoSelectionResult(data);
-      return {
-        success: result.success,
-        message: result.message,
-        data: withRequest(result.success ? null : result.code),
-      };
-    }
-    case "site_session_cookie_sync_result": {
-      const result = getExtensionRequestBridge().handleSiteSessionCookieSyncResult(data);
-      return {
-        success: result.success,
-        message: result.message,
-        data: withRequest(result.success ? null : result.code),
       };
     }
     case "site_session_enable_current_tab": {
@@ -3097,53 +3112,6 @@ async function handleWsMessage(rawMessage) {
         message: "xiaohongshu_drag_resolution_received",
         data: withRequest(null),
       };
-    }
-    case "video_selected_v2": {
-      if (!data || typeof data !== "object") {
-        return {
-          success: false,
-          message: "Missing data",
-          data: withRequest("missing_data"),
-        };
-      }
-
-      const url = normalizeOptionalString(data.url);
-      if (!url) {
-        return {
-          success: false,
-          message: "Missing url in data",
-          data: withRequest("missing_url"),
-        };
-      }
-
-      try {
-        const config = await readConfigObject();
-        logInjectedVideoSelectionDebug(
-          config,
-          "Received websocket video_selected_v2 payload",
-          summarizeInjectedVideoSelectionPayload(data),
-        );
-        const syncedPreferences = await syncIncomingDownloadPreferences(data);
-        const ack = await getVideoDownloadCommandBridge().invoke(
-          "queue_video_download",
-          buildVideoSelectedV2QueuePayload(data, {
-            videoQuality: syncedPreferences?.quality,
-          }),
-        );
-        return {
-          success: true,
-          message: "Download queued",
-          data: withRequest(null, {
-            traceId: ack.traceId,
-          }),
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: String(error),
-          data: withRequest("queue_video_download_failed"),
-        };
-      }
     }
     default:
       return {
@@ -3427,7 +3395,10 @@ async function handleCommand(command, payload = {}) {
 
 function registerIpcHandlers() {
   ipcMain.handle("ameow:command:invoke", async (_event, request) => {
-    return handleCommand(request.command, request.payload);
+    // Outer-envelope validation: the Renderer is semi-trusted but the generic
+    // request shape is checked before any controller dispatch.
+    const envelope = decodeIpcRequestEnvelope(request);
+    return handleCommand(envelope.command, envelope.payload);
   });
 
   ipcMain.handle("ameow:event:emit", async (_event, request) => {

@@ -7,7 +7,7 @@ import type {
   VideoTranscodeQueueDetailPayload,
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
-} from "../types/videoRuntime";
+} from "../protocol/download/ipcTypes";
 import {
   advanceDownloadStage,
   normalizeVideoQueueDetail,
@@ -76,7 +76,14 @@ export const resolveDownloadCompleteOutcome = (
   payload: DownloadResultPayload,
   isCancelling: boolean,
 ): DownloadCompleteOutcome => {
-  const cancelled = isCancelling || isCancelledDownloadError(payload.error);
+  // New payloads carry a stable typed failure (code/classification); raw
+  // error-text parsing is kept only as an old-payload compatibility fallback
+  // when no typed failure is present.
+  const typedCancelled = payload.failure?.classification === "cancelled"
+    || payload.failure?.code === "E_ABORTED";
+  const cancelled = isCancelling
+    || typedCancelled
+    || (payload.failure == null && isCancelledDownloadError(payload.error));
   const success = Boolean(payload.success) && !cancelled;
 
   return {

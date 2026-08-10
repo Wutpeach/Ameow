@@ -7,7 +7,7 @@ import type {
   VideoTranscodeCompletePayload,
   VideoTranscodeQueueStatePayload,
   VideoTranscodeTaskPayload,
-} from "../types/videoRuntime";
+} from "../protocol/download/ipcTypes";
 import { parseYtDlpProgressLine } from "../electron-runtime/ytDlpProgress";
 import {
   applyDownloadProgressEvent,
@@ -170,6 +170,60 @@ describe("download event reducers", () => {
       cancelled: true,
       errorSummary: "Download was canceled by user",
     });
+  });
+
+  it("classifies new payloads as cancelled through typed failure classification", () => {
+    expect(resolveDownloadCompleteOutcome(complete({
+      success: false,
+      error: "Download cancelled",
+      failure: {
+        code: "E_ABORTED",
+        classification: "cancelled",
+        rawMessage: "Download cancelled",
+      },
+    }), false)).toEqual({
+      success: false,
+      cancelled: true,
+      errorSummary: "Download cancelled",
+    });
+  });
+
+  it("classifies new payloads as cancelled through the typed E_ABORTED code", () => {
+    expect(resolveDownloadCompleteOutcome(complete({
+      success: false,
+      error: "Download was aborted by user",
+      failure: {
+        code: "E_ABORTED",
+        rawMessage: "Download was aborted by user",
+      },
+    }), false)).toEqual({
+      success: false,
+      cancelled: true,
+      errorSummary: "Download was aborted by user",
+    });
+  });
+
+  it("does not reclassify a typed non-cancel failure from raw error text", () => {
+    expect(resolveDownloadCompleteOutcome(complete({
+      success: false,
+      error: "Download was cancelled by a proxy timeout",
+      failure: {
+        code: "E_EXECUTION_FAILED",
+        classification: "network_proxy",
+        rawMessage: "Download was cancelled by a proxy timeout",
+      },
+    }), false)).toEqual({
+      success: false,
+      cancelled: false,
+      errorSummary: "Download was cancelled by a proxy timeout",
+    });
+  });
+
+  it("keeps raw-message parsing only for old payloads without typed failure", () => {
+    expect(resolveDownloadCompleteOutcome(complete({
+      success: false,
+      error: "Download cancelled",
+    }), false)).toMatchObject({ cancelled: true });
   });
 });
 
