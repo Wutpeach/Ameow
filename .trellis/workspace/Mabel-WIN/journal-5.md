@@ -1473,3 +1473,24 @@ Implemented and verified the P4 Download and Download Queue feature owner, selec
 ### Status
 
 [OK] **Completed**
+
+
+## Session 243: P5 Browser Extension Architecture
+
+**Date**: 2026-08-10
+**Task**: P5 Browser Extension Architecture
+**Branch**: `main`
+
+### Summary
+
+Established Browser Extension Desktop client lifecycle ownership, page/frame/document identity, independent scan/capture/selection generations, deterministic content routing, serialized state lifecycles, architecture guards, and regression coverage while preserving P3 compatibility.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da1640d` | (see git log) |
+
+### Status
+
+[OK] **Completed**
