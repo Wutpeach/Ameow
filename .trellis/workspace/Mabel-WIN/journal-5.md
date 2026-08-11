@@ -1494,3 +1494,24 @@ Established Browser Extension Desktop client lifecycle ownership, page/frame/doc
 ### Status
 
 [OK] **Completed**
+
+
+## Session 244: Complete P6 extension model and observability
+
+**Date**: 2026-08-11
+**Task**: Complete P6 extension model and observability
+**Branch**: `main`
+
+### Summary
+
+Lead approved P6A and P6B; committed safe download diagnostics, archived the P6 task, and preserved follow-up debt for later work.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b5b414f` | (see git log) |
+
+### Status
+
+[OK] **Completed**
