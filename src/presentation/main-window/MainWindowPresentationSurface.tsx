@@ -24,9 +24,6 @@ import {
 import { useTheme } from "../../contexts/ThemeContext";
 import { desktopCurrentWindow, isElectronRenderer } from "../../desktop/runtime";
 import {
-  MAIN_WINDOW_PANEL_SIZE,
-} from "../../constants/windowMetrics";
-import {
   shouldIgnorePanelDoubleClickTarget,
   shouldOpenOutputFolderFromPanelMouseDownDoubleClick,
   shouldPreventPanelNativeDragStart,
@@ -44,17 +41,14 @@ import {
   MAIN_WINDOW_INITIAL_PANEL_SCALE,
 } from "./motionRecipes";
 import {
-  useEdgeGlowBackground,
-  useEdgeGlowOpacity,
-  useEdgeGlowPointerRuntime,
-  updateEdgeGlowFromClientPoint,
-  updateEdgeGlowFromScreenPoint,
-  EDGE_GLOW_BORDER_WIDTH,
-  DRAG_GLOW_BORDER_WIDTH,
-  type EdgeGlowPointerRuntime,
-} from "./motionRuntime";
+  resetPointerFieldToCenter,
+  updatePointerFieldFromClientPoint,
+  useMainWindowPointerField,
+  type MainWindowPointerField,
+} from "./pointerField";
+import { useMainWindowMagnetic } from "./magnetic";
 
-const EDGE_GLOW_REVEAL_DELAY_MS = 160;
+const DRAG_GLOW_BORDER_WIDTH = 2.4;
 const PANEL_OUTPUT_FOLDER_SHORTCUT_DEDUP_MS = 400;
 const DRAG_GLOW_GRADIENT: CSSProperties = {
   position: "absolute",
@@ -125,8 +119,9 @@ type ActiveWindowDragState = {
 
 type UseMainWindowPanelDragOptions = {
   containerRef: RefObject<HTMLDivElement | null>;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  pointerField: MainWindowPointerField;
   dispatch: MainWindowPresentationBinding["dispatch"];
-  edgeGlowRuntime: EdgeGlowPointerRuntime;
   isCompact: boolean;
   isContextMenuOpen: boolean;
   canDoubleClickOpenOutputFolder: boolean;
@@ -137,8 +132,9 @@ type UseMainWindowPanelDragOptions = {
 
 const useMainWindowPanelDrag = ({
   containerRef,
+  viewportRef,
+  pointerField,
   dispatch,
-  edgeGlowRuntime,
   isCompact,
   isContextMenuOpen,
   canDoubleClickOpenOutputFolder,
@@ -357,9 +353,17 @@ const useMainWindowPanelDrag = ({
     triggerPanelOutputFolderShortcut,
   ]);
 
+  const syncPointerFieldFromClientPoint = useCallback((clientX: number, clientY: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const rect = viewport.getBoundingClientRect();
+    updatePointerFieldFromClientPoint(pointerField, clientX, clientY, rect);
+  }, [pointerField, viewportRef]);
+
   const handlePanelPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    updateEdgeGlowFromClientPoint(edgeGlowRuntime, e.clientX, e.clientY, rect);
+    syncPointerFieldFromClientPoint(e.clientX, e.clientY);
 
     if (isDraggingRef.current) {
       const activeDrag = activeWindowDragRef.current;
@@ -389,9 +393,9 @@ const useMainWindowPanelDrag = ({
 
     void startWindowDrag(e.screenX, e.screenY);
   }, [
-    edgeGlowRuntime,
     isCompact,
     startWindowDrag,
+    syncPointerFieldFromClientPoint,
     updateManualWindowDrag,
   ]);
 
@@ -464,6 +468,7 @@ const useMainWindowPanelDrag = ({
     handlePanelPointerUp,
     handlePanelPointerCancel,
     handlePanelDoubleClick,
+    syncPointerFieldFromClientPoint,
     resetWindowDragState,
   };
 };
@@ -484,18 +489,15 @@ export function MainWindowPresentationSurface({
 }: MainWindowPresentationSurfaceProps) {
   const { colors, theme } = useTheme();
   const { state, dispatch } = presentation;
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isPointerInsidePanelRef = useRef(false);
   const isPanelHoveredRef = useRef(false);
   const isDropHoveringRef = useRef(false);
   const compactHotspotInsideRef = useRef(false);
   const compactHotspotFrameRef = useRef<number | null>(null);
-  const edgeGlowRevealTimerRef = useRef<number | null>(null);
   const suppressNextPanelDragLeaveRef = useRef(false);
-  const previousPhaseKindRef = useRef(state.phase.kind);
 
-  const [showEdgeGlow, setShowEdgeGlow] = useState(true);
-  const [isPanelHovered, setIsPanelHovered] = useState(false);
   const [isDragHovering, setIsDragHovering] = useState(false);
   const [isInitialMount, setIsInitialMount] = useState(true);
   const [settlePulseKey, setSettlePulseKey] = useState(0);
@@ -522,28 +524,8 @@ export function MainWindowPresentationSurface({
       return;
     }
     isPanelHoveredRef.current = hovered;
-    setIsPanelHovered(hovered);
     onPanelHoveredChangeRef.current?.(hovered);
   }, []);
-
-  // Centralized pointer-fact handler: every real enter/leave input updates
-  // the local hover UI state and dispatches the matching lifecycle event in
-  // one place, in a fixed order (local hover first, then the lifecycle).
-  const handlePointerFact = useCallback((
-    pointerInside: boolean,
-    lifecycleEvent: Extract<MainWindowPresentationEvent, {
-      type: "pointerEnter" | "pointerLeave";
-    }> | null,
-  ) => {
-    applyPanelHoverInput({ type: "pointerFact", pointerInside });
-    if (lifecycleEvent !== null) {
-      dispatch(lifecycleEvent);
-    }
-  }, [applyPanelHoverInput, dispatch]);
-
-  const edgeGlowRuntime = useEdgeGlowPointerRuntime();
-  const edgeGlowOpacity = useEdgeGlowOpacity(edgeGlowRuntime, MAIN_WINDOW_PANEL_SIZE);
-  const edgeGlowBackground = useEdgeGlowBackground(edgeGlowRuntime);
 
   const projections = useMemo(
     () => resolveMainWindowPresentationProjections(state, {
@@ -577,94 +559,41 @@ export function MainWindowPresentationSurface({
   const shadowOffsetY = geometry.shadowShell.y;
   const shadowRenderSize = geometry.shadowShell.width;
 
-  const fullSize = MAIN_WINDOW_PANEL_SIZE;
+  // Pointer Field: the one renderer-local continuous pointer authority. Its
+  // MotionValues are runtime data only and never enter React/lifecycle state.
+  // Initialized at the stable root center so an enabled Magnetic consumer
+  // resolves to zero before the first pointer enter.
+  const pointerField = useMainWindowPointerField(panelViewportSize);
 
-  const updateLastKnownPointerScreenPoint = useCallback((screenX: number, screenY: number) => {
-    if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
-      return;
+  // Centralized pointer-fact handler: every real enter/leave input updates
+  // the local hover UI state, resets the Pointer Field on leave, and
+  // dispatches the matching lifecycle event in one place, in a fixed order
+  // (local hover first, then the field, then the lifecycle).
+  const handlePointerFact = useCallback((
+    pointerInside: boolean,
+    lifecycleEvent: Extract<MainWindowPresentationEvent, {
+      type: "pointerEnter" | "pointerLeave";
+    }> | null,
+  ) => {
+    applyPanelHoverInput({ type: "pointerFact", pointerInside });
+    if (!pointerInside) {
+      resetPointerFieldToCenter(pointerField, panelViewportSize);
     }
-    edgeGlowRuntime.lastKnownScreenPointRef.current = { x: screenX, y: screenY };
-  }, [edgeGlowRuntime]);
+    if (lifecycleEvent !== null) {
+      dispatch(lifecycleEvent);
+    }
+  }, [applyPanelHoverInput, dispatch, panelViewportSize, pointerField]);
 
-  const syncEdgeGlowMousePositionFromLastPointer = useCallback(() => {
-    const cursorScreenPoint = edgeGlowRuntime.lastKnownScreenPointRef.current;
-    const container = containerRef.current;
-    if (!cursorScreenPoint || !container) {
-      return;
-    }
-    const rect = container.getBoundingClientRect();
-    updateEdgeGlowFromScreenPoint(edgeGlowRuntime, {
-      cursorScreenPoint,
-      windowScreenPoint: {
-        x: window.screenX,
-        y: window.screenY,
-      },
-      panelRect: {
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height,
-      },
-      panelSize: fullSize,
-    });
-  }, [edgeGlowRuntime, fullSize]);
-
-  const clearEdgeGlowRevealTimer = useCallback(() => {
-    if (edgeGlowRevealTimerRef.current !== null) {
-      clearTimeout(edgeGlowRevealTimerRef.current);
-      edgeGlowRevealTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleEdgeGlowReveal = useCallback((delayMs = EDGE_GLOW_REVEAL_DELAY_MS) => {
-    clearEdgeGlowRevealTimer();
-    edgeGlowRevealTimerRef.current = window.setTimeout(() => {
-      edgeGlowRevealTimerRef.current = null;
-      syncEdgeGlowMousePositionFromLastPointer();
-      setShowEdgeGlow(true);
-    }, delayMs);
-  }, [clearEdgeGlowRevealTimer, syncEdgeGlowMousePositionFromLastPointer]);
-
-  const revealEdgeGlowNow = useCallback(() => {
-    clearEdgeGlowRevealTimer();
-    syncEdgeGlowMousePositionFromLastPointer();
-    setShowEdgeGlow(true);
-  }, [clearEdgeGlowRevealTimer, syncEdgeGlowMousePositionFromLastPointer]);
-
-  const suppressEdgeGlowUntilReveal = useCallback((delayMs = EDGE_GLOW_REVEAL_DELAY_MS) => {
-    clearEdgeGlowRevealTimer();
-    syncEdgeGlowMousePositionFromLastPointer();
-    setShowEdgeGlow(false);
-    scheduleEdgeGlowReveal(delayMs);
-  }, [clearEdgeGlowRevealTimer, scheduleEdgeGlowReveal, syncEdgeGlowMousePositionFromLastPointer]);
-
-  // Edge Glow visibility reacts to lifecycle phase transitions (choreography
-  // only; the lifecycle itself never touches Edge Glow state).
-  useEffect(() => {
-    const previousPhaseKind = previousPhaseKindRef.current;
-    const nextPhaseKind = state.phase.kind;
-    previousPhaseKindRef.current = nextPhaseKind;
-    if (previousPhaseKind === nextPhaseKind) {
-      return;
-    }
-    if (nextPhaseKind === "expanding") {
-      suppressEdgeGlowUntilReveal();
-      return;
-    }
-    if (nextPhaseKind === "collapsing") {
-      clearEdgeGlowRevealTimer();
-      setShowEdgeGlow(false);
-      return;
-    }
-    if (previousPhaseKind === "expanding" && nextPhaseKind === "full") {
-      revealEdgeGlowNow();
-    }
-  }, [
-    clearEdgeGlowRevealTimer,
-    revealEdgeGlowNow,
-    state.phase.kind,
-    suppressEdgeGlowUntilReveal,
-  ]);
+  // Magnetic eligibility: settled full shell only (full/collapsePending are
+  // mode "full" with no transition in flight; expanding has an epoch), and
+  // never under reduced motion or while the drag lock holds.
+  const magneticEnabled = (
+    projections.visual.mode === "full"
+    && projections.visual.transitionEpoch === null
+    && !environment.reducedMotion
+    && !state.locks.drag
+  );
+  const magnetic = useMainWindowMagnetic(pointerField, panelViewportSize, magneticEnabled);
 
   // Lock facts flow from application state into the lifecycle. The reducer is
   // idempotent, so re-dispatching unchanged facts is a no-op.
@@ -775,7 +704,6 @@ export function MainWindowPresentationSurface({
         return;
       }
       const { clientX, clientY } = event;
-      updateLastKnownPointerScreenPoint(event.screenX, event.screenY);
       compactHotspotFrameRef.current = requestAnimationFrame(() => {
         compactHotspotFrameRef.current = null;
         evaluateCompactHotspot(clientX, clientY);
@@ -792,13 +720,13 @@ export function MainWindowPresentationSurface({
   }, [
     evaluateCompactHotspot,
     projections.interaction.hotspotActive,
-    updateLastKnownPointerScreenPoint,
   ]);
 
   const drag = useMainWindowPanelDrag({
     containerRef,
+    viewportRef,
+    pointerField,
     dispatch,
-    edgeGlowRuntime,
     isCompact,
     isContextMenuOpen,
     canDoubleClickOpenOutputFolder,
@@ -843,11 +771,16 @@ export function MainWindowPresentationSurface({
   } = {}) => {
     setIsDragHovering(false);
     applyPanelHoverInput({ type: "pointerFact", pointerInside });
+    if (!pointerInside) {
+      // The pointer is outside after the drop session; center the field so
+      // Magnetic cannot stay displaced toward the last pre-drag point.
+      resetPointerFieldToCenter(pointerField, panelViewportSize);
+    }
     updateDropHoverState(false);
     dispatch(pointerInside
       ? { type: "setLock", lock: "drop", active: false }
       : { type: "dropLeave" });
-  }, [applyPanelHoverInput, dispatch, updateDropHoverState]);
+  }, [applyPanelHoverInput, dispatch, panelViewportSize, pointerField, updateDropHoverState]);
 
   // Global drop session end (drop/dragend/blur) releases the drop lock.
   useEffect(() => {
@@ -909,12 +842,6 @@ export function MainWindowPresentationSurface({
     });
   }, [dispatch, projections.visual.completionTarget, projections.visual.transitionEpoch]);
 
-  const shouldShowEdgeGlow =
-    isPanelHovered
-    && !isDragHovering
-    && !primaryTaskKind
-    && !isCompact
-    && showEdgeGlow;
   const shouldShowDragGlow = isDragHovering && !primaryTaskKind && !isCompact;
 
   const containerBackdropShadow = primaryTaskKind || isDragHovering
@@ -958,34 +885,21 @@ export function MainWindowPresentationSurface({
     ? minimizedContainerBoxShadow
     : containerShellBoxShadow;
 
-  const edgeGlowStyle: CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    ...getContinuousCornerStyle(panelRadius),
-    pointerEvents: "none",
-    padding: EDGE_GLOW_BORDER_WIDTH,
-    boxShadow: "inset 0 0 16px rgba(96,165,250,0.22), inset 0 0 28px rgba(96,165,250,0.08)",
-    mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-    maskComposite: "exclude",
-    WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-    WebkitMaskComposite: "xor",
-  };
-
   const instantPanelTransition = (
     projections.visual.transitionEpoch !== null
     && projections.visual.recipe === "instant"
   );
 
   useEffect(() => () => {
-    clearEdgeGlowRevealTimer();
     if (compactHotspotFrameRef.current !== null) {
       cancelAnimationFrame(compactHotspotFrameRef.current);
       compactHotspotFrameRef.current = null;
     }
-  }, [clearEdgeGlowRevealTimer]);
+  }, []);
 
   return (
     <div
+      ref={viewportRef}
       style={{
         position: "relative",
         width: panelViewportSize,
@@ -993,6 +907,18 @@ export function MainWindowPresentationSurface({
         overflow: "visible",
       }}
     >
+        {/* Magnetic outer layer: renderer-only x/y displacement. The shadow
+            and shell keep their own morph transforms inside this wrapper, so
+            Magnetic never writes a transform the shell owns. */}
+        <motion.div
+          style={{
+            position: "absolute",
+            inset: 0,
+            x: magnetic.x,
+            y: magnetic.y,
+            willChange: magneticEnabled ? "transform" : undefined,
+          }}
+        >
         <motion.div
           initial={false}
           aria-hidden="true"
@@ -1057,9 +983,7 @@ export function MainWindowPresentationSurface({
             clearPanelDropInteractionState();
           }}
           onMouseEnter={(e) => {
-            updateLastKnownPointerScreenPoint(e.screenX, e.screenY);
-            const rect = e.currentTarget.getBoundingClientRect();
-            updateEdgeGlowFromClientPoint(edgeGlowRuntime, e.clientX, e.clientY, rect);
+            drag.syncPointerFieldFromClientPoint(e.clientX, e.clientY);
             handlePointerFact(true, { type: "pointerEnter" });
             containerRef.current?.focus();
           }}
@@ -1113,22 +1037,6 @@ export function MainWindowPresentationSurface({
               pointerEvents: "auto",
             }}
           >
-            {/* Edge glow layer - follows pointer via local Motion values */}
-            <AnimatePresence>
-              {shouldShowEdgeGlow && (
-                <motion.div
-                  initial={false}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.08, ease: "linear" }}
-                  style={{
-                    ...edgeGlowStyle,
-                    opacity: edgeGlowOpacity,
-                    background: edgeGlowBackground,
-                  }}
-                />
-              )}
-            </AnimatePresence>
-
             {/* Drag glow layer */}
             <AnimatePresence>
               {shouldShowDragGlow && (
@@ -1192,6 +1100,7 @@ export function MainWindowPresentationSurface({
               ) : null}
             </AnimatePresence>
           </div>
+        </motion.div>
         </motion.div>
     </div>
   );
