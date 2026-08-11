@@ -212,6 +212,11 @@ const borderStyle: React.CSSProperties = {
 - `edge trigger distance`: `70` to `100`
 - `falloff exponent`: `0.9` to `1.3`
 
+**Main Window pointer-following ownership**
+- The Main Window's continuous pointer coordinates have one renderer-local authority: `src/presentation/main-window/pointerField.ts` (viewport-local MotionValues measured from the stable presentation root).
+- The full-mode Magnetic shell displacement is the only pointer-following Main Window decoration consumer (`src/presentation/main-window/magnetic.ts`). The former pointer-following border glow was removed; do not reintroduce a second continuous pointer consumer or a second pointer authority.
+- Other components that want a shiny border may still read local hover state directly; do not consume Main Window Pointer Field data outside the presentation module.
+
 **Common mistakes**
 - Rendering a filled gradient strip (causes trapezoid/demo-like look).
 - Forgetting `maskComposite`/`WebkitMaskComposite` (effect fills entire panel).

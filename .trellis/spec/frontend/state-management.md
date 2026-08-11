@@ -181,7 +181,7 @@ Preferred ownership:
 | High-frequency interaction guards | feature-local refs in the presentation surface | Pointer-down / drag pending / drag active update synchronously without waiting for render |
 | Cancelable timers | effect executor (`effectExecutor.ts`) | The 80 ms collapse timer is executor-owned and canceled by re-enter, teardown, and any full intent |
 | Hover truth after transforms | lifecycle pointer facts | DOM enter/leave and native pointer-boundary facts both feed the same reducer |
-| Continuous pointer coordinates | local Motion values (`motionRuntime.ts`) | Edge Glow coordinates never live in React application state |
+| Continuous pointer coordinates | Pointer Field (`pointerField.ts`) | One renderer-local MotionValue authority; pointer coordinates never live in React application state, lifecycle state, or IPC |
 
 Contracts:
 - Do not let `onMouseLeave` directly own collapse decisions for the compact window. Leave is only one fact; the reducer gates it against phase, locks, and pointer truth.

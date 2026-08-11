@@ -29,7 +29,8 @@ src/
 │       ├── MainWindowPresentationSurface.tsx  # DOM/Motion host + pointer/drop/drag wiring
 │       ├── geometry.ts             # Spatial policy only
 │       ├── motionRecipes.ts        # Renderer choreography only
-│       └── motionRuntime.ts        # Temporary Edge Glow Motion-value adapter
+│       ├── pointerField.ts         # Continuous pointer coordinate authority
+│       └── magnetic.ts             # Full-mode Magnetic visual consumer
 │
 ├── pages/                 # Route-level components
 │   ├── SettingsPage.tsx   # Settings window UI
