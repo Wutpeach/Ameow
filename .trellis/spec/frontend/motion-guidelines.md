@@ -91,13 +91,11 @@ Do not animate the same property with both CSS and Motion at the same time.
 
 ### Phase Boundary Rule
 
-Shared motion tokens may be used by low-risk UI consumers such as dropdowns, settings page transitions, and center overlays. The main floating-window compact/full morph is a separate high-risk motion area. Do not tune or refactor its Electron `animateBounds(...)` flow, transition-token ownership, hover-collapse timing, or platform-specific compact shell behavior as part of generic motion-token cleanup.
+Shared motion tokens may be used by low-risk UI consumers such as dropdowns, settings page transitions, and center overlays. The main floating-window compact/full morph is a separate high-risk motion area. Do not tune or refactor its lifecycle epoch handling, hover-collapse timing, or platform-specific compact shell behavior as part of generic motion-token cleanup.
 
-Main floating-window geometry and transition planning lives in `src/utils/mainWindowShellGeometry.ts`. New compact/full work should consume that pure contract before adding local `x/y/width/height/radius/hotspot` calculations in `App.tsx`. Geometry remains spatial; transition token, timing, reduced-motion, and executor lifecycle data stay in the separate transition plan.
+Main floating-window presentation is owned by the `src/presentation/main-window/` module. The lifecycle reducer (`lifecycle.ts`) is the only writable full/compact/transition authority; `projections.ts` derives visual/interaction/native facts; `geometry.ts` is spatial only; `motionRecipes.ts` owns renderer choreography (spring/tween/icon-handoff values); `motionRuntime.ts` is the temporary Edge Glow continuous-value adapter. Normal full↔compact morphs are renderer-visual-only and never change native width/height or call a renderer-facing bounds animation API.
 
-Renderer-side native bounds orchestration lives in `src/utils/mainWindowNativeBoundsOrchestrator.ts`. Keep startup normalization, compact visibility clamping, transition-token checks, and position-cache writes behind that helper instead of scattering direct `animateBounds(...)` calls in `App.tsx`. Do not add native bounds calls to hover expand/collapse paths unless the verified baseline changes.
-
-Main floating-window visual timing is centralized in `src/utils/mainWindowMotionBaseline.ts`. Phase 2F may tune renderer-only panel spring/tween and minimized-icon handoff values there, but native compact visibility timing, transition-token ownership, hover-collapse state flow, and passthrough timing remain separate contracts.
+Native Main Window surface policy lives in `electron/mainWindowSurfacePolicy.mts` (compact reachability correction, monitor clamp, position-only interpolation). The renderer never requests arbitrary native width/height, target bounds, easing, or duration.
 
 ---
 
@@ -487,53 +485,37 @@ Theme hydration:
 
 ### 2. Signatures
 
-Compact expand morph:
+Lifecycle intent from application code:
 
 ```tsx
-const isExpandMorphVisible = isExpandingFromMinimized && windowResized;
+presentation.dispatch({ type: "requestFull", reason: "task", recipe: "instant" });
 ```
 
-Cancelable leave delay:
+Pointer/drop facts and visual completion flow into the same reducer:
 
 ```tsx
-const pointerLeaveCollapseTimerRef = useRef<number | null>(null);
-```
-
-DOM hover reconciliation:
-
-```tsx
-const isPanelActuallyHovered = containerRef.current?.matches(":hover") ?? false;
-```
-
-Transition-token guard:
-
-```tsx
-const transitionToken = beginMainWindowBoundsTransition("full");
-const result = await currentWindow.animateBounds(bounds, {
-  durationMs: 0,
-  transitionToken,
-});
-if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) return;
+presentation.dispatch({ type: "pointerEnter" });
+presentation.dispatch({ type: "pointerLeave" });
+presentation.dispatch({ type: "dropEnter" });
+// Surface Motion completion reports its transition epoch:
+presentation.dispatch({ type: "visualTransitionCompleted", target: "compact", epoch });
 ```
 
 ### 3. Contracts
 
-- Do not treat `onMouseLeave` as the sole source of truth for compact-window collapse. During icon-to-panel morphs, React hover events can become stale or arrive before the visual state is stable.
-- If pointer exit happens while the expand morph is still running, let the current morph finish and decide the next state in the expand-complete handoff. Do not briefly land on the steady full window for one frame and then immediately collapse.
-- Pointer enter/leave is the primary compact/full contract: entering the compact icon expands immediately, and leaving an unlocked full shell must collapse through the short leave grace window without waiting for a longer idle path. First launch is not exempt from this rule.
-- There is no normal 3-second idle collapse contract for compact/full switching. Keep any remaining idle-like behavior out of the primary enter/leave flow.
-- Collapse checks that happen after a morph, task outcome, or other transient lock release must reconcile hover from the DOM first, for example via `element.matches(":hover")`, before mutating minimized state.
-- External drag-drop hover into the compact shell must participate in the same ownership model as pointer hover. `dragover` alone does not guarantee a matching DOM `:hover` or React `mouseenter`, so compact-window collapse guards must keep an explicit drag-hover ref until `drop` or `dragleave` settles.
-- Compact/full native-bounds requests must have one logical owner. If multiple async callbacks can request `animateBounds(...)`, every request must carry a transition token or epoch and every completion must verify that the token is still current before committing renderer-state follow-up such as `setIsMinimized(false)` or `setWindowResized(true)`.
-- Before the main window settles into compact/icon mode, clamp the compact frame's target position into the current monitor work area. The full shell can be dragged partly outside a display, but the final icon hotspot must remain visible and reachable.
-- On macOS compact-shell flows, do not hand visual ownership from the panel shell to a separate minimized icon plate before the native window is already compact-sized. During full-window -> icon collapse, keep one visible shell surface active through the morph and only enable a standalone minimized plate after `windowResized === true`; otherwise the icon can double-apply compact insets and show end-of-animation drift or a transparent-shell flicker.
-- For Windows compact-shell flows, keep the restore target behind a shared constant such as `INTERMEDIATE_EXPAND_SIZE` instead of scattering raw `200` literals across expand, foreground-task restore, and morph handoff code.
-- Full-mode transparent-window drawing must have native viewport room for shadows and elastic overshoot. Use `getMainWindowFullShadowGutter(...)` / `getMainWindowFullOuterSize(...)` as the source of truth instead of assuming the native full window is exactly the visible `200x200` panel. The visible full panel body remains `200x200`, while the native full viewport may be larger to preserve rounded shadows and renderer-side scale overshoot.
-- Compact icon elasticity must not be applied to the compact panel shell layer that owns the Windows inset outline. Do not overshoot compact shell `width`, `height`, `x`, `y`, `borderRadius`, `clipPath`, or the panel-shell `boxShadow` layer to create icon bounce.
-- If compact icon elasticity is needed, keep the minimized `AnimatePresence` container visually stable during the shell collapse, then trigger a small pulse on the visible inner icon wrapper only after the shell reaches `compact`. This avoids racing the icon animation against the panel shell `clipPath` / radius morph and prevents center-icon flicker frames.
-- Pointer-leave collapse must be guarded while pointer-down, drag-threshold pending, or active drag state exists. Do not allow leave handling to cancel window dragging.
-- If a leave-delay grace window is used, it must be cancelable on re-enter and cleared by shared timer reset helpers. Do not scatter independent leave timers across handlers.
-- Hover response may stay immediate on enter, but leave grace for this compact surface should remain short and intentional. Start in the `0.12s` to `0.18s` range; values around `0.20s` are already noticeably sticky on a 200x200 utility window.
+- The lifecycle reducer (`src/presentation/main-window/lifecycle.ts`) is the only writable compact/full/transition authority. `App.tsx` issues intent-level facts and requests only; it never owns collapse timers, completion handoff, native sequencing, hotspot evaluation, or Motion recipe assembly.
+- Do not treat `onMouseLeave` as the sole source of truth for compact-window collapse. Leave is one signal; the reducer gates it against phase and pointer truth, and the native pointer-boundary subscription (with a listener-generation guard) supplies the same fact channel during transparent-window morphs.
+- If pointer exit happens while the expand morph is still running, the reducer records pointer-outside without interrupting the expand; the matching expand completion starts normal collapse pending. Do not land on a steady full window for one frame and then collapse.
+- Pointer enter/leave is the primary compact/full contract: entering the compact icon expands immediately, and leaving an unlocked full shell must collapse through the short leave grace window (80 ms) without waiting for a longer idle path. First launch is not exempt from this rule.
+- There is no normal 3-second idle collapse contract for compact/full switching.
+- The compact transition has exactly one acknowledgement: the matching Renderer Motion collapse completion, checked against the lifecycle epoch. Stale completions after reversal are ignored. Native compact reachability correction is independent, cancellable OS work; it never completes or gates the lifecycle or passthrough. There is no `nativeSettled` state.
+- Windows compact passthrough activates only after the matching collapse completion (one edge-triggered `native.setInteraction` effect) and never flips during collapse; the pure interaction projection independently reports `compact-passthrough` for settled compact.
+- Before the main window settles into compact/icon mode, the native surface policy (`electron/mainWindowSurfacePolicy.mts`) clamps the compact frame into the current monitor work area with position-only interpolation. Returning to interactive mode cancels any active correction.
+- Normal full↔compact morphs keep one stable BrowserWindow viewport and never send per-frame native bounds updates from the renderer. The renderer cannot request arbitrary native width/height, target bounds, easing, or duration.
+- Keep the minimized `AnimatePresence` container visually stable during the shell collapse, then trigger a small pulse on the visible inner icon wrapper only after the lifecycle reaches `compact` (keyed by the settle epoch). This avoids racing the icon animation against the panel shell `clipPath` / radius morph.
+- Pointer-leave collapse must be guarded while pointer-down, drag-threshold pending, or active drag state exists (the `drag` lock). Do not allow leave handling to cancel window dragging.
+- The leave-delay grace window is one cancelable 80 ms timer owned by the effect executor; re-entry cancels it. Do not scatter independent leave timers across handlers.
+- Hover response may stay immediate on enter, but leave grace for this compact surface should remain short and intentional. Keep the `80 ms` timer value in the lifecycle effect contract.
 
 ### 4. Validation & Error Matrix
 
@@ -544,21 +526,21 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 | Pointer leaves while drag gesture is starting | Window drag continues; leave handling does not interrupt | Guard leave handling on pointer-down / pending drag / active drag |
 | Post-task unlock runs after hover state drift | Window uses real hover truth, not stale React state | Reconcile with `matches(":hover")` before collapse |
 | External dragover expands the compact shell without firing a real pointer enter | Expand morph stays open through the drop instead of collapsing mid-drag | Hold a dedicated drag-hover ref and treat it as hover ownership until `drop`/`dragleave` |
-| A stale shrink callback resolves after a newer full-mode request | Full panel never renders inside an `80x80` native shell | Guard `animateBounds(...)` completions with the current transition token |
-| Full shell is dragged partly outside the display before collapse | Compact icon remains visible and reachable inside the current work area | Clamp compact target position before the final compact settle |
-| macOS collapse shows icon drift or last-frame flicker | One shell stays visually anchored until native compact bounds settle | Delay standalone minimized plate activation until `windowResized === true` |
+| A stale compact completion resolves after a newer full request | Passthrough and compact state must not apply to a newer full surface | Epoch-check the Renderer Motion completion in the lifecycle; stale completions after reversal are ignored |
+| Full shell is dragged partly outside the display before collapse | Compact icon remains visible and reachable inside the current work area | Native surface policy clamps the compact frame into the monitor work area (position-only) |
+| macOS collapse shows icon drift or last-frame flicker | One shell stays visually anchored through the morph | Keep one shell surface active; the icon plate appears only after lifecycle compact (settle epoch pulse), never tied to native bounds |
 | Full-mode rounded shadow or scale overshoot clips into straight corners | Native full viewport has no gutter for transparent-window drawing | Restore full-mode shadow gutter through `getMainWindowFullOuterSize(...)` while keeping visible panel `200x200` |
 | Compact icon elasticity causes outline shimmer or thickening | Elasticity was applied to the panel shell layer that draws the outline | Move elasticity to a post-collapse inner icon wrapper pulse |
-| Center icon flashes during full -> compact collapse | Icon enter keyframes overlap with shell `clipPath` / radius morph | Keep the outer icon container stable during collapse and pulse only after `shellPhase === "compact"` |
+| Center icon flashes during full -> compact collapse | Icon enter keyframes overlap with shell `clipPath` / radius morph | Keep the outer icon container stable during collapse and pulse only after the lifecycle reaches `compact` (settle epoch) |
 | Enter feels laggy | Window feels sticky or slow | Keep enter immediate; do not mirror leave delay onto enter |
 
 ### 5. Good / Base / Bad Cases
 
 - Good:
   - Rapid icon -> panel -> leave results in one continuous motion path without flashing.
-  - A 140ms leave grace absorbs accidental slips while keeping the panel responsive.
+  - An 80ms leave grace absorbs accidental slips while keeping the panel responsive.
   - Dragging the main window across its edge does not collapse the shell.
-  - On macOS, the cat icon does not jump at the end of full-window -> icon collapse because the minimized plate only appears after the native shell is compact-sized.
+  - On macOS, the cat icon does not jump at the end of full-window -> icon collapse because the icon pulse only appears after the lifecycle reaches compact (settle epoch), independent of native bounds — the BrowserWindow viewport stays stable full.
 - Base:
   - Leave delay exists only on collapse, not on expand.
 - Bad:
@@ -572,7 +554,7 @@ if (!isMainWindowBoundsTransitionStillCurrent(result.transitionToken, "full")) r
 - Repeated icon -> panel -> leave cycles: verify collapse remains consistent after many repetitions.
 - On macOS, verify the cat icon stays centered through the last collapse frames and no extra inset jump appears when the compact shell settles.
 - Drag the full shell against each display edge, then collapse: verify the compact icon remains inside the active monitor work area.
-- Trigger compact -> expand -> compact -> expand stress cycles and verify a late compact callback cannot leave the main panel clipped inside the native `80x80` window.
+- Trigger compact -> expand -> compact -> expand stress cycles and verify a stale compact completion (epoch mismatch) cannot enable passthrough or collapse a newer full surface.
 - Start dragging the main window and cross the panel edge: verify dragging still works and collapse does not interrupt it.
 - Drag a web image or video into icon mode: verify the window expands once, does not bounce back to compact during the drag, and does not end stuck in the full window because of a stale collapse decision.
 - Leave and re-enter within the leave-delay window: verify collapse is canceled.
@@ -599,10 +581,8 @@ Why wrong:
 #### Correct
 
 ```tsx
-onMouseLeave={() => {
-  pointerLeaveCollapseTimerRef.current = window.setTimeout(() => {
-    if (isExpandingFromMinimized || pendingDragStartRef.current) return;
-    collapseMainWindowIfPointerOutside();
-  }, 140);
-}}
+// No App-owned leave timer at all: the lifecycle emits collapseTimer.start /
+// collapseTimer.cancel effects and the effect executor owns the single
+// cancelable 80 ms timer, reporting the timer epoch back. Re-entry cancels
+// it; the drag lock gates collapse inside the reducer.
 ```

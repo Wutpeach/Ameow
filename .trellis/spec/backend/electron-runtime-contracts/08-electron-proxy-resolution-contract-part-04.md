@@ -23,9 +23,9 @@ _Part 4 of 4._
 | App events are multiplexed through one shared IPC channel | Renderer event subscriptions | No listener leak warning during ordinary usage | Use `ameow:event:<event>` channels |
 | UI Lab invents duplicate renderer-only mock components | Preview-tooling review | Preview remains representative of the real main-window UI | Drive the existing main window with real app events / runtime-command overrides |
 | Non-runtime UI Lab preview leaks the live runtime indicator into download/transcode scenes | Preview-tooling review | Each preview shows only the state it is meant to demonstrate | Apply a ready runtime override for non-runtime scenarios and emit the override on every gate event while preview mode is active |
-| UI Lab scenario replay reuses `shortcut-show` or renderer preview mode does not suppress minimized visuals | Preview-tooling review | Preview opens once and stays in full main-window mode without circular-shell clipping, disappearance, or first-click flicker | Keep preview activation on the dedicated `ui-lab-reset` path and force renderer visual state to full mode while preview is active |
-| Renderer clears minimized/full-mode task or processing state before compact native bounds are restored during download/transcode/direct-processing | Main window enters a foreground feedback mode from compact icon mode | Foreground UI never appears cropped inside the compact native window | Restore BrowserWindow bounds first, then flip renderer state through one shared foreground-task helper |
-| A stale compact/full bounds completion resolves after a newer request | Main window compact/full transition | Late async work cannot reapply stale `80x80` / `200x200` bounds or renderer state | Carry and validate a transition token across the `currentWindow.animateBounds(...)` request/response contract |
+| UI Lab scenario replay reuses `shortcut-show` or bypasses the lifecycle | Preview-tooling review | Preview opens once and stays in full main-window mode without circular-shell clipping, disappearance, or first-click flicker | Keep preview activation on the dedicated `ui-lab-reset` path using the lifecycle `uiLab` lock plus explicit full intent; no visual overrides or ignored completion paths |
+| Foreground feedback paints before explicit full intent is reduced | Main window enters a foreground feedback mode from compact icon mode | Foreground UI never appears cropped inside the compact shell | Issue explicit full intent through the presentation lifecycle before outcome state paints; the lifecycle owns the transition recipe |
+| A stale compact reachability correction resolves after the surface expanded again | Main window compact/full transition | Late async work cannot move a newer full surface | Returning to interactive mode cancels the active correction; the semantic reachability operation carries a `requestEpoch` guard; no generic renderer bounds animation exists |
 | Windows autostart reads only `openAtLogin` | Settings autostart status | UI can show enabled even when the current executable will not actually launch at login | Query the current executable path and treat `executableWillLaunchAtLogin` plus matching `launchItems.enabled` as the effective status |
 | Windows autostart write path omits a stable registry name or Startup Approved state | Settings autostart toggle | Re-enabling can create drifted entries or fail to reactivate the existing startup item cleanly | Write explicit `name`, `path`, `args`, and `enabled` fields together |
 | Frameless drag awaits `invoke(...)` or `set_window_position` on every pointer move | Main window drag path | Drag remains smooth and continuous | Use `currentWindow.setPosition(...)` fire-and-forget IPC, optionally RAF-batched |
@@ -49,16 +49,16 @@ _Part 4 of 4._
 - Good:
   - Renderer code replaces `invoke(...)` / `listen(...)` imports with `window.ameow` calls while command names and payload types remain unchanged.
   - Electron renderer startup surfaces an explicit bridge-failure screen if preload is missing instead of mounting an inert app shell.
-  - On Windows startup, `main` reveals at full native bounds first, then only enters compact mode through the same idle path used later in the session.
+  - On Windows startup, `main` reveals at the stable full viewport first, then only enters compact mode through the same lifecycle path used later in the session.
   - Electron dev startup reaches a visible `main` window on first stable paint without waiting for the full packaged-only renderer-ready handshake.
   - Non-critical startup status widgets do not mount until the initial full-window reveal has settled, but a user-triggered foreground action can still force the needed runtime refresh on demand.
   - Packaged startup reads config once for first-window theme, tray labels, and shortcut registration instead of serializing multiple config parses before the first reveal.
   - On Windows, the app exposes only the tray icon during normal idle/show-hide usage while `main`, `settings`, and other utility windows stay off the taskbar.
   - On Windows, the tray icon and any BrowserWindow icon surfaces use the Ameow app icon instead of the Electron default icon.
-  - Download/transcode progress and direct-processing feedback restore `main` through one shared helper, so the full-size shell never renders inside compact native bounds.
+  - Download/transcode progress and direct-processing feedback restore `main` through one shared lifecycle intent, so the full shell never renders inside the compact presentation.
   - Frameless main-window dragging stays smooth because pointer moves use `currentWindow.setPosition(...)` over fire-and-forget IPC instead of request/response invoke loops.
   - In development, Settings opens `ui-lab`, the lab applies `dev_ui_lab_apply_scenario`, and the real main window reflects the mocked runtime/download/transcode states.
-  - Repeatedly switching UI Lab scenarios keeps the real main window in full-mode visuals, with no circular minimized shell wrapped around preview content.
+  - Repeatedly switching UI Lab scenarios keeps the real main window full through the lifecycle `uiLab` lock, with no circular minimized shell wrapped around preview content.
   - Main/settings/context-menu can all subscribe to app events without `MaxListenersExceededWarning`.
   - Browser extension still connects to `ws://127.0.0.1:39527`, `get_language` succeeds, and `video_selected_v2` responses echo `requestId`.
   - Windows installer builds support in-app updates through the NSIS installer asset, while Windows portable builds support portable ZIP self-update through the external helper path.
@@ -68,13 +68,13 @@ _Part 4 of 4._
 - Base:
   - Electron main uses different implementation details internally, but renderer, config, and extension contracts stay stable.
   - Child-window creation moves out of renderer and into Electron main without changing labels or visible behavior.
-  - Startup may still compact after the normal idle delay, but it does not perform a startup-only immediate shrink as part of first reveal.
+  - Startup may still compact after the normal lifecycle settle path, but it does not perform a startup-only immediate shrink as part of first reveal.
   - Packaged startup may still perform native tray/shortcut setup work around first reveal, but shared config-derived startup decisions come from one snapshot instead of repeated config reads.
   - Dev-only tooling may add one extra secondary label as long as packaged builds reject it cleanly.
   - Foreground events may arrive before the first visible progress payload or before a direct-processing spinner/check state, but the window-restore ordering stays centralized.
   - Title-bearing video downloads continue using title-first stems, while title-less Pinterest requests may still use the provider-specific short-id fallback.
 - Bad:
-  - Windows startup reveals `main` in an `80x80` native compact shell before the user has had any full-window settle time.
+  - The native main window is created at compact icon size instead of the stable full viewport.
   - Startup reveals the full window and then immediately forces a startup-only compact transition before the regular idle timer has a chance to govern compacting.
   - Dev startup keeps the first show blocked on a long renderer-ready handshake even though a stable first paint was already available.
   - Deferred startup checks stay delayed even after a user-triggered action needs runtime status immediately, so the first foreground action fails on missing cached state.
@@ -85,8 +85,8 @@ _Part 4 of 4._
   - Renderer silently falls back to plain browser behavior when the Electron bridge is missing.
   - All app events share one `"ameow:event"` channel and rely on renderer-side event-name filtering.
   - UI Lab is shipped as a production-facing route or button.
-  - UI Lab preview shows status/task content while the shell is still clipped to the compact circular icon shape.
-  - Download, transcode, or direct-processing feedback sets renderer full-mode state first and only resizes the native window afterward, so the panel is visibly cropped.
+  - UI Lab preview shows status/task content while the shell is still clipped to the compact circular icon shape, or preview bypasses the lifecycle with visual overrides.
+  - Foreground feedback paints before the lifecycle reduces explicit full intent, so the panel is visibly cropped or flashes inside the compact shell.
   - Pointer-move drag updates await `invoke(...)` round-trips.
   - Renderer starts importing `ipcRenderer` directly.
   - A random/dynamic port replaces `39527`.
@@ -186,13 +186,13 @@ const ws = new WebSocket("ws://127.0.0.1:39527");
 ```
 
 ```ts
-setIsMinimized(false);
-await currentWindow.animateBounds({ x, y, width: 200, height: 200 });
+// No renderer-facing generic bounds animation exists; native placement is the
+// semantic compact-reachability operation owned by Electron main.
 ```
 
 Why wrong:
-- Renderer can render full-size task content while the native window is still compact-sized.
-- Separate task paths can drift if each listener owns its own restore sequence.
+- A foreground path that renders full-size content before the lifecycle reduces explicit full intent can paint inside the compact shell.
+- Separate task paths can drift if each listener owns its own restore sequence instead of issuing lifecycle intent.
 
 ```ts
 await prepareMainWindowForForegroundTask();

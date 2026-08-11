@@ -34,11 +34,12 @@ type AmeowEventChannel = `ameow:event:${AmeowAppEvent}`;
 type AmeowCurrentWindowPositionChannel = "ameow:current-window:set-position";
 ```
 
-Startup-mode contract:
+Startup viewport contract:
 
-```ts
-type AmeowStartupWindowMode = "compact" | "full";
-```
+- The Main Window always starts with the stable full outer viewport; the
+  dormant compact native startup path and its `startupWindowMode()` resolver
+  were removed. Normal full↔compact morphs are renderer-visual-only and never
+  change native width/height.
 
 Required preload surface summary:
 
@@ -79,24 +80,34 @@ interface AmeowElectronBridge {
 }
 ```
 
-Current-window surface addition:
+Current-window compact-reachability contract:
 
 ```ts
+type AmeowCompactReachableOptions = {
+  reachableFrameSize: number;
+  edgePadding: number;
+  reducedMotion: boolean;
+  requestEpoch: number;
+};
+
+type AmeowCompactReachableResult = {
+  requestEpoch: number;
+  position: AmeowPoint;
+};
+
 interface AmeowCurrentWindowApi {
-  startupWindowMode(): AmeowStartupWindowMode;
+  ensureMainWindowCompactReachable(
+    options: AmeowCompactReachableOptions,
+  ): Promise<AmeowCompactReachableResult>;
+  cancelCompactReachability(): void;
 }
 ```
 
-Typed bounds-animation contract:
-
-```ts
-interface AmeowCurrentWindowApi {
-  animateBounds(
-    bounds: AmeowBounds,
-    options?: { durationMs?: number; transitionToken?: number },
-  ): Promise<{ transitionToken: number | null }>;
-}
-```
+This is the only native placement operation: monitor clamp + position-only
+interpolation owned by `electron/mainWindowSurfacePolicy.mts`, cancelable and
+`requestEpoch`-guarded. There is no generic renderer bounds-animation API
+(`animateBounds`) and no `startupWindowMode()` bridge method; both were removed
+with the dormant compact native startup path.
 
 Current-window interaction-mode contract:
 

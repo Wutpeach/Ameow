@@ -14,29 +14,43 @@ The frontend follows a flat, feature-light structure suitable for a small deskto
 
 ```
 src/
-├── App.tsx                 # Main floating window component (~1100 lines)
+├── App.tsx                 # Application facts + business content; issues presentation intents
 ├── main.tsx               # React entry point + router setup
 ├── index.css              # Global styles (TailwindCSS)
 ├── vite-env.d.ts          # Vite type declarations
 │
+├── presentation/          # Main Window presentation module (feature-scoped)
+│   └── main-window/
+│       ├── lifecycle.ts            # Pure lifecycle reducer (only writable authority)
+│       ├── projections.ts          # Pure visual/interaction/native projections
+│       ├── effectContracts.ts      # Effect discriminated union
+│       ├── effectExecutor.ts       # Injected timer/native/focus execution
+│       ├── reactAdapter.ts         # Thin React reducer binding
+│       ├── MainWindowPresentationSurface.tsx  # DOM/Motion host + pointer/drop/drag wiring
+│       ├── geometry.ts             # Spatial policy only
+│       ├── motionRecipes.ts        # Renderer choreography only
+│       └── motionRuntime.ts        # Temporary Edge Glow Motion-value adapter
+│
 ├── pages/                 # Route-level components
-│   └── SettingsPage.tsx   # Settings window UI
+│   ├── SettingsPage.tsx   # Settings window UI
+│   └── UiLabPage.tsx      # UI Lab window (DEV only)
 │
 ├── components/            # Reusable components
-│   ├── MaterialGrid.tsx   # Grid display component
-│   ├── Sidebar.tsx        # Navigation sidebar
+│   ├── CatIcon.tsx        # Compact icon
 │   └── ui/                # Custom UI primitives
-│       ├── neon-button.tsx
-│       ├── neon-card.tsx
-│       ├── neon-input.tsx
-│       ├── neon-toggle.tsx
-│       └── index.ts       # Barrel export
+│       ├── shared-styles.ts
+│       ├── index.ts       # Barrel export
+│       └── ...
 │
 ├── contexts/              # React Context providers
 │   └── ThemeContext.tsx   # Theme state management
 │
-└── utils/                 # Utility functions
-    └── videoUrl.ts        # Video URL detection
+└── utils/                 # Pure utility functions
+    ├── mainPanelInteractions.ts    # Panel drag/double-click helpers
+    ├── compactPointerHotspot.ts    # Hotspot hysteresis
+    ├── centerOverlayState.ts       # Center overlay reducer (application)
+    ├── startupWindowState.ts       # Startup environment detection
+    └── ...
 ```
 
 ---
