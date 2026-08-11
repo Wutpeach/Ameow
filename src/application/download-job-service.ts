@@ -116,6 +116,18 @@ export type DownloadJobServiceOptions<
    */
   classifyFailure?(error: unknown): DownloadRuntimeError;
   /**
+   * Optional infrastructure-injected successful-result settlement, invoked at
+   * most once per Job after engine/fallback/auth-recovery success and before
+   * the diagnostic success terminal. It may perform fallible output
+   * settlement (rename, metadata reads/cleanup) and returns the final
+   * successful result; a thrown settlement error is normalized through
+   * `classifyFailure` and terminates the Job as one typed failure instead of
+   * ever recording a success terminal.
+   */
+  settleSuccessfulResult?(
+    outcome: DownloadJobOutcome<TJobContext>,
+  ): DownloadResult | Promise<DownloadResult>;
+  /**
    * Optional P6B diagnostics. Absent → a no-op sink is used and behavior,
    * protocol output and telemetry stay unchanged. Diagnostic failures never
    * change the download outcome.
@@ -270,15 +282,11 @@ export class DownloadJobService<
         reportAttempt,
       );
     const classify = this.options.classifyFailure ?? defaultClassifyFailure;
-    const toOutcome = (result: DownloadResult): DownloadJobOutcome<TJobContext> => ({
-      result,
-      plan: prepared.plan,
-      chosenEngine,
-      jobContext,
-    });
-
+    // Attempts resolve to exactly one result, with at most one auth-recovery
+    // retry. Auth recovery applies only to engine attempt failures.
+    let result: DownloadResult;
     try {
-      return toOutcome(await executeAttempts());
+      result = await executeAttempts();
     } catch (error) {
       const firstFailure = classify(error);
       if (
@@ -315,10 +323,31 @@ export class DownloadJobService<
       // typed failure is terminal: recovery runs at most once.
       cycle = "auth_recovery";
       try {
-        return toOutcome(await executeAttempts());
+        result = await executeAttempts();
       } catch (retryError) {
         throw classify(retryError);
       }
     }
+
+    const outcome: DownloadJobOutcome<TJobContext> = {
+      result,
+      plan: prepared.plan,
+      chosenEngine,
+      jobContext,
+    };
+    // Exactly one successful-result settlement invocation, after the
+    // auth-recovery decision has fully settled and before the diagnostic
+    // success terminal. Output settlement is not an engine attempt: its
+    // failure is normalized through the same typed classifier and goes
+    // straight to the outer terminal catch, so it can never trigger
+    // auth recovery even if the classifier labels it auth_required.
+    if (this.options.settleSuccessfulResult) {
+      try {
+        outcome.result = await this.options.settleSuccessfulResult(outcome);
+      } catch (settlementError) {
+        throw classify(settlementError);
+      }
+    }
+    return outcome;
   }
 }

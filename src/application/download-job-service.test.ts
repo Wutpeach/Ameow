@@ -18,10 +18,12 @@ import { createSiteRegistry } from "../sites/site-registry.js";
 import {
   DownloadJobService,
   type DownloadJobAuthRecoveryContext,
+  type DownloadJobOutcome,
 } from "./download-job-service.js";
-import type {
-  DownloadDiagnosticEvent,
-  DownloadDiagnosticsOptions,
+import {
+  getDownloadTerminalDiagnosticSummary,
+  type DownloadDiagnosticEvent,
+  type DownloadDiagnosticsOptions,
 } from "./download-diagnostics.js";
 
 /**
@@ -104,6 +106,9 @@ const createService = (options: {
     context: DownloadJobAuthRecoveryContext<TestJobContext>,
   ) => Promise<{ shouldRetry: boolean } | void>;
   classifyFailure?: (error: unknown) => DownloadRuntimeError;
+  settleSuccessfulResult?: (
+    outcome: DownloadJobOutcome<TestJobContext>,
+  ) => DownloadResult | Promise<DownloadResult>;
   diagnostics?: DownloadDiagnosticsOptions;
 }): DownloadJobService<TestJobContext, EngineExecutionContext> => {
   const orchestrator = new DownloadOrchestrator<EngineExecutionContext>(
@@ -139,6 +144,7 @@ const createService = (options: {
     refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
     handleAuthRequiredFailure: options.handleAuthRequiredFailure,
     classifyFailure: options.classifyFailure,
+    settleSuccessfulResult: options.settleSuccessfulResult,
     diagnostics: options.diagnostics,
   });
 };
@@ -1082,6 +1088,192 @@ describe("DownloadJobService", () => {
       });
       expect(terminalEvents(events)).toEqual([
         expect.objectContaining({ type: "download.failed", traceId: "trace-1" }),
+      ]);
+    });
+  });
+
+  describe("successful-result settlement", () => {
+    it("runs the settlement hook exactly once, before the single success terminal, and returns the settled result", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const order: string[] = [];
+      const settle = vi.fn(
+        async (outcome: DownloadJobOutcome<TestJobContext>) => {
+          order.push("settle");
+          expect(outcome.result).toMatchObject({
+            success: true,
+            filePath: "/tmp/out/stem.mp4",
+          });
+          expect(outcome.jobContext.outputStem).toBe("stem");
+          return {
+            ...outcome.result,
+            filePath: "/tmp/out/Settled Title.mp4",
+            title: "Settled Title",
+          };
+        },
+      );
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [createEngineStub("yt-dlp", successfulResult)],
+        settleSuccessfulResult: settle,
+        diagnostics: {
+          ...diagnostics,
+          sink: {
+            record(event) {
+              order.push(event.type);
+              return void events.push(event);
+            },
+          },
+        },
+      });
+
+      const outcome = await service.executeJob(
+        TEST_REQUEST,
+        new AbortController().signal,
+      );
+
+      expect(outcome.result).toMatchObject({
+        success: true,
+        filePath: "/tmp/out/Settled Title.mp4",
+        title: "Settled Title",
+      });
+      expect(settle).toHaveBeenCalledTimes(1);
+      // Settlement runs after the attempt succeeded and strictly before the
+      // diagnostic success terminal.
+      expect(order).toEqual([
+        "download.prepared",
+        "attempt.started",
+        "attempt.succeeded",
+        "settle",
+        "download.succeeded",
+      ]);
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.succeeded", traceId: "trace-1" }),
+      ]);
+    });
+
+    it("records exactly one failed terminal with matching typed semantics when settlement fails", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const settlementFailure = new DownloadRuntimeError(
+        "E_OUTPUT_NOT_FOUND",
+        "Failed to rename output file",
+        {
+          classification: "terminal_for_site",
+          diagnosticCategory: "output",
+        },
+      );
+      const settle = vi.fn(async () => {
+        throw settlementFailure;
+      });
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [createEngineStub("yt-dlp", successfulResult)],
+        settleSuccessfulResult: settle,
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toBe(settlementFailure);
+
+      // Never a success terminal; exactly one typed failed terminal whose
+      // code/classification/category match the thrown settlement error.
+      expect(settle).toHaveBeenCalledTimes(1);
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({
+          type: "download.failed",
+          traceId: "trace-1",
+          errorCode: "E_OUTPUT_NOT_FOUND",
+          classification: "terminal_for_site",
+          category: "output",
+        }),
+      ]);
+      expect(getDownloadTerminalDiagnosticSummary(settlementFailure)?.status)
+        .toBe("failed");
+    });
+
+    it("never triggers auth recovery from a settlement failure, even when it is classified auth_required", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const settlementFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        "settlement requires cookies",
+        { classification: "auth_required" },
+      );
+      const recovery = vi.fn(async () => ({ shouldRetry: true }));
+      const settle = vi.fn(async () => {
+        throw settlementFailure;
+      });
+      let attempts = 0;
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async (context) => {
+            attempts += 1;
+            return successfulResult(context);
+          }),
+        ],
+        handleAuthRequiredFailure: recovery,
+        settleSuccessfulResult: settle,
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toBe(settlementFailure);
+
+      // Settlement is not an engine attempt: no retry, no recovery, one
+      // settlement call, and exactly one failed terminal whose typed
+      // semantics match the thrown settlement error.
+      expect(attempts).toBe(1);
+      expect(settle).toHaveBeenCalledTimes(1);
+      expect(recovery).not.toHaveBeenCalled();
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({
+          type: "download.failed",
+          traceId: "trace-1",
+          errorCode: "E_EXECUTION_FAILED",
+          classification: "auth_required",
+          category: "authentication_required",
+        }),
+      ]);
+    });
+
+    it("runs the settlement hook exactly once after auth-recovery retry success", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const authFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        "cookies required for this resource",
+        { classification: "auth_required" },
+      );
+      const settle = vi.fn(
+        async (outcome: DownloadJobOutcome<TestJobContext>) => outcome.result,
+      );
+      let attempts = 0;
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async (context) => {
+            attempts += 1;
+            if (attempts === 1) {
+              throw authFailure;
+            }
+            return successfulResult(context);
+          }),
+        ],
+        handleAuthRequiredFailure: async () => ({ shouldRetry: true }),
+        settleSuccessfulResult: settle,
+        diagnostics,
+      });
+
+      const outcome = await service.executeJob(
+        TEST_REQUEST,
+        new AbortController().signal,
+      );
+
+      expect(attempts).toBe(2);
+      expect(outcome.result.success).toBe(true);
+      expect(settle).toHaveBeenCalledTimes(1);
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.succeeded", traceId: "trace-1" }),
       ]);
     });
   });

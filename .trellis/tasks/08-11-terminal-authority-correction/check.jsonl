@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/sidecar-runtime-contracts/03-electron-download-runtime-core.md","reason":"Verify terminal event compatibility and settlement ordering."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify one source of truth across Application, runtime, protocol, and Renderer boundaries."}
+{"file":".trellis/tasks/08-11-terminal-authority-correction/research/current-terminal-authority-audit.md","reason":"Check the implemented flow against the confirmed split-terminal evidence and scope guardrails."}

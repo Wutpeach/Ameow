@@ -46,6 +46,7 @@
   - Queue state remains emitted through `video-queue-count` and `video-queue-detail`.
   - Download progress remains emitted through `video-download-progress`.
   - Terminal download settlement remains emitted through `video-download-complete` for both success and failure.
+  - Fallible output settlement (yt-dlp title rename, gallery-dl metadata/title settlement, filesystem rename/cleanup, queue-label updates) runs inside the application Job through the injected successful-result settlement hook: at most once per Job, after engine/fallback/auth-recovery success and strictly before the single structured diagnostic terminal and the `video-download-complete` event. A settlement failure is normalized through the same typed failure classifier as engine failures and surfaces as exactly one failed terminal; the diagnostic terminal and the product terminal must always agree.
   - Indeterminate `gallery-dl` tasks must not remain renderer-visible `preparing` for the whole run just because the tool does not expose byte-accurate progress.
   - `gallery-dl` runs must emit an early `video-download-progress` payload with `stage: "downloading"` once the child process has started, even if `percent` remains `-1`.
   - For `gallery-dl`, the `speed` field may carry i18n-friendly activity tokens such as `activity:galleryDl.resolvingMedia`, `activity:galleryDl.collectingMetadata`, or `activity:galleryDl.savingFile`; renderer status surfaces should translate those tokens as activity text instead of literal transfer-rate values.

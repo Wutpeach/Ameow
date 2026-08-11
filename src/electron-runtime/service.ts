@@ -55,6 +55,7 @@ import { toRawDownloadInput } from "../application/download-api.js";
 import type { RuntimeFailureDiagnostic } from "../types/errorDiagnostics.js";
 import type {
   DownloadProgress,
+  DownloadResult,
   EnginePlan,
   RawDownloadInput,
   ResolvedDownloadPlan,
@@ -1293,6 +1294,53 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     };
   }
 
+  /**
+   * Applies a resolved title rename to a completed download, updates the
+   * queue label/state, and returns the settled result (unchanged when no
+   * rename applies). Shared by the yt-dlp and gallery-dl settlement branches.
+   */
+  private async settleTitleRename({
+    traceId,
+    outputDir,
+    outputStem,
+    result,
+    title,
+    activeTask,
+    config,
+  }: {
+    traceId: string;
+    outputDir: string;
+    outputStem: string;
+    result: DownloadResult;
+    title: string;
+    activeTask: ActiveTask;
+    config: Record<string, unknown>;
+  }): Promise<DownloadResult> {
+    if (!result.filePath) {
+      return result;
+    }
+    const renamed = await this.applyResolvedTitleToCompletedDownload({
+      traceId,
+      outputDir,
+      outputStem,
+      filePath: result.filePath,
+      title,
+      request: activeTask.request,
+      config,
+    });
+    if (!renamed) {
+      return result;
+    }
+    activeTask.request.title = renamed.title;
+    activeTask.label = queueTaskLabel(activeTask.request);
+    await this.emitQueueState();
+    return {
+      ...result,
+      filePath: renamed.filePath,
+      title: renamed.title,
+    };
+  }
+
   private async pumpQueue(): Promise<void> {
     while (this.active.size < this.maxConcurrent && this.pending.length > 0) {
       const nextTask = this.pending.shift();
@@ -1500,6 +1548,57 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           error,
           activeTask.abortController.signal.aborted,
         ),
+        // Fallible output settlement (title/metadata resolution, filesystem
+        // rename/cleanup, queue-label updates) runs inside the application
+        // Job, at most once, before the diagnostic success terminal and the
+        // product event; a settlement failure becomes the single typed failed
+        // terminal instead of contradicting an earlier success.
+        settleSuccessfulResult: async ({ result, chosenEngine, jobContext }) => {
+          let settled = result;
+          const outputStem = jobContext.outputStem;
+          if (
+            settled.success
+            && settled.filePath
+            && chosenEngine === "yt-dlp"
+            && !activeTask.request.title?.trim()
+            && settled.title?.trim()
+          ) {
+            settled = await this.settleTitleRename({
+              traceId,
+              outputDir: jobContext.outputDir,
+              outputStem,
+              result: settled,
+              title: settled.title,
+              activeTask,
+              config: jobContext.config,
+            });
+          }
+          if (settled.success && settled.filePath && chosenEngine === "gallery-dl") {
+            const originalFilePath = settled.filePath;
+            const metadataTitle = await resolveGalleryDlMetadataTitleFromSidecars(
+              jobContext.outputDir,
+              outputStem,
+              originalFilePath,
+            );
+            if (metadataTitle) {
+              settled = await this.settleTitleRename({
+                traceId,
+                outputDir: jobContext.outputDir,
+                outputStem,
+                result: settled,
+                title: metadataTitle,
+                activeTask,
+                config: jobContext.config,
+              });
+            }
+            await cleanupGalleryDlMetadataSidecars(
+              jobContext.outputDir,
+              outputStem,
+              originalFilePath,
+            );
+          }
+          return settled;
+        },
         diagnostics: {
           traceId,
           sink: this.diagnosticSink,
@@ -1507,13 +1606,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         },
       }).executeJob(activeTask.request, activeTask.abortController.signal);
       // Core result stays protocol-neutral; the outer adapter maps the
-      // terminal outcome to the protocol payload exactly once below.
-      let result = execution.result;
+      // terminal outcome to the protocol payload exactly once below. The
+      // result is already settled by the injected hook inside the Job.
+      const result = execution.result;
       const chosenEngine = execution.chosenEngine;
       terminalDiagnosticSummary = execution.diagnosticSummary;
-      // Output settlement metadata lives in the Job context: the same object
-      // reused by every attempt of this Job.
-      const outputStem = execution.jobContext.outputStem;
       this.logger.log(`>>> [ElectronRuntimeTiming] task engine complete: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
@@ -1522,67 +1619,6 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         success: result.success,
         filePathPresent: Boolean(result.filePath),
       })}`);
-      if (
-        result.success
-        && result.filePath
-        && chosenEngine === "yt-dlp"
-        && !activeTask.request.title?.trim()
-        && result.title?.trim()
-      ) {
-        const renamed = await this.applyResolvedTitleToCompletedDownload({
-          traceId,
-          outputDir: resolvedOutputDir,
-          outputStem,
-          filePath: result.filePath,
-          title: result.title,
-          request: activeTask.request,
-          config,
-        });
-        if (renamed) {
-          activeTask.request.title = renamed.title;
-          activeTask.label = queueTaskLabel(activeTask.request);
-          await this.emitQueueState();
-          result = {
-            ...result,
-            filePath: renamed.filePath,
-            title: renamed.title,
-          };
-        }
-      }
-      if (result.success && result.filePath && chosenEngine === "gallery-dl") {
-        const originalFilePath = result.filePath;
-        const metadataTitle = await resolveGalleryDlMetadataTitleFromSidecars(
-          resolvedOutputDir,
-          outputStem,
-          originalFilePath,
-        );
-        if (metadataTitle) {
-          const renamed = await this.applyResolvedTitleToCompletedDownload({
-            traceId,
-            outputDir: resolvedOutputDir,
-            outputStem,
-            filePath: result.filePath,
-            title: metadataTitle,
-            request: activeTask.request,
-            config,
-          });
-          if (renamed) {
-            activeTask.request.title = renamed.title;
-            activeTask.label = queueTaskLabel(activeTask.request);
-            await this.emitQueueState();
-            result = {
-              ...result,
-              filePath: renamed.filePath,
-              title: renamed.title,
-            };
-          }
-        }
-        await cleanupGalleryDlMetadataSidecars(
-          resolvedOutputDir,
-          outputStem,
-          originalFilePath,
-        );
-      }
       terminalOutcome = {
         traceId,
         result,

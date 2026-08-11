@@ -12,6 +12,10 @@ import {
   type SiteProvider,
 } from "../core";
 import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext";
+import type {
+  DownloadDiagnosticEvent,
+  DownloadDiagnosticSink,
+} from "../application/download-diagnostics";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry";
 import type { NetworkRouteResolution } from "../config/networkRoute";
 import { genericProvider } from "../sites/generic";
@@ -171,6 +175,7 @@ const createRuntime = (options: {
   onEmit?(event: RuntimeEmitterEvent, payload: unknown): void;
   onTelemetry?(event: DownloadTelemetryEvent): void;
   telemetrySink?: { record(event: DownloadTelemetryEvent): Promise<void> };
+  diagnosticSink?: DownloadDiagnosticSink;
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<{ shouldRetry: boolean } | void>;
@@ -219,10 +224,56 @@ const createRuntime = (options: {
   refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
   resolveNetworkRoute: options.resolveNetworkRoute,
   resolveNetworkConsumer: options.resolveNetworkConsumer,
+  diagnosticSink: options.diagnosticSink,
   maxConcurrent: options.maxConcurrent,
   providers: options.providers,
   engines: options.engines,
 });
+
+const createSettlementHarness = (
+  tempDir: string,
+  engine: DownloadEngine<EngineExecutionContextWithRuntime>,
+): {
+  runtime: ReturnType<typeof createRuntime>;
+  completions: Array<{
+    traceId: string;
+    success: boolean;
+    error?: string;
+    file_path?: string;
+    title?: string;
+    failure?: unknown;
+  }>;
+  terminals: () => DownloadDiagnosticEvent[];
+} => {
+  const diagnostics: DownloadDiagnosticEvent[] = [];
+  const completions: Array<{
+    traceId: string;
+    success: boolean;
+    error?: string;
+    file_path?: string;
+    title?: string;
+    failure?: unknown;
+  }> = [];
+  return {
+    runtime: createRuntime({
+      configString: JSON.stringify({ outputPath: tempDir }),
+      providers: [youtubeProvider, genericProvider],
+      engines: [engine],
+      diagnosticSink: { record: (event) => void diagnostics.push(event) },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completions.push(toCompletionView(payload));
+        }
+      },
+    }),
+    completions,
+    terminals: () => diagnostics.filter(
+      (event) => event.type === "download.succeeded"
+        || event.type === "download.failed"
+        || event.type === "download.cancelled",
+    ),
+  };
+};
 
 describe("AmeowElectronDownloadRuntime", () => {
   afterEach(() => {
@@ -2977,6 +3028,92 @@ describe("AmeowElectronDownloadRuntime", () => {
         title: "Recovered YouTube Title",
         file_path: expect.stringMatching(/Recovered YouTube Title\.mp4$/),
       });
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("records one diagnostic success and one product success with the settled path when rename succeeds", async () => {
+    const tempDir = path.join(
+      os.tmpdir(),
+      `ameow-settle-ok-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const harness = createSettlementHarness(
+      tempDir,
+      createEngineStub("yt-dlp", async (context) => {
+        const filePath = path.join(context.outputDir, `${context.outputStem}.mp4`);
+        writeFileSync(filePath, "video");
+        return {
+          traceId: context.traceId,
+          success: true,
+          filePath,
+          title: "Recovered YouTube Title",
+        };
+      }),
+    );
+
+    try {
+      await harness.runtime.queueVideoDownload({
+        url: "https://www.youtube.com/watch?v=abc123",
+      });
+
+      await waitFor(() => harness.completions.length === 1);
+      // Exactly one diagnostic terminal, a success, and the product event
+      // carries the settled path/title.
+      expect(harness.terminals()).toEqual([
+        expect.objectContaining({
+          type: "download.succeeded",
+          traceId: harness.completions[0]?.traceId,
+        }),
+      ]);
+      expect(harness.completions[0]).toMatchObject({
+        success: true,
+        title: "Recovered YouTube Title",
+        file_path: expect.stringMatching(/Recovered YouTube Title\.mp4$/),
+      });
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("records one failed diagnostic terminal and one failed product terminal when rename settlement fails", async () => {
+    const tempDir = path.join(
+      os.tmpdir(),
+      `ameow-settle-fail-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
+    const harness = createSettlementHarness(
+      tempDir,
+      createEngineStub("yt-dlp", async (context) => ({
+        traceId: context.traceId,
+        success: true,
+        // The output file is never written: the title rename must fail.
+        filePath: path.join(context.outputDir, `${context.outputStem}.mp4`),
+        title: "Recovered YouTube Title",
+      })),
+    );
+
+    try {
+      await harness.runtime.queueVideoDownload({
+        url: "https://www.youtube.com/watch?v=abc123",
+      });
+
+      await waitFor(() => harness.completions.length === 1);
+      // No success terminal; exactly one failed diagnostic terminal whose
+      // typed semantics match the single failed product terminal.
+      expect(harness.terminals()).toEqual([
+        expect.objectContaining({
+          type: "download.failed",
+          errorCode: "E_EXECUTION_FAILED",
+          classification: "fallback_to_other_engine",
+        }),
+      ]);
+      expect(harness.completions[0]).toMatchObject({
+        success: false,
+        failure: {
+          code: "E_EXECUTION_FAILED",
+          classification: "fallback_to_other_engine",
+        },
+      } satisfies { success: boolean; failure: unknown });
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
