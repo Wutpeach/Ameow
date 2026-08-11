@@ -106,7 +106,6 @@ export type AmeowSize = {
 };
 
 export type AmeowBounds = AmeowPoint & AmeowSize;
-export type AmeowStartupWindowMode = "compact" | "full";
 
 export type AmeowDisplay = {
   position: AmeowPoint;
@@ -170,13 +169,16 @@ export type AmeowContextMenuWindowOptions = AmeowSecondaryWindowOptions & {
   parent: "main";
 };
 
-export type AmeowAnimateBoundsOptions = {
-  durationMs?: number;
-  transitionToken?: number;
+export type AmeowCompactReachableOptions = {
+  reachableFrameSize: number;
+  edgePadding: number;
+  reducedMotion: boolean;
+  requestEpoch: number;
 };
 
-export type AmeowAnimateBoundsResult = {
-  transitionToken: number | null;
+export type AmeowCompactReachableResult = {
+  requestEpoch: number;
+  position: AmeowPoint;
 };
 
 export type AmeowCurrentWindowInteractionMode = "interactive" | "compact-passthrough";
@@ -189,14 +191,13 @@ export interface AmeowCurrentWindowApi {
   outerPosition(): Promise<AmeowPoint>;
   outerSize(): Promise<AmeowSize>;
   scaleFactor(): Promise<number>;
-  startupWindowMode(): AmeowStartupWindowMode;
   startDragging(): Promise<void>;
   setPosition(position: AmeowPoint): void;
   setInteractionMode(mode: AmeowCurrentWindowInteractionMode): void;
-  animateBounds(
-    bounds: AmeowBounds,
-    options?: AmeowAnimateBoundsOptions,
-  ): Promise<AmeowAnimateBoundsResult>;
+  ensureMainWindowCompactReachable(
+    options: AmeowCompactReachableOptions,
+  ): Promise<AmeowCompactReachableResult>;
+  cancelCompactReachability(): void;
   rendererReady(): Promise<void>;
   close(): Promise<void>;
   hide(): Promise<void>;

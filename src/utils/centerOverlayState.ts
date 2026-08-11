@@ -158,7 +158,6 @@ export type CenterOverlayVisual =
       status: Extract<CenterOverlayOutcomeStatus, "success" | "error">;
       message: string | null;
     }
-  | { kind: "minimized"; key: string }
   | { kind: "none"; key: string };
 
 export const isCenterOverlayLockActive = (state: CenterOverlayState): boolean => (
@@ -175,11 +174,9 @@ export const isCenterOverlayTaskOutcomeVisible = (state: CenterOverlayState): bo
 export const selectCenterOverlayVisual = ({
   primaryTask,
   centerOverlayState,
-  visualIsMinimized,
 }: {
   primaryTask: CenterOverlayPrimaryTaskInput;
   centerOverlayState: CenterOverlayState;
-  visualIsMinimized: boolean;
 }): CenterOverlayVisual => {
   if (primaryTask) {
     return {
@@ -222,13 +219,8 @@ export const selectCenterOverlayVisual = ({
     };
   }
 
-  if (visualIsMinimized) {
-    return {
-      kind: "minimized",
-      key: "minimized",
-    };
-  }
-
+  // The compact icon is presentation surface output driven by the lifecycle
+  // visual projection; it is no longer a center-overlay concern.
   return {
     kind: "none",
     key: "none",

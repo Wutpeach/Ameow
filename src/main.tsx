@@ -10,7 +10,6 @@ import { desktopCommands, desktopCurrentWindow } from "./desktop/runtime";
 import { I18nRuntimeBridge } from "./i18n/I18nRuntimeBridge";
 import { initializeI18n } from "./i18n";
 import { resolveAppLanguage } from "./i18n/language";
-import type { AmeowStartupWindowMode } from "./types/electronBridge";
 import {
   getRendererReadyAnimationFrameCount,
   getRendererReadyFallbackDelayMs,
@@ -85,9 +84,6 @@ const bootstrap = async () => {
     hash: window.location.hash,
     pathname: window.location.pathname,
   });
-  const initialStartupWindowMode: AmeowStartupWindowMode = expectsElectronBridge && window.ameow
-    ? desktopCurrentWindow.startupWindowMode()
-    : "full";
   let bootstrapConfigStr: string | null = null;
 
   if (expectsElectronBridge && window.ameow) {
@@ -150,7 +146,7 @@ const bootstrap = async () => {
         <Router>
           <I18nRuntimeBridge />
           <Routes>
-            <Route path="/" element={<App initialStartupWindowMode={initialStartupWindowMode} />} />
+            <Route path="/" element={<App />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/context-menu" element={<ContextMenuPage />} />
             {UiLabPage ? (

@@ -60,9 +60,6 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   async scaleFactor() {
     return resolveElectronBridge().currentWindow.scaleFactor();
   },
-  startupWindowMode() {
-    return resolveElectronBridge().currentWindow.startupWindowMode();
-  },
   async startDragging() {
     await resolveElectronBridge().currentWindow.startDragging();
   },
@@ -72,8 +69,11 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   setInteractionMode(mode) {
     resolveElectronBridge().currentWindow.setInteractionMode(mode);
   },
-  async animateBounds(bounds, options) {
-    return resolveElectronBridge().currentWindow.animateBounds(bounds, options);
+  async ensureMainWindowCompactReachable(options) {
+    return resolveElectronBridge().currentWindow.ensureMainWindowCompactReachable(options);
+  },
+  cancelCompactReachability() {
+    resolveElectronBridge().currentWindow.cancelCompactReachability();
   },
   async rendererReady() {
     await resolveElectronBridge().currentWindow.rendererReady();

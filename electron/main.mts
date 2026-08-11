@@ -82,9 +82,9 @@ import {
   shouldUsePackagedWindowsOpaqueWindow,
 } from "./windowVisibility.mjs";
 import {
-  buildStartupWindowModeArgument,
-  resolveMainWindowStartupMode,
-} from "./startupWindowMode.mjs";
+  cancelMainWindowCompactReachability,
+  ensureMainWindowCompactReachable,
+} from "./mainWindowSurfacePolicy.mjs";
 import {
   applyManualProxyToSession,
   applySystemProxyToSession,
@@ -103,7 +103,6 @@ import {
   UI_LAB_WINDOW_CONTENT_HEIGHT,
   UI_LAB_WINDOW_CONTENT_WIDTH,
   getMainWindowFullOuterSize,
-  getMainWindowOuterSize,
   getSecondaryWindowOuterSize,
 } from "../src/constants/windowMetrics.js";
 import { createExtensionRequestBridge } from "./extensionRequestBridge.mjs";
@@ -252,7 +251,6 @@ const runtimeDependencyGateController = createRuntimeDependencyGateController({
   ensureManagedDenoRuntimeReady,
 });
 let uiLabScenarioActive = false;
-const activeWindowBoundsAnimations = new Map();
 
 const startupDiagnosticsEnabled = shouldEnablePackagedStartupDiagnostics({
   platform: process.platform,
@@ -632,7 +630,6 @@ type AmeowBrowserWindowCreationOptions = {
   routePath: string;
   width: number;
   height: number;
-  startupWindowMode?: "compact" | "full";
   x?: number;
   y?: number;
   center?: boolean;
@@ -672,7 +669,6 @@ async function createAmeowBrowserWindow(label: string, {
   routePath,
   width,
   height,
-  startupWindowMode = "full",
   x,
   y,
   center = false,
@@ -722,9 +718,6 @@ async function createAmeowBrowserWindow(label: string, {
       contextIsolation: true,
       sandbox: false,
       nodeIntegration: false,
-      additionalArguments: [
-        buildStartupWindowModeArgument(startupWindowMode),
-      ],
     },
   });
 
@@ -807,136 +800,6 @@ function keepMainWindowOffWindowsTaskbar(win: BrowserWindow) {
 
 function shouldToggleFocusabilityForInteractionMode() {
   return process.platform !== "win32";
-}
-
-function clampWindowBoundsValue(value: unknown, fallback: number) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.round(numeric);
-}
-
-function easeInOutCubic(progress: number) {
-  const clamped = Math.min(1, Math.max(0, progress));
-  if (clamped < 0.5) {
-    return 4 * (clamped ** 3);
-  }
-  return 1 - (((-2 * clamped) + 2) ** 3) / 2;
-}
-
-function stopWindowBoundsAnimation(win: BrowserWindow) {
-  const activeAnimation = activeWindowBoundsAnimations.get(win.id);
-  if (!activeAnimation) {
-    return;
-  }
-  activeAnimation.stop();
-  activeWindowBoundsAnimations.delete(win.id);
-}
-
-async function animateBrowserWindowBounds(
-  win: BrowserWindow,
-  targetBounds: { x: number; y: number; width: number; height: number },
-  {
-    durationMs = 280,
-  }: {
-    durationMs?: number;
-  } = {},
-) {
-  if (win.isDestroyed()) {
-    return;
-  }
-
-  stopWindowBoundsAnimation(win);
-
-  const from = win.getBounds();
-  const to = {
-    x: clampWindowBoundsValue(targetBounds.x, from.x),
-    y: clampWindowBoundsValue(targetBounds.y, from.y),
-    width: Math.max(1, clampWindowBoundsValue(targetBounds.width, from.width)),
-    height: Math.max(1, clampWindowBoundsValue(targetBounds.height, from.height)),
-  };
-  const effectiveDurationMs = Math.max(0, Number(durationMs) || 0);
-
-  if (
-    effectiveDurationMs === 0
-    || (
-      from.x === to.x
-      && from.y === to.y
-      && from.width === to.width
-      && from.height === to.height
-    )
-  ) {
-    win.setBounds(to, false);
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    const startedAtMs = Date.now();
-    let frameTimer: NodeJS.Timeout | null = null;
-    let stopped = false;
-
-    const finish = () => {
-      if (frameTimer !== null) {
-        clearTimeout(frameTimer);
-        frameTimer = null;
-      }
-      if (activeWindowBoundsAnimations.get(win.id)?.stop === stop) {
-        activeWindowBoundsAnimations.delete(win.id);
-      }
-      if (!win.isDestroyed()) {
-        win.setBounds(to, false);
-      }
-      resolve();
-    };
-
-    const step = () => {
-      if (stopped) {
-        resolve();
-        return;
-      }
-      if (win.isDestroyed()) {
-        if (frameTimer !== null) {
-          clearTimeout(frameTimer);
-          frameTimer = null;
-        }
-        if (activeWindowBoundsAnimations.get(win.id)?.stop === stop) {
-          activeWindowBoundsAnimations.delete(win.id);
-        }
-        resolve();
-        return;
-      }
-
-      const elapsedMs = Date.now() - startedAtMs;
-      const progress = Math.min(1, elapsedMs / effectiveDurationMs);
-      const easedProgress = easeInOutCubic(progress);
-      win.setBounds({
-        x: Math.round(from.x + ((to.x - from.x) * easedProgress)),
-        y: Math.round(from.y + ((to.y - from.y) * easedProgress)),
-        width: Math.round(from.width + ((to.width - from.width) * easedProgress)),
-        height: Math.round(from.height + ((to.height - from.height) * easedProgress)),
-      }, false);
-
-      if (progress >= 1) {
-        finish();
-        return;
-      }
-
-      frameTimer = setTimeout(step, 1000 / 60);
-    };
-
-    const stop = () => {
-      stopped = true;
-      if (frameTimer !== null) {
-        clearTimeout(frameTimer);
-        frameTimer = null;
-      }
-      resolve();
-    };
-
-    activeWindowBoundsAnimations.set(win.id, { stop });
-    step();
-  });
 }
 
 function getDesktopNetworkSession() {
@@ -2369,11 +2232,10 @@ async function createMainWindow(startupConfigSnapshot = null) {
     return existing;
   }
 
-  const startupWindowMode = resolveMainWindowStartupMode({
-    platform: process.platform,
-    hasShownMainWindowOnce,
-  });
-  const initialWindowSize = getMainWindowOuterSize(process.platform, startupWindowMode);
+  // The Main Window keeps one stable full viewport for the visible 200 px
+  // panel, shadow gutter, and overshoot; full/compact presentation never
+  // changes native width/height.
+  const initialWindowSize = getMainWindowFullOuterSize(process.platform);
 
   const {
     browserWindow: mainWindow,
@@ -2382,7 +2244,6 @@ async function createMainWindow(startupConfigSnapshot = null) {
     routePath: "/",
     width: initialWindowSize,
     height: initialWindowSize,
-    startupWindowMode,
     title: app.getName(),
     alwaysOnTop: true,
     skipTaskbar: process.platform === "win32",
@@ -3553,6 +3414,9 @@ function registerIpcHandlers() {
       return;
     }
 
+    // Returning to interactive mode cancels any active compact placement
+    // correction so a stale correction cannot move a newer full surface.
+    cancelMainWindowCompactReachability(win);
     win.setIgnoreMouseEvents(false);
     if (shouldToggleFocusabilityForInteractionMode()) {
       win.setFocusable(true);
@@ -3563,28 +3427,32 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle("ameow:current-window:animate-bounds", async (event, request) => {
+  ipcMain.handle("ameow:current-window:ensure-compact-reachable", async (event, request) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) {
       throw new Error("Current window not found");
     }
 
-    const currentBounds = win.getBounds();
-    await animateBrowserWindowBounds(win, {
-      x: request?.bounds?.x ?? currentBounds.x,
-      y: request?.bounds?.y ?? currentBounds.y,
-      width: request?.bounds?.width ?? currentBounds.width,
-      height: request?.bounds?.height ?? currentBounds.height,
-    }, {
-      durationMs: request?.options?.durationMs,
-    });
+    const requestEpoch = typeof request?.requestEpoch === "number"
+      ? request.requestEpoch
+      : 0;
+    const reachableFrameSize = Number(request?.reachableFrameSize);
+    const edgePadding = Number(request?.edgePadding);
 
-    return {
-      transitionToken:
-        typeof request?.options?.transitionToken === "number"
-          ? request.options.transitionToken
-          : null,
-    };
+    return ensureMainWindowCompactReachable(win, {
+      reachableFrameSize: Number.isFinite(reachableFrameSize) ? reachableFrameSize : 80,
+      edgePadding: Number.isFinite(edgePadding) ? edgePadding : 8,
+      reducedMotion: request?.reducedMotion === true,
+      requestEpoch,
+    });
+  });
+
+  ipcMain.on("ameow:current-window:cancel-compact-reachability", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) {
+      return;
+    }
+    cancelMainWindowCompactReachability(win);
   });
 
   ipcMain.handle("ameow:current-window:close", (event) => {

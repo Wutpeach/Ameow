@@ -19,7 +19,6 @@ describe("centerOverlayState", () => {
     expect(selectCenterOverlayVisual({
       primaryTask: { kind: "download", traceId: "next-download" },
       centerOverlayState: state,
-      visualIsMinimized: false,
     })).toEqual({
       kind: "task-progress",
       key: "progress:download:next-download",
@@ -134,7 +133,6 @@ describe("centerOverlayState", () => {
     expect(selectCenterOverlayVisual({
       primaryTask: null,
       centerOverlayState: visible,
-      visualIsMinimized: false,
     })).toEqual({
       kind: "task-outcome",
       key: `task-outcome:${loading.requestId}`,
@@ -153,7 +151,7 @@ describe("centerOverlayState", () => {
       });
   });
 
-  it("falls back to minimized only when no progress or transient outcome owns the center", () => {
+  it("keeps progress and transient outcomes ahead of the idle fallback", () => {
     const state = reduceCenterOverlayState(createCenterOverlayState(), {
       type: "showFolderOutcome",
       status: "success",
@@ -163,16 +161,14 @@ describe("centerOverlayState", () => {
     expect(selectCenterOverlayVisual({
       primaryTask: null,
       centerOverlayState: state,
-      visualIsMinimized: true,
     }).kind).toBe("folder-outcome");
 
     expect(selectCenterOverlayVisual({
       primaryTask: null,
       centerOverlayState: createCenterOverlayState(),
-      visualIsMinimized: true,
     })).toEqual({
-      kind: "minimized",
-      key: "minimized",
+      kind: "none",
+      key: "none",
     });
   });
 });
