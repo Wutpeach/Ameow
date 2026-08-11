@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 244
+- **Total Sessions**: 245
 - **Last Active**: 2026-08-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1517 | Active |
+| `journal-5.md` | ~1538 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 245 | 2026-08-11 | Unify download terminal authority | `8e79d1a` | `main` |
 | 244 | 2026-08-11 | Complete P6 extension model and observability | `b5b414f` | `main` |
 | 243 | 2026-08-10 | P5 Browser Extension Architecture | `da1640d` | `main` |
 | 242 | 2026-08-10 | Complete P4 Renderer Download lifecycle ownership | `c8c4aa3` | `main` |

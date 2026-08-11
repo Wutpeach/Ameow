@@ -1515,3 +1515,24 @@ Lead approved P6A and P6B; committed safe download diagnostics, archived the P6 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 245: Unify download terminal authority
+
+**Date**: 2026-08-11
+**Task**: Unify download terminal authority
+**Branch**: `main`
+
+### Summary
+
+Moved fallible output settlement before the single diagnostic/product terminal, added exactly-once regressions, and completed Lead-approved P0-P6 architecture cycle correction.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8e79d1a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
