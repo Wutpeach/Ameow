@@ -1,11 +1,17 @@
 import { z } from "zod";
 import type {
+  DownloadDiagnosticCategory,
+  DownloadErrorCode,
   DownloadFailureClassification,
   DownloadRuntimeError,
   RawDownloadInput,
   ResolvedDownloadPlan,
 } from "../core/index.js";
-import { engineIdSchema, resolveSiteHint } from "../core/index.js";
+import {
+  DOWNLOAD_DIAGNOSTIC_CATEGORIES,
+  engineIdSchema,
+  resolveSiteHint,
+} from "../core/index.js";
 import { interactionModeSchema } from "./schema.js";
 
 export const downloadTelemetryInteractionModeSchema = z.union([
@@ -50,6 +56,35 @@ export const downloadTelemetryNetworkSchema = z.object({
   failureClassification: z.string().trim().min(1).nullable(),
 });
 
+const downloadDiagnosticCategorySchema = z.enum(DOWNLOAD_DIAGNOSTIC_CATEGORIES);
+
+const downloadTelemetryAttemptNetworkSchema = z.object({
+  routeKind: z.enum(["direct", "proxy", "complex"]),
+  source: z.enum(["manual", "system", "environment", "direct", "fallback"]),
+  consumer: z.string().trim().min(1),
+  appliedToEngine: z.boolean(),
+  proxyProtocol: z.enum(["http", "https", "socks4", "socks5"]).nullable(),
+  failureClassification: z.string().trim().min(1).nullable(),
+});
+
+const downloadTelemetryAttemptSchema = z.object({
+  attemptIndex: z.number().int().positive(),
+  engineId: engineIdSchema,
+  cycle: z.enum(["initial", "auth_recovery"]),
+  outcome: z.enum(["succeeded", "failed"]),
+  errorCode: z.string().trim().min(1).nullable(),
+  classification: z.enum([
+    "retry_same_engine",
+    "fallback_to_other_engine",
+    "terminal_for_site",
+    "input_invalid",
+    "auth_required",
+    "cancelled",
+  ]).nullable(),
+  category: downloadDiagnosticCategorySchema.nullable(),
+  network: downloadTelemetryAttemptNetworkSchema.optional(),
+});
+
 export const downloadTelemetryEventSchema = z.object({
   schemaVersion: z.literal(1),
   eventType: z.literal("download_outcome"),
@@ -71,6 +106,9 @@ export const downloadTelemetryEventSchema = z.object({
     "cancelled",
   ]).nullable(),
   errorMessage: z.string().trim().min(1).nullable(),
+  diagnosticCategory: downloadDiagnosticCategorySchema.nullable().optional(),
+  attemptCount: z.number().int().nonnegative().optional(),
+  attempts: z.array(downloadTelemetryAttemptSchema).max(8).optional(),
   downloadProfile: downloadTelemetryProfileSchema.optional(),
   compatibility: downloadTelemetryCompatibilitySchema.optional(),
   network: downloadTelemetryNetworkSchema.optional(),
@@ -85,6 +123,28 @@ export type DownloadTelemetryCompatibility = z.infer<
 export type DownloadTelemetryProfile = z.infer<typeof downloadTelemetryProfileSchema>;
 export type DownloadTelemetryNetwork = z.infer<typeof downloadTelemetryNetworkSchema>;
 export type DownloadTelemetryEvent = z.infer<typeof downloadTelemetryEventSchema>;
+
+export type DownloadTelemetryDiagnosticSummaryInput = {
+  attemptCount: number;
+  attempts: ReadonlyArray<{
+    attemptIndex: number;
+    engineId: string;
+    cycle: "initial" | "auth_recovery";
+    outcome: "succeeded" | "failed";
+    errorCode: DownloadErrorCode | null;
+    classification: DownloadFailureClassification | null;
+    category: DownloadDiagnosticCategory | null;
+    network?: {
+      routeKind: "direct" | "proxy" | "complex";
+      source: "manual" | "system" | "environment" | "direct" | "fallback";
+      consumer: string;
+      appliedToEngine: boolean;
+      proxyProtocol: "http" | "https" | "socks4" | "socks5" | null;
+      failureClassification: string | null;
+    };
+  }>;
+  finalCategory: DownloadDiagnosticCategory | null;
+};
 
 const resolveDiagnosticsSource = (request: RawDownloadInput): string | undefined => {
   const diagnostics = request.diagnostics;
@@ -135,6 +195,7 @@ export const createDownloadTelemetryEvent = (input: {
   plan?: ResolvedDownloadPlan | null;
   chosenEngine?: ResolvedDownloadPlan["engines"][number]["engine"] | null;
   error?: Pick<DownloadRuntimeError, "code" | "classification" | "message"> | null;
+  diagnosticSummary?: DownloadTelemetryDiagnosticSummaryInput;
   downloadProfile?: DownloadTelemetryProfile | null;
   compatibility?: DownloadTelemetryCompatibility | null;
   network?: DownloadTelemetryNetwork | null;
@@ -151,7 +212,21 @@ export const createDownloadTelemetryEvent = (input: {
   outcome: input.error ? "failure" : "success",
   errorCode: input.error?.code ?? null,
   errorClassification: input.error?.classification ?? null,
-  errorMessage: input.error?.message ?? null,
+  // Raw downloader/process messages are intentionally not persisted. Code,
+  // policy classification, category and bounded attempt history are enough.
+  errorMessage: null,
+  diagnosticCategory: input.diagnosticSummary?.finalCategory ?? null,
+  attemptCount: input.diagnosticSummary?.attemptCount,
+  attempts: input.diagnosticSummary?.attempts.map((attempt) => ({
+    attemptIndex: attempt.attemptIndex,
+    engineId: attempt.engineId,
+    cycle: attempt.cycle,
+    outcome: attempt.outcome,
+    errorCode: attempt.errorCode,
+    classification: attempt.classification,
+    category: attempt.category,
+    network: attempt.network,
+  })),
   downloadProfile: input.downloadProfile ?? undefined,
   compatibility: input.compatibility ?? undefined,
   network: input.network ?? undefined,

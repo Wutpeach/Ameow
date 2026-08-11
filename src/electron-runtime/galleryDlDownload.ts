@@ -1,8 +1,15 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { DownloadRuntimeError, type DownloadResult } from "../core/index.js";
+import {
+  DownloadRuntimeError,
+  sanitizeDiagnosticText,
+  type DownloadResult,
+} from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
-import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import {
+  classifyEngineDiagnosticCategory,
+  classifyEngineFailure,
+} from "./engineErrorClassifier.js";
 import type { EngineInvocationContext, GalleryDlRuntimeDependencies } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
@@ -207,27 +214,30 @@ export const runGalleryDlDownload = async (
     if (exitCode !== 0) {
       const failureSummary = summarizeGalleryDlFailure(exitCode, stderrLines, stdoutLines);
       const classification = classifyNetworkFailure(new Error(failureSummary), stderrLines);
-      const redactedSummary = redactNetworkCredentials(failureSummary);
-      const redactedStderrTail = stderrLines.map((line) => redactNetworkCredentials(line));
-      const redactedStdoutTail = stdoutLines.map((line) => redactNetworkCredentials(line));
+      const redactedSummary = sanitizeDiagnosticText(redactNetworkCredentials(failureSummary));
+      const redactedStderrTail = stderrLines.map((line) => (
+        sanitizeDiagnosticText(redactNetworkCredentials(line))
+      ));
+      const redactedStdoutTail = stdoutLines.map((line) => (
+        sanitizeDiagnosticText(redactNetworkCredentials(line))
+      ));
+      const engineEvidence = {
+        message: redactedSummary,
+        context: { stderrTail: redactedStderrTail, stdoutTail: redactedStdoutTail },
+      };
       throw new DownloadRuntimeError(
         "E_EXECUTION_FAILED",
         redactedSummary,
         {
           // Raw evidence is classified here (Infrastructure); Application
           // fallback consumes only the stable classification below.
-          classification: classifyEngineFailure({
-            message: redactedSummary,
-            context: { stderrTail: redactedStderrTail, stdoutTail: redactedStdoutTail },
-          }),
-          context: {
-            sourceUrl: commandPlan.sourceUrl,
-            stderrTail: redactedStderrTail,
-            stdoutTail: redactedStdoutTail,
-            ...(classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
-              ? { networkFailureClassification: classification }
-              : {}),
-          },
+          classification: classifyEngineFailure(engineEvidence),
+          diagnosticCategory: classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+            ? "network"
+            : classifyEngineDiagnosticCategory(engineEvidence),
+          context: classification !== NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
+            ? { networkFailureClassification: classification }
+            : undefined,
         },
       );
     }

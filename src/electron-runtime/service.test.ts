@@ -170,6 +170,7 @@ const createRuntime = (options: {
   };
   onEmit?(event: RuntimeEmitterEvent, payload: unknown): void;
   onTelemetry?(event: DownloadTelemetryEvent): void;
+  telemetrySink?: { record(event: DownloadTelemetryEvent): Promise<void> };
   handleAuthRequiredFailure?(
     context: RuntimeAuthFailureRecoveryContext,
   ): Promise<{ shouldRetry: boolean } | void>;
@@ -185,6 +186,7 @@ const createRuntime = (options: {
     engineId: "yt-dlp" | "gallery-dl";
   }) => Promise<NetworkRouteResolution>;
   resolveNetworkConsumer?: (engineId: string | undefined) => string;
+  logger?: { log(message: string): void };
 }) => createElectronDownloadRuntime({
   environment: {
     repoRoot: options.environment?.repoRoot ?? process.cwd(),
@@ -204,11 +206,12 @@ const createRuntime = (options: {
       options.onEmit?.(event, payload);
     },
   },
-  telemetrySink: {
+  telemetrySink: options.telemetrySink ?? {
     async record(event) {
       options.onTelemetry?.(event);
     },
   },
+  logger: options.logger,
   ensureEngineRuntimeReady: options.ensureEngineRuntimeReady,
   buildExecutionContext: options.buildExecutionContext,
   handleAuthRequiredFailure: options.handleAuthRequiredFailure,
@@ -299,6 +302,7 @@ describe("AmeowElectronDownloadRuntime", () => {
 
   it("cancels pending work immediately", async () => {
     const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const telemetry: DownloadTelemetryEvent[] = [];
     const runtime = createRuntime({
       maxConcurrent: 1,
       providers: [genericProvider],
@@ -317,6 +321,9 @@ describe("AmeowElectronDownloadRuntime", () => {
           completed.push(toCompletionView(payload));
         }
       },
+      onTelemetry(event) {
+        telemetry.push(event);
+      },
     });
 
     await runtime.queueVideoDownload({ url: "https://example.com/active" });
@@ -334,6 +341,148 @@ describe("AmeowElectronDownloadRuntime", () => {
         code: "E_ABORTED",
         classification: "cancelled",
       }),
+    });
+    await waitFor(() => telemetry.some((entry) => entry.traceId === pending.traceId));
+    expect(telemetry.find((entry) => entry.traceId === pending.traceId)).toMatchObject({
+      siteId: "generic",
+      providerId: "generic",
+      engineChain: ["yt-dlp"],
+      chosenEngine: null,
+      errorCode: "E_ABORTED",
+      diagnosticCategory: "cancelled",
+      attemptCount: 0,
+    });
+  });
+
+  it("keeps download lifecycle correct when every runtime log write throws", async () => {
+    const completed: Array<{ traceId: string; success: boolean }> = [];
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      logger: {
+        log() {
+          throw new Error("logger unavailable");
+        },
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    const ack = await runtime.queueVideoDownload({ url: "https://example.com/video" });
+    await waitFor(() => completed.some((entry) => entry.traceId === ack.traceId));
+
+    expect(completed.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: true,
+    });
+    expect(runtime.getQueueState().totalCount).toBe(0);
+  });
+
+  it("still emits the terminal event for a pending cancellation when every log write throws", async () => {
+    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const runtime = createRuntime({
+      maxConcurrent: 1,
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async () => (
+          await new Promise<never>(() => undefined)
+        )),
+      ],
+      logger: {
+        log() {
+          throw new Error("logger unavailable");
+        },
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/active" });
+    const pending = await runtime.queueVideoDownload({ url: "https://example.com/pending" });
+
+    const cancelled = await runtime.cancelDownload(pending.traceId);
+
+    expect(cancelled).toBe(true);
+    expect(completed.find((entry) => entry.traceId === pending.traceId)).toMatchObject({
+      success: false,
+      failure: expect.objectContaining({ code: "E_ABORTED" }),
+    });
+  });
+
+  it("settles a completed task when the telemetry sink throws synchronously", async () => {
+    const completed: Array<{ traceId: string; success: boolean }> = [];
+    const runtime = createRuntime({
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async (context) => ({
+          traceId: context.traceId,
+          success: true,
+          filePath: `${context.outputDir}/${context.outputStem}.mp4`,
+        })),
+      ],
+      telemetrySink: {
+        record() {
+          throw new Error("telemetry unavailable");
+        },
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    const ack = await runtime.queueVideoDownload({ url: "https://example.com/video" });
+    await waitFor(() => completed.some((entry) => entry.traceId === ack.traceId));
+
+    expect(completed.find((entry) => entry.traceId === ack.traceId)).toMatchObject({
+      success: true,
+    });
+    expect(runtime.getQueueState().totalCount).toBe(0);
+  });
+
+  it("still emits the terminal event for a pending cancellation when the telemetry sink rejects", async () => {
+    const completed: Array<{ traceId: string; success: boolean; error?: string }> = [];
+    const runtime = createRuntime({
+      maxConcurrent: 1,
+      providers: [genericProvider],
+      engines: [
+        createEngineStub("yt-dlp", async () => (
+          await new Promise<never>(() => undefined)
+        )),
+      ],
+      telemetrySink: {
+        record() {
+          return Promise.reject(new Error("telemetry unavailable"));
+        },
+      },
+      onEmit(event, payload) {
+        if (event === "video-download-complete") {
+          completed.push(toCompletionView(payload));
+        }
+      },
+    });
+
+    await runtime.queueVideoDownload({ url: "https://example.com/active" });
+    const pending = await runtime.queueVideoDownload({ url: "https://example.com/pending" });
+
+    const cancelled = await runtime.cancelDownload(pending.traceId);
+
+    expect(cancelled).toBe(true);
+    expect(completed.find((entry) => entry.traceId === pending.traceId)).toMatchObject({
+      success: false,
+      failure: expect.objectContaining({ code: "E_ABORTED" }),
     });
   });
 

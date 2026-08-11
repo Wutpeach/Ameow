@@ -9,8 +9,20 @@ import {
 } from "../core/index.js";
 import {
   DownloadOrchestrator,
+  type OrchestratorAttemptReport,
   type PreparedDownloadRequest,
 } from "../orchestration/download-orchestrator.js";
+import {
+  NOOP_DIAGNOSTIC_SINK,
+  attachDownloadTerminalDiagnosticSummary,
+  createDownloadDiagnosticRecorder,
+  resolveDownloadDiagnosticCategory,
+  type DownloadDiagnosticCycle,
+  type DownloadDiagnosticNetwork,
+  type DownloadDiagnosticRecorder,
+  type DownloadDiagnosticsOptions,
+  type DownloadTerminalDiagnosticSummary,
+} from "./download-diagnostics.js";
 
 /**
  * Application-owned ordinary download Job lifecycle. Electron-neutral: it
@@ -50,6 +62,8 @@ export type DownloadJobOutcome<TJobContext> = {
   chosenEngine: EngineId | null;
   /** The exact opaque Job context reused by every attempt of this Job. */
   jobContext: TJobContext;
+  /** Bounded safe summary; present only when diagnostics were enabled. */
+  diagnosticSummary?: DownloadTerminalDiagnosticSummary;
 };
 
 export type DownloadJobServiceOptions<
@@ -101,6 +115,12 @@ export type DownloadJobServiceOptions<
    * and never parses raw messages.
    */
   classifyFailure?(error: unknown): DownloadRuntimeError;
+  /**
+   * Optional P6B diagnostics. Absent → a no-op sink is used and behavior,
+   * protocol output and telemetry stay unchanged. Diagnostic failures never
+   * change the download outcome.
+   */
+  diagnostics?: DownloadDiagnosticsOptions;
 };
 
 const defaultClassifyFailure = (error: unknown): DownloadRuntimeError => {
@@ -130,13 +150,53 @@ export class DownloadJobService<
    * throws the typed failure that terminates it. `prepare()` runs exactly
    * once; `createJobContext()` runs exactly once; auth recovery runs at most
    * once and only for a typed `auth_required` failure while the Job is not
-   * cancelled.
+   * cancelled. Emits exactly one diagnostic terminal event (succeeded /
+   * failed / cancelled); a success after cancel intent stays a success.
    */
   async executeJob(
     request: RawDownloadInput,
     signal: AbortSignal,
   ): Promise<DownloadJobOutcome<TJobContext>> {
+    const recorder = createDownloadDiagnosticRecorder({
+      traceId: this.options.diagnostics?.traceId ?? "",
+      sink: this.options.diagnostics?.sink ?? NOOP_DIAGNOSTIC_SINK,
+    });
+    const classify = this.options.classifyFailure ?? defaultClassifyFailure;
+
+    try {
+      const outcome = await this.executeJobCore(request, signal, recorder);
+      const diagnosticSummary = recorder.recordTerminal({ outcome: "succeeded" });
+      return this.options.diagnostics
+        ? { ...outcome, diagnosticSummary }
+        : outcome;
+    } catch (error) {
+      // Exactly one terminal failure event; the original thrown error is
+      // preserved for the caller. Cancellation is a distinct terminal.
+      const failure = classify(error);
+      const diagnosticSummary = recorder.recordTerminal({
+        outcome: failure.classification === "cancelled" ? "cancelled" : "failed",
+        errorCode: failure.code,
+        classification: failure.classification,
+        category: resolveDownloadDiagnosticCategory(failure),
+      });
+      if (this.options.diagnostics) {
+        attachDownloadTerminalDiagnosticSummary(failure, diagnosticSummary);
+      }
+      // Non-attempt errors (onPrepared, createJobContext, auth-recovery
+      // handler) keep their original identity; diagnostics only observe them.
+      // Typed runtime failures keep the classified instance so the terminal
+      // summary stays attached for the caller.
+      throw error instanceof DownloadRuntimeError ? failure : error;
+    }
+  }
+
+  private async executeJobCore(
+    request: RawDownloadInput,
+    signal: AbortSignal,
+    recorder: DownloadDiagnosticRecorder,
+  ): Promise<DownloadJobOutcome<TJobContext>> {
     const prepared = this.options.orchestrator.prepare(request);
+    recorder.recordPrepared(prepared.plan);
     await this.options.onPrepared?.(prepared);
 
     if (this.options.refreshSiteSessionBeforeDownload) {
@@ -151,6 +211,7 @@ export class DownloadJobService<
     const jobContext = await this.options.createJobContext(prepared);
 
     let chosenEngine: EngineId | null = null;
+    let cycle: DownloadDiagnosticCycle = "initial";
     const buildAttemptContext = async (
       plan: ResolvedDownloadPlan,
       enginePlan: EnginePlan,
@@ -158,8 +219,56 @@ export class DownloadJobService<
       chosenEngine = enginePlan.engine;
       return this.options.buildAttemptContext(jobContext, plan, enginePlan);
     };
+    const resolveNetworkMetadata = (
+      engineId: EngineId,
+    ): DownloadDiagnosticNetwork | undefined => {
+      try {
+        return this.options.diagnostics?.resolveNetworkMetadata?.(engineId);
+      } catch {
+        // Route metadata is diagnostics-only: a throwing resolver must not
+        // corrupt the attempt/outcome flow; the attempt is recorded without it.
+        return undefined;
+      }
+    };
+    const reportAttempt = (attemptReport: OrchestratorAttemptReport): void => {
+      switch (attemptReport.kind) {
+        case "attempt_started":
+          recorder.recordAttemptStarted(attemptReport.engineId, cycle);
+          break;
+        case "attempt_succeeded":
+          recorder.recordAttemptSucceeded(
+            attemptReport.engineId,
+            resolveNetworkMetadata(attemptReport.engineId),
+          );
+          break;
+        case "attempt_failed":
+          recorder.recordAttemptFailed(
+            attemptReport.engineId,
+            attemptReport.errorCode,
+            attemptReport.classification,
+            attemptReport.diagnosticCategory
+              ?? resolveDownloadDiagnosticCategory({
+                code: attemptReport.errorCode,
+                classification: attemptReport.classification,
+                diagnosticCategory: undefined,
+              }),
+            resolveNetworkMetadata(attemptReport.engineId),
+          );
+          break;
+        case "fallback":
+          recorder.recordFallbackStarted(
+            attemptReport.fromEngineId,
+            attemptReport.toEngineId,
+          );
+          break;
+      }
+    };
     const executeAttempts = (): Promise<DownloadResult> =>
-      this.options.orchestrator.executePrepared(prepared, buildAttemptContext);
+      this.options.orchestrator.executePrepared(
+        prepared,
+        buildAttemptContext,
+        reportAttempt,
+      );
     const classify = this.options.classifyFailure ?? defaultClassifyFailure;
     const toOutcome = (result: DownloadResult): DownloadJobOutcome<TJobContext> => ({
       result,
@@ -180,19 +289,31 @@ export class DownloadJobService<
         throw firstFailure;
       }
 
-      const recovery = await this.options.handleAuthRequiredFailure({
-        plan: prepared.plan,
-        chosenEngine,
-        jobContext,
-        error: firstFailure,
-      });
-      if (recovery?.shouldRetry !== true || signal.aborted) {
+      recorder.recordAuthRecoveryStarted();
+      let recovery: DownloadJobAuthRecoveryResult | void;
+      try {
+        recovery = await this.options.handleAuthRequiredFailure({
+          plan: prepared.plan,
+          chosenEngine,
+          jobContext,
+          error: firstFailure,
+        });
+      } catch (recoveryError) {
+        recorder.recordAuthRecoveryFinished("failed");
+        // The handler is not an engine attempt: propagate its error verbatim;
+        // the outer terminal recording observes but never rewraps it.
+        throw recoveryError;
+      }
+      const retry = recovery?.shouldRetry === true && !signal.aborted;
+      recorder.recordAuthRecoveryFinished(retry ? "retry" : "declined");
+      if (!retry) {
         throw firstFailure;
       }
 
       // Retry reuses the exact same prepared plan and Job context; only the
       // per-attempt context may observe refreshed attempt auth. A second
       // typed failure is terminal: recovery runs at most once.
+      cycle = "auth_recovery";
       try {
         return toOutcome(await executeAttempts());
       } catch (retryError) {

@@ -42,7 +42,11 @@ describe("createErrorDiagnosticCommandController", () => {
     expect(JSON.parse(copied).failure).toMatchObject({
       surface: "download",
       traceId: "download-1",
-      url: "https://example.com/watch",
+      url: {
+        origin: "https://example.com",
+        hasQuery: false,
+        hasFragment: false,
+      },
       rawMessage: "yt-dlp unavailable",
     });
   });

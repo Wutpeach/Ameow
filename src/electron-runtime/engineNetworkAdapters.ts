@@ -206,6 +206,7 @@ export const withNetworkFailureClassification = (
   redactNetworkCredentials(error.message),
   {
     classification: error.classification,
+    diagnosticCategory: classification ? "network" : error.diagnosticCategory,
     cause: error.cause,
     context: classification
       ? { ...error.context, networkFailureClassification: classification }

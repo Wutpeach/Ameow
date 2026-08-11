@@ -2,11 +2,11 @@
 
 ## Phase gate
 
-Lead Architecture Review approved the split on 2026-08-10. Start and execute
-this existing task for **P6A only**. A Develop Worker may be dispatched. Do not
-enter P6B, create child implementation tasks, commit, archive, or mark PASS.
-After validation, keep the task `in_progress / awaiting Lead Architecture
-Review`.
+Lead Architecture Review approved the split and the P6A checkpoint commit
+`6f2f31a` on 2026-08-10. Continue this existing task for **P6B only**. A
+Develop Worker may be dispatched. Do not redesign P0-P6A, create child
+implementation tasks, commit, archive, or mark PASS. After validation, keep
+the task `in_progress / awaiting Lead Architecture Review`.
 
 Recommended execution order:
 
@@ -17,7 +17,9 @@ P6A Extension Model
   -> Lead/check gate
 ```
 
-The Lead explicitly chose to reuse the existing task and planning artifacts for P6A. P6B remains a later, independently reviewed implementation phase.
+The Lead explicitly chose to reuse the existing task and planning artifacts.
+P6A is the approved implementation baseline; P6B is the current independently
+reviewed implementation phase.
 
 ## P6A — Site / Engine Extension Model
 

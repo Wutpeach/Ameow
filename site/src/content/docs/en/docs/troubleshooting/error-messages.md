@@ -5,7 +5,7 @@ description: Troubleshoot Ameow issues by matching the message, task state, or d
 
 When you hit an error, keep the full message. Some parts of Ameow show user-readable error text, while logs or bug reports may include internal error codes. The code helps narrow the direction, but it should be read together with the task state, site, link, and output folder.
 
-When a download fails, the English text you see often comes from `yt-dlp`, `gallery-dl`, or `ffmpeg`. These messages are not Ameow internal error codes, but they often describe the real cause more directly. Copy the complete original message when troubleshooting, especially the `ERROR:` prefix, site name, HTTP status code, and the text after it.
+When a download fails, Ameow shows a stable error message (for example `Download failed (E_EXECUTION_FAILED)`) with an error classification. Raw `yt-dlp`, `gallery-dl`, or `ffmpeg` output is not shown directly in the interface; to find the specific cause, use the copy icon in the center prompt to send the diagnostics to the developer, or see the common original-message notes below.
 
 Fast rule: **start with the text you can see, use the error code as supporting evidence, then keep the full message when reporting the issue.**
 
@@ -13,7 +13,7 @@ Fast rule: **start with the text you can see, use the error code as supporting e
 
 When a download or transcode fails, Ameow's main window now shows a short plain-language reason first, such as expired login state, network trouble, unavailable save location, or video processing failure. If a copy icon appears next to that message, click it to copy diagnostics for that specific failure.
 
-The copied content is multi-line JSON. It includes the Ameow version, platform, task trace id, original link, internal error code, original downloader error, and a recent runtime log excerpt. Paste that JSON to the developer when reporting a problem. It is usually more useful than a screenshot of the short message alone.
+The copied content is multi-line JSON. It includes the Ameow version, platform, task trace id, a safe link summary (origin only), internal error code, error classification, attempt summary, and a recent runtime-log excerpt. For privacy, the full link and unredacted downloader output are not included in the diagnostics; the runtime-log excerpt is bounded and sanitized, so it may contain limited, redacted downloader evidence. Paste that JSON to the developer when reporting a problem — it is usually more useful than a screenshot of the short message alone.
 
 The **Export diagnostic log** button in Settings remains available for full environment and settings snapshots. The center-prompt copy icon is the faster path for sending one failed task to the developer.
 
@@ -52,7 +52,7 @@ These codes are mainly used by the download pipeline, logs, and issue investigat
 | `E_ENGINE_UNAVAILABLE` | A download engine is temporarily unavailable | Wait for runtime preparation, or see [Download Runtimes and Automatic Preparation](../../advanced/download-dependencies/) |
 | `E_ENGINE_REJECTED_INTENT` | One download engine cannot handle this task | Try another quality preference or send from the exact page with the extension |
 | `E_DIRECT_SOURCE_REQUIRED` | Ameow needs a more direct media URL or page context | Prefer sending from the current page with the browser extension |
-| `E_EXECUTION_FAILED` | A downloader command failed; the useful detail is in the message text | Follow keywords in the same message, such as `403`, `cookies`, or `timeout` |
+| `E_EXECUTION_FAILED` | The downloader command failed | Troubleshoot by the error classification (login, network, format, etc.); copy the diagnostics when reporting |
 | `E_INVALID_ENGINE_PLAN` | Ameow could not build a valid download plan | Update to the latest stable version; keep the link and message for reporting |
 | `E_NO_ENGINE_SUCCEEDED` | All attempted download paths failed | Test a public link, lower quality, confirm login state, and check proxy routing |
 | `E_OUTPUT_NOT_FOUND` | The downloader did not provide a final output file | Open the current output folder and check whether conversion is still running; report the full message if it repeats |

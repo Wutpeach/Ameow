@@ -1,8 +1,8 @@
-{"file": ".trellis/tasks/08-10-p6-site-engine-extension-observability/research/current-extension-model-audit.md", "reason": "P6A code evidence, blockers, and approved minimal target"}
+{"file": ".trellis/tasks/08-10-p6-site-engine-extension-observability/research/current-observability-audit.md", "reason": "P6B code evidence, privacy blockers, and approved minimal target"}
 {"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve typed runtime errors and fail-closed engine semantics"}
 {"file": ".trellis/spec/backend/electron-runtime-contracts/01-overview.md", "reason": "Electron/core/runtime dependency direction"}
-{"file": ".trellis/spec/backend/electron-runtime-contracts/07-electron-managed-runtime-bootstrap-module-contract.md", "reason": "Managed engine readiness and bootstrap ownership"}
 {"file": ".trellis/spec/backend/electron-runtime-contracts/08-electron-proxy-resolution-contract-part-01.md", "reason": "P0 network route and downloader consumer baseline"}
-{"file": ".trellis/spec/backend/electron-runtime-contracts/13-site-scoped-yt-dlp-quality-profile-contract.md", "reason": "Legitimate adapter-local Site execution policy"}
-{"file": ".trellis/spec/backend/electron-runtime-contracts/15-advanced-quality-selection-queue-metadata.md", "reason": "Existing advanced-quality and probe contract"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Existing runtime logging contract and safe diagnostic rendering"}
+{"file": ".trellis/spec/backend/electron-runtime-contracts/04-electron-download-command-bridge-contract.md", "reason": "Download terminal protocol compatibility and exactly-once mapping"}
+{"file": ".trellis/spec/frontend/type-safety/01-overview.md", "reason": "Additive typed Renderer diagnostic payload mapping"}
 {"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer source-of-truth and ownership checks"}

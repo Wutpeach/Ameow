@@ -1,8 +1,8 @@
 # P6 Site / Engine Extension Model + Observability — Target Design
 
-> Lead Architecture Review approved Option B on 2026-08-10. The current
-> implementation scope is P6A only; P6B remains planned and must not be
-> implemented in this phase.
+> Lead Architecture Review approved Option B and the P6A checkpoint on
+> 2026-08-10. The current implementation scope is P6B only, using commit
+> `6f2f31a` as the P6A baseline. P0-P6A must not be redesigned.
 
 ## 1. Decision summary
 

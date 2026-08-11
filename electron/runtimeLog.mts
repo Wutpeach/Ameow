@@ -4,6 +4,7 @@ import {
   readFile,
   writeFile,
 } from "node:fs/promises";
+import { sanitizeDiagnosticText } from "../src/core/diagnostics/safe-diagnostic.js";
 
 type ConsoleLevel = "log" | "info" | "warn" | "error";
 
@@ -38,21 +39,21 @@ const defaultFs: RuntimeLogFs = {
 
 const serializeDiagnosticPayload = (payload: unknown): string => {
   if (typeof payload === "string") {
-    return payload;
+    return sanitizeDiagnosticText(payload);
   }
   try {
-    return JSON.stringify(payload);
+    return sanitizeDiagnosticText(JSON.stringify(payload));
   } catch {
-    return String(payload);
+    return sanitizeDiagnosticText(String(payload));
   }
 };
 
 const serializeRuntimeLogArgument = (argument: unknown): string => {
   if (argument instanceof Error) {
-    return argument.stack || argument.message;
+    return sanitizeDiagnosticText(argument.stack || argument.message);
   }
   if (typeof argument === "string") {
-    return argument;
+    return sanitizeDiagnosticText(argument);
   }
   return serializeDiagnosticPayload(argument);
 };
@@ -92,7 +93,7 @@ export const createRuntimeLogController = (options: RuntimeLogControllerOptions)
     }
 
     try {
-      originalConsole[level](...args);
+      originalConsole[level](...args.map((argument) => serializeRuntimeLogArgument(argument)));
     } catch (error) {
       if (isConsoleStreamWriteError(error)) {
         originalConsoleStreamsAvailable = false;
@@ -107,7 +108,7 @@ export const createRuntimeLogController = (options: RuntimeLogControllerOptions)
   );
 
   const appendRuntimeLogLine = (level: string, message: unknown) => {
-    const trimmedMessage = String(message ?? "").trim();
+    const trimmedMessage = sanitizeDiagnosticText(String(message ?? ""), 4_000).trim();
     if (!trimmedMessage) {
       return Promise.resolve();
     }

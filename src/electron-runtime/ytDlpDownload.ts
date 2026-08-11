@@ -2,6 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   DownloadRuntimeError,
+  sanitizeDiagnosticText,
+  toSafeDiagnosticUrl,
   type DownloadResult,
 } from "../core/index.js";
 import { InvalidCommandPlanError } from "./commandPlanErrors.js";
@@ -12,7 +14,10 @@ import { parseYtDlpProgressLine } from "./ytDlpProgress.js";
 import { summarizeError } from "./runtimeUtils.js";
 import { cleanupCookiesFile, writeCookiesFile } from "./sidecarCookies.js";
 import { hasTerminalYtDlpAvailabilityFailure, summarizeYtDlpFailure } from "./ytDlpErrorSummary.js";
-import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import {
+  classifyEngineDiagnosticCategory,
+  classifyEngineFailure,
+} from "./engineErrorClassifier.js";
 import type { EngineInvocationContext, YtDlpRuntimeDependencies } from "./engineExecutionContext.js";
 import {
   applyNetworkRouteForContext,
@@ -43,9 +48,9 @@ const resolveClipDurationSec = (clipRange: { startSec: number; endSec: number } 
 
 const toSafeLogDetails = (payload: unknown): string => {
   try {
-    return JSON.stringify(payload);
+    return sanitizeDiagnosticText(JSON.stringify(payload));
   } catch {
-    return String(payload);
+    return sanitizeDiagnosticText(String(payload));
   }
 };
 
@@ -256,17 +261,13 @@ export const runYtDlpDownload = async (
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp invocation", {
         traceId: context.traceId,
-        ytDlpBinaryPath: context.binaries.ytDlp,
-        ffmpegBinaryPath: context.binaries.ffmpeg,
-        denoBinaryPath: context.binaries.deno,
-        sourceUrl: commandPlan.sourceUrl,
-        originalUrl: context.intent.originalUrl,
-        pageUrl: context.intent.pageUrl ?? null,
+        source: toSafeDiagnosticUrl(commandPlan.sourceUrl) ?? null,
+        original: toSafeDiagnosticUrl(context.intent.originalUrl) ?? null,
+        page: toSafeDiagnosticUrl(context.intent.pageUrl) ?? null,
         selectionScope: context.intent.selectionScope ?? null,
         siteId: context.intent.siteId,
         titlePresent: Boolean(context.intent.title),
         cookiesPresent: Boolean(context.cookies?.trim()),
-        cookiesPath,
         proxyPresent: Boolean(proxyUrl),
         proxyScheme: proxyUrl ? new URL(proxyUrl).protocol.replace(/:$/, "") : null,
         videoQuality: context.intent.videoQuality ?? null,
@@ -275,7 +276,7 @@ export const runYtDlpDownload = async (
         formatSort: attempt.formatProfile.sort,
         mergeOutputFormat: attempt.formatProfile.mergeOutputFormat,
         youtubeExtractorProfile: commandPlan.isYouTube ? "extended" : null,
-        args: args.map((arg) => redactNetworkCredentials(arg)),
+        argumentCount: args.length,
       });
     }
 
@@ -489,7 +490,7 @@ export const runYtDlpDownload = async (
       logYtDlpTiming("section format retry", {
         traceId: context.traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
-        previousError: summarizeError(error),
+        previousError: sanitizeDiagnosticText(summarizeError(error)),
         selectorLength: retryFormatProfile.selector.length,
       });
       await cleanupTaskArtifacts(context.outputDir, beforeFiles, commandPlan.artifactPrefixes);
@@ -509,12 +510,14 @@ export const runYtDlpDownload = async (
     const normalizedClassification = classification === NETWORK_FAILURE_CLASSIFICATIONS.UNKNOWN
       ? null
       : classification;
-    const redactedError = redactNetworkCredentials(summarizeError(error));
-    const redactedStderrTail = latestStderrLines.map((line) => redactNetworkCredentials(line));
+    const redactedError = sanitizeDiagnosticText(redactNetworkCredentials(summarizeError(error)));
+    const redactedStderrTail = latestStderrLines.map((line) => (
+      sanitizeDiagnosticText(redactNetworkCredentials(line))
+    ));
     if (isInjectionDebugEnabled(context.config)) {
       logInjectedDownloadDebug("yt-dlp failed", {
         traceId: context.traceId,
-        sourceUrl: commandPlan.sourceUrl,
+        source: toSafeDiagnosticUrl(commandPlan.sourceUrl) ?? null,
         error: redactedError,
         stderrTail: redactedStderrTail.slice(-5),
       });
@@ -532,6 +535,12 @@ export const runYtDlpDownload = async (
       message: redactedError,
       context: { stderrTail: redactedStderrTail },
     });
+    const engineDiagnosticCategory = normalizedClassification
+      ? "network"
+      : classifyEngineDiagnosticCategory({
+          message: redactedError,
+          context: { stderrTail: redactedStderrTail },
+        });
     if (error instanceof DownloadRuntimeError) {
       throw withNetworkFailureClassification(error, normalizedClassification);
     }
@@ -541,6 +550,7 @@ export const runYtDlpDownload = async (
       {
         cause: error,
         classification: engineClassification,
+        diagnosticCategory: engineDiagnosticCategory,
         context: normalizedClassification
           ? { networkFailureClassification: normalizedClassification }
           : undefined,

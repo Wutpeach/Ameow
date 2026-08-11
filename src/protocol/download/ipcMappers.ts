@@ -12,11 +12,13 @@ import {
 } from "../../core/video-candidate-normalization.js";
 import { resolveSiteHint } from "../../core/site-hints.js";
 import { ameowCaptureEvidenceSchema } from "../../core/schemas/raw-download-input-schema.js";
+import { toSafeDiagnosticUrl } from "../../core/diagnostics/safe-diagnostic.js";
 import { createInteractionCapabilityDiagnostic } from "../../download-capabilities/runtime-interaction-capabilities.js";
 import type {
   DownloadTerminalOutcome,
   QueueDownloadCommand,
 } from "../../application/download-api.js";
+import { resolveDownloadDiagnosticCategory } from "../../application/download-diagnostics.js";
 import type { RuntimeFailureDiagnostic } from "../../types/errorDiagnostics.js";
 import type {
   DownloadProgressPayload,
@@ -341,19 +343,23 @@ export const toDownloadResultPayload = (
   outcome: DownloadTerminalOutcome,
 ): DownloadResultPayload => {
   if (outcome.failure) {
+    const diagnosticCategory = outcome.diagnosticSummary?.finalCategory
+      ?? resolveDownloadDiagnosticCategory(outcome.failure);
     const failure: RuntimeFailureDiagnostic = {
       code: outcome.failure.code,
       classification: outcome.failure.classification,
-      rawMessage: outcome.failure.message,
-      userUrl: outcome.userUrl,
-      context: outcome.failure.context,
+      diagnosticCategory,
+      safeUrl: toSafeDiagnosticUrl(outcome.userUrl),
+      attemptSummary: outcome.diagnosticSummary,
     };
     return {
       traceId: outcome.traceId,
       success: false,
-      // User-visible error text may differ from the technical raw message
-      // (e.g. advanced-quality probe failure); fall back to the raw message.
-      error: outcome.result.error ?? outcome.failure.message,
+      // New structured payloads never expose raw downloader/process output.
+      error: outcome.presentationMessage
+        ?? (outcome.failure.classification === "cancelled"
+          ? "Download cancelled"
+          : `Download failed (${outcome.failure.code})`),
       failure,
     };
   }

@@ -9,12 +9,22 @@ P6A = Site / Engine Extension Model
 P6B = Observability / Diagnosability
 ```
 
-This existing task is now the implementation target for **P6A only**. Earlier
-planning-only language below records the completed audit gate; where it
-conflicts with this decision, this section is authoritative. P6B remains out of
-scope and requires a separate Lead-approved implementation phase.
+P6A is Lead-approved and committed at `6f2f31a`. This existing task is now the
+implementation target for **P6B only**. Earlier planning-only and P6A-only
+language below records completed gates; where it conflicts with this decision,
+this section is authoritative. Do not redesign P0-P6A.
 
-## Goal
+## Current implementation goal
+
+Make one download Job reliably, safely, and cheaply diagnosable from prepare
+through attempts, fallback/auth recovery, cancellation, and exactly one
+terminal outcome. Use one stable Job `traceId`, Application-owned monotonic
+attempt identity, a closed event union, a best-effort diagnostic sink, bounded
+in-memory attempt history, structured failure categories, and allowlisted
+redacted summaries. Observability failure must never change download
+correctness, and diagnostics must never leak sensitive data.
+
+## Original planning goal
 
 Produce an evidence-backed architecture audit and implementation-ready Trellis plan that reduces unrelated changes when adding a Site or Engine and makes one download diagnosable across resolve, plan, route, attempts, fallback or authentication recovery, and terminal outcome.
 
@@ -95,18 +105,24 @@ P0 through P5 are complete and form the baseline. P6 must preserve their establi
 
 ### P6A implementation acceptance
 
-- [ ] A normal Site can be added with provider implementation, explicit registry registration, and relevant tests without editing unrelated migration, protocol, Renderer, Extension, session, or capability ledgers.
-- [ ] `SiteProvider` remains unchanged and stable plan identity is preserved.
-- [ ] Engine identity is open and non-blank; `EngineRegistry` plus explicit composition is authoritative and unknown engines fail closed.
-- [ ] Engine-specific binary, readiness, and NetworkRoute consumption ownership no longer falls through to yt-dlp defaults.
-- [ ] The Weibo selected-variant rule no longer lives in the generic orchestrator.
-- [ ] `advancedQuality` and the existing yt-dlp probe have honest, minimal ownership without a generalized capability or probe framework.
-- [ ] Fake Site, fake Engine, unknown Engine, runtime readiness/network binding, probe, policy-leakage, and P0-P6A guard regressions pass.
-- [ ] Full validation passes and the task remains `in_progress / awaiting Lead Architecture Review` without commit or archive.
+- [x] Lead Architecture Review approved the P6A implementation checkpoint at `6f2f31a`.
+
+### P6B implementation acceptance
+
+- [x] One Job keeps one stable trace across initial execution, fallback, auth recovery, cancellation intent, and terminal outcome.
+- [x] Application creates distinct monotonic attempt identities for every real Engine execution and retains a bounded sanitized history.
+- [x] A closed download diagnostic event union flows through a narrow best-effort sink whose synchronous, asynchronous, serialization, and logger failures cannot change lifecycle correctness.
+- [x] Structured diagnostic categories serve terminal diagnostics/presentation while existing fallback/auth policy classification remains authoritative.
+- [x] Central allowlist serialization/redaction removes signed URL query/fragment/userinfo, cookies, authorization, proxy credentials, session/browser tokens, raw environment, secret paths, requests/plans, and unbounded process output.
+- [x] Terminal diagnostic semantics are exactly once; cancel intent is not terminal cancellation and typed success after cancel intent still wins.
+- [x] Renderer prefers structured category/summary for new payloads and keeps regex only as legacy compatibility fallback; Browser Extension remains queue-ack-only.
+- [x] Existing runtime log and terminal telemetry receive only bounded safe structured data; no persistent event store or remote telemetry is added.
+- [x] P0-P6A guards remain passing and focused P6B trace, recovery, fallback, terminal, privacy, sink-isolation, presentation, and architecture regressions pass.
+- [x] Full validation passed and Lead Architecture Review approved P6B and final P6 completion on 2026-08-11.
 
 ## Out of Scope
 
-- P6B observability implementation, including diagnostic sinks, attempt history, failure taxonomy expansion, redaction architecture, presentation diagnostics, and observability-failure isolation.
+- P0-P6A redesign, including Engine identity/runtime binding, SiteProvider, provider migration, advanced-quality capability/probe ownership, and Browser Extension lifecycle authority.
 - Dynamic plugins, plugin marketplace or SDK, runtime discovery, extension manifests, a DI framework, generalized capability registry, or Event Bus.
 - CQRS, Event Sourcing, generalized RPC, protocol-version platform, telemetry SaaS, analytics platform, remote crash reporting, or a database-backed diagnostic event store.
 - Renderer, browser-extension, Electron, network, protocol, or P0-P5 architecture redesign.

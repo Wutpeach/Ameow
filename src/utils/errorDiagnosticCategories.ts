@@ -116,6 +116,25 @@ const matchesAny = (text: string, patterns: readonly RegExp[]): boolean => (
 export const resolveErrorDiagnosticCategory = (
   input: FailureCategoryInput,
 ): ErrorDiagnosticCategory => {
+  switch (input.failure?.diagnosticCategory) {
+    case "authentication_required":
+      return "auth_login_state";
+    case "network":
+      return "network_proxy";
+    case "site_input":
+    case "content_unavailable":
+      return "content_unavailable";
+    case "output":
+      return "output_write";
+    case "format_unavailable":
+      return "quality_format_unavailable";
+    case "engine_unavailable":
+    case "engine_execution":
+      return "runtime_downloader_unavailable";
+    case "cancelled":
+      return "unclassified";
+  }
+
   const code = input.failure?.code;
   const classification = input.failure?.classification;
   const text = buildSearchText(input);

@@ -1,5 +1,8 @@
 import type { DownloadFailureClassification } from "../core/constants/error-classifications.js";
 import type { DownloadErrorCode } from "../core/constants/error-codes.js";
+import type { DownloadDiagnosticCategory } from "../core/constants/diagnostic-categories.js";
+import type { SafeDiagnosticUrl } from "../core/diagnostics/safe-diagnostic.js";
+import type { DownloadTerminalDiagnosticSummary } from "../application/download-diagnostics.js";
 
 export type ErrorDiagnosticSurface = "download" | "transcode";
 
@@ -16,8 +19,12 @@ export type ErrorDiagnosticCategory =
 export type RuntimeFailureDiagnostic = {
   code?: DownloadErrorCode | string;
   classification?: DownloadFailureClassification | string;
-  rawMessage: string;
+  /** Legacy-only raw text; new structured download payloads omit it. */
+  rawMessage?: string;
   userUrl?: string;
+  safeUrl?: SafeDiagnosticUrl;
+  diagnosticCategory?: DownloadDiagnosticCategory;
+  attemptSummary?: DownloadTerminalDiagnosticSummary;
   context?: Record<string, unknown>;
 };
 
@@ -44,11 +51,12 @@ export type ErrorDiagnosticCopyPayload = {
     traceId?: string;
     userMessage: string;
     category: ErrorDiagnosticCategory;
-    url?: string;
+    url?: SafeDiagnosticUrl;
     code?: string;
     classification?: string;
     rawMessage?: string;
-    context?: Record<string, unknown>;
+    diagnosticCategory?: DownloadDiagnosticCategory;
+    attemptSummary?: DownloadTerminalDiagnosticSummary;
   };
   runtimeLog: {
     excerptLineCount: number;
@@ -56,6 +64,6 @@ export type ErrorDiagnosticCopyPayload = {
   };
   redaction: {
     applied: true;
-    preservedOriginalUrl: true;
+    urlReducedToOrigin: true;
   };
 };

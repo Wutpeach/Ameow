@@ -2,11 +2,14 @@ import {
   DownloadRuntimeError,
   downloadIntentSchema,
   enginePlanSchema,
+  type DownloadErrorCode,
+  type DownloadDiagnosticCategory,
+  type DownloadFailureClassification,
   type DownloadResult,
   type EngineExecutionContext,
+  type EngineId,
   type EnginePlan,
   rawDownloadInputSchema,
-  type DownloadErrorCode,
   type RawDownloadInput,
   type ResolvedDownloadPlan,
 } from "../core/index.js";
@@ -60,7 +63,6 @@ const wrapSelectedVariantError = (
   }
   const selected = plan.intent.selectedVideoVariant;
   const label = selected?.label?.trim()
-    || selected?.url
     || "selected variant";
   return new DownloadRuntimeError(
     error.code,
@@ -68,10 +70,10 @@ const wrapSelectedVariantError = (
     {
       cause: error,
       classification: error.classification,
+      diagnosticCategory: error.diagnosticCategory,
       context: {
-        ...error.context,
-        selectedVideoVariant: selected,
         providerId: plan.providerId,
+        selectedVideoVariantLabel: selected?.label?.trim() || undefined,
       },
     },
   );
@@ -90,6 +92,24 @@ export type DownloadBuildContext<
   plan: ResolvedDownloadPlan,
   enginePlan: EnginePlan,
 ) => TExecutionContext | Promise<TExecutionContext>;
+
+/**
+ * Typed facts the orchestrator reports about real attempt executions and
+ * actual candidate moves. The orchestrator does not create attempt identity
+ * (index/id) — Application owns that — and emits nothing for candidates that
+ * are skipped before execution (not found, not eligible, not supported).
+ */
+export type OrchestratorAttemptReport =
+  | { kind: "attempt_started"; engineId: EngineId }
+  | { kind: "attempt_succeeded"; engineId: EngineId }
+  | {
+      kind: "attempt_failed";
+      engineId: EngineId;
+      errorCode: DownloadErrorCode;
+      classification: DownloadFailureClassification;
+      diagnosticCategory?: DownloadDiagnosticCategory;
+    }
+  | { kind: "fallback"; fromEngineId: EngineId; toEngineId: EngineId };
 
 /**
  * Executes resolved download plans through the registered engines. The
@@ -139,14 +159,28 @@ export class DownloadOrchestrator<
   async executePrepared(
     prepared: PreparedDownloadRequest,
     buildContext: DownloadBuildContext<TExecutionContext>,
+    onAttemptReport?: (report: OrchestratorAttemptReport) => void,
   ): Promise<DownloadResult> {
     const { input: normalizedInput, plan: resolvedPlan } = prepared;
     const orderedPlans = resolvedPlan.engines
       .slice()
       .sort((left, right) => right.priority - left.priority);
 
+    // Observer isolation at the boundary: the reporter is diagnostics-only.
+    // A synchronous throw from the observer must never change the download
+    // outcome, so every report routes through this best-effort wrapper.
+    const report = (attemptReport: OrchestratorAttemptReport): void => {
+      try {
+        onAttemptReport?.(attemptReport);
+      } catch {
+        // Best-effort observer; never alters engine execution.
+      }
+    };
+
     let lastError: DownloadRuntimeError | null = null;
-    for (const enginePlan of orderedPlans) {
+    let failedAttemptEngineId: EngineId | null = null;
+    for (let index = 0; index < orderedPlans.length; index += 1) {
+      const enginePlan = orderedPlans[index];
       enginePlanSchema.parse(enginePlan);
       const engine = this.engineRegistry.get(enginePlan.engine);
       if (!engine) {
@@ -189,10 +223,35 @@ export class DownloadOrchestrator<
         throw wrapSelectedVariantError(lastError, resolvedPlan);
       }
 
+      // A real execution is about to run: report the attempt, then its typed
+      // outcome and any actual move to the next candidate. Exactly one
+      // failure report per attempt (the inner throw path is re-processed by
+      // the catch below, which is the single failure report point).
+      const reportAttemptFailure = (error: DownloadRuntimeError): void => {
+        report({
+          kind: "attempt_failed",
+          engineId: engine.id,
+          errorCode: error.code,
+          classification: error.classification,
+          diagnosticCategory: error.diagnosticCategory,
+        });
+        failedAttemptEngineId = engine.id;
+      };
+
+      if (failedAttemptEngineId) {
+        report({
+          kind: "fallback",
+          fromEngineId: failedAttemptEngineId,
+          toEngineId: engine.id,
+        });
+        failedAttemptEngineId = null;
+      }
+      report({ kind: "attempt_started", engineId: engine.id });
       try {
         const context = await buildContext(resolvedPlan, enginePlan);
         const result = await engine.execute(context);
         if (result.success) {
+          report({ kind: "attempt_succeeded", engineId: engine.id });
           return result;
         }
 
@@ -201,14 +260,17 @@ export class DownloadOrchestrator<
           result.error || `Engine ${enginePlan.engine} reported an unsuccessful result`,
         );
         if (shouldContinueEngineChain(lastError, enginePlan)) {
+          reportAttemptFailure(lastError);
           continue;
         }
         throw wrapSelectedVariantError(lastError, resolvedPlan);
       } catch (error) {
         lastError = toRuntimeError(error, "E_EXECUTION_FAILED");
         if (shouldContinueEngineChain(lastError, enginePlan)) {
+          reportAttemptFailure(lastError);
           continue;
         }
+        reportAttemptFailure(lastError);
         throw wrapSelectedVariantError(lastError, resolvedPlan);
       }
     }

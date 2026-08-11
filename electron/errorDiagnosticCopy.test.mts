@@ -9,7 +9,7 @@ import {
 } from "./errorDiagnosticCopy.mjs";
 
 describe("errorDiagnosticCopy", () => {
-  it("builds pretty JSON diagnostics with preserved URL and redacted runtime logs", async () => {
+  it("builds pretty JSON diagnostics with origin-reduced URL and redacted runtime logs", async () => {
     const readRecentRuntimeLogLines = vi.fn(async () => [
       ">>> [yt-dlp] Cookie: SID=secret",
       ">>> [yt-dlp] Authorization: Bearer abc.def",
@@ -44,9 +44,19 @@ describe("errorDiagnosticCopy", () => {
     expect(text).toContain("\n  ");
     const payload = JSON.parse(text);
     expect(readRecentRuntimeLogLines).toHaveBeenCalledWith(120);
-    expect(payload.failure.url).toBe("https://example.com/watch?v=123");
-    expect(payload.failure.context.cookies).toBe("[REDACTED]");
-    expect(payload.failure.context.outputUrl).toBe("https://cdn.example.com/video.mp4");
+    // The tokenized URL collapses to origin-only facts; the open context bag
+    // and its secrets are never copied.
+    expect(payload.failure.url).toEqual({
+      origin: "https://example.com",
+      hasQuery: true,
+      hasFragment: false,
+    });
+    expect(payload.failure.context).toBeUndefined();
+    expect(payload.failure.rawMessage).toBe("HTTP Error 429");
+    expect(payload.redaction).toEqual({
+      applied: true,
+      urlReducedToOrigin: true,
+    });
     expect(payload.runtimeLog.lines).toEqual([
       ">>> [yt-dlp] Cookie: [REDACTED]",
       ">>> [yt-dlp] Authorization: [REDACTED]",
@@ -95,27 +105,86 @@ describe("errorDiagnosticCopy", () => {
         code: undefined,
         classification: undefined,
         rawMessage: "ERROR",
-        userUrl: "https://example.com",
-        context: undefined,
+        safeUrl: {
+          origin: "https://example.com",
+          hasQuery: false,
+          hasFragment: false,
+        },
+        diagnosticCategory: undefined,
+        attemptSummary: undefined,
       },
     });
   });
 
-  it("redacts common secret-bearing strings and fields", () => {
+  it("redacts common secret-bearing strings and drops open context bags", () => {
     expect(redactRuntimeLogLine("token=abc123 password=hunter2 Bearer secret"))
       .toBe("token=[REDACTED] password=[REDACTED] Bearer [REDACTED]");
+    // Open context is no longer copied into diagnostics at all.
     expect(redactDiagnosticContext({
       account: "user@example.com",
       nested: {
         sessionId: "abc",
         user_url: "https://example.com/profile",
       },
-    })).toEqual({
-      account: "[REDACTED]",
-      nested: {
-        sessionId: "[REDACTED]",
-        user_url: "https://example.com/profile",
+    })).toBeUndefined();
+  });
+
+  it("scrubs secret-bearing values inside structured diagnostic fields", async () => {
+    const request = normalizeErrorDiagnosticCopyRequest({
+      surface: "download",
+      traceId: "trace-token=top-secret",
+      userMessage: "failed",
+      category: "runtime_downloader_unavailable",
+      failure: {
+        code: "E_EXECUTION_FAILED secret=code-secret",
+        classification: "fallback_to_other_engine token=classification-secret",
+        diagnosticCategory: "engine_execution",
+        attemptSummary: {
+          traceId: "trace-token=summary-secret",
+          status: "failed",
+          finalEngineId: "yt-dlp token=engine-secret",
+          attemptCount: 1,
+          attempts: [{
+            attemptIndex: 1,
+            attemptId: "attempt-token=attempt-secret",
+            engineId: "yt-dlp secret=attempt-engine-secret",
+            cycle: "initial",
+            outcome: "failed",
+            errorCode: "E_EXECUTION_FAILED token=attempt-code-secret",
+            classification: "fallback_to_other_engine",
+            category: "engine_execution",
+            network: {
+              routeKind: "direct",
+              source: "direct",
+              consumer: "yt-dlp token=consumer-secret",
+              appliedToEngine: true,
+              proxyProtocol: null,
+              failureClassification: "token=network-secret",
+            },
+          }],
+          finalCode: "E_EXECUTION_FAILED token=final-code-secret",
+          finalClassification: "fallback_to_other_engine",
+          finalCategory: "engine_execution",
+        },
       },
     });
+
+    const text = await buildErrorDiagnosticCopyText({
+      request,
+      appVersion: "1.0.0",
+      readRecentRuntimeLogLines: async () => [],
+    });
+
+    expect(text).not.toContain("top-secret");
+    expect(text).not.toContain("summary-secret");
+    expect(text).not.toContain("engine-secret");
+    expect(text).not.toContain("attempt-secret");
+    expect(text).not.toContain("attempt-engine-secret");
+    expect(text).not.toContain("attempt-code-secret");
+    expect(text).not.toContain("consumer-secret");
+    expect(text).not.toContain("network-secret");
+    expect(text).not.toContain("final-code-secret");
+    expect(text).not.toContain("classification-secret");
+    expect(text).not.toContain("code-secret");
   });
 });

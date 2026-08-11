@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   ElectronDownloadRuntime,
   ElectronDownloadRuntimeOptions,
+  RuntimeLogger,
   RuntimeManagedComponent,
 } from "./contracts.js";
 import {
@@ -78,13 +79,15 @@ import { resolveYtdlpFormatProfile } from "./engineManifest.js";
 import {
   buildDirectRouteResolution,
   buildResolutionFailureFallbackRoute,
-  redactNetworkCredentials,
   toNetworkDiagnosticSnapshot,
   type NetworkDiagnosticSnapshot,
   type NetworkFailureClassification,
   type NetworkRouteResolution,
 } from "../config/networkRoute.js";
-import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import {
+  classifyEngineDiagnosticCategory,
+  classifyEngineFailure,
+} from "./engineErrorClassifier.js";
 import type { DownloadExecutionContext } from "./contracts.js";
 import type {
   EngineExecutionContextWithRuntime,
@@ -96,6 +99,16 @@ import {
 } from "./engineNetworkAdapters.js";
 import type { DownloadTelemetryProfile } from "../download-capabilities/telemetry.js";
 import { DownloadJobService } from "../application/download-job-service.js";
+import {
+  createDownloadDiagnosticRecorder,
+  getDownloadTerminalDiagnosticSummary,
+  resolveDownloadDiagnosticCategory,
+  type DownloadDiagnosticNetwork,
+  type DownloadDiagnosticSink,
+  type DownloadTerminalDiagnosticSummary,
+} from "../application/download-diagnostics.js";
+import { createRuntimeLogDownloadDiagnosticSink } from "./downloadDiagnosticSink.js";
+import { sanitizeDiagnosticText, toSafeDiagnosticUrl } from "../core/index.js";
 
 type PendingTask = {
   traceId: string;
@@ -127,7 +140,21 @@ type DownloadTelemetryContext = {
   plan: ResolvedDownloadPlan | null;
   chosenEngine: EnginePlan["engine"] | null;
   network?: NetworkDiagnosticSnapshot | null;
+  diagnosticSummary?: DownloadTerminalDiagnosticSummary;
 };
+
+const toDownloadDiagnosticNetwork = (
+  snapshot: NetworkDiagnosticSnapshot | null,
+): DownloadDiagnosticNetwork | undefined => snapshot
+  ? {
+      routeKind: snapshot.routeMode,
+      source: snapshot.source,
+      consumer: snapshot.consumer,
+      appliedToEngine: snapshot.appliedToEngine,
+      proxyProtocol: snapshot.proxyProtocol,
+      failureClassification: snapshot.failureClassification,
+    }
+  : undefined;
 
 const resolveCanonicalNetworkTarget = (
   request: RawDownloadInput,
@@ -170,11 +197,21 @@ type TranscodeTaskState = PreparedVideoTranscodeTask & {
   abortController?: AbortController;
 };
 
-const NOOP_LOGGER = {
+const NOOP_LOGGER: RuntimeLogger = {
   log(message: string): void {
     void message;
   },
 };
+
+const createBestEffortRuntimeLogger = (logger: RuntimeLogger): RuntimeLogger => ({
+  log(message) {
+    try {
+      logger.log(message);
+    } catch {
+      // Logging is observability only and must never alter runtime behavior.
+    }
+  },
+});
 
 const queueTaskLabel = (request: RawDownloadInput): string =>
   request.title?.trim()
@@ -256,7 +293,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   readonly maxConcurrent: number;
 
   private readonly options: ElectronDownloadRuntimeOptions;
-  private readonly logger;
+  private readonly logger: RuntimeLogger;
   private readonly pending: PendingTask[] = [];
   private readonly active = new Map<string, ActiveTask>();
   private readonly advancedQualityTasks = new Map<string, AdvancedQualityTaskState>();
@@ -272,11 +309,12 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
   private readonly engineRegistry: EngineRegistry<EngineExecutionContextWithRuntime>;
   private readonly siteRegistry;
   private readonly telemetrySink: DownloadTelemetrySink;
+  private readonly diagnosticSink: DownloadDiagnosticSink;
 
   constructor(options: ElectronDownloadRuntimeOptions) {
     this.options = options;
     this.maxConcurrent = options.maxConcurrent ?? 3;
-    this.logger = options.logger ?? NOOP_LOGGER;
+    this.logger = createBestEffortRuntimeLogger(options.logger ?? NOOP_LOGGER);
     const providers = options.providers ?? loadBuiltinProviders();
     // Concrete engines are registered by the outer Electron composition; the
     // runtime never constructs hidden built-in adapters.
@@ -292,6 +330,8 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     );
     this.telemetrySink = options.telemetrySink
       ?? createDownloadTelemetrySink(options.environment, this.logger);
+    this.diagnosticSink = options.diagnosticSink
+      ?? createRuntimeLogDownloadDiagnosticSink(this.logger);
     this.resolver = createRuntimeDependencyResolver(
       inspectRuntimeDependencyStatus(options.environment),
       () => inspectRuntimeDependencyStatus(options.environment),
@@ -407,9 +447,9 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       if (resolved) {
         this.logger.log(
           `>>> [PastedVideo] Using extension-assisted selection payload: ${JSON.stringify({
-            url: resolved.url,
-            pageUrl: resolved.pageUrl ?? null,
-            videoUrl: resolved.videoUrl ?? null,
+            url: toSafeDiagnosticUrl(resolved.url) ?? null,
+            pageUrl: toSafeDiagnosticUrl(resolved.pageUrl) ?? null,
+            videoUrl: toSafeDiagnosticUrl(resolved.videoUrl) ?? null,
             siteHint: resolved.siteHint ?? siteHint,
             videoCandidatesCount: resolved.videoCandidates?.length ?? 0,
             selectionScope: resolved.selectionScope ?? null,
@@ -486,6 +526,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     const pendingIndex = this.pending.findIndex((task) => task.traceId === traceId);
     if (pendingIndex >= 0) {
       const [cancelledTask] = this.pending.splice(pendingIndex, 1);
+      const cancelledPlan = this.siteRegistry.resolve(cancelledTask.request);
       await this.emitQueueState();
       const cancellationError = new DownloadRuntimeError(
         "E_ABORTED",
@@ -494,15 +535,15 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           classification: "cancelled",
         },
       );
-      await this.recordDownloadTelemetry(
+      const diagnosticSummary = createDownloadDiagnosticRecorder({
         traceId,
-        {
-          request: cancelledTask.request,
-          plan: this.siteRegistry.resolve(cancelledTask.request),
-          chosenEngine: null,
-        },
-        cancellationError,
-      );
+        sink: this.diagnosticSink,
+      }).recordTerminal({
+        outcome: "cancelled",
+        errorCode: cancellationError.code,
+        classification: cancellationError.classification,
+        category: resolveDownloadDiagnosticCategory(cancellationError),
+      });
       await this.options.eventSink.emit("video-download-complete", {
         traceId,
         result: {
@@ -512,7 +553,19 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         },
         failure: cancellationError,
         userUrl: resolveDiagnosticUserUrl(cancelledTask.request),
+        presentationMessage: "Download cancelled",
+        diagnosticSummary,
       } satisfies DownloadTerminalOutcome);
+      this.recordDownloadTelemetry(
+        traceId,
+        {
+          request: cancelledTask.request,
+          plan: cancelledPlan,
+          chosenEngine: null,
+          diagnosticSummary,
+        },
+        cancellationError,
+      );
       this.scheduleTranscodePump();
       return true;
     }
@@ -633,6 +686,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         },
         failure: probeFailure,
         userUrl: resolveDiagnosticUserUrl(task.request),
+        presentationMessage: "更多画质探测失败",
       } satisfies DownloadTerminalOutcome);
     }
   }
@@ -683,7 +737,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           engineId,
         }).catch((error) => {
           this.logger.log(
-            `>>> [ElectronRuntime] network route resolution failed for ${traceId}: ${redactNetworkCredentials(summarizeError(error))}`,
+            `>>> [ElectronRuntime] network route resolution failed for ${traceId}: ${sanitizeDiagnosticText(summarizeError(error))}`,
           );
           return buildResolutionFailureFallbackRoute(targetUrl, consumer, error);
         })
@@ -1071,7 +1125,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
       );
     } finally {
       if (telemetry) {
-        await this.recordDownloadTelemetry(
+        this.recordDownloadTelemetry(
           traceId,
           telemetry,
           null,
@@ -1263,8 +1317,8 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     const taskStartedAtMs = Date.now();
     this.logger.log(`>>> [ElectronRuntimeTiming] task start: ${JSON.stringify({
       traceId,
-      url: activeTask.request.url,
-      pageUrl: activeTask.request.pageUrl ?? null,
+      url: toSafeDiagnosticUrl(activeTask.request.url) ?? null,
+      pageUrl: toSafeDiagnosticUrl(activeTask.request.pageUrl) ?? null,
       siteHint: activeTask.request.siteHint ?? null,
       quality: activeTask.request.ytdlpQuality ?? "best",
     })}`);
@@ -1286,6 +1340,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     // branch decides the terminal.
     let terminalOutcome: DownloadTerminalOutcome;
     let terminalRuntimeError: DownloadRuntimeError | null = null;
+    let terminalDiagnosticSummary: DownloadTerminalDiagnosticSummary | undefined;
     try {
       const config = parseJsonObject(await this.options.configStore.readConfigString());
       const resolvedOutputDir = resolveOutputDir(this.options.environment, config);
@@ -1397,7 +1452,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             traceId,
             providerId: plan.providerId,
             engine: enginePlan.engine,
-            sourceUrl: enginePlan.sourceUrl ?? null,
+            source: toSafeDiagnosticUrl(enginePlan.sourceUrl) ?? null,
             reason: enginePlan.reason,
             when: enginePlan.when,
           })}`);
@@ -1445,11 +1500,17 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           error,
           activeTask.abortController.signal.aborted,
         ),
+        diagnostics: {
+          traceId,
+          sink: this.diagnosticSink,
+          resolveNetworkMetadata: () => toDownloadDiagnosticNetwork(networkDiagnostics.snapshot),
+        },
       }).executeJob(activeTask.request, activeTask.abortController.signal);
       // Core result stays protocol-neutral; the outer adapter maps the
       // terminal outcome to the protocol payload exactly once below.
       let result = execution.result;
       const chosenEngine = execution.chosenEngine;
+      terminalDiagnosticSummary = execution.diagnosticSummary;
       // Output settlement metadata lives in the Job context: the same object
       // reused by every attempt of this Job.
       const outputStem = execution.jobContext.outputStem;
@@ -1526,6 +1587,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         traceId,
         result,
         failure: null,
+        diagnosticSummary: terminalDiagnosticSummary,
       };
     } catch (error) {
       const runtimeError = this.toTaskRuntimeError(error, activeTask.abortController.signal.aborted);
@@ -1536,11 +1598,13 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           failureClassification: errorClassification as NetworkFailureClassification,
         };
       }
-      this.logger.log(`>>> [ElectronRuntime] task ${traceId} failed: ${runtimeError.message}`);
+      terminalDiagnosticSummary = getDownloadTerminalDiagnosticSummary(runtimeError);
+      this.logger.log(`>>> [ElectronRuntime] task ${traceId} failed: ${sanitizeDiagnosticText(runtimeError.message)}`);
       this.logger.log(`>>> [ElectronRuntimeTiming] task failed: ${JSON.stringify({
         traceId,
         elapsedMs: formatElapsedMs(taskStartedAtMs),
-        error: runtimeError.message,
+        errorCode: runtimeError.code,
+        category: resolveDownloadDiagnosticCategory(runtimeError),
       })}`);
       terminalRuntimeError = runtimeError;
       terminalOutcome = {
@@ -1552,6 +1616,7 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
         },
         failure: runtimeError,
         userUrl: resolveDiagnosticUserUrl(activeTask.request),
+        diagnosticSummary: terminalDiagnosticSummary,
       } satisfies DownloadTerminalOutcome;
     } finally {
       const reservedOutputStem = this.reservedOutputStems.get(traceId);
@@ -1588,16 +1653,18 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
           plan: telemetryPlan,
           chosenEngine: executedEngineId,
           network: networkDiagnostics.snapshot,
+          diagnosticSummary: terminalDiagnosticSummary,
         },
       );
     } else {
-      await this.recordDownloadTelemetry(
+      this.recordDownloadTelemetry(
         traceId,
         {
           request: activeTask.request,
           plan: telemetryPlan,
           chosenEngine: executedEngineId,
           network: networkDiagnostics.snapshot,
+          diagnosticSummary: terminalDiagnosticSummary,
         },
         terminalRuntimeError,
       );
@@ -1629,6 +1696,11 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
             {
               cause: error.cause,
               classification,
+              diagnosticCategory: error.diagnosticCategory
+                ?? classifyEngineDiagnosticCategory({
+                  message: error.message,
+                  context: error.context,
+                }),
               context: error.context,
             },
           );
@@ -1649,32 +1721,52 @@ export class AmeowElectronDownloadRuntime implements ElectronDownloadRuntime {
     }
 
     const message = summarizeError(error);
+    const classification = classifyEngineFailure({ message });
     return new DownloadRuntimeError(
       "E_EXECUTION_FAILED",
       message,
       {
         cause: error,
-        classification: classifyEngineFailure({ message }),
+        classification,
+        diagnosticCategory: classifyEngineDiagnosticCategory({ message }),
       },
     );
   }
 
-  private async recordDownloadTelemetry(
+  private recordDownloadTelemetry(
     traceId: string,
     telemetry: DownloadTelemetryContext,
     error: DownloadRuntimeError | null,
     compatibility?: VideoCompatibilityAnalysis | null,
-  ): Promise<void> {
-    await this.telemetrySink.record(createDownloadTelemetryEvent({
-      traceId,
-      request: telemetry.request,
-      plan: telemetry.plan,
-      chosenEngine: telemetry.chosenEngine,
-      error,
-      downloadProfile: resolveDownloadTelemetryProfile(telemetry.plan),
-      compatibility,
-      network: telemetry.network ?? null,
-    }));
+  ): void {
+    try {
+      const event = createDownloadTelemetryEvent({
+        traceId,
+        request: telemetry.request,
+        plan: telemetry.plan,
+        chosenEngine: telemetry.chosenEngine,
+        error,
+        diagnosticSummary: telemetry.diagnosticSummary,
+        downloadProfile: resolveDownloadTelemetryProfile(telemetry.plan),
+        compatibility,
+        network: telemetry.network ?? null,
+      });
+      void Promise.resolve(this.telemetrySink.record(event)).catch((sinkError) => {
+        this.logObservabilityFailure("telemetry", sinkError);
+      });
+    } catch (sinkError) {
+      this.logObservabilityFailure("telemetry", sinkError);
+    }
+  }
+
+  private logObservabilityFailure(kind: string, error: unknown): void {
+    try {
+      this.logger.log(
+        `>>> [Observability] ${kind} sink failed: ${sanitizeDiagnosticText(summarizeError(error))}`,
+      );
+    } catch {
+      // Deliberately stop here: never recurse through the failed adapter.
+    }
   }
 }
 

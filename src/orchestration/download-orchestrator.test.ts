@@ -159,6 +159,74 @@ describe("DownloadOrchestrator", () => {
     });
   });
 
+  it("isolates a throwing attempt reporter without changing the outcome", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "yt-dlp",
+        priority: 100,
+        when: "primary",
+        reason: "try yt-dlp first",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([createEngine("yt-dlp")]),
+    );
+
+    // The observer is diagnostics-only: its synchronous throws must never
+    // turn a successful execution into a failure.
+    const result = await orchestrator.executePrepared(
+      orchestrator.prepare({ url: "https://example.com/page/42" }),
+      createContext,
+      () => {
+        throw new Error("observer exploded");
+      },
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      filePath: "/tmp/yt-dlp.mp4",
+    });
+  });
+
+  it("keeps a typed failure typed when the attempt reporter throws", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "yt-dlp",
+        priority: 100,
+        when: "primary",
+        reason: "try yt-dlp first",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          execute: async () => {
+            throw new DownloadRuntimeError("E_EXECUTION_FAILED", "engine boom", {
+              classification: "terminal_for_site",
+            });
+          },
+        }),
+      ]),
+    );
+
+    await expect(
+      orchestrator.executePrepared(
+        orchestrator.prepare({ url: "https://example.com/page/42" }),
+        createContext,
+        () => {
+          throw new Error("observer exploded");
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      classification: "terminal_for_site",
+    });
+  });
+
   it("returns the first successful engine result", async () => {
     const plan = createVideoPlan([
       {
@@ -706,6 +774,246 @@ describe("DownloadOrchestrator", () => {
 
     expect(receivedPlans).toEqual([
       { providerId: "test-provider", engine: "yt-dlp" },
+    ]);
+  });
+
+  it("reports attempt start and success for a successful execution", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "yt-dlp",
+        priority: 100,
+        when: "primary",
+        reason: "yt-dlp first",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([createEngine("yt-dlp")]),
+    );
+    const reports: string[] = [];
+    const prepared = orchestrator.prepare({ url: "https://example.com/page/42" });
+
+    await orchestrator.executePrepared(prepared, createContext, (report) => {
+      reports.push(report.kind);
+    });
+
+    expect(reports).toEqual(["attempt_started", "attempt_succeeded"]);
+  });
+
+  it("reports the failed attempt and the actual fallback when moving to the next engine", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "gallery-dl",
+        priority: 100,
+        when: "primary",
+        reason: "gallery first",
+        sourceUrl: "https://example.com/page/42",
+      },
+      {
+        engine: "yt-dlp",
+        priority: 90,
+        when: "fallback",
+        reason: "yt-dlp fallback",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("gallery-dl", {
+          execute: async () => {
+            throw new DownloadRuntimeError(
+              "E_EXECUTION_FAILED",
+              "gallery-dl failed",
+            );
+          },
+        }),
+        createEngine("yt-dlp"),
+      ]),
+    );
+    const reports: Array<{ kind: string; fromEngineId?: string; toEngineId?: string; engineId?: string; errorCode?: string }> = [];
+    const prepared = orchestrator.prepare({ url: "https://example.com/page/42" });
+
+    await orchestrator.executePrepared(prepared, createContext, (report) => {
+      reports.push(report);
+    });
+
+    expect(reports).toEqual([
+      { kind: "attempt_started", engineId: "gallery-dl" },
+      {
+        kind: "attempt_failed",
+        engineId: "gallery-dl",
+        errorCode: "E_EXECUTION_FAILED",
+        classification: "fallback_to_other_engine",
+        diagnosticCategory: undefined,
+      },
+      { kind: "fallback", fromEngineId: "gallery-dl", toEngineId: "yt-dlp" },
+      { kind: "attempt_started", engineId: "yt-dlp" },
+      { kind: "attempt_succeeded", engineId: "yt-dlp" },
+    ]);
+  });
+
+  it("reports exactly one attempt failure when the last engine fails terminally", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "yt-dlp",
+        priority: 100,
+        when: "primary",
+        reason: "yt-dlp only",
+        sourceUrl: "https://example.com/page/42",
+        fallbackOn: "any",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          execute: async () => {
+            throw new DownloadRuntimeError(
+              "E_EXECUTION_FAILED",
+              "yt-dlp failed",
+            );
+          },
+        }),
+      ]),
+    );
+    const reports: string[] = [];
+    const prepared = orchestrator.prepare({ url: "https://example.com/page/42" });
+
+    await expect(
+      orchestrator.executePrepared(prepared, createContext, (report) => {
+        reports.push(`${report.kind}:${report.kind === "attempt_failed" ? report.errorCode : ""}`);
+      }),
+    ).rejects.toMatchObject({ code: "E_EXECUTION_FAILED" });
+
+    expect(reports).toEqual(["attempt_started:", "attempt_failed:E_EXECUTION_FAILED"]);
+  });
+
+  it("reports the failure of a non-throwing unsuccessful engine result exactly once", async () => {
+    const plan = createVideoPlan([
+      {
+        engine: "yt-dlp",
+        priority: 100,
+        when: "primary",
+        reason: "yt-dlp only",
+        sourceUrl: "https://example.com/page/42",
+      },
+    ]);
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          execute: async (context) => ({
+            traceId: context.traceId,
+            success: false,
+            error: "yt-dlp reported no output",
+          }),
+        }),
+      ]),
+    );
+    const failureReports: string[] = [];
+    const prepared = orchestrator.prepare({ url: "https://example.com/page/42" });
+
+    await expect(
+      orchestrator.executePrepared(prepared, createContext, (report) => {
+        if (report.kind === "attempt_failed") {
+          failureReports.push(report.errorCode);
+        }
+      }),
+    ).rejects.toMatchObject({ code: "E_EXECUTION_FAILED" });
+
+    expect(failureReports).toEqual(["E_EXECUTION_FAILED"]);
+  });
+
+  it("emits no attempt reports for candidates skipped before execution", async () => {
+    const plan = {
+      ...createVideoPlan([
+        {
+          engine: "not-registered",
+          priority: 100,
+          when: "primary",
+          reason: "unknown first",
+          sourceUrl: "https://example.com/page/42",
+        },
+        {
+          engine: "gallery-dl",
+          priority: 90,
+          when: "fallback",
+          reason: "capability-filtered",
+          sourceUrl: "https://example.com/page/42",
+        },
+      ]),
+      requirements: { advancedQuality: true },
+    };
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("gallery-dl", { capabilities: { advancedQuality: false } }),
+      ]),
+    );
+    const reports: string[] = [];
+    const prepared = orchestrator.prepare({ url: "https://example.com/page/42" });
+
+    await expect(
+      orchestrator.executePrepared(prepared, createContext, (report) => {
+        reports.push(report.kind);
+      }),
+    ).rejects.toMatchObject({ code: "E_ENGINE_REJECTED_INTENT" });
+
+    expect(reports).toEqual([]);
+  });
+
+  it("reports fallback to the next engine that actually executes", async () => {
+    const plan = {
+      ...createVideoPlan([
+        {
+          engine: "yt-dlp",
+          priority: 100,
+          when: "primary" as const,
+          reason: "first attempt",
+          sourceUrl: "https://example.com/page/42",
+        },
+        {
+          engine: "gallery-dl",
+          priority: 90,
+          when: "fallback" as const,
+          reason: "skipped fallback",
+          sourceUrl: "https://example.com/page/42",
+        },
+        {
+          engine: "fake-engine",
+          priority: 80,
+          when: "fallback" as const,
+          reason: "actual fallback",
+          sourceUrl: "https://example.com/page/42",
+        },
+      ]),
+      requirements: { advancedQuality: true },
+    };
+    const orchestrator = new DownloadOrchestrator(
+      createSiteRegistry([createProvider(plan)]),
+      createEngineRegistry([
+        createEngine("yt-dlp", {
+          capabilities: { advancedQuality: true },
+          execute: async () => {
+            throw new DownloadRuntimeError("E_EXECUTION_FAILED", "first engine failed");
+          },
+        }),
+        createEngine("gallery-dl", { capabilities: { advancedQuality: false } }),
+        createEngine("fake-engine", { capabilities: { advancedQuality: true } }),
+      ]),
+    );
+    const reports: Array<{ kind: string; fromEngineId?: string; toEngineId?: string }> = [];
+
+    await orchestrator.executePrepared(
+      orchestrator.prepare({ url: "https://example.com/page/42" }),
+      createContext,
+      (report) => reports.push(report),
+    );
+
+    expect(reports.filter((report) => report.kind === "fallback")).toEqual([
+      { kind: "fallback", fromEngineId: "yt-dlp", toEngineId: "fake-engine" },
     ]);
   });
 

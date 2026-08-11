@@ -4,6 +4,7 @@ import {
   type DownloadFailureClassification,
 } from "../constants/error-classifications.js";
 import type { DownloadErrorCode } from "../constants/error-codes.js";
+import type { DownloadDiagnosticCategory } from "../constants/diagnostic-categories.js";
 
 export class DownloadRuntimeError extends Error {
   readonly code: DownloadErrorCode;
@@ -12,6 +13,7 @@ export class DownloadRuntimeError extends Error {
    * adapters classify raw evidence); false when it was derived from the
    * code-only map and may still be refined from evidence at the boundary. */
   readonly classificationExplicit: boolean;
+  readonly diagnosticCategory?: DownloadDiagnosticCategory;
   readonly context?: Record<string, unknown>;
   readonly fallbackable: boolean;
   declare readonly cause?: unknown;
@@ -22,6 +24,7 @@ export class DownloadRuntimeError extends Error {
     options: {
       cause?: unknown;
       classification?: DownloadFailureClassification;
+      diagnosticCategory?: DownloadDiagnosticCategory;
       context?: Record<string, unknown>;
     } = {},
   ) {
@@ -34,6 +37,7 @@ export class DownloadRuntimeError extends Error {
       message,
       context: options.context,
     });
+    this.diagnosticCategory = options.diagnosticCategory;
     this.context = options.context;
     this.fallbackable = isFallbackEligibleFailure(this.classification);
     if (options.cause !== undefined) {

@@ -8,6 +8,7 @@ import type {
   RawDownloadInput,
   YtdlpQualityPreference,
 } from "../core/index.js";
+import type { DownloadTerminalDiagnosticSummary } from "./download-diagnostics.js";
 
 /**
  * Canonical protocol-neutral download Application API. One narrow use-case
@@ -83,6 +84,10 @@ export type DownloadTerminalOutcome = {
   failure: DownloadRuntimeError | null;
   /** User-facing URL for failure diagnostics (derived from the request). */
   userUrl?: string;
+  /** Explicit safe user-facing text for special pre-Job compatibility paths. */
+  presentationMessage?: string;
+  /** Safe bounded summary; optional for legacy/pre-Job terminal producers. */
+  diagnosticSummary?: DownloadTerminalDiagnosticSummary;
 };
 
 /** Pasted-selection resolution injected by the transport adapter. */

@@ -2,7 +2,7 @@
   "id": "p6-site-engine-extension-observability",
   "name": "p6-site-engine-extension-observability",
   "title": "P6 Site Engine Extension Model and Observability",
-  "description": "Implement the Lead-approved P6A Site / Engine Extension Model while preserving P0-P5 and deferring P6B observability.",
+  "description": "Implement the Lead-approved P6B Observability / Diagnosability scope on the approved P6A checkpoint while preserving P0-P6A.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Lead Architecture Review approved the P6A/P6B split on 2026-08-10. Execute P6A only; keep in_progress after validation for Lead review. No commit or archive.",
+  "notes": "Lead Architecture Review approved the P6A checkpoint commit 6f2f31a and authorized P6B implementation on 2026-08-10. Execute P6B only; keep in_progress after validation for Lead review. No commit or archive.",
   "meta": {}
 }

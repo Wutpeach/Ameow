@@ -453,7 +453,7 @@ describe("toDownloadResultPayload", () => {
     });
   });
 
-  it("serializes typed failures with stable code and classification", () => {
+  it("serializes typed failures with stable code, classification and safe URL", () => {
     const failure = new DownloadRuntimeError(
       "E_ABORTED",
       "Download cancelled",
@@ -471,9 +471,12 @@ describe("toDownloadResultPayload", () => {
       failure: {
         code: "E_ABORTED",
         classification: "cancelled",
-        rawMessage: "Download cancelled",
-        userUrl: "https://example.com/1",
-        context: undefined,
+        diagnosticCategory: "cancelled",
+        safeUrl: {
+          origin: "https://example.com",
+          hasQuery: false,
+          hasFragment: false,
+        },
       },
     });
   });
@@ -484,6 +487,7 @@ describe("toDownloadResultPayload", () => {
       traceId: "trace-1",
       result: { traceId: "trace-1", success: false, error: "更多画质探测失败" },
       failure: probeFailure,
+      presentationMessage: "更多画质探测失败",
     });
 
     expect(mapped).toMatchObject({
@@ -491,12 +495,13 @@ describe("toDownloadResultPayload", () => {
       error: "更多画质探测失败",
       failure: {
         code: "E_EXECUTION_FAILED",
-        rawMessage: "probe exploded",
+        classification: "fallback_to_other_engine",
+        diagnosticCategory: "engine_execution",
       },
     });
   });
 
-  it("keeps failure context when present", () => {
+  it("never leaks raw message or open error context into the protocol payload", () => {
     const failure = new DownloadRuntimeError(
       "E_EXECUTION_FAILED",
       "boom",
@@ -508,8 +513,93 @@ describe("toDownloadResultPayload", () => {
       failure,
     });
 
-    expect(mapped.failure?.context).toEqual({
-      networkFailureClassification: "NETWORK_PROXY_UNSUPPORTED",
+    expect(mapped.failure).toMatchObject({
+      code: "E_EXECUTION_FAILED",
+      classification: "fallback_to_other_engine",
+      diagnosticCategory: "engine_execution",
+    });
+    expect(mapped.failure?.safeUrl).toBeUndefined();
+    expect(mapped.failure).not.toHaveProperty("rawMessage");
+    expect(mapped.failure).not.toHaveProperty("context");
+    expect(mapped.failure).not.toHaveProperty("userUrl");
+  });
+
+  it("serializes the bounded attempt summary array into the failure payload", () => {
+    const failure = new DownloadRuntimeError("E_EXECUTION_FAILED", "boom");
+    const mapped = toDownloadResultPayload({
+      traceId: "t",
+      result: { traceId: "t", success: false, error: "boom" },
+      failure,
+      userUrl: "https://example.com/watch/42?token=secret",
+      diagnosticSummary: {
+        traceId: "t",
+        status: "failed",
+        finalEngineId: "yt-dlp",
+        attemptCount: 2,
+        attempts: [
+          {
+            attemptIndex: 1,
+            attemptId: "t:1",
+            engineId: "yt-dlp",
+            cycle: "initial",
+            outcome: "failed",
+            errorCode: "E_EXECUTION_FAILED",
+            classification: "fallback_to_other_engine",
+            category: "engine_execution",
+          },
+          {
+            attemptIndex: 2,
+            attemptId: "t:2",
+            engineId: "gallery-dl",
+            cycle: "auth_recovery",
+            outcome: "failed",
+            errorCode: "E_EXECUTION_FAILED",
+            classification: "auth_required",
+            category: "authentication_required",
+          },
+        ],
+        finalCode: "E_EXECUTION_FAILED",
+        finalClassification: "fallback_to_other_engine",
+        finalCategory: "engine_execution",
+      },
+    });
+
+    expect(mapped.failure?.attemptSummary).toEqual({
+      traceId: "t",
+      status: "failed",
+      finalEngineId: "yt-dlp",
+      attemptCount: 2,
+      attempts: [
+        {
+          attemptIndex: 1,
+          attemptId: "t:1",
+          engineId: "yt-dlp",
+          cycle: "initial",
+          outcome: "failed",
+          errorCode: "E_EXECUTION_FAILED",
+          classification: "fallback_to_other_engine",
+          category: "engine_execution",
+        },
+        {
+          attemptIndex: 2,
+          attemptId: "t:2",
+          engineId: "gallery-dl",
+          cycle: "auth_recovery",
+          outcome: "failed",
+          errorCode: "E_EXECUTION_FAILED",
+          classification: "auth_required",
+          category: "authentication_required",
+        },
+      ],
+      finalCode: "E_EXECUTION_FAILED",
+      finalClassification: "fallback_to_other_engine",
+      finalCategory: "engine_execution",
+    });
+    // The tokenized URL collapses to origin-only facts.
+    expect(mapped.failure?.safeUrl).toEqual({
+      origin: "https://example.com",
+      hasQuery: true,
+      hasFragment: false,
     });
   });
 });

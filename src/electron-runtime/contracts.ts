@@ -28,6 +28,7 @@ import type {
 import type { EngineExecutionContextWithRuntime } from "./engineExecutionContext.js";
 import type { DownloadTelemetryEvent } from "../download-capabilities/telemetry.js";
 import type { NetworkConsumer, NetworkRouteResolution } from "../config/networkRoute.js";
+import type { DownloadDiagnosticSink } from "../application/download-diagnostics.js";
 
 export type RuntimeManagedComponent = RuntimeDependencyManagedComponent;
 
@@ -147,6 +148,7 @@ export interface ElectronDownloadRuntimeOptions {
   eventSink: RuntimeEventSink;
   logger?: RuntimeLogger;
   telemetrySink?: DownloadTelemetrySink;
+  diagnosticSink?: DownloadDiagnosticSink;
   maxConcurrent?: number;
   providers?: SiteProvider[];
   /**

@@ -19,6 +19,10 @@ import {
   DownloadJobService,
   type DownloadJobAuthRecoveryContext,
 } from "./download-job-service.js";
+import type {
+  DownloadDiagnosticEvent,
+  DownloadDiagnosticsOptions,
+} from "./download-diagnostics.js";
 
 /**
  * Electron-neutral application tests for the ordinary Job lifecycle: one
@@ -100,6 +104,7 @@ const createService = (options: {
     context: DownloadJobAuthRecoveryContext<TestJobContext>,
   ) => Promise<{ shouldRetry: boolean } | void>;
   classifyFailure?: (error: unknown) => DownloadRuntimeError;
+  diagnostics?: DownloadDiagnosticsOptions;
 }): DownloadJobService<TestJobContext, EngineExecutionContext> => {
   const orchestrator = new DownloadOrchestrator<EngineExecutionContext>(
     createSiteRegistry([createTestProvider(options.engines)]),
@@ -134,8 +139,31 @@ const createService = (options: {
     refreshSiteSessionBeforeDownload: options.refreshSiteSessionBeforeDownload,
     handleAuthRequiredFailure: options.handleAuthRequiredFailure,
     classifyFailure: options.classifyFailure,
+    diagnostics: options.diagnostics,
   });
 };
+
+const createDiagnostics = (): {
+  diagnostics: DownloadDiagnosticsOptions;
+  events: DownloadDiagnosticEvent[];
+} => {
+  const events: DownloadDiagnosticEvent[] = [];
+  return {
+    events,
+    diagnostics: {
+      traceId: "trace-1",
+      sink: { record: (event) => void events.push(event) },
+    },
+  };
+};
+
+const terminalEvents = (events: DownloadDiagnosticEvent[]): DownloadDiagnosticEvent[] =>
+  events.filter(
+    (event) =>
+      event.type === "download.succeeded"
+      || event.type === "download.failed"
+      || event.type === "download.cancelled",
+  );
 
 const successfulResult = async (context: EngineExecutionContext): Promise<DownloadResult> => ({
   traceId: context.traceId,
@@ -645,5 +673,416 @@ describe("DownloadJobService", () => {
     expect(createJobContext).toHaveBeenCalledTimes(2);
     expect(second.plan).not.toBe(first.plan);
     expect(second.jobContext).not.toBe(first.jobContext);
+  });
+
+  describe("diagnostics (P6B B1)", () => {
+    it("traces one Job across a real fallback with exactly one terminal event", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const service = createService({
+        engines: DUAL_ENGINE_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw new Error("yt-dlp attempt failed");
+          }),
+          createEngineStub("gallery-dl", successfulResult),
+        ],
+        diagnostics,
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(events.map((event) => event.type)).toEqual([
+        "download.prepared",
+        "attempt.started",
+        "attempt.failed",
+        "fallback.started",
+        "attempt.started",
+        "attempt.succeeded",
+        "download.succeeded",
+      ]);
+      expect(terminalEvents(events)).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: "download.prepared",
+        traceId: "trace-1",
+        providerId: "test-provider",
+        candidateEngineIds: ["yt-dlp", "gallery-dl"],
+      });
+      expect(events[events.length - 1]).toMatchObject({
+        type: "download.succeeded",
+        traceId: "trace-1",
+        attemptCount: 2,
+      });
+    });
+
+    it("keeps one trace with distinct attempt ids across same-engine auth recovery", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const authFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        "cookies required for this resource",
+        { classification: "auth_required" },
+      );
+      let attempts = 0;
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async (context) => {
+            attempts += 1;
+            if (attempts === 1) {
+              throw authFailure;
+            }
+            return successfulResult(context);
+          }),
+        ],
+        async handleAuthRequiredFailure() {
+          return { shouldRetry: true };
+        },
+        diagnostics,
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(attempts).toBe(2);
+      const started = events.filter((event) => event.type === "attempt.started");
+      expect(started).toEqual([
+        expect.objectContaining({
+          traceId: "trace-1",
+          attemptIndex: 1,
+          attemptId: "trace-1:1",
+          engineId: "yt-dlp",
+          cycle: "initial",
+        }),
+        expect.objectContaining({
+          traceId: "trace-1",
+          attemptIndex: 2,
+          attemptId: "trace-1:2",
+          engineId: "yt-dlp",
+          cycle: "auth_recovery",
+        }),
+      ]);
+      expect(events).toContainEqual({
+        type: "auth_recovery.started",
+        traceId: "trace-1",
+      });
+      expect(events).toContainEqual({
+        type: "auth_recovery.finished",
+        traceId: "trace-1",
+        result: "retry",
+      });
+      // The first auth failure is not a terminal: exactly one terminal event.
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.succeeded" }),
+      ]);
+    });
+
+    it("emits exactly one terminal download.failed when recovery declines", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const authFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        "cookies required for this resource",
+        { classification: "auth_required" },
+      );
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw authFailure;
+          }),
+        ],
+        async handleAuthRequiredFailure() {
+          return { shouldRetry: false };
+        },
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toBe(authFailure);
+
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({
+          type: "download.failed",
+          traceId: "trace-1",
+          errorCode: "E_EXECUTION_FAILED",
+        }),
+      ]);
+    });
+
+    it("emits download.cancelled only for a typed cancelled terminal after abort", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const aborted = new AbortController();
+      aborted.abort();
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw new DownloadRuntimeError("E_ABORTED", "Download cancelled", {
+              classification: "cancelled",
+            });
+          }),
+        ],
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, aborted.signal),
+      ).rejects.toMatchObject({ code: "E_ABORTED", classification: "cancelled" });
+
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({
+          type: "download.cancelled",
+          traceId: "trace-1",
+          errorCode: "E_ABORTED",
+        }),
+      ]);
+    });
+
+    it("keeps a success after cancel intent a success", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const controller = new AbortController();
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async (context) => {
+            controller.abort();
+            return successfulResult(context);
+          }),
+        ],
+        diagnostics,
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, controller.signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.succeeded" }),
+      ]);
+    });
+
+    it("isolates a synchronously throwing sink without losing the terminal event", async () => {
+      const events: DownloadDiagnosticEvent[] = [];
+      const service = createService({
+        engines: DUAL_ENGINE_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw new Error("yt-dlp failed");
+          }),
+          createEngineStub("gallery-dl", successfulResult),
+        ],
+        diagnostics: {
+          traceId: "trace-1",
+          sink: {
+            record(event) {
+              if (event.type === "attempt.failed") {
+                throw new Error("sink exploded");
+              }
+              events.push(event);
+            },
+          },
+        },
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(events).toContainEqual(expect.objectContaining({ type: "download.succeeded" }));
+      expect(events).not.toContainEqual(expect.objectContaining({ type: "attempt.failed" }));
+      expect(terminalEvents(events)).toHaveLength(1);
+    });
+
+    it("isolates an always-throwing sink", async () => {
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [createEngineStub("yt-dlp", successfulResult)],
+        diagnostics: {
+          traceId: "trace-1",
+          sink: {
+            record() {
+              throw new Error("sink exploded");
+            },
+          },
+        },
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(outcome.chosenEngine).toBe("yt-dlp");
+    });
+
+    it("isolates a rejecting sink", async () => {
+      const events: DownloadDiagnosticEvent[] = [];
+      const service = createService({
+        engines: DUAL_ENGINE_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw new Error("yt-dlp failed");
+          }),
+          createEngineStub("gallery-dl", successfulResult),
+        ],
+        diagnostics: {
+          traceId: "trace-1",
+          sink: {
+            record(event) {
+              if (event.type === "attempt.failed") {
+                return Promise.reject(new Error("sink rejected"));
+              }
+              events.push(event);
+              return undefined;
+            },
+          },
+        },
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(events).toContainEqual(expect.objectContaining({ type: "download.succeeded" }));
+      expect(terminalEvents(events)).toHaveLength(1);
+    });
+
+    it("keeps the terminal attempt history bounded while counting every attempt", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const failingEngines = Array.from({ length: 9 }, (_, index) => `e${index + 1}`);
+      const service = createService({
+        engines: failingEngines.map((engine, index) => ({
+          engine,
+          priority: 100 - index,
+          when: "primary" as const,
+          reason: "fallback chain",
+          fallbackOn: "any" as const,
+        })),
+        stubs: failingEngines.map((engine) =>
+          createEngineStub(engine as "yt-dlp", async () => {
+            throw new Error(`${engine} failed`);
+          }),
+        ),
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toMatchObject({ code: "E_EXECUTION_FAILED" });
+
+      const terminal = terminalEvents(events)[0];
+      expect(terminal).toMatchObject({ type: "download.failed", attemptCount: 9 });
+      const attempts = terminal.type === "download.failed" ? terminal.attempts : [];
+      expect(attempts).toHaveLength(8);
+      expect(attempts[0]).toMatchObject({ engineId: "e2" });
+    });
+
+    it("isolates a throwing network-metadata resolver on success", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      diagnostics.resolveNetworkMetadata = () => {
+        throw new Error("resolver exploded");
+      };
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [createEngineStub("yt-dlp", successfulResult)],
+        diagnostics,
+      });
+
+      const outcome = await service.executeJob(TEST_REQUEST, new AbortController().signal);
+
+      expect(outcome.result.success).toBe(true);
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.succeeded", attemptCount: 1 }),
+      ]);
+    });
+
+    it("isolates a throwing network-metadata resolver on failure", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      diagnostics.resolveNetworkMetadata = () => {
+        throw new Error("resolver exploded");
+      };
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw new DownloadRuntimeError("E_EXECUTION_FAILED", "engine boom", {
+              classification: "terminal_for_site",
+            });
+          }),
+        ],
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toMatchObject({ code: "E_EXECUTION_FAILED" });
+
+      // The attempt is still recorded, without network metadata.
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({
+          type: "download.failed",
+          attemptCount: 1,
+          attempts: [
+            expect.objectContaining({
+              engineId: "yt-dlp",
+              outcome: "failed",
+              network: undefined,
+            }),
+          ],
+        }),
+      ]);
+    });
+
+    it("propagates a raw onPrepared error verbatim with one terminal event", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const original = new Error("prepared exploded");
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [createEngineStub("yt-dlp", successfulResult)],
+        onPrepared() {
+          throw original;
+        },
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toBe(original);
+
+      // Diagnostics observed the failure but never rewrapped the error.
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.failed", traceId: "trace-1" }),
+      ]);
+    });
+
+    it("propagates a raw auth-recovery handler error verbatim with one terminal event", async () => {
+      const { diagnostics, events } = createDiagnostics();
+      const authFailure = new DownloadRuntimeError(
+        "E_EXECUTION_FAILED",
+        "cookies required",
+        { classification: "auth_required" },
+      );
+      const original = new Error("recovery exploded");
+      const service = createService({
+        engines: SINGLE_YTDLP_PLAN,
+        stubs: [
+          createEngineStub("yt-dlp", async () => {
+            throw authFailure;
+          }),
+        ],
+        async handleAuthRequiredFailure() {
+          throw original;
+        },
+        diagnostics,
+      });
+
+      await expect(
+        service.executeJob(TEST_REQUEST, new AbortController().signal),
+      ).rejects.toBe(original);
+
+      expect(events).toContainEqual({
+        type: "auth_recovery.finished",
+        traceId: "trace-1",
+        result: "failed",
+      });
+      expect(terminalEvents(events)).toEqual([
+        expect.objectContaining({ type: "download.failed", traceId: "trace-1" }),
+      ]);
+    });
   });
 });
