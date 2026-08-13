@@ -5,6 +5,7 @@ import {
   resolveDotResponseCurve,
   type DotFieldBaseline,
   type DotFieldIntent,
+  type DotFieldProgressTarget,
 } from "./dotFieldRecipe";
 import { createDotFieldRuntime } from "./dotFieldRuntime";
 
@@ -635,6 +636,279 @@ describe("Dot Field runtime: sleep, dispose, and stale generations", () => {
     while (runtime.getPendingFrameCount() > 0) {
       scheduler.flush(16);
     }
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+});
+
+
+describe("Dot Field runtime: MR3 progress baseline", () => {
+  const determinate = (target: number, traceId = "trace-1") => (
+    { kind: "determinate" as const, traceId, target }
+  );
+  const indeterminate = (traceId = "trace-1") => (
+    { kind: "indeterminate" as const, traceId }
+  );
+  const withProgress = (progress: DotFieldProgressTarget): DotFieldBaseline => ({
+    ...BLACK_MATERIAL,
+    progress,
+  });
+
+  it("wakes at the current target (reconstruction, zero frames) and converges on updates", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.5)));
+    // Wake draws the frontier at the target once; no convergence needed.
+    expect(runtime.getProgressLevel()).toBe(0.5);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    expect(scheduler.countPending()).toBe(0);
+    // Pixel spot check: a completed interior dot is bright (frontier at 0.5
+    // covers ranks 0..112), a trailing interior dot stays dormant.
+    expect(alphaNear(recording.getLastFrame(), 33.33, 33.33)).toBeGreaterThan(0.5);
+    expect(alphaNear(recording.getLastFrame(), 166.67, 166.67)).toBeLessThan(0.2);
+
+    // Same-trace upward update: converges from the current rendered level.
+    recording.reset();
+    runtime.setBaseline(withProgress(determinate(1)));
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    let maxPending = 0;
+    let frames = 0;
+    while (runtime.getPendingFrameCount() > 0 && frames < 100) {
+      scheduler.flush(16);
+      frames += 1;
+      maxPending = Math.max(maxPending, runtime.getPendingFrameCount());
+    }
+    expect(maxPending).toBeLessThanOrEqual(1);
+    expect(frames).toBeGreaterThan(1);
+    expect(runtime.getProgressLevel()).toBe(1);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    // The once-trailing interior dot is now completed.
+    expect(alphaNear(recording.getLastFrame(), 166.67, 166.67)).toBeGreaterThan(0.5);
+  });
+
+  it("coalesces high-frequency updates to the latest target from the current condition", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.1)));
+    // Ten rapid authoritative updates land before the next frame runs: the
+    // pending frame must converge toward the LATEST target only.
+    for (const target of [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.9]) {
+      runtime.setBaseline(withProgress(determinate(target)));
+    }
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    scheduler.flush(16);
+    const afterFirst = runtime.getProgressLevel();
+    expect(afterFirst).toBeLessThan(0.9);
+    expect(afterFirst).toBeGreaterThan(0.1);
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getProgressLevel()).toBe(0.9);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("downward authoritative revision clamps immediately and never overstates", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.8)));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getProgressLevel()).toBe(0.8);
+    // Authoritative drops to 0.3 mid-display: clamp at/below immediately.
+    runtime.setBaseline(withProgress(determinate(0.3)));
+    expect(runtime.getProgressLevel()).toBeLessThanOrEqual(0.3);
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getProgressLevel()).toBe(0.3);
+  });
+
+  it("trace replacement rebases immediately with no old-task progress carry", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.9, "trace-a")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // New primary task arrives at 0.15: the field must show 0.15 NOW, never
+    // interpolate from the old task's 0.9.
+    runtime.setBaseline(withProgress(determinate(0.15, "trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0.15);
+    expect(runtime.getProgressTarget()).toEqual({ kind: "determinate", traceId: "trace-b", target: 0.15 });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("a trace replacement through an indeterminate gap cannot inherit the old trace's level", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.9, "trace-a")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // trace-a at 0.9 -> trace-b indeterminate: the replaced trace's numeric
+    // level must not survive (it would seed trace-b's future determinate).
+    runtime.setBaseline(withProgress(indeterminate("trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0);
+    // trace-b becomes determinate at a LOWER target: seed from trace-b's own
+    // projection (0), never min(0.9, 0.4) = 0.4 inherited from trace-a.
+    runtime.setBaseline(withProgress(determinate(0.4, "trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0);
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    // Convergence is monotone from the safe seed and never overstates the
+    // target; trace-a's 0.9 appears nowhere in the trajectory.
+    let peak = 0;
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+      peak = Math.max(peak, runtime.getProgressLevel());
+    }
+    expect(peak).toBeLessThanOrEqual(0.4);
+    expect(runtime.getProgressLevel()).toBe(0.4);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("an indeterminate-gap replacement does not instant-render the old trace's level when the new target is higher", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.9, "trace-a")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    runtime.setBaseline(withProgress(indeterminate("trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0);
+    // trace-b determinate at 0.95: retaining trace-a's 0.9 would instantly
+    // attribute 90% of trace-b's progress to it. It must start at 0.
+    runtime.setBaseline(withProgress(determinate(0.95, "trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0);
+    let peak = 0;
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+      peak = Math.max(peak, runtime.getProgressLevel());
+    }
+    expect(peak).toBeLessThanOrEqual(0.95);
+    expect(runtime.getProgressLevel()).toBe(0.95);
+  });
+
+  it("determinate -> indeterminate drops frontier authority; indeterminate -> determinate seeds safely", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.7)));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // Indeterminate (e.g. quality probing): active band loop, no percent.
+    runtime.setBaseline(withProgress(indeterminate()));
+    expect(runtime.getProgressTarget().kind).toBe("indeterminate");
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    // Back to determinate at a LOWER target than the previous 0.7: seed at
+    // or below the target (min), never above.
+    runtime.setBaseline(withProgress(determinate(0.5)));
+    expect(runtime.getProgressLevel()).toBeLessThanOrEqual(0.5);
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getProgressLevel()).toBe(0.5);
+  });
+
+  it("acknowledgement transient composes additively and settles to the latest progress baseline", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.5)));
+    recording.reset();
+    // Submit a click while determinate: the wave draws over the frontier
+    // dot at (100,100) (partial 0.44) and saturates it toward ack.
+    runtime.submitIntent(CENTER_INTENT);
+    scheduler.flush(16);
+    const waveAlpha = alphaNear(recording.getLastFrame(), 100, 100);
+    expect(waveAlpha).toBeGreaterThan(0.44 + 0.05);
+    // Progress advances to 0.8 mid-transient: the transient stays additive
+    // and the final settled draw shows the NEW frontier (0.8).
+    runtime.setBaseline(withProgress(determinate(0.8)));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getProgressLevel()).toBe(0.8);
+    // The frontier passed the once-partial interior dot (rank 112 < 180).
+    expect(alphaNear(recording.getLastFrame(), 100, 100)).toBeGreaterThan(0.6);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("indeterminate band is low duty and stops on reduced motion, sleep, and idle", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withProgress(indeterminate()));
+    void scheduler;
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    // Duty cap: the band redraws at most every 33ms, so 8 x 16ms flushes
+    // produce at most 4 actual redraws (draws = clears).
+    recording.reset();
+    for (let frame = 0; frame < 8; frame += 1) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    expect(recording.getClears()).toBeLessThanOrEqual(4);
+
+    // Reduced motion mid-loop: static bloom, loop stops, zero frames.
+    runtime.setBaseline({ ...BLACK_MATERIAL, reducedMotion: true, progress: indeterminate() });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    scheduler.flush(16);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    expect(runtime.getProgressTarget().kind).toBe("indeterminate");
+
+    // Back to normal motion: loop resumes.
+    runtime.setBaseline(withProgress(indeterminate()));
+    expect(runtime.getPendingFrameCount()).toBe(1);
+
+    // Idle: loop stops immediately, zero frames.
+    runtime.setBaseline(withProgress({ kind: "idle" }));
+    expect(runtime.getProgressLevel()).toBe(0);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("reduced motion resolves determinate to the semantic target directly (no travel)", () => {
+    const { runtime } = createHarness();
+    runtime.wake({ ...BLACK_MATERIAL, reducedMotion: true, progress: determinate(0.4) });
+    expect(runtime.getProgressLevel()).toBe(0.4);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    runtime.setBaseline({ ...BLACK_MATERIAL, reducedMotion: true, progress: determinate(0.9) });
+    expect(runtime.getProgressLevel()).toBe(0.9);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("sleep cancels progress work; wake reconstructs from the current projection", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.2)));
+    runtime.setBaseline(withProgress(determinate(0.9)));
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    runtime.sleep();
+    expect(runtime.getState()).toBe("sleeping");
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    // The cancelled convergence frame never runs or draws.
+    const dotsBefore = recording.getDots().length;
+    scheduler.flush(16);
+    expect(recording.getDots().length).toBe(dotsBefore);
+    // Progress arrives while sleeping: accepted into the baseline, no frames.
+    runtime.setBaseline(withProgress(determinate(0.6, "trace-b")));
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    // Wake: reconstruct at the CURRENT projection, never pre-collapse history.
+    runtime.wake(withProgress(determinate(0.6, "trace-b")));
+    expect(runtime.getProgressLevel()).toBe(0.6);
+    expect(runtime.getProgressTarget()).toEqual({ kind: "determinate", traceId: "trace-b", target: 0.6 });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("dispose makes progress work a stale no-op", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withProgress(indeterminate()));
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    runtime.dispose();
+    expect(runtime.getState()).toBe("disposed");
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    runtime.setBaseline(withProgress(determinate(0.5)));
+    runtime.wake(withProgress(determinate(0.5)));
+    expect(runtime.getState()).toBe("disposed");
+    scheduler.flush(16);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("identical baseline values (render identity churn) are a no-op", () => {
+    const { recording, runtime } = createHarness();
+    runtime.wake(withProgress(determinate(0.5)));
+    recording.reset();
+    const clearsBefore = recording.getClears();
+    runtime.setBaseline(withProgress(determinate(0.5)));
+    runtime.setBaseline({ ...BLACK_MATERIAL, progress: { kind: "determinate", traceId: "trace-1", target: 0.5 } });
+    expect(recording.getClears()).toBe(clearsBefore);
     expect(runtime.getPendingFrameCount()).toBe(0);
   });
 });

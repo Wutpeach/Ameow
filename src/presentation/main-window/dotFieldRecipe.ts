@@ -34,7 +34,31 @@ export type DotFieldBaseline = Readonly<{
   dormant: string;
   ack: string;
   reducedMotion: boolean;
+  /**
+   * MR3 persistent progress target. Absent (or idle) keeps the MR1
+   * dormant/transient-only field behavior. It is a presentation target, never
+   * Download/lifecycle authority; the runtime converges toward it locally.
+   */
+  progress?: DotFieldProgressTarget;
 }>;
+
+/**
+ * MR3 projected Download progress target (pure presentation value).
+ *
+ * - idle: no primary Download; dormant field, no progress work.
+ * - determinate: one primary Download with a finite clamped 0..1 target;
+ *   `traceId` scopes visual monotonicity (a new trace is replacement, never
+ *   continuation of the previous trace's visual stream).
+ * - indeterminate: one primary Download whose percent is absent/negative or
+ *   whose phase is probing/selecting; active but explicitly non-quantitative.
+ *
+ * There is deliberately no terminal kind: terminal/removal is observed only as
+ * a change of this target back to the next primary or idle.
+ */
+export type DotFieldProgressTarget =
+  | { kind: "idle" }
+  | { kind: "indeterminate"; traceId: string }
+  | { kind: "determinate"; traceId: string; target: number };
 
 export type DotGridPoint = Readonly<{ x: number; y: number; u: number; v: number }>;
 
@@ -153,6 +177,95 @@ export const resolveDotResponseFront = (
 export const resolveDotTransientDuration = (reducedMotion: boolean): number => (
   reducedMotion ? DOT_REDUCED_MOTION_DURATION_MS : DOT_TRANSIENT_DURATION_MS
 );
+
+// MR3 Progress Field policy ------------------------------------------------
+//
+// Determinate uses the grid's deterministic row-major order (the grid is
+// generated row by row, so the array index IS the rank): dots below the
+// current occupancy frontier render at full acknowledgement brightness, the
+// frontier dot renders partial, the rest stay dormant. Occupancy is monotone
+// in the rendered level and never exceeds the authoritative target, so the
+// field communicates amount without owning a percent.
+//
+// Indeterminate is non-quantitative by construction: normal motion runs a
+// soft diagonal sweep band (a bounded travelling accent), and Reduced Motion
+// freezes a soft centered bloom. Neither maps motion phase to a numeric
+// completion, and neither uses the ordered frontier vocabulary.
+
+/** Deterministic convergence toward a determinate target per frame. */
+export const DOT_PROGRESS_CONVERGE_RATE = 0.35;
+/** Convergence snap tolerance (occupancy units); below it the target is exact. */
+export const DOT_PROGRESS_SNAP = 0.004;
+/** Peak brightness of the normal-motion indeterminate sweep band. */
+export const DOT_INDETERMINATE_AMPLITUDE = 0.4;
+/** Sweep band width in normalized diagonal units (soft exponential skirt). */
+export const DOT_INDETERMINATE_BAND_WIDTH = 0.16;
+/** One full sweep period. */
+export const DOT_INDETERMINATE_PERIOD_MS = 3600;
+/** Duty cap: at most one indeterminate-band redraw per interval (low duty). */
+export const DOT_INDETERMINATE_DUTY_MS = 33;
+/** Peak brightness of the Reduced-Motion static indeterminate bloom. */
+export const DOT_INDETERMINATE_REDUCED_AMPLITUDE = 0.3;
+/** Bloom radius in normalized surface units. */
+export const DOT_INDETERMINATE_REDUCED_RADIUS = 0.42;
+
+/**
+ * Deterministic per-dot progress brightness 0..1 for one projected target at
+ * the CURRENT rendered state (`progressLevel` is the rendered occupancy for
+ * determinate; `phase` is the sweep position 0..1 for indeterminate).
+ * Edge/boundary attenuation is applied downstream by `resolveDotColor`, so
+ * this function is geometry-only and never maps motion phase to a percent.
+ */
+export const resolveProgressDotLevel = (
+  dot: DotGridPoint,
+  dotIndex: number,
+  dotCount: number,
+  target: DotFieldProgressTarget,
+  progressLevel: number,
+  phase: number,
+  reducedMotion: boolean,
+): number => {
+  if (target.kind === "idle" || !Number.isFinite(dotCount) || dotCount <= 0) {
+    return 0;
+  }
+  if (target.kind === "determinate") {
+    if (!Number.isInteger(dotIndex) || dotIndex < 0 || dotIndex >= dotCount) {
+      return 0;
+    }
+    const occupied = clamp01(progressLevel) * dotCount;
+    const full = Math.floor(occupied);
+    if (dotIndex < full) {
+      return 1;
+    }
+    if (dotIndex === full) {
+      return occupied - full;
+    }
+    return 0;
+  }
+  // indeterminate
+  if (!dot || !Number.isFinite(dot.u) || !Number.isFinite(dot.v)) {
+    return 0;
+  }
+  const du = Math.abs(dot.u - 0.5);
+  const dv = Math.abs(dot.v - 0.5);
+  if (reducedMotion) {
+    // Stable, non-travelling active material: a soft centered bloom. It is
+    // NOT ordered, so it can never be read as a determinate frontier.
+    const radius = DOT_INDETERMINATE_REDUCED_RADIUS;
+    return DOT_INDETERMINATE_REDUCED_AMPLITUDE * Math.exp(
+      -(du * du + dv * dv) / (2 * radius * radius),
+    );
+  }
+  // Soft diagonal sweep band: wrapped distance on the normalized u-v axis.
+  const sweep = (dot.u - dot.v + 1) / 2;
+  const wrapped = Math.min(
+    Math.abs(sweep - (phase % 1)),
+    1 - Math.abs(sweep - (phase % 1)),
+  );
+  return DOT_INDETERMINATE_AMPLITUDE * Math.exp(
+    -(wrapped * wrapped) / (2 * DOT_INDETERMINATE_BAND_WIDTH * DOT_INDETERMINATE_BAND_WIDTH),
+  );
+};
 
 /** Bounded device-pixel-ratio for the canvas backing store. */
 export const resolveBoundedDpr = (rawDpr: number): number => {

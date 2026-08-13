@@ -149,6 +149,7 @@ import {
   type MainWindowPresentationDependencies,
 } from "./presentation/main-window/reactAdapter";
 import { MainWindowPresentationSurface } from "./presentation/main-window/MainWindowPresentationSurface";
+import { resolveDownloadProgressTarget } from "./presentation/main-window/downloadProgressProjection";
 import { isMainWindowFullContentVisible } from "./presentation/main-window/projections";
 import type { MainWindowPresentationLock } from "./presentation/main-window/lifecycle";
 import i18n from "./i18n";
@@ -479,6 +480,10 @@ function App() {
   const downloadQueueTasks = selectDownloadQueueRows(downloadState);
   const primaryDownloadTask = selectPrimaryDownloadTask(downloadState);
   const downloadProgress = selectPrimaryDownloadProgress(downloadState);
+  // MR3 pure projection: current primary Download selector result -> Dot Field
+  // target (idle/determinate/indeterminate). Recomputes every render, but the
+  // Dot Field runtime value-compares and no-ops on identity churn.
+  const dotFieldProgress = resolveDownloadProgressTarget(primaryDownloadTask, downloadProgress);
   const downloadStage = selectPrimaryDownloadStage(downloadState);
   const transcodeQueueTasks = videoTranscodeQueueDetail.tasks.map((task) =>
     mergeVideoTranscodeTask(task, transcodeProgressByTrace[task.traceId]),
@@ -2842,6 +2847,7 @@ function App() {
       }}
       locks={presentationLocks}
       primaryTaskKind={primaryTask?.kind ?? null}
+      dotFieldProgress={dotFieldProgress}
       isContextMenuOpen={isContextMenuOpen}
       interactionBusy={isProcessing || Boolean(primaryTask) || totalTaskCount > 0 || isQueuePopoverOpen}
       onCloseContextMenu={closeContextMenuWindow}

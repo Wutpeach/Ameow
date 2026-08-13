@@ -4,6 +4,7 @@ import {
   resolveDotFieldDprMediaQuery,
   type DotFieldBaseline,
   type DotFieldIntentKind,
+  type DotFieldProgressTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import {
@@ -19,6 +20,12 @@ export type DotFieldCanvasProps = {
   reducedMotion: boolean;
   dormantColor: string;
   ackColor: string;
+  /**
+   * MR3 projected Download progress target (pure presentation value). The
+   * host publishes it as a coarse baseline input; the runtime owns all
+   * convergence/occupancy rendering.
+   */
+  progress: DotFieldProgressTarget;
   /** Latest discrete local intent; keyed so repeated intents re-trigger. */
   intent: { key: number; kind: DotFieldIntentKind; origin: DotOrigin } | null;
 };
@@ -51,6 +58,7 @@ export function DotFieldCanvas({
   reducedMotion,
   dormantColor,
   ackColor,
+  progress,
   intent,
 }: DotFieldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -90,6 +98,11 @@ export function DotFieldCanvas({
   // (settled state redraws once at the new scale; a mid-transient applies on
   // the next frame). The listener below re-arms against the revised dpr, so
   // one scale change causes exactly one revision — no revision loop.
+  // The progress target enters through a value signature so App render
+  // identity churn is a no-op (the runtime value-compares anyway).
+  const progressSignature = progress.kind === "idle"
+    ? "idle"
+    : `${progress.kind}:${progress.traceId}:${progress.kind === "determinate" ? progress.target : ""}`;
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (runtime === null) {
@@ -108,6 +121,7 @@ export function DotFieldCanvas({
       dormant: dormantColor,
       ack: ackColor,
       reducedMotion,
+      progress,
     };
     runtime.setBaseline(baseline);
     if (eligible) {
@@ -115,7 +129,8 @@ export function DotFieldCanvas({
     } else {
       runtime.sleep();
     }
-  }, [size, eligible, reducedMotion, dormantColor, ackColor, dprEpoch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, eligible, reducedMotion, dormantColor, ackColor, dprEpoch, progressSignature]);
 
   // Live DPR revision: the resolution media query for the CURRENT bounded dpr
   // fires `change` when the OS display scale crosses it (Windows scaling,

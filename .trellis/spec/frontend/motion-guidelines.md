@@ -779,3 +779,115 @@ dispatch({ type: "visualTransitionCompleted" }); // authority leak
 residual = foldCurrentRenderedField(); // one bounded local snapshot
 intent = seedLatestIntent(nextIntent); // latest replaces, one rAF path
 ```
+
+## Scenario: MR3 Progress Field Consumer
+
+### 1. Scope / Trigger
+
+This contract applies to the MR3 Progress Field:
+`src/presentation/main-window/downloadProgressProjection.ts` (pure projection),
+the progress extension of `dotFieldRecipe.ts` / `dotFieldRuntime.ts`, and their
+Surface wiring. It reuses the MR1 single Canvas/rAF runtime; it adds no new
+Progress system, shared Motion runtime, generic scheduler, dependency, or
+central progress UI rewrite. MR4 (Intake/Confirmation/Terminal Reveal) is out
+of scope.
+
+### 2. Signatures
+
+Data path:
+
+```text
+Download reducer/selectors (authoritative task + percent)
+  -> resolveDownloadProgressTarget(task, progress)   // pure, no authority writes
+  -> DotFieldProgressTarget (idle | determinate | indeterminate)
+  -> Dot Field runtime progress baseline (renderer-local interpolation)
+  -> pixels
+```
+
+```ts
+type DotFieldProgressTarget =
+  | { kind: "idle" }
+  | { kind: "indeterminate"; traceId: string }
+  | { kind: "determinate"; traceId: string; target: number };
+```
+
+### 3. Contracts
+
+- Download authority -> pure projection: the projection maps selector output
+  to a target; it never dispatches, cancels, or writes Product/lifecycle/native
+  state (type-only Download imports, enforced by import-guard).
+- Single Dot Field runtime: progress is one persistent baseline channel on the
+  existing MR1 runtime, not an intent; no new Progress system or abstraction.
+- Determinate rendering: row-major occupancy frontier. The rendered level may
+  lag but approaches the latest authoritative target MONOTONICALLY and never
+  exceeds it; downward authoritative revision clamps immediately (information
+  correctness outranks continuity).
+- Same-trace coalescing: high-frequency updates converge from the current
+  rendered condition to the LATEST target; at most one pending frame.
+- New-trace rebase: a trace replacement rebases immediately; through an
+  indeterminate gap it resets to a safe zero seed — no old-task progress carry.
+- Indeterminate: non-percent states (probing/selecting, non-finite percent)
+  render a soft diagonal sweep band (normal motion) or static centered bloom
+  (Reduced Motion); never read as a determinate frontier.
+- Reduced Motion: the projection selects a static semantic target; the runtime
+  resolves it directly with no travel and stops obsolete work.
+- Acknowledgement transients (clicks) compose additively on the frontier and
+  settle back to the LATEST progress baseline.
+- Terminal/removal: projection -> idle; sleep/wake reconstructs from the
+  current projection; the field returns to dormant.
+- Frame budget: one pending rAF max; ZERO pending frames at idle/settled/
+  sleep/dispose.
+- No completion authority: progress motion never writes lifecycle, Product, or
+  native completion state.
+
+### 4. Validation / Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| trace replacement mid-display | rebase to the new trace's target; old task progress never renders |
+| downward authoritative revision | rendered level clamps at/below the new target immediately |
+| high-frequency percent updates | converge to the latest target from the current condition, one pending frame |
+| indeterminate (probing / non-finite percent) | band or bloom, never a determinate frontier |
+| reduced motion active | static information; no sweep loop |
+| click over the frontier | additive transient; settles to the latest baseline |
+| terminal / removal | idle; reconstruct; dormant draw; zero frames |
+| same-trace determinate -> indeterminate -> determinate | safe seed at/below target, no visual pop |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a new task rebases immediately; a dropped percent is never visually
+  overstated; the indeterminate band runs at low duty.
+- Base: a same-trace upward update converges from the current rendered level.
+- Bad: carrying the replaced trace's numeric progress into a new trace;
+  rendering a percent the authority never reported; keeping a sweep loop
+  running at idle, reduced motion, or sleep.
+
+### 6. Tests Required
+
+- `downloadProgressProjection.test.ts`: idle/determinate/indeterminate
+  mapping, clamping, trace identity, pure current-state projection.
+- `dotFieldRecipe.test.ts`: frontier occupancy, band, and reduced bloom
+  rendering bounds.
+- `dotFieldRuntime.test.ts`: convergence, coalescing, downward clamp, trace
+  rebase including the indeterminate-gap reset, reduced snap, additive
+  acknowledgement settle, sleep/wake/dispose.
+- `dotFieldPerfValidation.test.ts`: peak pending rAF <= 1 and rest pending
+  rAF = 0 across determinate/indeterminate/click/sleep/reduced scenarios.
+- `src/architecture/import-guard.test.ts`: the projection stays free of
+  authority vocabulary.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+progressLevel = Math.min(progressLevel, target); // seeds from the replaced trace
+dispatch({ type: "setProgress", target }); // authority write from motion
+```
+
+#### Correct
+
+```ts
+if (next.kind === "indeterminate" && traceChanged) progressLevel = 0;
+progressLevel = clamp(level + (target - level) * RATE, 0, target); // never overstates
+```

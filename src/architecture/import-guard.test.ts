@@ -617,6 +617,10 @@ const MR0_MOTION_LEAF_MODULES = [
   // the Pointer Field writer by the wiring-boundary assertions below.
   "src/presentation/main-window/dotFieldRecipe.ts",
   "src/presentation/main-window/dotFieldRuntime.ts",
+  // MR3 Progress Field: the pure Download -> Dot Field target projection.
+  // It imports Download types type-only (erased at compile time) and never
+  // dispatches, reduces, cancels, or writes lifecycle/native state.
+  "src/presentation/main-window/downloadProgressProjection.ts",
   // MR2 Compact Flat Blob Cat: pure geometry/attention projection + the
   // consumer-local blink timer. The SVG host (CompactCatCharacter.tsx) is NOT
   // in this list: it is a DOM boundary like DotFieldCanvas (it reads
@@ -738,6 +742,19 @@ describe("MR0 renderer-local motion guard", () => {
         `${relative} must not open IPC side channels`,
       ).toBe(false);
     }
+  });
+
+  it("keeps the MR3 progress projection free of authority vocabulary", () => {
+    const projectionFile = path.join(
+      repoRoot,
+      "src/presentation/main-window/downloadProgressProjection.ts",
+    );
+    const source = readFileSync(projectionFile, "utf8");
+    const authorityPattern = /dispatch|reduceDownload|\.cancel\(|setState|requestFull|ipcRenderer|ipcMain|\.invoke\(/;
+    expect(
+      authorityPattern.test(source),
+      "downloadProgressProjection must contain no dispatch/reduce/cancel/lifecycle/native/React-state authority vocabulary",
+    ).toBe(false);
   });
 
   it("keeps the presentation surface wiring boundary: no Product dispatch imports", () => {

@@ -33,10 +33,15 @@
 // holds ZERO pending frames.
 
 import {
+  DOT_INDETERMINATE_DUTY_MS,
+  DOT_INDETERMINATE_PERIOD_MS,
+  DOT_PROGRESS_CONVERGE_RATE,
+  DOT_PROGRESS_SNAP,
   DOT_RADIUS,
   resolveDotColor,
   resolveDotEdgeFactor,
   resolveDotFieldGrid,
+  resolveProgressDotLevel,
   resolveDotResponseCurve,
   resolveDotResponseFront,
   resolveDotResponseStrength,
@@ -44,8 +49,45 @@ import {
   type DotFieldBaseline,
   type DotFieldGrid,
   type DotFieldIntent,
+  type DotFieldProgressTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
+
+const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
+
+const IDLE_PROGRESS: DotFieldProgressTarget = { kind: "idle" };
+
+const progressEquals = (
+  a: DotFieldProgressTarget,
+  b: DotFieldProgressTarget,
+): boolean => {
+  if (a.kind === "idle" || b.kind === "idle") {
+    return a.kind === "idle" && b.kind === "idle";
+  }
+  if (a.kind !== b.kind || a.traceId !== b.traceId) {
+    return false;
+  }
+  if (a.kind === "indeterminate" && b.kind === "indeterminate") {
+    return true;
+  }
+  return (
+    a.kind === "determinate"
+    && b.kind === "determinate"
+    && a.target === b.target
+  );
+};
+
+const baselineEquals = (a: DotFieldBaseline, b: DotFieldBaseline): boolean => (
+  a.size === b.size
+  && a.dormant === b.dormant
+  && a.ack === b.ack
+  && a.reducedMotion === b.reducedMotion
+  && progressEquals(a.progress ?? IDLE_PROGRESS, b.progress ?? IDLE_PROGRESS)
+);
+
+const targetLevelOf = (target: DotFieldProgressTarget): number => (
+  target.kind === "determinate" ? clamp01(target.target) : 0
+);
 
 export type DotFrameScheduler = {
   requestFrame: (callback: (now: number) => void) => number;
@@ -72,6 +114,8 @@ export type DotFieldRuntimeHandle = {
   getDotCount: () => number;
   getActiveIntent: () => DotFieldIntent | null;
   getPeakAt: (dotIndex: number) => number;
+  getProgressTarget: () => DotFieldProgressTarget;
+  getProgressLevel: () => number;
 };
 
 const EMPTY_GRID: DotFieldGrid = { points: [], step: 0 };
@@ -105,6 +149,16 @@ export const createDotFieldRuntime = (dependencies: {
     duration: number;
   } | null = null;
   let frameHandle: number | null = null;
+  // MR3 persistent progress target + rendered convergence state. The target
+  // is part of the baseline projection; `progressLevel` is the CURRENT
+  // rendered determinate occupancy and `progressPhase` the current sweep
+  // position. Both are renderer-local interpolation state, never business
+  // truth, and both are reconstructible from the current projection alone.
+  let progressTarget: DotFieldProgressTarget = IDLE_PROGRESS;
+  let progressLevel = 0;
+  let progressPhase = 0;
+  let lastProgressDrawAt = 0;
+  let lastFrameAt = 0;
 
   const rebuildGrid = (size: number): void => {
     grid = resolveDotFieldGrid(size);
@@ -117,21 +171,43 @@ export const createDotFieldRuntime = (dependencies: {
     residual = null;
   };
 
+  /**
+   * Current projected progress brightness at one dot (0..1): the ordered
+   * determinate frontier at the rendered level, the indeterminate sweep
+   * band/bloom, or 0 when idle. Boundary attenuation is applied downstream.
+   */
+  const progressAt = (dotIndex: number): number => resolveProgressDotLevel(
+    grid.points[dotIndex],
+    dotIndex,
+    grid.points.length,
+    progressTarget,
+    progressLevel,
+    progressPhase,
+    baseline.reducedMotion,
+  );
+
   const drawDots = (transientAt: (dotIndex: number) => number): void => {
     draw.clear();
     const { dormant, ack } = baseline;
     for (let index = 0; index < grid.points.length; index += 1) {
       const base = bases[index];
+      const progress = progressAt(index);
       const transient = transientAt(index);
-      if (base <= 0 && transient <= 0) {
+      if (base <= 0 && progress <= 0 && transient <= 0) {
         continue;
       }
       const point = grid.points[index];
-      draw.drawDot(point.x, point.y, DOT_RADIUS, resolveDotColor(dormant, ack, transient, base));
+      draw.drawDot(
+        point.x,
+        point.y,
+        DOT_RADIUS,
+        resolveDotColor(dormant, ack, progress + transient, base),
+      );
     }
   };
 
-  const drawDormant = (): void => {
+  /** Settled draw: the current progress baseline with no transient work. */
+  const drawSettled = (): void => {
     drawDots(() => 0);
   };
 
@@ -194,7 +270,8 @@ export const createDotFieldRuntime = (dependencies: {
       if (elapsed >= duration) {
         // The active transient settles: clear its transient storage (peaks).
         // The residual may still be fading — frames continue until it, too,
-        // completes, then the runtime draws dormant and holds zero frames.
+        // completes, then the runtime draws the settled baseline and holds
+        // zero frames.
         intent = null;
         peaks.fill(0);
       }
@@ -202,10 +279,43 @@ export const createDotFieldRuntime = (dependencies: {
     if (residual !== null && frameNow - residual.startedAt >= residual.duration) {
       residual = null;
     }
-    if (intent === null && residual === null) {
-      drawDormant();
+
+    // MR3 progress step: converge the determinate frontier toward the latest
+    // target or advance the indeterminate sweep. Both are renderer-local and
+    // bounded; neither writes business/lifecycle state.
+    let progressActive = false;
+    if (progressTarget.kind === "determinate") {
+      const target = targetLevelOf(progressTarget);
+      if (Math.abs(target - progressLevel) > DOT_PROGRESS_SNAP) {
+        progressLevel += (target - progressLevel) * DOT_PROGRESS_CONVERGE_RATE;
+        if (Math.abs(target - progressLevel) <= DOT_PROGRESS_SNAP) {
+          progressLevel = target;
+        }
+        progressActive = Math.abs(target - progressLevel) > DOT_PROGRESS_SNAP;
+      }
+    } else if (progressTarget.kind === "indeterminate" && !baseline.reducedMotion) {
+      const elapsed = Math.max(0, frameNow - lastFrameAt);
+      progressPhase = (progressPhase + elapsed / DOT_INDETERMINATE_PERIOD_MS) % 1;
+      progressActive = true;
+    }
+    lastFrameAt = frameNow;
+
+    const hasTransient = intent !== null || residual !== null;
+    if (!hasTransient && !progressActive) {
+      drawSettled();
       return;
     }
+    if (
+      !hasTransient
+      && progressTarget.kind === "indeterminate"
+      && frameNow - lastProgressDrawAt < DOT_INDETERMINATE_DUTY_MS
+    ) {
+      // Low-duty indeterminate sweep: keep the loop alive but skip this
+      // redraw so the band never runs at full display rate.
+      scheduleNextFrame();
+      return;
+    }
+    lastProgressDrawAt = frameNow;
     drawTransient(frameNow);
     scheduleNextFrame();
   };
@@ -239,12 +349,25 @@ export const createDotFieldRuntime = (dependencies: {
     if (state === "awake") {
       return;
     }
+    // MR3 wake: reconstruct from the CURRENT projection, never from
+    // pre-collapse animation history — the frontier snaps to the current
+    // target and the sweep restarts.
+    progressTarget = baseline.progress ?? IDLE_PROGRESS;
+    progressLevel = targetLevelOf(progressTarget);
+    progressPhase = 0;
+    lastFrameAt = now();
     state = "awake";
-    drawDormant();
+    drawSettled();
+    if (progressTarget.kind === "indeterminate" && !baseline.reducedMotion) {
+      scheduleNextFrame();
+    }
   };
 
   const setBaseline = (nextBaseline: DotFieldBaseline): void => {
     if (state === "disposed") {
+      return;
+    }
+    if (baselineEquals(baseline, nextBaseline)) {
       return;
     }
     const sizeChanged = nextBaseline.size !== baseline.size;
@@ -272,13 +395,93 @@ export const createDotFieldRuntime = (dependencies: {
     }
     // A material revision while transient content is live must render that
     // content continuously under the latest material: the already-scheduled
-    // frame redraws it with the new tokens, so drawing dormant here would
-    // flash a dormant-only frame and the transient would "reappear" on the
-    // next one. Only a settled runtime redraws once under the new material.
+    // frame redraws it with the new tokens, so drawing the settled baseline
+    // here would flash a settled-only frame and the transient would
+    // "reappear" on the next one. Only a settled runtime redraws once under
+    // the new material.
+
+    // MR3 progress transition: apply the projected target to the local
+    // rendered state (rebase, clamp, or leave to converge). Idempotent when
+    // the target did not change; identity churn from App renders is a no-op
+    // because `baselineEquals` above already rejected equal values.
+    applyProgressTarget(baseline.progress ?? IDLE_PROGRESS);
+
     if (state !== "awake" || intent !== null || residual !== null) {
       return;
     }
-    drawDormant();
+    drawSettled();
+    // When progress work stops (idle, Reduced Motion, or a converged target)
+    // while no transient is live, the only pending frame can be a progress
+    // frame — cancel it so work stops immediately rather than after one
+    // stale frame.
+    const progressNeedsFrames =
+      (progressTarget.kind === "indeterminate" && !baseline.reducedMotion)
+      || (
+        progressTarget.kind === "determinate"
+        && !baseline.reducedMotion
+        && Math.abs(targetLevelOf(progressTarget) - progressLevel) > DOT_PROGRESS_SNAP
+      );
+    if (!progressNeedsFrames && frameHandle !== null) {
+      cancelFrame(frameHandle);
+      frameHandle = null;
+    }
+    if (progressNeedsFrames) {
+      if (progressTarget.kind === "indeterminate") {
+        lastFrameAt = now();
+      }
+      scheduleNextFrame();
+    }
+  };
+
+  /**
+   * Applies a projected progress target to the local rendered state.
+   *
+   * - idle: drop occupancy; the field returns to dormant.
+   * - trace replacement (or idle -> determinate): immediate rebase to the new
+   *   trace's current target — a new task never interpolates from the old
+   *   task's progress, which would attribute old-task progress to it.
+   * - indeterminate -> determinate: seed from a safe condition at/below the
+   *   target, then converge up.
+   * - same-trace downward revision: clamp immediately to at/below the new
+   *   target; the rendered field must never overstate the latest
+   *   authoritative value (information correctness outranks continuity).
+   * - Reduced Motion: resolve to the semantic target directly, no travel.
+   * - otherwise (same trace, upward): leave the current rendered level and
+   *   let the frame loop converge toward the latest target (coalesced).
+   */
+  const applyProgressTarget = (next: DotFieldProgressTarget): void => {
+    const prev = progressTarget;
+    const prevKind = prev.kind;
+    const prevTrace = prev.kind === "idle" ? null : prev.traceId;
+    const nextKind = next.kind;
+    const nextTrace = next.kind === "idle" ? null : next.traceId;
+    const traceChanged = prevKind !== "idle" && nextKind !== "idle" && prevTrace !== nextTrace;
+    progressTarget = next;
+    if (nextKind === "idle") {
+      progressLevel = 0;
+      return;
+    }
+    if (nextKind === "indeterminate") {
+      // Drop determinate frontier authority. Same-trace indeterminate keeps
+      // the current level only as a safe seed for a later determinate
+      // transition (min with target). A TRACE replacement resets the level to
+      // 0: the new trace's future determinate must seed from its own
+      // projection, never from the replaced trace's rendered progress.
+      if (traceChanged) {
+        progressLevel = 0;
+      }
+      return;
+    }
+    const target = targetLevelOf(next);
+    if (prevKind === "idle" || traceChanged) {
+      progressLevel = target;
+    } else if (prevKind === "indeterminate") {
+      progressLevel = Math.min(progressLevel, target);
+    } else if (target < progressLevel) {
+      progressLevel = target;
+    } else if (baseline.reducedMotion) {
+      progressLevel = target;
+    }
   };
 
   const submitIntent = (nextIntent: DotFieldIntent): void => {
@@ -379,5 +582,7 @@ export const createDotFieldRuntime = (dependencies: {
       }
       return peaks[dotIndex];
     },
+    getProgressTarget: () => progressTarget,
+    getProgressLevel: () => progressLevel,
   };
 };

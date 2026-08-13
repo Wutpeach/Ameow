@@ -51,6 +51,7 @@ import { useMainWindowMagnetic } from "./magnetic";
 import { DotFieldCanvas } from "./DotFieldCanvas";
 import {
   resolveDotOriginFromClientPoint,
+  type DotFieldProgressTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import {
@@ -94,6 +95,8 @@ export type MainWindowPresentationSurfaceProps = {
   };
   locks: Record<MainWindowPresentationLock, boolean>;
   primaryTaskKind: "download" | "transcode" | null;
+  /** MR3 projected Download progress target; plain presentation input. */
+  dotFieldProgress: DotFieldProgressTarget;
   isContextMenuOpen: boolean;
   /** Application busy state that blocks the panel double-click shortcut. */
   interactionBusy: boolean;
@@ -517,6 +520,7 @@ export function MainWindowPresentationSurface({
   environment,
   locks,
   primaryTaskKind,
+  dotFieldProgress,
   isContextMenuOpen,
   interactionBusy,
   onCloseContextMenu,
@@ -1163,6 +1167,7 @@ export function MainWindowPresentationSurface({
               reducedMotion={environment.reducedMotion}
               dormantColor={colors.dotDormant}
               ackColor={colors.dotAck}
+              progress={dotFieldProgress}
               intent={dotFieldIntent}
             />
 

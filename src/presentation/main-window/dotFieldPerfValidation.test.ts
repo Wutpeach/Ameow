@@ -5,6 +5,7 @@ import {
   resolveBoundedDpr,
   type DotFieldBaseline,
   type DotFieldIntent,
+  type DotFieldProgressTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import { createDotFieldRuntime } from "./dotFieldRuntime";
@@ -251,5 +252,91 @@ describe("Dot Field repeatable performance validation", () => {
     expect(resolveBoundedDpr(1.5)).toBe(1.5);
     expect(resolveBoundedDpr(2.5)).toBe(2);
     expect(resolveBoundedDpr(3)).toBe(2);
+  });
+
+  it("covers MR3 progress scenarios: determinate bursts, overlay, indeterminate duty, sleep, reduced", () => {
+    const results: ScenarioResult[] = [];
+    const determinate = (target: number, traceId = "trace-1") => (
+      { kind: "determinate" as const, traceId, target }
+    );
+    const withProgress = (progress: DotFieldProgressTarget): DotFieldBaseline => ({
+      ...THEMES[0].baseline,
+      progress,
+    });
+
+    // 1. High-frequency determinate burst: 40 authoritative updates coalesce
+    //    into one convergence run to the latest target.
+    results.push(runScenario("determinate rapid update burst", ({ runtime, flush }) => {
+      runtime.setBaseline(withProgress(determinate(0)));
+      for (let step = 1; step <= 40; step += 1) {
+        runtime.setBaseline(withProgress(determinate(step / 40)));
+      }
+      for (let frame = 0; frame < 20; frame += 1) {
+        flush(FRAME_MS);
+      }
+    }));
+
+    // 2. Determinate frontier with an overlapping click/context burst on top
+    //    (acknowledgement stays additive, latest-replaces).
+    results.push(runScenario("determinate + click burst", ({ runtime, submit, flush }) => {
+      runtime.setBaseline(withProgress(determinate(0.6)));
+      for (let index = 0; index < ORIGINS.length; index += 1) {
+        submit({
+          kind: index % 2 === 0 ? "click" : "context",
+          origin: ORIGINS[index],
+        });
+        flush(FRAME_MS);
+        flush(FRAME_MS);
+      }
+    }));
+
+    // 3. Indeterminate sweep: bounded low-duty loop that stops immediately on
+    //    idle (the drain then sees zero pending frames).
+    results.push(runScenario("indeterminate sweep then idle", ({ runtime, flush }) => {
+      runtime.setBaseline(withProgress({ kind: "indeterminate", traceId: "trace-1" }));
+      for (let frame = 0; frame < 10; frame += 1) {
+        flush(FRAME_MS);
+      }
+      runtime.setBaseline(withProgress({ kind: "idle" }));
+    }));
+
+    // 4. Sleep mid-convergence: pending frame cancelled, rest is zero.
+    results.push(runScenario("sleep during determinate convergence", ({ runtime, flush }) => {
+      runtime.setBaseline(withProgress(determinate(0.1)));
+      runtime.setBaseline(withProgress(determinate(0.9)));
+      flush(FRAME_MS);
+      runtime.sleep();
+    }));
+
+    // 5. Reduced-motion indeterminate: static active material, no loop.
+    results.push(runScenario("reduced indeterminate static", ({ runtime, flush }) => {
+      runtime.setBaseline(withProgress({ kind: "indeterminate", traceId: "trace-1" }));
+      runtime.setBaseline({ ...THEMES[0].baseline, reducedMotion: true, progress: { kind: "indeterminate", traceId: "trace-1" } });
+      flush(FRAME_MS);
+    }));
+
+    const summary = results.map((result) => (
+      `${result.name}: dots=${result.dotCount} frames=${result.framesExecuted} `
+      + `settleMs=${result.settleMs} peakPending=${result.peakPending} `
+      + `restPending=${result.restPending} drawCalls=${result.drawCalls} `
+      + `peakMax=${result.peakMax.toFixed(3)}`
+    ));
+    console.log("\n[Dot Field MR3 perf validation]\n" + summary.join("\n") + "\n");
+
+    for (const result of results) {
+      expect(result.dotCount).toBeLessThanOrEqual(400);
+      expect(result.peakPending).toBeLessThanOrEqual(1);
+      expect(result.restPending).toBe(0);
+      expect(result.peakMax).toBeLessThanOrEqual(1);
+      // The reduced-indeterminate scenario schedules nothing (static).
+      if (result.name !== "reduced indeterminate static") {
+        expect(result.framesExecuted).toBeGreaterThan(0);
+      }
+      // Deterministic convergence must settle within a bounded window
+      // (40%-of-remaining per frame at 16ms: < 0.5s for a full sweep).
+      if (result.name === "determinate rapid update burst") {
+        expect(result.settleMs).toBeLessThanOrEqual(600);
+      }
+    }
   });
 });

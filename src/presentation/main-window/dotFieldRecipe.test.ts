@@ -10,6 +10,7 @@ import {
   resolveDotFieldDprMediaQuery,
   resolveDotFieldGrid,
   resolveDotOriginFromClientPoint,
+  resolveProgressDotLevel,
   resolveDotResponseCurve,
   resolveDotResponseFront,
   resolveDotResponseStrength,
@@ -246,5 +247,79 @@ describe("resolveDotColor", () => {
     expect(resolveDotColor("#ffffff", "#000000", 0.5, 1)).toBe("rgba(128, 128, 128, 1)");
     expect(resolveDotColor("unknown", ACK, 0.5, 1)).toBe("rgba(255,255,255,0.72)");
     expect(resolveDotColor(DORMANT, "unknown", 0.5, 1)).toBe("rgba(255,255,255,0.16)");
+  });
+});
+
+describe("resolveProgressDotLevel (MR3)", () => {
+  const IDLE = { kind: "idle" } as const;
+  const INDETERMINATE = { kind: "indeterminate", traceId: "trace-1" } as const;
+  const DOT: { x: number; y: number; u: number; v: number } = { x: 50, y: 50, u: 0.25, v: 0.25 };
+
+  it("renders zero for idle regardless of level/phase", () => {
+    expect(resolveProgressDotLevel(DOT, 0, 225, IDLE, 0.7, 0.3, false)).toBe(0);
+    expect(resolveProgressDotLevel(DOT, 0, 225, IDLE, 1, 0.9, true)).toBe(0);
+  });
+
+  it("determinate: full dots below the frontier, partial frontier dot, dormant above", () => {
+    const target = { kind: "determinate" as const, traceId: "trace-1", target: 0.5 };
+    // 225 dots * 0.5 = 112.5 -> 112 full, dot 112 partial at 0.5, rest 0.
+    expect(resolveProgressDotLevel(DOT, 0, 225, target, 0.5, 0, false)).toBe(1);
+    expect(resolveProgressDotLevel(DOT, 111, 225, target, 0.5, 0, false)).toBe(1);
+    expect(resolveProgressDotLevel(DOT, 112, 225, target, 0.5, 0, false)).toBeCloseTo(0.5, 10);
+    expect(resolveProgressDotLevel(DOT, 113, 225, target, 0.5, 0, false)).toBe(0);
+    expect(resolveProgressDotLevel(DOT, 224, 225, target, 0.5, 0, false)).toBe(0);
+  });
+
+  it("determinate: rendered occupancy tracks the rendered level exactly (monotone)", () => {
+    const target = { kind: "determinate" as const, traceId: "trace-1", target: 0.4 };
+    // The recipe renders whatever rendered level it is given; the runtime is
+    // the layer that clamps the rendered level to at/below the authoritative
+    // target (see dotFieldRuntime tests). Occupancy = level exactly.
+    for (const level of [0, 0.25, 0.4, 0.7, 1]) {
+      let sum = 0;
+      for (let index = 0; index < 225; index += 1) {
+        sum += resolveProgressDotLevel(DOT, index, 225, target, level, 0, false);
+      }
+      expect(sum / 225).toBeCloseTo(level, 9);
+    }
+  });
+
+  it("determinate: monotone in the rendered level for one trace", () => {
+    const target = { kind: "determinate" as const, traceId: "trace-1", target: 1 };
+    let previous = 0;
+    for (const level of [0, 0.1, 0.3, 0.5, 0.8, 1]) {
+      const sum = Array.from({ length: 225 }, (_, index) =>
+        resolveProgressDotLevel(DOT, index, 225, target, level, 0, false)).reduce((a, b) => a + b, 0);
+      expect(sum).toBeGreaterThanOrEqual(previous);
+      previous = sum;
+    }
+  });
+
+  it("indeterminate: a bounded travelling band that never encodes a percentage", () => {
+    const center = { u: 0.5, v: 0.5, x: 100, y: 100 };
+    // A dot on the sweep axis lights as the band passes and dims after it.
+    const onBand = resolveProgressDotLevel(center, 0, 225, INDETERMINATE, 0, 0.5, false);
+    expect(onBand).toBeGreaterThan(0);
+    expect(onBand).toBeLessThanOrEqual(0.4);
+    const away = resolveProgressDotLevel(center, 0, 225, INDETERMINATE, 0, 0.02, false);
+    expect(away).toBeLessThan(onBand);
+    // Never a full-coverage fill: total occupancy stays well below determinate.
+    const grid = resolveDotFieldGrid(200);
+    const total = grid.points.reduce((sum, dot, index) => (
+      sum + resolveProgressDotLevel(dot, index, grid.points.length, INDETERMINATE, 0, 0.5, false)
+    ), 0);
+    expect(total / grid.points.length).toBeLessThan(0.25);
+  });
+
+  it("indeterminate reduced motion: static non-travelling bloom independent of phase", () => {
+    const center = { u: 0.5, v: 0.5, x: 100, y: 100 };
+    const atPhaseA = resolveProgressDotLevel(center, 0, 225, INDETERMINATE, 0, 0.1, true);
+    const atPhaseB = resolveProgressDotLevel(center, 0, 225, INDETERMINATE, 0, 0.7, true);
+    expect(atPhaseA).toBe(atPhaseB);
+    expect(atPhaseA).toBeGreaterThan(0);
+    // The bloom is centered, non-ordered, and bounded.
+    const corner = resolveProgressDotLevel({ u: 0.02, v: 0.02, x: 4, y: 4 }, 0, 225, INDETERMINATE, 0, 0.1, true);
+    expect(corner).toBeLessThan(atPhaseA);
+    expect(atPhaseA).toBeLessThanOrEqual(0.3);
   });
 });
