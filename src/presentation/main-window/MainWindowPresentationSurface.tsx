@@ -52,6 +52,7 @@ import { DotFieldCanvas } from "./DotFieldCanvas";
 import {
   resolveDotOriginFromClientPoint,
   type DotFieldProgressTarget,
+  type DotFieldTerminalTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import {
@@ -97,6 +98,8 @@ export type MainWindowPresentationSurfaceProps = {
   primaryTaskKind: "download" | "transcode" | null;
   /** MR3 projected Download progress target; plain presentation input. */
   dotFieldProgress: DotFieldProgressTarget;
+  /** MR4 projected terminal lane target; plain presentation input. */
+  dotFieldTerminal: DotFieldTerminalTarget;
   isContextMenuOpen: boolean;
   /** Application busy state that blocks the panel double-click shortcut. */
   interactionBusy: boolean;
@@ -521,6 +524,7 @@ export function MainWindowPresentationSurface({
   locks,
   primaryTaskKind,
   dotFieldProgress,
+  dotFieldTerminal,
   isContextMenuOpen,
   interactionBusy,
   onCloseContextMenu,
@@ -1168,6 +1172,7 @@ export function MainWindowPresentationSurface({
               dormantColor={colors.dotDormant}
               ackColor={colors.dotAck}
               progress={dotFieldProgress}
+              terminal={dotFieldTerminal}
               intent={dotFieldIntent}
             />
 

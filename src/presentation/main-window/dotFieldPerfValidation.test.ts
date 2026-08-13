@@ -6,6 +6,7 @@ import {
   type DotFieldBaseline,
   type DotFieldIntent,
   type DotFieldProgressTarget,
+  type DotFieldTerminalTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import { createDotFieldRuntime } from "./dotFieldRuntime";
@@ -336,6 +337,92 @@ describe("Dot Field repeatable performance validation", () => {
       // (40%-of-remaining per frame at 16ms: < 0.5s for a full sweep).
       if (result.name === "determinate rapid update burst") {
         expect(result.settleMs).toBeLessThanOrEqual(600);
+      }
+    }
+  });
+
+  it("covers MR4 terminal reveal scenarios: reveal, absorb, supersede, reduced, remove", () => {
+    const results: ScenarioResult[] = [];
+    const terminal = (status: "success" | "failure" | "cancelled"): DotFieldTerminalTarget => (
+      { kind: "terminal", status }
+    );
+    const withTerminal = (lane: DotFieldBaseline["terminal"]) => ({
+      ...THEMES[0].baseline,
+      terminal: lane,
+    });
+
+    // 1. Reveal to full level then target removal: one convergence run, then
+    //    the lane clears and the field settles with zero pending frames.
+    results.push(runScenario("terminal reveal then removal", ({ runtime, flush }) => {
+      runtime.setBaseline(withTerminal(terminal("success")));
+      for (let frame = 0; frame < 60; frame += 1) {
+        flush(FRAME_MS);
+      }
+      runtime.setBaseline(withTerminal({ kind: "none" }));
+    }));
+
+    // 2. Click/context burst during a terminal reveal: intents are absorbed,
+    //    never queued; the one-frame budget still holds.
+    results.push(runScenario("terminal reveal + absorbed intents", ({ runtime, submit, flush }) => {
+      runtime.setBaseline(withTerminal(terminal("failure")));
+      for (let index = 0; index < ORIGINS.length; index += 1) {
+        submit({
+          kind: index % 2 === 0 ? "click" : "context",
+          origin: ORIGINS[index],
+        });
+        flush(FRAME_MS);
+      }
+      for (let frame = 0; frame < 60; frame += 1) {
+        flush(FRAME_MS);
+      }
+    }));
+
+    // 3. Progress supersedes the lane mid-reveal: the stale completion is
+    //    invalidated immediately and only the progress convergence runs.
+    results.push(runScenario("terminal superseded by progress", ({ runtime, flush }) => {
+      runtime.setBaseline(withTerminal(terminal("cancelled")));
+      flush(FRAME_MS);
+      runtime.setBaseline({
+        ...THEMES[0].baseline,
+        terminal: terminal("cancelled"),
+        progress: { kind: "determinate", traceId: "trace-next", target: 0.9 },
+      });
+      for (let frame = 0; frame < 40; frame += 1) {
+        flush(FRAME_MS);
+      }
+    }));
+
+    // 4. Reduced-motion terminal: the semantic target resolves directly with
+    //    no travel; the drain sees zero pending frames.
+    results.push(runScenario("reduced terminal static", ({ runtime, flush }) => {
+      runtime.setBaseline({
+        ...THEMES[0].baseline,
+        reducedMotion: true,
+        terminal: terminal("failure"),
+      });
+      flush(FRAME_MS);
+    }));
+
+    const summary = results.map((result) => (
+      `${result.name}: dots=${result.dotCount} frames=${result.framesExecuted} `
+      + `settleMs=${result.settleMs} peakPending=${result.peakPending} `
+      + `restPending=${result.restPending} drawCalls=${result.drawCalls} `
+      + `peakMax=${result.peakMax.toFixed(3)}`
+    ));
+    console.log("\n[Dot Field MR4 perf validation]\n" + summary.join("\n") + "\n");
+
+    for (const result of results) {
+      expect(result.dotCount).toBeLessThanOrEqual(400);
+      expect(result.peakPending).toBeLessThanOrEqual(1);
+      expect(result.restPending).toBe(0);
+      expect(result.peakMax).toBeLessThanOrEqual(1);
+      if (result.name !== "reduced terminal static") {
+        expect(result.framesExecuted).toBeGreaterThan(0);
+      }
+      // Reveal convergence (22%-of-remaining per frame at 16ms) plus settle
+      // must stay within a bounded window.
+      if (result.name === "terminal reveal then removal") {
+        expect(result.settleMs).toBeLessThanOrEqual(800);
       }
     }
   });

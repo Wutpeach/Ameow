@@ -126,6 +126,7 @@ import {
   isCenterOverlayLockActive,
   reduceCenterOverlayState,
   selectCenterOverlayVisual,
+  type CenterOverlayOutcomeOrigin,
   type CenterOverlayOutcomeSource,
   type CenterOverlayOutcomeStatus,
   type CenterOverlayState,
@@ -150,6 +151,11 @@ import {
 } from "./presentation/main-window/reactAdapter";
 import { MainWindowPresentationSurface } from "./presentation/main-window/MainWindowPresentationSurface";
 import { resolveDownloadProgressTarget } from "./presentation/main-window/downloadProgressProjection";
+import {
+  resolveDotFieldTerminalTarget,
+  shouldInvalidateTerminalRevealForPrimaryDownload,
+  shouldShowDownloadTerminalReveal,
+} from "./presentation/main-window/downloadTerminalProjection";
 import { isMainWindowFullContentVisible } from "./presentation/main-window/projections";
 import type { MainWindowPresentationLock } from "./presentation/main-window/lifecycle";
 import i18n from "./i18n";
@@ -534,6 +540,18 @@ function App() {
   const hasOngoingTask = ongoingTaskCount > 0;
   const centerOverlayLockActive = isCenterOverlayLockActive(centerOverlayState);
   const isProcessing = centerOverlayLockActive;
+  // Product activity (foreground file/image processing) is a task fact; the
+  // typed outcome presentations (task/folder outcome) are terminal
+  // Presentation facts. MR4 separates the two lifecycle lock projections so
+  // the same Reveal fact never activates both the `task` and `centerOutcome`
+  // locks.
+  const isTaskProcessing = centerOverlayState.kind === "task-processing";
+  // MR4 pure projection: current center outcome Presentation + current
+  // primary DOWNLOAD -> Dot Field terminal lane target (none/terminal).
+  // Transcode primaries are not an MR4 interruption rule; the center overlay
+  // selector visually prioritizes them independently. Recomputed per render;
+  // the Dot Field runtime value-compares and no-ops on identity churn.
+  const dotFieldTerminal = resolveDotFieldTerminalTarget(centerOverlayState, primaryDownloadTask);
   const centerOverlayVisual = selectCenterOverlayVisual({
     primaryTask: primaryTask
       ? {
@@ -555,7 +573,7 @@ function App() {
   const presentationLocks = useMemo<Record<MainWindowPresentationLock, boolean>>(() => ({
     drag: false,
     contextMenu: isContextMenuOpen,
-    task: hasOngoingTask || isProcessing,
+    task: hasOngoingTask || isTaskProcessing,
     drop: false,
     startup: false,
     centerOutcome: centerOverlayLockActive,
@@ -566,7 +584,7 @@ function App() {
     centerOverlayLockActive,
     hasOngoingTask,
     isContextMenuOpen,
-    isProcessing,
+    isTaskProcessing,
     isUiLabPreviewActive,
     runtimeGateIsBusy,
   ]);
@@ -766,28 +784,28 @@ function App() {
 
   const showForegroundTaskOutcome = useCallback(({
     status,
-    cancelled,
     error,
     durationMs,
     source,
+    origin,
     diagnostic,
   }: {
-    status?: CenterOverlayOutcomeStatus;
-    cancelled?: boolean;
+    status: CenterOverlayOutcomeStatus;
     error: string | null;
     durationMs: number;
     source?: Exclude<CenterOverlayOutcomeSource, "folder">;
+    origin?: CenterOverlayOutcomeOrigin;
     diagnostic?: ErrorDiagnosticCopyRequest | null;
   }) => {
     clearForegroundTaskOutcomeTimer();
-    const outcomeStatus = status ?? (cancelled ? "cancelled" : "success");
     const loadingState = updateCenterOverlayState({
       type: "beginTaskOutcomeLoading",
       source: source ?? diagnostic?.surface ?? "download",
-      status: outcomeStatus,
-      message: outcomeStatus === "success" ? null : error,
+      status,
+      origin,
+      message: status === "success" ? null : error,
       durationMs,
-      diagnostic: outcomeStatus === "error" ? diagnostic ?? null : null,
+      diagnostic: status === "failure" ? diagnostic ?? null : null,
     });
     const requestId = loadingState.requestId;
     void (async () => {
@@ -898,7 +916,7 @@ function App() {
       console.error(failureLogLabel, error);
       await prepareMainWindowForForegroundTask();
       showForegroundTaskOutcome({
-        status: "error",
+        status: "failure",
         error: summarizeForegroundTaskError(error),
         durationMs: 1800,
       });
@@ -1055,7 +1073,7 @@ function App() {
         fallbackMessage,
       });
       showForegroundTaskOutcome({
-        status: "error",
+        status: "failure",
         error: diagnostic.userMessage,
         durationMs: 5000,
         diagnostic,
@@ -1322,18 +1340,53 @@ function App() {
     prepareMainWindowForForegroundTask,
   ]);
 
-  useEffect(() => onDownloadTerminal((outcome) => {
+  // MR4: a NEW current primary Download invalidates the previous terminal
+  // Reveal Presentation state, its retention timer, and the centerOutcome
+  // lock immediately — including before the new download's first progress
+  // event (synthetic/preparing progress). Canvas suppression alone is not
+  // enough: the center outcome state and lock must be cleared. The effect
+  // keys on the current primary Download task identity (a stable object out
+  // of the queue state), so a newly-current download fires it regardless of
+  // progress events or React batching. The authoritative typed terminal fact
+  // in the Download queue state is never touched; requestId generation
+  // guards make the dismissed retention timer a stale no-op against any
+  // newer outcome.
+  useEffect(() => {
+    if (!shouldInvalidateTerminalRevealForPrimaryDownload(
+      centerOverlayStateRef.current,
+      primaryDownloadTask,
+    )) {
+      return;
+    }
+    dismissTransientCenterOverlay();
+  }, [dismissTransientCenterOverlay, primaryDownloadTask]);
+
+  useEffect(() => onDownloadTerminal((outcome, postReductionState) => {
+    // MR4: a terminal whose download is NOT the current primary (per the
+    // controller's EXACT post-reduction snapshot) is a background terminal.
+    // terminalReceived has already pruned the terminal's own trace, so any
+    // non-null primary is necessarily another download: suppress. Only a null
+    // primary shows the just-arrived terminal. No React commit timing is
+    // involved: the snapshot is captured synchronously at the controller
+    // notification boundary.
+    if (!shouldShowDownloadTerminalReveal(
+      selectPrimaryDownloadTask(postReductionState),
+    )) {
+      return;
+    }
     if (outcome.kind === "success") {
       showForegroundTaskOutcome({
         status: "success",
         error: null,
         durationMs: 1500,
+        origin: "terminal",
       });
     } else if (outcome.kind === "cancelled") {
       showForegroundTaskOutcome({
         status: "cancelled",
         error: outcome.errorSummary,
         durationMs: 1500,
+        origin: "terminal",
       });
     } else {
       const fallbackMessage = outcome.errorSummary ?? "Unknown download error";
@@ -1344,10 +1397,11 @@ function App() {
         fallbackMessage,
       });
       showForegroundTaskOutcome({
-        status: "error",
+        status: "failure",
         error: diagnostic.userMessage,
         durationMs: 5000,
         diagnostic,
+        origin: "terminal",
       });
     }
   }), [
@@ -1634,7 +1688,7 @@ function App() {
         fallbackMessage,
       });
       showForegroundTaskOutcome({
-        status: "error",
+        status: "failure",
         source: "transcode",
         error: diagnostic.userMessage,
         durationMs: 5000,
@@ -2848,6 +2902,7 @@ function App() {
       locks={presentationLocks}
       primaryTaskKind={primaryTask?.kind ?? null}
       dotFieldProgress={dotFieldProgress}
+      dotFieldTerminal={dotFieldTerminal}
       isContextMenuOpen={isContextMenuOpen}
       interactionBusy={isProcessing || Boolean(primaryTask) || totalTaskCount > 0 || isQueuePopoverOpen}
       onCloseContextMenu={closeContextMenuWindow}
@@ -3688,9 +3743,9 @@ function App() {
           >
             <ForegroundOutcomeOverlay
               outcomeVisible={centerOverlayVisual.outcomeVisible}
-              cancelled={centerOverlayVisual.status !== "success"}
+              status={centerOverlayVisual.status}
               errorMessage={centerOverlayVisual.message}
-              showCopyAction={centerOverlayVisual.status === "error" && Boolean(centerOverlayVisual.diagnostic)}
+              showCopyAction={centerOverlayVisual.status === "failure" && Boolean(centerOverlayVisual.diagnostic)}
               onCopyDiagnostic={centerOverlayVisual.diagnostic
                 ? () => {
                     if (centerOverlayVisual.diagnostic) {
@@ -3701,6 +3756,7 @@ function App() {
               copyDiagnosticLabel={t("app.errorDiagnostic.copy")}
               successColor={colors.successIcon}
               errorColor={colors.errorIcon}
+              cancelledColor={colors.progressCancelIcon}
               loadingStrokeColor={colors.accentSolid}
               loadingTrackColor={colors.borderStart}
               loadingTextColor={colors.textSecondary}
@@ -3718,10 +3774,11 @@ function App() {
           >
             <ForegroundOutcomeOverlay
               outcomeVisible
-              cancelled={centerOverlayVisual.status === "error"}
+              status={centerOverlayVisual.status === "error" ? "failure" : "success"}
               errorMessage={centerOverlayVisual.status === "error" ? centerOverlayVisual.message : null}
               successColor={colors.successIcon}
               errorColor={colors.errorIcon}
+              cancelledColor={colors.progressCancelIcon}
               loadingStrokeColor={colors.accentSolid}
               loadingTrackColor={colors.borderStart}
               loadingTextColor={colors.textSecondary}

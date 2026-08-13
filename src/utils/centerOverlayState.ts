@@ -1,6 +1,18 @@
 import type { ErrorDiagnosticCopyRequest } from "../types/errorDiagnostics";
 
-export type CenterOverlayOutcomeStatus = "success" | "error" | "cancelled";
+export type CenterOverlayOutcomeStatus = "success" | "failure" | "cancelled";
+
+// Folder Confirmation keeps its own pre-existing status model (success | error).
+// It is deliberately NOT the MR4 typed download-terminal vocabulary, so Folder
+// Confirmation behavior is unchanged by the MR4 naming split.
+export type CenterOverlayFolderOutcomeStatus = "success" | "error";
+
+// Presentation origin discriminator. "terminal" marks an outcome created from
+// an already-typed Download terminal transition (the ONLY MR4 Reveal source);
+// "foreground" covers every generic task outcome (enqueue/command failure,
+// image/file tasks, transcode events) that must never drive MR4. Origin is
+// never inferred from status/source/message.
+export type CenterOverlayOutcomeOrigin = "terminal" | "foreground";
 
 export type CenterOverlayOutcomeSource = "download" | "transcode" | "image" | "folder";
 
@@ -12,6 +24,7 @@ export type CenterOverlayState =
       requestId: number;
       source: Exclude<CenterOverlayOutcomeSource, "folder">;
       status: CenterOverlayOutcomeStatus;
+      origin: CenterOverlayOutcomeOrigin;
       message: string | null;
       durationMs: number;
       diagnostic: ErrorDiagnosticCopyRequest | null;
@@ -21,6 +34,7 @@ export type CenterOverlayState =
       requestId: number;
       source: Exclude<CenterOverlayOutcomeSource, "folder">;
       status: CenterOverlayOutcomeStatus;
+      origin: CenterOverlayOutcomeOrigin;
       message: string | null;
       durationMs: number;
       diagnostic: ErrorDiagnosticCopyRequest | null;
@@ -28,7 +42,7 @@ export type CenterOverlayState =
   | {
       kind: "folder-outcome-visible";
       requestId: number;
-      status: Extract<CenterOverlayOutcomeStatus, "success" | "error">;
+      status: CenterOverlayFolderOutcomeStatus;
       message: string | null;
       durationMs: number;
     };
@@ -41,6 +55,7 @@ export type CenterOverlayAction =
       type: "beginTaskOutcomeLoading";
       source?: Exclude<CenterOverlayOutcomeSource, "folder">;
       status: CenterOverlayOutcomeStatus;
+      origin?: CenterOverlayOutcomeOrigin;
       message?: string | null;
       durationMs: number;
       diagnostic?: ErrorDiagnosticCopyRequest | null;
@@ -49,7 +64,7 @@ export type CenterOverlayAction =
   | { type: "finishTaskOutcome"; requestId: number }
   | {
       type: "showFolderOutcome";
-      status: Extract<CenterOverlayOutcomeStatus, "success" | "error">;
+      status: CenterOverlayFolderOutcomeStatus;
       message?: string | null;
       durationMs: number;
     }
@@ -87,6 +102,7 @@ export const reduceCenterOverlayState = (
         requestId: nextRequestId(state),
         source: action.source ?? "download",
         status: action.status,
+        origin: action.origin ?? "foreground",
         message: action.message ?? null,
         durationMs: action.durationMs,
         diagnostic: action.diagnostic ?? null,
@@ -155,7 +171,7 @@ export type CenterOverlayVisual =
       kind: "folder-outcome";
       key: string;
       requestId: number;
-      status: Extract<CenterOverlayOutcomeStatus, "success" | "error">;
+      status: CenterOverlayFolderOutcomeStatus;
       message: string | null;
     }
   | { kind: "none"; key: string };

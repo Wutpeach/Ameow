@@ -6,7 +6,9 @@ import {
   type DownloadQueueEvent,
 } from "./client";
 import type { DownloadQueueState, DownloadTask } from "./model";
+import { selectPrimaryDownloadTask } from "./selectors";
 import { DownloadQueueController } from "./useDownloadQueue";
+import { shouldShowDownloadTerminalReveal } from "../../presentation/main-window/downloadTerminalProjection";
 
 const deferred = <T>(): {
   promise: Promise<T>;
@@ -385,5 +387,93 @@ describe("DownloadQueueController", () => {
     await controller.selectQuality("trace-1", "o1");
 
     expect(controller.getState().qualitySelecting).toEqual({});
+  });
+});
+
+describe("MR4 terminal notification seam: exact post-reduction snapshot", () => {
+  it("passes the post-reduction state so a background terminal (another primary remains) is suppressed", () => {
+    const fake = createFakeClient();
+    const controller = new DownloadQueueController(fake.client);
+    const decisions: Array<{
+      outcomeTraceId: string;
+      primaryTraceId: string | null;
+      showReveal: boolean;
+    }> = [];
+    controller.subscribeTerminal((outcome, snapshot) => {
+      const primary = selectPrimaryDownloadTask(snapshot);
+      decisions.push({
+        outcomeTraceId: outcome.traceId,
+        primaryTraceId: primary?.traceId ?? null,
+        showReveal: shouldShowDownloadTerminalReveal(primary),
+      });
+    });
+    controller.start();
+    fake.resolveRegistration();
+
+    fake.emit(detailEvent([
+      task({ traceId: "trace-a" }),
+      task({ traceId: "trace-b" }),
+    ]));
+    fake.emit(terminalEvent("trace-a"));
+
+    expect(decisions).toHaveLength(1);
+    // The snapshot is post-reduction: A is pruned and B is the current
+    // primary -> the App decision derived from that exact snapshot suppresses
+    // A (background terminal), without any React commit timing.
+    expect(decisions[0]).toEqual({
+      outcomeTraceId: "trace-a",
+      primaryTraceId: "trace-b",
+      showReveal: false,
+    });
+    expect(selectPrimaryDownloadTask(controller.getState())?.traceId).toBe("trace-b");
+  });
+
+  it("shows the sole terminal when no current primary remains after reduction", () => {
+    const fake = createFakeClient();
+    const controller = new DownloadQueueController(fake.client);
+    const decisions: Array<{ outcomeTraceId: string; showReveal: boolean }> = [];
+    controller.subscribeTerminal((outcome, snapshot) => {
+      const primary = selectPrimaryDownloadTask(snapshot);
+      decisions.push({
+        outcomeTraceId: outcome.traceId,
+        showReveal: shouldShowDownloadTerminalReveal(primary),
+      });
+    });
+    controller.start();
+    fake.resolveRegistration();
+
+    fake.emit(detailEvent([task({ traceId: "trace-1" })]));
+    fake.emit(terminalEvent("trace-1"));
+
+    expect(decisions).toEqual([{ outcomeTraceId: "trace-1", showReveal: true }]);
+  });
+
+  it("synchronous progress/queue changes before a terminal are all present in the listener snapshot", () => {
+    // Queue detail, progress, and a terminal emitted back-to-back with no
+    // React commit in between: a React ref could only hold a stale commit,
+    // but the controller snapshot is exact by construction — it is the
+    // controller state after every prior synchronous reduction.
+    const fake = createFakeClient();
+    const controller = new DownloadQueueController(fake.client);
+    const snapshots: DownloadQueueState[] = [];
+    controller.subscribeTerminal((outcome, snapshot) => {
+      snapshots.push(snapshot);
+      expect(outcome.traceId).toBe("trace-a");
+    });
+    controller.start();
+    fake.resolveRegistration();
+
+    fake.emit(detailEvent([
+      task({ traceId: "trace-a" }),
+      task({ traceId: "trace-b" }),
+    ]));
+    fake.emit(progressEvent("trace-b", 77));
+    fake.emit(terminalEvent("trace-a"));
+
+    expect(snapshots).toHaveLength(1);
+    const snapshot = snapshots[0];
+    expect(selectPrimaryDownloadTask(snapshot)?.traceId).toBe("trace-b");
+    expect(snapshot.progressByTrace["trace-b"]?.percent).toBe(77);
+    expect(snapshot.terminalTraceIds).toEqual(["trace-a"]);
   });
 });

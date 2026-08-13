@@ -40,6 +40,13 @@ export type DotFieldBaseline = Readonly<{
    * Download/lifecycle authority; the runtime converges toward it locally.
    */
   progress?: DotFieldProgressTarget;
+  /**
+   * MR4 terminal lane target. Absent (or none) keeps the field on the
+   * progress/dormant lanes. It is a separate priority presentation input,
+   * never an extension of the Progress authority; the runtime seeds one
+   * bounded lane and renders it exactly while the target is present.
+   */
+  terminal?: DotFieldTerminalTarget;
 }>;
 
 /**
@@ -264,6 +271,92 @@ export const resolveProgressDotLevel = (
   );
   return DOT_INDETERMINATE_AMPLITUDE * Math.exp(
     -(wrapped * wrapped) / (2 * DOT_INDETERMINATE_BAND_WIDTH * DOT_INDETERMINATE_BAND_WIDTH),
+  );
+};
+
+// MR4 Terminal Reveal policy -------------------------------------------------
+//
+// Terminal is a separate priority lane with its own projected target; it is
+// NOT an extension of the MR3 Progress authority. The lane renders only when
+// the projection reports it (no current primary task) and is superseded by
+// any arriving progress target. Material stays ack-tone and restrained: the
+// semantic outcome identity, message, and diagnostic action live in the
+// center DOM overlay, so the field only adds a bounded terminal presence.
+//
+//   success    -> ordered occupancy sweep (the same row-major frontier
+//                 vocabulary as determinate progress, now "completed"): dots
+//                 light in rank order up to the rendered reveal level.
+//   failure    -> centered radial bloom, no travel (an abrupt stop), louder
+//                 than cancelled.
+//   cancelled  -> centered radial bloom, no travel, quieter than failure.
+
+export type DotFieldTerminalKind = "success" | "failure" | "cancelled";
+
+/**
+ * MR4 projected terminal lane target (pure presentation value). `none` is the
+ * absence of a terminal lane; `terminal` carries only the typed presentation
+ * kind. There is deliberately no trace, message, or retention here: trace
+ * identity and retention belong to the owning Presentation (the center
+ * overlay state machine), and this target is a disposable renderer input.
+ */
+export type DotFieldTerminalTarget =
+  | { kind: "none" }
+  | { kind: "terminal"; status: DotFieldTerminalKind };
+
+/** Convergence snap tolerance for the reveal level (occupancy units). */
+export const DOT_TERMINAL_REVEAL_SNAP = 0.004;
+/** Per-frame convergence toward the fully revealed level. */
+export const DOT_TERMINAL_CONVERGE_RATE = 0.22;
+/** Final material amplitude per terminal kind (bounded 0..1, ack-tone). */
+export const DOT_TERMINAL_AMPLITUDE: Record<DotFieldTerminalKind, number> = {
+  success: 0.16,
+  failure: 0.26,
+  cancelled: 0.13,
+};
+/** Bloom radius in normalized surface units for failure/cancelled. */
+export const DOT_TERMINAL_BLOOM_RADIUS = 0.42;
+
+/**
+ * Deterministic per-dot terminal brightness 0..1 for one kind at the CURRENT
+ * rendered reveal level (`level` is 0..1; the runtime seeds it at 1 directly
+ * under Reduced Motion). Success uses the ordered frontier vocabulary; failure
+ * and cancelled use a centered radial bloom. Boundary attenuation is applied
+ * downstream by `resolveDotColor`, exactly like the progress material.
+ */
+export const resolveTerminalDotLevel = (
+  dot: DotGridPoint,
+  dotIndex: number,
+  dotCount: number,
+  kind: DotFieldTerminalKind,
+  level: number,
+): number => {
+  if (!Number.isFinite(dotCount) || dotCount <= 0) {
+    return 0;
+  }
+  const amplitude = DOT_TERMINAL_AMPLITUDE[kind];
+  const reveal = clamp01(level);
+  if (kind === "success") {
+    if (!Number.isInteger(dotIndex) || dotIndex < 0 || dotIndex >= dotCount) {
+      return 0;
+    }
+    const occupied = reveal * dotCount;
+    const full = Math.floor(occupied);
+    if (dotIndex < full) {
+      return amplitude;
+    }
+    if (dotIndex === full) {
+      return amplitude * (occupied - full);
+    }
+    return 0;
+  }
+  if (!dot || !Number.isFinite(dot.u) || !Number.isFinite(dot.v)) {
+    return 0;
+  }
+  const du = Math.abs(dot.u - 0.5);
+  const dv = Math.abs(dot.v - 0.5);
+  const radius = DOT_TERMINAL_BLOOM_RADIUS;
+  return amplitude * reveal * Math.exp(
+    -(du * du + dv * dv) / (2 * radius * radius),
   );
 };
 

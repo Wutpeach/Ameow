@@ -5,6 +5,7 @@ import {
   type DotFieldBaseline,
   type DotFieldIntentKind,
   type DotFieldProgressTarget,
+  type DotFieldTerminalTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 import {
@@ -26,6 +27,13 @@ export type DotFieldCanvasProps = {
    * convergence/occupancy rendering.
    */
   progress: DotFieldProgressTarget;
+  /**
+   * MR4 projected terminal lane target (pure presentation value). The host
+   * publishes it as a coarse baseline input; the runtime seeds one bounded
+   * priority lane, superseded by any progress target. Retention is owned by
+   * the publishing Presentation, never by the runtime.
+   */
+  terminal: DotFieldTerminalTarget;
   /** Latest discrete local intent; keyed so repeated intents re-trigger. */
   intent: { key: number; kind: DotFieldIntentKind; origin: DotOrigin } | null;
 };
@@ -59,6 +67,7 @@ export function DotFieldCanvas({
   dormantColor,
   ackColor,
   progress,
+  terminal,
   intent,
 }: DotFieldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -98,11 +107,12 @@ export function DotFieldCanvas({
   // (settled state redraws once at the new scale; a mid-transient applies on
   // the next frame). The listener below re-arms against the revised dpr, so
   // one scale change causes exactly one revision — no revision loop.
-  // The progress target enters through a value signature so App render
-  // identity churn is a no-op (the runtime value-compares anyway).
+  // The progress/terminal targets enter through value signatures so App
+  // render identity churn is a no-op (the runtime value-compares anyway).
   const progressSignature = progress.kind === "idle"
     ? "idle"
     : `${progress.kind}:${progress.traceId}:${progress.kind === "determinate" ? progress.target : ""}`;
+  const terminalSignature = terminal.kind === "none" ? "none" : `terminal:${terminal.kind}`;
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (runtime === null) {
@@ -122,6 +132,7 @@ export function DotFieldCanvas({
       ack: ackColor,
       reducedMotion,
       progress,
+      terminal,
     };
     runtime.setBaseline(baseline);
     if (eligible) {
@@ -130,7 +141,7 @@ export function DotFieldCanvas({
       runtime.sleep();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, eligible, reducedMotion, dormantColor, ackColor, dprEpoch, progressSignature]);
+  }, [size, eligible, reducedMotion, dormantColor, ackColor, dprEpoch, progressSignature, terminalSignature]);
 
   // Live DPR revision: the resolution media query for the CURRENT bounded dpr
   // fires `change` when the OS display scale crosses it (Windows scaling,

@@ -621,6 +621,11 @@ const MR0_MOTION_LEAF_MODULES = [
   // It imports Download types type-only (erased at compile time) and never
   // dispatches, reduces, cancels, or writes lifecycle/native state.
   "src/presentation/main-window/downloadProgressProjection.ts",
+  // MR4 Terminal Reveal: the pure center-outcome Presentation -> Dot Field
+  // terminal lane projection. It imports center-overlay types type-only
+  // (erased at compile time) and never classifies, dispatches, reduces,
+  // cancels, retains, or writes lifecycle/native state.
+  "src/presentation/main-window/downloadTerminalProjection.ts",
   // MR2 Compact Flat Blob Cat: pure geometry/attention projection + the
   // consumer-local blink timer. The SVG host (CompactCatCharacter.tsx) is NOT
   // in this list: it is a DOM boundary like DotFieldCanvas (it reads
@@ -754,6 +759,19 @@ describe("MR0 renderer-local motion guard", () => {
     expect(
       authorityPattern.test(source),
       "downloadProgressProjection must contain no dispatch/reduce/cancel/lifecycle/native/React-state authority vocabulary",
+    ).toBe(false);
+  });
+
+  it("keeps the MR4 terminal projection free of authority vocabulary", () => {
+    const projectionFile = path.join(
+      repoRoot,
+      "src/presentation/main-window/downloadTerminalProjection.ts",
+    );
+    const source = readFileSync(projectionFile, "utf8");
+    const authorityPattern = /dispatch|reduceDownload|\.cancel\(|setState|requestFull|ipcRenderer|ipcMain|\.invoke\(/;
+    expect(
+      authorityPattern.test(source),
+      "downloadTerminalProjection must contain no classify/dispatch/reduce/cancel/lifecycle/native/React-state authority vocabulary",
     ).toBe(false);
   });
 

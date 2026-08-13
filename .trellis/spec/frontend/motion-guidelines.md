@@ -891,3 +891,154 @@ dispatch({ type: "setProgress", target }); // authority write from motion
 if (next.kind === "indeterminate" && traceChanged) progressLevel = 0;
 progressLevel = clamp(level + (target - level) * RATE, 0, target); // never overstates
 ```
+
+## Scenario: MR4 Terminal Reveal Consumer
+
+### 1. Scope / Trigger
+
+This contract applies to the MR4 Download-only Terminal Reveal:
+`src/presentation/main-window/downloadTerminalProjection.ts` (pure
+center-outcome Presentation -> Dot Field lane projection), the terminal
+extension of `dotFieldRecipe.ts` / `dotFieldRuntime.ts` (one bounded priority
+lane), and their Surface wiring. It reuses the MR1 single Canvas/rAF runtime
+and the MR3 progress baseline; it adds no second canvas, generic animator,
+shared scheduler, state-machine framework, dependency, or central outcome
+rewrite. Intake Reveal, Folder Confirmation, Transcode Reveal, and
+terminal-not-compact repair remain out of scope.
+
+### 2. Signatures
+
+Data path:
+
+```text
+Download feature classifies the FIRST terminal transition (typed outcome)
+  -> Download reducer removes/tombstones the trace (MR3 projection -> next/idle);
+     terminal listeners receive (outcome, postReductionState) — the exact
+     controller state captured synchronously AFTER the reduction, so no React
+     commit timing or ref snapshot can lag it (read-only, never mutated)
+  -> App decides visibility from that snapshot (background terminal while
+     another primary Download remains -> suppress; none remains -> show)
+  -> App center outcome state machine (one bounded Presentation slot, requestId,
+     origin: "terminal" for typed terminals only; generic enqueue/command
+     failures and image/file/transcode outcomes default origin "foreground")
+  -> resolveDotFieldTerminalTarget(overlay, primaryDownloadTask)  // pure, no authority writes
+  -> DotFieldTerminalTarget (none | terminal(success|failure|cancelled))
+  -> Dot Field runtime terminal lane (renderer-local reveal level 0..1)
+  -> pixels
+```
+
+```ts
+type DotFieldTerminalTarget =
+  | { kind: "none" }
+  | { kind: "terminal"; status: "success" | "failure" | "cancelled" };
+```
+
+The center DOM overlay (icon + message + diagnostic copy) remains the
+accessible semantic carrier; the lane is ack-tone decorative presence only.
+
+### 3. Contracts
+
+- Terminal authority -> read-only projection: the projection reuses the
+  already-classified center outcome status; it never classifies, retains a
+  trace, or writes Product/lifecycle/native state (type-only center-overlay
+  imports, enforced by import-guard).
+- Interruption is Download-only: a current primary DOWNLOAD projects `none`
+  immediately and the runtime clears the lane the moment a progress target
+  arrives. A Transcode primary is NOT an MR4 interruption rule — the center
+  overlay selector (`selectCenterOverlayVisual`) may visually prioritize
+  Transcode independently, but MR4 projection/tests/spec never claim
+  Transcode semantics. A background terminal while a primary Download exists
+  is suppressed from the controller's EXACT post-reduction snapshot (the
+  terminal's own trace is already pruned, so any remaining primary is
+  necessarily "another" download). Invalidation is state+timer+lock, not just
+  canvas suppression: a NEW current primary Download dismisses the previous
+  typed terminal Presentation and its retention timer (via the existing
+  `dismissTransient` primitive) immediately, pre-first-progress included,
+  releasing the `centerOutcome` lock; the authoritative typed terminal fact
+  in the Download queue state is untouched, and requestId generation guards
+  make the dismissed timer a stale no-op.
+- Typed-origin discriminator, never inferred: only outcomes carrying
+  `source: "download"` AND `origin: "terminal"` (set by App ONLY from an
+  already-classified Download terminal transition) project to the lane or are
+  invalidated by a new primary Download. Generic download-sourced outcomes —
+  enqueue/command failures, image/file tasks defaulting to source
+  "download" — stay on their existing presentation paths and never seed or
+  invalidate the MR4 lane.
+- Download-only sourcing: transcode/image/folder outcomes stay on their
+  existing presentation paths and never seed the lane.
+- Single bounded lane: one kind slot; a kind change replaces it (no FIFO);
+  same-kind re-application keeps the running reveal (no restart); the lane
+  renders exactly while the projected target is present.
+- Retention is owned by the publishing Presentation (the center overlay
+  requestId/timer policy), never by the runtime: no rAF/timer/completion
+  callback starts, extends, or finishes the retention deadline.
+- Reduced Motion: the lane seeds at the fully revealed semantic level
+  directly (zero frames, no travel); a mid-flight flip resolves immediately;
+  outcome identity, message, and diagnostic action stay in the DOM carrier.
+- Interruption: sleep/dispose clear the lane; wake reconstructs from the
+  current projection; late callbacks are stale no-ops.
+- Acknowledgement transients are absorbed while the lane is active
+  (terminal-priority per the MR0 composition contract).
+- Frame budget: one pending rAF max; a converged lane holds statically with
+  ZERO pending frames; idle/sleep/dispose hold zero.
+- No completion authority: terminal motion never writes lifecycle, Product,
+  or native state; the `centerOutcome` lock is projected by App presentation
+  state only, and the `task` lock comes from Product task facts only.
+
+### 4. Validation / Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| typed success / failure / cancelled outcome | three distinct lane materials + distinct center icons/tone |
+| current primary DOWNLOAD exists while a terminal is stored | lane none immediately; old retention cannot re-lock or replay |
+| Transcode primary with a stored terminal | no MR4 interruption rule; the center overlay may prioritize Transcode visually; the lane follows the Download-only projection |
+| background terminal while a primary Download exists | suppressed from the exact post-reduction snapshot; current progress/cancel affordance unchanged |
+| generic download enqueue/command failure | center overlay shows the failure as before; the MR4 lane NEVER projects it |
+| synchronous progress/queue events before a terminal | all present in the listener snapshot; no stale React ref can miss them |
+| retention expiry | projected target removed -> lane clears, field settles to current baseline |
+| kind change while retained | one slot replaced; no FIFO; no restart for same kind |
+| reduced motion active | semantic target available immediately; static material; zero frames |
+| mid-flight reduced flip | lane resolves to final level without travel |
+| click/context during terminal | absorbed; nothing scheduled or replayed |
+| sleep / dispose / re-entry | lane cleared; wake reconstructs from the current projection |
+| progress target arrives mid-reveal | lane superseded at once; progress convergence only |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a terminal arrives while the window is compact; the semantic outcome
+  and retention are owned by the overlay; on re-expansion the lane
+  reconstructs from the current projection and renders only for the
+  remaining retention.
+- Base: a converged terminal lane holds statically with zero pending frames
+  until the Presentation removes the target.
+- Bad: holding a terminal in the runtime past the Presentation deadline;
+  letting a lane replay after a newer task arrived; deriving terminal kind
+  from progress disappearance, timers, or animation completion; seeding the
+  lane from transcode/image/folder outcomes.
+
+### 6. Tests Required
+
+- `downloadTerminalProjection.test.ts`: three-way mapping, loading/visible
+  phases, source filter, primary-DOWNLOAD invalidation (Transcode is not an
+  MR4 rule), origin discriminator (generic enqueue/command outcomes never
+  project), pure current-state, background-terminal suppression and primary
+  invalidation decisions (download-only, terminal-origin only;
+  transcode/image/folder untouched).
+- `useDownloadQueue.test.ts`: controller terminal-notification seam — the
+  listener receives the exact post-reduction snapshot; background terminal
+  while another primary remains is suppressed, a sole terminal is shown, and
+  synchronous progress/queue changes before a terminal are all reflected in
+  the snapshot (no React commit timing involved).
+- `dotFieldRecipe.test.ts`: terminal material bounds (success occupancy,
+  failure/cancelled bloom), monotonicity, kind amplitude ordering, invalid
+  input guards.
+- `dotFieldRuntime.test.ts`: seed/converge/hold, removal settle, kind
+  replace, same-kind no-restart, reduced snap, mid-flight reduced flip,
+  progress supersede, intent absorption, sleep/wake reconstruction,
+  dispose staleness, one-frame budget.
+- `dotFieldPerfValidation.test.ts`: peak pending rAF <= 1 and rest pending
+  rAF = 0 across reveal/absorb/supersede/reduced/removal scenarios.
+- `src/architecture/import-guard.test.ts`: the projection stays a leaf with
+  no authority vocabulary.
+- `src/architecture/windows-risk-path.test.ts`: the terminal-not-compact
+  chain stays pinned (MR4 does not repair it).

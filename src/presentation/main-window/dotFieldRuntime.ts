@@ -23,6 +23,12 @@
 //     field smoothly while the new wave adds locally at its own origin.
 //     Intents are dropped while sleeping/disposed so nothing replays after
 //     re-expansion.
+//   - terminal baseline (MR4): a projected terminal target seeds one bounded
+//     priority lane (reveal level 0 -> 1, or 1 directly under Reduced
+//     Motion), absorbs acknowledgement transients, renders exactly while the
+//     projected target is present, and is superseded/cleared by any arriving
+//     progress target, sleep, or dispose. Retention is NOT owned here: the
+//     owning Presentation's deadline removes the projected target.
 //   - sleep(): eligibility exit; invalidates the generation, cancels the
 //     frame, clears the intent and peaks, and sleeps without poisoning the
 //     mounted surface.
@@ -38,6 +44,8 @@ import {
   DOT_PROGRESS_CONVERGE_RATE,
   DOT_PROGRESS_SNAP,
   DOT_RADIUS,
+  DOT_TERMINAL_CONVERGE_RATE,
+  DOT_TERMINAL_REVEAL_SNAP,
   resolveDotColor,
   resolveDotEdgeFactor,
   resolveDotFieldGrid,
@@ -46,16 +54,29 @@ import {
   resolveDotResponseFront,
   resolveDotResponseStrength,
   resolveDotTransientDuration,
+  resolveTerminalDotLevel,
   type DotFieldBaseline,
   type DotFieldGrid,
   type DotFieldIntent,
   type DotFieldProgressTarget,
+  type DotFieldTerminalKind,
+  type DotFieldTerminalTarget,
   type DotOrigin,
 } from "./dotFieldRecipe";
 
 const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
 
 const IDLE_PROGRESS: DotFieldProgressTarget = { kind: "idle" };
+const NO_TERMINAL: DotFieldTerminalTarget = { kind: "none" };
+
+const terminalEquals = (
+  a: DotFieldTerminalTarget,
+  b: DotFieldTerminalTarget,
+): boolean => (
+  a.kind === "none" || b.kind === "none"
+    ? a.kind === "none" && b.kind === "none"
+    : a.status === b.status
+);
 
 const progressEquals = (
   a: DotFieldProgressTarget,
@@ -83,6 +104,7 @@ const baselineEquals = (a: DotFieldBaseline, b: DotFieldBaseline): boolean => (
   && a.ack === b.ack
   && a.reducedMotion === b.reducedMotion
   && progressEquals(a.progress ?? IDLE_PROGRESS, b.progress ?? IDLE_PROGRESS)
+  && terminalEquals(a.terminal ?? NO_TERMINAL, b.terminal ?? NO_TERMINAL)
 );
 
 const targetLevelOf = (target: DotFieldProgressTarget): number => (
@@ -116,6 +138,8 @@ export type DotFieldRuntimeHandle = {
   getPeakAt: (dotIndex: number) => number;
   getProgressTarget: () => DotFieldProgressTarget;
   getProgressLevel: () => number;
+  getTerminalTarget: () => DotFieldTerminalTarget;
+  getTerminalLevel: () => number;
 };
 
 const EMPTY_GRID: DotFieldGrid = { points: [], step: 0 };
@@ -159,6 +183,15 @@ export const createDotFieldRuntime = (dependencies: {
   let progressPhase = 0;
   let lastProgressDrawAt = 0;
   let lastFrameAt = 0;
+  // MR4 terminal lane: one bounded priority slot. `terminalLane` is the
+  // active kind; `terminalLevel` is the CURRENT rendered reveal level 0..1.
+  // Both are renderer-local and reconstructible from the current projection;
+  // the lane is superseded by any progress target and cleared by
+  // sleep/dispose. No retention or trace lives here — retention is the owning
+  // Presentation's deadline, so the lane renders exactly while the projected
+  // target is present.
+  let terminalLane: DotFieldTerminalKind | null = null;
+  let terminalLevel = 0;
 
   const rebuildGrid = (size: number): void => {
     grid = resolveDotFieldGrid(size);
@@ -186,14 +219,41 @@ export const createDotFieldRuntime = (dependencies: {
     baseline.reducedMotion,
   );
 
+  /**
+   * MR4 terminal brightness at one dot: the current rendered reveal level of
+   * the active lane kind, or 0 when no lane is active. Reduced Motion seeds
+   * the level at 1, so the recipe needs no motion input of its own.
+   */
+  const terminalAt = (dotIndex: number): number => (
+    terminalLane === null
+      ? 0
+      : resolveTerminalDotLevel(
+          grid.points[dotIndex],
+          dotIndex,
+          grid.points.length,
+          terminalLane,
+          terminalLevel,
+        )
+  );
+
+  /**
+   * Base lane selection: the current task's progress lane wins whenever it is
+   * active; otherwise the MR4 terminal lane renders. The projection never
+   * sends both, and this defensive order keeps current-task information ahead
+   * of a stale terminal target even if inputs race.
+   */
+  const laneAt = (dotIndex: number): number => (
+    progressTarget.kind === "idle" ? terminalAt(dotIndex) : progressAt(dotIndex)
+  );
+
   const drawDots = (transientAt: (dotIndex: number) => number): void => {
     draw.clear();
     const { dormant, ack } = baseline;
     for (let index = 0; index < grid.points.length; index += 1) {
       const base = bases[index];
-      const progress = progressAt(index);
+      const lane = laneAt(index);
       const transient = transientAt(index);
-      if (base <= 0 && progress <= 0 && transient <= 0) {
+      if (base <= 0 && lane <= 0 && transient <= 0) {
         continue;
       }
       const point = grid.points[index];
@@ -201,7 +261,7 @@ export const createDotFieldRuntime = (dependencies: {
         point.x,
         point.y,
         DOT_RADIUS,
-        resolveDotColor(dormant, ack, progress + transient, base),
+        resolveDotColor(dormant, ack, lane + transient, base),
       );
     }
   };
@@ -298,10 +358,20 @@ export const createDotFieldRuntime = (dependencies: {
       progressPhase = (progressPhase + elapsed / DOT_INDETERMINATE_PERIOD_MS) % 1;
       progressActive = true;
     }
+    // MR4 terminal step: converge the reveal level toward 1 (bounded; a
+    // converged lane holds statically with zero pending frames).
+    let terminalActive = false;
+    if (terminalLane !== null && Math.abs(1 - terminalLevel) > DOT_TERMINAL_REVEAL_SNAP) {
+      terminalLevel += (1 - terminalLevel) * DOT_TERMINAL_CONVERGE_RATE;
+      if (Math.abs(1 - terminalLevel) <= DOT_TERMINAL_REVEAL_SNAP) {
+        terminalLevel = 1;
+      }
+      terminalActive = Math.abs(1 - terminalLevel) > DOT_TERMINAL_REVEAL_SNAP;
+    }
     lastFrameAt = frameNow;
 
     const hasTransient = intent !== null || residual !== null;
-    if (!hasTransient && !progressActive) {
+    if (!hasTransient && !progressActive && !terminalActive) {
       drawSettled();
       return;
     }
@@ -355,10 +425,14 @@ export const createDotFieldRuntime = (dependencies: {
     progressTarget = baseline.progress ?? IDLE_PROGRESS;
     progressLevel = targetLevelOf(progressTarget);
     progressPhase = 0;
+    // MR4 wake: reconstruct the terminal lane from the current projection
+    // (seeds under idle progress; cleared by any progress target).
+    applyTerminalTarget(baseline.terminal ?? NO_TERMINAL);
     lastFrameAt = now();
     state = "awake";
     drawSettled();
-    if (progressTarget.kind === "indeterminate" && !baseline.reducedMotion) {
+    const terminalNeedsFrames = terminalConverging();
+    if ((progressTarget.kind === "indeterminate" && !baseline.reducedMotion) || terminalNeedsFrames) {
       scheduleNextFrame();
     }
   };
@@ -405,33 +479,50 @@ export const createDotFieldRuntime = (dependencies: {
     // the target did not change; identity churn from App renders is a no-op
     // because `baselineEquals` above already rejected equal values.
     applyProgressTarget(baseline.progress ?? IDLE_PROGRESS);
+    // MR4 terminal transition: a projected terminal target seeds the lane
+    // only while progress is idle; any progress target clears it (progress
+    // is applied first, so the progress supersede rule wins on any
+    // conflicting input).
+    applyTerminalTarget(baseline.terminal ?? NO_TERMINAL);
 
     if (state !== "awake" || intent !== null || residual !== null) {
       return;
     }
     drawSettled();
-    // When progress work stops (idle, Reduced Motion, or a converged target)
-    // while no transient is live, the only pending frame can be a progress
-    // frame — cancel it so work stops immediately rather than after one
-    // stale frame.
-    const progressNeedsFrames =
-      (progressTarget.kind === "indeterminate" && !baseline.reducedMotion)
-      || (
-        progressTarget.kind === "determinate"
-        && !baseline.reducedMotion
-        && Math.abs(targetLevelOf(progressTarget) - progressLevel) > DOT_PROGRESS_SNAP
-      );
-    if (!progressNeedsFrames && frameHandle !== null) {
+    // When no lane needs work (idle, Reduced Motion, or a converged target)
+    // while no transient is live, the only pending frame can be a lane frame
+    // — cancel it so work stops immediately rather than after one stale
+    // frame.
+    const needsFrames = progressNeedsFrames() || terminalConverging();
+    if (!needsFrames && frameHandle !== null) {
       cancelFrame(frameHandle);
       frameHandle = null;
     }
-    if (progressNeedsFrames) {
+    if (needsFrames) {
       if (progressTarget.kind === "indeterminate") {
         lastFrameAt = now();
       }
       scheduleNextFrame();
     }
   };
+
+  /** True while the progress lane needs a frame (determinate converging or
+   *  normal-motion indeterminate sweep). */
+  const progressNeedsFrames = (): boolean => (
+    (progressTarget.kind === "indeterminate" && !baseline.reducedMotion)
+    || (
+      progressTarget.kind === "determinate"
+      && !baseline.reducedMotion
+      && Math.abs(targetLevelOf(progressTarget) - progressLevel) > DOT_PROGRESS_SNAP
+    )
+  );
+
+  /** True while the MR4 terminal reveal level is still converging. */
+  const terminalConverging = (): boolean => (
+    terminalLane !== null
+    && !baseline.reducedMotion
+    && Math.abs(1 - terminalLevel) > DOT_TERMINAL_REVEAL_SNAP
+  );
 
   /**
    * Applies a projected progress target to the local rendered state.
@@ -457,6 +548,12 @@ export const createDotFieldRuntime = (dependencies: {
     const nextTrace = next.kind === "idle" ? null : next.traceId;
     const traceChanged = prevKind !== "idle" && nextKind !== "idle" && prevTrace !== nextTrace;
     progressTarget = next;
+    // MR4 current-task rule: any active progress lane supersedes and clears
+    // the terminal lane immediately — the field must never keep showing a
+    // stale completion over current task information.
+    if (nextKind !== "idle") {
+      terminalLane = null;
+    }
     if (nextKind === "idle") {
       progressLevel = 0;
       return;
@@ -484,8 +581,53 @@ export const createDotFieldRuntime = (dependencies: {
     }
   };
 
+  /**
+   * Applies a projected MR4 terminal target to the local rendered state.
+   *
+   * - none: clear the lane; the field reconverges to the current baseline.
+   * - terminal while a progress lane is active: ignored (progress wins; the
+   *   projection never sends this, the guard is defensive).
+   * - terminal with no lane: seed the reveal from the current condition
+   *   (level 0, or 1 directly under Reduced Motion), superseding any
+   *   acknowledgement transients (they are absorbed, not queued).
+   * - same kind re-application: keep the running reveal (no restart); a kind
+   *   change replaces the lane in the one bounded slot (no FIFO).
+   */
+  const applyTerminalTarget = (next: DotFieldTerminalTarget): void => {
+    if (progressTarget.kind !== "idle") {
+      terminalLane = null;
+      return;
+    }
+    if (next.kind === "none") {
+      terminalLane = null;
+      return;
+    }
+    if (terminalLane !== null && terminalLane === next.status) {
+      // Same-kind re-application keeps the running reveal, but a mid-flight
+      // Reduced Motion flip resolves the lane to the final semantic level
+      // immediately (no travel, no restart).
+      if (baseline.reducedMotion) {
+        terminalLevel = 1;
+      }
+      return;
+    }
+    terminalLane = next.status;
+    terminalLevel = baseline.reducedMotion ? 1 : 0;
+    // Terminal supersedes lower-priority transient work from the current
+    // visual condition: the acknowledgement slot and residual are absorbed.
+    intent = null;
+    peaks.fill(0);
+    residual = null;
+  };
+
   const submitIntent = (nextIntent: DotFieldIntent): void => {
     if (state !== "awake") {
+      return;
+    }
+    // MR4: acknowledgement transients are absorbed while the terminal lane is
+    // active — the terminal target suppresses lower-priority work and is
+    // never queued behind it.
+    if (terminalLane !== null) {
       return;
     }
     const size = baseline.size;
@@ -544,6 +686,7 @@ export const createDotFieldRuntime = (dependencies: {
     intent = null;
     peaks.fill(0);
     residual = null;
+    terminalLane = null;
     state = "sleeping";
   };
 
@@ -558,6 +701,7 @@ export const createDotFieldRuntime = (dependencies: {
     }
     intent = null;
     residual = null;
+    terminalLane = null;
     grid = EMPTY_GRID;
     bases = new Float32Array(0);
     peaks = new Float32Array(0);
@@ -584,5 +728,9 @@ export const createDotFieldRuntime = (dependencies: {
     },
     getProgressTarget: () => progressTarget,
     getProgressLevel: () => progressLevel,
+    getTerminalTarget: () => (
+      terminalLane === null ? NO_TERMINAL : { kind: "terminal", status: terminalLane }
+    ),
+    getTerminalLevel: () => terminalLevel,
   };
 };

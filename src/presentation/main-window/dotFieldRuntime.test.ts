@@ -6,6 +6,7 @@ import {
   type DotFieldBaseline,
   type DotFieldIntent,
   type DotFieldProgressTarget,
+  type DotFieldTerminalTarget,
 } from "./dotFieldRecipe";
 import { createDotFieldRuntime } from "./dotFieldRuntime";
 
@@ -909,6 +910,208 @@ describe("Dot Field runtime: MR3 progress baseline", () => {
     runtime.setBaseline(withProgress(determinate(0.5)));
     runtime.setBaseline({ ...BLACK_MATERIAL, progress: { kind: "determinate", traceId: "trace-1", target: 0.5 } });
     expect(recording.getClears()).toBe(clearsBefore);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+});
+
+describe("Dot Field runtime: MR4 terminal lane", () => {
+  const terminal = (status: "success" | "failure" | "cancelled"): DotFieldTerminalTarget => (
+    { kind: "terminal", status }
+  );
+  const withTerminal = (lane: DotFieldTerminalTarget): DotFieldBaseline => ({
+    ...BLACK_MATERIAL,
+    terminal: lane,
+  });
+
+  it("wakes onto a projected terminal target and converges the reveal 0 -> 1, then holds zero frames", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("success")));
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "terminal", status: "success" });
+    // Seeded at 0: reveal is still converging, so a frame is scheduled.
+    expect(runtime.getPendingFrameCount()).toBe(1);
+    let maxPending = 0;
+    let frames = 0;
+    while (runtime.getPendingFrameCount() > 0 && frames < 300) {
+      scheduler.flush(16);
+      frames += 1;
+      maxPending = Math.max(maxPending, runtime.getPendingFrameCount());
+    }
+    expect(maxPending).toBeLessThanOrEqual(1);
+    expect(frames).toBeGreaterThan(1);
+    expect(runtime.getTerminalLevel()).toBe(1);
+    // Converged lane holds statically: zero pending frames.
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    expect(scheduler.countPending()).toBe(0);
+    // The completed success lane is legible above the dormant material but
+    // restrained (low ack-tone amplitude, edge-attenuated at this dot).
+    const completedAlpha = alphaNear(recording.getLastFrame(), 33.33, 33.33);
+    expect(completedAlpha).toBeGreaterThan(0.17);
+    expect(completedAlpha).toBeLessThan(0.5);
+  });
+
+  it("terminal target removal settles the lane back to the current baseline", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("failure")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getTerminalLevel()).toBe(1);
+    recording.reset();
+    // The owning Presentation removes the target (retention expiry): the lane
+    // clears and the field redraws the dormant baseline with zero frames.
+    runtime.setBaseline(withTerminal({ kind: "none" }));
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    expect(alphaNear(recording.getLastFrame(), 100, 100)).toBeLessThan(0.2);
+  });
+
+  it("a kind change replaces the one bounded slot; same-kind re-application does not restart", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("success")));
+    scheduler.flush(16);
+    const levelAfterFirst = runtime.getTerminalLevel();
+    // Same kind re-application (render identity churn with equal value) is a
+    // baselineEquals no-op; a kind change replaces the lane in place.
+    runtime.setBaseline(withTerminal(terminal("success")));
+    expect(runtime.getTerminalLevel()).toBe(levelAfterFirst);
+    runtime.setBaseline(withTerminal(terminal("failure")));
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "terminal", status: "failure" });
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getTerminalLevel()).toBe(1);
+  });
+
+  it("reduced motion seeds the fully revealed semantic target directly with zero frames", () => {
+    const { recording, runtime } = createHarness();
+    runtime.wake({
+      ...BLACK_MATERIAL,
+      reducedMotion: true,
+      terminal: terminal("cancelled"),
+    });
+    expect(runtime.getTerminalLevel()).toBe(1);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    // Static material is visible immediately: center bloom present.
+    expect(alphaNear(recording.getLastFrame(), 100, 100)).toBeGreaterThan(0.2);
+  });
+
+  it("a mid-flight reduced-motion flip resolves the lane to the semantic target without travel", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("failure")));
+    scheduler.flush(16);
+    expect(runtime.getTerminalLevel()).toBeLessThan(1);
+    runtime.setBaseline({ ...BLACK_MATERIAL, reducedMotion: true, terminal: terminal("failure") });
+    expect(runtime.getTerminalLevel()).toBe(1);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    scheduler.flush(16);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("any progress target supersedes and clears the terminal lane immediately", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("success")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // A current primary task arrives: its progress lane wins at once — the
+    // stale completion is invalidated, not hidden.
+    runtime.setBaseline({
+      ...BLACK_MATERIAL,
+      terminal: terminal("success"),
+      progress: { kind: "determinate", traceId: "trace-next", target: 0.4 },
+    });
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    expect(runtime.getProgressTarget()).toEqual({ kind: "determinate", traceId: "trace-next", target: 0.4 });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("terminal does not seed while a progress lane is active (defensive projection guard)", () => {
+    const { runtime } = createHarness();
+    runtime.wake({
+      ...BLACK_MATERIAL,
+      progress: { kind: "determinate", traceId: "trace-next", target: 0.5 },
+      terminal: terminal("failure"),
+    });
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("acknowledgement intents are absorbed while the terminal lane is active", () => {
+    const { scheduler, recording, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("failure")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // The converged lane holds with zero frames. An absorbed intent must not
+    // schedule work, seed peaks, or replay after the lane ends.
+    recording.reset();
+    const dotsBefore = recording.getDots().length;
+    runtime.submitIntent(CENTER_INTENT);
+    expect(runtime.getActiveIntent()).toBeNull();
+    expect(runtime.getPeakAt(0)).toBe(0);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    scheduler.flush(16);
+    expect(recording.getDots().length).toBe(dotsBefore);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("sleep clears the lane and wake reconstructs from the current projection", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("cancelled")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    runtime.sleep();
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    // Re-entry with the same projected target reconstructs the lane.
+    runtime.wake(withTerminal(terminal("cancelled")));
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "terminal", status: "cancelled" });
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    expect(runtime.getTerminalLevel()).toBe(1);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("dispose clears the lane permanently and late baselines are stale no-ops", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("success")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    runtime.dispose();
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    expect(runtime.getPendingFrameCount()).toBe(0);
+    runtime.setBaseline(withTerminal(terminal("failure")));
+    runtime.wake(withTerminal(terminal("failure")));
+    expect(runtime.getTerminalTarget()).toEqual({ kind: "none" });
+    scheduler.flush(16);
+    expect(runtime.getPendingFrameCount()).toBe(0);
+  });
+
+  it("terminal + converging progress share the one-frame budget", () => {
+    const { scheduler, runtime } = createHarness();
+    runtime.wake(withTerminal(terminal("success")));
+    while (runtime.getPendingFrameCount() > 0) {
+      scheduler.flush(16);
+    }
+    // Progress arrives and immediately supersedes the lane; both transitions
+    // never schedule more than one pending frame at a time.
+    runtime.setBaseline({
+      ...BLACK_MATERIAL,
+      terminal: terminal("success"),
+      progress: { kind: "determinate", traceId: "trace-next", target: 0.9 },
+    });
+    let maxPending = 0;
+    let frames = 0;
+    while (runtime.getPendingFrameCount() > 0 && frames < 300) {
+      scheduler.flush(16);
+      frames += 1;
+      maxPending = Math.max(maxPending, runtime.getPendingFrameCount());
+    }
+    expect(maxPending).toBeLessThanOrEqual(1);
+    expect(runtime.getProgressLevel()).toBe(0.9);
     expect(runtime.getPendingFrameCount()).toBe(0);
   });
 });

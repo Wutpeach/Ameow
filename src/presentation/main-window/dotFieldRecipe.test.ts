@@ -3,6 +3,7 @@ import {
   DOT_COUNT_MAX,
   DOT_REDUCED_MOTION_DURATION_MS,
   DOT_RESPONSE_RADIUS,
+  DOT_TERMINAL_AMPLITUDE,
   DOT_TRANSIENT_DURATION_MS,
   resolveBoundedDpr,
   resolveDotColor,
@@ -15,6 +16,7 @@ import {
   resolveDotResponseFront,
   resolveDotResponseStrength,
   resolveDotTransientDuration,
+  resolveTerminalDotLevel,
 } from "./dotFieldRecipe";
 
 describe("resolveDotFieldGrid", () => {
@@ -321,5 +323,57 @@ describe("resolveProgressDotLevel (MR3)", () => {
     const corner = resolveProgressDotLevel({ u: 0.02, v: 0.02, x: 4, y: 4 }, 0, 225, INDETERMINATE, 0, 0.1, true);
     expect(corner).toBeLessThan(atPhaseA);
     expect(atPhaseA).toBeLessThanOrEqual(0.3);
+  });
+});
+
+describe("resolveTerminalDotLevel (MR4)", () => {
+  const DOT: { x: number; y: number; u: number; v: number } = { x: 50, y: 50, u: 0.25, v: 0.25 };
+  const CENTER: { x: number; y: number; u: number; v: number } = { x: 100, y: 100, u: 0.5, v: 0.5 };
+  const CORNER: { x: number; y: number; u: number; v: number } = { x: 4, y: 4, u: 0.02, v: 0.02 };
+
+  it("success: ordered occupancy sweep that fills monotonically to the bounded amplitude", () => {
+    // 225 dots; at level 1 the whole grid reads at the success amplitude.
+    expect(resolveTerminalDotLevel(DOT, 0, 225, "success", 0)).toBe(0);
+    expect(resolveTerminalDotLevel(DOT, 0, 225, "success", 1)).toBe(DOT_TERMINAL_AMPLITUDE.success);
+    // Order: rank 0 lights before rank 100; no dot exceeds the amplitude.
+    expect(resolveTerminalDotLevel(DOT, 0, 225, "success", 0.5)).toBe(DOT_TERMINAL_AMPLITUDE.success);
+    expect(resolveTerminalDotLevel(DOT, 120, 225, "success", 0.5)).toBe(0);
+    expect(resolveTerminalDotLevel(DOT, 120, 225, "success", 1)).toBe(DOT_TERMINAL_AMPLITUDE.success);
+  });
+
+  it("success: occupancy is monotone in the rendered reveal level", () => {
+    let previous = 0;
+    for (const level of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
+      const sum = Array.from({ length: 225 }, (_, index) =>
+        resolveTerminalDotLevel(DOT, index, 225, "success", level)).reduce((a, b) => a + b, 0);
+      expect(sum).toBeGreaterThanOrEqual(previous);
+      previous = sum;
+    }
+  });
+
+  it("failure/cancelled: centered radial bloom, no ordered frontier, bounded by kind amplitude", () => {
+    for (const kind of ["failure", "cancelled"] as const) {
+      const centerLevel = resolveTerminalDotLevel(CENTER, 0, 225, kind, 1);
+      const cornerLevel = resolveTerminalDotLevel(CORNER, 0, 225, kind, 1);
+      const zeroLevel = resolveTerminalDotLevel(CENTER, 0, 225, kind, 0);
+      // Centered: center brighter than corner; never exceeds the kind bound.
+      expect(centerLevel).toBeGreaterThan(cornerLevel);
+      expect(centerLevel).toBeLessThanOrEqual(DOT_TERMINAL_AMPLITUDE[kind]);
+      expect(cornerLevel).toBeGreaterThan(0);
+      expect(zeroLevel).toBe(0);
+      // Reveal level scales the bloom monotonically.
+      expect(resolveTerminalDotLevel(CENTER, 0, 225, kind, 0.5))
+        .toBeLessThan(centerLevel);
+    }
+    // Cancelled is quieter than failure: the two kinds stay distinct materials.
+    expect(DOT_TERMINAL_AMPLITUDE.cancelled).toBeLessThan(DOT_TERMINAL_AMPLITUDE.failure);
+  });
+
+  it("clamps and guards invalid inputs", () => {
+    expect(resolveTerminalDotLevel(DOT, -1, 225, "success", 1)).toBe(0);
+    expect(resolveTerminalDotLevel(DOT, 999, 225, "success", 1)).toBe(0);
+    expect(resolveTerminalDotLevel(CENTER, 0, 0, "failure", 1)).toBe(0);
+    expect(resolveTerminalDotLevel(CENTER, 0, 225, "cancelled", 1.5))
+      .toBeLessThanOrEqual(DOT_TERMINAL_AMPLITUDE.cancelled);
   });
 });

@@ -32,7 +32,14 @@ export class DownloadQueueController {
   private state: DownloadQueueState;
   private readonly client: DownloadQueueClient;
   private readonly stateListeners = new Set<(state: DownloadQueueState) => void>();
-  private readonly terminalListeners = new Set<(outcome: DownloadTerminalOutcome) => void>();
+  // Terminal listeners receive (outcome, postReductionState): the read-only
+  // controller state AFTER terminalReceived reduced the authoritative fact,
+  // captured synchronously at the notification boundary. This is exact by
+  // construction — no React commit timing or ref snapshot can lag it — and
+  // the state is never mutated by listeners.
+  private readonly terminalListeners = new Set<
+    (outcome: DownloadTerminalOutcome, postReductionState: DownloadQueueState) => void
+  >();
   /** True only after dispose(); a pre-start controller is still usable. */
   private disposed = false;
   /** Bumped on every start/dispose so stale registrations and action
@@ -60,7 +67,9 @@ export class DownloadQueueController {
     };
   }
 
-  subscribeTerminal(listener: (outcome: DownloadTerminalOutcome) => void): () => void {
+  subscribeTerminal(
+    listener: (outcome: DownloadTerminalOutcome, postReductionState: DownloadQueueState) => void,
+  ): () => void {
     this.terminalListeners.add(listener);
     return () => {
       this.terminalListeners.delete(listener);
@@ -205,7 +214,10 @@ export class DownloadQueueController {
           this.state.cancelling.includes(event.payload.traceId),
         );
         this.dispatch({ type: "terminalReceived", outcome });
-        this.terminalListeners.forEach((listener) => listener(outcome));
+        // Exact post-reduction snapshot: dispatch replaced this.state
+        // synchronously, so listeners see every prior event (progress, queue
+        // detail, earlier terminals) and never a stale React commit.
+        this.terminalListeners.forEach((listener) => listener(outcome, this.state));
         break;
       }
       case "queueCount":
@@ -254,8 +266,12 @@ export function useDownloadQueue(client: DownloadQueueClient) {
   }), [controller]);
 
   const onTerminal = useCallback(
-    (listener: (outcome: DownloadTerminalOutcome) => void) =>
-      controller.subscribeTerminal(listener),
+    (
+      listener: (
+        outcome: DownloadTerminalOutcome,
+        postReductionState: DownloadQueueState,
+      ) => void,
+    ) => controller.subscribeTerminal(listener),
     [controller],
   );
 
