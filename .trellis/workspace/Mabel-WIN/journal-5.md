@@ -1536,3 +1536,24 @@ Moved fallible output settlement before the single diagnostic/product terminal, 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 246: MR1 Expanded Dot Field Substrate
+
+**Date**: 2026-08-13
+**Task**: MR1 Expanded Dot Field Substrate
+**Branch**: `mr1/expanded-dot-field`
+
+### Summary
+
+Implemented the Surface-owned Canvas 2D Expanded Dot Field consumer with bounded latest-replaces retarget, fixed residual continuity, reduced-motion retiming, sleep/wake/dispose generation guards, zero-idle-frame scheduling, architecture guards, automated performance evidence, and Windows Electron smoke evidence. Full suite retains two baseline-identical unrelated failures; manual raster/theme/context/DPR signoff remains pending Architecture Review.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a7ecc53` | (see git log) |
+
+### Status
+
+[OK] **Completed**

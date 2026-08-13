@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 245
-- **Last Active**: 2026-08-11
+- **Total Sessions**: 246
+- **Last Active**: 2026-08-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1538 | Active |
+| `journal-5.md` | ~1559 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 246 | 2026-08-13 | MR1 Expanded Dot Field Substrate | `a7ecc53` | `mr1/expanded-dot-field` |
 | 245 | 2026-08-11 | Unify download terminal authority | `8e79d1a` | `main` |
 | 244 | 2026-08-11 | Complete P6 extension model and observability | `b5b414f` | `main` |
 | 243 | 2026-08-10 | P5 Browser Extension Architecture | `da1640d` | `main` |
