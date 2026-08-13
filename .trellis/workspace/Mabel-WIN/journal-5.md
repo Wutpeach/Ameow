@@ -1536,3 +1536,24 @@ Moved fallible output settlement before the single diagnostic/product terminal, 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 246: MR3 Progress Field implementation
+
+**Date**: 2026-08-13
+**Task**: MR3 Progress Field implementation
+**Branch**: `main`
+
+### Summary
+
+MR3 Progress Field implemented on mr1/expanded-dot-field: pure download->presentation projection (downloadProgressProjection.ts), determinate row-major frontier with no-overstatement clamp and current-condition coalescing, new-trace immediate rebase incl. indeterminate-gap zero seed, indeterminate sweep band / reduced-motion static bloom, additive acknowledgement settle, terminal/removal reconstruct, one pending frame max / zero at idle-settled-sleep-dispose. Spec contract added to motion-guidelines.md. Work commit 73cb29a; validation debt retained: human visual review (both themes, live reduced-motion toggle, mixed-DPR, replacement-while-active), indeterminate in real renderer (no scriptable non-finite-percent scenario), CDP hover expansion unreliable so settled 200x200 idle-without-progress NOT VERIFIED, macOS. No MR4 entered.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `73cb29a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
