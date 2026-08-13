@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 246
+- **Total Sessions**: 247
 - **Last Active**: 2026-08-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1559 | Active |
+| `journal-5.md` | ~1595 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 247 | 2026-08-13 | MR2 Compact Flat Blob Cat Character | `8e626f5` | `mr1/expanded-dot-field` |
 | 246 | 2026-08-13 | MR1 Expanded Dot Field Substrate | `a7ecc53` | `mr1/expanded-dot-field` |
 | 245 | 2026-08-11 | Unify download terminal authority | `8e79d1a` | `main` |
 | 244 | 2026-08-11 | Complete P6 extension model and observability | `b5b414f` | `main` |

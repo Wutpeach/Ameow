@@ -1557,3 +1557,39 @@ Implemented the Surface-owned Canvas 2D Expanded Dot Field consumer with bounded
 ### Status
 
 [OK] **Completed**
+
+
+## Session 247: MR2 Compact Flat Blob Cat Character
+
+**Date**: 2026-08-13
+**Task**: MR2 Compact Flat Blob Cat Character
+**Branch**: `mr1/expanded-dot-field`
+
+### Summary
+
+Implemented and Architecture-approved the compact inline-SVG Flat Blob Cat with bounded read-only Pointer Field attention, deterministic disposable blink lifecycle, Reduced Motion stable-source settling, architecture guards, Windows Electron evidence, and preserved non-blocking manual validation debt.
+
+### Main Changes
+
+- Replaced the legacy compact CatIcon composition with persistent Body, pointed-soft Ears, and capsule Eyes.
+- Kept Pointer Field, lifecycle, Product, and native-window authority boundaries intact while adding the Surface-owned Windows compact adapter and observable neutral reset.
+- Recorded the Motion 12 stable-source Reduced Motion contract and retained macOS, live preference-toggle, white-theme, DPI/monitor-edge, and native-risk validation debt.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8e626f5` | (see git log) |
+
+### Testing
+
+- [OK] Character and architecture guards: 54/54 passed; presentation/native regressions: 164/164 passed.
+- [OK] Type-check, lint, renderer/Electron build, and diff-check passed; full suite 1629/1631 with two unrelated baseline failures.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Wait for GPT Architecture Lead to open a separate MR3 phase; do not enter MR3 automatically.
