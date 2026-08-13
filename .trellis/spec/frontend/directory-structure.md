@@ -95,3 +95,34 @@ src/
 - Single responsibility
 - Props interface defined
 - Uses ThemeContext for theming
+## Motion / Presentation Foundation (MR0)
+
+### Renderer-local motion modules
+
+Renderer-local motion leaves live flat in `src/presentation/main-window/` — one focused module per concern, with a matching `*.test.ts`:
+
+- `lifecycle.ts` — sole full/compact/transition writer (reducer)
+- `projections.ts` — read-only phase/interaction/native projections
+- `effectContracts.ts` / `effectExecutor.ts` — declarative effects and their injected executor
+- `geometry.ts` — spatial policy
+- `motionRecipes.ts` — shell/compact choreography
+- `pointerField.ts` — sole continuous pointer runtime
+- `magnetic.ts` — renderer-only Magnetic consumer
+- `panelHover.ts` / `presentationCompletion.ts` — focused input/completion helpers
+
+There is NO shared runtime hierarchy: no `motion/runtime/`, no `animators/`, no manager/bus directory. Future stages add consumer-local modules the same way:
+
+- MR1 Dot Field: a consumer-local Canvas/rAF module with explicit wake/settle/sleep (no shared engine).
+- MR2 Character: a consumer-local expressive module consuming the Pointer Field values (never a second pointer authority).
+
+### Composition and projection modules
+
+- `src/utils/centerOverlayState.ts` — center presentation policy (request-id guarded transients/terminal opportunity).
+- `src/components/ui/motion.ts` — shared MOTION tokens leaf (easing/duration/presence presets only; no recipe or scheduling logic).
+- Test-only contract vocabulary lives in `src/presentation/main-window/presentationCompositionContract.test.ts`; production types are added only when two real consumers share a data contract.
+
+### Placement rules
+
+- Motion leaves may import: react, `motion/react`, sibling pure helpers, shared token constants.
+- Motion leaves must not import: `src/features/**`, `src/desktop/**`, `electron/**`, lifecycle/pointer authority modules (except the designated Pointer Field consumer), or `centerOverlayState` (guarded by `src/architecture/import-guard.test.ts`).
+- `MainWindowPresentationSurface.tsx` is the single wiring/composition boundary that may touch the desktop runtime and lifecycle shapes.

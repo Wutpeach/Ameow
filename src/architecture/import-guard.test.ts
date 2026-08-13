@@ -577,3 +577,284 @@ describe("P6 concrete engine import guard", () => {
     )).toEqual([]);
   });
 });
+/**
+ * MR0 renderer-local motion guard. The committed M0/M1/M2 renderer-local
+ * motion leaves share one rule set:
+ *   - no runtime imports of Product dispatch (`src/features/`), Main Window
+ *     lifecycle/pointer authority modules, the center-overlay policy module,
+ *     the desktop runtime, `src/electron-runtime`, or Electron;
+ *   - no position/bounds/DOM coordinate reads and no IPC side channels;
+ *   - authority writers stay unique: lifecycle state is reduced only by the
+ *     react adapter, and the Pointer Field is written only by the
+ *     presentation surface (which is also the only file allowed to import the
+ *     writer helpers at runtime).
+ * `MainWindowPresentationSurface` is the wiring/composition boundary: it may
+ * consume authority shapes and the desktop runtime, but it must not import
+ * Product dispatch.
+ *
+ * The Pointer Field is intentionally NOT in the forbidden prefixes below:
+ * `magnetic.ts` (and future Character consumers) legitimately consume the
+ * sole continuous pointer authority at runtime.
+ *
+ * The M3 candidate modules are NOT listed here: the M3 guard above already
+ * restricts their authority imports, and MR0 must not freeze candidate
+ * visual modules under extra rules. Their non-promotion is pinned by the
+ * authority-side test below.
+ */
+
+const MR0_MOTION_LEAF_MODULES = [
+  // Committed M0/M1/M2 renderer-local motion leaves. M3 candidate modules
+  // stay under the M3 guard above, not under MR0 rules.
+  "src/presentation/main-window/pointerField.ts",
+  "src/presentation/main-window/magnetic.ts",
+  "src/presentation/main-window/geometry.ts",
+  "src/presentation/main-window/motionRecipes.ts",
+  "src/presentation/main-window/panelHover.ts",
+];
+
+const MR0_FORBIDDEN_SRC_PREFIXES = [
+  "src/features/",
+  "src/desktop/",
+  "src/electron-runtime/",
+  "src/utils/centerOverlayState.ts",
+  "src/presentation/main-window/lifecycle.ts",
+  "src/presentation/main-window/projections.ts",
+  "src/presentation/main-window/effectContracts.ts",
+  "src/presentation/main-window/effectExecutor.ts",
+];
+
+const MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN = /ipcRenderer|ipcMain|\.invoke\(|\.send\(/;
+
+/** Reuses the M3 position/bounds/DOM-coordinate ban for the MR0 leaf set. */
+const MR0_FORBIDDEN_POSITION_CALL_PATTERN = M3_FORBIDDEN_POSITION_CALL_PATTERN;
+
+/**
+ * Scans one renderer-local motion leaf for runtime imports that would pull
+ * Product dispatch, lifecycle/pointer authority, the center-overlay policy,
+ * the desktop runtime, or Electron into renderer-local motion code. Type-only
+ * imports (erased at compile time) stay allowed.
+ */
+export const collectMotionLeafImportViolations = (
+  source: string,
+  file: string,
+): string[] => {
+  const violations: string[] = [];
+  const typeOnlySpecifiers = new Set(
+    [...source.matchAll(TYPE_ONLY_IMPORT_PATTERN)].map((match) => match[1]),
+  );
+
+  for (const match of source.matchAll(IMPORT_PATTERN)) {
+    const specifier = (match[1] ?? match[2]).trim();
+    if (!specifier || typeOnlySpecifiers.has(specifier)) {
+      continue;
+    }
+
+    if (FORBIDDEN_PACKAGE_PREFIXES.some((prefix) => (
+      specifier === prefix || specifier.startsWith(`${prefix}/`)
+    ))) {
+      violations.push(`${toRepoRelative(file)} imports "${specifier}" (forbidden package)`);
+      continue;
+    }
+
+    const target = resolveSpecifierTarget(file, specifier);
+    if (!target) {
+      continue;
+    }
+    const repoRelative = toRepoRelative(target);
+    if (repoRelative === FORBIDDEN_PROJECT_DIR || repoRelative.startsWith(`${FORBIDDEN_PROJECT_DIR}/`)) {
+      violations.push(describeViolation(file, specifier, target));
+      continue;
+    }
+    if (MR0_FORBIDDEN_SRC_PREFIXES.some((forbidden) => (
+      repoRelative === forbidden || repoRelative.startsWith(forbidden)
+    ))) {
+      violations.push(describeViolation(file, specifier, target));
+    }
+  }
+  return violations;
+};
+
+const scanMotionLeafModules = (): string[] => {
+  const violations: string[] = [];
+  for (const relative of MR0_MOTION_LEAF_MODULES) {
+    const file = path.join(repoRoot, relative);
+    violations.push(
+      ...collectMotionLeafImportViolations(readFileSync(file, "utf8"), file),
+    );
+  }
+  return violations;
+};
+
+const isTestFile = (file: string): boolean => (
+  /\.(?:test|spec)\.(?:ts|tsx|mts)$/.test(file)
+);
+
+const scanAllProductionFiles = (): string[] => collectSourceFiles(srcRoot)
+  .filter((file) => !isTestFile(file));
+
+describe("MR0 renderer-local motion guard", () => {
+  it("keeps renderer-local motion leaves free of Product/lifecycle/desktop/Electron runtime imports", () => {
+    const violations = scanMotionLeafModules();
+    expect(violations, [
+      "Renderer-local motion modules must not depend on Product dispatch, lifecycle/pointer authority, center-overlay policy, desktop runtime, or Electron modules.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
+  it("keeps renderer-local motion leaves free of position/bounds/DOM coordinate and IPC side-channel calls", () => {
+    for (const relative of MR0_MOTION_LEAF_MODULES) {
+      const source = readFileSync(path.join(repoRoot, relative), "utf8");
+      expect(
+        MR0_FORBIDDEN_POSITION_CALL_PATTERN.test(source),
+        `${relative} must not call position/bounds APIs or read DOM/screen coordinates`,
+      ).toBe(false);
+      expect(
+        MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(source),
+        `${relative} must not open IPC side channels`,
+      ).toBe(false);
+    }
+  });
+
+  it("keeps the presentation surface a wiring boundary: no Product dispatch imports", () => {
+    const surfaceFile = path.join(
+      repoRoot,
+      "src/presentation/main-window/MainWindowPresentationSurface.tsx",
+    );
+    const source = readFileSync(surfaceFile, "utf8");
+    const violations: string[] = [];
+    for (const match of source.matchAll(IMPORT_PATTERN)) {
+      const specifier = (match[1] ?? match[2]).trim();
+      if (!specifier || !specifier.startsWith(".")) {
+        continue;
+      }
+      const target = resolveSpecifierTarget(surfaceFile, specifier);
+      if (!target) {
+        continue;
+      }
+      const repoRelative = toRepoRelative(target);
+      if (repoRelative === "src/features" || repoRelative.startsWith("src/features/")) {
+        violations.push(describeViolation(surfaceFile, specifier, target));
+      }
+    }
+    expect(violations, [
+      "MainWindowPresentationSurface must remain wiring/composition: no Product dispatch (src/features) imports.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+  });
+
+  it("keeps lifecycle state written only by the react adapter", () => {
+    const writers = scanAllProductionFiles()
+      .filter((file) => {
+        const source = readFileSync(file, "utf8");
+        return source.includes("reduceMainWindowPresentation(")
+          || source.includes("createMainWindowPresentationState(");
+      })
+      .map((file) => toRepoRelative(file))
+      .sort();
+    expect(writers).toEqual([
+      "src/presentation/main-window/lifecycle.ts",
+      "src/presentation/main-window/reactAdapter.ts",
+    ]);
+  });
+
+  it("keeps the Pointer Field written only by the presentation surface and free of module-level state", () => {
+    const writers = scanAllProductionFiles()
+      .filter((file) => {
+        const source = readFileSync(file, "utf8");
+        return source.includes("updatePointerFieldFromClientPoint(")
+          || source.includes("resetPointerFieldToCenter(");
+      })
+      .map((file) => toRepoRelative(file))
+      .sort();
+    expect(writers).toEqual([
+      "src/presentation/main-window/MainWindowPresentationSurface.tsx",
+    ]);
+
+    // Unmount isolation: the field has no module-level mutable store; its
+    // MotionValues live and die with the surface instance.
+    const pointerFieldSource = readFileSync(
+      path.join(repoRoot, "src/presentation/main-window/pointerField.ts"),
+      "utf8",
+    );
+    expect(
+      /^let\s/m.test(pointerFieldSource),
+      "pointerField.ts must not hold module-level mutable state",
+    ).toBe(false);
+  });
+
+  it("keeps M3 visual candidates out of authority modules", () => {
+    const authorityFiles = [
+      "src/presentation/main-window/lifecycle.ts",
+      "src/presentation/main-window/projections.ts",
+      "src/presentation/main-window/effectContracts.ts",
+      "src/presentation/main-window/effectExecutor.ts",
+      "src/presentation/main-window/reactAdapter.ts",
+      "src/features/download/model.ts",
+      "src/features/download/reducer.ts",
+      "src/features/download/selectors.ts",
+    ];
+    const candidateRelatives = [
+      "src/presentation/main-window/DownloadIntakeTransitionSurface.tsx",
+      "src/presentation/main-window/DownloadProgressSurface.tsx",
+      "src/presentation/main-window/downloadIntakeMotionRecipe.ts",
+      "src/presentation/main-window/downloadIntakePresentation.ts",
+      "src/presentation/main-window/interactionOrigin.ts",
+    ];
+    for (const relative of authorityFiles) {
+      const file = path.join(repoRoot, relative);
+      const source = readFileSync(file, "utf8");
+      const violations: string[] = [];
+      for (const match of source.matchAll(IMPORT_PATTERN)) {
+        const specifier = (match[1] ?? match[2]).trim();
+        if (!specifier) {
+          continue;
+        }
+        const target = resolveSpecifierTarget(file, specifier);
+        if (!target) {
+          continue;
+        }
+        if (candidateRelatives.includes(toRepoRelative(target))) {
+          violations.push(describeViolation(file, specifier, target));
+        }
+      }
+      expect(violations, [
+        "Authority modules must not import M3 visual candidates.",
+        ...violations,
+      ].join("\n")).toEqual([]);
+    }
+  });
+
+  it("flags representative forbidden MR0 motion-leaf imports and side channels", () => {
+    const leafFile = path.join(srcRoot, "presentation", "main-window", "fake.ts");
+    const flag = (source: string, expectedTarget: string): void => {
+      const violations = collectMotionLeafImportViolations(source, leafFile);
+      expect(violations, `expected a violation for ${expectedTarget}`).toHaveLength(1);
+      expect(violations[0]).toContain(expectedTarget);
+    };
+
+    flag(
+      'import { reduceMainWindowPresentation } from "./lifecycle.js";',
+      "src/presentation/main-window/lifecycle.ts",
+    );
+    flag(
+      'import { selectPrimaryTask } from "../../features/download/selectors.js";',
+      "src/features/download/selectors.ts",
+    );
+    flag(
+      'import { desktopCurrentWindow } from "../../desktop/runtime.js";',
+      "src/desktop/runtime.ts",
+    );
+    flag(
+      'import { app } from "electron";',
+      "forbidden package",
+    );
+    // The Pointer Field is the designated consumer source, not a forbidden target.
+    expect(collectMotionLeafImportViolations(
+      'import { resolvePointerFieldCenterPoint } from "./pointerField";',
+      leafFile,
+    )).toEqual([]);
+    // IPC side channels are rejected by the side-channel scan.
+    const ipcSource = 'import { motion } from "motion/react";\nipcRenderer.send("x", 1);';
+    expect(MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(ipcSource)).toBe(true);
+  });
+});

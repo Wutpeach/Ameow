@@ -586,3 +586,96 @@ Why wrong:
 // cancelable 80 ms timer, reporting the timer epoch back. Re-entry cancels
 // it; the drag lock gates collapse inside the reducer.
 ```
+## Scenario: MR0 Motion / Presentation Architecture Foundation
+
+MR0 codifies the repository-level contracts that later stages (MR1 Expanded Dot Field, MR2 Character, MR3 Progress Field, MR4 Intake/Confirmation/Terminal Reveal) share. It introduces NO shared animator, global runtime, recipe framework, renderer hierarchy, DSL, or graphics dependency. Execution stays heterogeneous: `motion/react` + DOM/SVG for shell/Character-style work, and renderer-local Canvas 2D + rAF remain available for a future Dot Field if profiling justifies it.
+
+### 1. Authority direction (one-way, unique)
+
+```text
+Download/Application facts
+  -> Download reducer/selectors
+  -> presentation projections (center overlay + main-window projections)
+  -> Presentation Surface wiring/composition
+  -> renderer-local disposable motion
+  -> pixels
+
+Main Window lifecycle authority
+  -> phase/lock/recipe projections
+  -> shell and feature eligibility
+  X no feature-motion completion may write lifecycle progression
+```
+
+- `src/presentation/main-window/lifecycle.ts` is the only writable full/compact/transition authority; `reactAdapter.ts` is the only file that reduces it.
+- `pointerField.ts` is the only continuous pointer-geometry authority; `MainWindowPresentationSurface.tsx` is the only file that writes it (`updatePointerFieldFromClientPoint` / `resetPointerFieldToCenter`).
+- Interaction Origin (`interactionOrigin.ts`) is a discrete snapshot, never a second pointer authority.
+- Motion state is disposable/reconstructible and never gates correctness: losing it cannot change tasks, progress, terminal outcome, lifecycle, or collapse.
+- Shell `visualTransitionCompleted` is a private lifecycle-owned epoch acknowledgement; feature motion must not use it as a collapse gate.
+- Enforced by `src/architecture/import-guard.test.ts` (MR0 renderer-local motion guard).
+
+### 2. Presentation composition: persistent + bounded transient + terminal priority
+
+Projection shape (a contract, not a state machine):
+
+```text
+Authoritative facts
+  -> projected presentation target
+       persistent baseline
+       + bounded transient intent(s)   (consumer-local epoch/generation)
+       + optional terminal-priority target
+  -> consumer-local execution
+```
+
+- Persistent baseline: current projected visual target from authoritative facts (e.g. logical progress). A local runtime may interpolate toward it.
+- Transient response: bounded, event-scoped, additive (e.g. click/intake ripple). Latest-replaces for same-priority ephemeral work; a consumer may coalesce or suppress. NEVER an unbounded FIFO queue.
+- Terminal target: success/failure/cancelled projection with visual priority; may interrupt/absorb/suppress transients without waiting. It is a projection, not a Product or lifecycle authority, and it does not own collapse.
+- When a transient ends it reconverges to the CURRENT persistent baseline — including baseline changes that arrived while the transient ran.
+- No shared type is added for this shape until two real consumers need the exact same data contract; vocabulary lives in specs and tests (see `presentationCompositionContract.test.ts`).
+
+### 3. Renderer-local runtime lifecycle (every consumer, no shared engine)
+
+| Event | Required behavior |
+| --- | --- |
+| mount | construct from the current presentation target; never require historical animation state |
+| target change | accept immediately; for suitable geometry, retarget from the current rendered condition rather than reset/replay |
+| persistent update during transient | update stored/projected baseline; transient remains additive and later returns to the NEW baseline |
+| terminal target | supersede lower-priority transient work from the current visual condition; do not wait |
+| reduced-motion change | resolve deterministically to the reduced semantic target; cancel unnecessary travel; no fake lifecycle completion |
+| collapse / eligibility exit | invalidate the active generation, hard-stop frames/timers/controls, and SLEEP (a still-mounted surface is not permanently disposed) |
+| re-expand / eligibility re-entry | wake or reconstruct from the current projection, never from pre-collapse animation history |
+| surface replacement / unmount / dispose | permanently mark disposed, release rAF/timers/subscriptions/Motion controls, make late callbacks no-op |
+| rebuild after replacement | reconstruct from current projection; brief visual continuity loss is acceptable |
+
+M2 Pointer Field is existing evidence of local `MotionValue` ownership and stable consumption, not a universal template: its event-driven values do not run a permanent frame loop. Future rAF/Canvas consumers add explicit wake/settle/sleep locally.
+
+### 4. Interpolation classes
+
+- Information-bearing geometry (e.g. visual progress): may lag but approaches the latest authoritative value MONOTONICALLY and never visually exceeds it; retargets from the current rendered value. Progress values remain selector authority.
+- Expressive geometry (Character body/ears/eyes/hands, decorative pulses, Magnetic displacement): may spring, lag, overshoot, squash, or settle freely because it carries no authoritative quantity. It may consume the Pointer Field but cannot create another continuous pointer state.
+
+### 5. Reduced motion
+
+Responsibility is split: the presentation projection/recipe boundary selects the deterministic reduced semantic target (fact visible/understandable; travel, deformation, propagation, displacement removed or shortened); the consumer-local renderer executes it immediately or with minimal non-spatial transition and stops obsolete work. Applies at mount AND mid-flight. Product and lifecycle code never receive a fake animation completion.
+
+### 6. Performance: sleep/wake and no cross-layer frame loops
+
+- React publishes target/input changes, never per-frame geometry.
+- Electron Main, BrowserWindow, preload, and IPC never participate in per-frame feature motion.
+- Local runtimes wake on input/target/transient, render/interpolate, detect settlement, cancel scheduling, and hold ZERO scheduled frames while settled (frame-count instrumentation in `presentationCompositionContract.test.ts`).
+- No `setState`/React render loop, Electron Main/BrowserWindow loop, or high-frequency IPC carries frame geometry.
+
+### 7. Windows correctness repair dependencies (not solved by visual replacement)
+
+Both observed issues remain REACHABLE on the committed M0–M2 baseline and are NOT removed by replacing Reveal/Progress visuals. MR0 adds gates, not repair.
+
+- Native argument conversion / compact reachability: `src/App.tsx` (presentationDependencies) -> `src/desktop/runtime.ts` -> `electron/preload.mts` -> `electron/main.mts` (`Number()` conversion + NaN guards) -> `electron/mainWindowSurfacePolicy.mts` (position-only `win.setPosition`).
+- Terminal window remains full: terminal event -> `App.tsx` `onDownloadTerminal` -> `showForegroundTaskOutcome` -> `src/utils/centerOverlayState.ts` request-id/timer policy -> `App.tsx` `centerOutcome` lock projection -> `lifecycle.ts` lock release -> collapsePending -> single-ack compact.
+
+Regression gates: `src/architecture/windows-risk-path.test.ts`. Repair happens only in an approved later stage that touches and validates the exact paths.
+
+### 8. Tests required (MR0)
+
+- `src/architecture/import-guard.test.ts` — MR0 renderer-local motion guard: leaf import restrictions, position/IPC side-channel bans, surface wiring boundary, lifecycle/pointer writer uniqueness, M3 candidates not promoted.
+- `src/architecture/windows-risk-path.test.ts` — both Windows chains pinned link-by-link; no "solved by replacement" claim.
+- `src/presentation/main-window/presentationCompositionContract.test.ts` — NORMATIVE test-only contract model: composition invariants, interpolation classes, sleep/wake harness. It defines the required behavior future consumers must conform to and does NOT certify that any current production module already complies; each MR1/MR2 implementation must add its own conformance tests against these contracts.
+- Existing M0/M1/M2 focused suites remain authoritative (`lifecycle`, `projections`, `effectExecutor`, `geometry`, `pointerField`, `magnetic`, `motionRecipes`, `panelHover`, `presentationCompletion`, `mainWindowSurfacePolicy`, `mainWindowPointerBoundary`, `preloadBridgeContract`).

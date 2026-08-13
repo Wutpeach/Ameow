@@ -275,3 +275,26 @@ const { colors } = useTheme();
 // CORRECT - preserves all native attributes
 <button {...props}>{children}</button>
 ```
+## Motion / Presentation Foundation (MR0)
+
+### MainWindowPresentationSurface stays a wiring/composition boundary
+
+- It may own: DOM event wiring (pointer/drag/drop/paste), Pointer Field creation and writing, Magnetic composition, shell recipe application, the epoch-matched shell completion callback, compact icon composition, and native interaction wiring (drag position passthrough, interaction mode).
+- It must NOT accumulate: recipe algorithms or timing constants, Download reconciliation, intake acceptance/origin policy beyond calling pure helpers, generic motion orchestration, or a second lifecycle/pointer authority.
+- It must not import Product dispatch (`src/features/`); guarded by `src/architecture/import-guard.test.ts`.
+- The shell `visualTransitionCompleted` acknowledgement is lifecycle-owned and epoch-matched; it is not exposed as a general feature-motion completion API.
+
+### Recipes, scheduling, and geometry stay consumer-local
+
+- Motion recipes (`motionRecipes.ts`) and future recipe families own renderer choreography only and import no Product/lifecycle/native modules.
+- Easing, springs, geometry, frame ownership, and sleep/wake scheduling stay inside the consumer; no centralized scheduling/geometry/easing module is introduced for future consumers.
+- A shared type or helper is added only when two real consumers need the exact same data contract — never preemptively for Dot Field/Character.
+
+### Composition wrapper pattern
+
+When a feature composes motion over persistent presentation (e.g. intake decoration over Progress):
+
+- Persistent semantic/control content stays selector-derived and mounted immediately; the decorative layer affects visual material only.
+- The wrapper owns one read-only eligibility fact and epoch/generation bookkeeping; all completion paths are epoch-guarded so stale callbacks are no-ops.
+- Decorative layers are `pointer-events: none` and `aria-hidden`; the persistent content stays the interaction/accessibility authority.
+- No animation callback dispatches business, lifecycle, or native work.

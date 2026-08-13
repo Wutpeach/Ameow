@@ -323,3 +323,23 @@ function App() {
   <App />
 </ThemeProvider>
 ```
+## Motion / Presentation Foundation (MR0)
+
+MR0 keeps authority layers separate and never creates duplicate Product, lifecycle, or pointer state. The layers are:
+
+| Layer | Owner | Role |
+| --- | --- | --- |
+| Product facts | Download reducer/selectors (`src/features/download/`), Application facts | tasks, progress, terminal outcomes; sole business truth |
+| Presentation Lifecycle | `lifecycle.ts` reducer + projections | full/compact/transition, locks, epochs; sole writable lifecycle authority |
+| Projected persistent/transient/terminal presentation | selectors + `centerOverlayState.ts` request-id policy + composition | the current persistent baseline, bounded transient intents, terminal-priority target; presentation projections only |
+| Continuous renderer runtime | `pointerField.ts` (+ consumers like `magnetic.ts`) | high-frequency pointer geometry; renderer-local, never React app state |
+
+Rules:
+
+- Presentation projections never write back into Product or lifecycle authority. A projection is a pure function of facts.
+- The center overlay (`centerOverlayState.ts`) keeps request-id/timer policy as presentation policy: it owns the bounded terminal visibility opportunity and projects the `centerOutcome` lifecycle lock. `lifecycle.ts` consumes the lock but does not own the timer. Animation completion never releases locks or dispatches collapse.
+- Terminal projected presentation has visual priority over ordinary transients but owns neither the terminal fact nor collapse. New authoritative active work re-evaluates locks/collapse eligibility from facts.
+- A transient response restores the CURRENT persistent baseline (including changes that arrived during the transient); it never rewrites the baseline.
+- Transient concurrency is bounded locally (latest-replaces/coalescing). No unbounded animation queue, no global store, no bus, no state machine added for motion.
+- Renderer motion state is disposable and reconstructible: collapse sleeps a still-mounted runtime; replacement/unmount permanently disposes; rebuild reconstructs from the current projection.
+- Guarded by `src/architecture/import-guard.test.ts` (lifecycle/pointer writer uniqueness, surface wiring boundary) and `src/presentation/main-window/presentationCompositionContract.test.ts` — a normative test-only contract model; MR1/MR2 implementations add their own conformance tests and are not certified by the model alone.
