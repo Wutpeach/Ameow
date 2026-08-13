@@ -14,7 +14,6 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { CatIcon } from "../../components/CatIcon";
 import {
   COMPACT_EASE,
   getContinuousCornerStyle,
@@ -23,6 +22,8 @@ import {
 } from "../../components/ui/shared-styles";
 import { useTheme } from "../../contexts/ThemeContext";
 import { desktopCurrentWindow, isElectronRenderer } from "../../desktop/runtime";
+import { CompactCatCharacter } from "./CompactCatCharacter";
+import { CHARACTER_VISUAL_SIZE } from "./characterRecipe";
 import {
   shouldIgnorePanelDoubleClickTarget,
   shouldOpenOutputFolderFromPanelMouseDownDoubleClick,
@@ -732,6 +733,16 @@ export function MainWindowPresentationSurface({
     if (!projections.interaction.hotspotActive) {
       return;
     }
+    // Windows compact passthrough forwards window `mousemove` (but no
+    // `mouseleave`); feed the SAME coordinates through the existing sole
+    // Pointer Field writer so the read-only Character can show a bounded
+    // pre-hotspot glance. The hotspot evaluation below is unchanged; this
+    // write is runtime data only and can never decide full/compact state.
+    const viewport = viewportRef.current;
+    if (viewport !== null) {
+      const rect = viewport.getBoundingClientRect();
+      updatePointerFieldFromClientPoint(pointerField, clientX, clientY, rect);
+    }
     const insideHotspot = isPointInsideCompactPointerHotspot({
       pointX: clientX,
       pointY: clientY,
@@ -747,7 +758,13 @@ export function MainWindowPresentationSurface({
     }
     compactHotspotInsideRef.current = true;
     handlePointerFact(true, { type: "pointerEnter" });
-  }, [geometry.hotspot, handlePointerFact, projections.interaction.hotspotActive]);
+  }, [
+    geometry.hotspot,
+    handlePointerFact,
+    pointerField,
+    projections.interaction.hotspotActive,
+    viewportRef,
+  ]);
 
   useEffect(() => {
     if (!projections.interaction.hotspotActive) {
@@ -776,6 +793,29 @@ export function MainWindowPresentationSurface({
     evaluateCompactHotspot,
     projections.interaction.hotspotActive,
   ]);
+
+  // Observable neutral reset: window blur and document hidden are observable
+  // pointer losses, so the Pointer Field returns to center through the shared
+  // sole writer; the read-only Character then projects neutral. No Character
+  // listener, loss timer, native event, or new authority. The unobservable
+  // Windows passthrough exit keeps its bounded zero-work freeze (mousemove
+  // forwarding stops and the field simply stops updating).
+  useEffect(() => {
+    const handleWindowBlur = () => {
+      resetPointerFieldToCenter(pointerField, panelViewportSize);
+    };
+    const handleDocumentVisibilityChange = () => {
+      if (document.hidden) {
+        resetPointerFieldToCenter(pointerField, panelViewportSize);
+      }
+    };
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("visibilitychange", handleDocumentVisibilityChange);
+    return () => {
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
+    };
+  }, [panelViewportSize, pointerField]);
 
   // One normalized local snapshot per click/context gesture, formed at the
   // DOM boundary; the App/native callbacks never see Dot Field data.
@@ -1144,7 +1184,11 @@ export function MainWindowPresentationSurface({
 
             {children}
 
-            {/* Compact icon */}
+            {/* Compact Flat Blob Cat. The outer presence/settle choreography
+                (enter, settle pulse, exit) stays owned by the shell recipe;
+                the Character itself is a read-only visual consumer. Its frame
+                uses most of the 60x60 visible shell; the legacy 38px icon
+                bound no longer constrains it. */}
             <AnimatePresence>
               {isCompact ? (
                 <motion.div
@@ -1169,8 +1213,8 @@ export function MainWindowPresentationSurface({
                     animate={motionRecipe.icon.settleAnimate}
                     transition={motionRecipe.icon.settleTransition}
                     style={{
-                      width: motionRecipe.icon.frameSize,
-                      height: motionRecipe.icon.frameSize,
+                      width: CHARACTER_VISUAL_SIZE,
+                      height: CHARACTER_VISUAL_SIZE,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1178,12 +1222,19 @@ export function MainWindowPresentationSurface({
                       background: "transparent",
                       boxShadow: "none",
                       overflow: "hidden",
-                      transform: `scale(${motionRecipe.icon.wrapperScale})`,
                       transformOrigin: "center center",
                       willChange: "transform",
                     }}
                   >
-                    <CatIcon size={motionRecipe.icon.size} glow={!environment.isMacOS} />
+                    <CompactCatCharacter
+                      size={CHARACTER_VISUAL_SIZE}
+                      bodyColor={colors.characterBody}
+                      eyeColor={colors.characterEye}
+                      reducedMotion={environment.reducedMotion}
+                      pointerField={pointerField}
+                      attentionCenterX={geometry.visualShell.x + geometry.visualShell.width / 2}
+                      attentionCenterY={geometry.visualShell.y + geometry.visualShell.height / 2}
+                    />
                   </motion.div>
                 </motion.div>
               ) : null}

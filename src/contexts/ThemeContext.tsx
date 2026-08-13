@@ -83,6 +83,9 @@ export interface ThemeColors {
   // 点阵 (Expanded Dot Field 休眠 / 响应亮度)
   dotDormant: string;
   dotAck: string;
+  // 角色 (compact Flat Blob Cat 身体 / 眼睛对比)
+  characterBody: string;
+  characterEye: string;
 }
 
 const DARK_PANEL_SHADOW = '0 6px 16px -8px rgba(0,0,0,0.34), 0 2px 7px -4px rgba(0,0,0,0.22), 0 1px 3px -1px rgba(0,0,0,0.16)';
@@ -163,6 +166,8 @@ const themes: Record<Theme, ThemeColors> = {
     errorIcon: '#f87171',
     dotDormant: 'rgba(255,255,255,0.16)',
     dotAck: 'rgba(255,255,255,0.72)',
+    characterBody: 'rgba(245,245,245,0.94)',
+    characterEye: 'rgba(32,30,37,0.9)',
   },
   white: {
     bgPrimary: '#E3E3E3',
@@ -234,6 +239,8 @@ const themes: Record<Theme, ThemeColors> = {
     errorIcon: '#ef4444',
     dotDormant: 'rgba(0,0,0,0.18)',
     dotAck: 'rgba(0,0,0,0.6)',
+    characterBody: 'rgba(51,51,51,0.92)',
+    characterEye: 'rgba(245,245,245,0.96)',
   },
 };
 

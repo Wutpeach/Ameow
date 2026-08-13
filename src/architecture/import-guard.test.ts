@@ -617,6 +617,14 @@ const MR0_MOTION_LEAF_MODULES = [
   // the Pointer Field writer by the wiring-boundary assertions below.
   "src/presentation/main-window/dotFieldRecipe.ts",
   "src/presentation/main-window/dotFieldRuntime.ts",
+  // MR2 Compact Flat Blob Cat: pure geometry/attention projection + the
+  // consumer-local blink timer. The SVG host (CompactCatCharacter.tsx) is NOT
+  // in this list: it is a DOM boundary like DotFieldCanvas (it reads
+  // `document.hidden` for visibility sleep), so the position-call ban does not
+  // apply to it. Its imports are held to the FULL leaf rule set plus the
+  // Pointer Field writer by the wiring-boundary assertions below.
+  "src/presentation/main-window/characterRecipe.ts",
+  "src/presentation/main-window/characterBlinkRuntime.ts",
 ];
 
 const MR0_FORBIDDEN_SRC_PREFIXES = [
@@ -794,6 +802,45 @@ describe("MR0 renderer-local motion guard", () => {
     expect(
       MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(source),
       "DotFieldCanvas must not open IPC side channels",
+    ).toBe(false);
+  });
+
+  it("keeps the Compact Cat SVG host free of Product/lifecycle/effects/desktop/Electron/pointer-authority imports and IPC side channels", () => {
+    const hostFile = path.join(
+      repoRoot,
+      "src/presentation/main-window/CompactCatCharacter.tsx",
+    );
+    const source = readFileSync(hostFile, "utf8");
+
+    // The FULL leaf rule set (Product dispatch, lifecycle/effects/desktop/
+    // center-overlay authority, electron-runtime, Electron package+host)...
+    const violations = collectMotionLeafImportViolations(source, hostFile);
+
+    // ...plus the one authority the leaves may consume but the SVG host must
+    // never import (it receives the field as a read-only prop): the Pointer
+    // Field module.
+    for (const match of source.matchAll(IMPORT_PATTERN)) {
+      const specifier = (match[1] ?? match[2]).trim();
+      if (!specifier) {
+        continue;
+      }
+      const target = resolveSpecifierTarget(hostFile, specifier);
+      if (!target) {
+        continue;
+      }
+      if (toRepoRelative(target) === "src/presentation/main-window/pointerField.ts") {
+        violations.push(describeViolation(hostFile, specifier, target));
+      }
+    }
+    expect(violations, [
+      "CompactCatCharacter must stay a renderer-local visual host: no Product/lifecycle/effects/desktop/Electron or Pointer Field imports; the field arrives as a read-only prop.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+
+    // The host schedules one blink timer only — no IPC side channels.
+    expect(
+      MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(source),
+      "CompactCatCharacter must not open IPC side channels",
     ).toBe(false);
   });
 
