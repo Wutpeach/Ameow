@@ -679,3 +679,103 @@ Regression gates: `src/architecture/windows-risk-path.test.ts`. Repair happens o
 - `src/architecture/windows-risk-path.test.ts` — both Windows chains pinned link-by-link; no "solved by replacement" claim.
 - `src/presentation/main-window/presentationCompositionContract.test.ts` — NORMATIVE test-only contract model: composition invariants, interpolation classes, sleep/wake harness. It defines the required behavior future consumers must conform to and does NOT certify that any current production module already complies; each MR1/MR2 implementation must add its own conformance tests against these contracts.
 - Existing M0/M1/M2 focused suites remain authoritative (`lifecycle`, `projections`, `effectExecutor`, `geometry`, `pointerField`, `magnetic`, `motionRecipes`, `panelHover`, `presentationCompletion`, `mainWindowSurfacePolicy`, `mainWindowPointerBoundary`, `preloadBridgeContract`).
+
+## Scenario: MR1 Expanded Dot Field Consumer
+
+### 1. Scope / Trigger
+
+This contract applies only to `src/presentation/main-window/DotFieldCanvas.tsx`,
+`dotFieldRuntime.ts`, `dotFieldRecipe.ts`, and their Surface wiring. It is the
+first concrete MR0 consumer, not a renderer or scheduler template for future
+Character, Progress, Intake, or Terminal work.
+
+### 2. Signatures
+
+The Surface supplies coarse inputs and discrete local intents:
+
+```ts
+type DotFieldBaseline = {
+  size: number;
+  dormant: string;
+  ack: string;
+  reducedMotion: boolean;
+};
+
+type DotFieldIntent = {
+  kind: "click" | "context";
+  origin: { u: number; v: number };
+};
+```
+
+The runtime lifecycle is `wake -> submitIntent/setBaseline -> settle/sleep ->
+dispose`; it never publishes a completion or authority write.
+
+### 3. Contracts
+
+- Eligibility is derived by `MainWindowPresentationSurface` from settled full
+  presentation (`mode === "full" && transitionEpoch === null`).
+- The Canvas is a non-interactive, `aria-hidden` background. React publishes
+  baseline revisions and discrete intents only; Canvas 2D + local rAF owns
+  frame geometry.
+- Transient storage is bounded to one active intent plus one fixed-size
+  residual field. On retarget, the currently rendered field is frozen into
+  that single residual and continues its own decay while the new local wave is
+  seeded. This preserves visual continuity without a FIFO or historical replay.
+- Baseline/theme revisions are read on every draw. A live residual must not be
+  replaced by a dormant-only frame and then reappear.
+- A normal-to-reduced-motion change re-times any live residual to at most the
+  reduced duration while preserving its current local brightness and frozen
+  shape. It does not travel and emits no fake completion.
+- Grid population is capped at 400 dots, backing DPR at 2, and pending rAF at
+  one. Settled, sleeping, and disposed runtimes hold zero pending frames.
+- Sleep and dispose clear active/residual state and invalidate queued frames;
+  wake reconstructs from current baseline inputs.
+
+### 4. Validation / Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| rapid click/context retarget | current rendered field decays continuously; latest origin is acknowledged; no queue |
+| baseline changes with residual live | next scheduled draw uses the latest material; no dormant flash |
+| reduced motion turns on mid-response | no propagation; active and residual settle within the reduced bound |
+| eligibility exits | pending frame canceled, transient discarded, runtime remains wakeable |
+| unmount/replacement | permanent dispose; stale callback is a no-op |
+| dormant/settled | no continuing rAF or React frame updates |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a click retarget folds the old rendered values into one local residual,
+  seeds the new origin, and returns to the latest dormant theme with zero frames.
+- Base: wake performs one necessary dormant redraw and schedules nothing else.
+- Bad: reset to dormant then replay; preserve a list of prior origins; let a
+  normal-mode residual continue for 480 ms after reduced motion becomes active.
+
+### 6. Tests Required
+
+- `dotFieldRecipe.test.ts`: deterministic/capped topology, bounded origins,
+  response/material limits, soft front, raw-DPR query and capped backing DPR.
+- `dotFieldRuntime.test.ts`: first-frame retarget continuity, fixed residual
+  replacement, latest-baseline material, reduced-motion retiming, sleep/wake,
+  dispose/stale generation, and zero pending frames at rest.
+- `dotFieldSurface.test.ts`: gesture exclusions and synchronous context origin
+  wiring facts.
+- `dotFieldPerfValidation.test.ts`: peak pending rAF <= 1 and rest pending rAF =
+  0 across normal, burst, theme, reduced-motion, and sleep scenarios.
+- `src/architecture/import-guard.test.ts`: no Product/lifecycle/native/Electron/
+  IPC/Pointer Field authority imports or writes.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+pendingIntents.push(intent); // unbounded history and replay
+dispatch({ type: "visualTransitionCompleted" }); // authority leak
+```
+
+#### Correct
+
+```ts
+residual = foldCurrentRenderedField(); // one bounded local snapshot
+intent = seedLatestIntent(nextIntent); // latest replaces, one rAF path
+```

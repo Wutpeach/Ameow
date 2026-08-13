@@ -80,6 +80,9 @@ export interface ThemeColors {
   // Status icons
   successIcon: string;
   errorIcon: string;
+  // 点阵 (Expanded Dot Field 休眠 / 响应亮度)
+  dotDormant: string;
+  dotAck: string;
 }
 
 const DARK_PANEL_SHADOW = '0 6px 16px -8px rgba(0,0,0,0.34), 0 2px 7px -4px rgba(0,0,0,0.22), 0 1px 3px -1px rgba(0,0,0,0.16)';
@@ -158,6 +161,8 @@ const themes: Record<Theme, ThemeColors> = {
     transcodeTrack: 'rgba(120,73,18,0.44)',
     successIcon: '#707070',
     errorIcon: '#f87171',
+    dotDormant: 'rgba(255,255,255,0.16)',
+    dotAck: 'rgba(255,255,255,0.72)',
   },
   white: {
     bgPrimary: '#E3E3E3',
@@ -227,6 +232,8 @@ const themes: Record<Theme, ThemeColors> = {
     transcodeTrack: 'rgba(251,191,36,0.22)',
     successIcon: '#666666',
     errorIcon: '#ef4444',
+    dotDormant: 'rgba(0,0,0,0.18)',
+    dotAck: 'rgba(0,0,0,0.6)',
   },
 };
 

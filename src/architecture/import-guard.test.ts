@@ -610,6 +610,13 @@ const MR0_MOTION_LEAF_MODULES = [
   "src/presentation/main-window/geometry.ts",
   "src/presentation/main-window/motionRecipes.ts",
   "src/presentation/main-window/panelHover.ts",
+  // MR1 Dot Field: pure recipe + consumer-local runtime. The Dot Field canvas
+  // host (DotFieldCanvas.tsx) is NOT in this list: it legitimately reads
+  // `window.devicePixelRatio` at the DOM boundary, so the position-call ban
+  // does not apply to it. Its imports are held to the FULL leaf rule set plus
+  // the Pointer Field writer by the wiring-boundary assertions below.
+  "src/presentation/main-window/dotFieldRecipe.ts",
+  "src/presentation/main-window/dotFieldRuntime.ts",
 ];
 
 const MR0_FORBIDDEN_SRC_PREFIXES = [
@@ -625,8 +632,18 @@ const MR0_FORBIDDEN_SRC_PREFIXES = [
 
 const MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN = /ipcRenderer|ipcMain|\.invoke\(|\.send\(/;
 
-/** Reuses the M3 position/bounds/DOM-coordinate ban for the MR0 leaf set. */
-const MR0_FORBIDDEN_POSITION_CALL_PATTERN = M3_FORBIDDEN_POSITION_CALL_PATTERN;
+/**
+ * Position/bounds/DOM-coordinate ban for the renderer-local leaf set: leaves
+ * receive plain numeric parameters only and must never call position/bounds
+ * APIs or read DOM/screen/native coordinates themselves. (The M3 guard that
+ * originally owned this pattern was removed with the M3 candidates; the MR0
+ * leaf set keeps the same ban inline.)
+ */
+const MR0_FORBIDDEN_POSITION_CALL_PATTERN =
+  /\.(?:getBoundingClientRect|getClientRects)\(|(?:window|document|screen|navigator|devicePixelRatio)\.|\.(?:clientX|clientY|pageX|pageY|screenX|screenY|offsetX|offsetY)\b/;
+
+/** Type-only imports are erased at compile time and stay allowed in leaves. */
+const TYPE_ONLY_IMPORT_PATTERN = /import\s+type\s+[^'"]*?from\s*['"]([^'"]+)['"]/g;
 
 /**
  * Scans one renderer-local motion leaf for runtime imports that would pull
@@ -715,7 +732,7 @@ describe("MR0 renderer-local motion guard", () => {
     }
   });
 
-  it("keeps the presentation surface a wiring boundary: no Product dispatch imports", () => {
+  it("keeps the presentation surface wiring boundary: no Product dispatch imports", () => {
     const surfaceFile = path.join(
       repoRoot,
       "src/presentation/main-window/MainWindowPresentationSurface.tsx",
@@ -740,6 +757,44 @@ describe("MR0 renderer-local motion guard", () => {
       "MainWindowPresentationSurface must remain wiring/composition: no Product dispatch (src/features) imports.",
       ...violations,
     ].join("\n")).toEqual([]);
+  });
+
+  it("keeps the Dot Field canvas host free of Product/lifecycle/effects/desktop/Electron/pointer-authority imports and IPC side channels", () => {
+    const canvasFile = path.join(
+      repoRoot,
+      "src/presentation/main-window/DotFieldCanvas.tsx",
+    );
+    const source = readFileSync(canvasFile, "utf8");
+
+    // The FULL leaf rule set (Product dispatch, lifecycle/effects/desktop/
+    // center-overlay authority, electron-runtime, Electron package+host)...
+    const violations = collectMotionLeafImportViolations(source, canvasFile);
+
+    // ...plus the one authority the leaves may consume but the canvas host
+    // must never write: the Pointer Field writer.
+    for (const match of source.matchAll(IMPORT_PATTERN)) {
+      const specifier = (match[1] ?? match[2]).trim();
+      if (!specifier) {
+        continue;
+      }
+      const target = resolveSpecifierTarget(canvasFile, specifier);
+      if (!target) {
+        continue;
+      }
+      if (toRepoRelative(target) === "src/presentation/main-window/pointerField.ts") {
+        violations.push(describeViolation(canvasFile, specifier, target));
+      }
+    }
+    expect(violations, [
+      "DotFieldCanvas must stay a renderer-local decorative host: no Product/lifecycle/effects/desktop/Electron or Pointer Field writer imports.",
+      ...violations,
+    ].join("\n")).toEqual([]);
+
+    // The host schedules local frames only — no IPC side channels.
+    expect(
+      MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(source),
+      "DotFieldCanvas must not open IPC side channels",
+    ).toBe(false);
   });
 
   it("keeps lifecycle state written only by the react adapter", () => {
