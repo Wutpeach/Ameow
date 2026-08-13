@@ -1593,3 +1593,24 @@ Implemented and Architecture-approved the compact inline-SVG Flat Blob Cat with 
 ### Next Steps
 
 - Wait for GPT Architecture Lead to open a separate MR3 phase; do not enter MR3 automatically.
+
+
+## Session 248: MR4 Reveal / Terminal Presentation
+
+**Date**: 2026-08-13
+**Task**: MR4 Reveal / Terminal Presentation
+**Branch**: `mr1/expanded-dot-field`
+
+### Summary
+
+MR4 Reveal / Terminal Presentation: typed download-terminal to Dot Field lane projection with post-reduction snapshot seam, origin discriminator, primary-download invalidation, folder outcome success|error restoration. Implementation Architecture Review PASS; archived.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c75ec6a` | (see git log) |
+
+### Status
+
+[OK] **Completed**
