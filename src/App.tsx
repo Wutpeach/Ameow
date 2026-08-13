@@ -149,7 +149,10 @@ import {
   useMainWindowPresentation,
   type MainWindowPresentationDependencies,
 } from "./presentation/main-window/reactAdapter";
-import { MainWindowPresentationSurface } from "./presentation/main-window/MainWindowPresentationSurface";
+import {
+  MainWindowPresentationSurface,
+  type MainWindowApplicationLock,
+} from "./presentation/main-window/MainWindowPresentationSurface";
 import { resolveDownloadProgressTarget } from "./presentation/main-window/downloadProgressProjection";
 import {
   resolveDotFieldTerminalTarget,
@@ -157,7 +160,6 @@ import {
   shouldShowDownloadTerminalReveal,
 } from "./presentation/main-window/downloadTerminalProjection";
 import { isMainWindowFullContentVisible } from "./presentation/main-window/projections";
-import type { MainWindowPresentationLock } from "./presentation/main-window/lifecycle";
 import i18n from "./i18n";
 import {
   getMissingRuntimeComponentsFromStatus,
@@ -570,12 +572,12 @@ function App() {
     totalTranscodeTaskCount - (primaryTask?.kind === "transcode" ? 1 : 0),
   );
 
-  const presentationLocks = useMemo<Record<MainWindowPresentationLock, boolean>>(() => ({
-    drag: false,
+  // Only Application-owned lock facts are mirrored into the lifecycle. `drag`
+  // and `drop` are Surface-owned facts written at the gesture boundary, so App
+  // must not publish constant values that could overwrite an active lock.
+  const presentationLocks = useMemo<Record<MainWindowApplicationLock, boolean>>(() => ({
     contextMenu: isContextMenuOpen,
     task: hasOngoingTask || isTaskProcessing,
-    drop: false,
-    startup: false,
     centerOutcome: centerOverlayLockActive,
     uiLab: isUiLabPreviewActive,
     appUpdate: appUpdatePhase === "downloading" || appUpdatePhase === "installing" || runtimeGateIsBusy,

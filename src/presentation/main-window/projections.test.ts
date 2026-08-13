@@ -35,7 +35,6 @@ describe("mainWindowPresentation projections", () => {
       hotspotActive: false,
       pointerBoundaryActive: true,
     });
-    expect(p.native.compactReachabilityActive).toBe(false);
   });
 
   it("expanding projects the expanding epoch and interactive policy", () => {
@@ -53,7 +52,6 @@ describe("mainWindowPresentation projections", () => {
     expect(p.visual.recipe).toBe("animated");
     expect(p.interaction.mode).toBe("interactive");
     expect(p.interaction.pointerBoundaryActive).toBe(true);
-    expect(p.native.compactReachabilityActive).toBe(false);
   });
 
   it("collapse pending projects full visuals with interactive policy", () => {
@@ -78,7 +76,13 @@ describe("mainWindowPresentation projections", () => {
     expect(p.interaction.mode).toBe("interactive");
     expect(p.interaction.hotspotActive).toBe(false);
     expect(p.interaction.pointerBoundaryActive).toBe(true);
-    expect(p.native.compactReachabilityActive).toBe(true);
+  });
+
+  it("projects no native surface (reachability stays a lifecycle effect, not projection state)", () => {
+    const p = resolveMainWindowPresentationProjections(baseState, {
+      supportsCompactPassthrough: true,
+    });
+    expect(p).not.toHaveProperty("native");
   });
 
   it("initial compact state hides full content immediately (plain-web initial compact)", () => {

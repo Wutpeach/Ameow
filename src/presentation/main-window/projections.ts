@@ -29,15 +29,9 @@ export type MainWindowInteractionProjection = {
   pointerBoundaryActive: boolean;
 };
 
-export type MainWindowNativeProjection = {
-  /** Whether compact reachability correction applies to the current phase. */
-  compactReachabilityActive: boolean;
-};
-
 export type MainWindowPresentationProjections = {
   visual: MainWindowVisualProjection;
   interaction: MainWindowInteractionProjection;
-  native: MainWindowNativeProjection;
 };
 
 /** Pure phase → visual mode mapping; the single source for shell mode. */
@@ -87,9 +81,6 @@ export const resolveMainWindowPresentationProjections = (
           hotspotActive: supportsCompactPassthrough,
           pointerBoundaryActive: false,
         },
-        native: {
-          compactReachabilityActive: true,
-        },
       };
     }
 
@@ -107,9 +98,6 @@ export const resolveMainWindowPresentationProjections = (
           hotspotActive: false,
           pointerBoundaryActive: true,
         },
-        native: {
-          compactReachabilityActive: true,
-        },
       };
 
     case "expanding":
@@ -125,9 +113,6 @@ export const resolveMainWindowPresentationProjections = (
           mode: "interactive",
           hotspotActive: false,
           pointerBoundaryActive: true,
-        },
-        native: {
-          compactReachabilityActive: false,
         },
       };
 
@@ -145,9 +130,6 @@ export const resolveMainWindowPresentationProjections = (
           mode: "interactive",
           hotspotActive: false,
           pointerBoundaryActive: true,
-        },
-        native: {
-          compactReachabilityActive: false,
         },
       };
   }

@@ -37,7 +37,6 @@ src/
 │   └── UiLabPage.tsx      # UI Lab window (DEV only)
 │
 ├── components/            # Reusable components
-│   ├── CatIcon.tsx        # Compact icon
 │   └── ui/                # Custom UI primitives
 │       ├── shared-styles.ts
 │       ├── index.ts       # Barrel export

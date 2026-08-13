@@ -109,10 +109,14 @@ export function DotFieldCanvas({
   // one scale change causes exactly one revision — no revision loop.
   // The progress/terminal targets enter through value signatures so App
   // render identity churn is a no-op (the runtime value-compares anyway).
+  // The terminal signature carries the typed status: `kind` is always the
+  // literal "terminal" for a non-none target, so omitting status would let a
+  // success -> failure -> cancelled replacement reach the baseline effect as
+  // an unchanged signature and never re-deliver to the capable runtime.
   const progressSignature = progress.kind === "idle"
     ? "idle"
     : `${progress.kind}:${progress.traceId}:${progress.kind === "determinate" ? progress.target : ""}`;
-  const terminalSignature = terminal.kind === "none" ? "none" : `terminal:${terminal.kind}`;
+  const terminalSignature = terminal.kind === "none" ? "none" : `terminal:${terminal.status}`;
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (runtime === null) {

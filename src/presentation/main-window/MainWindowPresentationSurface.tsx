@@ -60,6 +60,17 @@ import {
   type PendingPanelClick,
 } from "./dotFieldSurface";
 
+/**
+ * Lock facts owned by Application state and mirrored from App into the
+ * lifecycle. `drag` and `drop` are intentionally excluded: they are
+ * Surface-owned facts written at the gesture boundary (pointer/drop paths),
+ * never published from App.
+ */
+export type MainWindowApplicationLock = Exclude<
+  MainWindowPresentationLock,
+  "drag" | "drop"
+>;
+
 const DRAG_GLOW_BORDER_WIDTH = 2.4;
 const PANEL_OUTPUT_FOLDER_SHORTCUT_DEDUP_MS = 400;
 const DRAG_GLOW_GRADIENT: CSSProperties = {
@@ -94,7 +105,7 @@ export type MainWindowPresentationSurfaceProps = {
     reducedMotion: boolean;
     startsCompact: boolean;
   };
-  locks: Record<MainWindowPresentationLock, boolean>;
+  locks: Record<MainWindowApplicationLock, boolean>;
   primaryTaskKind: "download" | "transcode" | null;
   /** MR3 projected Download progress target; plain presentation input. */
   dotFieldProgress: DotFieldProgressTarget;
@@ -659,14 +670,15 @@ export function MainWindowPresentationSurface({
     && projections.visual.transitionEpoch === null
   );
 
-  // Lock facts flow from application state into the lifecycle. The reducer is
-  // idempotent, so re-dispatching unchanged facts is a no-op.
+  // Application-owned lock facts flow from App into the lifecycle. The reducer
+  // is idempotent, so re-dispatching unchanged facts is a no-op. `drag` and
+  // `drop` are NOT mirrored here: the gesture paths below own those writes
+  // (pointer down/up/cancel and drop enter/leave), so an unrelated App lock
+  // change can never re-publish a constant false over an active Surface-owned
+  // lock.
   useEffect(() => {
-    dispatch({ type: "setLock", lock: "drag", active: locks.drag });
     dispatch({ type: "setLock", lock: "contextMenu", active: locks.contextMenu });
     dispatch({ type: "setLock", lock: "task", active: locks.task });
-    dispatch({ type: "setLock", lock: "drop", active: locks.drop });
-    dispatch({ type: "setLock", lock: "startup", active: locks.startup });
     dispatch({ type: "setLock", lock: "centerOutcome", active: locks.centerOutcome });
     dispatch({ type: "setLock", lock: "uiLab", active: locks.uiLab });
     dispatch({ type: "setLock", lock: "appUpdate", active: locks.appUpdate });

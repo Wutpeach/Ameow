@@ -5,7 +5,6 @@ export type MainWindowPresentationLock =
   | "contextMenu"
   | "task"
   | "drop"
-  | "startup"
   | "centerOutcome"
   | "uiLab"
   | "appUpdate";
@@ -58,7 +57,6 @@ const EMPTY_LOCKS: Record<MainWindowPresentationLock, boolean> = {
   contextMenu: false,
   task: false,
   drop: false,
-  startup: false,
   centerOutcome: false,
   uiLab: false,
   appUpdate: false,
