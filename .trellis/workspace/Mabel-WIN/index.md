@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 248
+- **Total Sessions**: 249
 - **Last Active**: 2026-08-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~1616 | Active |
+| `journal-5.md` | ~1637 | Active |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
 | `journal-2.md` | ~1993 | Archived |
@@ -33,6 +33,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 249 | 2026-08-13 | MR5 Motion Consolidation / Polish — implementation PASS & close-out | `60cfb49` | `mr5/motion-consolidation` |
 | 248 | 2026-08-13 | MR4 Reveal / Terminal Presentation | `c75ec6a` | `mr1/expanded-dot-field` |
 | 247 | 2026-08-13 | MR2 Compact Flat Blob Cat Character | `8e626f5` | `mr1/expanded-dot-field` |
 | 246 | 2026-08-13 | MR1 Expanded Dot Field Substrate | `a7ecc53` | `mr1/expanded-dot-field` |

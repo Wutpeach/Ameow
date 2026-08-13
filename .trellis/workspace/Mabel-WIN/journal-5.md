@@ -1614,3 +1614,24 @@ MR4 Reveal / Terminal Presentation: typed download-terminal to Dot Field lane pr
 ### Status
 
 [OK] **Completed**
+
+
+## Session 249: MR5 Motion Consolidation / Polish — implementation PASS & close-out
+
+**Date**: 2026-08-13
+**Task**: MR5 Motion Consolidation / Polish — implementation PASS & close-out
+**Branch**: `mr5/motion-consolidation`
+
+### Summary
+
+MR5 minimal consolidation received GPT Architecture Lead final Implementation Architecture Review PASS. No new production motion abstraction: terminal-signature boundary fix (terminal.status discriminator) with host regression, lifecycle lock input ownership narrowed (Surface sole drag/drop writer, dead startup lock wire removed, startupSettle semantics preserved), unconsumed compactReachabilityActive projection removed, legacy CatIcon/mascot deleted. Focused tests/type-check/lint/build green; full suite 1698/1700 with exactly two baseline-reproduced non-MR5 failures (electron/preloadBridgeContract.test.mts, browser-extension/architecture-guard.test.js). Validation debt retained: Windows Risk A/B, macOS + manual visual validation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `60cfb49` | (see git log) |
+
+### Status
+
+[OK] **Completed**
