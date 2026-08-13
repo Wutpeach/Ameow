@@ -49,3 +49,39 @@ Implemented the renderer-local Pointer Field and full-mode Magnetic effect, remo
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: MR0 Motion Presentation Architecture Foundation
+
+**Date**: 2026-08-13
+**Task**: MR0 Motion Presentation Architecture Foundation
+**Branch**: `cindy/auto-o3p8cr`
+
+### Summary
+
+Implemented and architecture-approved MR0 motion/presentation contracts through tests, guards, and frontend specs; no production abstraction or authority migration.
+
+### Main Changes
+
+- Added MR0 authority/dependency guards and normative composition/runtime contract tests.
+- Pinned both unresolved Windows correctness paths without claiming repair.
+- Archived the approved MR0 Trellis task while preserving paused M3 work.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a906589` | (see git log) |
+
+### Testing
+
+- [OK] npm test: 187 files / 1597 tests passed.
+- [OK] Type-check, lint, renderer build, Electron build, and git diff --check passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Keep both Windows risks open; Windows packaged manual validation remains not run and macOS not verified.
