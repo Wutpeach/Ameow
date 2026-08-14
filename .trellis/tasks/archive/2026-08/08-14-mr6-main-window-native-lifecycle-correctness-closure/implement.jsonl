@@ -1,0 +1,6 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Validate renderer -> preload -> Main numeric boundaries and keep validation at the native entry point."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/01-overview.md","reason":"Preserve preload as the only renderer-facing desktop bridge and Electron Main as the composition/native owner."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Preserve Download/Application terminal truth, center-overlay request-id/timer ownership, and the sole lifecycle reducer."}
+{"file":".trellis/spec/frontend/motion-guidelines.md","reason":"Keep renderer motion disposable and prevent rAF/animation completion from gating correctness or lifecycle."}
+{"file":".trellis/tasks/08-14-mr6-main-window-native-lifecycle-correctness-closure/research/repository-grounded-planning-report.md","reason":"Use the authoritative baseline, exact risk chains, root causes, repair boundaries, and validation debt discovered in planning."}
+

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check finite validation at the renderer/Main boundary and end-to-end round-trip behavior."}
+{"file":".trellis/spec/backend/electron-runtime-contracts/01-overview.md","reason":"Check preload method parity and that native authority remains in Electron Main."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check terminal retention, stale timer invalidation, lock projection, and lifecycle single authority."}
+{"file":".trellis/spec/frontend/motion-guidelines.md","reason":"Check that no renderer callback or motion completion becomes a correctness authority."}
+{"file":".trellis/tasks/08-14-mr6-main-window-native-lifecycle-correctness-closure/research/repository-grounded-planning-report.md","reason":"Re-run the focused automated and packaged-Windows validation matrix against the exact planned risks."}
