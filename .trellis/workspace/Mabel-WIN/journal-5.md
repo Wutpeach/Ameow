@@ -1557,3 +1557,24 @@ MR3 Progress Field implemented on mr1/expanded-dot-field: pure download->present
 ### Status
 
 [OK] **Completed**
+
+
+## Session 247: MR6 Native Lifecycle Correctness Closure
+
+**Date**: 2026-08-14
+**Task**: MR6 Native Lifecycle Correctness Closure
+**Branch**: `main`
+
+### Summary
+
+Closed MR6 Repairs A/B after GPT Architecture Lead Final PASS; fast-forwarded 710fe5e to motion/presentation-integration. Packaged Windows validation passed all reachable scenarios; negative-origin multi-monitor remains NOT VERIFIED as accepted environment-specific validation debt.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `710fe5e` | (see git log) |
+
+### Status
+
+[OK] **Completed**
