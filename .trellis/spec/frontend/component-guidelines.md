@@ -288,7 +288,8 @@ const { colors } = useTheme();
 
 - Motion recipes (`motionRecipes.ts`) and future recipe families own renderer choreography only and import no Product/lifecycle/native modules.
 - Easing, springs, geometry, frame ownership, and sleep/wake scheduling stay inside the consumer; no centralized scheduling/geometry/easing module is introduced for future consumers.
-- A shared type or helper is added only when two real consumers need the exact same data contract — never preemptively for Dot Field/Character.
+- A shared type or helper is added only when two real consumers need the exact
+  same data contract — never preemptively for graphics/Character consumers.
 
 ### Composition wrapper pattern
 

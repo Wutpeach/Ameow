@@ -1,9 +1,10 @@
 import type { DownloadProgress, DownloadTask } from "../../features/download/model";
-import type { DotFieldProgressTarget } from "./dotFieldRecipe";
+import type { ExpandedPresentationProgressTarget } from "./expandedPresentationTargets";
 
 // MR3 Progress Field — pure Download -> Presentation projection.
 //
-// Maps the CURRENT primary Download selector result to one Dot Field target.
+// Maps the CURRENT primary Download selector result to one neutral Expanded
+// Presentation target.
 // It is a pure current-state value, not a state machine and not a second
 // store: recomputing it from one Download snapshot must never depend on
 // historical animation state, and it contains no terminal outcome, lifecycle
@@ -12,10 +13,10 @@ import type { DotFieldProgressTarget } from "./dotFieldRecipe";
 //
 // The input is specifically the primary Download task + its progress, never
 // the App-level aggregate that can fall back to Transcode: a transcode-only
-// state is idle for this Download Progress Field.
+// state is idle for this Download Presentation.
 
 /**
- * Resolves the projected Dot Field target from the current primary Download
+ * Resolves the projected Expanded Presentation target from the current primary Download
  * selector result.
  *
  * - no primary task                      -> idle
@@ -26,7 +27,7 @@ import type { DotFieldProgressTarget } from "./dotFieldRecipe";
 export const resolveDownloadProgressTarget = (
   task: DownloadTask | null,
   progress: DownloadProgress | null,
-): DotFieldProgressTarget => {
+): ExpandedPresentationProgressTarget => {
   if (task === null) {
     return { kind: "idle" };
   }

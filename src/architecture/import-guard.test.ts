@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -610,25 +610,22 @@ const MR0_MOTION_LEAF_MODULES = [
   "src/presentation/main-window/geometry.ts",
   "src/presentation/main-window/motionRecipes.ts",
   "src/presentation/main-window/panelHover.ts",
-  // MR1 Dot Field: pure recipe + consumer-local runtime. The Dot Field canvas
-  // host (DotFieldCanvas.tsx) is NOT in this list: it legitimately reads
-  // `window.devicePixelRatio` at the DOM boundary, so the position-call ban
-  // does not apply to it. Its imports are held to the FULL leaf rule set plus
-  // the Pointer Field writer by the wiring-boundary assertions below.
-  "src/presentation/main-window/dotFieldRecipe.ts",
-  "src/presentation/main-window/dotFieldRuntime.ts",
-  // MR3 Progress Field: the pure Download -> Dot Field target projection.
+  // MR7 Expanded Presentation: neutral targets + consumer-local frame state.
+  // The concrete WebGL2 host is a DOM/resource boundary and is guarded below.
+  "src/presentation/main-window/expandedPresentationTargets.ts",
+  "src/presentation/main-window/expandedPresentationRuntime.ts",
+  // MR3 Progress: the pure Download -> Presentation target projection.
   // It imports Download types type-only (erased at compile time) and never
   // dispatches, reduces, cancels, or writes lifecycle/native state.
   "src/presentation/main-window/downloadProgressProjection.ts",
-  // MR4 Terminal Reveal: the pure center-outcome Presentation -> Dot Field
-  // terminal lane projection. It imports center-overlay types type-only
+  // MR4 Terminal: the pure center-outcome -> Presentation target projection.
+  // It imports center-overlay types type-only
   // (erased at compile time) and never classifies, dispatches, reduces,
   // cancels, retains, or writes lifecycle/native state.
   "src/presentation/main-window/downloadTerminalProjection.ts",
   // MR2 Compact Flat Blob Cat: pure geometry/attention projection + the
   // consumer-local blink timer. The SVG host (CompactCatCharacter.tsx) is NOT
-  // in this list: it is a DOM boundary like DotFieldCanvas (it reads
+  // in this list: it is a DOM boundary (it reads
   // `document.hidden` for visibility sleep), so the position-call ban does not
   // apply to it. Its imports are held to the FULL leaf rule set plus the
   // Pointer Field writer by the wiring-boundary assertions below.
@@ -802,16 +799,16 @@ describe("MR0 renderer-local motion guard", () => {
     ].join("\n")).toEqual([]);
   });
 
-  it("keeps the Dot Field canvas host free of Product/lifecycle/effects/desktop/Electron/pointer-authority imports and IPC side channels", () => {
-    const canvasFile = path.join(
+  it("keeps the Expanded graphics host free of Product/lifecycle/effects/desktop/Electron/pointer-authority imports and IPC side channels", () => {
+    const hostFile = path.join(
       repoRoot,
-      "src/presentation/main-window/DotFieldCanvas.tsx",
+      "src/presentation/main-window/ExpandedPresentationSurface.tsx",
     );
-    const source = readFileSync(canvasFile, "utf8");
+    const source = readFileSync(hostFile, "utf8");
 
     // The FULL leaf rule set (Product dispatch, lifecycle/effects/desktop/
     // center-overlay authority, electron-runtime, Electron package+host)...
-    const violations = collectMotionLeafImportViolations(source, canvasFile);
+    const violations = collectMotionLeafImportViolations(source, hostFile);
 
     // ...plus the one authority the leaves may consume but the canvas host
     // must never write: the Pointer Field writer.
@@ -820,24 +817,50 @@ describe("MR0 renderer-local motion guard", () => {
       if (!specifier) {
         continue;
       }
-      const target = resolveSpecifierTarget(canvasFile, specifier);
+      const target = resolveSpecifierTarget(hostFile, specifier);
       if (!target) {
         continue;
       }
       if (toRepoRelative(target) === "src/presentation/main-window/pointerField.ts") {
-        violations.push(describeViolation(canvasFile, specifier, target));
+        violations.push(describeViolation(hostFile, specifier, target));
       }
     }
     expect(violations, [
-      "DotFieldCanvas must stay a renderer-local decorative host: no Product/lifecycle/effects/desktop/Electron or Pointer Field writer imports.",
+      "ExpandedPresentationSurface must stay a renderer-local decorative host: no Product/lifecycle/effects/desktop/Electron or Pointer Field writer imports.",
       ...violations,
     ].join("\n")).toEqual([]);
 
     // The host schedules local frames only — no IPC side channels.
     expect(
       MR0_FORBIDDEN_SIDE_CHANNEL_PATTERN.test(source),
-      "DotFieldCanvas must not open IPC side channels",
+      "ExpandedPresentationSurface must not open IPC side channels",
     ).toBe(false);
+  });
+
+  it("retires Dot Field atomically and keeps exactly one production Expanded graphics host", () => {
+    const retiredFiles = [
+      "DotFieldCanvas.tsx",
+      "dotFieldRuntime.ts",
+      "dotFieldRecipe.ts",
+      "dotFieldSurface.ts",
+    ].map((name) => path.join(repoRoot, "src/presentation/main-window", name));
+    expect(retiredFiles.filter(existsSync), "retired Dot Field modules must not remain").toEqual([]);
+
+    const productionSources = collectSourceFiles(srcRoot)
+      .filter((file) => !/\.test\.(ts|tsx)$/.test(file));
+    const dotFieldReferences = productionSources
+      .filter((file) => /DotField|dotField/.test(readFileSync(file, "utf8")))
+      .map(toRepoRelative);
+    expect(dotFieldReferences, "production must have zero Dot Field references").toEqual([]);
+
+    const hostImports = productionSources.filter((file) => (
+      readFileSync(file, "utf8").includes('from "./ExpandedPresentationSurface"')
+    ));
+    expect(hostImports.map(toRepoRelative)).toEqual([
+      "src/presentation/main-window/MainWindowPresentationSurface.tsx",
+    ]);
+    const surfaceSource = readFileSync(hostImports[0], "utf8");
+    expect(surfaceSource.match(/<ExpandedPresentationSurface\b/g)).toHaveLength(1);
   });
 
   it("keeps the Compact Cat SVG host free of Product/lifecycle/effects/desktop/Electron/pointer-authority imports and IPC side channels", () => {

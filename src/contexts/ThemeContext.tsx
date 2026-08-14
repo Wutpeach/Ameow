@@ -80,9 +80,6 @@ export interface ThemeColors {
   // Status icons
   successIcon: string;
   errorIcon: string;
-  // 点阵 (Expanded Dot Field 休眠 / 响应亮度)
-  dotDormant: string;
-  dotAck: string;
   // 角色 (compact Flat Blob Cat 身体 / 眼睛对比)
   characterBody: string;
   characterEye: string;
@@ -164,8 +161,6 @@ const themes: Record<Theme, ThemeColors> = {
     transcodeTrack: 'rgba(120,73,18,0.44)',
     successIcon: '#707070',
     errorIcon: '#f87171',
-    dotDormant: 'rgba(255,255,255,0.16)',
-    dotAck: 'rgba(255,255,255,0.72)',
     characterBody: 'rgba(245,245,245,0.94)',
     characterEye: 'rgba(32,30,37,0.9)',
   },
@@ -237,8 +232,6 @@ const themes: Record<Theme, ThemeColors> = {
     transcodeTrack: 'rgba(251,191,36,0.22)',
     successIcon: '#666666',
     errorIcon: '#ef4444',
-    dotDormant: 'rgba(0,0,0,0.18)',
-    dotAck: 'rgba(0,0,0,0.6)',
     characterBody: 'rgba(51,51,51,0.92)',
     characterEye: 'rgba(245,245,245,0.96)',
   },

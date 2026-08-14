@@ -343,3 +343,13 @@ Rules:
 - Transient concurrency is bounded locally (latest-replaces/coalescing). No unbounded animation queue, no global store, no bus, no state machine added for motion.
 - Renderer motion state is disposable and reconstructible: collapse sleeps a still-mounted runtime; replacement/unmount permanently disposes; rebuild reconstructs from the current projection.
 - Guarded by `src/architecture/import-guard.test.ts` (lifecycle/pointer writer uniqueness, surface wiring boundary) and `src/presentation/main-window/presentationCompositionContract.test.ts` — a normative test-only contract model; MR1/MR2 implementations add their own conformance tests and are not certified by the model alone.
+
+### MR7 Expanded graphics clarification
+
+`expandedPresentationRuntime.ts` may retain only reconstructible interpolation,
+generation, and one pending frame. Its inputs are the pure current Progress and
+Terminal Presentation targets. It must not retain terminal targets after their
+publisher removes them, classify outcomes, release `centerOutcome`, progress the
+main-window lifecycle, mutate Download/Application state, or expose semantic
+callbacks. WebGL context/resource state is decorative renderer-local state and
+failure leaves all authorities unchanged.

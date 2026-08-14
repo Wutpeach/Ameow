@@ -48,17 +48,11 @@ import {
   type MainWindowPointerField,
 } from "./pointerField";
 import { useMainWindowMagnetic } from "./magnetic";
-import { DotFieldCanvas } from "./DotFieldCanvas";
-import {
-  resolveDotOriginFromClientPoint,
-  type DotFieldProgressTarget,
-  type DotFieldTerminalTarget,
-  type DotOrigin,
-} from "./dotFieldRecipe";
-import {
-  resolvePanelSurfaceClick,
-  type PendingPanelClick,
-} from "./dotFieldSurface";
+import { ExpandedPresentationSurface } from "./ExpandedPresentationSurface";
+import type {
+  ExpandedPresentationProgressTarget,
+  ExpandedPresentationTerminalTarget,
+} from "./expandedPresentationTargets";
 
 /**
  * Lock facts owned by Application state and mirrored from App into the
@@ -107,10 +101,10 @@ export type MainWindowPresentationSurfaceProps = {
   };
   locks: Record<MainWindowApplicationLock, boolean>;
   primaryTaskKind: "download" | "transcode" | null;
-  /** MR3 projected Download progress target; plain presentation input. */
-  dotFieldProgress: DotFieldProgressTarget;
-  /** MR4 projected terminal lane target; plain presentation input. */
-  dotFieldTerminal: DotFieldTerminalTarget;
+  /** MR3 projected Download progress target; plain Presentation input. */
+  expandedPresentationProgress: ExpandedPresentationProgressTarget;
+  /** MR4 projected terminal target; plain Presentation input. */
+  expandedPresentationTerminal: ExpandedPresentationTerminalTarget;
   isContextMenuOpen: boolean;
   /** Application busy state that blocks the panel double-click shortcut. */
   interactionBusy: boolean;
@@ -155,8 +149,6 @@ type UseMainWindowPanelDragOptions = {
   isMacOS: boolean;
   onCloseContextMenu: () => Promise<void>;
   onOutputFolderShortcut: (e: ReactMouseEvent<HTMLDivElement>) => Promise<void>;
-  /** Surface Click acknowledgement once the gesture is known to be a click. */
-  onPanelSurfaceClick: (clientX: number, clientY: number) => void;
 };
 
 const useMainWindowPanelDrag = ({
@@ -170,10 +162,8 @@ const useMainWindowPanelDrag = ({
   isMacOS,
   onCloseContextMenu,
   onOutputFolderShortcut,
-  onPanelSurfaceClick,
 }: UseMainWindowPanelDragOptions) => {
   const pendingDragStartRef = useRef<PendingWindowDragStart | null>(null);
-  const pendingClickRef = useRef<PendingPanelClick | null>(null);
   const activeWindowDragRef = useRef<ActiveWindowDragState | null>(null);
   const isWindowPointerDownRef = useRef(false);
   const windowDragFrameRef = useRef<number | null>(null);
@@ -260,7 +250,6 @@ const useMainWindowPanelDrag = ({
     });
     releasePanelPointerCapture(pointerId);
     pendingDragStartRef.current = null;
-    pendingClickRef.current = null;
     activeWindowDragRef.current = null;
     isWindowPointerDownRef.current = false;
     dispatch({ type: "setLock", lock: "drag", active: false });
@@ -281,7 +270,6 @@ const useMainWindowPanelDrag = ({
       return;
     }
     pendingDragStartRef.current = null;
-    pendingClickRef.current = null;
     isDraggingRef.current = true;
     dispatch({ type: "setLock", lock: "drag", active: true });
 
@@ -374,14 +362,6 @@ const useMainWindowPanelDrag = ({
         ? desktopCurrentWindow.outerPosition()
         : Promise.resolve({ x: window.screenX, y: window.screenY }),
     };
-    // This pointer is a potential Surface Click: a click is resolved only
-    // later at pointerup, after drag/compact/shortcut/interactive exclusions
-    // already returned above.
-    pendingClickRef.current = {
-      pointerId: e.pointerId,
-      clientX: e.clientX,
-      clientY: e.clientY,
-    };
   }, [
     canDoubleClickOpenOutputFolder,
     dispatch,
@@ -451,25 +431,10 @@ const useMainWindowPanelDrag = ({
       finishWindowDrag(e.pointerId);
       return;
     }
-    const pendingClick = pendingClickRef.current;
-    pendingClickRef.current = null;
     resetWindowDragState({
       eventPointerId: e.pointerId,
     });
-    const click = resolvePanelSurfaceClick(
-      e.button,
-      e.pointerId,
-      pendingClick,
-      isDraggingRef.current,
-      // The second click of a non-macOS double-click (output-folder shortcut)
-      // carries detail 2 and is excluded before acknowledgement; the first
-      // click is a normal click at this point.
-      e.detail,
-    );
-    if (click !== null) {
-      onPanelSurfaceClick(click.clientX, click.clientY);
-    }
-  }, [finishWindowDrag, onPanelSurfaceClick, resetWindowDragState]);
+  }, [finishWindowDrag, resetWindowDragState]);
 
   const handlePanelPointerCancel = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (isDraggingRef.current) {
@@ -534,8 +499,8 @@ export function MainWindowPresentationSurface({
   environment,
   locks,
   primaryTaskKind,
-  dotFieldProgress,
-  dotFieldTerminal,
+  expandedPresentationProgress,
+  expandedPresentationTerminal,
   isContextMenuOpen,
   interactionBusy,
   onCloseContextMenu,
@@ -559,16 +524,6 @@ export function MainWindowPresentationSurface({
   const [isDragHovering, setIsDragHovering] = useState(false);
   const [isInitialMount, setIsInitialMount] = useState(true);
   const [settlePulseKey, setSettlePulseKey] = useState(0);
-
-  // Dot Field intent: one latest-replaces local snapshot (keyed so repeated
-  // intents at the same origin still re-trigger). React publishes the coarse
-  // intent only; the Dot Field runtime owns all per-frame response geometry.
-  const dotFieldIntentKeyRef = useRef(0);
-  const [dotFieldIntent, setDotFieldIntent] = useState<{
-    key: number;
-    kind: "click" | "context";
-    origin: DotOrigin;
-  } | null>(null);
 
   // The hover callback is forwarded through a ref so the drop/hover handlers
   // stay stable; only the latest consumer callback is invoked.
@@ -663,9 +618,9 @@ export function MainWindowPresentationSurface({
   );
   const magnetic = useMainWindowMagnetic(pointerField, panelViewportSize, magneticEnabled);
 
-  // Dot Field eligibility: settled Expanded/full presentation only. Derived
-  // from the existing visual projection; the Dot Field never writes it.
-  const dotFieldEligible = (
+  // Expanded graphics eligibility is a read-only lifecycle projection. The
+  // renderer never writes lifecycle state or progresses a transition.
+  const expandedGraphicsEligible = (
     projections.visual.mode === "full"
     && projections.visual.transitionEpoch === null
   );
@@ -837,23 +792,6 @@ export function MainWindowPresentationSurface({
     };
   }, [panelViewportSize, pointerField]);
 
-  // One normalized local snapshot per click/context gesture, formed at the
-  // DOM boundary; the App/native callbacks never see Dot Field data.
-  const submitDotFieldIntent = useCallback((
-    kind: "click" | "context",
-    clientX: number,
-    clientY: number,
-  ) => {
-    const rect = containerRef.current?.getBoundingClientRect() ?? null;
-    const origin = resolveDotOriginFromClientPoint(clientX, clientY, rect);
-    dotFieldIntentKeyRef.current += 1;
-    setDotFieldIntent({ key: dotFieldIntentKeyRef.current, kind, origin });
-  }, []);
-
-  const handlePanelSurfaceClick = useCallback((clientX: number, clientY: number) => {
-    submitDotFieldIntent("click", clientX, clientY);
-  }, [submitDotFieldIntent]);
-
   const drag = useMainWindowPanelDrag({
     containerRef,
     viewportRef,
@@ -865,7 +803,6 @@ export function MainWindowPresentationSurface({
     isMacOS: environment.isMacOS,
     onCloseContextMenu,
     onOutputFolderShortcut,
-    onPanelSurfaceClick: handlePanelSurfaceClick,
   });
 
   const isPointInsidePanel = useCallback((clientX: number, clientY: number) => {
@@ -958,12 +895,8 @@ export function MainWindowPresentationSurface({
     e.preventDefault();
     e.stopPropagation();
     drag.resetWindowDragState();
-    // Capture a synchronous local snapshot before the App/native callback
-    // performs native context-menu placement; the native path is unchanged
-    // and never receives Dot Field data.
-    submitDotFieldIntent("context", e.clientX, e.clientY);
     void onContextMenu(e);
-  }, [drag, onContextMenu, submitDotFieldIntent]);
+  }, [drag, onContextMenu]);
 
   // Motion completion reports the current transition epoch; the lifecycle
   // ignores stale epochs (reversal, interruption).
@@ -1174,18 +1107,16 @@ export function MainWindowPresentationSurface({
               pointerEvents: "auto",
             }}
           >
-            {/* Dot Field: renderer-local decorative background layer.
-                Non-interactive; the surface wires eligibility, theme
-                material, and discrete click/context intents only. */}
-            <DotFieldCanvas
-              size={geometry.visualShell.width}
-              eligible={dotFieldEligible}
+            {/* Sole Expanded renderer-local decorative graphics host. */}
+            <ExpandedPresentationSurface
+              eligible={expandedGraphicsEligible}
               reducedMotion={environment.reducedMotion}
-              dormantColor={colors.dotDormant}
-              ackColor={colors.dotAck}
-              progress={dotFieldProgress}
-              terminal={dotFieldTerminal}
-              intent={dotFieldIntent}
+              progress={expandedPresentationProgress}
+              terminal={expandedPresentationTerminal}
+              accentColor={colors.accentSolid}
+              warningColor={colors.warningSolid}
+              dangerColor={colors.dangerSolid}
+              mutedColor={colors.controlMuted}
             />
 
             {/* Drag glow layer */}

@@ -155,7 +155,7 @@ import {
 } from "./presentation/main-window/MainWindowPresentationSurface";
 import { resolveDownloadProgressTarget } from "./presentation/main-window/downloadProgressProjection";
 import {
-  resolveDotFieldTerminalTarget,
+  resolveDownloadTerminalTarget,
   shouldInvalidateTerminalRevealForPrimaryDownload,
   shouldShowDownloadTerminalReveal,
 } from "./presentation/main-window/downloadTerminalProjection";
@@ -488,10 +488,12 @@ function App() {
   const downloadQueueTasks = selectDownloadQueueRows(downloadState);
   const primaryDownloadTask = selectPrimaryDownloadTask(downloadState);
   const downloadProgress = selectPrimaryDownloadProgress(downloadState);
-  // MR3 pure projection: current primary Download selector result -> Dot Field
-  // target (idle/determinate/indeterminate). Recomputes every render, but the
-  // Dot Field runtime value-compares and no-ops on identity churn.
-  const dotFieldProgress = resolveDownloadProgressTarget(primaryDownloadTask, downloadProgress);
+  // MR3 pure projection: current primary Download selector result -> neutral
+  // Expanded Presentation target (idle/determinate/indeterminate).
+  const expandedPresentationProgress = resolveDownloadProgressTarget(
+    primaryDownloadTask,
+    downloadProgress,
+  );
   const downloadStage = selectPrimaryDownloadStage(downloadState);
   const transcodeQueueTasks = videoTranscodeQueueDetail.tasks.map((task) =>
     mergeVideoTranscodeTask(task, transcodeProgressByTrace[task.traceId]),
@@ -549,11 +551,13 @@ function App() {
   // locks.
   const isTaskProcessing = centerOverlayState.kind === "task-processing";
   // MR4 pure projection: current center outcome Presentation + current
-  // primary DOWNLOAD -> Dot Field terminal lane target (none/terminal).
+  // primary DOWNLOAD -> neutral terminal target (none/terminal).
   // Transcode primaries are not an MR4 interruption rule; the center overlay
   // selector visually prioritizes them independently. Recomputed per render;
-  // the Dot Field runtime value-compares and no-ops on identity churn.
-  const dotFieldTerminal = resolveDotFieldTerminalTarget(centerOverlayState, primaryDownloadTask);
+  const expandedPresentationTerminal = resolveDownloadTerminalTarget(
+    centerOverlayState,
+    primaryDownloadTask,
+  );
   const centerOverlayVisual = selectCenterOverlayVisual({
     primaryTask: primaryTask
       ? {
@@ -2890,8 +2894,8 @@ function App() {
       }}
       locks={presentationLocks}
       primaryTaskKind={primaryTask?.kind ?? null}
-      dotFieldProgress={dotFieldProgress}
-      dotFieldTerminal={dotFieldTerminal}
+      expandedPresentationProgress={expandedPresentationProgress}
+      expandedPresentationTerminal={expandedPresentationTerminal}
       isContextMenuOpen={isContextMenuOpen}
       interactionBusy={isProcessing || Boolean(primaryTask) || totalTaskCount > 0 || isQueuePopoverOpen}
       onCloseContextMenu={closeContextMenuWindow}

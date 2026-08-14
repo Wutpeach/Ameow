@@ -1,5 +1,5 @@
 // CompactCatCharacter: the compact-only Flat Blob Cat SVG host. This is a
-// DOM/React boundary module (like DotFieldCanvas): it receives the existing
+// DOM/React boundary module: it receives the existing
 // Pointer Field READ-ONLY and plain projection inputs, owns no lifecycle,
 // Product, native, or IPC authority, and exposes no completion callback.
 //

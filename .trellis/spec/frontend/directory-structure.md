@@ -111,7 +111,10 @@ Renderer-local motion leaves live flat in `src/presentation/main-window/` — on
 
 There is NO shared runtime hierarchy: no `motion/runtime/`, no `animators/`, no manager/bus directory. Future stages add consumer-local modules the same way:
 
-- MR1 Dot Field: a consumer-local Canvas/rAF module with explicit wake/settle/sleep (no shared engine).
+- MR7 Expanded Presentation: one concrete `ExpandedPresentationSurface` WebGL2
+  host plus consumer-local frame execution and neutral Progress/Terminal target
+  types. The retired Dot Field modules must not return; there is no shared
+  engine or alternate graphics backend.
 - MR2 Character: a consumer-local expressive module consuming the Pointer Field values (never a second pointer authority).
 
 ### Composition and projection modules

@@ -1058,3 +1058,58 @@ accessible semantic carrier; the lane is ack-tone decorative presence only.
   no authority vocabulary.
 - `src/architecture/windows-risk-path.test.ts`: the terminal-not-compact
   chain stays pinned (MR4 does not repair it).
+
+## Scenario: MR7 Expanded Presentation Substrate
+
+MR7 supersedes the MR1 renderer recipe and the Dot Field execution vocabulary
+in the MR3/MR4 scenarios above. Their Product/Application and pure Presentation
+semantics remain normative; their Dot Field module names, grid geometry,
+acknowledgement intents, materials, and Canvas 2D runtime are retired.
+
+Production dependency direction is fixed:
+
+```text
+Download/Application facts
+  -> pure Progress / Terminal Presentation targets
+  -> MainWindowPresentationSurface
+  -> ExpandedPresentationSurface (one concrete WebGL2 host)
+  -> consumer-local frame execution
+  -> pixels
+```
+
+Contracts:
+
+- `expandedPresentationTargets.ts` contains only the current Progress
+  (`idle | determinate | indeterminate`) and Terminal
+  (`none | success | failure | cancelled`) target shapes. It is not a scene,
+  layer, reveal, command, or future-feature API.
+- `downloadProgressProjection.ts` preserves current-primary selection, trace
+  replacement, authoritative downward revision, and quantitative versus
+  non-quantitative progress semantics.
+- `downloadTerminalProjection.ts`, App retention, and `centerOverlayState`
+  preserve bounded retention, primary priority, stale invalidation, and
+  `centerOutcome` lock ownership. The renderer owns none of those facts.
+- `ExpandedPresentationSurface.tsx` is the only production Expanded graphics
+  host. It may own WebGL2 resources, bounded DPR/resize handling, context
+  loss/restoration, and at most one local animation frame. It exposes no
+  completion, lock, Product mutation, lifecycle, IPC, or native callback.
+- Graphics/context failure fails closed to decorative absence. The existing
+  accessible progress, cancel, outcome, and diagnostic DOM remains authority.
+- Sleep and dispose leave zero frame work. Reduced Motion preserves the
+  semantic material while removing nonessential travelling motion.
+- No Canvas fallback, second backend, feature flag, compatibility adapter,
+  shared scheduler/runtime/state machine/priority bus, or speculative Intake /
+  Folder Reveal API is permitted.
+
+Required regression evidence:
+
+- projection tests for MR3/MR4 semantics and existing retention/lock suites;
+- `expandedPresentationRuntime.test.ts` for convergence, downward revision,
+  trace replacement, priority, generation, wake/sleep/dispose, Reduced Motion,
+  frame bounds, and render-failure isolation;
+- `expandedPresentationSurface.test.ts` for the one canvas/WebGL2 host,
+  non-interactivity, resource/context lifecycle, and sole production mount;
+- `src/architecture/import-guard.test.ts` for authority import bans, zero
+  production Dot Field references, deleted legacy modules, and exclusive host;
+- real Windows Electron validation for WebGL2 context creation, semantic
+  target rendering, collapse/expand sleep/wake, and context recovery.

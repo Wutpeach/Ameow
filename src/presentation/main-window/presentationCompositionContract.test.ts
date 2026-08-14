@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
  *
  * The persistent + bounded transient + terminal-priority composition shape is
  * a PROJECTION contract, not a state machine/store/manager. MR0 adds no
- * production type for it: Dot Field (MR1) and Character (MR2) are future
+ * production type for it: concrete graphics and Character consumers remain
  * consumers, and a shared type is created only when two real consumers need
  * the exact same data contract.
  *

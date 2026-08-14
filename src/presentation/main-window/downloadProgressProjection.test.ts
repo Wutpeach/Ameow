@@ -3,7 +3,7 @@ import type { DownloadProgress, DownloadTask } from "../../features/download/mod
 import { resolveDownloadProgressTarget } from "./downloadProgressProjection";
 
 /**
- * MR3 conformance tests for the pure Download -> Dot Field projection: idle,
+ * MR3 conformance tests for the pure Download -> Presentation projection: idle,
  * determinate, indeterminate, primary replacement, terminal/removal, and the
  * transcode-only case that must NOT become Download progress. The projection
  * is a pure current-state value with no historical dependency.
