@@ -1578,3 +1578,24 @@ Closed MR6 Repairs A/B after GPT Architecture Lead Final PASS; fast-forwarded 71
 ### Status
 
 [OK] **Completed**
+
+
+## Session 248: MR7 Expanded Presentation substrate closure
+
+**Date**: 2026-08-14
+**Task**: MR7 Expanded Presentation substrate closure
+**Branch**: `main`
+
+### Summary
+
+Completed GPT-approved MR7 closure: detached durable Progress/Terminal Presentation targets from Dot Field vocabulary, installed the sole concrete Expanded WebGL2 host, atomically retired Dot Field production wiring/tests/tokens, preserved authority boundaries, recorded Windows Electron validation and retained packaged-directory/macOS/CRLF baseline debt without reopening MR7.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `48987f7` | (see git log) |
+
+### Status
+
+[OK] **Completed**
