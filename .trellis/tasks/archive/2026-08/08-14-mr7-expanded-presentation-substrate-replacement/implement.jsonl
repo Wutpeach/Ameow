@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/motion-guidelines.md","reason":"Defines MR0-MR6 authority, consumer-local execution, Reduced Motion, scheduling, and anti-framework contracts."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Defines MainWindowPresentationSurface as the wiring/composition boundary and keeps renderer leaves consumer-local."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Defines Download/Application/Presentation/lifecycle ownership and centerOutcome lock semantics."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Pins the Product to Presentation to renderer dependency direction and stale-callback boundary checks."}
+{"file":".trellis/tasks/08-14-mr7-expanded-presentation-substrate-replacement/research/repository-grounded-planning-report.md","reason":"MR7 baseline map, preserve/delete/migrate classification, atomic retirement contract, and validation anchors."}

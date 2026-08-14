@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/motion-guidelines.md","reason":"Review authority separation, one-frame lifecycle, Reduced Motion, stale safety, and no shared runtime violations."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Review effect cleanup, resource lifecycle, type safety, and test expectations."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Review current-primary, retention, centerOutcome, and lifecycle ownership preservation."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Review that only repository-proven target types are shared and no speculative renderer abstraction is added."}
+{"file":".trellis/tasks/08-14-mr7-expanded-presentation-substrate-replacement/research/repository-grounded-planning-report.md","reason":"Review the retirement inventory, exclusive-host cutover, and semantic validation matrix."}
