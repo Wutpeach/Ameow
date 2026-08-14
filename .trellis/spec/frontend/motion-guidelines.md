@@ -664,19 +664,35 @@ Responsibility is split: the presentation projection/recipe boundary selects the
 - Local runtimes wake on input/target/transient, render/interpolate, detect settlement, cancel scheduling, and hold ZERO scheduled frames while settled (frame-count instrumentation in `presentationCompositionContract.test.ts`).
 - No `setState`/React render loop, Electron Main/BrowserWindow loop, or high-frequency IPC carries frame geometry.
 
-### 7. Windows correctness repair dependencies (not solved by visual replacement)
+### 7. Windows correctness closures (MR6; not solved by visual replacement)
 
-Both observed issues remain REACHABLE on the committed M0–M2 baseline and are NOT removed by replacing Reveal/Progress visuals. MR0 adds gates, not repair.
+Both observed issues were reachable on the committed M0–M2/MR0 baseline and
+were not removed by replacing Reveal/Progress visuals. MR6 closes them as two
+independent repairs without changing the existing authority model:
 
-- Native argument conversion / compact reachability: `src/App.tsx` (presentationDependencies) -> `src/desktop/runtime.ts` -> `electron/preload.mts` -> `electron/main.mts` (`Number()` conversion + NaN guards) -> `electron/mainWindowSurfacePolicy.mts` (position-only `win.setPosition`).
-- Terminal window remains full: terminal event -> `App.tsx` `onDownloadTerminal` -> `showForegroundTaskOutcome` -> `src/utils/centerOverlayState.ts` request-id/timer policy -> `App.tsx` `centerOutcome` lock projection -> `lifecycle.ts` lock release -> collapsePending -> single-ack compact.
+- Native manual-position boundary: `src/App.tsx` -> `src/desktop/runtime.ts` ->
+  `electron/preload.mts` -> the targeted `electron/main.mts` IPC handler ->
+  `electron/mainWindowManualPosition.mts`. Electron Main rejects every
+  non-finite converted coordinate before the single native `win.setPosition`
+  write and preserves finite `Math.round` semantics. Compact reachability and
+  renderer coordinate ownership are unchanged.
+- Terminal retention/lifecycle release: Download's exact post-reduction
+  terminal selection still enters `App.tsx` `showForegroundTaskOutcome`, but
+  Application now publishes the outcome and arms the existing request-id timer
+  without waiting for renderer frames, Motion completion, or visual callbacks.
+  Timer expiry or new-primary invalidation changes only Presentation state;
+  `centerOutcome` projects the final lock release into the unchanged lifecycle
+  reducer, which remains the sole full/compact/transition authority.
 
-Regression gates: `src/architecture/windows-risk-path.test.ts`. Repair happens only in an approved later stage that touches and validates the exact paths.
+Regression gates: `src/architecture/windows-risk-path.test.ts`,
+`electron/mainWindowManualPosition.test.mts`, and
+`src/architecture/windows-terminal-retention.test.ts`.
 
 ### 8. Tests required (MR0)
 
 - `src/architecture/import-guard.test.ts` — MR0 renderer-local motion guard: leaf import restrictions, position/IPC side-channel bans, surface wiring boundary, lifecycle/pointer writer uniqueness, M3 candidates not promoted.
-- `src/architecture/windows-risk-path.test.ts` — both Windows chains pinned link-by-link; no "solved by replacement" claim.
+- `src/architecture/windows-risk-path.test.ts` — both repaired Windows chains
+  pinned link-by-link at their existing authority boundaries.
 - `src/presentation/main-window/presentationCompositionContract.test.ts` — NORMATIVE test-only contract model: composition invariants, interpolation classes, sleep/wake harness. It defines the required behavior future consumers must conform to and does NOT certify that any current production module already complies; each MR1/MR2 implementation must add its own conformance tests against these contracts.
 - Existing M0/M1/M2 focused suites remain authoritative (`lifecycle`, `projections`, `effectExecutor`, `geometry`, `pointerField`, `magnetic`, `motionRecipes`, `panelHover`, `presentationCompletion`, `mainWindowSurfacePolicy`, `mainWindowPointerBoundary`, `preloadBridgeContract`).
 

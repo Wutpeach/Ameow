@@ -622,15 +622,6 @@ function App() {
     return nextState;
   }, []);
 
-  const waitForForegroundOutcomeStableFrame = useCallback(async () => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-  }, []);
-
   const resetDownloadOutcome = useCallback(() => {
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
@@ -810,26 +801,22 @@ function App() {
       diagnostic: status === "failure" ? diagnostic ?? null : null,
     });
     const requestId = loadingState.requestId;
-    void (async () => {
-      await prepareMainWindowForForegroundTask();
-      await waitForForegroundOutcomeStableFrame();
+    void prepareMainWindowForForegroundTask();
+    if (centerOverlayStateRef.current.requestId !== requestId) {
+      return;
+    }
+    updateCenterOverlayState({ type: "showTaskOutcome", requestId });
+    foregroundTaskOutcomeTimerRef.current = window.setTimeout(() => {
       if (centerOverlayStateRef.current.requestId !== requestId) {
         return;
       }
-      updateCenterOverlayState({ type: "showTaskOutcome", requestId });
-      foregroundTaskOutcomeTimerRef.current = window.setTimeout(() => {
-        if (centerOverlayStateRef.current.requestId !== requestId) {
-          return;
-        }
-        foregroundTaskOutcomeTimerRef.current = null;
-        updateCenterOverlayState({ type: "finishTaskOutcome", requestId });
-      }, durationMs);
-    })();
+      foregroundTaskOutcomeTimerRef.current = null;
+      updateCenterOverlayState({ type: "finishTaskOutcome", requestId });
+    }, durationMs);
   }, [
     clearForegroundTaskOutcomeTimer,
     prepareMainWindowForForegroundTask,
     updateCenterOverlayState,
-    waitForForegroundOutcomeStableFrame,
   ]);
 
   const showFolderDropOutcome = useCallback(() => {

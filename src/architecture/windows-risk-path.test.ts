@@ -5,19 +5,17 @@ import { describe, expect, it } from "vitest";
 /**
  * MR0 Windows risk path regression gates (Slice 6).
  *
- * Both observed Windows issues are reachable repair dependencies; replacing
- * Reveal/Progress visuals does NOT remove either chain. These static gates pin
- * the exact links of each chain so any future change that would repair or
- * remove a link must be deliberate and re-validated. The gates never claim an
- * issue is solved — they only assert the chains still exist and keep their
- * argument-conversion and terminal-hold shapes.
+ * Both observed Windows issues are independent correctness chains; replacing
+ * Reveal/Progress visuals does NOT remove either chain. MR6 closes the two
+ * risks at their existing authority boundaries, and these static gates pin the
+ * repaired links so future changes remain deliberate and re-validated.
  *
  * Risk A (native argument conversion / compact reachability):
  *   src/App.tsx (presentationDependencies -> ensureMainWindowCompactReachable)
  *   -> src/desktop/runtime.ts (currentWindow passthrough)
  *   -> electron/preload.mts (ipcRenderer.invoke/send with the request object)
  *   -> electron/main.mts (ensure-compact-reachable / set-position handlers,
- *      Number() conversion with NaN guards)
+ *      Number() conversion with finite-coordinate guards)
  *   -> electron/mainWindowSurfacePolicy.mts (resolveCompactReachablePosition /
  *      interpolatePosition -> win.setPosition)
  *
@@ -64,12 +62,23 @@ describe("MR0 Windows risk A: native argument conversion chain", () => {
     );
   });
 
-  it("link 4: Main converts arguments with Number() and NaN guards", () => {
+  it("link 4: Main rejects non-finite coordinates before rounding and native writes", () => {
     const main = read("electron/main.mts");
     expect(main).toContain('"ameow:current-window:ensure-compact-reachable"');
     expect(main).toContain('"ameow:current-window:set-position"');
-    expect(main).toContain("Number(payload?.x)");
-    expect(main).toContain("Number.isNaN(x)");
+    const manualPosition = read("electron/mainWindowManualPosition.mts");
+    expect(main).toContain("resolveMainWindowManualPosition(payload)");
+    expect(manualPosition).toContain("Number(payload?.x)");
+    expect(manualPosition).toContain("Number.isFinite(x)");
+    expect(manualPosition).toContain("Number.isFinite(y)");
+    expect(manualPosition).toContain("Math.round(x)");
+    expect(manualPosition).toContain("Math.round(y)");
+    const handler = main.slice(
+      main.indexOf('ipcMain.on("ameow:current-window:set-position"'),
+      main.indexOf('ipcMain.on("ameow:current-window:set-interaction-mode"'),
+    );
+    expect(handler).toContain("if (!position)");
+    expect(handler.match(/win\.setPosition\(/g)).toHaveLength(1);
     expect(main).toContain("Number(request?.reachableFrameSize)");
     expect(main).toContain("Number.isFinite(reachableFrameSize)");
     expect(main).toContain('"ameow:current-window:set-interaction-mode"');
@@ -99,12 +108,33 @@ describe("MR0 Windows risk A: native argument conversion chain", () => {
 });
 
 describe("MR0 Windows risk B: terminal-not-compact chain", () => {
-  it("link 1: terminal event dispatches into the bounded outcome opportunity", () => {
+  it("link 1: terminal event dispatches into a bounded outcome independent of renderer frames", () => {
     const app = read("src/App.tsx");
     expect(app).toContain("onDownloadTerminal(");
     expect(app).toContain("showForegroundTaskOutcome(");
     expect(app).toContain("durationMs:");
     expect(app).toContain("beginTaskOutcomeLoading");
+
+    const outcomePolicy = app.slice(
+      app.indexOf("const showForegroundTaskOutcome"),
+      app.indexOf("const showFolderDropOutcome"),
+    );
+    expect(outcomePolicy).toContain("prepareMainWindowForForegroundTask()");
+    expect(outcomePolicy).toContain('type: "showTaskOutcome"');
+    expect(outcomePolicy).toContain("window.setTimeout");
+    expect(outcomePolicy).toContain('type: "finishTaskOutcome"');
+    expect(outcomePolicy).not.toContain("requestAnimationFrame");
+    expect(outcomePolicy.indexOf('type: "showTaskOutcome"'))
+      .toBeLessThan(outcomePolicy.indexOf("window.setTimeout"));
+
+    const terminalPolicy = app.slice(
+      app.indexOf("useEffect(() => onDownloadTerminal"),
+      app.indexOf("// Listen for output path changes"),
+    );
+    expect(terminalPolicy).toContain("selectPrimaryDownloadTask(postReductionState)");
+    expect(terminalPolicy.match(/durationMs: 1500/g)).toHaveLength(2);
+    expect(terminalPolicy.match(/durationMs: 5000/g)).toHaveLength(1);
+    expect(terminalPolicy.match(/origin: "terminal"/g)).toHaveLength(3);
   });
 
   it("link 2: center overlay owns request-id/timer policy for the hold", () => {
@@ -133,11 +163,14 @@ describe("MR0 Windows risk B: terminal-not-compact chain", () => {
     expect(lifecycle).toContain('mode: "compact-passthrough"');
   });
 
-  it("keeps both chains unclaimed as solved by MR0", () => {
-    // No MR0 artifact may state either issue is fixed by this phase; the
-    // gates exist to keep the repair dependencies visible.
+  it("records MR6 closure at the existing boundaries, not as a visual replacement claim", () => {
     const plan = read(".trellis/spec/frontend/motion-guidelines.md")
       + read(".trellis/spec/frontend/state-management.md");
-    expect(plan).not.toMatch(/Windows (issue|risk).{0,60}(fixed|solved|resolved)/i);
+    expect(plan).toContain("Windows correctness closures (MR6");
+    expect(plan).toContain("independent repairs");
+    expect(plan).toContain("rejects every");
+    expect(plan).toContain("non-finite converted coordinate");
+    expect(plan).toContain("without waiting for renderer frames");
+    expect(plan).not.toMatch(/visual replacement.{0,60}(fixed|solved|resolved)/i);
   });
 });

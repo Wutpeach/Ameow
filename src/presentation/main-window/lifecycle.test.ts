@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createCenterOverlayState,
+  isCenterOverlayLockActive,
+  reduceCenterOverlayState,
+} from "../../utils/centerOverlayState";
+
+import {
   createMainWindowPresentationState,
   reduceMainWindowPresentation,
   type MainWindowPresentationEvent,
@@ -215,6 +221,53 @@ describe("mainWindowPresentation lifecycle", () => {
     const left = apply(released.state, { type: "pointerLeave" });
     expect(left.state.phase.kind).toBe("collapsePending");
   });
+
+  it.each([
+    ["success", 1500],
+    ["cancelled", 1500],
+    ["failure", 5000],
+  ] as const)(
+    "releases a bounded %s center outcome through the normal outside lifecycle path",
+    (status, durationMs) => {
+      const loading = reduceCenterOverlayState(createCenterOverlayState(), {
+        type: "beginTaskOutcomeLoading",
+        status,
+        origin: "terminal",
+        durationMs,
+      });
+      const visible = reduceCenterOverlayState(loading, {
+        type: "showTaskOutcome",
+        requestId: loading.requestId,
+      });
+      expect(isCenterOverlayLockActive(visible)).toBe(true);
+      expect(visible).toMatchObject({
+        kind: "task-outcome-visible",
+        status,
+        durationMs,
+      });
+
+      const lockedOutside = apply(
+        createMainWindowPresentationState({ startsCompact: false }),
+        { type: "setLock", lock: "centerOutcome", active: true },
+        { type: "pointerLeave" },
+      ).state;
+      const finished = reduceCenterOverlayState(visible, {
+        type: "finishTaskOutcome",
+        requestId: visible.requestId,
+      });
+      expect(isCenterOverlayLockActive(finished)).toBe(false);
+
+      const released = apply(lockedOutside, {
+        type: "setLock",
+        lock: "centerOutcome",
+        active: isCenterOverlayLockActive(finished),
+      });
+      expect(released.state.phase.kind).toBe("collapsePending");
+      expect(released.effects).toEqual([
+        expect.objectContaining({ type: "collapseTimer.start", delayMs: 80 }),
+      ]);
+    },
+  );
 
   it("cancels pending collapse when a lock activates", () => {
     const pending = apply(

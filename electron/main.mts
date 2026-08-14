@@ -97,6 +97,7 @@ import {
   createMainWindowPointerBoundaryController,
   MAIN_WINDOW_POINTER_BOUNDARY_CHANNEL,
 } from "./mainWindowPointerBoundary.mjs";
+import { resolveMainWindowManualPosition } from "./mainWindowManualPosition.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
   SETTINGS_WINDOW_CONTENT_WIDTH,
@@ -3388,13 +3389,12 @@ function registerIpcHandlers() {
       return;
     }
 
-    const x = Number(payload?.x);
-    const y = Number(payload?.y);
-    if (Number.isNaN(x) || Number.isNaN(y)) {
+    const position = resolveMainWindowManualPosition(payload);
+    if (!position) {
       return;
     }
 
-    win.setPosition(Math.round(x), Math.round(y));
+    win.setPosition(position.x, position.y);
   });
 
   ipcMain.on("ameow:current-window:set-interaction-mode", (event, payload) => {

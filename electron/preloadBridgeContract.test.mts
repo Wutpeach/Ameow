@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const readSource = (relative: string): string => (
-  readFileSync(path.join(repoRoot, relative), "utf8")
+  readFileSync(path.join(repoRoot, relative), "utf8").replace(/\r\n/g, "\n")
 );
 
 const extractMethodNames = (
