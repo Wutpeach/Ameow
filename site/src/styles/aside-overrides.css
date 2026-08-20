@@ -1,0 +1,86 @@
+/*
+ * Starlight Aside styling — ported from starlight-theme-black main branch.
+ * v0.6.0 does not include aside overrides; v0.7.x requires Astro 7 (out of scope).
+ * This is the theme author's own CSS, not a custom reimplementation.
+ * Source: packages/starlight-theme-black/styles/base.css (main, 2026-07-23)
+ */
+
+@layer black {
+  /* built-in Starlight Asides */
+  .sl-markdown-content .starlight-aside {
+    --aside-background: var(--code-background);
+    --aside-border: var(--border);
+    --aside-title: var(--foreground);
+    --aside-content: var(--muted-foreground);
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--aside-border);
+    border-inline-start: 1px solid var(--aside-border);
+    border-radius: calc(var(--radius) * 1.8);
+    background-color: var(--aside-background);
+    color: var(--aside-content);
+  }
+
+  .sl-markdown-content .starlight-aside--note {
+    --aside-background: color-mix(in oklab, var(--sl-color-blue-low) 78%, var(--code-background));
+    --aside-border: color-mix(in oklab, var(--sl-color-blue) 45%, var(--border));
+    --aside-title: var(--sl-color-blue-high);
+    --aside-content: color-mix(in oklab, var(--sl-color-blue-high) 72%, var(--foreground));
+  }
+
+  .sl-markdown-content .starlight-aside--tip {
+    --aside-background: color-mix(in oklab, var(--sl-color-purple-low) 78%, var(--code-background));
+    --aside-border: color-mix(in oklab, var(--sl-color-purple) 45%, var(--border));
+    --aside-title: var(--sl-color-purple-high);
+    --aside-content: color-mix(in oklab, var(--sl-color-purple-high) 72%, var(--foreground));
+  }
+
+  .sl-markdown-content .starlight-aside--caution {
+    --aside-background: color-mix(in oklab, var(--sl-color-orange-low) 82%, var(--code-background));
+    --aside-border: color-mix(in oklab, var(--sl-color-orange) 48%, var(--border));
+    --aside-title: var(--sl-color-orange-high);
+    --aside-content: color-mix(in oklab, var(--sl-color-orange-high) 72%, var(--foreground));
+  }
+
+  .sl-markdown-content .starlight-aside--danger {
+    --aside-background: color-mix(in oklab, var(--sl-color-red-low) 80%, var(--code-background));
+    --aside-border: color-mix(in oklab, var(--sl-color-red) 48%, var(--border));
+    --aside-title: var(--sl-color-red-high);
+    --aside-content: color-mix(in oklab, var(--sl-color-red-high) 72%, var(--foreground));
+  }
+
+  .sl-markdown-content .starlight-aside__title {
+    gap: 0.625rem;
+    align-items: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+    color: var(--aside-title);
+  }
+
+  .sl-markdown-content .starlight-aside__icon {
+    width: 1rem;
+    height: 1rem;
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: var(--aside-title);
+  }
+
+  .sl-markdown-content .starlight-aside__title + .starlight-aside__content {
+    margin-top: 0.375rem;
+  }
+
+  .sl-markdown-content .starlight-aside__content {
+    font-size: 0.875rem;
+    line-height: 1.625rem;
+    color: var(--aside-content);
+  }
+
+  .sl-markdown-content .starlight-aside__content a {
+    color: var(--aside-title);
+    text-decoration-color: color-mix(in oklab, var(--aside-title) 45%, transparent);
+  }
+
+  .sl-markdown-content .starlight-aside__content a:hover {
+    text-decoration-color: currentColor;
+  }
+}

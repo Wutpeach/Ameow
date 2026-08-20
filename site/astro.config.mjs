@@ -10,6 +10,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			plugins: [starlightThemeBlack({})],
+			customCss: ['./src/styles/aside-overrides.css'],
 			title: 'Ameow',
 			description: '常驻桌面的悬浮下载与收集窗口。',
 			favicon: '/favicon.svg',
