@@ -28,7 +28,6 @@ The following tools' documentation status is based on the current `main` branch 
 | Tool | Status | Documentation Policy |
 | --- | --- | --- |
 | UI Lab | Still exists on main (DEV-only route `/ui-lab`), pending retirement | No long-term documentation |
-| Browser Lab | Part of MR9 development line, not yet on main | Not published as current stable; deferred until it enters the authoritative baseline |
-| Presentation Lab | Same MR9 development line, not yet on main | Same as above |
+| Browser Lab | Part of MR9 development line (Presentation Lab is a development-context alias), not yet on main | Not published as current stable; deferred until it enters the authoritative baseline |
 
-UI Lab is still accessible via the DEV-only route in development, but building long-term workflows on it is not recommended. Browser Lab and Presentation Lab are planned development-line capabilities — no callable entry point exists on current main.
+UI Lab is still accessible via the DEV-only route in development, but building long-term workflows on it is not recommended. Browser Lab is a planned development-line capability (historically referenced as Presentation Lab in development context) — no callable entry point exists on current main.

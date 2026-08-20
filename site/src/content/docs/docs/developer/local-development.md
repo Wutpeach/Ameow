@@ -66,8 +66,12 @@ Electron 解析渲染层 URL 的优先级（`electron/windowRouting.mts`）：
 
 ```bash
 AMEOW_FORCE_DEV_PREFLIGHT=1 npm run dev
-# 或
-npm run dev -- --force
+```
+
+这是完整 dev 流程中强制预检的唯一入口。`--force` 在 `dev-preflight.mjs` 内部通过 `process.argv` 检测，但 `npm run dev -- --force` 会将 `--force` 传给 `run-electron-dev.mjs`（不读取该参数），而非 preflight 钩子——因此**不能**通过 `npm run dev -- --force` 生效。如需单独运行预检并强制重新验证：
+
+```bash
+node ./scripts/dev-preflight.mjs --force
 ```
 
 ## UI Lab

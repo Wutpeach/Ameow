@@ -30,18 +30,16 @@ The tool:
 3. Launches Electron with UI Lab scenario injection to capture desktop window states
 4. Outputs captures to `docs-screenshot-captures/`
 
-## Environment Variables
+## Internal Environment Protocol
 
-The tool reads four `AMEOW_DOCS_SCREENSHOT_*` variables to control individual screenshot capture:
+`AMEOW_DOCS_SCREENSHOT_*` variables are an internal protocol between this orchestration script and the Electron child process it spawns. The script sets them per-capture; they are not user-facing configuration, and there is no CLI flag for selecting individual captures. The tool always runs all defined captures.
 
 | Variable | Purpose |
 | --- | --- |
-| `AMEOW_DOCS_SCREENSHOT_TARGET` | Target screenshot ID to capture |
-| `AMEOW_DOCS_SCREENSHOT_OUTPUT` | Output path for the capture |
-| `AMEOW_DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR` | Device pixel ratio (default: 4) |
-| `AMEOW_DOCS_SCREENSHOT_USER_DATA` | User data directory path |
-
-When these are not set, the tool runs all defined captures with defaults.
+| `AMEOW_DOCS_SCREENSHOT_TARGET` | Target screenshot ID (set by the script per capture) |
+| `AMEOW_DOCS_SCREENSHOT_OUTPUT` | Output path (set by the script per capture) |
+| `AMEOW_DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR` | Device pixel ratio (script sets 4; main-process fallback 3) |
+| `AMEOW_DOCS_SCREENSHOT_USER_DATA` | Temporary user-data directory (set by the script per capture) |
 
 ## Device Scale Factor
 
@@ -56,6 +54,8 @@ Captures are written to `docs-screenshot-captures/` in the repository root. Thes
 
 ## Architecture Reference
 
-The tool reuses the UI Lab event-driven scenario mechanism for desktop state captures. UI Lab is a DEV-only route pending retirement, but the screenshot tool's use of its IPC events (`dev_ui_lab_apply_scenario`) is independent of the route's lifecycle.
+The current screenshot flow uses the UI Lab scenario mechanism (`dev_ui_lab_apply_scenario`) for specific desktop state captures — `desktop-download-active` and `desktop-transcode-active`. These targets invoke `applyDocsScreenshotUiLabScenario()` in `electron/main.mts`, which calls `window.ameow.commands.invoke("dev_ui_lab_apply_scenario", ...)` on the renderer. Other targets (settings pages, main-window-expanded) use direct window capture or settings-window navigation instead.
 
-Source: `scripts/capture-docs-screenshots.mjs`, `electron/main.mts` (screenshot env vars).
+UI Lab is a DEV-only route pending retirement. When UI Lab retirement lands, this screenshot workflow must be re-verified and updated — the scenario mechanism depends on the UI Lab command system being available in the renderer.
+
+Source: `scripts/capture-docs-screenshots.mjs`, `electron/main.mts` (`applyDocsScreenshotUiLabScenario`, `resolveDocsScreenshotUiLabScenario`, screenshot env vars).

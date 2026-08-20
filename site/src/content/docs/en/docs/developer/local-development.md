@@ -66,8 +66,12 @@ Force Python runtime re-verification:
 
 ```bash
 AMEOW_FORCE_DEV_PREFLIGHT=1 npm run dev
-# or
-npm run dev -- --force
+```
+
+This is the only way to force the preflight within the full dev flow. `--force` is detected in `dev-preflight.mjs` via `process.argv`, but `npm run dev -- --force` passes `--force` to `run-electron-dev.mjs` (which does not read it), not to the preflight hook — so it does **not** work through `npm run dev -- --force`. To run the preflight standalone with force:
+
+```bash
+node ./scripts/dev-preflight.mjs --force
 ```
 
 ## UI Lab

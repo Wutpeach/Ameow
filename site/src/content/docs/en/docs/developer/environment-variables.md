@@ -3,7 +3,7 @@ title: Environment Variables
 description: Real environment variables that affect Ameow's development and diagnostics behavior, and how they differ from message marker constants.
 ---
 
-Ameow uses `AMEOW_`-prefixed environment variables to control development behavior and diagnostic modes. These variables are read from `process.env` — they have no CLI flag equivalent and can only be enabled via the environment.
+Ameow uses `AMEOW_`-prefixed environment variables to control development behavior and diagnostic modes. These variables are read from `process.env`; most can only be enabled via the environment, while `AMEOW_FORCE_DEV_PREFLIGHT` can also be triggered by passing `--force` when running the preflight script directly (see [Local Development](./local-development/)).
 
 ## Environment Variables
 
@@ -19,7 +19,7 @@ Ameow uses `AMEOW_`-prefixed environment variables to control development behavi
 | `AMEOW_DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR` | Docs screenshot: device pixel ratio | `electron/main.mts` |
 | `AMEOW_DOCS_SCREENSHOT_USER_DATA` | Docs screenshot: user data path | `electron/main.mts` |
 
-The `AMEOW_DOCS_SCREENSHOT_*` variables are a group of four, used only by the docs screenshot tool (`npm run docs:screenshots`). See the maintainer runbook.
+The `AMEOW_DOCS_SCREENSHOT_*` variables are an internal environment protocol — the screenshot orchestration script passes target / output / DPR / userData to the Electron child process. They are not maintainer-facing configuration. See the maintainer runbook.
 
 ## Message Markers Are Not Environment Variables
 
