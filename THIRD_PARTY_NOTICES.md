@@ -1,5 +1,35 @@
 # Third-Party Notices
 
+## Ripple Browser Lab source modification (MIT)
+
+The Lab-only WebGL1 Ripple implementation in `src/lab/ripple/` is derived
+from `m1ckc3s/ripple`, commit
+`99ee6e4412bcab34bcb4337f5f21845ae87c12d5`, original file
+`src/components/RippleTransition.tsx`, by Mick Cesanek (2026), under the MIT
+License. Ameow modified the integration to use its own 200×200 fixture and
+controls, one-scene texture binding, React lifecycle/context recovery, and
+resource cleanup; it does not ship upstream images or a production renderer
+integration.
+
+Copyright (c) 2026 Mick Cesanek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions: The above copyright
+notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 ## License status: no active Paper-derived source shipped
 
 As of the MR9 edge-capture baseline restore (2026-08-20), **no Paper-derived
