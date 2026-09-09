@@ -16,6 +16,7 @@ import type {
 } from "../presentation/main-window/expandedPresentationTargets";
 import { NEUTRAL_PRESENTATION_ORIGIN } from "../presentation/main-window/downloadIntakePresentation";
 import type { LabPreviewTarget } from "./previewTargets";
+import type { CompactMascotPreviewPose } from "../presentation/main-window/compactMascotBehaviorRuntime";
 
 /** The production preview surface is exactly 200x200 CSS pixels. */
 export const LAB_PREVIEW_SIZE = MAIN_WINDOW_PANEL_SIZE;
@@ -463,12 +464,17 @@ export const LAB_CATEGORY_TARGET_AVAILABILITY: Readonly<
 export type LabCompactScenarioId =
   | "compact-neutral"
   | "compact-pointer"
-  | "compact-reduced";
+  | "compact-reduced"
+  | "compact-surprised"
+  | "compact-curious"
+  | "compact-playful";
 
 export type LabCompactScenario = Readonly<{
   id: LabCompactScenarioId;
   /** Existing renderer capability: live pointer attention or pinned neutral. */
   pointerMode: "live" | "neutral";
+  /** Existing-core frozen capture pose; Lab-only and read-only. */
+  previewPose: CompactMascotPreviewPose;
   forcedReducedMotion: boolean;
 }>;
 
@@ -482,18 +488,24 @@ export const LAB_COMPACT_SCENARIOS: readonly LabCompactScenario[] = [
   {
     id: "compact-neutral",
     pointerMode: "neutral",
+    previewPose: "neutral",
     forcedReducedMotion: false,
   },
   {
     id: "compact-pointer",
     pointerMode: "live",
+    previewPose: "neutral",
     forcedReducedMotion: false,
   },
   {
     id: "compact-reduced",
     pointerMode: "live",
+    previewPose: "neutral",
     forcedReducedMotion: true,
   },
+  { id: "compact-surprised", pointerMode: "neutral", previewPose: "surprised", forcedReducedMotion: false },
+  { id: "compact-curious", pointerMode: "neutral", previewPose: "curious-short", forcedReducedMotion: false },
+  { id: "compact-playful", pointerMode: "neutral", previewPose: "playful-short", forcedReducedMotion: false },
 ];
 
 export const LAB_COMPACT_SCENARIO_IDS = LAB_COMPACT_SCENARIOS.map(

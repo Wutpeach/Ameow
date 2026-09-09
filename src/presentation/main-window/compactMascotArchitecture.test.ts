@@ -30,4 +30,14 @@ describe("CompactMascot architecture boundary", () => {
     expect(source).toContain('pointerField.x.on("change"');
     expect(source).toContain('document.addEventListener("visibilitychange"');
   });
+
+  it("keeps the frozen Lab seam disposable and out of the production surface", () => {
+    const surface = readFileSync(resolve(here, "./MainWindowPresentationSurface.tsx"), "utf8");
+    expect(source.indexOf("if (previewPose !== undefined)")).toBeLessThan(
+      source.indexOf("createCompactMascotBehaviorRuntime({"),
+    );
+    expect(source).toContain("unsubscribeX();");
+    expect(source).toContain("unsubscribeY();");
+    expect(surface).not.toContain("previewPose");
+  });
 });

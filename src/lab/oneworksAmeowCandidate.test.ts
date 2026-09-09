@@ -17,7 +17,7 @@ import {
 const CENTER = { x: 48, y: 48 };
 const canonicalArtifact = JSON.parse(readFileSync(resolve(
   import.meta.dirname,
-  "../../.trellis/tasks/08-25-oneworks-ameow-mascot-visual-candidate/canonical-candidate.json",
+  "../../.trellis/tasks/archive/2026-08/08-25-oneworks-ameow-mascot-visual-candidate/canonical-candidate.json",
 ), "utf8"));
 
 describe("Ameow OneWorks canonical Lab candidate", () => {

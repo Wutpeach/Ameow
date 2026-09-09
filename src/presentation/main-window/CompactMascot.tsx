@@ -12,7 +12,11 @@ import {
   COMPACT_MASCOT_VIEWBOX,
   resolveCompactMascotAttention,
 } from "./compactMascotRecipe";
-import { createCompactMascotBehaviorRuntime } from "./compactMascotBehaviorRuntime";
+import {
+  createCompactMascotBehaviorRuntime,
+  renderCompactMascotPreviewScene,
+  type CompactMascotPreviewPose,
+} from "./compactMascotBehaviorRuntime";
 import { COMPACT_MASCOT_DEFINITION } from "./compactMascotDefinition";
 
 export type CompactMascotProps = {
@@ -26,6 +30,8 @@ export type CompactMascotProps = {
   };
   attentionCenterX: number;
   attentionCenterY: number;
+  /** Lab-only frozen pose capture; production leaves this undefined. */
+  previewPose?: CompactMascotPreviewPose;
 };
 
 export function CompactMascot({
@@ -36,6 +42,7 @@ export function CompactMascot({
   pointerField,
   attentionCenterX,
   attentionCenterY,
+  previewPose,
 }: CompactMascotProps) {
   const clipId = `compact-kirby-cat-${useId().replace(/:/g, "")}`;
   const clipPathRef = useRef<SVGPathElement | null>(null);
@@ -82,6 +89,25 @@ export function CompactMascot({
   }, []);
 
   useEffect(() => {
+    if (previewPose !== undefined) {
+      const renderPreview = () => applyScene(renderCompactMascotPreviewScene(
+        previewPose,
+        reducedMotion,
+        resolveCompactMascotAttention(
+          { x: pointerField.x.get(), y: pointerField.y.get() },
+          { x: attentionCenterX, y: attentionCenterY },
+          reducedMotion,
+        ),
+        { body: bodyColor, eyes: eyeColor },
+      ));
+      renderPreview();
+      const unsubscribeX = pointerField.x.on("change", renderPreview);
+      const unsubscribeY = pointerField.y.on("change", renderPreview);
+      return () => {
+        unsubscribeX();
+        unsubscribeY();
+      };
+    }
     const runtime = createCompactMascotBehaviorRuntime({
       scheduler: {
         schedule: (callback) => window.requestAnimationFrame(callback),
@@ -133,6 +159,7 @@ export function CompactMascot({
     bodyColor,
     eyeColor,
     pointerField,
+    previewPose,
     reducedMotion,
   ]);
 

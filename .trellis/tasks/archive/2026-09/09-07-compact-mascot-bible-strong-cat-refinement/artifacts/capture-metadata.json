@@ -1,0 +1,108 @@
+{
+  "generator": "capture-core-candidates.mjs",
+  "kirby": {
+    "revision": "175691ab32cefe5faec7828af62f3d50210a8eb2",
+    "sourceBody": {
+      "primary": {
+        "type": "sphere",
+        "width": 240,
+        "height": 240,
+        "depth": 240,
+        "roundness": 1
+      },
+      "nodes": [
+        {
+          "surface": {
+            "type": "sphere",
+            "width": 108.11015625,
+            "height": 81.6,
+            "depth": 81.6,
+            "roundness": 1
+          },
+          "position": [
+            -103.30437876033604,
+            30.4449714479682,
+            -9.784765625
+          ],
+          "rotation": [
+            0,
+            0,
+            -14.843359375
+          ]
+        },
+        {
+          "surface": {
+            "type": "sphere",
+            "width": 108.11015625,
+            "height": 81.6,
+            "depth": 81.6,
+            "roundness": 1
+          },
+          "position": [
+            98.15429266544173,
+            32.55003025735345,
+            -9.784765625
+          ],
+          "rotation": [
+            0,
+            0,
+            15.175
+          ]
+        }
+      ]
+    }
+  },
+  "candidates": [
+    "baseline",
+    "cone-a",
+    "cone-b"
+  ],
+  "states": [
+    {
+      "id": "neutral",
+      "action": null,
+      "at": 0,
+      "eyeOffset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "pointer",
+      "action": "idle",
+      "at": 0,
+      "eyeOffset": {
+        "x": 11,
+        "y": -7.5
+      }
+    },
+    {
+      "id": "surprised",
+      "action": "surprised",
+      "at": 800,
+      "eyeOffset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "curious",
+      "action": "curious-short",
+      "at": 3700,
+      "eyeOffset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "playful",
+      "action": "playful-short",
+      "at": 3700,
+      "eyeOffset": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  ],
+  "note": "SVG evidence uses the installed avatar-core's body/pose/current-frame projection. Cone variants are evidence-only and are not production changes."
+}

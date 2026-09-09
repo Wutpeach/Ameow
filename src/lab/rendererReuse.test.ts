@@ -229,6 +229,7 @@ describe("Browser Presentation Lab production renderer reuse", () => {
     expect(labCompactStage).toContain('from "../constants/windowMetrics"');
     expect(labCompactStage).toContain('from "../presentation/main-window/geometry"');
     expect(labCompactStage).toContain('from "./compactPointerField"');
+    expect(labCompactStage).toContain("previewPose={previewPose}");
     expect(labCompactStage).not.toContain('from "../presentation/main-window/pointerField"');
     expect(labCompactStage).not.toContain("updatePointerFieldFromClientPoint(");
     expect(labCompactStage).not.toContain("resetPointerFieldToCenter(");

@@ -104,6 +104,9 @@
     "compactNeutral": { "label": "Compact · neutral", "description": "The current Compact character at rest; no pointer attention." },
     "compactPointer": { "label": "Compact · pointer attention", "description": "The current Compact character tracking the workspace pointer." },
     "compactReduced": { "label": "Compact · reduced motion", "description": "Reduced Motion: smaller clamped attention, no springs or blink." },
+    "compactSurprised": { "label": "Compact · surprised", "description": "Frozen surprised frame through the production character's existing avatar-core path." },
+    "compactCurious": { "label": "Compact · curious", "description": "Frozen curious-short frame through the production character's existing avatar-core path." },
+    "compactPlayful": { "label": "Compact · playful", "description": "Frozen playful-short frame through the production character's existing avatar-core path." },
     "rmIntake": { "label": "Reduced motion · Intake", "description": "Static ignition blot audit." },
     "rmFolder": { "label": "Reduced motion · Folder", "description": "Static edge lock audit." }
   },

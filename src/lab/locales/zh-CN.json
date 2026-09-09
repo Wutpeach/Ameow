@@ -104,6 +104,9 @@
     "compactNeutral": { "label": "紧凑 · 中性", "description": "当前紧凑角色静止；无指针注意力。" },
     "compactPointer": { "label": "紧凑 · 指针注意力", "description": "当前紧凑角色追踪工作区指针。" },
     "compactReduced": { "label": "紧凑 · 减弱动态", "description": "减弱动态：更小的受限注意力，无弹簧 / 眨眼。" },
+    "compactSurprised": { "label": "紧凑 · 惊讶", "description": "通过生产角色的既有 avatar-core 路径冻结的 surprised 帧。" },
+    "compactCurious": { "label": "紧凑 · 好奇", "description": "通过生产角色的既有 avatar-core 路径冻结的 curious-short 帧。" },
+    "compactPlayful": { "label": "紧凑 · 顽皮", "description": "通过生产角色的既有 avatar-core 路径冻结的 playful-short 帧。" },
     "rmIntake": { "label": "减弱动态 · Intake", "description": "静态点燃光斑审计。" },
     "rmFolder": { "label": "减弱动态 · Folder", "description": "静态边缘锁审计。" }
   },

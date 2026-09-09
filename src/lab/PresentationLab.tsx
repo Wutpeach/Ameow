@@ -454,6 +454,9 @@ const PRESET_LABEL_KEYS: Readonly<Record<string, string>> = {
   "compact-neutral": "compactNeutral",
   "compact-pointer": "compactPointer",
   "compact-reduced": "compactReduced",
+  "compact-surprised": "compactSurprised",
+  "compact-curious": "compactCurious",
+  "compact-playful": "compactPlayful",
 };
 
 const presetLabelKey = (id: string): string => PRESET_LABEL_KEYS[id] ?? id;
@@ -987,6 +990,7 @@ export function PresentationLab() {
                 <CompactPreviewStage
                   reducedMotion={previewReducedMotion}
                   pointerMode={activeCompactScenario?.pointerMode ?? "neutral"}
+                  previewPose={activeCompactScenario?.previewPose ?? "neutral"}
                 />
               )}
             </div>

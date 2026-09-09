@@ -427,21 +427,38 @@ describe("Lab Preview Target compatibility", () => {
     }
   });
 
-  it("declares the three current-renderer-capability Compact scenarios", () => {
+  it("declares the current-renderer-capability Compact scenarios", () => {
     expect(LAB_COMPACT_SCENARIO_IDS).toEqual([
       "compact-neutral",
       "compact-pointer",
       "compact-reduced",
+      "compact-surprised",
+      "compact-curious",
+      "compact-playful",
     ]);
     expect(LAB_COMPACT_SCENARIOS.map((scenario) => scenario.pointerMode)).toEqual([
       "neutral",
       "live",
       "live",
+      "neutral",
+      "neutral",
+      "neutral",
+    ]);
+    expect(LAB_COMPACT_SCENARIOS.map((scenario) => scenario.previewPose)).toEqual([
+      "neutral",
+      "neutral",
+      "neutral",
+      "surprised",
+      "curious-short",
+      "playful-short",
     ]);
     expect(LAB_COMPACT_SCENARIOS.map((scenario) => scenario.forcedReducedMotion)).toEqual([
       false,
       false,
       true,
+      false,
+      false,
+      false,
     ]);
     expect(resolveLabCompactScenario("compact-neutral")?.id).toBe("compact-neutral");
     expect(resolveLabCompactScenario("nope")).toBeNull();

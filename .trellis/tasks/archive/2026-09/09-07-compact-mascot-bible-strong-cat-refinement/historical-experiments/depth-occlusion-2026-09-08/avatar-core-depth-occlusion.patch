@@ -1,0 +1,743 @@
+diff --git a/.changeset/depth-aware-node-fragments.md b/.changeset/depth-aware-node-fragments.md
+new file mode 100644
+index 0000000..fb39259
+--- /dev/null
++++ b/.changeset/depth-aware-node-fragments.md
+@@ -0,0 +1,5 @@
++---
++'@bible-strong/avatar-core': minor
++---
++
++Add opt-in depth-aware body-node fragments for partial primary-surface occlusion.
+diff --git a/packages/avatar-core/README.md b/packages/avatar-core/README.md
+index f17f5fc..f2468b4 100644
+--- a/packages/avatar-core/README.md
++++ b/packages/avatar-core/README.md
+@@ -65,6 +65,19 @@ motion jump deterministically to their target while configured blinks remain act
+ `renderAvatarDefinition` renders a static semantic expression. `renderAvatarFrame` renders an
+ animated frame. Both return paths, visibility and resolved colors without creating DOM nodes.
+ 
++## Depth-aware body-node fragments
++
++Pass `{ occlusion: 'depth-aware' }` to `renderAvatar`, or as the trailing render-policy argument
++to `renderAvatarDefinition` and `renderAvatarFrame`, when a renderer needs a body node to paint on
++both sides of the primary surface. `geometry.nodeFragments` then contains one stable, input-ordered
++`{ nodeId, backPath, frontPath }` record per body node. Either path can be empty; crossing nodes can
++have both paths in the same frame.
++
++The mode is opt-in. Existing `backPaths`, `frontPaths`, `backNodeIds`, and `frontNodeIds` remain the
++complete-node compatibility output, so a depth-aware renderer paints `nodeFragments` instead of both
++representations. Fragments reuse the node surface samples and shared pose, compare sampled camera
++depth against the primary surface, and regenerate whenever the pose changes.
++
+ ## Entry points
+ 
+ - `@bible-strong/avatar-core`: contract, validation, semantic catalog, playback and scene APIs.
+diff --git a/packages/avatar-core/src/__tests__/core-test.ts b/packages/avatar-core/src/__tests__/core-test.ts
+index 6e8caa4..7a3a06b 100644
+--- a/packages/avatar-core/src/__tests__/core-test.ts
++++ b/packages/avatar-core/src/__tests__/core-test.ts
+@@ -9,11 +9,13 @@ import {
+   poseFromExpression,
+   renderAvatar,
+   renderAvatarDefinition,
++  renderAvatarExpression,
+   renderAvatarFrame,
+   resumeAvatarPlayback,
+   resolveAnimation,
+   sampleAvatarFrame,
+   type AvatarDefinition,
++  type BodyNode,
+ } from '../index'
+ 
+ const expression = {
+@@ -66,6 +68,68 @@ const definition: AvatarDefinition = {
+   animationOrder: ['idle'],
+ }
+ 
++const crossingNodes = [
++  {
++    id: 'left-ear',
++    name: 'Left ear',
++    surface: {
++      type: 'cone',
++      width: 84,
++      height: 160,
++      depth: 84,
++      roundness: 0,
++      tipRoundness: 0.58,
++      baseRoundness: 0.42,
++    },
++    position: [-72, -64, 20],
++    rotation: [0, -7, -10],
++  },
++  {
++    id: 'right-ear',
++    name: 'Right ear',
++    surface: {
++      type: 'cone',
++      width: 84,
++      height: 160,
++      depth: 84,
++      roundness: 0,
++      tipRoundness: 0.58,
++      baseRoundness: 0.42,
++    },
++    position: [72, -64, 20],
++    rotation: [0, 7, 10],
++  },
++] satisfies BodyNode[]
++
++const depthAwareDefinition: AvatarDefinition = {
++  ...definition,
++  body: {
++    primary: definition.body.primary,
++    nodes: crossingNodes.map(({ surface, position, rotation }) => ({
++      surface,
++      position: [...position],
++      rotation: [...rotation],
++    })),
++  },
++}
++
++const fragmentSubpathAreas = (fragmentPath: string) =>
++  (fragmentPath.match(/M[^Z]+Z/g) ?? []).map(subpath => {
++    const coordinates = (subpath.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number)
++    const points = Array.from({ length: coordinates.length / 2 }, (_, index) => [
++      coordinates[index * 2],
++      coordinates[index * 2 + 1],
++    ])
++    return (
++      Math.abs(
++        points.reduce((area, point, index) => {
++          const next = points[(index + 1) % points.length]
++          return area + point[0] * next[1] - next[0] * point[1]
++        }, 0)
++      ) / 2
++    )
++  })
++
+ describe('@bible-strong/avatar-core', () => {
+   it('loads a JSON definition and resolves an explicit semantic animation', () => {
+     const parsed = parseAvatarDefinition(JSON.stringify(definition))
+@@ -241,6 +305,175 @@ describe('@bible-strong/avatar-core', () => {
+     expect(scene.colors).toEqual(definition.colors)
+   })
+ 
++  it('returns ordered partial node fragments only in depth-aware mode', () => {
++    const render = (headX = 0, headY = 0) =>
++      renderAvatar(
++        poseFromExpression({
++          ...expressionFromDefinition('neutral', definition.expressions.neutral),
++          headX,
++          headY,
++        }),
++        definition.body.primary,
++        1,
++        { bodyNodes: crossingNodes, occlusion: 'depth-aware' }
++      )
++    const compatibility = renderAvatar(
++      poseFromExpression(expressionFromDefinition('neutral', definition.expressions.neutral)),
++      definition.body.primary,
++      1,
++      { bodyNodes: crossingNodes }
++    )
++    const neutral = render()
++
++    expect(compatibility.nodeFragments).toBeUndefined()
++    expect(
++      renderAvatar(
++        poseFromExpression(expressionFromDefinition('neutral', definition.expressions.neutral)),
++        definition.body.primary,
++        1,
++        { bodyNodes: crossingNodes, occlusion: 'none' }
++      )
++    ).toEqual(compatibility)
++    expect(neutral.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++      'left-ear',
++      'right-ear',
++    ])
++    expect(neutral.nodeFragments?.some(fragment => fragment.backPath && fragment.frontPath)).toBe(
++      true
++    )
++    expect(neutral.backPaths).toEqual(compatibility.backPaths)
++    expect(neutral.frontPaths).toEqual(compatibility.frontPaths)
++    expect(neutral.backNodeIds).toEqual(compatibility.backNodeIds)
++    expect(neutral.frontNodeIds).toEqual(compatibility.frontNodeIds)
++    expect(neutral.headPath).toBe(compatibility.headPath)
++    expect(neutral.leftPath).toBe(compatibility.leftPath)
++    expect(neutral.rightPath).toBe(compatibility.rightPath)
++    expect(render().nodeFragments).toEqual(neutral.nodeFragments)
++    expect(
++      neutral.nodeFragments
++        ?.flatMap(fragment => [fragment.backPath, fragment.frontPath])
++        .flatMap(fragmentSubpathAreas)
++        .every(area => area > 0)
++    ).toBe(true)
++
++    const orthographic = renderAvatar(
++      poseFromExpression({
++        ...expressionFromDefinition('neutral', definition.expressions.neutral),
++        perspective: 0,
++      }),
++      definition.body.primary,
++      1,
++      { bodyNodes: crossingNodes, occlusion: 'depth-aware' }
++    )
++    expect(orthographic.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++      'left-ear',
++      'right-ear',
++    ])
++    expect(
++      orthographic.nodeFragments?.some(fragment => fragment.backPath && fragment.frontPath)
++    ).toBe(true)
++    expect(
++      renderAvatar(
++        poseFromExpression(expressionFromDefinition('neutral', definition.expressions.neutral)),
++        definition.body.primary,
++        1,
++        { occlusion: 'depth-aware' }
++      ).nodeFragments
++    ).toEqual([])
++
++    const depthOrderedNodes: BodyNode[] = [-180, 180].map((z, index) => ({
++      id: index === 0 ? 'behind' : 'front',
++      name: 'Depth sign fixture',
++      surface: { type: 'sphere', width: 20, height: 20, depth: 20, roundness: 0 },
++      position: [0, 0, z],
++      rotation: [0, 0, 0],
++    }))
++    const ellipsoidDepth = renderAvatar(
++      poseFromExpression({
++        ...expressionFromDefinition('neutral', definition.expressions.neutral),
++        headX: 12,
++        headY: 21,
++        headZ: -4,
++      }),
++      { type: 'sphere', width: 240, height: 210, depth: 180, roundness: 0.5 },
++      1,
++      { bodyNodes: depthOrderedNodes, occlusion: 'depth-aware' }
++    ).nodeFragments
++    expect(
++      ellipsoidDepth?.map(fragment => [
++        fragment.nodeId,
++        Boolean(fragment.backPath),
++        Boolean(fragment.frontPath),
++      ])
++    ).toEqual([
++      ['behind', true, false],
++      ['front', false, true],
++    ])
++
++    const bounded = [render(0, -35), render(0, 35), render(-20, 0), render(20, 0)]
++    bounded.forEach(scene => {
++      expect(scene.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++        'left-ear',
++        'right-ear',
++      ])
++      expect(
++        scene.nodeFragments?.flatMap(fragment => [fragment.backPath, fragment.frontPath]).join('')
++      ).not.toMatch(/NaN|Infinity/)
++    })
++    expect(bounded.map(scene => scene.nodeFragments?.[0].frontPath)).not.toContain(
++      neutral.nodeFragments?.[0].frontPath
++    )
++
++    const meshFallback = renderAvatar(
++      poseFromExpression(expressionFromDefinition('neutral', definition.expressions.neutral)),
++      { type: 'cube', width: 240, height: 240, depth: 240, roundness: 0.4 },
++      1,
++      { bodyNodes: crossingNodes, occlusion: 'depth-aware' }
++    )
++    expect(
++      meshFallback.nodeFragments?.some(fragment => fragment.backPath && fragment.frontPath)
++    ).toBe(true)
++    expect(
++      renderAvatar(
++        poseFromExpression(expressionFromDefinition('neutral', definition.expressions.neutral)),
++        { type: 'cube', width: 240, height: 240, depth: 240, roundness: 0.4 },
++        1,
++        { bodyNodes: crossingNodes, occlusion: 'depth-aware' }
++      ).nodeFragments
++    ).toEqual(meshFallback.nodeFragments)
++
++    const staticScene = renderAvatarDefinition(depthAwareDefinition, 'neutral', {
++      occlusion: 'depth-aware',
++    })
++    const frameScene = renderAvatarFrame(
++      depthAwareDefinition,
++      createAvatarPlaybackState(),
++      1_000,
++      { random: () => 0.5 },
++      { occlusion: 'depth-aware' }
++    )
++    const expressionScene = renderAvatarExpression(
++      depthAwareDefinition,
++      expressionFromDefinition('neutral', depthAwareDefinition.expressions.neutral),
++      {},
++      1,
++      { occlusion: 'depth-aware' }
++    )
++    expect(staticScene.geometry.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++      'runtime-node-0',
++      'runtime-node-1',
++    ])
++    expect(frameScene.geometry.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++      'runtime-node-0',
++      'runtime-node-1',
++    ])
++    expect(expressionScene.geometry.nodeFragments?.map(fragment => fragment.nodeId)).toEqual([
++      'runtime-node-0',
++      'runtime-node-1',
++    ])
++    expect(renderAvatarDefinition(depthAwareDefinition).geometry.nodeFragments).toBeUndefined()
++  })
++
+   it('does not alias cached geometry for surfaces that differ beyond four decimals', () => {
+     const narrow: AvatarDefinition = {
+       ...definition,
+diff --git a/packages/avatar-core/src/geometry.ts b/packages/avatar-core/src/geometry.ts
+index a96aa5e..002cb5c 100644
+--- a/packages/avatar-core/src/geometry.ts
++++ b/packages/avatar-core/src/geometry.ts
+@@ -51,6 +51,7 @@ export type AvatarGeometry = {
+   frontPaths: string[]
+   backNodeIds: (string | null)[]
+   frontNodeIds: (string | null)[]
++  nodeFragments?: AvatarNodeFragment[]
+   headPath: string
+   leftPath: string
+   rightPath: string
+@@ -59,10 +60,17 @@ export type AvatarGeometry = {
+   wirePaths: string[]
+ }
+ 
++export type AvatarNodeFragment = {
++  nodeId: string
++  backPath: string
++  frontPath: string
++}
++
+ export type RenderAvatarOptions = {
+   includeWire?: boolean
+   bodyNodes?: BodyNode[]
+   eyeOffset?: Readonly<{ x: number; y: number }>
++  occlusion?: 'none' | 'depth-aware'
+ }
+ 
+ export type EyeEditorGeometry = {
+@@ -502,6 +510,8 @@ type LocalSurfacePoint = ProjectedSurfacePoint
+ const MAX_SURFACE_CACHE_ENTRIES = 24
+ const HEAD_LATITUDE_SAMPLES = 25
+ const HEAD_LONGITUDE_SAMPLES = 73
++const ACCESSORY_LATITUDE_SAMPLES = 17
++const ACCESSORY_LONGITUDE_SAMPLES = 49
+ const PRIMITIVE_RING_SAMPLES = 144
+ const ROUNDED_PRIMITIVE_LATITUDE_SAMPLES = 33
+ const ROUNDED_PRIMITIVE_LONGITUDE_SAMPLES = 73
+@@ -527,6 +537,23 @@ const cacheSurfaceValue = <Value>(cache: Map<string, Value>, key: string, value:
+   return value
+ }
+ 
++const accessorySurfaceSamples = (surface: SurfaceConfig) => {
++  const key = surfaceCacheKey(surface)
++  let localSamples = accessorySamplesCache.get(key)
++  if (!localSamples) {
++    localSamples = Array.from({ length: ACCESSORY_LATITUDE_SAMPLES }, (_, latitudeIndex) => {
++      const latitude = -Math.PI / 2 + (latitudeIndex / (ACCESSORY_LATITUDE_SAMPLES - 1)) * Math.PI
++      return Array.from({ length: ACCESSORY_LONGITUDE_SAMPLES }, (_, longitudeIndex) => {
++        const longitude =
++          -Math.PI + (longitudeIndex / (ACCESSORY_LONGITUDE_SAMPLES - 1)) * Math.PI * 2
++        return surfacePointAt(surface, longitude, latitude)
++      })
++    }).flat()
++    cacheSurfaceValue(accessorySamplesCache, key, localSamples)
++  }
++  return localSamples
++}
++
+ const localSurfacePoint = (
+   surface: SurfaceConfig,
+   longitude: number,
+@@ -1153,41 +1180,247 @@ const headPath = (pose: AvatarPose, surface: SurfaceConfig) => {
+ }
+ 
+ const accessoryPath = (pose: AvatarPose, node: BodyNode) => {
+-  const key = surfaceCacheKey(node.surface)
+-  let localSamples = accessorySamplesCache.get(key)
+-  if (!localSamples) {
+-    localSamples = Array.from({ length: 17 }, (_, latitudeIndex) => {
+-      const latitude = -Math.PI / 2 + (latitudeIndex / 16) * Math.PI
+-      return Array.from({ length: 49 }, (_, longitudeIndex) => {
+-        const longitude = -Math.PI + (longitudeIndex / 48) * Math.PI * 2
+-        return surfacePointAt(node.surface, longitude, latitude)
+-      })
+-    }).flat()
+-    cacheSurfaceValue(accessorySamplesCache, key, localSamples)
++  const projected = nodeSamples(pose, node).map(sample => sample.projected)
++  const hull = convexHull(projected)
++  if (
++    (node.surface.type === 'cube' || node.surface.type === 'diamond') &&
++    node.surface.roundness <= 0
++  ) {
++    return path(hull)
+   }
++  return smoothClosedPath(densifyClosedPoints(hull))
++}
+ 
++type ProjectedNodeSample = {
++  camera: Point3
++  projected: Point3
++}
++
++type CameraRay = {
++  origin: Point3
++  direction: Point3
++}
++
++const nodeSamples = (pose: AvatarPose, node: BodyNode): ProjectedNodeSample[] => {
+   const localOrientation = quaternionFromEuler(
+     radians(node.rotation[0]),
+     radians(node.rotation[1]),
+     radians(node.rotation[2])
+   )
+-  const projected = localSamples.map(point => {
++  return accessorySurfaceSamples(node.surface).map(point => {
+     const locallyRotated = rotateWithQuaternion(localOrientation, point)
+-    const positioned: Point3 = [
++    const camera: Point3 = rotateWithQuaternion(pose.orientation, [
+       locallyRotated[0] + node.position[0],
+       locallyRotated[1] + node.position[1],
+       locallyRotated[2] + node.position[2],
+-    ]
+-    return project(rotateWithQuaternion(pose.orientation, positioned), pose.expression.perspective)
++    ])
++    return { camera, projected: project(camera, pose.expression.perspective) }
+   })
+-  const hull = convexHull(projected)
+-  if (
+-    (node.surface.type === 'cube' || node.surface.type === 'diamond') &&
+-    node.surface.roundness <= 0
+-  ) {
+-    return path(hull)
++}
++
++const addScaledPoint = (origin: Point3, direction: Point3, distance: number): Point3 => [
++  origin[0] + direction[0] * distance,
++  origin[1] + direction[1] * distance,
++  origin[2] + direction[2] * distance,
++]
++
++const subtractPoints = (left: Point3, right: Point3): Point3 => [
++  left[0] - right[0],
++  left[1] - right[1],
++  left[2] - right[2],
++]
++
++const dotProduct = (left: Point3, right: Point3) =>
++  left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
++
++const crossProduct = (left: Point3, right: Point3): Point3 => [
++  left[1] * right[2] - left[2] * right[1],
++  left[2] * right[0] - left[0] * right[2],
++  left[0] * right[1] - left[1] * right[0],
++]
++
++const cameraRayAt = (point: Point3, perspective: number): CameraRay => {
++  if (Math.abs(perspective) < 0.0001) {
++    return { origin: [point[0], point[1], FOCAL_LENGTH], direction: [0, 0, -1] }
++  }
++  const cameraZ = FOCAL_LENGTH / perspective
++  return { origin: [0, 0, cameraZ], direction: [point[0], point[1], -cameraZ] }
++}
++
++const rayTriangleDistance = (ray: CameraRay, triangle: readonly [Point3, Point3, Point3]) => {
++  const [first, second, third] = triangle
++  const firstEdge = subtractPoints(second, first)
++  const secondEdge = subtractPoints(third, first)
++  const perpendicular = crossProduct(ray.direction, secondEdge)
++  const determinant = dotProduct(firstEdge, perpendicular)
++  if (Math.abs(determinant) < 0.0000001) return null
++
++  const inverseDeterminant = 1 / determinant
++  const offset = subtractPoints(ray.origin, first)
++  const u = dotProduct(offset, perpendicular) * inverseDeterminant
++  if (u < 0 || u > 1) return null
++
++  const q = crossProduct(offset, firstEdge)
++  const v = dotProduct(ray.direction, q) * inverseDeterminant
++  if (v < 0 || u + v > 1) return null
++
++  const distance = dotProduct(secondEdge, q) * inverseDeterminant
++  return distance >= 0 ? distance : null
++}
++
++const ellipsoidDepthAt = (pose: AvatarPose, surface: SurfaceConfig, point: Point3) => {
++  const ray = cameraRayAt(point, pose.expression.perspective)
++  const [w, x, y, z] = pose.orientation
++  const inverseOrientation: Quaternion = [w, -x, -y, -z]
++  const origin = rotateWithQuaternion(inverseOrientation, ray.origin)
++  const direction = rotateWithQuaternion(inverseOrientation, ray.direction)
++  const radii: Point3 = [surface.width / 2 || 1, surface.height / 2 || 1, surface.depth / 2 || 1]
++  const quadratic = dotProduct(
++    [direction[0] / radii[0], direction[1] / radii[1], direction[2] / radii[2]],
++    [direction[0] / radii[0], direction[1] / radii[1], direction[2] / radii[2]]
++  )
++  const linear =
++    2 *
++    dotProduct(
++      [origin[0] / radii[0], origin[1] / radii[1], origin[2] / radii[2]],
++      [direction[0] / radii[0], direction[1] / radii[1], direction[2] / radii[2]]
++    )
++  const constant =
++    dotProduct(
++      [origin[0] / radii[0], origin[1] / radii[1], origin[2] / radii[2]],
++      [origin[0] / radii[0], origin[1] / radii[1], origin[2] / radii[2]]
++    ) - 1
++  const discriminant = linear * linear - 4 * quadratic * constant
++  if (quadratic === 0 || discriminant < 0) return null
++  const root = Math.sqrt(discriminant)
++  const near = (-linear - root) / (2 * quadratic)
++  const far = (-linear + root) / (2 * quadratic)
++  const distance = near >= 0 ? near : far >= 0 ? far : null
++  return distance === null ? null : addScaledPoint(ray.origin, ray.direction, distance)[2]
++}
++
++const primaryMeshDepthQuery = (pose: AvatarPose, surface: SurfaceConfig) => {
++  const samples = Array.from({ length: HEAD_LATITUDE_SAMPLES }, (_, latitudeIndex) => {
++    const latitude = -Math.PI / 2 + (latitudeIndex / (HEAD_LATITUDE_SAMPLES - 1)) * Math.PI
++    return Array.from({ length: HEAD_LONGITUDE_SAMPLES }, (_, longitudeIndex) => {
++      const longitude = -Math.PI + (longitudeIndex / (HEAD_LONGITUDE_SAMPLES - 1)) * Math.PI * 2
++      return rotateWithQuaternion(pose.orientation, surfacePointAt(surface, longitude, latitude))
++    })
++  })
++  const triangles: [Point3, Point3, Point3][] = []
++  for (let latitudeIndex = 0; latitudeIndex < HEAD_LATITUDE_SAMPLES - 1; latitudeIndex += 1) {
++    for (let longitudeIndex = 0; longitudeIndex < HEAD_LONGITUDE_SAMPLES - 1; longitudeIndex += 1) {
++      const topLeft = samples[latitudeIndex][longitudeIndex]
++      const topRight = samples[latitudeIndex][longitudeIndex + 1]
++      const bottomLeft = samples[latitudeIndex + 1][longitudeIndex]
++      const bottomRight = samples[latitudeIndex + 1][longitudeIndex + 1]
++      triangles.push([topLeft, bottomLeft, topRight], [topRight, bottomLeft, bottomRight])
++    }
++  }
++  return (point: Point3) => {
++    const ray = cameraRayAt(point, pose.expression.perspective)
++    let nearest = Number.POSITIVE_INFINITY
++    triangles.forEach(triangle => {
++      const distance = rayTriangleDistance(ray, triangle)
++      if (distance !== null && distance < nearest) nearest = distance
++    })
++    return Number.isFinite(nearest) ? addScaledPoint(ray.origin, ray.direction, nearest)[2] : null
++  }
++}
++
++const primaryDepthQuery = (pose: AvatarPose, surface: SurfaceConfig) =>
++  surface.type === 'sphere' || surface.type === 'mickey'
++    ? (point: Point3) => ellipsoidDepthAt(pose, surface, point)
++    : primaryMeshDepthQuery(pose, surface)
++
++type FragmentPoint = {
++  projected: Point3
++  depth: number
++}
++
++const DEPTH_EPSILON = 0.0001
++const MIN_FRAGMENT_AREA = 0.01
++const OUTSIDE_PRIMARY_DEPTH = DEPTH_EPSILON * 2
++
++const clipFragmentPolygon = (points: FragmentPoint[], front: boolean) => {
++  const clipped: FragmentPoint[] = []
++  const isInside = (point: FragmentPoint) =>
++    front ? point.depth > DEPTH_EPSILON : point.depth <= DEPTH_EPSILON
++  const intersection = (from: FragmentPoint, to: FragmentPoint): FragmentPoint => {
++    const progress = (DEPTH_EPSILON - from.depth) / (to.depth - from.depth || 1)
++    return {
++      projected: [
++        from.projected[0] + (to.projected[0] - from.projected[0]) * progress,
++        from.projected[1] + (to.projected[1] - from.projected[1]) * progress,
++        from.projected[2] + (to.projected[2] - from.projected[2]) * progress,
++      ],
++      depth: DEPTH_EPSILON,
++    }
++  }
++
++  points.forEach((point, index) => {
++    const previous = points[(index + points.length - 1) % points.length]
++    const previousInside = isInside(previous)
++    const currentInside = isInside(point)
++    if (previousInside !== currentInside) clipped.push(intersection(previous, point))
++    if (currentInside) clipped.push(point)
++  })
++  return clipped
++}
++
++const fragmentPolygonArea = (points: FragmentPoint[]) =>
++  Math.abs(
++    points.reduce((area, point, index) => {
++      const next = points[(index + 1) % points.length]
++      return area + point.projected[0] * next.projected[1] - next.projected[0] * point.projected[1]
++    }, 0)
++  ) / 2
++
++const fragmentPath = (polygons: FragmentPoint[][]) =>
++  polygons
++    .filter(points => points.length >= 3 && fragmentPolygonArea(points) > MIN_FRAGMENT_AREA)
++    .map(points => path(points.map(point => point.projected)))
++    .join('')
++
++const depthAwareNodeFragment = (
++  pose: AvatarPose,
++  node: BodyNode,
++  depthAt: (point: Point3) => number | null
++): AvatarNodeFragment => {
++  const samples = nodeSamples(pose, node).map(sample => {
++    const primaryDepth = depthAt(sample.projected)
++    return {
++      projected: sample.projected,
++      depth: primaryDepth === null ? OUTSIDE_PRIMARY_DEPTH : sample.camera[2] - primaryDepth,
++    }
++  })
++  const backPolygons: FragmentPoint[][] = []
++  const frontPolygons: FragmentPoint[][] = []
++  for (let latitudeIndex = 0; latitudeIndex < ACCESSORY_LATITUDE_SAMPLES - 1; latitudeIndex += 1) {
++    for (
++      let longitudeIndex = 0;
++      longitudeIndex < ACCESSORY_LONGITUDE_SAMPLES - 1;
++      longitudeIndex += 1
++    ) {
++      const topLeft = samples[latitudeIndex * ACCESSORY_LONGITUDE_SAMPLES + longitudeIndex]
++      const topRight = samples[latitudeIndex * ACCESSORY_LONGITUDE_SAMPLES + longitudeIndex + 1]
++      const bottomLeft = samples[(latitudeIndex + 1) * ACCESSORY_LONGITUDE_SAMPLES + longitudeIndex]
++      const bottomRight =
++        samples[(latitudeIndex + 1) * ACCESSORY_LONGITUDE_SAMPLES + longitudeIndex + 1]
++      ;[
++        [topLeft, bottomLeft, topRight],
++        [topRight, bottomLeft, bottomRight],
++      ].forEach(triangle => {
++        backPolygons.push(clipFragmentPolygon(triangle, false))
++        frontPolygons.push(clipFragmentPolygon(triangle, true))
++      })
++    }
++  }
++  return {
++    nodeId: node.id,
++    backPath: fragmentPath(backPolygons),
++    frontPath: fragmentPath(frontPolygons),
+   }
+-  return smoothClosedPath(densifyClosedPoints(hull))
+ }
+ 
+ const ACCESSORY_FRONT_CROSSING_RATIO = 0.1
+@@ -1244,13 +1477,20 @@ export const renderAvatar = (
+   const rightSamples = eyePoints(pose, surface, 1, blink, options.eyeOffset)
+   const left = leftSamples.map(sample => sample.point)
+   const right = rightSamples.map(sample => sample.point)
+-  const accessories = accessoryLayers(pose, options.bodyNodes ?? [])
++  const bodyNodes = options.bodyNodes ?? []
++  const accessories = accessoryLayers(pose, bodyNodes)
++  let nodeFragments: AvatarNodeFragment[] | undefined
++  if (options.occlusion === 'depth-aware') {
++    const depthAt = primaryDepthQuery(pose, surface)
++    nodeFragments = bodyNodes.map(node => depthAwareNodeFragment(pose, node, depthAt))
++  }
+   const compositePaths = compositeBackPaths(pose, surface)
+   return {
+     backPaths: [...compositePaths, ...accessories.backPaths],
+     frontPaths: accessories.frontPaths,
+     backNodeIds: [...compositePaths.map(() => null), ...accessories.backNodeIds],
+     frontNodeIds: accessories.frontNodeIds,
++    ...(nodeFragments ? { nodeFragments } : {}),
+     headPath: headPath(pose, surface),
+     leftPath: path(left),
+     rightPath: path(right),
+diff --git a/packages/avatar-core/src/runtime.ts b/packages/avatar-core/src/runtime.ts
+index 65522c1..7cc5567 100644
+--- a/packages/avatar-core/src/runtime.ts
++++ b/packages/avatar-core/src/runtime.ts
+@@ -6,7 +6,12 @@ import {
+   type ExpressionKey,
+ } from './avatarDefinition'
+ import { applyAmbientMotion } from './ambientMotion'
+-import { interpolatePose, poseFromExpression, type Expression } from './geometry'
++import {
++  interpolatePose,
++  poseFromExpression,
++  type Expression,
++  type RenderAvatarOptions,
++} from './geometry'
+ import { expressionFromDefinition, renderAvatarExpression, type AvatarScene } from './scene'
+ 
+ export type AvatarRuntimeError = {
+@@ -338,11 +343,12 @@ export const renderAvatarFrame = (
+   definition: Readonly<AvatarDefinition>,
+   state: Readonly<AvatarPlaybackState>,
+   now: number,
+-  environment: AvatarRuntimeEnvironment
++  environment: AvatarRuntimeEnvironment,
++  renderOptions: Pick<RenderAvatarOptions, 'occlusion'> = {}
+ ): AvatarScene => {
+   const frame = sampleAvatarFrame(definition, state, now, environment)
+   const expression = environment.reduceMotion
+     ? frame.expression
+     : applyAmbientMotion(frame.expression, frame.sampledAt)
+-  return renderAvatarExpression(definition, expression, frame.colors, frame.blink)
++  return renderAvatarExpression(definition, expression, frame.colors, frame.blink, renderOptions)
+ }
+diff --git a/packages/avatar-core/src/scene.ts b/packages/avatar-core/src/scene.ts
+index f1746c1..d2d7a13 100644
+--- a/packages/avatar-core/src/scene.ts
++++ b/packages/avatar-core/src/scene.ts
+@@ -5,7 +5,13 @@ import type {
+   ExpressionKey,
+ } from './avatarDefinition'
+ import type { AvatarBody } from './body'
+-import { poseFromExpression, renderAvatar, type AvatarGeometry, type Expression } from './geometry'
++import {
++  poseFromExpression,
++  renderAvatar,
++  type AvatarGeometry,
++  type Expression,
++  type RenderAvatarOptions,
++} from './geometry'
+ 
+ export const expressionFromDefinition = (
+   key: ExpressionKey,
+@@ -54,12 +60,14 @@ export const renderAvatarExpression = (
+   definition: Readonly<AvatarDefinition>,
+   expression: Expression,
+   colors: { body?: string; eyes?: string } = {},
+-  blink = 1
++  blink = 1,
++  renderOptions: Pick<RenderAvatarOptions, 'occlusion'> = {}
+ ): AvatarScene => {
+   const body = bodyFromDefinition(definition.body)
+   return {
+     geometry: renderAvatar(poseFromExpression(expression), body.primary, blink, {
+       bodyNodes: body.nodes,
++      ...renderOptions,
+     }),
+     colors: {
+       body: colors.body ?? expression.bodyColor ?? definition.colors.body,
+@@ -70,10 +78,11 @@ export const renderAvatarExpression = (
+ 
+ export const renderAvatarDefinition = (
+   definition: Readonly<AvatarDefinition>,
+-  expressionKey: ExpressionKey = 'neutral'
++  expressionKey: ExpressionKey = 'neutral',
++  renderOptions: Pick<RenderAvatarOptions, 'occlusion'> = {}
+ ): AvatarScene => {
+   const publicExpression = definition.expressions[expressionKey]
+   if (!publicExpression) throw new Error(`Unknown expression '${expressionKey}'`)
+   const expression = expressionFromDefinition(expressionKey, publicExpression)
+-  return renderAvatarExpression(definition, expression, publicExpression.colors)
++  return renderAvatarExpression(definition, expression, publicExpression.colors, 1, renderOptions)
+ }
+diff --git a/src/features/export/standaloneEngine.generated.ts b/src/features/export/standaloneEngine.generated.ts
+index 38e0a7b..756a19b 100644
+--- a/src/features/export/standaloneEngine.generated.ts
++++ b/src/features/export/standaloneEngine.generated.ts
+@@ -1,2 +1,2 @@
+ // Generated by scripts/generate-standalone-engine.mjs. Do not edit.
+-export const standaloneEngineSource = "var AvatarProceduralEngine=(function(e){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var t=e=>e*e*(3-2*e),n=e=>{let t=Math.sin(e*127.1+311.7)*43758.5453;return(t-Math.floor(t))*2-1},r=e=>e.headX*.71+e.headY*1.13+e.headZ*1.37,i=17.29,a=(e,r,i,a)=>{let o=e/a,s=Math.floor(o),c=t(o-s),l=n(s*3+r+i);return l+(n((s+1)*3+r+i)-l)*c},o=(e,r,i)=>{let a=1100;if(e<=0)return 0;let o=Math.floor(e/a),s=(e-o*a)/140,c=t(Math.min(s,1)),l=o===0?0:n((o-1)*2+r+i);return l+(n(o*2+r+i)-l)*c},s=e=>e.eyeMotion!==`none`||e.bodyMotion!==`none`,c=(e,t,n=1)=>{let i=r(e);if(e.bodyMotion===`slowDrift`)return{x:a(t,3,i,2900)*1.45*n,y:a(t,4,i,3700)*1.1*n};if(e.bodyMotion===`shake`){let e=t/1e3;return{x:(Math.sin(e*31)+Math.sin(e*53)*.45)*1.35*n,y:(Math.sin(e*37)+Math.sin(e*61)*.4)*1.1*n}}return{x:0,y:0}},l=(e,t,n=1)=>{if(e.eyeMotion===`microSaccades`)return{x:o(t,0,i)*1.5*n,y:o(t,1,i)*.9*n};if(e.eyeMotion===`shake`){let e=t/1e3;return{x:(Math.sin(e*47)+Math.sin(e*71)*.45)*1.2*n,y:(Math.sin(e*59)+Math.sin(e*83)*.4)*.8*n}}return{x:0,y:0}},u=(e,t,n=1)=>{let i={...e},o=r(e);if(e.bodyMotion===`slowDrift`)i.headX+=a(t,0,o,2600)*.8*n,i.headY+=a(t,1,o,3300)*1.15*n,i.headZ+=a(t,2,o,4100)*.45*n;else if(e.bodyMotion===`shake`){let e=t/1e3;i.headX+=(Math.sin(e*31)+Math.sin(e*53)*.45)*1.15*n,i.headY+=(Math.sin(e*37)+Math.sin(e*61)*.4)*1.35*n,i.headZ+=Math.sin(e*43)*.7*n}return i},d=(e,t,n=1)=>{let r=u(e,t,n),i=l(e,t,n);return r.positionXLeft+=i.x,r.positionXRight+=i.x,r.positionYLeft+=i.y,r.positionYRight+=i.y,r},f=(e,t)=>Math.sign(e)*Math.abs(e)**t,p=(e,t,n,r,i,a,o)=>{let s=f(Math.cos(t),a);return[n/2*s*f(Math.sin(e),o),r/2*f(Math.sin(t),a),i/2*s*f(Math.cos(e),o)]},m=(e,t,n)=>{let r=e.width/2,i=e.depth/2,a=Math.min(r,e.height/2),o=Math.max(0,(e.height-a*2)/2),s=o*2+Math.PI*a,c=(n+Math.PI/2)/Math.PI*s,l=r,u=0;if(c<Math.PI*a/2){let e=-Math.PI/2+c/a;l=r*Math.cos(e),u=-o+a*Math.sin(e)}else if(c<=Math.PI*a/2+o*2)u=-o+c-Math.PI*a/2;else{let e=(c-Math.PI*a/2-o*2)/a;l=r*Math.cos(e),u=o+a*Math.sin(e)}let d=r?i/r:1;return[l*Math.sin(t),u,l*d*Math.cos(t)]},h=e=>Math.max(0,Math.min(2,e??0)),g=e=>1+h(e.roundness)/2,_=.04,v=e=>e.roundness<=0?1/0:2/(_+h(e.roundness)/2*.96),y=(e,t,n,r)=>{let i=Math.cos(n)*Math.sin(t),a=Math.sin(n),o=Math.cos(n)*Math.cos(t),s=Number.isFinite(r)?(Math.abs(i)**r+Math.abs(a)**r+Math.abs(o)**r)**(1/r)||1:Math.max(Math.abs(i),Math.abs(a),Math.abs(o))||1;return[e.width/2*(i/s),e.height/2*(a/s),e.depth/2*(o/s)]},b=(e,t,n)=>y(e,t,n,g(e)),x=(e,t,n)=>y(e,t,n,v(e)),ee=.24,te=.2,ne=.22,re=e=>h(e.morphRoundness)/2,ie=(e,t,n)=>{let r=re(e),i=Math.max(0,Math.min(1,t)),a=Math.sin(i*Math.PI),o=(1-Math.cos(i*Math.PI))/2;return{radiusScale:n.radiusScale+(a-n.radiusScale)*r,verticalProgress:n.verticalProgress+(o-n.verticalProgress)*r}},S=(e,t,n,r,i)=>{let a=1-i;return a**3*e+3*a*a*i*t+3*a*i*i*n+i**3*r},ae=e=>({tipFraction:(e.tipRoundness??0)*ee,baseFraction:(e.baseRoundness??0)*te}),C=(e,t)=>{let n=Math.max(0,Math.min(1,t)),r=e.roundness*ne;if(r<=0)return{radiusScale:1,verticalProgress:(Math.sin((n-.5)*Math.PI)+1)/2};if(n<r){let e=-Math.PI/2+n/r*(Math.PI/2);return{radiusScale:1-r+r*Math.cos(e),verticalProgress:(r+r*Math.sin(e))/2}}if(n>1-r){let e=(n-(1-r))/r*(Math.PI/2);return{radiusScale:1-r+r*Math.cos(e),verticalProgress:1-r/2+r*Math.sin(e)/2}}let i=(n-r)/(1-r*2);return{radiusScale:1,verticalProgress:r/2+i*(1-r)}},oe=(e,t)=>ie(e,t,C(e,t)),w=(e,t,n)=>{let r=Math.max(0,Math.min(1,t)),i=0,a=1;for(let t=0;t<14;t+=1){let t=(i+a)/2;n(e,t).verticalProgress<r?i=t:a=t}return n(e,(i+a)/2).radiusScale},se=(e,t)=>{let n=Math.max(0,Math.min(1,t)),{tipFraction:r,baseFraction:i}=ae(e);if(i>0&&n<i){let e=n/i;return{radiusScale:S(1-i,1,1-i/2,1-i,e),verticalProgress:S(0,0,i/2,i,e)}}if(r>0&&n>1-r){let e=(n-(1-r))/r;return{radiusScale:S(r,r/2,r/4,0,e),verticalProgress:S(1-r,1-r/2,1,1,e)}}return{radiusScale:1-n,verticalProgress:n}},T=(e,t)=>ie(e,t,se(e,t)),E=e=>{let t=e.height*.36,n=e.height-t;return{coneApexY:-e.height/2,coneBaseY:-e.height/2+t,bodyHeight:n,bodyCenterY:e.height/2-n/2,bodyWidth:e.width*.54,bodyDepth:e.depth*.62}},D=(e,t,n)=>{let{width:r,height:i,depth:a}=e;switch(e.type){case`sphere`:case`mickey`:return p(t,n,r,i,a,1,1);case`cube`:return x(e,t,n);case`cylinder`:{let o=oe(e,(n+Math.PI/2)/Math.PI);return[r/2*o.radiusScale*Math.sin(t),-i/2+i*o.verticalProgress,a/2*o.radiusScale*Math.cos(t)]}case`cursor`:{let r=E(e),i=(n+Math.PI/2)/Math.PI,a=C({...e,width:r.bodyWidth,height:r.bodyHeight,depth:r.bodyDepth},i);return[r.bodyWidth/2*a.radiusScale*Math.sin(t),r.bodyCenterY-r.bodyHeight/2+r.bodyHeight*a.verticalProgress,r.bodyDepth/2*a.radiusScale*Math.cos(t)]}case`diamond`:return b(e,t,n);case`capsule`:return m(e,t,n);case`cone`:{let o=T(e,(n+Math.PI/2)/Math.PI);return[r/2*o.radiusScale*Math.sin(t),i/2-i*o.verticalProgress,a/2*o.radiusScale*Math.cos(t)]}}},O=(e,t)=>[e[0]-t[0],e[1]-t[1],e[2]-t[2]],k=([e,t,n])=>{let r=Math.hypot(e,t,n)||1;return[e/r,t/r,n/r]},ce=(e,t,n)=>{let r=e.type===`cone`?-1:1;return k([r*(t[1]*n[2]-t[2]*n[1]),r*(t[2]*n[0]-t[0]*n[2]),r*(t[0]*n[1]-t[1]*n[0])])},le=(e,t,n)=>{let r=5e-4;if(e.type===`cone`&&n>=Math.PI/2-r)return[0,-1,0];let i=D(e,t-r,n),a=D(e,t+r,n),o=D(e,t,Math.max(-Math.PI/2,n-r)),s=D(e,t,Math.min(Math.PI/2,n+r));return ce(e,O(a,i),O(s,o))},A=(e,t)=>Math.sign(e)*Math.abs(e)**t,ue=(e,t,n)=>{let r=e.width/2||1,i=e.height/2||1,a=e.depth/2||1;return k([A(t[0]/r,n-1)/r,A(t[1]/i,n-1)/i,A(t[2]/a,n-1)/a])},de=(e,t)=>ue(e,t,g(e)),fe=(e,t)=>{let n=v(e);if(Number.isFinite(n))return ue(e,t,n);let r=[t[0]/(e.width/2||1),t[1]/(e.height/2||1),t[2]/(e.depth/2||1)],i=r.reduce((e,t,n)=>Math.abs(t)>Math.abs(r[e])?n:e,0);return[i===0?Math.sign(r[0]):0,i===1?Math.sign(r[1]):0,i===2?Math.sign(r[2]):0]},pe=(e,t,n,r,i)=>{let a=e.width/2||1,o=e.height/2||1,s=e.depth/2||1;if(!Number.isFinite(r)){let r=[Math.max(-a,Math.min(a,t)),Math.max(-o,Math.min(o,n)),s];return{point:r,normal:i(e,r)}}let c=Math.max(-1,Math.min(1,n/o)),l=Math.max(0,1-Math.abs(c)**r)**(1/r),u=Math.max(-a*l,Math.min(a*l,t)),d=u/a,f=Math.max(0,1-Math.abs(d)**r-Math.abs(c)**r)**(1/r),p=[u,c*o,s*f];return{point:p,normal:i(e,p)}},me=(e,t,n,r,i,a=0)=>{let o=t-a,s=Math.max(0,1-(e/(n||1))**2-(o/(r||1))**2),c=i*Math.sqrt(s);return{point:[e,t,c],normal:k([e/(n*n||1),o/(r*r||1),c/(i*i||1)])}},j=(e,t,n,r,i)=>{let a=e.width/2||1,o=e.depth/2||1,s=Math.max(0,Math.min(1,.5+i*(n/e.height))),c=w(e,s,r),l=a*c,u=o*c,d=Math.max(-l,Math.min(l,t)),f=l>0?Math.max(0,1-(d/l)**2):0,p=u*Math.sqrt(f),m=1e-4,h=Math.max(0,s-m),g=Math.min(1,s+m),_=w(e,h,r),v=(w(e,g,r)-_)/(g-h||1),y=Math.max(Math.sqrt(f),1e-4),b=-(o/a)*d/(l*y||1),x=i*o*v/(e.height*y||1);return{point:[d,n,p],normal:k([-b,-x,1])}},he=(e,t,n)=>{let r=e.width/2||1,i=e.height/2||1,a=e.depth/2||1;switch(e.type){case`sphere`:case`mickey`:return me(t,n,r,i,a);case`cube`:return pe(e,t,n,v(e),fe);case`capsule`:{let e=Math.min(r,i),o=Math.max(0,i-e);return me(t,n,r,e,a,n<-o?-o:n>o?o:n)}case`cylinder`:return j(e,t,n,oe,1);case`cursor`:{let r=E(e),i=j({...e,width:r.bodyWidth,height:r.bodyHeight,depth:r.bodyDepth},t,n-r.bodyCenterY,C,1);return{point:[i.point[0],i.point[1]+r.bodyCenterY,i.point[2]],normal:i.normal}}case`cone`:return j(e,t,n,T,-1);case`diamond`:return pe(e,t,n,g(e),de)}},ge=(e,t,n)=>{let r=D(e,t,n);if(e.type===`sphere`||e.type===`mickey`){let t=e.width/2||1,n=e.height/2||1,i=e.depth/2||1;return{point:r,normal:k([r[0]/(t*t),r[1]/(n*n),r[2]/(i*i)])}}return e.type===`cylinder`&&e.roundness<=0&&(e.morphRoundness??0)<=0?{point:r,normal:k([Math.sin(t)/(e.width/2||1),0,Math.cos(t)/(e.depth/2||1)])}:e.type===`diamond`?{point:r,normal:de(e,r)}:e.type===`cube`?{point:r,normal:fe(e,r)}:{point:r,normal:le(e,t,n)}},M=620,_e=14,ve=[`headX`,`headY`,`headZ`,`widthLeft`,`widthRight`,`heightLeft`,`heightRight`,`spacing`,`positionXLeft`,`positionXRight`,`positionYLeft`,`positionYRight`,`leftAngle`,`rightAngle`,`perspective`],N=e=>e*Math.PI/180,P=([e,t,n,r])=>{let i=Math.hypot(e,t,n,r)||1;return[e/i,t/i,n/i,r/i]},F=([e,t,n,r],[i,a,o,s])=>P([e*i-t*a-n*o-r*s,e*a+t*i+n*s-r*o,e*o-t*s+n*i+r*a,e*s+t*o-n*a+r*i]),I=([e,t,n],r)=>{let i=r/2,a=Math.sin(i);return P([Math.cos(i),e*a,t*a,n*a])},L=(e,t,n)=>{let r=I([1,0,0],e),i=I([0,1,0],t);return F(F(I([0,0,1],n),r),i)},R=([e,t,n,r],[i,a,o])=>{let s=2*(n*o-r*a),c=2*(r*i-t*o),l=2*(t*a-n*i);return[i+e*s+(n*l-r*c),a+e*c+(r*s-t*l),o+e*l+(t*c-n*s)]},ye=(e,t)=>{let n=e/2,r=t/2,i=Math.min(r,n),a=[],o=(e,t)=>{let n=Math.max(2,Math.ceil(Math.hypot(t[0]-e[0],t[1]-e[1])/1.5));for(let r=0;r<n;r+=1){let i=r/n;a.push([e[0]+(t[0]-e[0])*i,e[1]+(t[1]-e[1])*i])}},s=(e,t,n)=>{for(let r=0;r<_e;r+=1){let o=n+r/_e*(Math.PI/2);a.push([e+Math.cos(o)*i,t+Math.sin(o)*i])}};return o([-n+i,-r],[n-i,-r]),s(n-i,-r+i,-Math.PI/2),o([n,-r+i],[n,r-i]),s(n-i,r-i,0),o([n-i,r],[-n+i,r]),s(-n+i,r-i,Math.PI/2),o([-n,r-i],[-n,-r+i]),s(-n+i,-r+i,Math.PI),a},z=(e,t)=>{let n=M-e[2]*t,r=Math.abs(n)<1e-4?M/1e-4:M/n;return[e[0]*r,e[1]*r,e[2]]},B=(e,t=!0)=>e.length?`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.slice(1).map(e=>`L${e[0].toFixed(2)} ${e[1].toFixed(2)}`).join(``)}${t?`Z`:``}`:``,be=e=>({expression:e,orientation:L(N(e.headX),N(e.headY),N(e.headZ))}),xe=24,Se=25,Ce=73,V=144,we=33,Te=73,H=new Map,Ee=new Map,De=new Map,U=e=>JSON.stringify([e.type,e.width,e.height,e.depth,e.roundness,e.morphRoundness,e.tipRoundness,e.baseRoundness]),W=(e,t,n)=>(e.size>=xe&&e.delete(e.keys().next().value),e.set(t,n),n),Oe=(e,t,n)=>ge(e,t,n),ke=(e,t)=>({point:z(R(e.orientation,t.point),e.expression.perspective),normal:R(e.orientation,t.normal)}),Ae=(e,t)=>{let n=e/120,r=t/120;return[120*Math.cos(r)*Math.sin(n),120*Math.sin(r)]},je=(e,t,n,r)=>{let[i,a]=Ae(n,r);return ke(e,he(t,i,a))},Me=(e,t,n,r,i={x:0,y:0})=>{let a=e.expression,o=n<0?`Left`:`Right`,s=a[`width${o}`],c=5+(a[`height${o}`]-5)*r,l=n*a.spacing/2+a[`positionX${o}`]+i.x,u=a[`positionY${o}`]+i.y,d=N(n<0?a.leftAngle:a.rightAngle);return ye(s,c).map(([n,r])=>{let i=n*Math.cos(d)-r*Math.sin(d),a=n*Math.sin(d)+r*Math.cos(d);return je(e,t,l+i,u+a)})},Ne=e=>{let t=[],n=[];return e.forEach(({point:e,normal:r})=>{r[2]>0?n.push(e):n.length&&(t.push(n),n=[])}),n.length&&t.push(n),t.filter(e=>e.length>1).map(e=>B(e,!1)).join(``)},Pe=(e,t)=>{let n=U(t),r=De.get(n);if(!r){let e=[-60,-30,0,30,60].map(e=>Array.from({length:73},(n,r)=>Oe(t,N(-180+r*5),N(e)))),i=Array.from({length:12},(e,t)=>-150+t*30).map(e=>Array.from({length:37},(n,r)=>Oe(t,N(e),N(-90+r*5))));r=W(De,n,[...e,...i])}return r.map(t=>Ne(t.map(t=>ke(e,t))))},G=e=>{let t=[...e].sort((e,t)=>e[0]-t[0]||e[1]-t[1]),n=(e,t,n)=>(t[0]-e[0])*(n[1]-e[1])-(t[1]-e[1])*(n[0]-e[0]),r=e=>{let t=[];return e.forEach(e=>{for(;t.length>=2&&n(t.at(-2),t.at(-1),e)<=0;)t.pop();t.push(e)}),t};return[...r(t).slice(0,-1),...r(t.reverse()).slice(0,-1)]},K=e=>{if(e.length<3)return B(e);let t=t=>e[(t+e.length)%e.length];return`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.map((e,n)=>{let r=t(n-1),i=t(n+1),a=t(n+2),o=[e[0]+(i[0]-r[0])/6,e[1]+(i[1]-r[1])/6,e[2]],s=[i[0]-(a[0]-e[0])/6,i[1]-(a[1]-e[1])/6,i[2]];return`C${o[0].toFixed(2)} ${o[1].toFixed(2)} ${s[0].toFixed(2)} ${s[1].toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``)}Z`},q=(e,t=7)=>e.flatMap((n,r)=>{let i=e[(r+1)%e.length],a=Math.max(1,Math.ceil(Math.hypot(i[0]-n[0],i[1]-n[1])/t));return Array.from({length:a},(e,t)=>{let r=t/a;return[n[0]+(i[0]-n[0])*r,n[1]+(i[1]-n[1])*r,n[2]+(i[2]-n[2])*r]})}),Fe=e=>e.length?e.length===1?`${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}`:e.slice(0,-1).map((t,n)=>{let r=e[Math.max(0,n-1)],i=e[n+1],a=e[Math.min(e.length-1,n+2)],o=t[0]+(i[0]-r[0])/6,s=t[1]+(i[1]-r[1])/6,c=i[0]-(a[0]-t[0])/6,l=i[1]-(a[1]-t[1])/6;return`C${o.toFixed(2)} ${s.toFixed(2)} ${c.toFixed(2)} ${l.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``):``,J=(e,t)=>z(R(e.orientation,t),e.expression.perspective),Y=(e,t,n)=>Array.from({length:145},(r,i)=>{let a=i/V*Math.PI*2;return[e/2*Math.sin(a),n,t/2*Math.cos(a)]}),X=(e,t)=>{let n=U(t),r=H.get(n);return r||(r=Array.from({length:we},(e,n)=>{let r=-Math.PI/2+n/32*Math.PI;return Array.from({length:Te},(e,n)=>D(t,-Math.PI+n/72*Math.PI*2,r))}).flat(),W(H,n,r)),K(q(G(r.map(t=>J(e,t)))))},Ie=(e,t)=>{if(t.roundness>0||(t.morphRoundness??0)>0)return X(e,t);let n=t.height/2;return K(q(G([...Y(t.width,t.depth,-n),...Y(t.width,t.depth,n)].map(t=>J(e,t)))))},Le=(e,t)=>{let n=E(t),r=n.bodyHeight/2;return K(q(G([...Y(n.bodyWidth,n.bodyDepth,n.bodyCenterY-r),...Y(n.bodyWidth,n.bodyDepth,n.bodyCenterY+r)].map(t=>J(e,t)))))},Re=(e,t)=>{let n=E(t),r=J(e,[0,n.coneApexY,0]);return K(q(G([...Y(t.width,t.depth,n.coneBaseY).map(t=>J(e,t)),r])))},ze=(e,t)=>{if((t.morphRoundness??0)>0||(t.tipRoundness??0)>0||(t.baseRoundness??0)>0)return X(e,t);let n=J(e,[0,-t.height/2,0]),r=G([...Y(t.width,t.depth,t.height/2).map(t=>J(e,t)),n]),i=r.findIndex(e=>Math.hypot(e[0]-n[0],e[1]-n[1])<.01);if(i<0)return K(r);let a=[...r.slice(i),...r.slice(0,i)].slice(1);return a.length<2?B(r):`M${n[0].toFixed(2)} ${n[1].toFixed(2)}L${a[0][0].toFixed(2)} ${a[0][1].toFixed(2)}${Fe(a)}L${n[0].toFixed(2)} ${n[1].toFixed(2)}Z`},Be=(e,t)=>{if(t.roundness>0)return X(e,t);let n=t.width/2,r=t.height/2,i=t.depth/2;return B(G([-1,1].flatMap(e=>[-1,1].flatMap(t=>[-1,1].map(a=>[e*n,t*r,a*i]))).map(t=>J(e,t))))},Ve=(e,t)=>{if(t.roundness>0)return X(e,t);let n=t.width/2,r=t.height/2,i=t.depth/2;return B(G([[-n,0,0],[n,0,0],[0,-r,0],[0,r,0],[0,0,-i],[0,0,i]].map(t=>J(e,t))))},He=(e,t,n,r,i)=>{let a=n+i,o=Math.hypot(n-i,r*2),s=(a+o)/2,c=(a-o)/2;return s<=0||c<=0?null:{centerX:e,centerY:t,majorRadius:Math.sqrt(s),minorRadius:Math.sqrt(c),rotation:Math.atan2(r*2,n-i)/2}},Z=({centerX:e,centerY:t,majorRadius:n,minorRadius:r,rotation:i})=>{let a=i*180/Math.PI,o=Math.cos(i)*n,s=Math.sin(i)*n,c=e+o,l=t+s,u=e-o,d=t-s;return`M${c.toFixed(2)} ${l.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${u.toFixed(2)} ${d.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${c.toFixed(2)} ${l.toFixed(2)}Z`},Q=(e,t,n=[0,0,0])=>{let r=[R(e.orientation,[1,0,0]),R(e.orientation,[0,1,0]),R(e.orientation,[0,0,1])],i=R(e.orientation,n);if(Math.abs(e.expression.perspective)<1e-4){let e=r.reduce((e,n,r)=>e+n[0]*n[0]*t[r]*t[r],0),n=r.reduce((e,n,r)=>e+n[0]*n[1]*t[r]*t[r],0),a=r.reduce((e,n,r)=>e+n[1]*n[1]*t[r]*t[r],0);return He(i[0],i[1],e,n,a)}let a=t.map(e=>1/(e*e)),o=Array.from({length:3},(e,t)=>Array.from({length:3},(e,n)=>r.reduce((e,r,i)=>e+r[t]*a[i]*r[n],0))),s=M/e.expression.perspective,c=[-i[0],-i[1],s-i[2]],l=[o[0][0]*c[0]+o[0][1]*c[1]+o[0][2]*c[2],o[1][0]*c[0]+o[1][1]*c[1]+o[1][2]*c[2],o[2][0]*c[0]+o[2][1]*c[1]+o[2][2]*c[2]],u=c[0]*l[0]+c[1]*l[1]+c[2]*l[2]-1,d=[l[0],l[1],-s*l[2]],f=[[o[0][0],o[0][1],-s*o[0][2]],[o[1][0],o[1][1],-s*o[1][2]],[-s*o[2][0],-s*o[2][1],s*s*o[2][2]]],p=Array.from({length:3},(e,t)=>Array.from({length:3},(e,n)=>d[t]*d[n]-u*f[t][n])),m=p[0][0]*p[1][1]-p[0][1]*p[0][1];if(Math.abs(m)<1e-12)return null;let h=-(p[1][1]*p[0][2]-p[0][1]*p[1][2])/m,g=(p[0][1]*p[0][2]-p[0][0]*p[1][2])/m,_=-(p[2][2]+p[0][2]*h+p[1][2]*g);if(Math.abs(_)<1e-12)return null;let v=p[0][0]/_,y=p[0][1]/_,b=p[1][1]/_,x=v*b-y*y;return x<=0?null:He(h,g,b/x,-y/x,v/x)},Ue=(e,t)=>{let n=Q(e,[t.width/2,t.height/2,t.depth/2]),r=t.width===t.height&&t.height===t.depth;if(n&&r){let e=(n.majorRadius+n.minorRadius)/2;return Z({centerX:0,centerY:0,majorRadius:e,minorRadius:e,rotation:0})}return n?Z(n):null},We=(e,t)=>{if(t.type!==`mickey`)return[];let n=Math.min(t.width,t.height)*.23,r=Math.min(n,t.depth*.29),i=t.width*.37,a=-t.height*.39,o=-t.depth*.12,s=[n,n,r];return[-1,1].map(t=>Q(e,s,[t*i,a,o])).filter(e=>e!==null).map(Z)},Ge=(e,t)=>t.type===`mickey`?We(e,t):t.type===`cursor`?[Re(e,t)]:[],$=e=>Array.from({length:V},(t,n)=>{let r=n/V*Math.PI*2,i=Math.cos(r)*e.majorRadius,a=Math.sin(r)*e.minorRadius;return[e.centerX+i*Math.cos(e.rotation)-a*Math.sin(e.rotation),e.centerY+i*Math.sin(e.rotation)+a*Math.cos(e.rotation),0]}),Ke=e=>{if(e.length<3)return B(e);let t=e.map((t,n)=>{let r=e[(n+1)%e.length];return Math.hypot(r[0]-t[0],r[1]-t[1])}),n=[...t].sort((e,t)=>e-t),r=n[Math.floor(n.length/2)]||1,i=Math.max(8,r*3.5),a=t.map(e=>e>i);return`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.map((t,n)=>{let r=(n+1)%e.length,i=e[r];if(a[n])return`L${i[0].toFixed(2)} ${i[1].toFixed(2)}`;let o=a[(n-1+e.length)%e.length]?t:e[(n-1+e.length)%e.length],s=a[r]?i:e[(n+2)%e.length],c=t[0]+(i[0]-o[0])/6,l=t[1]+(i[1]-o[1])/6,u=i[0]-(s[0]-t[0])/6,d=i[1]-(s[1]-t[1])/6;return`C${c.toFixed(2)} ${l.toFixed(2)} ${u.toFixed(2)} ${d.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``)}Z`},qe=(e,t)=>{let n=t.width/2,r=Math.min(n,t.height/2),i=t.depth/2,a=Math.max(0,(t.height-r*2)/2),o=[n,r,i],s=Q(e,o,[0,a,0]),c=Q(e,o,[0,-a,0]);return!s||!c?null:Ke(G([...$(s),...$(c)]))},Je=(e,t)=>{if(t.type===`sphere`||t.type===`mickey`){let n=Ue(e,t);if(n)return n}if(t.type===`capsule`){let n=qe(e,t);if(n)return n}if(t.type===`cylinder`)return Ie(e,t);if(t.type===`cursor`)return Le(e,t);if(t.type===`cone`)return ze(e,t);if(t.type===`cube`)return Be(e,t);if(t.type===`diamond`)return Ve(e,t);let n=U(t),r=H.get(n);return r||(r=Array.from({length:Se},(e,n)=>{let r=-Math.PI/2+n/24*Math.PI;return Array.from({length:Ce},(e,n)=>D(t,-Math.PI+n/72*Math.PI*2,r))}).flat(),W(H,n,r)),B(G(r.map(t=>z(R(e.orientation,t),e.expression.perspective))))},Ye=(e,t)=>{let n=U(t.surface),r=Ee.get(n);r||(r=Array.from({length:17},(e,n)=>{let r=-Math.PI/2+n/16*Math.PI;return Array.from({length:49},(e,n)=>{let i=-Math.PI+n/48*Math.PI*2;return D(t.surface,i,r)})}).flat(),W(Ee,n,r));let i=L(N(t.rotation[0]),N(t.rotation[1]),N(t.rotation[2])),a=G(r.map(n=>{let r=R(i,n),a=[r[0]+t.position[0],r[1]+t.position[1],r[2]+t.position[2]];return z(R(e.orientation,a),e.expression.perspective)}));return(t.surface.type===`cube`||t.surface.type===`diamond`)&&t.surface.roundness<=0?B(a):K(q(a))},Xe=.1,Ze=(e,t)=>{let n=L(N(t.rotation[0]),N(t.rotation[1]),N(t.rotation[2])),r=[[1,0,0],[0,1,0],[0,0,1]].map(t=>R(e.orientation,R(n,t))[2]);return Math.hypot(r[0]*(t.surface.width/2),r[1]*(t.surface.height/2),r[2]*(t.surface.depth/2))},Qe=(e,t)=>{let n=t.map(t=>{let n=R(e.orientation,t.position)[2];return{id:t.id,path:Ye(e,t),depth:n,front:n>Ze(e,t)*Xe}}).sort((e,t)=>e.depth-t.depth);return{backPaths:n.filter(e=>!e.front).map(e=>e.path),frontPaths:n.filter(e=>e.front).map(e=>e.path),backNodeIds:n.filter(e=>!e.front).map(e=>e.id),frontNodeIds:n.filter(e=>e.front).map(e=>e.id)}};return e.ambientBodyOffset=c,e.ambientEyeOffset=l,e.applyAmbientBodyMotion=u,e.applyAmbientMotion=d,e.expressionFields=ve,e.hasAmbientMotion=s,e.poseFromExpression=be,e.renderAvatar=(e,t,n=1,r={})=>{let i=Me(e,t,-1,n,r.eyeOffset),a=Me(e,t,1,n,r.eyeOffset),o=i.map(e=>e.point),s=a.map(e=>e.point),c=Qe(e,r.bodyNodes??[]),l=Ge(e,t);return{backPaths:[...l,...c.backPaths],frontPaths:c.frontPaths,backNodeIds:[...l.map(()=>null),...c.backNodeIds],frontNodeIds:c.frontNodeIds,headPath:Je(e,t),leftPath:B(o),rightPath:B(s),leftVisible:i.reduce((e,t)=>e+t.normal[2],0)>0,rightVisible:a.reduce((e,t)=>e+t.normal[2],0)>0,wirePaths:r.includeWire===!1?[]:Pe(e,t)}},e})({});"
++export const standaloneEngineSource = "var AvatarProceduralEngine=(function(e){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var t=e=>e*e*(3-2*e),n=e=>{let t=Math.sin(e*127.1+311.7)*43758.5453;return(t-Math.floor(t))*2-1},r=e=>e.headX*.71+e.headY*1.13+e.headZ*1.37,i=17.29,a=(e,r,i,a)=>{let o=e/a,s=Math.floor(o),c=t(o-s),l=n(s*3+r+i);return l+(n((s+1)*3+r+i)-l)*c},o=(e,r,i)=>{let a=1100;if(e<=0)return 0;let o=Math.floor(e/a),s=(e-o*a)/140,c=t(Math.min(s,1)),l=o===0?0:n((o-1)*2+r+i);return l+(n(o*2+r+i)-l)*c},s=e=>e.eyeMotion!==`none`||e.bodyMotion!==`none`,c=(e,t,n=1)=>{let i=r(e);if(e.bodyMotion===`slowDrift`)return{x:a(t,3,i,2900)*1.45*n,y:a(t,4,i,3700)*1.1*n};if(e.bodyMotion===`shake`){let e=t/1e3;return{x:(Math.sin(e*31)+Math.sin(e*53)*.45)*1.35*n,y:(Math.sin(e*37)+Math.sin(e*61)*.4)*1.1*n}}return{x:0,y:0}},l=(e,t,n=1)=>{if(e.eyeMotion===`microSaccades`)return{x:o(t,0,i)*1.5*n,y:o(t,1,i)*.9*n};if(e.eyeMotion===`shake`){let e=t/1e3;return{x:(Math.sin(e*47)+Math.sin(e*71)*.45)*1.2*n,y:(Math.sin(e*59)+Math.sin(e*83)*.4)*.8*n}}return{x:0,y:0}},u=(e,t,n=1)=>{let i={...e},o=r(e);if(e.bodyMotion===`slowDrift`)i.headX+=a(t,0,o,2600)*.8*n,i.headY+=a(t,1,o,3300)*1.15*n,i.headZ+=a(t,2,o,4100)*.45*n;else if(e.bodyMotion===`shake`){let e=t/1e3;i.headX+=(Math.sin(e*31)+Math.sin(e*53)*.45)*1.15*n,i.headY+=(Math.sin(e*37)+Math.sin(e*61)*.4)*1.35*n,i.headZ+=Math.sin(e*43)*.7*n}return i},d=(e,t,n=1)=>{let r=u(e,t,n),i=l(e,t,n);return r.positionXLeft+=i.x,r.positionXRight+=i.x,r.positionYLeft+=i.y,r.positionYRight+=i.y,r},f=(e,t)=>Math.sign(e)*Math.abs(e)**t,p=(e,t,n,r,i,a,o)=>{let s=f(Math.cos(t),a);return[n/2*s*f(Math.sin(e),o),r/2*f(Math.sin(t),a),i/2*s*f(Math.cos(e),o)]},m=(e,t,n)=>{let r=e.width/2,i=e.depth/2,a=Math.min(r,e.height/2),o=Math.max(0,(e.height-a*2)/2),s=o*2+Math.PI*a,c=(n+Math.PI/2)/Math.PI*s,l=r,u=0;if(c<Math.PI*a/2){let e=-Math.PI/2+c/a;l=r*Math.cos(e),u=-o+a*Math.sin(e)}else if(c<=Math.PI*a/2+o*2)u=-o+c-Math.PI*a/2;else{let e=(c-Math.PI*a/2-o*2)/a;l=r*Math.cos(e),u=o+a*Math.sin(e)}let d=r?i/r:1;return[l*Math.sin(t),u,l*d*Math.cos(t)]},h=e=>Math.max(0,Math.min(2,e??0)),g=e=>1+h(e.roundness)/2,_=.04,v=e=>e.roundness<=0?1/0:2/(_+h(e.roundness)/2*.96),y=(e,t,n,r)=>{let i=Math.cos(n)*Math.sin(t),a=Math.sin(n),o=Math.cos(n)*Math.cos(t),s=Number.isFinite(r)?(Math.abs(i)**r+Math.abs(a)**r+Math.abs(o)**r)**(1/r)||1:Math.max(Math.abs(i),Math.abs(a),Math.abs(o))||1;return[e.width/2*(i/s),e.height/2*(a/s),e.depth/2*(o/s)]},b=(e,t,n)=>y(e,t,n,g(e)),x=(e,t,n)=>y(e,t,n,v(e)),ee=.24,te=.2,ne=.22,re=e=>h(e.morphRoundness)/2,ie=(e,t,n)=>{let r=re(e),i=Math.max(0,Math.min(1,t)),a=Math.sin(i*Math.PI),o=(1-Math.cos(i*Math.PI))/2;return{radiusScale:n.radiusScale+(a-n.radiusScale)*r,verticalProgress:n.verticalProgress+(o-n.verticalProgress)*r}},S=(e,t,n,r,i)=>{let a=1-i;return a**3*e+3*a*a*i*t+3*a*i*i*n+i**3*r},ae=e=>({tipFraction:(e.tipRoundness??0)*ee,baseFraction:(e.baseRoundness??0)*te}),C=(e,t)=>{let n=Math.max(0,Math.min(1,t)),r=e.roundness*ne;if(r<=0)return{radiusScale:1,verticalProgress:(Math.sin((n-.5)*Math.PI)+1)/2};if(n<r){let e=-Math.PI/2+n/r*(Math.PI/2);return{radiusScale:1-r+r*Math.cos(e),verticalProgress:(r+r*Math.sin(e))/2}}if(n>1-r){let e=(n-(1-r))/r*(Math.PI/2);return{radiusScale:1-r+r*Math.cos(e),verticalProgress:1-r/2+r*Math.sin(e)/2}}let i=(n-r)/(1-r*2);return{radiusScale:1,verticalProgress:r/2+i*(1-r)}},oe=(e,t)=>ie(e,t,C(e,t)),w=(e,t,n)=>{let r=Math.max(0,Math.min(1,t)),i=0,a=1;for(let t=0;t<14;t+=1){let t=(i+a)/2;n(e,t).verticalProgress<r?i=t:a=t}return n(e,(i+a)/2).radiusScale},se=(e,t)=>{let n=Math.max(0,Math.min(1,t)),{tipFraction:r,baseFraction:i}=ae(e);if(i>0&&n<i){let e=n/i;return{radiusScale:S(1-i,1,1-i/2,1-i,e),verticalProgress:S(0,0,i/2,i,e)}}if(r>0&&n>1-r){let e=(n-(1-r))/r;return{radiusScale:S(r,r/2,r/4,0,e),verticalProgress:S(1-r,1-r/2,1,1,e)}}return{radiusScale:1-n,verticalProgress:n}},ce=(e,t)=>ie(e,t,se(e,t)),T=e=>{let t=e.height*.36,n=e.height-t;return{coneApexY:-e.height/2,coneBaseY:-e.height/2+t,bodyHeight:n,bodyCenterY:e.height/2-n/2,bodyWidth:e.width*.54,bodyDepth:e.depth*.62}},E=(e,t,n)=>{let{width:r,height:i,depth:a}=e;switch(e.type){case`sphere`:case`mickey`:return p(t,n,r,i,a,1,1);case`cube`:return x(e,t,n);case`cylinder`:{let o=oe(e,(n+Math.PI/2)/Math.PI);return[r/2*o.radiusScale*Math.sin(t),-i/2+i*o.verticalProgress,a/2*o.radiusScale*Math.cos(t)]}case`cursor`:{let r=T(e),i=(n+Math.PI/2)/Math.PI,a=C({...e,width:r.bodyWidth,height:r.bodyHeight,depth:r.bodyDepth},i);return[r.bodyWidth/2*a.radiusScale*Math.sin(t),r.bodyCenterY-r.bodyHeight/2+r.bodyHeight*a.verticalProgress,r.bodyDepth/2*a.radiusScale*Math.cos(t)]}case`diamond`:return b(e,t,n);case`capsule`:return m(e,t,n);case`cone`:{let o=ce(e,(n+Math.PI/2)/Math.PI);return[r/2*o.radiusScale*Math.sin(t),i/2-i*o.verticalProgress,a/2*o.radiusScale*Math.cos(t)]}}},le=(e,t)=>[e[0]-t[0],e[1]-t[1],e[2]-t[2]],D=([e,t,n])=>{let r=Math.hypot(e,t,n)||1;return[e/r,t/r,n/r]},ue=(e,t,n)=>{let r=e.type===`cone`?-1:1;return D([r*(t[1]*n[2]-t[2]*n[1]),r*(t[2]*n[0]-t[0]*n[2]),r*(t[0]*n[1]-t[1]*n[0])])},de=(e,t,n)=>{let r=5e-4;if(e.type===`cone`&&n>=Math.PI/2-r)return[0,-1,0];let i=E(e,t-r,n),a=E(e,t+r,n),o=E(e,t,Math.max(-Math.PI/2,n-r)),s=E(e,t,Math.min(Math.PI/2,n+r));return ue(e,le(a,i),le(s,o))},O=(e,t)=>Math.sign(e)*Math.abs(e)**t,fe=(e,t,n)=>{let r=e.width/2||1,i=e.height/2||1,a=e.depth/2||1;return D([O(t[0]/r,n-1)/r,O(t[1]/i,n-1)/i,O(t[2]/a,n-1)/a])},pe=(e,t)=>fe(e,t,g(e)),k=(e,t)=>{let n=v(e);if(Number.isFinite(n))return fe(e,t,n);let r=[t[0]/(e.width/2||1),t[1]/(e.height/2||1),t[2]/(e.depth/2||1)],i=r.reduce((e,t,n)=>Math.abs(t)>Math.abs(r[e])?n:e,0);return[i===0?Math.sign(r[0]):0,i===1?Math.sign(r[1]):0,i===2?Math.sign(r[2]):0]},me=(e,t,n,r,i)=>{let a=e.width/2||1,o=e.height/2||1,s=e.depth/2||1;if(!Number.isFinite(r)){let r=[Math.max(-a,Math.min(a,t)),Math.max(-o,Math.min(o,n)),s];return{point:r,normal:i(e,r)}}let c=Math.max(-1,Math.min(1,n/o)),l=Math.max(0,1-Math.abs(c)**r)**(1/r),u=Math.max(-a*l,Math.min(a*l,t)),d=u/a,f=Math.max(0,1-Math.abs(d)**r-Math.abs(c)**r)**(1/r),p=[u,c*o,s*f];return{point:p,normal:i(e,p)}},he=(e,t,n,r,i,a=0)=>{let o=t-a,s=Math.max(0,1-(e/(n||1))**2-(o/(r||1))**2),c=i*Math.sqrt(s);return{point:[e,t,c],normal:D([e/(n*n||1),o/(r*r||1),c/(i*i||1)])}},A=(e,t,n,r,i)=>{let a=e.width/2||1,o=e.depth/2||1,s=Math.max(0,Math.min(1,.5+i*(n/e.height))),c=w(e,s,r),l=a*c,u=o*c,d=Math.max(-l,Math.min(l,t)),f=l>0?Math.max(0,1-(d/l)**2):0,p=u*Math.sqrt(f),m=1e-4,h=Math.max(0,s-m),g=Math.min(1,s+m),_=w(e,h,r),v=(w(e,g,r)-_)/(g-h||1),y=Math.max(Math.sqrt(f),1e-4),b=-(o/a)*d/(l*y||1),x=i*o*v/(e.height*y||1);return{point:[d,n,p],normal:D([-b,-x,1])}},ge=(e,t,n)=>{let r=e.width/2||1,i=e.height/2||1,a=e.depth/2||1;switch(e.type){case`sphere`:case`mickey`:return he(t,n,r,i,a);case`cube`:return me(e,t,n,v(e),k);case`capsule`:{let e=Math.min(r,i),o=Math.max(0,i-e);return he(t,n,r,e,a,n<-o?-o:n>o?o:n)}case`cylinder`:return A(e,t,n,oe,1);case`cursor`:{let r=T(e),i=A({...e,width:r.bodyWidth,height:r.bodyHeight,depth:r.bodyDepth},t,n-r.bodyCenterY,C,1);return{point:[i.point[0],i.point[1]+r.bodyCenterY,i.point[2]],normal:i.normal}}case`cone`:return A(e,t,n,ce,-1);case`diamond`:return me(e,t,n,g(e),pe)}},_e=(e,t,n)=>{let r=E(e,t,n);if(e.type===`sphere`||e.type===`mickey`){let t=e.width/2||1,n=e.height/2||1,i=e.depth/2||1;return{point:r,normal:D([r[0]/(t*t),r[1]/(n*n),r[2]/(i*i)])}}return e.type===`cylinder`&&e.roundness<=0&&(e.morphRoundness??0)<=0?{point:r,normal:D([Math.sin(t)/(e.width/2||1),0,Math.cos(t)/(e.depth/2||1)])}:e.type===`diamond`?{point:r,normal:pe(e,r)}:e.type===`cube`?{point:r,normal:k(e,r)}:{point:r,normal:de(e,t,n)}},j=620,ve=14,ye=[`headX`,`headY`,`headZ`,`widthLeft`,`widthRight`,`heightLeft`,`heightRight`,`spacing`,`positionXLeft`,`positionXRight`,`positionYLeft`,`positionYRight`,`leftAngle`,`rightAngle`,`perspective`],M=e=>e*Math.PI/180,be=([e,t,n,r])=>{let i=Math.hypot(e,t,n,r)||1;return[e/i,t/i,n/i,r/i]},xe=([e,t,n,r],[i,a,o,s])=>be([e*i-t*a-n*o-r*s,e*a+t*i+n*s-r*o,e*o-t*s+n*i+r*a,e*s+t*o-n*a+r*i]),N=([e,t,n],r)=>{let i=r/2,a=Math.sin(i);return be([Math.cos(i),e*a,t*a,n*a])},P=(e,t,n)=>{let r=N([1,0,0],e),i=N([0,1,0],t);return xe(xe(N([0,0,1],n),r),i)},F=([e,t,n,r],[i,a,o])=>{let s=2*(n*o-r*a),c=2*(r*i-t*o),l=2*(t*a-n*i);return[i+e*s+(n*l-r*c),a+e*c+(r*s-t*l),o+e*l+(t*c-n*s)]},Se=(e,t)=>{let n=e/2,r=t/2,i=Math.min(r,n),a=[],o=(e,t)=>{let n=Math.max(2,Math.ceil(Math.hypot(t[0]-e[0],t[1]-e[1])/1.5));for(let r=0;r<n;r+=1){let i=r/n;a.push([e[0]+(t[0]-e[0])*i,e[1]+(t[1]-e[1])*i])}},s=(e,t,n)=>{for(let r=0;r<ve;r+=1){let o=n+r/ve*(Math.PI/2);a.push([e+Math.cos(o)*i,t+Math.sin(o)*i])}};return o([-n+i,-r],[n-i,-r]),s(n-i,-r+i,-Math.PI/2),o([n,-r+i],[n,r-i]),s(n-i,r-i,0),o([n-i,r],[-n+i,r]),s(-n+i,r-i,Math.PI/2),o([-n,r-i],[-n,-r+i]),s(-n+i,-r+i,Math.PI),a},I=(e,t)=>{let n=j-e[2]*t,r=Math.abs(n)<1e-4?j/1e-4:j/n;return[e[0]*r,e[1]*r,e[2]]},L=(e,t=!0)=>e.length?`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.slice(1).map(e=>`L${e[0].toFixed(2)} ${e[1].toFixed(2)}`).join(``)}${t?`Z`:``}`:``,Ce=e=>({expression:e,orientation:P(M(e.headX),M(e.headY),M(e.headZ))}),we=24,Te=25,Ee=73,De=17,R=49,z=144,Oe=33,ke=73,B=new Map,Ae=new Map,je=new Map,V=e=>JSON.stringify([e.type,e.width,e.height,e.depth,e.roundness,e.morphRoundness,e.tipRoundness,e.baseRoundness]),H=(e,t,n)=>(e.size>=we&&e.delete(e.keys().next().value),e.set(t,n),n),Me=e=>{let t=V(e),n=Ae.get(t);return n||(n=Array.from({length:De},(t,n)=>{let r=-Math.PI/2+n/16*Math.PI;return Array.from({length:R},(t,n)=>E(e,-Math.PI+n/48*Math.PI*2,r))}).flat(),H(Ae,t,n)),n},Ne=(e,t,n)=>_e(e,t,n),Pe=(e,t)=>({point:I(F(e.orientation,t.point),e.expression.perspective),normal:F(e.orientation,t.normal)}),Fe=(e,t)=>{let n=e/120,r=t/120;return[120*Math.cos(r)*Math.sin(n),120*Math.sin(r)]},Ie=(e,t,n,r)=>{let[i,a]=Fe(n,r);return Pe(e,ge(t,i,a))},Le=(e,t,n,r,i={x:0,y:0})=>{let a=e.expression,o=n<0?`Left`:`Right`,s=a[`width${o}`],c=5+(a[`height${o}`]-5)*r,l=n*a.spacing/2+a[`positionX${o}`]+i.x,u=a[`positionY${o}`]+i.y,d=M(n<0?a.leftAngle:a.rightAngle);return Se(s,c).map(([n,r])=>{let i=n*Math.cos(d)-r*Math.sin(d),a=n*Math.sin(d)+r*Math.cos(d);return Ie(e,t,l+i,u+a)})},Re=e=>{let t=[],n=[];return e.forEach(({point:e,normal:r})=>{r[2]>0?n.push(e):n.length&&(t.push(n),n=[])}),n.length&&t.push(n),t.filter(e=>e.length>1).map(e=>L(e,!1)).join(``)},ze=(e,t)=>{let n=V(t),r=je.get(n);if(!r){let e=[-60,-30,0,30,60].map(e=>Array.from({length:73},(n,r)=>Ne(t,M(-180+r*5),M(e)))),i=Array.from({length:12},(e,t)=>-150+t*30).map(e=>Array.from({length:37},(n,r)=>Ne(t,M(e),M(-90+r*5))));r=H(je,n,[...e,...i])}return r.map(t=>Re(t.map(t=>Pe(e,t))))},U=e=>{let t=[...e].sort((e,t)=>e[0]-t[0]||e[1]-t[1]),n=(e,t,n)=>(t[0]-e[0])*(n[1]-e[1])-(t[1]-e[1])*(n[0]-e[0]),r=e=>{let t=[];return e.forEach(e=>{for(;t.length>=2&&n(t.at(-2),t.at(-1),e)<=0;)t.pop();t.push(e)}),t};return[...r(t).slice(0,-1),...r(t.reverse()).slice(0,-1)]},W=e=>{if(e.length<3)return L(e);let t=t=>e[(t+e.length)%e.length];return`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.map((e,n)=>{let r=t(n-1),i=t(n+1),a=t(n+2),o=[e[0]+(i[0]-r[0])/6,e[1]+(i[1]-r[1])/6,e[2]],s=[i[0]-(a[0]-e[0])/6,i[1]-(a[1]-e[1])/6,i[2]];return`C${o[0].toFixed(2)} ${o[1].toFixed(2)} ${s[0].toFixed(2)} ${s[1].toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``)}Z`},G=(e,t=7)=>e.flatMap((n,r)=>{let i=e[(r+1)%e.length],a=Math.max(1,Math.ceil(Math.hypot(i[0]-n[0],i[1]-n[1])/t));return Array.from({length:a},(e,t)=>{let r=t/a;return[n[0]+(i[0]-n[0])*r,n[1]+(i[1]-n[1])*r,n[2]+(i[2]-n[2])*r]})}),Be=e=>e.length?e.length===1?`${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}`:e.slice(0,-1).map((t,n)=>{let r=e[Math.max(0,n-1)],i=e[n+1],a=e[Math.min(e.length-1,n+2)],o=t[0]+(i[0]-r[0])/6,s=t[1]+(i[1]-r[1])/6,c=i[0]-(a[0]-t[0])/6,l=i[1]-(a[1]-t[1])/6;return`C${o.toFixed(2)} ${s.toFixed(2)} ${c.toFixed(2)} ${l.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``):``,K=(e,t)=>I(F(e.orientation,t),e.expression.perspective),q=(e,t,n)=>Array.from({length:145},(r,i)=>{let a=i/z*Math.PI*2;return[e/2*Math.sin(a),n,t/2*Math.cos(a)]}),J=(e,t)=>{let n=V(t),r=B.get(n);return r||(r=Array.from({length:Oe},(e,n)=>{let r=-Math.PI/2+n/32*Math.PI;return Array.from({length:ke},(e,n)=>E(t,-Math.PI+n/72*Math.PI*2,r))}).flat(),H(B,n,r)),W(G(U(r.map(t=>K(e,t)))))},Ve=(e,t)=>{if(t.roundness>0||(t.morphRoundness??0)>0)return J(e,t);let n=t.height/2;return W(G(U([...q(t.width,t.depth,-n),...q(t.width,t.depth,n)].map(t=>K(e,t)))))},He=(e,t)=>{let n=T(t),r=n.bodyHeight/2;return W(G(U([...q(n.bodyWidth,n.bodyDepth,n.bodyCenterY-r),...q(n.bodyWidth,n.bodyDepth,n.bodyCenterY+r)].map(t=>K(e,t)))))},Ue=(e,t)=>{let n=T(t),r=K(e,[0,n.coneApexY,0]);return W(G(U([...q(t.width,t.depth,n.coneBaseY).map(t=>K(e,t)),r])))},We=(e,t)=>{if((t.morphRoundness??0)>0||(t.tipRoundness??0)>0||(t.baseRoundness??0)>0)return J(e,t);let n=K(e,[0,-t.height/2,0]),r=U([...q(t.width,t.depth,t.height/2).map(t=>K(e,t)),n]),i=r.findIndex(e=>Math.hypot(e[0]-n[0],e[1]-n[1])<.01);if(i<0)return W(r);let a=[...r.slice(i),...r.slice(0,i)].slice(1);return a.length<2?L(r):`M${n[0].toFixed(2)} ${n[1].toFixed(2)}L${a[0][0].toFixed(2)} ${a[0][1].toFixed(2)}${Be(a)}L${n[0].toFixed(2)} ${n[1].toFixed(2)}Z`},Ge=(e,t)=>{if(t.roundness>0)return J(e,t);let n=t.width/2,r=t.height/2,i=t.depth/2;return L(U([-1,1].flatMap(e=>[-1,1].flatMap(t=>[-1,1].map(a=>[e*n,t*r,a*i]))).map(t=>K(e,t))))},Ke=(e,t)=>{if(t.roundness>0)return J(e,t);let n=t.width/2,r=t.height/2,i=t.depth/2;return L(U([[-n,0,0],[n,0,0],[0,-r,0],[0,r,0],[0,0,-i],[0,0,i]].map(t=>K(e,t))))},qe=(e,t,n,r,i)=>{let a=n+i,o=Math.hypot(n-i,r*2),s=(a+o)/2,c=(a-o)/2;return s<=0||c<=0?null:{centerX:e,centerY:t,majorRadius:Math.sqrt(s),minorRadius:Math.sqrt(c),rotation:Math.atan2(r*2,n-i)/2}},Y=({centerX:e,centerY:t,majorRadius:n,minorRadius:r,rotation:i})=>{let a=i*180/Math.PI,o=Math.cos(i)*n,s=Math.sin(i)*n,c=e+o,l=t+s,u=e-o,d=t-s;return`M${c.toFixed(2)} ${l.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${u.toFixed(2)} ${d.toFixed(2)}A${n.toFixed(2)} ${r.toFixed(2)} ${a.toFixed(2)} 0 1 ${c.toFixed(2)} ${l.toFixed(2)}Z`},X=(e,t,n=[0,0,0])=>{let r=[F(e.orientation,[1,0,0]),F(e.orientation,[0,1,0]),F(e.orientation,[0,0,1])],i=F(e.orientation,n);if(Math.abs(e.expression.perspective)<1e-4){let e=r.reduce((e,n,r)=>e+n[0]*n[0]*t[r]*t[r],0),n=r.reduce((e,n,r)=>e+n[0]*n[1]*t[r]*t[r],0),a=r.reduce((e,n,r)=>e+n[1]*n[1]*t[r]*t[r],0);return qe(i[0],i[1],e,n,a)}let a=t.map(e=>1/(e*e)),o=Array.from({length:3},(e,t)=>Array.from({length:3},(e,n)=>r.reduce((e,r,i)=>e+r[t]*a[i]*r[n],0))),s=j/e.expression.perspective,c=[-i[0],-i[1],s-i[2]],l=[o[0][0]*c[0]+o[0][1]*c[1]+o[0][2]*c[2],o[1][0]*c[0]+o[1][1]*c[1]+o[1][2]*c[2],o[2][0]*c[0]+o[2][1]*c[1]+o[2][2]*c[2]],u=c[0]*l[0]+c[1]*l[1]+c[2]*l[2]-1,d=[l[0],l[1],-s*l[2]],f=[[o[0][0],o[0][1],-s*o[0][2]],[o[1][0],o[1][1],-s*o[1][2]],[-s*o[2][0],-s*o[2][1],s*s*o[2][2]]],p=Array.from({length:3},(e,t)=>Array.from({length:3},(e,n)=>d[t]*d[n]-u*f[t][n])),m=p[0][0]*p[1][1]-p[0][1]*p[0][1];if(Math.abs(m)<1e-12)return null;let h=-(p[1][1]*p[0][2]-p[0][1]*p[1][2])/m,g=(p[0][1]*p[0][2]-p[0][0]*p[1][2])/m,_=-(p[2][2]+p[0][2]*h+p[1][2]*g);if(Math.abs(_)<1e-12)return null;let v=p[0][0]/_,y=p[0][1]/_,b=p[1][1]/_,x=v*b-y*y;return x<=0?null:qe(h,g,b/x,-y/x,v/x)},Je=(e,t)=>{let n=X(e,[t.width/2,t.height/2,t.depth/2]),r=t.width===t.height&&t.height===t.depth;if(n&&r){let e=(n.majorRadius+n.minorRadius)/2;return Y({centerX:0,centerY:0,majorRadius:e,minorRadius:e,rotation:0})}return n?Y(n):null},Ye=(e,t)=>{if(t.type!==`mickey`)return[];let n=Math.min(t.width,t.height)*.23,r=Math.min(n,t.depth*.29),i=t.width*.37,a=-t.height*.39,o=-t.depth*.12,s=[n,n,r];return[-1,1].map(t=>X(e,s,[t*i,a,o])).filter(e=>e!==null).map(Y)},Xe=(e,t)=>t.type===`mickey`?Ye(e,t):t.type===`cursor`?[Ue(e,t)]:[],Ze=e=>Array.from({length:z},(t,n)=>{let r=n/z*Math.PI*2,i=Math.cos(r)*e.majorRadius,a=Math.sin(r)*e.minorRadius;return[e.centerX+i*Math.cos(e.rotation)-a*Math.sin(e.rotation),e.centerY+i*Math.sin(e.rotation)+a*Math.cos(e.rotation),0]}),Qe=e=>{if(e.length<3)return L(e);let t=e.map((t,n)=>{let r=e[(n+1)%e.length];return Math.hypot(r[0]-t[0],r[1]-t[1])}),n=[...t].sort((e,t)=>e-t),r=n[Math.floor(n.length/2)]||1,i=Math.max(8,r*3.5),a=t.map(e=>e>i);return`M${e[0][0].toFixed(2)} ${e[0][1].toFixed(2)}${e.map((t,n)=>{let r=(n+1)%e.length,i=e[r];if(a[n])return`L${i[0].toFixed(2)} ${i[1].toFixed(2)}`;let o=a[(n-1+e.length)%e.length]?t:e[(n-1+e.length)%e.length],s=a[r]?i:e[(n+2)%e.length],c=t[0]+(i[0]-o[0])/6,l=t[1]+(i[1]-o[1])/6,u=i[0]-(s[0]-t[0])/6,d=i[1]-(s[1]-t[1])/6;return`C${c.toFixed(2)} ${l.toFixed(2)} ${u.toFixed(2)} ${d.toFixed(2)} ${i[0].toFixed(2)} ${i[1].toFixed(2)}`}).join(``)}Z`},$e=(e,t)=>{let n=t.width/2,r=Math.min(n,t.height/2),i=t.depth/2,a=Math.max(0,(t.height-r*2)/2),o=[n,r,i],s=X(e,o,[0,a,0]),c=X(e,o,[0,-a,0]);return!s||!c?null:Qe(U([...Ze(s),...Ze(c)]))},et=(e,t)=>{if(t.type===`sphere`||t.type===`mickey`){let n=Je(e,t);if(n)return n}if(t.type===`capsule`){let n=$e(e,t);if(n)return n}if(t.type===`cylinder`)return Ve(e,t);if(t.type===`cursor`)return He(e,t);if(t.type===`cone`)return We(e,t);if(t.type===`cube`)return Ge(e,t);if(t.type===`diamond`)return Ke(e,t);let n=V(t),r=B.get(n);return r||(r=Array.from({length:Te},(e,n)=>{let r=-Math.PI/2+n/24*Math.PI;return Array.from({length:Ee},(e,n)=>E(t,-Math.PI+n/72*Math.PI*2,r))}).flat(),H(B,n,r)),L(U(r.map(t=>I(F(e.orientation,t),e.expression.perspective))))},tt=(e,t)=>{let n=U(nt(e,t).map(e=>e.projected));return(t.surface.type===`cube`||t.surface.type===`diamond`)&&t.surface.roundness<=0?L(n):W(G(n))},nt=(e,t)=>{let n=P(M(t.rotation[0]),M(t.rotation[1]),M(t.rotation[2]));return Me(t.surface).map(r=>{let i=F(n,r),a=F(e.orientation,[i[0]+t.position[0],i[1]+t.position[1],i[2]+t.position[2]]);return{camera:a,projected:I(a,e.expression.perspective)}})},rt=(e,t,n)=>[e[0]+t[0]*n,e[1]+t[1]*n,e[2]+t[2]*n],Z=(e,t)=>[e[0]-t[0],e[1]-t[1],e[2]-t[2]],Q=(e,t)=>e[0]*t[0]+e[1]*t[1]+e[2]*t[2],it=(e,t)=>[e[1]*t[2]-e[2]*t[1],e[2]*t[0]-e[0]*t[2],e[0]*t[1]-e[1]*t[0]],at=(e,t)=>{if(Math.abs(t)<1e-4)return{origin:[e[0],e[1],j],direction:[0,0,-1]};let n=j/t;return{origin:[0,0,n],direction:[e[0],e[1],-n]}},ot=(e,t)=>{let[n,r,i]=t,a=Z(r,n),o=Z(i,n),s=it(e.direction,o),c=Q(a,s);if(Math.abs(c)<1e-7)return null;let l=1/c,u=Z(e.origin,n),d=Q(u,s)*l;if(d<0||d>1)return null;let f=it(u,a),p=Q(e.direction,f)*l;if(p<0||d+p>1)return null;let m=Q(o,f)*l;return m>=0?m:null},st=(e,t,n)=>{let r=at(n,e.expression.perspective),[i,a,o,s]=e.orientation,c=[i,-a,-o,-s],l=F(c,r.origin),u=F(c,r.direction),d=[t.width/2||1,t.height/2||1,t.depth/2||1],f=Q([u[0]/d[0],u[1]/d[1],u[2]/d[2]],[u[0]/d[0],u[1]/d[1],u[2]/d[2]]),p=2*Q([l[0]/d[0],l[1]/d[1],l[2]/d[2]],[u[0]/d[0],u[1]/d[1],u[2]/d[2]]),m=Q([l[0]/d[0],l[1]/d[1],l[2]/d[2]],[l[0]/d[0],l[1]/d[1],l[2]/d[2]])-1,h=p*p-4*f*m;if(f===0||h<0)return null;let g=Math.sqrt(h),_=(-p-g)/(2*f),v=(-p+g)/(2*f),y=_>=0?_:v>=0?v:null;return y===null?null:rt(r.origin,r.direction,y)[2]},ct=(e,t)=>{let n=Array.from({length:Te},(n,r)=>{let i=-Math.PI/2+r/24*Math.PI;return Array.from({length:Ee},(n,r)=>{let a=-Math.PI+r/72*Math.PI*2;return F(e.orientation,E(t,a,i))})}),r=[];for(let e=0;e<24;e+=1)for(let t=0;t<72;t+=1){let i=n[e][t],a=n[e][t+1],o=n[e+1][t],s=n[e+1][t+1];r.push([i,o,a],[a,o,s])}return t=>{let n=at(t,e.expression.perspective),i=1/0;return r.forEach(e=>{let t=ot(n,e);t!==null&&t<i&&(i=t)}),Number.isFinite(i)?rt(n.origin,n.direction,i)[2]:null}},lt=(e,t)=>t.type===`sphere`||t.type===`mickey`?n=>st(e,t,n):ct(e,t),$=1e-4,ut=.01,dt=$*2,ft=(e,t)=>{let n=[],r=e=>t?e.depth>$:e.depth<=$,i=(e,t)=>{let n=($-e.depth)/(t.depth-e.depth||1);return{projected:[e.projected[0]+(t.projected[0]-e.projected[0])*n,e.projected[1]+(t.projected[1]-e.projected[1])*n,e.projected[2]+(t.projected[2]-e.projected[2])*n],depth:$}};return e.forEach((t,a)=>{let o=e[(a+e.length-1)%e.length],s=r(o),c=r(t);s!==c&&n.push(i(o,t)),c&&n.push(t)}),n},pt=e=>Math.abs(e.reduce((t,n,r)=>{let i=e[(r+1)%e.length];return t+n.projected[0]*i.projected[1]-i.projected[0]*n.projected[1]},0))/2,mt=e=>e.filter(e=>e.length>=3&&pt(e)>ut).map(e=>L(e.map(e=>e.projected))).join(``),ht=(e,t,n)=>{let r=nt(e,t).map(e=>{let t=n(e.projected);return{projected:e.projected,depth:t===null?dt:e.camera[2]-t}}),i=[],a=[];for(let e=0;e<16;e+=1)for(let t=0;t<48;t+=1){let n=r[e*R+t],o=r[e*R+t+1],s=r[(e+1)*R+t],c=r[(e+1)*R+t+1];[[n,s,o],[o,s,c]].forEach(e=>{i.push(ft(e,!1)),a.push(ft(e,!0))})}return{nodeId:t.id,backPath:mt(i),frontPath:mt(a)}},gt=.1,_t=(e,t)=>{let n=P(M(t.rotation[0]),M(t.rotation[1]),M(t.rotation[2])),r=[[1,0,0],[0,1,0],[0,0,1]].map(t=>F(e.orientation,F(n,t))[2]);return Math.hypot(r[0]*(t.surface.width/2),r[1]*(t.surface.height/2),r[2]*(t.surface.depth/2))},vt=(e,t)=>{let n=t.map(t=>{let n=F(e.orientation,t.position)[2];return{id:t.id,path:tt(e,t),depth:n,front:n>_t(e,t)*gt}}).sort((e,t)=>e.depth-t.depth);return{backPaths:n.filter(e=>!e.front).map(e=>e.path),frontPaths:n.filter(e=>e.front).map(e=>e.path),backNodeIds:n.filter(e=>!e.front).map(e=>e.id),frontNodeIds:n.filter(e=>e.front).map(e=>e.id)}};return e.ambientBodyOffset=c,e.ambientEyeOffset=l,e.applyAmbientBodyMotion=u,e.applyAmbientMotion=d,e.expressionFields=ye,e.hasAmbientMotion=s,e.poseFromExpression=Ce,e.renderAvatar=(e,t,n=1,r={})=>{let i=Le(e,t,-1,n,r.eyeOffset),a=Le(e,t,1,n,r.eyeOffset),o=i.map(e=>e.point),s=a.map(e=>e.point),c=r.bodyNodes??[],l=vt(e,c),u;if(r.occlusion===`depth-aware`){let n=lt(e,t);u=c.map(t=>ht(e,t,n))}let d=Xe(e,t);return{backPaths:[...d,...l.backPaths],frontPaths:l.frontPaths,backNodeIds:[...d.map(()=>null),...l.backNodeIds],frontNodeIds:l.frontNodeIds,...u?{nodeFragments:u}:{},headPath:et(e,t),leftPath:L(o),rightPath:L(s),leftVisible:i.reduce((e,t)=>e+t.normal[2],0)>0,rightVisible:a.reduce((e,t)=>e+t.normal[2],0)>0,wirePaths:r.includeWire===!1?[]:ze(e,t)}},e})({});"

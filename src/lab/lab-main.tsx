@@ -12,9 +12,12 @@ import "./lab.css";
 // production components can render inside the preview.
 async function bootstrap() {
   await initializeLabI18n("zh-CN");
+  const initialTheme = new URLSearchParams(window.location.search).get("theme") === "white"
+    ? "white"
+    : "black";
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <StrictMode>
-      <ThemeProvider initialTheme="black">
+      <ThemeProvider initialTheme={initialTheme}>
         <PresentationLab />
         <Agentation className="lab-agentation-toolbar" />
       </ThemeProvider>

@@ -27,6 +27,7 @@ describe("Lab Compact Preview Stage", () => {
     expect(source).toContain("pointerField={pointerField}");
     expect(source).toContain("attentionCenterX={LAB_COMPACT_ATTENTION_CENTER.x}");
     expect(source).toContain("attentionCenterY={LAB_COMPACT_ATTENTION_CENTER.y}");
+    expect(source).toContain("previewPose={previewPose}");
   });
 
   it("derives the 80/60 geometry from production window-metrics constants", () => {

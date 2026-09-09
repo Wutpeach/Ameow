@@ -35,6 +35,7 @@ import {
   updateLabCompactPointerFromClientPoint,
   useLabCompactPointerField,
 } from "./compactPointerField";
+import type { CompactMascotPreviewPose } from "../presentation/main-window/compactMascotBehaviorRuntime";
 
 export type LabCompactPointerMode = "live" | "neutral";
 
@@ -46,6 +47,8 @@ export type CompactPreviewStageProps = {
    * character's bounded attention; `neutral` pins the field to center.
    */
   pointerMode: LabCompactPointerMode;
+  /** Frozen existing-core pose for Lab evidence; never production state. */
+  previewPose?: CompactMascotPreviewPose;
 };
 
 const COMPACT_STAGE_FRAME_STYLE: CSSProperties = {
@@ -62,6 +65,7 @@ const COMPACT_APPROACH_CAPTURE_INSET = 16;
 export function CompactPreviewStage({
   reducedMotion,
   pointerMode,
+  previewPose,
 }: CompactPreviewStageProps) {
   const { colors } = useTheme();
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +151,7 @@ export function CompactPreviewStage({
             pointerField={pointerField}
             attentionCenterX={LAB_COMPACT_ATTENTION_CENTER.x}
             attentionCenterY={LAB_COMPACT_ATTENTION_CENTER.y}
+            previewPose={previewPose}
           />
         </div>
       </div>
