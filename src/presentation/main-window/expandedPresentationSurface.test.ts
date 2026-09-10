@@ -22,10 +22,17 @@ describe("Expanded Presentation graphics host contract", () => {
       hostSource.indexOf("export type ExpandedPresentationSurfaceProps"),
       hostSource.indexOf("type GraphicsColors"),
     );
-    expect(props).not.toContain("=>");
+    expect(props).toContain("onCapturableFrame?: () => void;");
     expect(props).toContain("target: ExpandedPresentationTarget");
     expect(props).not.toContain("progress:");
     expect(props).not.toContain("terminal:");
+  });
+
+  it("reports Lab readiness after a real draw, including equal renderer targets", () => {
+    expect(hostSource).toContain("if (!eligible || onCapturableFrame === undefined) return;");
+    expect(hostSource).toContain("if (renderer.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current)) onCapturableFrame();");
+    expect(hostSource).toContain("if (rendered) onCapturableFrameRef.current?.();");
+    expect(hostSource).toContain("return !gl.isContextLost();");
   });
 
   it("uses one concrete WebGL2 backend with no fallback", () => {
@@ -51,23 +58,16 @@ describe("Expanded Presentation graphics host contract", () => {
     expect(hostSource).toContain("gl.deleteProgram(linkedProgram)");
   });
 
-  it("treats the capture backingScale as an absolute value, not a DPR multiplier", () => {
-    // The capture override must mean backing pixels-per-CSS-pixel: it replaces
-    // (never multiplies) the clamped devicePixelRatio so a 4x export is exactly
-    // 800x800 for 200x200 CSS at DPR 1, 1.25, 1.5, 2, ... Production with no
-    // override keeps the normal clamped devicePixelRatio.
-    expect(hostSource).toContain("backingScale?: number");
-    expect(hostSource).not.toContain("pixelScale");
+  it("keeps the production backing store on the capped device pixel ratio", () => {
+    expect(hostSource).not.toContain("backingScale");
+    expect(hostSource).not.toContain("redrawEpoch");
     const resizeBlock = hostSource.slice(
-      hostSource.indexOf("const resize = (backingScale?: number)"),
+      hostSource.indexOf("const resize = ()"),
       hostSource.indexOf("if (canvas.width !== width"),
     );
-    expect(resizeBlock).toMatch(/backingScale \?\? dpr/);
-    expect(resizeBlock).toMatch(/cssWidth \* scale/);
-    expect(resizeBlock).not.toMatch(/dpr \* |\* dpr/);
-    // Production path stays the clamped DPR when no override is passed.
+    expect(resizeBlock).toMatch(/cssWidth \* dpr/);
+    expect(resizeBlock).toMatch(/cssHeight \* dpr/);
     expect(hostSource).toContain("resize()");
-    expect(hostSource).toContain("resize(backingScaleRef.current)");
   });
 
   it("is the sole host mounted by the production Surface", () => {

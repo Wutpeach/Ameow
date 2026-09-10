@@ -1,7 +1,6 @@
 /** Browser Lab production-reuse stage for Download, Transcode, and Mixed. */
 import {
   useCallback,
-  useLayoutEffect,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -30,35 +29,8 @@ export type LabOverlayStageProps = {
   onCancelPrimaryTask: (traceId: string) => void;
   onCopyDiagnostic: (diagnostic: ErrorDiagnosticCopyRequest) => void;
   onRecheck: () => void;
-  captureScale?: number;
-  captureEpoch: number;
-  onWebglReadback: (result: WebglReadbackResult | null) => void;
+  onCapturableFrame: () => void;
 };
-
-export type WebglReadbackResult = {
-  width: number;
-  height: number;
-  pixels: Uint8Array;
-};
-
-function WebglReadback({ captureEpoch, onResult }: {
-  captureEpoch: number;
-  onResult: (result: WebglReadbackResult | null) => void;
-}) {
-  useLayoutEffect(() => {
-    if (captureEpoch <= 0) return;
-    const canvas = document.querySelector<HTMLCanvasElement>("[data-lab-preview-frame] canvas");
-    const gl = canvas?.getContext("webgl2");
-    if (canvas === null || gl === null || gl === undefined || canvas.width <= 0 || canvas.height <= 0) {
-      onResult(null);
-      return;
-    }
-    const pixels = new Uint8Array(canvas.width * canvas.height * 4);
-    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    onResult({ width: canvas.width, height: canvas.height, pixels });
-  }, [captureEpoch, onResult]);
-  return null;
-}
 
 const PREVIEW_FRAME_STYLE: CSSProperties = {
   position: "relative",
@@ -84,9 +56,7 @@ export function LabOverlayStage({
   onCancelPrimaryTask,
   onCopyDiagnostic,
   onRecheck,
-  captureScale,
-  captureEpoch,
-  onWebglReadback,
+  onCapturableFrame,
 }: LabOverlayStageProps) {
   const getAdvancedQualityTaskTitle = useCallback((task: { label: string }) => task.label, []);
   const renderAdvancedQualityOptionButton = useCallback((): ReactNode => null, []);
@@ -122,10 +92,8 @@ export function LabOverlayStage({
         reducedMotion={reducedMotion}
         target={target}
         palette={THERMAL_PALETTE}
-        backingScale={captureScale}
-        redrawEpoch={captureEpoch}
+        onCapturableFrame={onCapturableFrame}
       />
-      <WebglReadback captureEpoch={captureEpoch} onResult={onWebglReadback} />
       {overlayProjection !== null && overlayProjection.centerOverlayVisual.kind !== "none" ? (
         <MainWindowCenterOverlay
           centerOverlayVisual={overlayProjection.centerOverlayVisual}

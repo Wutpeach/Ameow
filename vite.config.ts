@@ -16,7 +16,7 @@ export default defineConfig(async ({ command }) => ({
     },
   },
   test: {
-    exclude: [...configDefaults.exclude, "**/dist-electron/**"],
+    exclude: [...configDefaults.exclude, "**/dist-electron/**", "**/.cindy-worktrees/**"],
   },
 
   // Vite options tailored for the Electron renderer dev server.

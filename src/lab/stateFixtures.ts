@@ -11,7 +11,6 @@
  * Transcode / config / lifecycle authority is read or written here.
  */
 import type { DownloadQueueState } from "../features/download/model";
-import { createInitialDownloadQueueState } from "../features/download/model";
 import type { VideoTranscodeTaskPayload } from "../protocol/download/ipcTypes";
 import type {
   RuntimeDependencyGateStatePayload,
@@ -190,10 +189,6 @@ export const createMixedBusyFixture = (): LabOverlayFixture => {
     transcodeTasks: [TRANSCODE_ACTIVE_TASK],
   };
 };
-
-/** One empty Download queue (used for transcode-only / runtime scenes). */
-export const createEmptyDownloadQueueFixture = (): DownloadQueueState =>
-  createInitialDownloadQueueState();
 
 export const LAB_OVERLAY_FIXTURES: Readonly<Record<string, () => LabOverlayFixture>> = {
   "runtime-auto-config": createRuntimeAutoConfigFixture,

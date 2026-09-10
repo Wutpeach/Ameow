@@ -3,25 +3,29 @@
   "previewTarget": { "full": "全屏", "compact": "紧凑" },
   "workspace": {
     "title": "预览工作区",
-    "targetLabel": "预览目标",
     "displayScale": "显示缩放",
     "autoLabel": "自动",
     "auto": "自动 · {{scale}}×",
     "reset": "重置预览",
-    "resetHint": "恢复默认 Ripple 或紧凑预览，并跟随系统的减弱动态偏好。"
+    "resetHint": "恢复默认生产场景。"
   },
-  "controls": { "displayMode": "显示模式", "zoom": "缩放", "actions": "操作" },
+  "controls": { "zoom": "缩放" },
+  "theme": { "black": "深色", "white": "浅色" },
   "environment": { "title": "预览背景", "dark": "深色", "light": "浅色", "checkerboard": "棋盘格" },
   "compact": { "caption": "紧凑目标复用生产角色与 Lab 本地指针场。" },
   "devTools": {
-    "title": "开发工具", "target": "目标", "rmSection": "减弱动态",
+    "title": "开发工具", "target": "目标", "theme": "主题", "rmSection": "减弱动态",
     "compact": { "scenario": "紧凑场景" }
   },
   "presets": {
-    "ripple": { "label": "Ripple", "description": "仅限 Lab 的 WebGL1 Ripple 检查点。" },
-    "download": { "label": "下载进行中", "description": "复用生产路径的下载场景。" },
-    "transcode": { "label": "转码进行中", "description": "复用生产路径的转码场景。" },
-    "mixed": { "label": "混合忙碌", "description": "复用生产路径的下载与转码场景。" },
+    "rippleReference": { "label": "Ripple 参考", "description": "保留的仅限 Lab 的 WebGL1 迁移参考。" },
+    "downloadActive": { "label": "下载进行中", "description": "复用生产路径的活动下载场景。" },
+    "downloadQueued": { "label": "下载队列", "description": "复用生产路径的多任务队列场景。" },
+    "transcodeActive": { "label": "转码进行中", "description": "复用生产路径的活动转码场景。" },
+    "transcodeFailed": { "label": "转码失败", "description": "复用生产路径的转码失败场景。" },
+    "runtimeAutoConfig": { "label": "运行时配置中", "description": "复用生产路径的运行时自动配置场景。" },
+    "runtimeFailed": { "label": "运行时失败", "description": "复用生产路径的运行时失败场景。" },
+    "mixedBusy": { "label": "混合忙碌", "description": "复用生产路径的下载与转码场景。" },
     "compactNeutral": { "label": "紧凑 · 中性" },
     "compactPointer": { "label": "紧凑 · 指针注意力" },
     "compactReduced": { "label": "紧凑 · 减弱动态" },
@@ -29,14 +33,10 @@
     "compactCurious": { "label": "紧凑 · 好奇" },
     "compactPlayful": { "label": "紧凑 · 顽皮" }
   },
-  "preview": {
-    "caption": "此复用生产路径的场景只挂载一个 WebGL2 画布。",
-    "export": "导出 4× PNG", "exporting": "正在导出…",
-    "exportErrorWebgl": "WebGL 画面读取失败，未生成不完整的导出。"
-  },
+  "preview": { "caption": "此复用生产路径的场景只挂载一个 WebGL2 画布。" },
   "inspector": { "reducedMotion": "减弱动态", "scenario": "场景", "queue": { "open": "打开队列", "close": "关闭队列" } },
   "ripple": {
-    "title": "Ripple Lab", "controls": "Ripple 控制", "caption": "Ripple 仅用于 Lab 的 WebGL1 预览；这里不提供既有 WebGL2 导出。",
+    "title": "Ripple Lab", "controls": "Ripple 控制", "caption": "Ripple 是仅限 Lab 的 WebGL1 迁移参考。",
     "forward": "正向", "reverse": "反向", "cancelStart": "取消至起点", "cancelTarget": "取消至终点",
     "phase": "阶段", "pinch": "捏合", "pinchOn": "捏合开启", "pinchOff": "捏合关闭",
     "origin": "源点 {{x}}, {{y}}", "originGroup": "Ripple 源点", "originX": "源点 X", "originY": "源点 Y", "unavailable": "Ripple 预览不可用。当前浏览器无法初始化 WebGL。",

@@ -10,7 +10,6 @@
  */
 import type { DownloadQueueState, DownloadTask } from "../features/download/model";
 import {
-  selectAdvancedQualitySelectionTask,
   selectDownloadQueueRows,
   selectPrimaryDownloadProgress,
   selectPrimaryDownloadTask,
@@ -319,5 +318,3 @@ export const projectLabQueueRow = (
   progressText: getDownloadQueueTaskProgressText(t, downloadState, task),
   progressPercent: getDownloadQueueTaskProgressPercent(downloadState, task),
 });
-
-export { selectAdvancedQualitySelectionTask };

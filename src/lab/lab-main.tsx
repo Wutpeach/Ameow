@@ -1,9 +1,9 @@
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import { Agentation } from "agentation";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { PresentationLab } from "./PresentationLab";
 import { initializeLabI18n } from "./i18n";
+import { parseLabUrlState } from "./scenarioUrl";
 import "./lab.css";
 
 // Dev-only Browser Presentation Lab entry (lab.html). Pure browser page: no
@@ -12,14 +12,11 @@ import "./lab.css";
 // production components can render inside the preview.
 async function bootstrap() {
   await initializeLabI18n("zh-CN");
-  const initialTheme = new URLSearchParams(window.location.search).get("theme") === "white"
-    ? "white"
-    : "black";
+  const initialState = parseLabUrlState(new URLSearchParams(window.location.search));
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <StrictMode>
-      <ThemeProvider initialTheme={initialTheme}>
-        <PresentationLab />
-        <Agentation className="lab-agentation-toolbar" />
+      <ThemeProvider initialTheme={initialState.theme}>
+        <PresentationLab initialState={initialState} />
       </ThemeProvider>
     </StrictMode>,
   );

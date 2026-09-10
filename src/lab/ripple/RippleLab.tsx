@@ -14,7 +14,13 @@ const CONTROL_STYLE: CSSProperties = {
   marginTop: 10,
 };
 
-export function RippleLab({ reducedMotion }: Readonly<{ reducedMotion: boolean }>) {
+export function RippleLab({
+  reducedMotion,
+  onCapturableFrame,
+}: Readonly<{
+  reducedMotion: boolean;
+  onCapturableFrame?: () => void;
+}>) {
   const { t } = useTranslation("lab");
   const { colors } = useTheme();
   const canvasRef = useRef<RippleCanvasHandle | null>(null);
@@ -70,7 +76,7 @@ export function RippleLab({ reducedMotion }: Readonly<{ reducedMotion: boolean }
         onClick={captureOrigin}
         style={{ width: RIPPLE_SIZE, height: RIPPLE_SIZE, overflow: "hidden", borderRadius: 16, boxShadow: colors.panelShadow, cursor: "crosshair" }}
       >
-        <RippleCanvas ref={canvasRef} onStatusChange={setStatus} />
+        <RippleCanvas ref={canvasRef} onStatusChange={setStatus} onCapturableFrame={onCapturableFrame} />
       </div>
       <p role="status" style={{ margin: "8px 0 0", fontSize: 11, color: colors.textSecondary }}>
         {t("ripple.origin", { x: origin.x.toFixed(2), y: origin.y.toFixed(2) })} · {t(`ripple.status.${status}`)} · {t(`ripple.settlement.${settlement}`)}

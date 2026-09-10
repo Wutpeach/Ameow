@@ -48,6 +48,7 @@ const destroy = (resources: ProgramResources | null) => {
 /** WebGL1 pixel leaf. It has no pointer, clock, completion, or semantic state. */
 type RippleCanvasProps = Readonly<{
   onStatusChange?: (status: "ready" | "recovering" | "unavailable") => void;
+  onCapturableFrame?: () => void;
 }>;
 
 const loadSceneFixture = (): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
@@ -59,17 +60,23 @@ const loadSceneFixture = (): Promise<HTMLImageElement> => new Promise((resolve, 
 
 export const RippleCanvas = forwardRef<RippleCanvasHandle, RippleCanvasProps>(function RippleCanvas({
   onStatusChange,
+  onCapturableFrame,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const resourcesRef = useRef<ProgramResources | null>(null);
   const latestFrameRef = useRef<RippleFrame | null>(null);
   const disposedRef = useRef(false);
+  const onCapturableFrameRef = useRef(onCapturableFrame);
+
+  useEffect(() => {
+    onCapturableFrameRef.current = onCapturableFrame;
+  }, [onCapturableFrame]);
 
   const draw = (frame: RippleFrame) => {
     latestFrameRef.current = frame;
     const resources = resourcesRef.current;
     const canvas = canvasRef.current;
-    if (resources === null || canvas === null || disposedRef.current) return;
+    if (resources === null || canvas === null || disposedRef.current || resources.gl.isContextLost()) return;
     const { gl, program, textures, uniforms } = resources;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     const width = Math.round(PANEL_SIZE * dpr);
@@ -96,6 +103,7 @@ export const RippleCanvas = forwardRef<RippleCanvasHandle, RippleCanvasProps>(fu
     gl.uniform1f(uniforms.u_swap, 0);
     gl.uniform1f(uniforms.u_pinch, sourcePinchAt(frame.rawPhase, frame.pinchEnabled));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (!gl.isContextLost()) onCapturableFrameRef.current?.();
   };
 
   useImperativeHandle(ref, () => ({ renderFrame: draw }), []);

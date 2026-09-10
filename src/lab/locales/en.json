@@ -1,27 +1,31 @@
 {
   "nav": { "scenarioNavigation": "Scenario Navigation" },
-  "previewTarget": { "full": "Full", "compact": "Compact" },
+  "previewTarget": { "full": "Fullscreen", "compact": "Compact" },
   "workspace": {
     "title": "Preview Workspace",
-    "targetLabel": "Preview Target",
     "displayScale": "Display scale",
     "autoLabel": "Auto",
     "auto": "Auto · {{scale}}×",
     "reset": "Reset preview",
-    "resetHint": "Restore the default Ripple or Compact preview and match the system Reduced Motion preference."
+    "resetHint": "Restore the default production scenario."
   },
-  "controls": { "displayMode": "Display mode", "zoom": "Zoom", "actions": "Actions" },
+  "controls": { "zoom": "Zoom" },
+  "theme": { "black": "Dark", "white": "Light" },
   "environment": { "title": "Preview background", "dark": "Dark", "light": "Light", "checkerboard": "Checkerboard" },
   "compact": { "caption": "Compact reuses the production mascot with the Lab-local pointer field." },
   "devTools": {
-    "title": "Dev Tools", "target": "Target", "rmSection": "Reduced Motion",
+    "title": "Dev Tools", "target": "Target", "theme": "Theme", "rmSection": "Reduced Motion",
     "compact": { "scenario": "Compact scenario" }
   },
   "presets": {
-    "ripple": { "label": "Ripple", "description": "The Lab-only WebGL1 ripple checkpoint." },
-    "download": { "label": "Download active", "description": "Production-reuse Download fixture." },
-    "transcode": { "label": "Transcode active", "description": "Production-reuse Transcode fixture." },
-    "mixed": { "label": "Mixed busy", "description": "Production-reuse Download and Transcode fixture." },
+    "rippleReference": { "label": "Ripple reference", "description": "The preserved Lab-only WebGL1 migration reference." },
+    "downloadActive": { "label": "Download active", "description": "Production-reuse active download fixture." },
+    "downloadQueued": { "label": "Download queue", "description": "Production-reuse multi-task queue fixture." },
+    "transcodeActive": { "label": "Transcode active", "description": "Production-reuse active transcode fixture." },
+    "transcodeFailed": { "label": "Transcode failed", "description": "Production-reuse transcode failure fixture." },
+    "runtimeAutoConfig": { "label": "Runtime configuring", "description": "Production-reuse runtime auto-configuration fixture." },
+    "runtimeFailed": { "label": "Runtime failed", "description": "Production-reuse runtime failure fixture." },
+    "mixedBusy": { "label": "Mixed busy", "description": "Production-reuse download and transcode fixture." },
     "compactNeutral": { "label": "Compact · neutral" },
     "compactPointer": { "label": "Compact · pointer attention" },
     "compactReduced": { "label": "Compact · reduced motion" },
@@ -29,14 +33,10 @@
     "compactCurious": { "label": "Compact · curious" },
     "compactPlayful": { "label": "Compact · playful" }
   },
-  "preview": {
-    "caption": "This production-reuse fixture mounts one WebGL2 canvas.",
-    "export": "Export 4× PNG", "exporting": "Exporting…",
-    "exportErrorWebgl": "WebGL frame readback failed; no partial export was produced."
-  },
+  "preview": { "caption": "This production-reuse fixture mounts one WebGL2 canvas." },
   "inspector": { "reducedMotion": "Reduced motion", "scenario": "Scenario", "queue": { "open": "Open queue", "close": "Close queue" } },
   "ripple": {
-    "title": "Ripple Lab", "controls": "Ripple controls", "caption": "Ripple is a Lab-only WebGL1 preview; the existing WebGL2 export is unavailable here.",
+    "title": "Ripple Lab", "controls": "Ripple controls", "caption": "Ripple is a Lab-only WebGL1 migration reference.",
     "forward": "Forward", "reverse": "Reverse", "cancelStart": "Cancel to start", "cancelTarget": "Cancel to target",
     "phase": "Phase", "pinch": "Pinch", "pinchOn": "Pinch ON", "pinchOff": "Pinch OFF",
     "origin": "origin {{x}}, {{y}}", "originGroup": "Ripple origin", "originX": "Origin X", "originY": "Origin Y", "unavailable": "Ripple preview is unavailable. Your current browser could not initialize WebGL.",

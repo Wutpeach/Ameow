@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MAIN_WINDOW_FULL_SHADOW_GUTTER,
   MAIN_WINDOW_PANEL_SIZE,
@@ -484,6 +484,8 @@ export type ExpandedPresentationSurfaceProps = {
   reducedMotion: boolean;
   target: ExpandedPresentationTarget;
   palette: ThermalPalette;
+  /** Optional Lab capture observation; it carries no presentation state. */
+  onCapturableFrame?: () => void;
   /**
    * Fixed production renderer capability: the accepted clean-room analytic
    * Thermal interior, drawn by the single shader over the whole surface and
@@ -507,29 +509,14 @@ export type ExpandedPresentationSurfaceProps = {
    * 14px outer gutter; Lab inspection presets can also gate it.
    */
   boundaryHalo?: boolean;
-  /**
-   * Optional ABSOLUTE backing pixels-per-CSS-pixel value (dev-only, default
-   * undefined = normal clamped devicePixelRatio). The Browser Lab passes 4
-   * during a PNG export so the single production canvas backing store is
-   * exactly 800x800 for the 200x200 layout, independent of devicePixelRatio
-   * (4 works at DPR 1, 1.25, 1.5, 2, ...). Production never sets it.
-   */
-  backingScale?: number;
-  /**
-   * Optional dev-only redraw epoch (default 0): when it changes the surface
-   * re-resizes and re-draws synchronously even if backingScale is unchanged, so
-   * a same-commit Lab readback always sees a freshly drawn buffer. Production
-   * never sets it.
-   */
-  redrawEpoch?: number;
 };
 
 type GraphicsColors = ThermalPalette;
 
 type GraphicsRenderer = {
-  render: (frame: ExpandedPresentationFrame, colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean) => void;
-  resize: (backingScale?: number) => void;
-  redraw: (colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean) => void;
+  render: (frame: ExpandedPresentationFrame, colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean) => boolean;
+  resize: () => void;
+  redraw: (colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean) => boolean;
   clear: () => void;
   dispose: () => void;
 };
@@ -639,7 +626,7 @@ const createGraphicsRenderer = (canvas: HTMLCanvasElement): GraphicsRenderer | n
   const goldLocation = gl.getUniformLocation(linkedProgram, "uThermalGold");
   const coreLocation = gl.getUniformLocation(linkedProgram, "uThermalCore");
 
-  const resize = (backingScale?: number): void => {
+  const resize = (): void => {
     if (disposed) return;
     const bounds = canvas.getBoundingClientRect();
     const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), MAX_DPR);
@@ -649,14 +636,8 @@ const createGraphicsRenderer = (canvas: HTMLCanvasElement): GraphicsRenderer | n
     // store after the expand transition settles.
     const cssWidth = canvas.clientWidth || bounds.width;
     const cssHeight = canvas.clientHeight || bounds.height;
-    // The capture override is an ABSOLUTE backing pixels-per-CSS-pixel value:
-    // it REPLACES (never multiplies) the clamped devicePixelRatio, so a 4x
-    // export is exactly 800x800 for 200x200 CSS at any devicePixelRatio
-    // (1, 1.25, 1.5, 2, ...). Production passes nothing and keeps the clamped
-    // DPR exactly as before.
-    const scale = backingScale ?? dpr;
-    const width = Math.max(Math.round(cssWidth * scale), 1);
-    const height = Math.max(Math.round(cssHeight * scale), 1);
+    const width = Math.max(Math.round(cssWidth * dpr), 1);
+    const height = Math.max(Math.round(cssHeight * dpr), 1);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
@@ -664,8 +645,8 @@ const createGraphicsRenderer = (canvas: HTMLCanvasElement): GraphicsRenderer | n
     gl.viewport(0, 0, width, height);
   };
 
-  const draw = (frame: ExpandedPresentationFrame, colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean): void => {
-    if (disposed || gl.isContextLost()) return;
+  const draw = (frame: ExpandedPresentationFrame, colors: GraphicsColors, heatmapMode: boolean, refractionMode: boolean, boundaryHaloMode: boolean): boolean => {
+    if (disposed || gl.isContextLost()) return false;
     lastFrame = frame;
     let progressMode = 0;
     if (frame.target.kind === "progress") {
@@ -714,6 +695,7 @@ const createGraphicsRenderer = (canvas: HTMLCanvasElement): GraphicsRenderer | n
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return !gl.isContextLost();
   };
 
   const clear = (): void => {
@@ -725,9 +707,8 @@ const createGraphicsRenderer = (canvas: HTMLCanvasElement): GraphicsRenderer | n
   return {
     render: draw,
     resize,
-    redraw: (colors, heatmapMode, refractionMode, boundaryHaloMode) => {
-      if (lastFrame !== null) draw(lastFrame, colors, heatmapMode, refractionMode, boundaryHaloMode);
-    },
+    redraw: (colors, heatmapMode, refractionMode, boundaryHaloMode) => lastFrame !== null
+      && draw(lastFrame, colors, heatmapMode, refractionMode, boundaryHaloMode),
     clear,
     dispose: () => {
       if (disposed) return;
@@ -747,11 +728,10 @@ export function ExpandedPresentationSurface({
   reducedMotion,
   target,
   palette,
+  onCapturableFrame,
   heatmap = false,
   refraction = false,
   boundaryHalo = false,
-  backingScale,
-  redrawEpoch = 0,
 }: ExpandedPresentationSurfaceProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<GraphicsRenderer | null>(null);
@@ -766,8 +746,12 @@ export function ExpandedPresentationSurface({
   const heatmapModeRef = useRef(heatmap);
   const refractionModeRef = useRef(refraction);
   const boundaryHaloModeRef = useRef(boundaryHalo);
-  const backingScaleRef = useRef<number | undefined>(backingScale);
+  const onCapturableFrameRef = useRef(onCapturableFrame);
   const [dprEpoch, setDprEpoch] = useState(0);
+
+  useEffect(() => {
+    onCapturableFrameRef.current = onCapturableFrame;
+  }, [onCapturableFrame]);
 
   useEffect(() => {
     eligibleRef.current = eligible;
@@ -776,11 +760,9 @@ export function ExpandedPresentationSurface({
     heatmapModeRef.current = heatmap;
     refractionModeRef.current = refraction;
     boundaryHaloModeRef.current = boundaryHalo;
-    backingScaleRef.current = backingScale;
   }, [
     eligible,
     palette,
-    backingScale,
     reducedMotion,
     target,
     heatmap,
@@ -800,13 +782,18 @@ export function ExpandedPresentationSurface({
         now: () => performance.now(),
         scheduleFrame: (callback) => requestAnimationFrame(callback),
         cancelFrame: (handle) => cancelAnimationFrame(handle),
-        render: (frame) => rendererRef.current?.render(
-          frame,
-          colorsRef.current,
-          heatmapModeRef.current,
-          refractionModeRef.current,
-          boundaryHaloModeRef.current,
-        ),
+        render: (frame) => {
+          const renderer = rendererRef.current;
+          if (renderer === null) return;
+          const rendered = renderer.render(
+            frame,
+            colorsRef.current,
+            heatmapModeRef.current,
+            refractionModeRef.current,
+            boundaryHaloModeRef.current,
+          );
+          if (rendered) onCapturableFrameRef.current?.();
+        },
       });
       runtimeRef.current = runtime;
       renderer.resize();
@@ -824,7 +811,7 @@ export function ExpandedPresentationSurface({
 
     installRenderer();
     const resizeObserver = new ResizeObserver(() => {
-      rendererRef.current?.resize(backingScaleRef.current);
+      rendererRef.current?.resize();
       if (eligibleRef.current) rendererRef.current?.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current);
       else rendererRef.current?.clear();
     });
@@ -852,24 +839,19 @@ export function ExpandedPresentationSurface({
     }
   }, [eligible, reducedMotion, target]);
 
-  // Backing-store changes (dev-only backingScale capture) must resize and
-  // redraw synchronously BEFORE paint so a Lab readback in the same commit
-  // can read the freshly drawn buffer (preserveDrawingBuffer is false).
-  useLayoutEffect(() => {
-    backingScaleRef.current = backingScale;
-    const renderer = rendererRef.current;
-    if (renderer === null) return;
-    renderer.resize(backingScaleRef.current);
-    if (eligibleRef.current) renderer.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current);
-    else renderer.clear();
-  }, [backingScale, redrawEpoch]);
-
   useEffect(() => {
     if (eligible) rendererRef.current?.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current);
   }, [eligible, palette, heatmap, refraction, boundaryHalo]);
 
   useEffect(() => {
-    rendererRef.current?.resize(backingScaleRef.current);
+    if (!eligible || onCapturableFrame === undefined) return;
+    const renderer = rendererRef.current;
+    if (renderer === null) return;
+    if (renderer.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current)) onCapturableFrame();
+  }, [eligible, onCapturableFrame]);
+
+  useEffect(() => {
+    rendererRef.current?.resize();
     if (eligibleRef.current) rendererRef.current?.redraw(colorsRef.current, heatmapModeRef.current, refractionModeRef.current, boundaryHaloModeRef.current);
     else rendererRef.current?.clear();
     // Observe the raw scale even though the backing store is capped. A query

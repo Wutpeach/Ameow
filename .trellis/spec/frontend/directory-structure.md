@@ -37,9 +37,10 @@ src/
 │
 ├── lab/                   # Browser-only dev visual/state playground
 │   ├── lab-main.tsx       # zh-CN-first Vite entry; no desktop bridge
-│   ├── PresentationLab.tsx # Three-pane scenario/preview/Inspector shell
-│   ├── stateFixtures.ts   # Typed synthetic preview fixtures only
-│   └── exportPng.ts       # Lab-local 4x center-preview export
+│   ├── PresentationLab.tsx # Registry-driven scenario/preview/Inspector shell
+│   ├── scenarios.ts       # Finite scenario registry shared by UI and capture
+│   ├── scenarioUrl.ts     # Pure allow-listed URL state contract
+│   └── stateFixtures.ts   # Typed synthetic preview fixtures only
 │
 ├── components/            # Reusable components
 │   └── ui/                # Custom UI primitives
