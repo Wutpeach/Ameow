@@ -10,7 +10,7 @@
     "predev": "node ./scripts/dev-preflight.mjs",
     "dev": "node ./scripts/run-electron-dev.mjs",
     "dev:renderer": "vite",
-    "dev:lab": "vite --config vite.lab.config.ts",
+    "dev:lab": "vite --config vite.lab.config.ts --open /lab.html",
     "lab:capture": "node ./scripts/capture-lab-smoke.mjs",
     "preelectron:dev": "node ./scripts/dev-preflight.mjs",
     "electron:dev": "node ./scripts/run-electron-dev.mjs",
