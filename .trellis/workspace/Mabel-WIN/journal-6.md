@@ -272,3 +272,25 @@ Simplified the browser Lab around one shared scenario registry and URL contract,
 ### Status
 
 [OK] **Completed**
+
+
+## Session 263: Optimize Vite Lab cold-start loading
+<!-- trellis-session: v=2 fp=a66a574ee1f9cd89 -->
+
+**Date**: 2026-09-11
+**Task**: Optimize Vite Lab cold-start loading
+**Branch**: `fix/vite-lab-cold-start`
+
+### Summary
+
+Completed and archived Lab cold-start optimization: port-scoped Vite caches, lab.html initial scan/opener, evidenced native watcher exclusions, and owned capture cleanup. Independent Windows acceptance passed: navigation-to-visible 28.851s to 1.138s, warm refresh 0.209/0.076s; concurrent Labs and ordinary Vite plus Lab had no EPERM. Lint, type-check, HMR, restart cache reuse and capture checks passed. Unrelated working-tree changes preserved; no push.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8872ff4` | fix(lab): isolate Vite caches and reduce startup watchers |
+
+### Status
+
+[OK] **Completed**
