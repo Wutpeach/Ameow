@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend package boundaries and complete quality-check entry point."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Review component reuse, interaction, accessibility, and production presentation boundaries."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Required correctness, cleanup, lint, type-check, build, and forbidden-pattern checks."}
+{"file":".trellis/spec/frontend/character-motion.md","reason":"Ensure Compact reuse and its existing Lab-only seam remain intact."}
+{"file":".trellis/tasks/09-09-integrate-fullscreen-branch-work/research/branch-integration-synthesis.md","reason":"Verify every branch cleanup against the accepted exact-tip/tag/worktree disposition."}
+{"file":".trellis/tasks/09-09-integrate-fullscreen-branch-work/research/fullscreen-branch-inventory.md","reason":"Cross-check production lineage and ensure no accepted fullscreen work is replayed or removed."}

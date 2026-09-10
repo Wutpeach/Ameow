@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend package boundaries, fixed presentation constraints, and required docs/build contract."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Existing Lab composition, accessibility, theming, and presentation ownership patterns to preserve."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend cleanup, lifecycle cleanup, strict TypeScript, build, and review requirements."}
+{"file":".trellis/spec/frontend/character-motion.md","reason":"Compact Production/Lab reuse and frozen-preview seam that overlaps the Lab shell edits."}
+{"file":".trellis/tasks/09-09-integrate-fullscreen-branch-work/research/branch-integration-synthesis.md","reason":"Authoritative branch disposition, source hash, preservation gates, and remote boundary."}
+{"file":".trellis/tasks/09-09-integrate-fullscreen-branch-work/research/compact-task-status-reconciliation.md","reason":"Dirty Compact seam ownership and historical evidence constraints that must not be overwritten."}
