@@ -1,0 +1,9 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend and public documentation constraints"}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Lab remains an isolated development browser entry"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Required quality and review conventions"}
+{"file":".trellis/spec/frontend/docs-site.md","reason":"Conditional documentation changes and build check"}
+{"file":".trellis/spec/guides/cross-platform-thinking-guide.md","reason":"Windows paths and test process cleanup"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep configuration and browser checks minimal"}
+{"file":".trellis/tasks/09-10-optimize-vite-lab-cold-start-loading/research/lab-cold-start.md","reason":"Verified cache/scan behavior, caller evidence and acceptance caveats"}
+{"file": ".trellis/tasks/09-10-optimize-vite-lab-cold-start-loading/evidence/check-report.md", "reason": "Independent failure audit; measurement limits and required concurrency evidence"}
+{"file": ".trellis/tasks/09-10-optimize-vite-lab-cold-start-loading/evidence/cleanup-report.md", "reason": "Corrected runner contract, validated cleanup and deferred browser assertions"}
