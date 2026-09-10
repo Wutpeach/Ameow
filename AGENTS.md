@@ -63,11 +63,19 @@ This waits only for structured Orca messages. It is not progress monitoring and
 must not be combined with transcript, terminal, task, dispatch, or worker-state
 reads. While the wait is active, the user may still steer the Lead conversation.
 
+While any expected Dispatch is unsettled, the Lead turn itself MUST remain
+open. Do not send a final response or otherwise end the turn merely because a
+filtered wait is running. A background wait process that outlives an ended turn
+cannot wake or resume the Lead, so it does not count as active coordination.
+Use commentary updates for user communication while preserving the open turn.
+
 If the wait times out with no messages, do not inspect the worker or treat the
-timeout as failure. Re-arm the same filtered wait while an expected Dispatch is
-still unsettled, unless the user asks to stop waiting. Do not rely on a host
-notification to wake an ended Lead turn; durable mailbox storage alone does not
-resume the coordinator.
+timeout as failure. In the same still-open Lead turn, immediately re-arm the
+same filtered wait while an expected Dispatch is unsettled, unless the user
+asks to stop waiting. Repeat until every expected Dispatch settles; only then
+may the Lead send its final response. Do not rely on a host notification to wake
+an ended Lead turn; durable mailbox storage alone does not resume the
+coordinator.
 
 Do not:
 
