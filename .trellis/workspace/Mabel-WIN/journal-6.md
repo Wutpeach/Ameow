@@ -250,3 +250,25 @@ Committed the Orca lifecycle-message wait guidance, kept both Compact canonical 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 262: Simplify and automate the Lab
+<!-- trellis-session: v=2 fp=0066e02ad234aafe -->
+
+**Date**: 2026-09-10
+**Task**: Simplify and automate the Lab
+**Branch**: `main`
+
+### Summary
+
+Simplified the browser Lab around one shared scenario registry and URL contract, removed obsolete Agentation/OneWorks/PNG export paths, added renderer-confirmed readiness and deterministic Playwright capture, and verified all tests and builds.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c7ec5ea6` | feat(lab): simplify and automate previews |
+
+### Status
+
+[OK] **Completed**
