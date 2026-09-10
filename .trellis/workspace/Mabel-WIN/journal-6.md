@@ -227,3 +227,26 @@ Committed the Orca lifecycle-message wait guidance, kept both Compact canonical 
 ### Status
 
 [OK] **Completed**
+
+
+## Session 261: 整合 Ripple 并清理本地分支
+<!-- trellis-session: v=2 fp=1cda85212c2c15ca -->
+
+**Date**: 2026-09-10
+**Task**: 整合 Ripple 并清理本地分支
+**Branch**: `main`
+
+### Summary
+
+保留已验证的 Compact Lab seam，将获批 Ripple checkpoint 最小接入 Vite Lab 并移除 Lab-only Intake/Heatmap；通过完整测试、构建、浏览器和 bundle 隔离检查；为所有非 main 分支及演化后的 M3 dirty worktree 创建并验证本地归档 tag，回收七个旧 worktree，使本地 heads 只剩 main。未 push、未删除远端分支，未触碰无关 dirty 内容。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a6f933b26567644aa7df26c8f1f0c902f2864c70` | feat(lab): preserve compact preview poses |
+| `12a5f3f02be4d11df546dbc8d878f6d16cb93862` | feat(lab): integrate Ripple fullscreen preview |
+
+### Status
+
+[OK] **Completed**
