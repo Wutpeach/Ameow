@@ -358,3 +358,25 @@ Reviewed and repaired documentation PRs, merged in order 5 -> 6 -> 7, and synchr
 ### Next Steps
 
 - Optional follow-up: repair the two pre-existing troubleshooting links and stale Lab fixture path. Evidence: .trellis/tmp/docs-pr-integration/reports/pr7-check.md.
+
+
+## Session 266: Complete current Download incident diagnostic export
+<!-- trellis-session: v=2 fp=ba5560d334ed2a86 -->
+
+**Date**: 2026-09-11
+**Task**: Complete current Download incident diagnostic export
+**Branch**: `main`
+
+### Summary
+
+Implemented shared incident Copy/Save projection and approved one-slot lifecycle; 101 focused tests, build, type/lint, locales and docs passed. Windows native save/cancel and controlled UI smoke passed with documented synthetic-fixture and platform limits. Archived task on user request; excluded local smoke profile and preserved unrelated work.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `25598b97` | fix: export current download failure incident diagnostics |
+
+### Status
+
+[OK] **Completed**
