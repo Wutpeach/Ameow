@@ -317,3 +317,44 @@ Migrated Lab captures and MR3 evidence; user manually removed all 32 approved st
 ### Status
 
 [OK] **Completed**
+
+
+## Session 265: Review, fix, and merge documentation PRs 5-7
+<!-- trellis-session: v=2 fp=85ef5df5739286b1 -->
+
+**Date**: 2026-09-11
+**Task**: Review, fix, and merge documentation PRs 5-7
+**Branch**: `main`
+
+### Summary
+
+Reviewed and repaired documentation PRs, merged in order 5 -> 6 -> 7, and synchronized local main. User explicitly skipped Trellis task creation; no task directory requires archival.
+
+### Main Changes
+
+- PR5: removed shadowing docs redirects and corrected native-file and Weibo wording.
+- PR6: repaired links and corrected maintainer commands, packaging flow, screenshot protocol and runtime environment scopes.
+- PR7: integrated Starlight Black/Astro 7, aligned docs Node minimum to 22.19.0, retained npm official registry and added focused generated-route assertions.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4ead70fd` | Merge pull request #5 from Wutpeach/docs/user-docs-restructure |
+| `83a508ea` | Merge pull request #6 from Wutpeach/docs/developer-maintainer-docs |
+| `e97a5c84` | Merge pull request #7 from Wutpeach/docs/adopt-starlight-black-theme |
+| `b7b254e7` | Merge remote-tracking branch 'origin/main' |
+
+### Testing
+
+- [OK] Strict install on Node 22.19.0, 63-page docs build, preview HTTP smoke, desktop/mobile browser checks, YAML, lint and type-check passed.
+- [OK] 182 test files / 1654 tests passed excluding one pre-existing stale Lab fixture-path suite; two pre-existing troubleshooting links remain.
+- [OK] GitHub Pages deployment 34590693885 succeeded; local documentation surfaces match origin/main.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional follow-up: repair the two pre-existing troubleshooting links and stale Lab fixture path. Evidence: .trellis/tmp/docs-pr-integration/reports/pr7-check.md.
