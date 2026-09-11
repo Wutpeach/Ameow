@@ -1,0 +1,29 @@
+{
+  "id": "download-diagnostic-export-research",
+  "name": "download-diagnostic-export-research",
+  "title": "Current Download failure incident diagnostic export",
+  "description": "Research at f1b4991 progressed through approved local planning and implementation. Reuse incident projection for Copy/Save with one App-local latest Download failure and approved lifecycle; preserve runtime Support Log and application semantics. Implementation and validation complete; uncommitted changes ready for review.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-09-11",
+  "completedAt": "2026-09-11",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "25598b97",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "phase": "completed",
+    "approval_status": "approved_for_implementation"
+  }
+}
