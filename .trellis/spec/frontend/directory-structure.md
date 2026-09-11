@@ -95,6 +95,7 @@ serve-only lab-port-cache config hook
 
 - The hook returns no cache override for `command !== "serve"`. `LAB_TEST_CACHE_ROOT` is a **root**, never the final port directory: controlled tests create a unique root under `node_modules/.vite-lab/` and the hook appends the fixed port.
 - The capture script invokes Vite directly with loopback and its reserved positive port; it deliberately has no `--open`, so the npm opener does not create a second browser during capture.
+- `node scripts/capture-lab-smoke.mjs` (also `npm run lab:capture`) writes five scenario PNGs to `build/docs-screenshot-captures/lab` by default. Direct `node scripts/capture-lab-smoke.mjs --output <directory>` preserves caller-selected output; captures must not recreate the retired root `docs-screenshot-captures/` directory. The retained Electron/extension images in `build/docs-screenshot-captures/` are historical evidence, not outputs of the current Lab capture command.
 
 ##### 3. Contracts
 
@@ -125,6 +126,7 @@ serve-only lab-port-cache config hook
 ##### 6. Tests Required
 
 - Assert the resolved `entries`, opener, host/port/strict-port defaults, effective cache path, and direct-capture no-opener behavior. The capture cleanup self-check must reject a parent path and preserve inherited/pre-existing cache roots.
+- When changing the capture destination, verify all five scenarios at the default and an explicit `--output` directory, no retired root recreation, and byte preservation of migrated historical images. Keep migration hashes in task evidence.
 - Regression evidence must record browser navigation timing plus the first observed visible preview and completed scenario interaction; ready logging or HTML response alone is insufficient. Test two normal cached refreshes, HMR from a temporary owned source CSS fixture, same-port restart metadata reuse, and ordinary-Vite-plus-Lab plus two-Lab overlapping forced optimizer runs. Assert no `EPERM`/`EACCES`, missing optimized module, unexpected document navigation, or browser failure.
 - Keep one-run timing history, environment, cache state, and artifact paths in task-local evidence reports rather than this permanent spec. The permanent regression assertions remain: source-CSS HMR reaches the browser, a same-port restart retains optimizer metadata and reports `Hash is consistent. Skipping`, and concurrent fixed-port Labs remain visible, interactive, and free of cache/refresh failures.
 - For a prose-only spec edit, do not rerun the Lab matrix: check factual consistency against the three sources and run a whitespace diff check.

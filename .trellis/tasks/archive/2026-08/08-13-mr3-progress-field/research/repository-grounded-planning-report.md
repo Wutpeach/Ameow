@@ -58,6 +58,8 @@ No MR4 Reveal, outcome material, terminal hold, folder confirmation, terminal-no
 
 ## Evidence anchors at `d85c629`
 
+- Preserved historical Windows smoke snapshot: [research/evidence/mr3-windows-smoke-evidence.json](./evidence/mr3-windows-smoke-evidence.json) (relocated 2026-09-11; original bytes retained).
+
 - Download ownership: `src/features/download/model.ts:60-80`
 - queue membership before local acknowledgement: `src/electron-runtime/service.ts:484-493,582-593,956-959`
 - renderer event mapping: `src/features/download/client.ts:145-166`

@@ -14,7 +14,6 @@ dist-electron
 dist-scripts
 dist-release
 dist-ssr
-docs-screenshot-captures
 build
 *.local
 .env*

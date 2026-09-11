@@ -10,7 +10,7 @@ import { resolveConfig } from "vite";
 const requiredScenarios = ["compact-pointer", "download-queued", "transcode-failed", "runtime-failed"];
 const scenarios = [...requiredScenarios, "download-active"];
 const outputArgument = process.argv.indexOf("--output");
-const outputDir = resolve(process.cwd(), outputArgument === -1 ? "docs-screenshot-captures/lab" : process.argv[outputArgument + 1]);
+const outputDir = resolve(process.cwd(), outputArgument === -1 ? "build/docs-screenshot-captures/lab" : process.argv[outputArgument + 1]);
 
 const reservePort = () => new Promise((resolvePort, reject) => {
   const server = createServer();
