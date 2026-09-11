@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightThemeBlack from 'starlight-theme-black';
 
 // https://astro.build/config
 export default defineConfig({
@@ -8,6 +9,7 @@ export default defineConfig({
 	base: '/Ameow',
 	integrations: [
 		starlight({
+			plugins: [starlightThemeBlack({})],
 			title: 'Ameow',
 			description: '常驻桌面的悬浮下载与收集窗口。',
 			favicon: '/favicon.svg',
@@ -30,16 +32,16 @@ export default defineConfig({
 				{
 					label: '入门',
 					translations: { en: 'Getting Started' },
-					items: ['docs/downloads', 'docs/concepts', 'docs/getting-started', 'docs/faq'],
+					items: ['docs', 'docs/getting-started', 'docs/downloads', 'docs/concepts', 'docs/faq'],
 				},
 				{
 					label: '桌面端使用',
 					translations: { en: 'Desktop' },
 					items: [
 						'docs/desktop/floating-window',
-						'docs/desktop/output-folder',
 						'docs/desktop/files-and-folders',
 						'docs/desktop/links-and-queue',
+						'docs/desktop/output-folder',
 						'docs/desktop/settings',
 					],
 				},
@@ -80,8 +82,18 @@ export default defineConfig({
 					translations: { en: 'Releases' },
 					items: ['docs/releases'],
 				},
+				{
+					label: '开发者指南',
+					translations: { en: 'Developer Guide' },
+					items: [
+						'docs/developer',
+						'docs/developer/local-development',
+						'docs/developer/environment-variables',
+						'docs/developer/testing',
+						'docs/developer/docs-and-locales',
+					],
+				},
 			],
-			customCss: ['./src/styles/starlight.css'],
 		}),
 	],
 });

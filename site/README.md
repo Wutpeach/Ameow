@@ -11,7 +11,7 @@ npm run build
 npm run preview
 ```
 
-Astro 6 requires Node.js 22.12 or newer. The root docs deploy workflow uses Node 22.
+The locked docs dependency set requires Node.js 22.19 or newer. The root docs deploy workflow uses Node 22.19.0.
 
 The site is managed from the main Ameow repository and deployed to GitHub Pages at:
 
