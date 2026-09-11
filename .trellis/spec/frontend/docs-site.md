@@ -72,6 +72,7 @@ export default defineConfig({
 - Public user documentation source of truth is `site/src/content/docs/`.
 - Chinese content is the root locale under `site/src/content/docs/docs/`.
 - English content is under `site/src/content/docs/en/docs/`.
+- Each public docs route must have one owner. Do not keep an explicit `site/src/pages/` redirect at a route provided by docs content; delete the obsolete redirect when a content landing page takes that route.
 - Root `docs/` is for engineering/reference notes and repo-local assets, not public user guides.
 - README and browser-extension help links must point to docs-site URLs under `https://wutpeach.github.io/Ameow/`.
 - The docs deploy workflow builds from `site/` and uploads `site/dist`.
