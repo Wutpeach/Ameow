@@ -13,7 +13,7 @@ npm run docs:build     # Build for production
 npm run docs:preview   # Preview the build
 ```
 
-These commands run Astro in the `site/` directory via `--prefix site`. `site/` has its own `package.json` and dependencies.
+These commands run Astro 7 in the `site/` directory via `--prefix site`. `site/` has its own `package.json` and dependencies and requires Node.js >= 22.19.0; this requirement does not raise the desktop app's Node.js requirement.
 
 ## Directory Structure
 

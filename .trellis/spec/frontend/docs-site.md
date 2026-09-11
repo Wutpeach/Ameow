@@ -25,10 +25,10 @@ npm run docs:preview
 Runtime requirement:
 
 ```text
-Node.js >= 22.12.0
+Node.js >= 22.19.0
 ```
 
-The desktop app still has its own runtime requirements, but the Astro 6 docs site must build with Node 22.12 or newer. GitHub Pages docs deployment should use Node 22+.
+The desktop app still has its own runtime requirements, but the Astro 7 docs site must build with Node 22.19 or newer. GitHub Pages docs deployment should use Node 22.19+.
 
 Docs-site internal commands:
 
@@ -76,7 +76,7 @@ export default defineConfig({
 - Root `docs/` is for engineering/reference notes and repo-local assets, not public user guides.
 - README and browser-extension help links must point to docs-site URLs under `https://wutpeach.github.io/Ameow/`.
 - The docs deploy workflow builds from `site/` and uploads `site/dist`.
-- Starlight docs pages should keep one semantic page `h1` for accessibility and SEO. If the visual title scale feels too large, adjust `site/src/styles/starlight.css` instead of demoting the page title to `h2`.
+- Starlight docs pages should keep one semantic page `h1` for accessibility and SEO. If the visual title scale feels too large, adjust the theme configuration or a deliberate custom stylesheet instead of demoting the page title to `h2`.
 
 ## 4. Validation & Error Matrix
 
@@ -84,7 +84,7 @@ export default defineConfig({
 | --- | --- | --- |
 | Docs content or config changed | `npm run docs:build` | Broken route, Starlight config, markdown/MDX, or Pagefind build |
 | Docs deploy workflow changed | YAML parse check plus workflow review | GitHub Pages deployment may fail |
-| Docs deploy workflow uses Node < 22.12 | inspect `node-version` in `.github/workflows/deploy-docs.yml` | Astro 6 exits before building |
+| Docs deploy workflow uses Node < 22.19 | inspect `node-version` in `.github/workflows/deploy-docs.yml` | Strict install fails because locked `undici` requires Node >=22.19 |
 | README or extension docs links changed | grep old root docs and old URLs | Users may be sent to stale/deleted docs |
 | `site/` migration or Git metadata changed | inspect `.gitmodules`, `site/.git`, `.git/modules/site`, and `git ls-files -s site` | Submodule model may have been reintroduced accidentally |
 | Browser extension help link changed | `node --check browser-extension/popup.js` | Popup script syntax may break extension UI |

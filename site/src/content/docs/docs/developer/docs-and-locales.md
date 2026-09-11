@@ -13,7 +13,7 @@ npm run docs:build     # 构建生产版本
 npm run docs:preview   # 预览构建结果
 ```
 
-这些命令通过 `--prefix site` 在 `site/` 目录下运行 Astro。`site/` 有独立的 `package.json` 和依赖。
+这些命令通过 `--prefix site` 在 `site/` 目录下运行 Astro 7。`site/` 有独立的 `package.json` 和依赖，并且需要 Node.js >= 22.19.0；这个要求只适用于文档站点，不会提高桌面应用的 Node.js 要求。
 
 ## 目录结构
 
