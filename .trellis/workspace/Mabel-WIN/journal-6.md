@@ -294,3 +294,26 @@ Completed and archived Lab cold-start optimization: port-scoped Vite caches, lab
 ### Status
 
 [OK] **Completed**
+
+
+## Session 264: Organize Ameow workspace artifacts
+<!-- trellis-session: v=2 fp=ec780077a031ec38 -->
+
+**Date**: 2026-09-11
+**Task**: Organize Ameow workspace artifacts
+**Branch**: `main`
+
+### Summary
+
+Migrated Lab captures and MR3 evidence; user manually removed all 32 approved stale artifact paths (historical logical content 4.82 GB, not measured disk recovery). Verified 49 exact obsolete extension snapshot deletions, protected releases and images, lint and type-check. Rejected unsafe automatic retention and restored baseline; user accepted manual cleanup. Archived completed task on main without push.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1fc66470` | chore: organize Lab captures and MR3 evidence |
+| `57c828b8` | chore: remove obsolete browser extension snapshot |
+
+### Status
+
+[OK] **Completed**
