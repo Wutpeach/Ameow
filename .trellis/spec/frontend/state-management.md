@@ -255,6 +255,17 @@ switch (centerOverlayVisual.kind) {
 }
 ```
 
+### Current Download Incident Ownership
+
+The main App may retain one latest Download failure for incident Copy/Save UI. Keep this state local to the App; it is not Product history, queue state, persisted state, telemetry, or a session/support-log concern.
+
+Contracts:
+- A newly observed Download failure replaces the previous incident. Sparse enqueue/background failures are eligible; an unrelated active Download must not hide the strip or its progress/cancel controls.
+- Clear only on explicit dismiss, teardown, or an authoritative accepted new Download intake. Queue promotion without the accepted-intake marker, timeout, shell collapse, and re-expansion do not clear or promote incidents.
+- Capture the normalized egress request and incident generation before an async Copy/Save command. Success, error, and `finally` handlers must verify that generation before changing incident feedback or pending UI; stale completion must not affect a replacement or cleared incident.
+- Keep the global in-flight dialog guard independent from incident generation. A stale completion still releases the global guard, but it must not change the newer incident's pending/feedback state.
+- Render the strip only in the full shell. Its controls remain keyboard reachable with stable hit targets, and the strip itself does not acquire a main-window lifecycle lock.
+
 Common compact-window mistakes:
 
 **WRONG: App-owned collapse timer**

@@ -247,8 +247,8 @@ const PRIVACY_NOTES = [
 
 /**
  * Incident-scoped Quick Copy report (v2). Typed terminal/attempt facts come
- * first; a bounded sanitized evidence line is included only for
- * Transcode/legacy failures that have no typed attempt summary. No session
+ * first; a bounded sanitized evidence line is included only for Transcode
+ * failures that have no typed attempt summary. No session
  * runtime-log excerpt and no open context bags are ever copied.
  */
 export const buildErrorDiagnosticCopyReport = (
@@ -258,11 +258,14 @@ export const buildErrorDiagnosticCopyReport = (
   const attemptSummary = failure?.attemptSummary;
   const rawMessage = normalizeOptionalString(failure?.rawMessage);
   const hasTypedEvidence = Boolean(attemptSummary);
-  const evidence = !hasTypedEvidence && rawMessage && !failure?.diagnosticCategory
+  const evidence = options.request.surface === "transcode"
+    && !hasTypedEvidence
+    && rawMessage
+    && !failure?.diagnosticCategory
     ? {
-        kind: options.request.surface === "transcode" ? "transcode" as const : "legacy" as const,
-        summary: sanitizeDiagnosticText(rawMessage, 480),
-      }
+      kind: "transcode" as const,
+      summary: sanitizeDiagnosticText(rawMessage, 480),
+    }
     : undefined;
 
   const report: ErrorDiagnosticCopyReport = {

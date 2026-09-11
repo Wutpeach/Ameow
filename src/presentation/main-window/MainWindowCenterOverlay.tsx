@@ -35,6 +35,12 @@ export type MainWindowCenterOverlayProps = {
   primaryTaskStatusText: string;
   primaryTaskSummaryText: string;
   onCopyDiagnostic: (diagnostic: ErrorDiagnosticCopyRequest) => void;
+  currentDownloadDiagnostic?: ErrorDiagnosticCopyRequest | null;
+  isCurrentDownloadDiagnosticPending?: boolean;
+  currentDownloadDiagnosticFeedback?: string | null;
+  onCopyCurrentDownloadDiagnostic?: () => void;
+  onSaveCurrentDownloadDiagnostic?: () => void;
+  onDismissCurrentDownloadDiagnostic?: () => void;
   showPrimaryCancel: boolean;
   isPrimaryCancelPending: boolean;
   primaryTaskTraceId: string | null;
@@ -147,8 +153,8 @@ export const MainWindowCenterOverlay = (props: MainWindowCenterOverlayProps) => 
             outcomeVisible={centerOverlayVisual.outcomeVisible}
             status={centerOverlayVisual.status}
             errorMessage={centerOverlayVisual.message}
-            showCopyAction={centerOverlayVisual.status === "failure" && Boolean(centerOverlayVisual.diagnostic)}
-            onCopyDiagnostic={centerOverlayVisual.diagnostic
+            showCopyAction={centerOverlayVisual.status === "failure" && centerOverlayVisual.diagnostic?.surface === "transcode"}
+            onCopyDiagnostic={centerOverlayVisual.diagnostic?.surface === "transcode"
               ? () => {
                   if (centerOverlayVisual.diagnostic) {
                     props.onCopyDiagnostic(centerOverlayVisual.diagnostic);
@@ -190,6 +196,123 @@ export const MainWindowCenterOverlay = (props: MainWindowCenterOverlayProps) => 
         </motion.div>
       ) : null}
     </AnimatePresence>
+
+    {props.currentDownloadDiagnostic ? (
+      <div
+        aria-label={t("app.errorDiagnostic.currentFailure")}
+        style={{
+          position: "absolute",
+          right: 8,
+          bottom: 8,
+          left: 8,
+          zIndex: 4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          padding: 2,
+          border: `1px solid ${colors.borderStart}`,
+          borderRadius: 8,
+          backgroundColor: colors.bgPrimary,
+          boxShadow: colors.panelShadowCompact,
+          pointerEvents: "auto",
+        }}
+      >
+        <span
+          aria-live="polite"
+          style={{
+            maxWidth: 44,
+            overflow: "hidden",
+            color: colors.textPrimary,
+            fontSize: 9,
+            lineHeight: 1,
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {props.currentDownloadDiagnosticFeedback ?? t("app.errorDiagnostic.currentFailure")}
+        </span>
+        <button
+          type="button"
+          aria-label={t("app.errorDiagnostic.copy")}
+          title={t("app.errorDiagnostic.copy")}
+          disabled={props.isCurrentDownloadDiagnosticPending}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onCopyCurrentDownloadDiagnostic?.();
+          }}
+          style={{
+            border: `1px solid ${colors.accentBorder}`,
+            borderRadius: 6,
+            background: colors.accentSurface,
+            color: colors.accentText,
+            cursor: props.isCurrentDownloadDiagnosticPending ? "default" : "pointer",
+            flexShrink: 0,
+            fontSize: 9,
+            lineHeight: 1,
+            minHeight: 24,
+            opacity: props.isCurrentDownloadDiagnosticPending ? 0.6 : 1,
+            padding: "4px 5px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {t("app.errorDiagnostic.copy")}
+        </button>
+        <button
+          type="button"
+          aria-label={t("app.errorDiagnostic.save")}
+          title={t("app.errorDiagnostic.save")}
+          disabled={props.isCurrentDownloadDiagnosticPending}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onSaveCurrentDownloadDiagnostic?.();
+          }}
+          style={{
+            border: `1px solid ${colors.accentBorder}`,
+            borderRadius: 6,
+            background: colors.accentSurface,
+            color: colors.accentText,
+            cursor: props.isCurrentDownloadDiagnosticPending ? "default" : "pointer",
+            flexShrink: 0,
+            fontSize: 9,
+            lineHeight: 1,
+            minHeight: 24,
+            opacity: props.isCurrentDownloadDiagnosticPending ? 0.6 : 1,
+            padding: "4px 5px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {t("app.errorDiagnostic.save")}
+        </button>
+        <button
+          type="button"
+          aria-label={t("app.errorDiagnostic.dismiss")}
+          title={t("app.errorDiagnostic.dismiss")}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onDismissCurrentDownloadDiagnostic?.();
+          }}
+          style={{
+            border: "none",
+            borderRadius: 6,
+            background: "transparent",
+            color: colors.textSecondary,
+            cursor: "pointer",
+            flexShrink: 0,
+            fontSize: 16,
+            height: 24,
+            lineHeight: 1,
+            padding: 0,
+            width: 24,
+          }}
+        >
+          ×
+        </button>
+      </div>
+    ) : null}
 
     <AnimatePresence>
       {props.showPrimaryCancel && primaryTask ? (

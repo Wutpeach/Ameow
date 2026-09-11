@@ -128,7 +128,14 @@
       "enable": "Enable"
     },
     "errorDiagnostic": {
-      "copy": "Copy diagnostics",
+      "currentFailure": "Current failure",
+      "copy": "Copy report",
+      "save": "Save report",
+      "dismiss": "Dismiss",
+      "copySuccess": "Report copied",
+      "saveSuccess": "Report saved",
+      "saveCancelled": "Save cancelled",
+      "exportFailed": "Couldn't export report",
       "category": {
         "auth_login_state": "Login may have expired. Sync again",
         "network_proxy": "Network issue. Check proxy",
@@ -435,14 +442,14 @@
       }
     },
     "supportLog": {
-      "title": "Support",
-      "hint": "Export a diagnostic log and open its folder for troubleshooting.",
-      "button": "Export diagnostic log",
+      "title": "Session support log",
+      "hint": "Export environment, settings, and this session's runtime data. For one failed download, use the report actions in the main window.",
+      "button": "Export support log",
       "action": "Export",
-      "exportReady": "Tap once more to export a diagnostic log",
-      "exportedAndOpened": "Diagnostic log ready. Opened folder: {{fileName}}",
-      "exported": "Diagnostic log ready: {{fileName}}",
-      "failed": "Failed to export diagnostic log"
+      "exportReady": "Tap once more to export the support log",
+      "exportedAndOpened": "Support log ready. Opened folder: {{fileName}}",
+      "exported": "Support log ready: {{fileName}}",
+      "failed": "Failed to export support log"
     },
     "diagnostics": {
       "title": "Read-only diagnostics",

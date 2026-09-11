@@ -128,7 +128,14 @@
       "enable": "启用"
     },
     "errorDiagnostic": {
-      "copy": "复制诊断信息",
+      "currentFailure": "当前失败",
+      "copy": "复制报告",
+      "save": "保存报告",
+      "dismiss": "关闭",
+      "copySuccess": "报告已复制",
+      "saveSuccess": "报告已保存",
+      "saveCancelled": "已取消保存",
+      "exportFailed": "无法导出报告",
       "category": {
         "auth_login_state": "登录状态可能失效，请重新同步",
         "network_proxy": "网络连接异常，请检查代理",
@@ -435,14 +442,14 @@
       }
     },
     "supportLog": {
-      "title": "支持",
-      "hint": "导出诊断日志并打开所在目录，方便排查问题。",
-      "button": "导出诊断日志",
+      "title": "会话支持日志",
+      "hint": "导出环境、设置和本次会话运行时数据。单个下载失败请使用主窗口中的报告操作。",
+      "button": "导出支持日志",
       "action": "导出",
-      "exportReady": "再点一下即可导出诊断日志",
-      "exportedAndOpened": "诊断日志已生成，并已打开目录：{{fileName}}",
-      "exported": "诊断日志已生成：{{fileName}}",
-      "failed": "生成诊断日志失败"
+      "exportReady": "再点一下即可导出支持日志",
+      "exportedAndOpened": "支持日志已生成，并已打开目录：{{fileName}}",
+      "exported": "支持日志已生成：{{fileName}}",
+      "failed": "生成支持日志失败"
     },
     "diagnostics": {
       "title": "只读诊断",

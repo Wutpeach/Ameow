@@ -115,6 +115,13 @@ import {
   type CenterOverlayState,
 } from "./utils/centerOverlayState";
 import {
+  createCurrentDownloadIncidentState,
+  isCurrentDownloadIncident,
+  reduceCurrentDownloadIncident,
+  type CurrentDownloadIncidentAction,
+  type CurrentDownloadIncidentState,
+} from "./utils/currentDownloadIncident";
+import {
   errorDiagnosticCategoryTranslationKey,
   resolveErrorDiagnosticCategory,
 } from "./utils/errorDiagnosticCategories";
@@ -410,6 +417,10 @@ function App() {
   });
   const [hoveredAdvancedQualityOptionId, setHoveredAdvancedQualityOptionId] = useState<string | null>(null);
   const [centerOverlayState, setCenterOverlayState] = useState<CenterOverlayState>(() => createCenterOverlayState());
+  const [currentDownloadIncidentState, setCurrentDownloadIncidentState] =
+    useState<CurrentDownloadIncidentState>(() => createCurrentDownloadIncidentState());
+  const [currentDownloadIncidentFeedback, setCurrentDownloadIncidentFeedback] = useState<string | null>(null);
+  const [isCurrentDownloadIncidentEgressPending, setIsCurrentDownloadIncidentEgressPending] = useState(false);
   const [outputPath, setOutputPath] = useState("");
   const [renameMediaOnDownload, setRenameMediaOnDownload] = useState(false);
   const [videoTranscodeQueueState, setVideoTranscodeQueueState] = useState<VideoTranscodeQueueStatePayload>(EMPTY_VIDEO_TRANSCODE_QUEUE_STATE);
@@ -464,6 +475,8 @@ function App() {
   const foregroundTaskOutcomeTimerRef = useRef<number | null>(null);
   const centerOutcomeTimerRef = useRef<number | null>(null);
   const centerOverlayStateRef = useRef<CenterOverlayState>(centerOverlayState);
+  const currentDownloadIncidentStateRef = useRef<CurrentDownloadIncidentState>(currentDownloadIncidentState);
+  const currentDownloadIncidentEgressPendingRef = useRef(false);
   const isContextMenuOpenRef = useRef(false);
   const pendingTranscodeActionTraceIdsRef = useRef<Set<string>>(new Set());
   const pasteHandlerRef = useRef<(
@@ -623,6 +636,25 @@ function App() {
     return nextState;
   }, []);
 
+  const updateCurrentDownloadIncident = useCallback((action: CurrentDownloadIncidentAction) => {
+    const nextState = reduceCurrentDownloadIncident(currentDownloadIncidentStateRef.current, action);
+    currentDownloadIncidentStateRef.current = nextState;
+    setCurrentDownloadIncidentState(nextState);
+    return nextState;
+  }, []);
+
+  const clearCurrentDownloadIncident = useCallback(() => {
+    updateCurrentDownloadIncident({ type: "clear" });
+    setCurrentDownloadIncidentFeedback(null);
+    setIsCurrentDownloadIncidentEgressPending(false);
+  }, [updateCurrentDownloadIncident]);
+
+  const captureCurrentDownloadIncident = useCallback((diagnostic: ErrorDiagnosticCopyRequest) => {
+    updateCurrentDownloadIncident({ type: "capture", request: diagnostic });
+    setCurrentDownloadIncidentFeedback(null);
+    setIsCurrentDownloadIncidentEgressPending(false);
+  }, [updateCurrentDownloadIncident]);
+
   const resetDownloadOutcome = useCallback(() => {
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
@@ -657,6 +689,10 @@ function App() {
   useEffect(() => {
     centerOverlayStateRef.current = centerOverlayState;
   }, [centerOverlayState]);
+
+  useEffect(() => {
+    currentDownloadIncidentStateRef.current = currentDownloadIncidentState;
+  }, [currentDownloadIncidentState]);
 
   const showQueueNotice = useCallback((message: string) => {
     setQueueNoticeMessage(message);
@@ -769,8 +805,44 @@ function App() {
       })
       .catch((error) => {
         console.error("Failed to copy error diagnostics:", error);
-      });
+    });
   }, [clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
+
+  const handleCurrentDownloadIncidentEgress = useCallback((
+    command: "copy_error_diagnostics" | "export_error_diagnostics",
+  ) => {
+    const incident = currentDownloadIncidentStateRef.current.current;
+    if (!incident || currentDownloadIncidentEgressPendingRef.current) {
+      return;
+    }
+    const { generation, request } = incident;
+    currentDownloadIncidentEgressPendingRef.current = true;
+    setIsCurrentDownloadIncidentEgressPending(true);
+    setCurrentDownloadIncidentFeedback(null);
+    void desktopCommands.invoke<boolean>(command, request)
+      .then((succeeded) => {
+        if (!isCurrentDownloadIncident(currentDownloadIncidentStateRef.current, generation)) {
+          return;
+        }
+        setCurrentDownloadIncidentFeedback(succeeded
+          ? t(command === "copy_error_diagnostics"
+            ? "app.errorDiagnostic.copySuccess"
+            : "app.errorDiagnostic.saveSuccess")
+          : t("app.errorDiagnostic.saveCancelled"));
+      })
+      .catch((error) => {
+        console.error("Failed to export current download diagnostics:", error);
+        if (isCurrentDownloadIncident(currentDownloadIncidentStateRef.current, generation)) {
+          setCurrentDownloadIncidentFeedback(t("app.errorDiagnostic.exportFailed"));
+        }
+      })
+      .finally(() => {
+        currentDownloadIncidentEgressPendingRef.current = false;
+        if (isCurrentDownloadIncident(currentDownloadIncidentStateRef.current, generation)) {
+          setIsCurrentDownloadIncidentEgressPending(false);
+        }
+      });
+  }, [t]);
 
   const showForegroundTaskOutcome = useCallback(({
     status,
@@ -1060,6 +1132,7 @@ function App() {
         },
         fallbackMessage,
       });
+      captureCurrentDownloadIncident(diagnostic);
       showForegroundTaskOutcome({
         status: "failure",
         error: diagnostic.userMessage,
@@ -1069,6 +1142,7 @@ function App() {
     }
   }, [
     buildErrorDiagnosticRequest,
+    captureCurrentDownloadIncident,
     prepareMainWindowForForegroundTask,
     resetDownloadOutcome,
     showForegroundTaskOutcome,
@@ -1357,6 +1431,17 @@ function App() {
   }, [dismissTransientCenterOverlay, primaryDownloadTask]);
 
   useEffect(() => onDownloadTerminal((outcome, postReductionState) => {
+    const diagnostic = outcome.kind === "failure"
+      ? buildErrorDiagnosticRequest({
+        surface: "download",
+        traceId: outcome.traceId,
+        failure: outcome.failure ?? { rawMessage: outcome.errorSummary ?? "Unknown download error" },
+        fallbackMessage: outcome.errorSummary ?? "Unknown download error",
+      })
+      : null;
+    if (diagnostic) {
+      captureCurrentDownloadIncident(diagnostic);
+    }
     // MR4: a terminal whose download is NOT the current primary (per the
     // controller's EXACT post-reduction snapshot) is a background terminal.
     // terminalReceived has already pruned the terminal's own trace, so any
@@ -1383,14 +1468,7 @@ function App() {
         durationMs: 1500,
         origin: "terminal",
       });
-    } else {
-      const fallbackMessage = outcome.errorSummary ?? "Unknown download error";
-      const diagnostic = buildErrorDiagnosticRequest({
-        surface: "download",
-        traceId: outcome.traceId,
-        failure: outcome.failure ?? { rawMessage: fallbackMessage },
-        fallbackMessage,
-      });
+    } else if (diagnostic) {
       showForegroundTaskOutcome({
         status: "failure",
         error: diagnostic.userMessage,
@@ -1401,9 +1479,14 @@ function App() {
     }
   }), [
     buildErrorDiagnosticRequest,
+    captureCurrentDownloadIncident,
     onDownloadTerminal,
     showForegroundTaskOutcome,
   ]);
+
+  useEffect(() => onDownloadIntake(() => {
+    clearCurrentDownloadIncident();
+  }), [clearCurrentDownloadIncident, onDownloadIntake]);
 
   // Listen for output path changes from settings window
   useEffect(() => {
@@ -1427,6 +1510,13 @@ function App() {
     clearForegroundTaskOutcomeTimer();
     clearCenterOutcomeTimer();
   }, [clearCenterOutcomeTimer, clearForegroundTaskOutcomeTimer]);
+
+  useEffect(() => () => {
+    currentDownloadIncidentStateRef.current = reduceCurrentDownloadIncident(
+      currentDownloadIncidentStateRef.current,
+      { type: "clear" },
+    );
+  }, []);
 
   // Listen for devMode changes from settings window
   useEffect(() => {
@@ -2818,6 +2908,18 @@ function App() {
           primaryTaskStatusText={primaryTaskStatusText}
           primaryTaskSummaryText={primaryTaskSummaryText}
           onCopyDiagnostic={handleCopyErrorDiagnostic}
+          currentDownloadDiagnostic={mainWindowFullContentVisible
+            ? currentDownloadIncidentState.current?.request ?? null
+            : null}
+          isCurrentDownloadDiagnosticPending={isCurrentDownloadIncidentEgressPending}
+          currentDownloadDiagnosticFeedback={currentDownloadIncidentFeedback}
+          onCopyCurrentDownloadDiagnostic={() => {
+            handleCurrentDownloadIncidentEgress("copy_error_diagnostics");
+          }}
+          onSaveCurrentDownloadDiagnostic={() => {
+            handleCurrentDownloadIncidentEgress("export_error_diagnostics");
+          }}
+          onDismissCurrentDownloadDiagnostic={clearCurrentDownloadIncident}
           showPrimaryCancel={
             Boolean(
               centerOverlayVisual.kind === "task-progress"

@@ -12,6 +12,10 @@ import {
   type DownloadIntakeTransition,
 } from "./useDownloadQueue";
 import { shouldShowDownloadTerminalReveal } from "../../presentation/main-window/downloadTerminalProjection";
+import {
+  createCurrentDownloadIncidentState,
+  reduceCurrentDownloadIncident,
+} from "../../utils/currentDownloadIncident";
 
 const deferred = <T>(): {
   promise: Promise<T>;
@@ -488,6 +492,31 @@ describe("MR4 terminal notification seam: exact post-reduction snapshot", () => 
 });
 
 describe("MR8 Intake notification seam: authoritative marked membership", () => {
+  it("clears a retained failure only for an authoritative accepted membership", () => {
+    const fake = createFakeClient();
+    const controller = new DownloadQueueController(fake.client);
+    let incident = reduceCurrentDownloadIncident(createCurrentDownloadIncidentState(), {
+      type: "capture",
+      request: {
+        surface: "download",
+        traceId: "failed",
+        userMessage: "Download failed",
+        category: "unclassified",
+      },
+    });
+    controller.subscribeIntake(() => {
+      incident = reduceCurrentDownloadIncident(incident, { type: "clear" });
+    });
+    controller.start();
+    fake.resolveRegistration();
+
+    fake.emit(detailEvent([task({ traceId: "queued" })]));
+    expect(incident.current?.request.traceId).toBe("failed");
+
+    fake.emit(detailEvent([task({ traceId: "accepted" })], "accepted"));
+    expect(incident.current).toBeNull();
+  });
+
   it("reduces first and publishes one marked new membership with exact post state", () => {
     const fake = createFakeClient();
     const controller = new DownloadQueueController(fake.client);

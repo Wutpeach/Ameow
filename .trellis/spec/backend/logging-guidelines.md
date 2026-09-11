@@ -67,12 +67,65 @@ Rules:
 
 ---
 
-## Quick Copy Diagnostic Contract
+## Incident Diagnostic Egress Contract
 
-- Command name: `copy_error_diagnostics`.
-- Scope: one terminal incident only. The report is readable sectioned plain text (v2) with typed facts first: summary, incident, ordered attempt summaries, terminal facts, and (only for Transcode/legacy failures without typed attempts) one bounded sanitized evidence line.
-- Quick Copy must **not** read or include the session runtime log, and must not include open context bags or unbounded/raw engine-output dumps. The single explicitly allowed bounded sanitized Transcode/legacy evidence line is the only raw engine-output content that may egress.
-- Chronology and meaning: attempt index, engine, cycle, outcome, fallback, auth recovery, retries, and repeated failures remain visible. No generic dedupe or collapse in the first version.
+### 1. Scope / Trigger
+
+- Applies when the renderer copies/saves a captured current Download incident or the existing Transcode caller invokes the same controller; output is one v2 incident report, never a Support Log/history/Product authority.
+
+### 2. Signatures
+
+```ts
+type IncidentDiagnosticCommand = "copy_error_diagnostics" | "export_error_diagnostics";
+invoke<TResult>(command: AmeowRendererCommand, payload?: Record<string, unknown>): Promise<TResult>;
+normalizeErrorDiagnosticCopyRequest(payload: unknown): ErrorDiagnosticCopyRequest;
+buildErrorDiagnosticCopyText(input: { request: ErrorDiagnosticCopyRequest; appVersion: string; platform?: string; arch?: string; now?: () => Date }): string;
+writeClipboardText(text: string): void; saveDiagnosticText(text: string): Promise<boolean>;
+```
+
+### 3. Contracts
+
+- The controller calls `normalizeErrorDiagnosticCopyRequest` once and `buildErrorDiagnosticCopyText` once before selecting the clipboard or file sink. Do not add per-egress normalization or formatting.
+- Supported invocations return `Promise<boolean>`: Copy returns `true` after its sink; Save forwards the native capability's boolean.
+- Download reports contain allowlisted structured facts. Missing attempts stay missing, including sparse enqueue failures; `rawMessage` is never Download evidence or classification authority.
+- Only Transcode may emit one bounded sanitized `[evidence]` line when structured attempts are absent. There is no generic or Download "legacy evidence" contract.
+- Typed Download attempts preserve index/engine/cycle/outcome/retry/fallback/auth recovery/repeated failure/terminal order; do not deduplicate or collapse them.
+- Neither command accepts, calls, or imports a session/runtime-log reader. Open context bags, unbounded engine output, Support Log data, and site-session data never egress here.
+- The renderer captures the request before async IPC/dialog work; Main owns the OS-localized dialog/UTF-8 write and neutral timestamped `.txt` filename. Replacement cannot change captured output; errors remain retryable.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Malformed/unknown payload fields | Normalize to bounded defaults; unknown surface becomes Download and unknown category becomes `unclassified`. |
+| Clipboard sink succeeds | Return `true`; retain the current incident. |
+| Clipboard sink throws | Reject; do not report success or mutate Product state. |
+| Native save is cancelled/no path | Return `false`; create no file and retain the incident for retry. |
+| Native file write succeeds | Return `true` only after write completion. |
+| Native dialog/write rejects | Propagate rejection; retain the incident for retry. |
+| Unsupported command reaches this controller | Reject with `Unsupported error diagnostic command: <command>`. |
+
+### 5. Good / Base / Bad Cases
+
+- Good: rich Download exports ordered typed attempts/terminal facts; Transcode may export one bounded sanitized Transcode evidence line.
+- Base: a sparse Download enqueue failure exports only available structured incident fields, with no `[evidence]` section or inferred classification.
+- Bad: reading recent runtime lines, emitting Download `rawMessage`, assembling different Copy/Save text, or routing this action through `export_support_log`.
+
+### 6. Tests / Assertions
+
+- `electron/errorDiagnosticCopy.test.mts`: ordered rich Download facts survive final sanitization; context/secrets do not.
+- `electron/errorDiagnosticCopy.test.mts`: Transcode-only evidence is bounded; sparse Download raw text and inferred category are absent; a supplied runtime-log reader is never called.
+- `electron/errorDiagnosticCommands.test.mts`: both commands are supported; fixed request/environment/time produces identical sink text.
+- `electron/errorDiagnosticCommands.test.mts`: Copy returns `true`; Save cancel returns `false`; clipboard/save failures and unsupported commands reject.
+
+### 7. Wrong vs Correct
+
+```ts
+const wrongText = command === "copy" ? buildCopy(payload) : buildSave(payload, await readRuntimeLog()); // Wrong
+const request = normalizeErrorDiagnosticCopyRequest(payload); // Correct: one request/builder
+const text = buildErrorDiagnosticCopyText({ request, appVersion, platform, arch, now });
+return command === "copy_error_diagnostics" ? copy(text) : saveDiagnosticText(text);
+```
 
 ---
 

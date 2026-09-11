@@ -19,11 +19,13 @@ export type ErrorDiagnosticCommandControllerOptions = {
   platform?: string;
   arch?: string;
   writeClipboardText(text: string): void;
+  saveDiagnosticText(text: string): Promise<boolean>;
   now?(): Date;
 };
 
 const supportedCommands = new Set<AmeowRendererCommand>([
   "copy_error_diagnostics",
+  "export_error_diagnostics",
 ]);
 
 export const createErrorDiagnosticCommandController = (
@@ -37,19 +39,23 @@ export const createErrorDiagnosticCommandController = (
     command: AmeowRendererCommand,
     payload?: CommandPayload,
   ): Promise<TResult> {
+    if (!supportedCommands.has(command)) {
+      throw new Error(`Unsupported error diagnostic command: ${command}`);
+    }
+    const request = normalizeErrorDiagnosticCopyRequest(payload);
+    const text = buildErrorDiagnosticCopyText({
+      request,
+      appVersion: options.appVersion,
+      platform: options.platform,
+      arch: options.arch,
+      now: options.now,
+    });
     switch (command) {
-      case "copy_error_diagnostics": {
-        const request = normalizeErrorDiagnosticCopyRequest(payload);
-        const text = buildErrorDiagnosticCopyText({
-          request,
-          appVersion: options.appVersion,
-          platform: options.platform,
-          arch: options.arch,
-          now: options.now,
-        });
+      case "copy_error_diagnostics":
         options.writeClipboardText(text);
         return true as TResult;
-      }
+      case "export_error_diagnostics":
+        return await options.saveDiagnosticText(text) as TResult;
       default:
         throw new Error(`Unsupported error diagnostic command: ${command}`);
     }

@@ -1839,8 +1839,22 @@ function getErrorDiagnosticCommandController() {
     writeClipboardText(text) {
       clipboard.writeText(text);
     },
+    saveDiagnosticText,
   });
   return errorDiagnosticCommandController;
+}
+
+async function saveDiagnosticText(text) {
+  const mainWindow = getWindow(WINDOW_LABELS.main);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const result = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    defaultPath: `ameow-diagnostic-${timestamp}.txt`,
+  });
+  if (result.canceled || !result.filePath) {
+    return false;
+  }
+  await writeFile(result.filePath, text, "utf8");
+  return true;
 }
 
 function getDiagnosticsCommandController() {

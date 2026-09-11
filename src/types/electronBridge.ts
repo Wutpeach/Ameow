@@ -15,6 +15,7 @@ export type AmeowRendererCommand =
   | "cancel_transcode"
   | "check_ytdlp_version"
   | "copy_error_diagnostics"
+  | "export_error_diagnostics"
   | "download_image"
   | "export_support_log"
   | "get_douyin_session_state"

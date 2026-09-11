@@ -134,7 +134,7 @@ describe("errorDiagnosticCopy", () => {
     expect(report.incident.attemptSummary).toBeUndefined();
   });
 
-  it("labels legacy untyped download failures as evidence and does not classify from text", () => {
+  it("keeps legacy untyped download failures sparse and does not classify from text", () => {
     const report = buildErrorDiagnosticCopyReport({
       request: {
         surface: "download",
@@ -149,10 +149,7 @@ describe("errorDiagnosticCopy", () => {
       now: () => new Date("2026-07-22T12:00:00.000Z"),
     });
 
-    expect(report.incident.evidence).toEqual({
-      kind: "legacy",
-      summary: "HTTP Error 429: Too Many Requests via proxy",
-    });
+    expect(report.incident.evidence).toBeUndefined();
     // The raw text must not become a classification authority.
     expect(report.incident.category).toBe("unclassified");
     expect(report.incident.diagnosticCategory).toBeUndefined();
