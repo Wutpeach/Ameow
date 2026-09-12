@@ -55,6 +55,20 @@ export type DiagnosticsSnapshot = {
     cache: DiagnosticFact<{ materialized: boolean; identityMatches: boolean; probeVersion: string | null }>;
     selection: DiagnosticFact<"bundled">;
   };
+  managedYtDlpCandidates: {
+    manifest: DiagnosticFact<{ available: boolean; valid: boolean; releaseIds: string[] }>;
+    catalog: DiagnosticFact<{ state: "missing" | "valid" | "corrupt" | "unsupported"; candidateCount: number; observationError?: "catalog_corrupt" | "catalog_unsupported" }>;
+    candidates: DiagnosticFact<Array<{
+      releaseId: string;
+      version: string;
+      runtimeTarget: string;
+      packageSetId: string;
+      stage: "committed";
+      observation: "consistent" | "marker_only" | "marker_mismatch";
+      eligibility?: { status: "passed" | "failed" | "quarantined"; reason?: string; probedAtMs: number };
+    }>>;
+    selection: DiagnosticFact<"bundled">;
+  };
   runtimeSetLease: DiagnosticFact<{ activeLeaseCount: number }>;
   outputDirectory: {
     configured: DiagnosticFact<boolean>;

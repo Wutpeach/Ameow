@@ -18,6 +18,9 @@ const {
 vi.mock("./managedRuntimeBootstrap.mjs", () => ({
   assertPythonVersionSatisfiesManagedPackage: vi.fn(),
   currentManagedRuntimeTarget: () => "x86_64-pc-windows-msvc",
+  managedPythonCommandOptions: () => ({ timeoutMs: 60_000, env: { PYTHONNOUSERSITE: "1", PIP_NO_INDEX: "1" } }),
+  ensureManagedFfmpegRuntimeReady: async (_reason: string, options: { configDir: string }) => join(options.configDir, "ffmpeg.exe"),
+  ensureManagedDenoRuntimeReady: async (_reason: string, options: { configDir: string }) => join(options.configDir, "deno.exe"),
   managedDenoPath: (options: { configDir: string }) => join(
     options.configDir,
     "runtimes",
@@ -41,6 +44,7 @@ vi.mock("./managedRuntimeBootstrap.mjs", () => ({
 
 import {
   createBundledYtDlpRuntimeBinding,
+  prepareManagedYtDlpCandidateProbeInputs,
   ensureBundledYtDlpBaselineReady,
   inspectBundledYtDlpBaseline,
   verifyBundledYtDlpBaseline,
@@ -141,6 +145,25 @@ afterEach(async () => {
 });
 
 describe("bundled yt-dlp baseline", () => {
+  it.each(["valid", "python-version", "ffmpeg-version"])("validates actual low-level candidate dependency composition without baseline materialization: %s", async (defect) => {
+    const fixture = await createFixture();
+    const options = configureSuccessfulMaterialization(fixture);
+    await writeFile(join(fixture.baselineRoot, "..", ".official-python-runtimes.json"), JSON.stringify({ runtimes: { "x86_64-pc-windows-msvc": { target: "x86_64-pc-windows-msvc", pythonVersion: "3.13.0" } } }));
+    await rm(fixture.baselineRoot, { recursive: true }); // candidate preparation must not depend on the baseline
+    const ffprobe = join(fixture.configDir, "runtimes", "ffmpeg", "x86_64-pc-windows-msvc", "real", "ffprobe.exe");
+    await mkdir(join(ffprobe, ".."), { recursive: true });
+    await writeFile(join(fixture.configDir, "ffmpeg.exe"), "ffmpeg");
+    await writeFile(join(fixture.configDir, "deno.exe"), "deno");
+    await writeFile(ffprobe, "ffprobe");
+    readCommandVersionMock.mockImplementation(async (path: string) => path === fixture.bundledPythonPath ? `Python ${defect === "python-version" ? "3.12.0" : "3.13.0"}` : path.endsWith("deno.exe") ? "deno 2.7.1" : `ffmpeg ${defect === "ffmpeg-version" ? "bad" : "8.0.1"}`);
+    const operation = prepareManagedYtDlpCandidateProbeInputs({ ...options, fetch: vi.fn() });
+    if (defect !== "valid") await expect(operation).rejects.toThrow("mismatch");
+    else await expect(operation).resolves.toMatchObject({ python: { target: "x86_64-pc-windows-msvc", observedSha256: sha256("python") }, mediaTools: { deno: { version: "2.7.1", artifactSha256: "deno-artifact", observedSha256: sha256("deno") } } });
+    expect(runUtilityCommandMock).not.toHaveBeenCalled();
+    expect(runCapturedUtilityCommandMock).not.toHaveBeenCalled();
+    expect(existsSync(fixture.baselineRoot)).toBe(false);
+  });
+
   it("verifies exactly the app-owned package set and rejects a corrupt wheel", async () => {
     const fixture = await createFixture();
 

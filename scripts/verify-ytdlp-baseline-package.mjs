@@ -1,3 +1,4 @@
+import { assertYtDlpPackageReleaseContract } from "./managed-ytdlp-package-set.mjs";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -72,6 +73,7 @@ const verifyArtifact = async (appRoot) => {
   ) {
     throw new Error(`Packaged yt-dlp baseline manifest diverges from app pins: ${manifestPath}`);
   }
+  assertYtDlpPackageReleaseContract({ ...manifest, version: manifest.probe?.expectedVersion });
   const expectedFiles = new Set([path.basename(manifestPath), ...packages.map((entry) => entry.filename)]);
   const files = readdirSync(baselineRoot);
   if (files.length !== expectedFiles.size || files.some((file) => !expectedFiles.has(file))) {

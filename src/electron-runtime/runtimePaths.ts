@@ -92,7 +92,7 @@ export const resolveBundledPythonRuntime = (
 };
 
 const runtimeRootPathFor = (
-  environment: ElectronRuntimeEnvironment,
+  environment: Pick<ElectronRuntimeEnvironment, "configDir" | "platform" | "arch">,
   componentId: string,
 ): string => {
   return path.join(
@@ -102,6 +102,11 @@ const runtimeRootPathFor = (
     resolveRuntimeTarget(environment.platform, environment.arch),
   );
 };
+
+/** Pure P2-B root derivation; unlike execution resolvers this never creates userData. */
+export const managedYtDlpCandidateRoot = (
+  environment: Pick<ElectronRuntimeEnvironment, "configDir" | "platform" | "arch">,
+): string => runtimeRootPathFor(environment, "yt-dlp");
 
 type ManagedFfmpegPaths = {
   root: string;
@@ -151,6 +156,29 @@ export const resolveBundledYtDlpBaselineRoot = (
   return candidates.find((candidate) => fileExists(path.join(candidate, ".official-ytdlp-baseline.json")))
     ?? candidates[0]
     ?? "";
+};
+
+const managedYtDlpReleaseManifestCandidates = (
+  environment: ElectronRuntimeEnvironment,
+): string[] => [
+  path.join(environment.repoRoot, "desktop-assets", "binaries", "ytdlp-managed-releases.json"),
+  ...(environment.resourceDir
+    ? [
+        path.join(environment.resourceDir, "binaries", "ytdlp-managed-releases.json"),
+        path.join(environment.resourceDir, "app", "desktop-assets", "binaries", "ytdlp-managed-releases.json"),
+      ]
+    : []),
+  ...(environment.executableDir
+    ? [path.join(environment.executableDir, "binaries", "ytdlp-managed-releases.json")]
+    : []),
+];
+
+/** Source/package resource lookup only; this has no managed-candidate selection meaning. */
+export const resolveManagedYtDlpReleaseManifestPath = (
+  environment: ElectronRuntimeEnvironment,
+): string => {
+  const candidates = managedYtDlpReleaseManifestCandidates(environment);
+  return candidates.find(fileExists) ?? candidates[0] ?? "";
 };
 
 export const bundledYtDlpBaselineRuntimePaths = (

@@ -1,9 +1,42 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { spawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
+import { join } from "node:path";
 import { once } from "node:events";
 import type { Readable } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
 
 type StreamingChildProcess = ChildProcessByStdio<null, Readable, Readable>;
+
+// Only for children spawned in an owned POSIX session (detached: true).
+// A failed termination request is not proof of settlement: keep ownership.
+export const terminateOwnedProcessTree = async (child: ChildProcess): Promise<void> => {
+  if (!child.pid) return; // Spawn failures are still settled by the child's close event.
+  if (process.platform === "win32") {
+    let rootExited = child.exitCode != null || child.signalCode != null;
+    child.once("exit", () => { rootExited = true; });
+    child.once("close", () => { rootExited = true; });
+    for (;;) {
+      // Without a successful tree kill, an exited parent cannot identify its
+      // descendants. Retain ownership; never retry a potentially reused PID.
+      if (rootExited) await new Promise<never>(() => {});
+      const terminated = await new Promise<boolean>((resolve) => {
+        const killer = spawn(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "taskkill.exe"),
+          ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+        killer.once("error", () => resolve(false));
+        killer.once("close", (code) => resolve(code === 0));
+      });
+      if (terminated) return;
+      await sleep(250);
+    }
+  }
+  for (;;) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+    }
+    await sleep(50);
+  }
+};
 
 type StreamingCommandOptions = {
   env?: NodeJS.ProcessEnv;

@@ -166,3 +166,8 @@ For Intake causality, the runtime marks the snapshot it already owns:
 ```ts
 await emitQueueState(newTraceId); // only immediately after new membership
 ```
+
+
+### Managed yt-dlp stage-only command boundary
+
+`createManagedYtDlpReleaseCommandController` owns `get_managed_ytdlp_releases` (pure inventory/observation) and `stage_managed_ytdlp_release` (exact `{ releaseId: string }`, rejects extra fields and blank/non-string IDs). The main adapter passes the ID to the allowlist-backed lifecycle, never a URL/version/activation flag. Stage failures use bounded `ManagedYtDlpStageError` categories; raw process output is not authoritative failure metadata. The response is a committed stage/eligibility fact, not a selected runtime. Inventory and Diagnostics retain optional eligibility plus independent `consistent | marker_only | marker_mismatch` observation; marker-only is unprobed, with no placeholder eligibility. No startup, Diagnostics, or automatic update trigger invokes staging. Executable validation and ownership rules live in leaf 07; command payload/extra-field rejection tests live in `electron/managedYtDlpReleaseCommands.test.mts`.

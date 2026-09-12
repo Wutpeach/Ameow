@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
+import { terminateOwnedProcessTree } from "../src/electron-runtime/processRunner.js";
 
 import {
   denoBinaryNameFor,
@@ -281,68 +282,44 @@ const escapePowerShellLiteral = (value: string): string => value.replace(/'/g, "
 export const runUtilityCommand = async (
   command: string,
   args: string[],
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
-): Promise<void> => {
-  const child = spawn(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
-
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (chunk) => {
-    stdout += chunk.toString();
-  });
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk.toString();
-  });
-
-  await new Promise<void>((resolveProcess, rejectProcess) => {
-    child.once("error", rejectProcess);
-    child.once("close", (code) => {
-      if (code === 0) {
-        resolveProcess();
-        return;
-      }
-      rejectProcess(new Error(stderr.trim() || stdout.trim() || `${command} exited with code ${code}`));
-    });
-  });
-};
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {},
+): Promise<void> => { await runCapturedUtilityCommand(command, args, options); };
 
 export const runCapturedUtilityCommand = async (
   command: string,
   args: string[],
-  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {},
 ): Promise<{ stdout: string; stderr: string }> => {
+  const timeoutMs = options.timeoutMs ?? 60_000;
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: options.env,
+    detached: process.platform !== "win32" && Boolean(timeoutMs),
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-
   let stdout = "";
   let stderr = "";
-  child.stdout.on("data", (chunk) => {
-    stdout += chunk.toString();
+  child.stdout.on("data", (chunk) => { stdout = (stdout + chunk.toString()).slice(-65_536); });
+  child.stderr.on("data", (chunk) => { stderr = (stderr + chunk.toString()).slice(-65_536); });
+  let timedOut = false;
+  let termination: Promise<void> | undefined;
+  let spawnError: Error | undefined;
+  const closed = new Promise<number | null>((resolve) => {
+    child.once("error", (error) => { spawnError = error; });
+    child.once("close", resolve);
   });
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk.toString();
-  });
-
-  await new Promise<void>((resolveProcess, rejectProcess) => {
-    child.once("error", rejectProcess);
-    child.once("close", (code) => {
-      if (code === 0) {
-        resolveProcess();
-        return;
-      }
-      rejectProcess(new Error(stderr.trim() || stdout.trim() || `${command} exited with code ${code}`));
-    });
-  });
-
+  const timeout = timeoutMs > 0 ? setTimeout(() => {
+    timedOut = true;
+    termination = terminateOwnedProcessTree(child);
+  }, timeoutMs) : undefined;
+  const code = await closed;
+  if (timeout) clearTimeout(timeout);
+  // Neither taskkill completion nor an error releases ownership of a live child.
+  await termination;
+  if (timedOut) throw new Error("Utility command timed out");
+  if (spawnError) throw spawnError;
+  if (code !== 0) throw new Error(stderr.trim() || stdout.trim() || `Utility command exited with code ${code}`);
   return { stdout, stderr };
 };
 
@@ -378,6 +355,22 @@ export const managedPythonVirtualenvArgs = (venvDir: string): string[] => [
   venvDir,
 ];
 
+export const managedPythonCommandOptions = (
+  platform: NodeJS.Platform,
+  timeoutMs = 60_000,
+): { timeoutMs: number; env: NodeJS.ProcessEnv } => ({
+  timeoutMs,
+  env: {
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(PYTHON|PIP_|VIRTUAL_ENV)/i.test(key))),
+    PYTHONNOUSERSITE: "1",
+    PYTHONDONTWRITEBYTECODE: "1",
+    PYTHONSAFEPATH: "1",
+    PIP_NO_INDEX: "1",
+    PIP_DISABLE_PIP_VERSION_CHECK: "1",
+    PIP_CONFIG_FILE: platform === "win32" ? "NUL" : "/dev/null",
+  },
+});
+
 export const assertPythonVersionSatisfiesManagedPackage = (
   toolId: ManagedPythonPackageToolId,
   pythonVersion: string,
@@ -407,8 +400,11 @@ const ensureManagedPythonVirtualenvReady = async (
   await runUtilityCommand(pythonPath, managedPythonVirtualenvArgs(paths.venvDir));
 };
 
-export const readCommandVersion = async (command: string): Promise<string> => {
-  const { stdout, stderr } = await runCapturedUtilityCommand(command, ["--version"]);
+export const readCommandVersion = async (
+  command: string,
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {},
+): Promise<string> => {
+  const { stdout, stderr } = await runCapturedUtilityCommand(command, ["--version"], options);
   const firstLine = (stdout || stderr)
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -599,7 +595,10 @@ export const downloadToFile = async (
     bootstrapContext?: RuntimeBootstrapExecutionContext;
     timeoutMs?: number;
     timeoutErrorMessage?: string;
+    maxBytes?: number;
     headers?: Record<string, string>;
+    requestInit?: RequestInit;
+    validateResponse?(response: Response): void;
     onProgress?(progress: { downloaded: number; total: number }): void;
   },
 ): Promise<void> => {
@@ -678,20 +677,26 @@ export const downloadToFile = async (
     resetTimeout();
     const response = performFetch
       ? await performFetch({
+          ...options.requestInit,
           headers: options.headers,
           signal: controller?.signal,
         })
       : await options.fetch(url, {
+          ...options.requestInit,
           headers: options.headers,
           signal: controller?.signal,
         });
     if (!response.ok || !response.body) {
       throw new Error(`Download failed: ${response.status} ${response.statusText}`);
     }
+    options.validateResponse?.(response);
 
     await mkdir(dirname(destinationPath), { recursive: true });
 
     const total = Number.parseInt(response.headers.get("content-length") ?? "0", 10);
+    if (options.maxBytes !== undefined && Number.isFinite(total) && total > options.maxBytes) {
+      throw new Error(`Download size mismatch: approved ${options.maxBytes}, response ${total}`);
+    }
     writable = createWriteStream(destinationPath);
     const reader = response.body.getReader();
     let downloaded = 0;
@@ -704,6 +709,10 @@ export const downloadToFile = async (
 
       resetTimeout();
       const chunk = Buffer.from(value);
+      if (options.maxBytes !== undefined && downloaded + chunk.length > options.maxBytes) {
+        await reader.cancel();
+        throw new Error(`Download size mismatch: approved ${options.maxBytes}, received ${downloaded + chunk.length}`);
+      }
       downloaded += chunk.length;
       if (!writable.write(chunk)) {
         await once(writable, "drain");

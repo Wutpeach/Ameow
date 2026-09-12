@@ -48,6 +48,8 @@ type YtDlpBaselineInspection = {
   selection: "bundled";
 };
 
+type ManagedYtDlpCandidateInspection = import("./managedYtDlpRelease.mjs").ManagedYtDlpCandidateInspection;
+
 export type DiagnosticsSnapshotOptions = {
   appVersion: string;
   platform: string;
@@ -58,6 +60,7 @@ export type DiagnosticsSnapshotOptions = {
   runtimePaths: RuntimeBinaryPaths;
   runtimeGate: RuntimeDependencyGateStatePayload;
   ytdlpBaseline?: YtDlpBaselineInspection;
+  managedYtDlpCandidates?: ManagedYtDlpCandidateInspection;
   runtimeSetLeaseCount?: number;
   inspectOutputDirectory(): Promise<OutputDirectoryInspection>;
   inspectBrowserBridge(): BrowserBridgeInspection;
@@ -267,6 +270,30 @@ export const buildDiagnosticsSnapshot = async (
           baseline?.cache.identityMatches ? "available" : baseline?.cache.materialized ? "degraded" : "unavailable",
           baseline?.cache ?? null,
           baseline?.cache.identityMatches ? null : "Baseline cache is absent or does not match packaged identity.",
+        ),
+        selection: fact("configured", "available", "bundled"),
+      };
+    })(),
+    managedYtDlpCandidates: (() => {
+      const candidates = options.managedYtDlpCandidates;
+      const catalogConclusion: DiagnosticConclusion = candidates?.catalog.state === "valid"
+        ? "available"
+        : candidates?.catalog.state === "missing"
+          ? "unavailable"
+          : candidates ? "degraded" : "unknown";
+      return {
+        manifest: fact(
+          "configured",
+          candidates?.manifest.valid ? "available" : candidates?.manifest.available ? "degraded" : "unavailable",
+          candidates?.manifest ?? null,
+          candidates?.manifest.valid ? null : "Managed-release allowlist was not accepted; Diagnostics did not repair it.",
+        ),
+        catalog: fact("observed", catalogConclusion, candidates?.catalog ?? null),
+        candidates: fact(
+          "observed",
+          candidates ? "available" : "unknown",
+          candidates?.candidates ?? null,
+          candidates ? "Persisted eligibility plus marker-only staged observations; Diagnostics did not verify candidate bytes." : "Candidate inspection was unavailable.",
         ),
         selection: fact("configured", "available", "bundled"),
       };

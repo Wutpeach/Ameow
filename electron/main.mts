@@ -42,6 +42,7 @@ import {
   releaseRenameStem,
   resolveBundledPythonRuntime,
   resolveBundledYtDlpBaselineRoot,
+  resolveManagedYtDlpReleaseManifestPath,
   resetRenameSequenceState,
   resolveGalleryDlRuntimeDependencies,
   resolveXiaohongshuDragMedia,
@@ -132,6 +133,11 @@ import {
   inspectOutputDirectoryReadOnly,
 } from "./diagnostics.mjs";
 import { createDiagnosticsCommandController } from "./diagnosticsCommands.mjs";
+import { createManagedYtDlpReleaseCommandController } from "./managedYtDlpReleaseCommands.mjs";
+import {
+  inspectManagedYtDlpCandidates,
+  stageManagedYtDlpRelease,
+} from "./managedYtDlpRelease.mjs";
 import { buildXiaohongshuResolvedDragMediaResult } from "./xiaohongshuDragMediaResult.mjs";
 import {
   currentManagedRuntimeTarget,
@@ -145,6 +151,7 @@ import {
   ensureBundledYtDlpBaselineReady,
   inspectBundledYtDlpBaseline,
   invalidateVerifiedSharedRuntimeReadiness,
+  prepareManagedYtDlpCandidateProbeInputs,
 } from "./ytDlpBaseline.mjs";
 import { createSiteSessionManager } from "./siteSessionManager.mjs";
 import { createSiteSessionRegistry } from "./siteSessionRegistry.mjs";
@@ -234,6 +241,7 @@ let siteSessionCommandController = null;
 let supportLogCommandController = null;
 let errorDiagnosticCommandController = null;
 let diagnosticsCommandController = null;
+let managedYtDlpReleaseCommandController = null;
 let siteSessionRefreshScheduler = null;
 let networkProxyPolicyController = null;
 const siteSessionManagers = new Map();
@@ -1324,6 +1332,7 @@ async function ensureRuntimeSetCapabilities(capabilities, reason) {
       await ensureManagedDenoRuntimeReady(reason, options);
     } else if (capability === "gallery-dl") {
       await ensureManagedGalleryDlRuntimeReady(reason, options);
+
     } else {
       throw new Error(`Unsupported runtime-set capability: ${capability}`);
     }
@@ -1389,6 +1398,31 @@ function withYtDlpBaselineRoot(options) {
     ...options,
     baselineRoot: resolveBundledYtDlpBaselineRoot(buildElectronRuntimeEnvironment()),
   };
+}
+
+function withManagedYtDlpReleaseManifest(options) {
+  return {
+    ...options,
+    managedManifestPath: resolveManagedYtDlpReleaseManifestPath(buildElectronRuntimeEnvironment()),
+  };
+}
+
+async function prepareManagedYtDlpCandidateProbeDependencies() {
+  return await prepareManagedYtDlpCandidateProbeInputs(withYtDlpBaselineRoot(buildManagedRuntimeBootstrapOptions()));
+}
+
+async function inspectManagedYtDlpReleaseCandidates() {
+  return await inspectManagedYtDlpCandidates(withManagedYtDlpReleaseManifest(
+    buildManagedRuntimeBootstrapOptions(),
+  ));
+}
+
+async function stageManagedYtDlpReleaseCandidate(releaseId) {
+  return await stageManagedYtDlpRelease(releaseId, {
+    ...withManagedYtDlpReleaseManifest(buildManagedRuntimeBootstrapOptions()),
+    runMutation: (operation) => runtimeSetLifecycle.runMutation(operation),
+    prepareProbeDependencies: prepareManagedYtDlpCandidateProbeDependencies,
+  });
 }
 
 async function acquireBundledYtDlpRuntimeBinding(reason) {
@@ -1868,11 +1902,23 @@ function getDiagnosticsCommandController() {
   return diagnosticsCommandController;
 }
 
+function getManagedYtDlpReleaseCommandController() {
+  if (managedYtDlpReleaseCommandController) {
+    return managedYtDlpReleaseCommandController;
+  }
+  managedYtDlpReleaseCommandController = createManagedYtDlpReleaseCommandController({
+    inspect: inspectManagedYtDlpReleaseCandidates,
+    stage: stageManagedYtDlpReleaseCandidate,
+  });
+  return managedYtDlpReleaseCommandController;
+}
+
 // Order matters: first supporting controller wins. The download IPC adapter
 // owns ordinary download commands; the operational bridge handles transcode,
 // runtime dependency and downloader version/info commands.
 const rendererCommandControllerGetters = [
   getDiagnosticsCommandController,
+  getManagedYtDlpReleaseCommandController,
   getDownloadIpcAdapter,
   getVideoDownloadCommandBridge,
   getSiteSessionCommandController,
@@ -1946,6 +1992,7 @@ async function getDiagnosticsSnapshot() {
     ytdlpBaseline: await inspectBundledYtDlpBaseline(
       withYtDlpBaselineRoot(buildManagedRuntimeBootstrapOptions()),
     ),
+    managedYtDlpCandidates: await inspectManagedYtDlpReleaseCandidates(),
     runtimeSetLeaseCount: runtimeSetLifecycle.activeLeaseCount(),
     inspectOutputDirectory: inspectDiagnosticsOutputDirectory,
     inspectBrowserBridge: inspectDiagnosticsBrowserBridge,

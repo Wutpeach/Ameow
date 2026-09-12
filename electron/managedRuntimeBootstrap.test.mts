@@ -34,6 +34,27 @@ const createOptions = (overrides = {}) => ({
 });
 
 describe("managed runtime bootstrap helpers", () => {
+  it("stops a streaming asset before an approved maximum is exceeded", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ameow-approved-size-"));
+    let chunksRead = 0;
+    try {
+      await expect(downloadToFile("https://files.pythonhosted.org/exact.whl", join(root, "wheel"), {
+        ...createOptions({
+          fetch: vi.fn(async () => new Response(new ReadableStream({
+            pull(controller) {
+              chunksRead += 1;
+              controller.enqueue(new Uint8Array(8));
+            },
+            cancel() {},
+          }))),
+        }),
+        maxBytes: 9,
+      })).rejects.toThrow("size mismatch");
+      expect(chunksRead).toBeLessThan(20);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("resolves managed runtime target and binary paths consistently", () => {
     const options = createOptions();
 

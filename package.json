@@ -33,6 +33,8 @@
     "runtime:ensure:python": "node ./scripts/ensure-python-runtime.mjs",
     "runtime:prepare:ytdlp-baseline": "node ./scripts/prepare-ytdlp-baseline.mjs",
     "runtime:verify:ytdlp-baseline": "node ./scripts/prepare-ytdlp-baseline.mjs --verify",
+    "runtime:prepare:ytdlp-managed-release": "node ./scripts/prepare-ytdlp-managed-release.mjs",
+    "runtime:verify:ytdlp-managed-release": "node ./scripts/verify-ytdlp-managed-release.mjs",
     "package": "node ./scripts/run-electron-package.mjs",
     "package:dir": "node ./scripts/run-electron-package.mjs --dir",
     "package:win": "node ./scripts/run-electron-package.mjs --win nsis --x64",

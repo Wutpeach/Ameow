@@ -82,6 +82,17 @@ afterEach(() => {
 });
 
 describe("read-only diagnostics snapshot", () => {
+  it("projects marker-only observation without fabricated eligibility", async () => {
+    const snapshot = await buildDiagnosticsSnapshot({ ...createOptions(), managedYtDlpCandidates: {
+      manifest: { available: true, valid: true, releaseIds: [] },
+      catalog: { state: "missing", candidateCount: 1 },
+      candidates: [{ releaseId: "2026.07.04-aaaaaaaaaaaaaaaa", version: "2026.07.04", packageSetId: "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0", runtimeTarget: "x86_64-pc-windows-msvc", stage: "committed", observation: "marker_only" }],
+      selection: "bundled",
+    } });
+    expect(snapshot.managedYtDlpCandidates.candidates.value?.[0]).toMatchObject({ observation: "marker_only" });
+    expect(snapshot.managedYtDlpCandidates.candidates.value?.[0]).not.toHaveProperty("eligibility");
+  });
+
   it("shares the one bounded hidden-process version probe with existing downloader version info", () => {
     const mainSource = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
     const diagnosticsSource = mainSource.slice(

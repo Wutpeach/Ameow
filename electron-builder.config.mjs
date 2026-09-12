@@ -32,6 +32,7 @@ function packagedBinaryPatterns() {
     `desktop-assets/binaries/python-${target}/**/*`,
     "desktop-assets/binaries/.official-python-runtimes.json",
     "desktop-assets/binaries/ytdlp-baseline/**/*",
+    "desktop-assets/binaries/ytdlp-managed-releases.json",
   ];
 }
 

@@ -39,6 +39,7 @@ async function main() {
   await runCommand(process.execPath, [path.join(repoRoot, "scripts", "ensure-python-runtime.mjs"), ...builderArgs]);
   await assertBundledPythonRuntimeReady(resolveTargetFromBuilderArgs(builderArgs));
   await runCommand(process.execPath, [path.join(repoRoot, "scripts", "prepare-ytdlp-baseline.mjs"), "--verify"]);
+  await runCommand(process.execPath, [path.join(repoRoot, "scripts", "verify-ytdlp-managed-release.mjs")]);
   if (!npmCli) {
     throw new Error("npm_execpath is required to run the build from the package script");
   }
@@ -53,6 +54,10 @@ async function main() {
   ]);
   await runCommand(process.execPath, [
     path.join(repoRoot, "scripts", "verify-ytdlp-baseline-package.mjs"),
+    ...builderArgs,
+  ]);
+  await runCommand(process.execPath, [
+    path.join(repoRoot, "scripts", "verify-ytdlp-managed-release-package.mjs"),
     ...builderArgs,
   ]);
 }

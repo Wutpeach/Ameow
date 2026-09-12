@@ -1,3 +1,4 @@
+import { assertYtDlpPackageReleaseContract } from "./managed-ytdlp-package-set.mjs";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -60,6 +61,7 @@ const verify = async () => {
   ) {
     throw new Error("Bundled yt-dlp baseline manifest does not match managedPythonPackageManifest");
   }
+  assertYtDlpPackageReleaseContract({ ...manifest, version: manifest.probe?.expectedVersion });
   const expectedFiles = new Set([".official-ytdlp-baseline.json", ...actual.map((entry) => entry.filename)]);
   const actualFiles = await (await import("node:fs/promises")).readdir(baselineRoot);
   if (actualFiles.some((entry) => !expectedFiles.has(entry)) || expectedFiles.size !== actualFiles.length) {

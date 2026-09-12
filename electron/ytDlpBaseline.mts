@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -10,8 +10,11 @@ import {
 import {
   assertPythonVersionSatisfiesManagedPackage,
   currentManagedRuntimeTarget,
+  ensureManagedDenoRuntimeReady,
+  ensureManagedFfmpegRuntimeReady,
   managedDenoPath,
   managedFfmpegPaths,
+  managedPythonCommandOptions,
   managedPythonVirtualenvArgs,
   readCommandVersion,
   runCapturedUtilityCommand,
@@ -22,6 +25,16 @@ import {
   type ManagedRuntimeBootstrapOptions,
 } from "./managedRuntimeBootstrap.mjs";
 import { resolvePinnedManagedPythonPackage } from "./managedPythonPackageManifest.mjs";
+import {
+  canonicalYtDlpPackageSetId,
+  assertYtDlpPackageReleaseContract,
+  digestYtDlpText,
+  isYtDlpExecutionPolicy,
+  isYtDlpProbeContract,
+  normalizeYtDlpPackageName,
+  normalizedInstalledYtDlpVersion,
+  ytdlpRequirementsLock,
+} from "./ytDlpPackageSet.mjs";
 
 const BASELINE_SCHEMA_VERSION = 1;
 const BASELINE_LAYOUT_VERSION = 1;
@@ -108,6 +121,12 @@ export type BundledYtDlpRuntimeBinding = {
   identity: BundledYtDlpRuntimeIdentity;
 };
 
+export type ManagedYtDlpCandidateProbeInputs = {
+  python: { version: string; target: string; manifestEntryDigest: string; observedSha256: string };
+  observed: { ffmpegPath: string; ffprobePath: string; denoPath: string };
+  mediaTools: BundledYtDlpRuntimeIdentity["mediaTools"];
+};
+
 export type YtDlpBaselineInspection = {
   manifest: {
     available: boolean;
@@ -125,9 +144,9 @@ export type YtDlpBaselineInspection = {
   selection: "bundled";
 };
 
-const normalizePackageName = (value: string): string => value.toLowerCase().replace(/[-_.]+/g, "-");
+const normalizePackageName = normalizeYtDlpPackageName;
 
-const digestText = (value: string): string => createHash("sha256").update(value).digest("hex");
+const digestText = digestYtDlpText;
 
 const readJsonObject = async (filePath: string): Promise<Record<string, unknown> | null> => {
   try {
@@ -219,18 +238,17 @@ const verifyManifestContract = (manifest: BaselineManifest, target: string): voi
     manifest.schemaVersion !== BASELINE_SCHEMA_VERSION
     || manifest.layoutVersion !== BASELINE_LAYOUT_VERSION
     || manifest.packageSetId !== spec.packageSetId
+    || manifest.packageSetId !== canonicalYtDlpPackageSetId(manifest.packages)
     || JSON.stringify(actualPackages) !== JSON.stringify(expectedSources)
     || JSON.stringify(manifest.minPython) !== JSON.stringify(spec.minPython)
     || !manifest.runtimeTargets.includes(target)
-    || manifest.executionPolicy.configIsolation !== true
-    || manifest.executionPolicy.pluginDirs !== "disabled"
-    || manifest.executionPolicy.remoteComponents !== "disabled"
-    || manifest.executionPolicy.jsRuntime !== "managed-deno-absolute-path"
-    || JSON.stringify(manifest.probe.args) !== JSON.stringify(["--version"])
+    || !isYtDlpExecutionPolicy(manifest.executionPolicy)
+    || !isYtDlpProbeContract(manifest.probe)
     || manifest.probe.expectedVersion !== spec.packageVersion
   ) {
     throw new Error("Bundled yt-dlp baseline manifest does not match the app-owned package contract");
   }
+  assertYtDlpPackageReleaseContract({ ...manifest, version: manifest.probe.expectedVersion });
 };
 
 export const verifyBundledYtDlpBaseline = async (
@@ -293,6 +311,42 @@ const readPythonManifestEntryDigest = async (
   return digestText(JSON.stringify(entry));
 };
 
+// This is intentionally lower-level than a bundled yt-dlp binding: candidate
+// staging needs the packaged Python and shared media identities, never a
+// materialized baseline venv or executable.
+export const prepareManagedYtDlpCandidateProbeInputs = async (
+  options: YtDlpBaselineOptions & Pick<ManagedRuntimeBootstrapOptions, "fetch" | "fetchRouteAware" | "resolveRoute">,
+): Promise<ManagedYtDlpCandidateProbeInputs> => {
+  const target = currentManagedRuntimeTarget(options.platform, options.arch);
+  const pythonPath = bundledPythonPathFrom(options);
+  const version = await readCommandVersion(pythonPath, managedPythonCommandOptions(options.platform));
+  const pythonManifestEntryDigest = await readPythonManifestEntryDigest(options, target);
+  const pythonManifest = await readJsonObject(join(dirname(options.baselineRoot), PYTHON_MANIFEST_FILE));
+  const entry = (pythonManifest?.runtimes as Record<string, Record<string, unknown>>)?.[target];
+  if (entry?.target !== target || version !== `Python ${entry?.pythonVersion}`) throw new Error("Candidate bundled Python identity mismatch");
+  const [ffmpegPath, denoPath] = await Promise.all([
+    ensureManagedFfmpegRuntimeReady("stage_managed_ytdlp_release", options),
+    ensureManagedDenoRuntimeReady("stage_managed_ytdlp_release", options),
+  ]);
+  const ffprobePath = managedFfmpegPaths(options).ffprobe;
+  const ffmpegSpec = selectFfmpegRuntimeArtifactSpec(options);
+  const denoSpec = selectDenoRuntimeArtifactSpec(options);
+  const media = async (path: string, spec: { version: string; sha256: string }) => {
+    const observedVersion = await readCommandVersion(path, managedPythonCommandOptions(options.platform));
+    if (!observedVersion.includes(spec.version)) throw new Error("Candidate media version mismatch");
+    return { version: spec.version, artifactSha256: spec.sha256, observedSha256: await sha256Hex(path) };
+  };
+  return {
+    python: { version, target, manifestEntryDigest: pythonManifestEntryDigest, observedSha256: await sha256Hex(pythonPath) },
+    observed: { ffmpegPath, ffprobePath, denoPath },
+    mediaTools: {
+      ffmpeg: await media(ffmpegPath, ffmpegSpec),
+      ffprobe: await media(ffprobePath, ffmpegSpec),
+      deno: await media(denoPath, denoSpec),
+    },
+  };
+};
+
 const readBaselineReadiness = async (paths: BundledYtDlpBaselineRuntimePaths): Promise<BaselineReadiness | null> => {
   const value = await readJsonObject(paths.readiness);
   if (!value) {
@@ -316,15 +370,10 @@ const readBaselineReadiness = async (paths: BundledYtDlpBaselineRuntimePaths): P
   };
 };
 
-const normalizedInstalledVersion = (version: string): string => version.replace(
-  /\d+/g,
-  (part) => String(Number(part)),
-);
-
 const expectedPackages = (baseline: VerifiedBaseline): Record<string, string> => Object.fromEntries(
   baseline.packages.map((entry) => [
     normalizePackageName(entry.name),
-    normalizedInstalledVersion(entry.version),
+    normalizedInstalledYtDlpVersion(entry.version),
   ]),
 );
 
@@ -352,9 +401,7 @@ const isReadinessCurrent = (
   && readiness!.probeVersion === baseline.manifest.probe.expectedVersion
 );
 
-const requirementsLock = (baseline: VerifiedBaseline): string => baseline.packages.map((entry) =>
-  `${entry.name}==${entry.version} --hash=sha256:${entry.sha256}`,
-).join("\n") + "\n";
+const requirementsLock = (baseline: VerifiedBaseline): string => ytdlpRequirementsLock(baseline.packages);
 
 const createStagingPaths = (
   root: string,

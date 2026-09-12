@@ -5,12 +5,13 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022", "DOM"],
     "strict": true,
+    "allowJs": true,
     "skipLibCheck": true,
     "noEmit": false,
     "outDir": "dist-electron",
     "rootDir": ".",
     "types": ["node", "electron"]
   },
-  "include": ["electron/**/*.mts"],
+  "include": ["electron/**/*.mts", "scripts/managed-ytdlp-package-set.mjs"],
   "exclude": ["electron/**/*.test.mts"]
 }

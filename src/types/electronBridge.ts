@@ -27,6 +27,7 @@ export type AmeowRendererCommand =
   | "get_config"
   | "get_current_shortcut"
   | "get_gallery_dl_info"
+  | "get_managed_ytdlp_releases"
   | "get_network_proxy_state"
   | "get_read_only_diagnostics"
   | "get_runtime_dependency_gate_state"
@@ -51,6 +52,7 @@ export type AmeowRendererCommand =
   | "set_window_position"
   | "set_window_size"
   | "start_runtime_dependency_bootstrap"
+  | "stage_managed_ytdlp_release"
   | "sync_site_session_from_extension";
 
 export type AmeowAppEvent =
