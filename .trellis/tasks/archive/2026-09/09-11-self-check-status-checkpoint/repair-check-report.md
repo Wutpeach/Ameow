@@ -2,8 +2,8 @@
 
 Verdict: **PASS after a test-only REPAIR**. Both authorized projection omissions are resolved. No additional production edits were needed; no commits, metadata/spec changes, authority changes, or P2-B work were performed.
 
-Task: `.trellis/tasks/09-11-self-check-status-checkpoint`  
-Orca Task: `task_f04743519b29`  
+Task: `.trellis/tasks/09-11-self-check-status-checkpoint`
+Orca Task: `task_f04743519b29`
 Dispatch: `ctx_9f2690abcb35`
 
 ## Findings (fixed)
