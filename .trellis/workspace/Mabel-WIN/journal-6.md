@@ -380,3 +380,40 @@ Implemented shared incident Copy/Save projection and approved one-slot lifecycle
 ### Status
 
 [OK] **Completed**
+
+
+## Session 267: Self-check checkpoint, Report repair and P2-B stage-only completion
+<!-- trellis-session: v=2 fp=b27d70250cae0ecf -->
+
+**Date**: 2026-09-12
+**Task**: Self-check checkpoint, Report repair and P2-B stage-only completion
+**Branch**: `main`
+
+### Summary
+
+Completed self-check checkpoint, bounded shared Report evidence repair and managed yt-dlp P2-B stage-only implementation. User approved both work commits and task archival; no activation or next phase.
+
+### Main Changes
+
+- Preserved runtimeCandidate/runtimeSetId and zero-attempt terminal evidence in shared Copy/Save reports.
+- Implemented app-approved immutable managed release staging, strict verification, structured eligibility and passive Diagnostics while bundled remains the sole effective binding.
+- Resolved R1-R8 review findings; recorded the bounded provenanceUrl/downloadUrl correction without changing baseline pins or identity.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f4041e1c` | fix: preserve structured runtime and terminal report evidence |
+| `7c022826` | feat: stage approved managed yt-dlp releases without activation |
+
+### Testing
+
+- [OK] Final independent validation: 21 root files / 293 tests, type-check, lint, build, source/package fixtures, compiled runtime imports, real baseline wheel validation and Windows parent/descendant settlement PASS.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Stopped after P2-B stage-only. Production allowlist is empty; real release approval and retained platform/live gates remain open. Activation requires a separately authorized phase.
