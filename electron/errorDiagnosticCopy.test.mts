@@ -44,6 +44,8 @@ describe("errorDiagnosticCopy", () => {
                 errorCode: "E_EXECUTION_FAILED",
                 classification: "retry_same_engine",
                 category: "network",
+                runtimeCandidate: "bundled",
+                runtimeSetId: "runtime-set-1",
                 network: {
                   routeKind: "proxy",
                   source: "manual",
@@ -99,6 +101,9 @@ describe("errorDiagnosticCopy", () => {
       .toBeLessThan(text.indexOf("2. engine=yt-dlp cycle=auth_recovery"));
     expect(text.indexOf("2. engine=yt-dlp cycle=auth_recovery"))
       .toBeLessThan(text.indexOf("3. engine=gallery-dl cycle=initial"));
+    expect(text).toContain("runtimeCandidate=bundled");
+    expect(text).toContain("runtimeSetId=runtime-set-1");
+    expect(text).toContain("classification=retry_same_engine");
     expect(text).toContain("[terminal]");
     expect(text).toContain("status=failed");
     expect(text).toContain("finalEngine=gallery-dl");
@@ -153,6 +158,39 @@ describe("errorDiagnosticCopy", () => {
     // The raw text must not become a classification authority.
     expect(report.incident.category).toBe("unclassified");
     expect(report.incident.diagnosticCategory).toBeUndefined();
+    const text = formatErrorDiagnosticCopyReport(report);
+    expect(text).not.toContain("[attempts]");
+    expect(text).not.toContain("[terminal]");
+  });
+
+  it("renders supplied zero-attempt terminal facts without inventing attempts", () => {
+    const text = buildErrorDiagnosticCopyText({
+      request: {
+        surface: "download",
+        userMessage: "Download preparation failed",
+        category: "runtime_downloader_unavailable",
+        failure: {
+          attemptSummary: {
+            traceId: "download-0",
+            status: "failed",
+            finalEngineId: null,
+            attemptCount: 0,
+            finalCode: "E_EXECUTION_FAILED",
+            finalClassification: "terminal_for_site",
+            finalCategory: "engine_execution",
+            attempts: [],
+          },
+        },
+      },
+      appVersion: "0.3.1",
+    });
+
+    expect(text).not.toContain("[attempts]");
+    expect(text).toContain("[terminal]");
+    expect(text).toContain("status=failed");
+    expect(text).toContain("attemptCount=0");
+    expect(text).toContain("finalCode=E_EXECUTION_FAILED");
+    expect(text).toContain("finalClassification=terminal_for_site");
   });
 
   it("normalizes malformed renderer payloads to bounded defaults", () => {
@@ -211,6 +249,8 @@ describe("errorDiagnosticCopy", () => {
             errorCode: "E_EXECUTION_FAILED token=attempt-code-secret",
             classification: "fallback_to_other_engine",
             category: "engine_execution",
+            runtimeCandidate: "bundled",
+            runtimeSetId: "runtime-set-token=normalizer-secret",
             network: {
               routeKind: "direct",
               source: "direct",
@@ -227,6 +267,8 @@ describe("errorDiagnosticCopy", () => {
       },
     });
 
+    expect(request.failure?.attemptSummary?.attempts[0]?.runtimeSetId)
+      .toBe("runtime-set-token=[REDACTED]");
     const text = formatErrorDiagnosticCopyReport(buildErrorDiagnosticCopyReport({
       request,
       appVersion: "1.0.0",
@@ -243,6 +285,38 @@ describe("errorDiagnosticCopy", () => {
     expect(text).not.toContain("final-code-secret");
     expect(text).not.toContain("classification-secret");
     expect(text).not.toContain("code-secret");
+    expect(text).not.toContain("normalizer-secret");
+  });
+
+  it("drops invalid runtime candidates at the renderer boundary", () => {
+    for (const runtimeCandidate of ["unknown-candidate", "bundled token=candidate-secret", {}, ["bundled"], 1, null]) {
+      const request = normalizeErrorDiagnosticCopyRequest({
+        failure: {
+          attemptSummary: {
+            traceId: "download-1",
+            status: "failed",
+            attemptCount: 1,
+            attempts: [{
+              attemptIndex: 1,
+              attemptId: "download-1:1",
+              engineId: "yt-dlp",
+              runtimeCandidate,
+              runtimeSetId: 42,
+            }],
+          },
+        },
+      });
+      const attempt = request.failure?.attemptSummary?.attempts[0];
+      expect(attempt).toBeDefined();
+      expect(attempt?.runtimeCandidate).toBeUndefined();
+      expect(attempt?.runtimeSetId).toBeUndefined();
+      const report = buildErrorDiagnosticCopyReport({ request, appVersion: "0.3.1" });
+      expect(report.incident.attemptSummary?.attempts[0]?.runtimeCandidate).toBeUndefined();
+      const text = formatErrorDiagnosticCopyReport(report);
+      expect(text).not.toContain("runtimeCandidate=");
+      expect(text).not.toContain("runtimeSetId=");
+      expect(text).not.toContain("candidate-secret");
+    }
   });
 
   it("final safety net scrubs unnormalized app/trace/attempt/network leaves", () => {
@@ -270,6 +344,8 @@ describe("errorDiagnosticCopy", () => {
               errorCode: "E_EXECUTION_FAILED",
               classification: "fallback_to_other_engine",
               category: "engine_execution",
+              runtimeCandidate: "bundled",
+              runtimeSetId: "runtime-set-token=runtime-set-secret",
               network: {
                 routeKind: "direct",
                 source: "direct",
@@ -293,6 +369,7 @@ describe("errorDiagnosticCopy", () => {
     expect(text).not.toContain("app-secret");
     expect(text).not.toContain("attempt-secret");
     expect(text).not.toContain("network-secret");
+    expect(text).not.toContain("runtime-set-secret");
     expect(text).not.toContain("user:pass");
     expect(text).not.toContain("proxy.example.com");
     expect(text).not.toContain("Alice");

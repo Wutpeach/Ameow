@@ -65,7 +65,30 @@ describe("createErrorDiagnosticCommandController", () => {
       traceId: "download-1",
       userMessage: "Download failed",
       category: "unclassified",
-      failure: { rawMessage: "legacy raw message" },
+      failure: {
+        rawMessage: "legacy raw message",
+        attemptSummary: {
+          traceId: "download-1",
+          status: "failed",
+          finalEngineId: "yt-dlp",
+          attemptCount: 1,
+          finalCode: "E_EXECUTION_FAILED",
+          finalClassification: "terminal_for_site",
+          finalCategory: "engine_execution",
+          attempts: [{
+            attemptIndex: 1,
+            attemptId: "download-1:1",
+            engineId: "yt-dlp",
+            cycle: "initial",
+            outcome: "failed",
+            errorCode: "E_EXECUTION_FAILED",
+            classification: "terminal_for_site",
+            category: "engine_execution",
+            runtimeCandidate: "bundled",
+            runtimeSetId: "runtime-set-1",
+          }],
+        },
+      },
     };
 
     await controller.invoke("copy_error_diagnostics", request);
@@ -73,6 +96,8 @@ describe("createErrorDiagnosticCommandController", () => {
 
     expect(saveDiagnosticText).toHaveBeenCalledWith(writeClipboardText.mock.calls[0]?.[0]);
     expect(writeClipboardText.mock.calls[0]?.[0]).not.toContain("legacy raw message");
+    expect(writeClipboardText.mock.calls[0]?.[0]).toContain("runtimeCandidate=bundled");
+    expect(writeClipboardText.mock.calls[0]?.[0]).toContain("runtimeSetId=runtime-set-1");
   });
 
   it("returns false for a cancelled save and propagates save errors for retry", async () => {

@@ -164,6 +164,8 @@ const normalizeAttemptSummary = (value: unknown): AttemptDiagnosticSummary | nul
     classification: normalizeFailureClassification(attempt.classification),
     category: normalizeDiagnosticCategory(attempt.category) ?? null,
     network: normalizedNetwork,
+    runtimeCandidate: attempt.runtimeCandidate === "bundled" ? "bundled" : undefined,
+    runtimeSetId: normalizeSafeString(attempt.runtimeSetId),
   };
 };
 
@@ -328,6 +330,8 @@ const formatAttemptLines = (attempts: readonly AttemptDiagnosticSummary[]): stri
       `engine=${attempt.engineId}`,
       `cycle=${attempt.cycle}`,
       `outcome=${attempt.outcome}`,
+      attempt.runtimeCandidate ? `runtimeCandidate=${attempt.runtimeCandidate}` : null,
+      attempt.runtimeSetId ? `runtimeSetId=${attempt.runtimeSetId}` : null,
       attempt.errorCode ? `code=${attempt.errorCode}` : null,
       attempt.classification ? `classification=${attempt.classification}` : null,
       attempt.category ? `category=${attempt.category}` : null,
@@ -372,8 +376,10 @@ export const formatErrorDiagnosticCopyReport = (
   ];
 
   const attemptSummary = report.incident.attemptSummary;
-  if (attemptSummary && attemptSummary.attempts.length > 0) {
+  if (attemptSummary?.attempts.length) {
     lines.push("", "[attempts]", formatAttemptLines(attemptSummary.attempts));
+  }
+  if (attemptSummary) {
     lines.push("", "[terminal]");
     lines.push(`status=${attemptSummary.status}`);
     lines.push(`attemptCount=${attemptSummary.attemptCount}`);
