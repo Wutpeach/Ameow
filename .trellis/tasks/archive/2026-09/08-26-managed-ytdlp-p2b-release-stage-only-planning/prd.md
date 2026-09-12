@@ -2,6 +2,14 @@
 
 ## Goal
 
+### Implementation authorization (2026-09-11)
+
+The user explicitly authorized executing this existing reviewed P2-B plan. The prior planning-only stop applies to the historical planning turn and is superseded for this implementation. Implement discover/acquire -> verify -> immutable stage -> bounded eligibility; bundled remains the only effective runtime. Do not reopen planning or expand into activation, rollback, retention/GC, UI, Repair Center, downloader binding, Diagnostics mutation, or logging/report refactoring.
+
+Implementation acceptance: app-approved releases only; no valid-looking candidate after acquisition/verification failure; immutable identity-stable commit; structured lifecycle eligibility; necessary integrity revalidation on cache hits; per-asset failure isolation; effective bundled selection and new-attempt bundled binding unchanged; passive Diagnostics; P2-A lease/pinning/self-check/report regressions pass. Run the existing implement.md validation including focused tests, type/lint/build and source/package verifiers. Report deviations and external gates honestly. Deterministic fixtures do not confer approval on a real upstream release.
+
+Preserve the already completed, uncommitted bounded Report repair in electron/errorDiagnosticCopy.mts and its two existing test files, as well as unrelated .codex/agents/trellis-check.toml and .trellis/tmp/ edits. Those changes are not P2-B implementation scope.
+
 在 P2-A immutable bundled baseline 与 attempt runtime pinning 的既有契约上，规划一条 Ameow-owned 的 managed yt-dlp release 获取、验证、immutable staging 与 bounded eligibility probe lifecycle。P2-B 的唯一可观察产物是 staged candidate 或 eligible candidate；bundled baseline 继续是唯一 effective runtime candidate。
 
 ## Background

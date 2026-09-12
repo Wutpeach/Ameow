@@ -4,6 +4,8 @@
 
 Do not start this plan until the latest PRD/design/report receive Architecture Review and the user explicitly authorizes implementation in a later message. Running `task.py start` is not part of this planning turn.
 
+2026-09-11: the user explicitly instructed implementation from the existing approved planning. This gate is satisfied for P2-B stage-only; execute the ordered work below and stop at its acceptance boundary.
+
 ## Ordered work
 
 ### 1. Canonical package-set contracts and approved manifest

@@ -4,6 +4,8 @@
 
 Repository-grounded planning is complete and ready for Architecture Review. This is not Architecture PASS and does not authorize implementation.
 
+2026-09-11 execution note: the user has now explicitly authorized implementation of this existing reviewed plan. The historical status above does not block this execution. The design and hard boundaries below are unchanged; no new architecture approval is inferred for activation or later phases.
+
 ## Architecture boundary
 
 P2-B adds an Electron-owned candidate acquisition and observation module beside the existing P2-A bundled-baseline module. It is not a downloader runtime, selector, repair service, or updater framework.
@@ -46,6 +48,7 @@ type ApprovedYtDlpRelease = {
     size: number;
     sha256: string;
     provenanceUrl: string;
+    downloadUrl?: string;
   }>;
   minPython: readonly [number, number, number];
   runtimeTargets: string[];
@@ -63,6 +66,8 @@ type ApprovedYtDlpRelease = {
 ```
 
 `releaseId` is derived from the canonical entry rather than accepted as an independent value.
+
+Implementation clarification (2026-09-12, Lead decision responding to Orca question msg_9fe6803eae2f): the existing baseline stores PyPI metadata provenance, while acquisition needs an exact wheel URL. Preserve baseline provenance, bytes, pins, and identity. Managed entries with metadata provenance must provide an app-approved exact HTTPS file-host `downloadUrl`; include this transport field in managed release identity. File-provenance managed entries may use that exact declared file URL as the equivalent transport value. Runtime never fetches metadata or derives download approval. Overlap equality compares every common canonical baseline field, including provenance/policy/probe/minPython/targets, and separately validates the additional managed transport field. This is a bounded correction to the original same-field provenance/download conflict, not a new approval or acquisition authority.
 
 ### Staged marker
 
