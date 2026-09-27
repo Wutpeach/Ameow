@@ -60,6 +60,11 @@ import {
   type NetworkProxyStatePayload,
 } from "../config/networkProxy";
 import {
+  DEFAULT_LOCAL_PROXY_PORT,
+  isValidLocalProxyPort,
+  type LocalProxyServerState,
+} from "../config/localProxyServer";
+import {
   APP_UPDATE_PRERELEASE_CONFIG_KEY,
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
@@ -311,6 +316,11 @@ function SettingsPage() {
   const [networkProxySavePending, setNetworkProxySavePending] = useState(false);
   const [networkProxyState, setNetworkProxyState] =
     useState<NetworkProxyStatePayload | null>(null);
+  const [localProxyEnabled, setLocalProxyEnabled] = useState(false);
+  const [localProxyPortInput, setLocalProxyPortInput] = useState(String(DEFAULT_LOCAL_PROXY_PORT));
+  const [localProxyPortInvalid, setLocalProxyPortInvalid] = useState(false);
+  const [localProxyState, setLocalProxyState] =
+    useState<LocalProxyServerState | null>(null);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
@@ -337,6 +347,7 @@ function SettingsPage() {
   const [hoveredSavingAction, setHoveredSavingAction] = useState<"outputFolder" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const networkProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
 
   const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
@@ -408,6 +419,12 @@ function SettingsPage() {
           setNetworkProxyInput(config.networkProxyUrl);
           setNetworkProxyInputInvalid(parsedProxyMode === "manual"
             && !normalizeManualNetworkProxyUrl(config.networkProxyUrl));
+        }
+        if (typeof config.localProxyEnabled === "boolean") {
+          setLocalProxyEnabled(config.localProxyEnabled);
+        }
+        if (typeof config.localProxyPort === "number") {
+          setLocalProxyPortInput(String(config.localProxyPort));
         }
         setReceivePrereleaseUpdates(resolveReceivePrereleaseUpdates(config));
       } catch (err) {
@@ -484,7 +501,29 @@ function SettingsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    void desktopCommands.invoke<LocalProxyServerState>("get_local_proxy_state")
+      .then((state) => {
+        setLocalProxyState(state);
+      })
+      .catch((err) => {
+        console.error("Failed to load local proxy state:", err);
+      });
 
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<LocalProxyServerState>(
+      "local-proxy-state-changed",
+      (event) => {
+        setLocalProxyState(event.payload);
+      },
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
 
   useEffect(() => {
     const unlisten = desktopEvents.on<{ path: string }>("output-path-changed", (event) => {
@@ -763,6 +802,48 @@ function SettingsPage() {
         console.error("Failed to save network proxy URL:", err);
       }).finally(() => {
         setNetworkProxySavePending(false);
+      });
+    }, NETWORK_PROXY_SAVE_DEBOUNCE_MS);
+  };
+
+  const clearLocalProxySaveTimer = () => {
+    if (localProxySaveTimerRef.current) {
+      clearTimeout(localProxySaveTimerRef.current);
+      localProxySaveTimerRef.current = null;
+    }
+  };
+
+  const toggleLocalProxyEnabled = async (nextEnabled: boolean) => {
+    if (nextEnabled === localProxyEnabled) {
+      return;
+    }
+
+    const previousEnabled = localProxyEnabled;
+    setLocalProxyEnabled(nextEnabled);
+
+    try {
+      await saveConfigPatch({ localProxyEnabled: nextEnabled });
+    } catch (err) {
+      setLocalProxyEnabled(previousEnabled);
+      console.error("Failed to toggle the local proxy server:", err);
+    }
+  };
+
+  const handleLocalProxyPortChange = (value: string) => {
+    setLocalProxyPortInput(value);
+    clearLocalProxySaveTimer();
+
+    const candidate = Number(value.trim());
+    if (!isValidLocalProxyPort(candidate)) {
+      setLocalProxyPortInvalid(value.trim().length > 0);
+      return;
+    }
+
+    setLocalProxyPortInvalid(false);
+    localProxySaveTimerRef.current = setTimeout(() => {
+      localProxySaveTimerRef.current = null;
+      void saveConfigPatch({ localProxyPort: candidate }).catch((err) => {
+        console.error("Failed to save the local proxy port:", err);
       });
     }, NETWORK_PROXY_SAVE_DEBOUNCE_MS);
   };
@@ -1360,6 +1441,18 @@ function SettingsPage() {
       ? "accent"
       : "muted";
   const networkProxyStatusText = t(`desktop:settings.networkProxy.status.${networkProxyStatusKind}`);
+  const localProxyStatusTone = localProxyPortInvalid || localProxyState?.lastError
+    ? "danger"
+    : localProxyState?.running
+      ? "accent"
+      : "default";
+  const localProxyStatusText = localProxyPortInvalid
+    ? t("desktop:settings.localProxy.status.invalid")
+    : localProxyState?.lastError
+      ? t("desktop:settings.localProxy.status.failed", { message: localProxyState.lastError })
+      : localProxyState?.running
+        ? t("desktop:settings.localProxy.status.running", { port: localProxyState.port })
+        : t("desktop:settings.localProxy.status.stopped");
   const systemSummary = appUpdateInfo
     ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
     : networkProxyStatusKind === "manual"
@@ -1451,6 +1544,8 @@ function SettingsPage() {
         t("desktop:settings.networkProxy.title"),
         t("desktop:settings.networkProxy.system"),
         t("desktop:settings.networkProxy.manual"),
+        t("desktop:settings.localProxy.title"),
+        t("desktop:settings.localProxy.enable"),
         t("desktop:settings.supportLog.title"),
         t("desktop:settings.supportLog.button"),
         isDevBuild ? t("desktop:settings.developer.sectionTitle") : "",
@@ -2326,6 +2421,58 @@ function SettingsPage() {
           >
             {networkProxyStatusText}
           </NeonHint>
+        </div>
+      </NeonSection>
+
+      <NeonSection
+        title={t("desktop:settings.localProxy.title")}
+        hint={t("desktop:settings.localProxy.hint")}
+      >
+        <div style={{ display: "grid", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+              {t("desktop:settings.localProxy.enable")}
+            </span>
+            <NeonToggle
+              checked={localProxyEnabled}
+              onChange={() => void toggleLocalProxyEnabled(!localProxyEnabled)}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <NeonInput
+              value={localProxyPortInput}
+              onChange={(event) => handleLocalProxyPortChange(event.target.value)}
+              inputMode="numeric"
+              spellCheck={false}
+              aria-invalid={localProxyPortInvalid}
+              aria-label={t("desktop:settings.localProxy.port")}
+              style={{ maxWidth: 96 }}
+            />
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>
+              {t("desktop:settings.localProxy.portLabel")}
+            </span>
+          </div>
+
+          <NeonHint tone={localProxyStatusTone} size="sm">
+            {localProxyStatusText}
+          </NeonHint>
+
+          {localProxyState?.running ? (
+            <NeonHint size="sm">
+              {t("desktop:settings.localProxy.endpoints", {
+                http: localProxyState.httpProxyUrl,
+                socks: localProxyState.socksProxyUrl,
+              })}
+            </NeonHint>
+          ) : null}
         </div>
       </NeonSection>
 

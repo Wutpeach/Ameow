@@ -221,6 +221,20 @@
         "fallback": "Manual proxy is unavailable. Ameow is using system proxy settings."
       }
     },
+    "localProxy": {
+      "title": "Local proxy",
+      "hint": "Open a loopback port that browsers and other clients on this machine can use as a proxy server. Outbound traffic still follows the network proxy setting above.",
+      "enable": "Enable local proxy",
+      "port": "Local proxy port",
+      "portLabel": "Port (1024-65535)",
+      "endpoints": "HTTP proxy: {{http}}　SOCKS5 proxy: {{socks}}",
+      "status": {
+        "stopped": "Off. When enabled it only listens on 127.0.0.1, so other devices on the network cannot reach it.",
+        "running": "Listening on port {{port}}. HTTP and SOCKS5 share the same port.",
+        "failed": "Local proxy failed to start: {{message}}",
+        "invalid": "The port must be an integer between 1024 and 65535."
+      }
+    },
     "outputFolder": {
       "title": "Output Folder",
       "choose": "Choose a folder...",

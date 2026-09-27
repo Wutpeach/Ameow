@@ -221,6 +221,20 @@
         "fallback": "手动代理不可用，Ameow 正在使用系统代理。"
       }
     },
+    "localProxy": {
+      "title": "本地代理",
+      "hint": "在本机回环地址上开一个端口，让浏览器或其他客户端把它当作代理服务器。出网方向沿用上面的网络代理设置。",
+      "enable": "启用本地代理",
+      "port": "本地代理端口",
+      "portLabel": "端口（1024-65535）",
+      "endpoints": "HTTP 代理：{{http}}　SOCKS5 代理：{{socks}}",
+      "status": {
+        "stopped": "未开启。开启后只监听本机 127.0.0.1，局域网设备无法访问。",
+        "running": "正在监听 {{port}} 端口，HTTP 与 SOCKS5 共用同一个端口。",
+        "failed": "本地代理启动失败：{{message}}",
+        "invalid": "端口需要是 1024 到 65535 之间的整数。"
+      }
+    },
     "outputFolder": {
       "title": "输出文件夹",
       "choose": "选择文件夹...",

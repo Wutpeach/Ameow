@@ -93,6 +93,14 @@ import {
   applySystemProxyToSession,
 } from "./desktopProxy.mjs";
 import { createNetworkProxyPolicyController } from "./networkProxyPolicy.mjs";
+import { createLocalProxyServer } from "./localProxyServer.mjs";
+import { dialLocalProxyEgress } from "./localProxyUpstream.mjs";
+import {
+  buildLocalProxyTargetUrl,
+  isLocalProxySelfRoute,
+  LOCAL_PROXY_CONSUMER,
+  normalizeLocalProxyServerConfig,
+} from "../src/config/localProxyServer.js";
 import { waitForInitialWindowReveal } from "./windowRevealWait.mjs";
 import { applyMacTrayAppMode } from "./macAppVisibility.mjs";
 import { openPathOrThrow } from "./openPath.mjs";
@@ -878,6 +886,64 @@ function getDesktopNetworkRouteService() {
     },
   });
   return desktopNetworkRouteService;
+}
+
+// The built-in local proxy listener. It terminates client traffic on loopback
+// and immediately hands every connection back to the shared route service, so
+// the proxy has no precedence rules of its own: manual > system > environment >
+// direct is decided in exactly one place.
+let localProxyServer = null;
+
+function getLocalProxyServer() {
+  if (localProxyServer) {
+    return localProxyServer;
+  }
+  localProxyServer = createLocalProxyServer({
+    async dial({ host, port }) {
+      const resolution = await resolveNetworkRouteForConsumer({
+        targetUrl: buildLocalProxyTargetUrl(host, port),
+        consumer: LOCAL_PROXY_CONSUMER,
+        scope: "LocalProxy",
+      });
+      if (isLocalProxySelfRoute(resolution.route, getLocalProxyServer().getState())) {
+        logInfo(
+          "LocalProxy",
+          "Refused a route that points back at the local proxy listener itself.",
+        );
+        return {
+          ok: false,
+          reason: "refused",
+          detail: "The resolved upstream route points back at the local proxy listener.",
+        };
+      }
+      return await dialLocalProxyEgress({
+        route: resolution.route,
+        host,
+        port,
+      });
+    },
+    log(message) {
+      logInfo("LocalProxy", message);
+    },
+    onStateChanged(state) {
+      emitAppEvent("local-proxy-state-changed", state);
+    },
+  });
+  return localProxyServer;
+}
+
+async function applyLocalProxyServerConfig() {
+  const config = await readConfigObject();
+  const normalized = normalizeLocalProxyServerConfig(config);
+  const server = getLocalProxyServer();
+  if (!normalized.enabled) {
+    return await server.stop();
+  }
+  const state = await server.start(normalized);
+  if (!state.running) {
+    logInfo("LocalProxy", `Local proxy server unavailable: ${state.lastError ?? "unknown error"}`);
+  }
+  return state;
 }
 
 async function resolveNetworkRouteForConsumer({ targetUrl, consumer, scope = "ElectronRuntime" }) {
@@ -3100,7 +3166,11 @@ async function handleCommand(command, payload = {}) {
       const rawConfig = String(payload.json ?? "{}");
       await saveConfigString(rawConfig);
       await getNetworkProxyPolicyController().reconfigureFromConfig();
+      await applyLocalProxyServerConfig();
       return;
+    }
+    case "get_local_proxy_state": {
+      return getLocalProxyServer().getState();
     }
     case "get_network_proxy_state": {
       return getNetworkProxyPolicyController().getState();
@@ -3656,11 +3726,17 @@ async function bootstrap() {
       wsServer.close();
       wsServer = null;
     }
+    if (localProxyServer) {
+      void localProxyServer.stop();
+    }
   });
 
   await app.whenReady();
   await getNetworkProxyPolicyController().initializeFromConfig().catch((error) => {
     console.error(">>> [Electron] Failed to apply network proxy policy:", error);
+  });
+  await applyLocalProxyServerConfig().catch((error) => {
+    console.error(">>> [Electron] Failed to start the local proxy server:", error);
   });
   applyMacTrayAppMode(app);
   registerIpcHandlers();
