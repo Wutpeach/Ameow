@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync, type Dirent } from "node:fs";
+import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import {
@@ -370,6 +370,69 @@ const createStagingPaths = (
   };
 };
 
+const replaceBufferBytes = (
+  contents: Buffer,
+  needle: Buffer,
+  replacement: Buffer,
+  replaceEveryOccurrence: boolean,
+): Buffer | null => {
+  const segments: Buffer[] = [];
+  let cursor = 0;
+  while (cursor <= contents.length - needle.length) {
+    const index = contents.indexOf(needle, cursor);
+    if (index < 0) {
+      break;
+    }
+    segments.push(contents.subarray(cursor, index), replacement);
+    cursor = index + needle.length;
+    if (!replaceEveryOccurrence) {
+      break;
+    }
+  }
+  if (segments.length === 0) {
+    return null;
+  }
+  segments.push(contents.subarray(cursor));
+  return Buffer.concat(segments);
+};
+
+// pip bakes the interpreter that generated a launcher into the script itself, so a venv that was
+// materialized in a staging directory must be rebound to its final location before it can run.
+const rebindCopiedVenvScripts = async (
+  sourceVenvDir: string,
+  destinationVenvDir: string,
+  platform: NodeJS.Platform,
+): Promise<void> => {
+  const executableDir = join(destinationVenvDir, platform === "win32" ? "Scripts" : "bin");
+  const source = Buffer.from(sourceVenvDir, "utf8");
+  const destination = Buffer.from(destinationVenvDir, "utf8");
+  let entries: Dirent[] = [];
+  try {
+    entries = await readdir(executableDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    const scriptPath = join(executableDir, entry.name);
+    const contents = await readFile(scriptPath).catch(() => null);
+    if (!contents || contents.indexOf(source) < 0) {
+      continue;
+    }
+    const rebound = replaceBufferBytes(
+      contents,
+      source,
+      destination,
+      !entry.name.toLowerCase().endsWith(".exe"),
+    );
+    if (rebound) {
+      await writeFile(scriptPath, rebound);
+    }
+  }
+};
+
 const readInstalledPackageVersions = async (pythonPath: string): Promise<Record<string, string>> => {
   const result = await runCapturedUtilityCommand(pythonPath, [
     "-c",
@@ -505,6 +568,7 @@ export const ensureBundledYtDlpBaselineReady = async (
     await rm(paths.root, { recursive: true, force: true });
     await mkdir(paths.root, { recursive: true });
     await cp(staging.venvDir, paths.venvDir, { recursive: true });
+    await rebindCopiedVenvScripts(staging.venvDir, paths.venvDir, options.platform);
     await writeReadinessLast(paths, readiness);
     await rm(stagingRoot, { recursive: true, force: true });
     return paths.entrypoint;

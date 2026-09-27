@@ -121,7 +121,11 @@ const configureSuccessfulMaterialization = (fixture: Fixture) => {
     await mkdir(scriptsDir, { recursive: true });
     await Promise.all([
       writeFile(join(scriptsDir, "python.exe"), "python"),
-      writeFile(join(scriptsDir, "yt-dlp.exe"), "yt-dlp"),
+      writeFile(
+        join(scriptsDir, "yt-dlp.exe"),
+        `#!${join(scriptsDir, "python.exe")}\r\nPK\u0003\u0004launcher-payload`,
+      ),
+      writeFile(join(scriptsDir, "activate"), `VIRTUAL_ENV='${venvDir}'\n`),
     ]);
   });
   return {
@@ -189,6 +193,20 @@ describe("bundled yt-dlp baseline", () => {
     await rm(readinessPath);
     await expect(ensureBundledYtDlpBaselineReady("missing-marker-rebuild", options)).resolves.toBe(entrypoint);
     expect(runUtilityCommandMock).toHaveBeenCalled();
+  });
+
+  it("rebinds a copied venv launcher to the final runtime location", async () => {
+    const fixture = await createFixture();
+    const options = configureSuccessfulMaterialization(fixture);
+
+    const entrypoint = await ensureBundledYtDlpBaselineReady("rebind", options);
+    const finalVenvDir = join(fixture.configDir, "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "baseline", "venv");
+
+    await expect(readFile(entrypoint, "utf8")).resolves.toContain(
+      `#!${join(finalVenvDir, "Scripts", "python.exe")}`,
+    );
+    await expect(readFile(entrypoint, "utf8")).resolves.not.toContain(".staging-");
+    await expect(readFile(join(finalVenvDir, "Scripts", "activate"), "utf8")).resolves.toContain(finalVenvDir);
   });
 
   it("rebuilds a marker-backed cache when its entrypoint or installed package state is corrupt", async () => {
