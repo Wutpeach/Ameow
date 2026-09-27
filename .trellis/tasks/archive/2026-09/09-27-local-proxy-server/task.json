@@ -29,6 +29,6 @@
     "src/pages/SettingsPage.tsx",
     "src/types/electronBridge.ts"
   ],
-  "notes": "Shipped in 668d9b0. Automated verification is green: npm run type-check, npm run lint, npm run docs:build, plus 30 socket-level cases (src/config/localProxyServer.test.ts, electron/localProxyUpstream.test.mts, electron/localProxyServer.test.mts). Two items still need a GUI machine before the next release smoke test: loading a page in a real browser through the proxy, and a live manual-proxy upstream actually receiving CONNECT traffic.",
+  "notes": "Shipped in 668d9b0. Automated verification is green: npm run type-check, npm run lint, npm run docs:build, plus 30 socket-level cases (src/config/localProxyServer.test.ts, electron/localProxyUpstream.test.mts, electron/localProxyServer.test.mts). End-to-end verification against the real internet passed with a direct egress route: an HTTP absolute-form GET, a CONNECT tunnel carrying a TLS handshake, and a SOCKS5 CONNECT to example.com all answered HTTP/1.1 200 (3 connections, 0 failures, and the listener released every socket on stop). The manual-proxy upstream path is covered by injected-dial unit tests rather than by a live upstream. The only remaining check needs a GUI session: loading a page in a real browser through the proxy.",
   "meta": {}
 }
