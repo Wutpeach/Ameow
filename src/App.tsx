@@ -197,6 +197,13 @@ const resolveRenameMediaEnabled = (config: Record<string, unknown>): boolean => 
   return false;
 };
 
+// The main window's pointer-magnetic hover displacement stays ON by default so
+// the shell keeps the pointer-following feel it has always had. The persisted
+// preference exists only so a user who dislikes the wobble can turn it off.
+const resolveMainWindowMagneticHover = (config: Record<string, unknown>): boolean => (
+  typeof config.mainWindowMagneticHover === "boolean" ? config.mainWindowMagneticHover : true
+);
+
 const readClipboardImageDataUrl = async (): Promise<string | null> => {
   const clipboardImage = await desktopClipboard.readImage();
   if (!clipboardImage) {
@@ -359,6 +366,10 @@ function App() {
       ? "win32"
       : "linux";
   const supportsCompactPassthroughHotspot = isWindows;
+  // Persisted appearance preference (on by default, matching the shell's
+  // long-standing feel). Declared before the environment memo so the memo can
+  // read it without a use-before-declaration error.
+  const [mainWindowMagneticHover, setMainWindowMagneticHover] = useState(true);
   const startupWindowEnvironment = {
     protocol: window.location.protocol,
     userAgent: navigator.userAgent,
@@ -402,8 +413,14 @@ function App() {
         }, 100);
       },
       supportsCompactPassthrough: supportsCompactPassthroughHotspot,
+      magneticHover: mainWindowMagneticHover,
     };
-  }, [currentMainWindowPlatform, shouldReduceMotion, supportsCompactPassthroughHotspot]);
+  }, [
+    currentMainWindowPlatform,
+    shouldReduceMotion,
+    supportsCompactPassthroughHotspot,
+    mainWindowMagneticHover,
+  ]);
   const presentation = useMainWindowPresentation({
     startsCompact: !startsExpandedOnLaunch,
     dependencies: presentationDependencies,
@@ -928,6 +945,7 @@ function App() {
       setOutputPath(config.outputPath);
     }
     setRenameMediaOnDownload(resolveRenameMediaEnabled(config));
+    setMainWindowMagneticHover(resolveMainWindowMagneticHover(config));
   }, []);
 
   const refreshRuntimeDependencyStatus = useCallback(async () => {
@@ -1440,6 +1458,14 @@ function App() {
   useEffect(() => {
     const unlisten = desktopEvents.on<{ enabled: boolean }>("rename-setting-changed", (event) => {
       setRenameMediaOnDownload(Boolean(event.payload.enabled));
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // Listen for pointer-follow toggle changes from settings window
+  useEffect(() => {
+    const unlisten = desktopEvents.on<{ enabled: boolean }>("main-window-magnetic-hover-changed", (event) => {
+      setMainWindowMagneticHover(Boolean(event.payload.enabled));
     });
     return () => { unlisten.then(fn => fn()); };
   }, []);
@@ -2712,6 +2738,7 @@ function App() {
         platform: currentMainWindowPlatform,
         isMacOS,
         supportsCompactPassthrough: supportsCompactPassthroughHotspot,
+        magneticHover: mainWindowMagneticHover,
         reducedMotion: Boolean(shouldReduceMotion),
         startsCompact: !startsExpandedOnLaunch,
       }}

@@ -37,6 +37,14 @@ If it conflicts with another tool, choose a less common key combination.
 
 If you want Ameow ready as a desktop collection point all the time, enable launch at startup. If you only download or organize media occasionally, keeping it off is fine.
 
+## Pointer-follow wobble
+
+When enabled, the main window drifts slightly toward the pointer as it moves across the app, which looks like a small wobble.
+
+If that movement is distracting or makes clicking feel less precise, leave it off and the window stays still.
+
+Ameow keeps this effect on by default; turn it off here and the window becomes completely still.
+
 ## App updates
 
 Ameow checks for app updates shortly after startup and continues checking periodically in the background while it is running. When a new version is available, the floating window and settings page show an update entry point.

@@ -317,6 +317,7 @@ function SettingsPage() {
   const [networkProxyState, setNetworkProxyState] =
     useState<NetworkProxyStatePayload | null>(null);
   const [localProxyEnabled, setLocalProxyEnabled] = useState(false);
+  const [mainWindowMagneticHover, setMainWindowMagneticHover] = useState(true);
   const [localProxyPortInput, setLocalProxyPortInput] = useState(String(DEFAULT_LOCAL_PROXY_PORT));
   const [localProxyPortInvalid, setLocalProxyPortInvalid] = useState(false);
   const [localProxyState, setLocalProxyState] =
@@ -422,6 +423,9 @@ function SettingsPage() {
         }
         if (typeof config.localProxyEnabled === "boolean") {
           setLocalProxyEnabled(config.localProxyEnabled);
+        }
+        if (typeof config.mainWindowMagneticHover === "boolean") {
+          setMainWindowMagneticHover(config.mainWindowMagneticHover);
         }
         if (typeof config.localProxyPort === "number") {
           setLocalProxyPortInput(String(config.localProxyPort));
@@ -826,6 +830,25 @@ function SettingsPage() {
     } catch (err) {
       setLocalProxyEnabled(previousEnabled);
       console.error("Failed to toggle the local proxy server:", err);
+    }
+  };
+
+  const toggleMainWindowMagneticHover = async (nextEnabled: boolean) => {
+    if (nextEnabled === mainWindowMagneticHover) {
+      return;
+    }
+
+    const previousEnabled = mainWindowMagneticHover;
+    setMainWindowMagneticHover(nextEnabled);
+
+    try {
+      await saveConfigPatch({ mainWindowMagneticHover: nextEnabled });
+      // The settings window and the main window are separate React trees, so the
+      // main window needs an explicit signal to drop the pointer-follow effect.
+      await desktopEvents.emit("main-window-magnetic-hover-changed", { enabled: nextEnabled });
+    } catch (err) {
+      setMainWindowMagneticHover(previousEnabled);
+      console.error("Failed to toggle the main window magnetic hover effect:", err);
     }
   };
 
@@ -1910,6 +1933,41 @@ function SettingsPage() {
             </span>
           </div>
           <NeonToggle checked={autostart} onChange={toggleAutostart} />
+        </div>
+      </NeonSection>
+
+      <NeonSection title={t("desktop:settings.magneticHover.title")}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            ...getFieldSurfaceStyle(colors, {
+              padding: "10px 12px",
+              height: 0,
+            }),
+          }}
+        >
+          <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+              {t("desktop:settings.magneticHover.title")}
+            </span>
+            <span
+              style={{
+                fontSize: 10.5,
+                lineHeight: 1.4,
+                color: colors.textSecondary,
+                opacity: 0.82,
+              }}
+            >
+              {t("desktop:settings.magneticHover.hint")}
+            </span>
+          </div>
+          <NeonToggle
+            checked={mainWindowMagneticHover}
+            onChange={() => void toggleMainWindowMagneticHover(!mainWindowMagneticHover)}
+          />
         </div>
       </NeonSection>
     </>

@@ -352,6 +352,10 @@
       "title": "Launch at startup",
       "hint": "Open Ameow automatically when you sign in."
     },
+    "magneticHover": {
+      "title": "Pointer-follow wobble",
+      "hint": "The main window drifts slightly toward the pointer as it moves across the app. Turn this off to keep the window still."
+    },
     "rename": {
       "title": "Rename downloaded media",
       "hint": "Apply a naming rule to new downloads instead of keeping the source name.",

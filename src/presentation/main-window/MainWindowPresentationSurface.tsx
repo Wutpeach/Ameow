@@ -96,6 +96,12 @@ export type MainWindowPresentationSurfaceProps = {
     platform: NodeJS.Platform;
     isMacOS: boolean;
     supportsCompactPassthrough: boolean;
+    /**
+     * Persisted appearance preference, ON by default: this displacement is the
+     * shell's long-standing pointer-following feel, and the flag only exists so
+     * a user can turn the wobble off.
+     */
+    magneticHover: boolean;
     reducedMotion: boolean;
     startsCompact: boolean;
   };
@@ -615,11 +621,13 @@ export function MainWindowPresentationSurface({
     }
   }, [applyPanelHoverInput, dispatch, panelViewportSize, pointerField]);
 
-  // Magnetic eligibility: settled full shell only (full/collapsePending are
-  // mode "full" with no transition in flight; expanding has an epoch), and
-  // never under reduced motion or while the drag lock holds.
+  // Magnetic eligibility: the persisted preference is on by default, and the
+  // effect still requires a settled full shell (full/collapsePending are mode
+  // "full" with no transition in flight; expanding has an epoch), never under
+  // reduced motion, and never while the drag lock holds.
   const magneticEnabled = (
-    projections.visual.mode === "full"
+    environment.magneticHover
+    && projections.visual.mode === "full"
     && projections.visual.transitionEpoch === null
     && !environment.reducedMotion
     && !state.locks.drag

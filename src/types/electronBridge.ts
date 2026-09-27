@@ -60,6 +60,7 @@ export type AmeowAppEvent =
   | "devmode-changed"
   | "language-changed"
   | "local-proxy-state-changed"
+  | "main-window-magnetic-hover-changed"
   | "network-proxy-state-changed"
   | "output-path-changed"
   | "rename-setting-changed"
@@ -85,6 +86,7 @@ export type AmeowAppEvent =
 export type AmeowRendererEvent =
   | "app-update-preference-changed"
   | "context-menu-closed"
+  | "main-window-magnetic-hover-changed"
   | "output-path-changed"
   | "rename-setting-changed"
   | "settings-page-requested"
