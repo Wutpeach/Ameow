@@ -22,6 +22,7 @@ import {
   resolvePinnedManagedPythonPackage,
   selectDenoRuntimeArtifactSpec,
   selectFfmpegRuntimeArtifactSpec,
+  versionProbeFlags,
   type RuntimeBootstrapExecutionContext,
 } from "./managedRuntimeBootstrap.mjs";
 
@@ -457,5 +458,18 @@ describe("managed runtime bootstrap helpers", () => {
       delete process.env.NO_PROXY;
       process.env = previousEnv;
     }
+  });
+
+  it("probes ffmpeg and ffprobe with the single-dash version flag", () => {
+    expect(versionProbeFlags("C:/ameow/runtimes/ffmpeg/x86_64-pc-windows-msvc/real/ffmpeg.exe")).toEqual([
+      "-version",
+      "--version",
+    ]);
+    expect(versionProbeFlags("/opt/ameow/bin/FFPROBE.EXE")).toEqual(["-version", "--version"]);
+    expect(versionProbeFlags("C:/ameow/runtimes/deno/x86_64-pc-windows-msvc/real/deno.exe")).toEqual([
+      "--version",
+      "-version",
+    ]);
+    expect(versionProbeFlags("/usr/bin/python3")).toEqual(["--version", "-version"]);
   });
 });

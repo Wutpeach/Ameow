@@ -407,13 +407,35 @@ const ensureManagedPythonVirtualenvReady = async (
   await runUtilityCommand(pythonPath, managedPythonVirtualenvArgs(paths.venvDir));
 };
 
+const SINGLE_DASH_VERSION_BINARIES = new Set(["ffmpeg", "ffprobe"]);
+
+// FFmpeg and ffprobe only accept the single-dash `-version` flag. Probing them with
+// `--version` terminates the process with a non-zero exit code, which used to surface
+// as an execution failure for every download on a machine with the managed ffmpeg build.
+export const versionProbeFlags = (command: string): string[] => {
+  const executable = basename(command).replace(/\.exe$/i, "").toLowerCase();
+  return SINGLE_DASH_VERSION_BINARIES.has(executable)
+    ? ["-version", "--version"]
+    : ["--version", "-version"];
+};
+
 export const readCommandVersion = async (command: string): Promise<string> => {
-  const { stdout, stderr } = await runCapturedUtilityCommand(command, ["--version"]);
-  const firstLine = (stdout || stderr)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-  return firstLine ?? "unknown";
+  let lastError: unknown = null;
+  for (const flag of versionProbeFlags(command)) {
+    try {
+      const { stdout, stderr } = await runCapturedUtilityCommand(command, [flag]);
+      const firstLine = (stdout || stderr)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+      return firstLine ?? "unknown";
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Unable to read the version of ${command}`);
 };
 
 const writeManagedPythonRuntimeMetadata = async (
