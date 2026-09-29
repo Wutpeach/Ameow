@@ -373,6 +373,11 @@ function SettingsPage() {
     useState<Partial<Record<string, SiteSessionState>>>({});
   const [siteSessionErrors, setSiteSessionErrors] =
     useState<Partial<Record<string, string | null>>>({});
+  // Action outcomes live apart from load errors on purpose: the loader rewrites
+  // the load-error map on every refresh, which used to erase the failure of the
+  // action the user had just triggered before it could ever be seen.
+  const [siteSessionActionErrors, setSiteSessionActionErrors] =
+    useState<Partial<Record<string, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: string; action: SiteSessionAction } | null>(null);
   const [recentlySyncedSiteId, setRecentlySyncedSiteId] = useState<string | null>(null);
@@ -936,8 +941,12 @@ function SettingsPage() {
     return () => { unlisten.then(fn => fn()); };
   }, [navigateSettingsPage]);
 
-  const setSiteSessionError = useCallback((siteId: string, error: string | null) => {
-    setSiteSessionErrors((current) => ({
+  /**
+   * Records the outcome of a user-triggered site-session action. Kept separate
+   * from the loader's error map so a refresh cannot clear it.
+   */
+  const setSiteSessionActionError = useCallback((siteId: string, error: string | null) => {
+    setSiteSessionActionErrors((current) => ({
       ...current,
       [siteId]: error,
     }));
@@ -1032,7 +1041,7 @@ function SettingsPage() {
       ? "sync_site_session_from_extension"
       : "clear_site_session";
 
-    setSiteSessionError(siteId, null);
+    setSiteSessionActionError(siteId, null);
     setBusySiteSessionAction({ siteId, action });
     try {
       const sessionState = await desktopCommands.invoke<SiteSessionState>(command, { siteId });
@@ -1040,7 +1049,7 @@ function SettingsPage() {
         ...current,
         [siteId]: sessionState,
       }));
-      setSiteSessionError(siteId, null);
+      setSiteSessionActionError(siteId, null);
       if (action === "sync") {
         // A sync can succeed while leaving the visible state unchanged (still no
         // credentials), so confirm the attempt itself instead of relying on the
@@ -1056,7 +1065,7 @@ function SettingsPage() {
       }
     } catch (err) {
       console.error(`Failed to ${action} site session capture:`, err);
-      setSiteSessionError(
+      setSiteSessionActionError(
         siteId,
         summarizeAppUpdateError(err) ?? t(`desktop:settings.siteSessions.errors.${action}`),
       );
@@ -1064,7 +1073,7 @@ function SettingsPage() {
     } finally {
       setBusySiteSessionAction(null);
     }
-  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionError, t]);
+  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionActionError, t]);
 
   const handleAppUpdateCheck = useCallback(async () => {
     if (appUpdatePhase === "checking" || appUpdatePhase === "downloading" || appUpdatePhase === "installing") {
@@ -1395,14 +1404,14 @@ function SettingsPage() {
   };
 
   const siteSessionError = siteSessionRegistryEntries
-    .map((site) => siteSessionErrors[site.siteId])
+    .map((site) => siteSessionActionErrors[site.siteId] ?? siteSessionErrors[site.siteId])
     .find((error): error is string => Boolean(error));
   // One clock reading for every row so the ages stay consistent within a render.
   const siteSessionNowMs = Date.now();
   const siteLoginBadges: SiteLoginBadgeModel[] = siteSessionRegistryEntries.map((site) => {
     const state = siteSessionStates[site.siteId];
-    const error = siteSessionErrors[site.siteId];
-    const inlineError = error ?? state?.lastError ?? null;
+    const actionError = siteSessionActionErrors[site.siteId];
+    const inlineError = actionError ?? siteSessionErrors[site.siteId] ?? state?.lastError ?? null;
     const availability = state?.availability ?? "missing";
     const Logo = SITE_SESSION_LOGOS[site.icon.key ?? site.siteId];
     const statusKey = inlineError ? "expired" : availability === "ready" ? "ready" : "missing";
