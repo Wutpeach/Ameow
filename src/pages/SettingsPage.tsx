@@ -1065,10 +1065,10 @@ function SettingsPage() {
       }
     } catch (err) {
       console.error(`Failed to ${action} site session capture:`, err);
-      setSiteSessionActionError(
-        siteId,
-        summarizeAppUpdateError(err) ?? t(`desktop:settings.siteSessions.errors.${action}`),
-      );
+      // The raw IPC error ("Error invoking remote method ...") tells the user
+      // nothing they can act on, so the row shows this action's guidance instead.
+      // The technical detail stays in the console.error above.
+      setSiteSessionActionError(siteId, t(`desktop:settings.siteSessions.errors.${action}`));
       await loadSiteSessionPanelState();
     } finally {
       setBusySiteSessionAction(null);
