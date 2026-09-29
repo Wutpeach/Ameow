@@ -74,7 +74,8 @@ This is often not a bad link. It is often a proxy-environment mismatch:
 
 - the browser is going through one proxy path, but the desktop download path is not;
 - the proxy tool only handles the browser and not Ameow or its downloader subprocesses;
-- domestic sites such as Bilibili still work, but YouTube exposes the proxy mismatch immediately as format-probe failures, explicit failures, or a task stuck in `Preparing`.
+- domestic sites such as Bilibili still work, but YouTube exposes the proxy mismatch immediately as format-probe failures, explicit failures, or a task stuck in `Preparing`;
+- parsing already succeeded (formats or duration are visible) but the media download returns `403`: the current proxy node or egress IP has been flagged by YouTube. Switching node or route usually restores it immediately, and it is unrelated to login state.
 
 The first recommendation is still to let your proxy tool own network routing, because the browser, Ameow, pip, and yt-dlp / gallery-dl may contact different hosts. TUN, global, VPN, or system-proxy takeover mode is usually the easiest way to keep the path consistent.
 
