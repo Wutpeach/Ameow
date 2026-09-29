@@ -249,6 +249,7 @@
       "syncedButton": "已同步",
       "syncedFromAt": "已从 {{source}} 同步 · {{age}}",
       "syncedDetail": "已从 {{source}} 同步 · {{count}} cookies · {{age}}",
+      "syncRecoveryHint": "同步依赖浏览器扩展：先在浏览器里打开 Ameow 扩展并确认显示已连接，在同一个浏览器登录该站点，然后回到这里重新点「同步」。",
       "age": {
         "justNow": "刚刚",
         "minutes": "{{count}} 分钟前",

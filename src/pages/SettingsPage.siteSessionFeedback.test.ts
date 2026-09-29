@@ -25,4 +25,10 @@ describe("settings site-session sync feedback", () => {
   it("renders a per-row error instead of only the page-level summary", () => {
     expect(settingsPageSource).toContain("site.inlineError");
   });
+
+  it("keeps the page-level line actionable instead of repeating the row error", () => {
+    expect(settingsPageSource).toContain("siteSessions.syncRecoveryHint");
+    // The summary must not render the raw error again; the row already carries it.
+    expect(settingsPageSource).not.toContain("{siteSessionError}\n");
+  });
 });

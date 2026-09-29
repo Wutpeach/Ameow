@@ -249,6 +249,7 @@
       "syncedButton": "Synced",
       "syncedFromAt": "Synced from {{source}} · {{age}}",
       "syncedDetail": "Synced from {{source}} · {{count}} cookies · {{age}}",
+      "syncRecoveryHint": "Syncing needs the browser extension: open the Ameow extension in your browser and confirm it reports connected, log in to that site in the same browser, then press Sync here again.",
       "age": {
         "justNow": "just now",
         "minutes": "{{count}} min ago",

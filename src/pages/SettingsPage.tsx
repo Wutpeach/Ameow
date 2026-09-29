@@ -2338,7 +2338,7 @@ function SettingsPage() {
 
           {siteSessionError ? (
             <NeonHint tone="danger" size="sm">
-              {siteSessionError}
+              {t("desktop:settings.siteSessions.syncRecoveryHint")}
             </NeonHint>
           ) : null}
         </div>
