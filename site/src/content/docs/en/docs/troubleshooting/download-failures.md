@@ -74,11 +74,14 @@ This is often not a bad link. It is often a proxy-environment mismatch:
 
 - the browser is going through one proxy path, but the desktop download path is not;
 - the proxy tool only handles the browser and not Ameow or its downloader subprocesses;
-- domestic sites such as Bilibili still work, but YouTube exposes the proxy mismatch immediately as format-probe failures, explicit failures, or a task stuck in `Preparing`.
+- domestic sites such as Bilibili still work, but YouTube exposes the proxy mismatch immediately as format-probe failures, explicit failures, or a task stuck in `Preparing`;
+- parsing already succeeded (formats or duration are visible) but the media download returns `403`: the current proxy node or egress IP has been flagged by YouTube. Switching node or route usually restores it immediately, and it is unrelated to login state.
 
 The first recommendation is still to let your proxy tool own network routing, because the browser, Ameow, pip, and yt-dlp / gallery-dl may contact different hosts. TUN, global, VPN, or system-proxy takeover mode is usually the easiest way to keep the path consistent.
 
 Ameow also has a low-interaction manual proxy setting: open **Settings → System & Support → Network proxy**, choose **Manual proxy**, and enter an HTTP(S) proxy without credentials or paths, such as `http://127.0.0.1:7890`. Once the format is valid, Ameow saves and applies it automatically. Ameow checks fixed infrastructure targets such as GitHub, Deno, and PyPI. If the manual proxy is unavailable, Ameow automatically falls back to system proxy behavior.
+
+That direction borrows your proxy inside Ameow. The reverse also exists: to let a browser or another program borrow the route Ameow already resolved, open **Settings → System & Support → Local proxy**. Ameow listens on a `127.0.0.1` port serving HTTP and SOCKS5 together, and outbound traffic still follows the precedence described below. It binds the loopback address only, so other devices on your network cannot reach it.
 
 Every download task resolves one network route with a single precedence: manual proxy > system proxy (resolved per target URL) > environment-variable proxy > direct. The resolved route is applied to the yt-dlp / gallery-dl subprocesses (environment proxy variables are resolved for the target URL too, and a `NO_PROXY` match explicitly goes direct); downloaders no longer inherit unselected ambient proxy variables. If the system result contains multiple proxy candidates or malformed/unsupported entries, Ameow does not guess a proxy — it emits an explicit unsupported diagnostic and stops that download. Electron cannot tell whether a single-candidate result came from a PAC script or a fixed system route; either way Ameow treats it as one system route for the entry URL and does not claim the same decision for other hosts. System/environment routes apply to the canonical entry URL only and do not guarantee that downstream hosts such as media CDNs take the same route.
 

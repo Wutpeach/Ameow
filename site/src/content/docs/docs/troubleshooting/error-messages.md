@@ -67,6 +67,7 @@ description: 按用户看到的错误文字、状态和下载错误码定位 Ame
 | --- | --- | --- |
 | `ERROR: [BiliBili] ... Unable to download JSON metadata: HTTP Error 412 Precondition Failed` | BiliBili 拒绝了元数据请求。可能和登录态/Cookie、站点风控、链接状态、地区限制、请求头或 yt-dlp 规则变化有关 | 见下方 [BiliBili 412](#bilibili-http-error-412-precondition-failed) |
 | `HTTP Error 403: Forbidden` | 站点拒绝访问。常见原因是未登录、Cookie 失效、地区限制、代理环境不一致或站点规则变化 | 在浏览器确认同一页面可播放；通过扩展从页面重新发送 |
+| `unable to download video data: HTTP Error 403: Forbidden` | 信息解析已经成功，但下载媒体数据这一步被拒。通常是当前代理节点或出口 IP 被站点标记，与登录态无关 | 换一个代理节点或线路后重试；Ameow 会把这类失败归为网络与代理问题 |
 | `HTTP Error 404`、`Private video`、`video unavailable`、`not available in your country` | 内容不可访问、私密、下架或地区不可用 | 先确认浏览器里能否访问；浏览器也不可访问时通常不是 Ameow 能修复的问题 |
 | `HTTP Error 416: Requested Range Not Satisfiable` | 续传范围不匹配，常见于旧的 `.part` 临时文件或站点返回范围变化 | 清理同名残留临时文件后重试；仍失败时反馈完整错误 |
 | `429`、`Too Many Requests`、`rate limit` | 请求太频繁，被站点限流 | 等待一段时间再试，减少连续重试；必要时刷新登录态 |

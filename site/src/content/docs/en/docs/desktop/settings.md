@@ -37,6 +37,14 @@ If it conflicts with another tool, choose a less common key combination.
 
 If you want Ameow ready as a desktop collection point all the time, enable launch at startup. If you only download or organize media occasionally, keeping it off is fine.
 
+## Pointer-follow wobble
+
+When enabled, the main window drifts slightly toward the pointer as it moves across the app, which looks like a small wobble.
+
+If that movement is distracting or makes clicking feel less precise, leave it off and the window stays still.
+
+Ameow keeps this effect on by default; turn it off here and the window becomes completely still.
+
 ## App updates
 
 Ameow checks for app updates shortly after startup and continues checking periodically in the background while it is running. When a new version is available, the floating window and settings page show an update entry point.
@@ -83,3 +91,25 @@ Two modes:
 <Aside type="caution" title="When do you need manual proxy?">
 	If YouTube plays in your browser but Ameow fails to download, it is usually because the browser uses a proxy that Ameow does not reach. Switch to manual proxy and enter your proxy address. See [Download Failures](../troubleshooting/download-failures/) for more.
 </Aside>
+
+## Local proxy
+
+The local proxy is the reverse arrangement: instead of Ameow using a proxy, other programs can use Ameow. Ameow opens a port on the loopback address, you point a browser or another client at it, and Ameow takes over the outbound connection.
+
+The setting lives under "System & Support → Local Proxy." It is off by default, with a default port of `21080`.
+
+- HTTP and SOCKS5 share one port, so clients can use whichever protocol they support.
+- It only listens on `127.0.0.1`; other devices on the same network cannot reach it.
+- Outbound traffic still follows the "Network proxy" setting above: manual > system > environment > direct. The local proxy never picks a route itself.
+- Do not point "Network proxy" back at the local proxy's own address: that loops. Ameow refuses such a self-route and says so in the log instead of dialing itself repeatedly.
+
+<Aside type="note" title="How it differs from Network proxy">
+	"Network proxy" decides how Ameow itself reaches the internet; "Local proxy" decides whether other programs can borrow Ameow's route. Both share the same outbound setting.
+</Aside>
+
+Typical uses:
+
+- Set your browser's HTTP proxy to `127.0.0.1:21080` so the browser and Ameow use exactly the same network path.
+- Tools that only speak SOCKS5 can use `socks5://127.0.0.1:21080`.
+
+If the port is already taken, the status line reports the failure — pick another port between 1024 and 65535.

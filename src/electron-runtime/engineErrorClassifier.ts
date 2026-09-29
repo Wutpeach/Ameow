@@ -12,14 +12,33 @@ import type {
  * attached to the same error context by the engine network adapters.
  */
 
-const AUTH_REQUIRED_PATTERNS = [
+/**
+ * Explicit sign-in/cookie wording. A real auth wall always names it, which is
+ * what separates it from a bare status code.
+ */
+const EXPLICIT_AUTH_PATTERNS = [
   /\bcookies?\b/i,
   /\blog(?:in|ged in)\b/i,
   /\bsign(?:ed)? in\b/i,
-  /\bauth(?:entication|orization)?\b/i,
   /\brequires?\s+(?:login|cookies|authentication|authorization)\b/i,
+];
+
+const AUTH_REQUIRED_PATTERNS = [
+  ...EXPLICIT_AUTH_PATTERNS,
+  /\bauth(?:entication|orization)?\b/i,
   /\b403\b/,
   /\bforbidden\b/i,
+];
+
+/**
+ * yt-dlp reports a bare media-data rejection when the egress IP is flagged:
+ * `ERROR: unable to download video data: HTTP Error 403: Forbidden`. That is an
+ * egress problem, not a missing login — reading it as an auth wall sends the
+ * user to re-sync a login that was never the problem. It only wins while no
+ * explicit sign-in wording appears alongside it.
+ */
+const MEDIA_DATA_FORBIDDEN_PATTERNS = [
+  /\bunable to download video data\b[^\n]*\b(?:403|forbidden)\b/i,
 ];
 
 const RETRY_SAME_ENGINE_PATTERNS = [
@@ -83,6 +102,12 @@ export const classifyEngineFailure = (
   descriptor: EngineFailureDescriptor,
 ): DownloadFailureClassification => {
   const evidence = [descriptor.message, serializeContext(descriptor.context)].join("\n");
+  if (
+    textMatchesAny(evidence, MEDIA_DATA_FORBIDDEN_PATTERNS)
+    && !textMatchesAny(evidence, EXPLICIT_AUTH_PATTERNS)
+  ) {
+    return "retry_same_engine";
+  }
   if (textMatchesAny(evidence, AUTH_REQUIRED_PATTERNS)) {
     return "auth_required";
   }
@@ -100,6 +125,12 @@ export const classifyEngineDiagnosticCategory = (
   descriptor: EngineFailureDescriptor,
 ): DownloadDiagnosticCategory => {
   const evidence = [descriptor.message, serializeContext(descriptor.context)].join("\n");
+  if (
+    textMatchesAny(evidence, MEDIA_DATA_FORBIDDEN_PATTERNS)
+    && !textMatchesAny(evidence, EXPLICIT_AUTH_PATTERNS)
+  ) {
+    return "network";
+  }
   if (textMatchesAny(evidence, AUTH_REQUIRED_PATTERNS)) {
     return "authentication_required";
   }

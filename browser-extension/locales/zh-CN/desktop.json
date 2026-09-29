@@ -221,6 +221,20 @@
         "fallback": "手动代理不可用，Ameow 正在使用系统代理。"
       }
     },
+    "localProxy": {
+      "title": "本地代理",
+      "hint": "在本机回环地址上开一个端口，让浏览器或其他客户端把它当作代理服务器。出网方向沿用上面的网络代理设置。",
+      "enable": "启用本地代理",
+      "port": "本地代理端口",
+      "portLabel": "端口（1024-65535）",
+      "endpoints": "HTTP 代理：{{http}}　SOCKS5 代理：{{socks}}",
+      "status": {
+        "stopped": "未开启。开启后只监听本机 127.0.0.1，局域网设备无法访问。",
+        "running": "正在监听 {{port}} 端口，HTTP 与 SOCKS5 共用同一个端口。",
+        "failed": "本地代理启动失败：{{message}}",
+        "invalid": "端口需要是 1024 到 65535 之间的整数。"
+      }
+    },
     "outputFolder": {
       "title": "输出文件夹",
       "choose": "选择文件夹...",
@@ -231,6 +245,17 @@
       "hint": "需要登录 Cookies 的站点会显示在这里。点击站点徽章即可开始、确认或取消会话捕获。",
       "extensionSyncHint": "从你的浏览器扩展同步",
       "syncedFrom": "已从 {{source}} 同步",
+      "syncingButton": "同步中",
+      "syncedButton": "已同步",
+      "syncedFromAt": "已从 {{source}} 同步 · {{age}}",
+      "syncedDetail": "已从 {{source}} 同步 · {{count}} cookies · {{age}}",
+      "syncRecoveryHint": "同步依赖浏览器扩展：先在浏览器里打开 Ameow 扩展并确认显示已连接，在同一个浏览器登录该站点，然后回到这里重新点「同步」。",
+      "age": {
+        "justNow": "刚刚",
+        "minutes": "{{count}} 分钟前",
+        "hours": "{{count}} 小时前",
+        "days": "{{count}} 天前"
+      },
       "capturePreparing": "正在打开 {{site}} 的官方登录窗口。",
       "captureAwaiting": "{{site}} 登录窗口已打开，完成登录后可确认保存。",
       "lastUpdated": "{{site}} 最近一次刷新：{{time}}",
@@ -337,6 +362,10 @@
     "launchAtStartup": {
       "title": "开机启动",
       "hint": "登录系统后自动打开 Ameow。"
+    },
+    "magneticHover": {
+      "title": "鼠标跟随晃动",
+      "hint": "鼠标在主窗口上移动时，窗口会朝指针方向轻微位移。关闭后主窗口保持静止。"
     },
     "rename": {
       "title": "重命名下载媒体",

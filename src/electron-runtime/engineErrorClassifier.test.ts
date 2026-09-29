@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { classifyEngineFailure } from "./engineErrorClassifier.js";
+import {
+  classifyEngineDiagnosticCategory,
+  classifyEngineFailure,
+} from "./engineErrorClassifier.js";
 
 describe("classifyEngineFailure", () => {
   it("classifies auth evidence as auth_required", () => {
@@ -48,5 +51,31 @@ describe("classifyEngineFailure", () => {
         stderrTail: ["Connection timed out while fetching metadata"],
       },
     })).toBe("retry_same_engine");
+  });
+
+  it("reads a bare media-data 403 as an egress problem, not an auth wall", () => {
+    const mediaDataForbidden = {
+      message: "yt-dlp exited with code 1",
+      context: {
+        stderrTail: ["ERROR: unable to download video data: HTTP Error 403: Forbidden"],
+      },
+    };
+
+    expect(classifyEngineFailure(mediaDataForbidden)).toBe("retry_same_engine");
+    expect(classifyEngineDiagnosticCategory(mediaDataForbidden)).toBe("network");
+
+    // A real auth wall in the same output still outranks the bare status code.
+    const authWall = {
+      message: "yt-dlp exited with code 1",
+      context: {
+        stderrTail: [
+          "ERROR: unable to download video data: HTTP Error 403: Forbidden",
+          "ERROR: Sign in to confirm you're not a bot",
+        ],
+      },
+    };
+
+    expect(classifyEngineFailure(authWall)).toBe("auth_required");
+    expect(classifyEngineDiagnosticCategory(authWall)).toBe("authentication_required");
   });
 });

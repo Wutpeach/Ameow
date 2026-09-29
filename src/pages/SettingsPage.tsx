@@ -60,6 +60,11 @@ import {
   type NetworkProxyStatePayload,
 } from "../config/networkProxy";
 import {
+  DEFAULT_LOCAL_PROXY_PORT,
+  isValidLocalProxyPort,
+  type LocalProxyServerState,
+} from "../config/localProxyServer";
+import {
   APP_UPDATE_PRERELEASE_CONFIG_KEY,
   parseDesktopAppConfig,
   resolveReceivePrereleaseUpdates,
@@ -100,6 +105,12 @@ type SiteLoginBadgeModel = {
   label: string;
   statusLabel: string;
   detailLabel: string | null;
+  /** Per-row outcome of the last action; the page-level summary stays separate. */
+  inlineError: string | null;
+  /** This row's own sync is in flight. */
+  isSyncing: boolean;
+  /** This row's sync just finished; the label is a short-lived confirmation. */
+  isRecentlySynced: boolean;
   tone: SiteLoginBadgeTone;
   disabled: boolean;
   canSync: boolean;
@@ -142,6 +153,45 @@ const formatSiteSessionSyncSource = (state: SiteSessionState | undefined): strin
   }
 
   return source.extensionId ? "browser extension" : null;
+};
+
+/** How long the action button keeps its success label after a completed sync. */
+const SITE_SESSION_SYNCED_LABEL_MS = 2200;
+
+/** Ages below this read as "just now" instead of a counted unit. */
+const SITE_SESSION_JUST_NOW_MS = 60_000;
+
+type SiteSessionTranslator = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Relative age of a session snapshot. Returns null when the site has never
+ * synced, so the caller can fall back to the neutral extension hint.
+ */
+const formatSiteSessionAge = (
+  updatedAtMs: number | null | undefined,
+  t: SiteSessionTranslator,
+  nowMs: number,
+): string | null => {
+  if (typeof updatedAtMs !== "number" || !Number.isFinite(updatedAtMs)) {
+    return null;
+  }
+
+  const elapsedMs = Math.max(0, nowMs - updatedAtMs);
+  if (elapsedMs < SITE_SESSION_JUST_NOW_MS) {
+    return t("desktop:settings.siteSessions.age.justNow");
+  }
+
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) {
+    return t("desktop:settings.siteSessions.age.minutes", { count: minutes });
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return t("desktop:settings.siteSessions.age.hours", { count: hours });
+  }
+
+  return t("desktop:settings.siteSessions.age.days", { count: Math.floor(hours / 24) });
 };
 
 const SHORTCUT_KEY_ALIASES: Record<string, string> = {
@@ -311,14 +361,26 @@ function SettingsPage() {
   const [networkProxySavePending, setNetworkProxySavePending] = useState(false);
   const [networkProxyState, setNetworkProxyState] =
     useState<NetworkProxyStatePayload | null>(null);
+  const [localProxyEnabled, setLocalProxyEnabled] = useState(false);
+  const [mainWindowMagneticHover, setMainWindowMagneticHover] = useState(true);
+  const [localProxyPortInput, setLocalProxyPortInput] = useState(String(DEFAULT_LOCAL_PROXY_PORT));
+  const [localProxyPortInvalid, setLocalProxyPortInvalid] = useState(false);
+  const [localProxyState, setLocalProxyState] =
+    useState<LocalProxyServerState | null>(null);
   const [siteSessionRegistryEntries, setSiteSessionRegistryEntries] =
     useState<SiteSessionRegistryEntry[]>([]);
   const [siteSessionStates, setSiteSessionStates] =
     useState<Partial<Record<string, SiteSessionState>>>({});
   const [siteSessionErrors, setSiteSessionErrors] =
     useState<Partial<Record<string, string | null>>>({});
+  // Action outcomes live apart from load errors on purpose: the loader rewrites
+  // the load-error map on every refresh, which used to erase the failure of the
+  // action the user had just triggered before it could ever be seen.
+  const [siteSessionActionErrors, setSiteSessionActionErrors] =
+    useState<Partial<Record<string, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: string; action: SiteSessionAction } | null>(null);
+  const [recentlySyncedSiteId, setRecentlySyncedSiteId] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<SettingsPageId>(resolveInitialSettingsPage);
   const [settingsNavigationDirection, setSettingsNavigationDirection] =
     useState<SettingsNavigationDirection>("forward");
@@ -337,6 +399,8 @@ function SettingsPage() {
   const [hoveredSavingAction, setHoveredSavingAction] = useState<"outputFolder" | null>(null);
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const networkProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const siteSessionSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
 
   const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
@@ -408,6 +472,15 @@ function SettingsPage() {
           setNetworkProxyInput(config.networkProxyUrl);
           setNetworkProxyInputInvalid(parsedProxyMode === "manual"
             && !normalizeManualNetworkProxyUrl(config.networkProxyUrl));
+        }
+        if (typeof config.localProxyEnabled === "boolean") {
+          setLocalProxyEnabled(config.localProxyEnabled);
+        }
+        if (typeof config.mainWindowMagneticHover === "boolean") {
+          setMainWindowMagneticHover(config.mainWindowMagneticHover);
+        }
+        if (typeof config.localProxyPort === "number") {
+          setLocalProxyPortInput(String(config.localProxyPort));
         }
         setReceivePrereleaseUpdates(resolveReceivePrereleaseUpdates(config));
       } catch (err) {
@@ -484,7 +557,29 @@ function SettingsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    void desktopCommands.invoke<LocalProxyServerState>("get_local_proxy_state")
+      .then((state) => {
+        setLocalProxyState(state);
+      })
+      .catch((err) => {
+        console.error("Failed to load local proxy state:", err);
+      });
 
+    let cleanup: (() => void) | null = null;
+    void desktopEvents.on<LocalProxyServerState>(
+      "local-proxy-state-changed",
+      (event) => {
+        setLocalProxyState(event.payload);
+      },
+    ).then((unlisten) => {
+      cleanup = unlisten;
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
 
   useEffect(() => {
     const unlisten = desktopEvents.on<{ path: string }>("output-path-changed", (event) => {
@@ -767,6 +862,67 @@ function SettingsPage() {
     }, NETWORK_PROXY_SAVE_DEBOUNCE_MS);
   };
 
+  const clearLocalProxySaveTimer = () => {
+    if (localProxySaveTimerRef.current) {
+      clearTimeout(localProxySaveTimerRef.current);
+      localProxySaveTimerRef.current = null;
+    }
+  };
+
+  const toggleLocalProxyEnabled = async (nextEnabled: boolean) => {
+    if (nextEnabled === localProxyEnabled) {
+      return;
+    }
+
+    const previousEnabled = localProxyEnabled;
+    setLocalProxyEnabled(nextEnabled);
+
+    try {
+      await saveConfigPatch({ localProxyEnabled: nextEnabled });
+    } catch (err) {
+      setLocalProxyEnabled(previousEnabled);
+      console.error("Failed to toggle the local proxy server:", err);
+    }
+  };
+
+  const toggleMainWindowMagneticHover = async (nextEnabled: boolean) => {
+    if (nextEnabled === mainWindowMagneticHover) {
+      return;
+    }
+
+    const previousEnabled = mainWindowMagneticHover;
+    setMainWindowMagneticHover(nextEnabled);
+
+    try {
+      await saveConfigPatch({ mainWindowMagneticHover: nextEnabled });
+      // The settings window and the main window are separate React trees, so the
+      // main window needs an explicit signal to drop the pointer-follow effect.
+      await desktopEvents.emit("main-window-magnetic-hover-changed", { enabled: nextEnabled });
+    } catch (err) {
+      setMainWindowMagneticHover(previousEnabled);
+      console.error("Failed to toggle the main window magnetic hover effect:", err);
+    }
+  };
+
+  const handleLocalProxyPortChange = (value: string) => {
+    setLocalProxyPortInput(value);
+    clearLocalProxySaveTimer();
+
+    const candidate = Number(value.trim());
+    if (!isValidLocalProxyPort(candidate)) {
+      setLocalProxyPortInvalid(value.trim().length > 0);
+      return;
+    }
+
+    setLocalProxyPortInvalid(false);
+    localProxySaveTimerRef.current = setTimeout(() => {
+      localProxySaveTimerRef.current = null;
+      void saveConfigPatch({ localProxyPort: candidate }).catch((err) => {
+        console.error("Failed to save the local proxy port:", err);
+      });
+    }, NETWORK_PROXY_SAVE_DEBOUNCE_MS);
+  };
+
   const navigateSettingsPage = useCallback((nextPage: SettingsPageId) => {
     setHoveredHubDestination(null);
     setSettingsNavigationDirection(nextPage === "hub" ? "back" : "forward");
@@ -785,8 +941,12 @@ function SettingsPage() {
     return () => { unlisten.then(fn => fn()); };
   }, [navigateSettingsPage]);
 
-  const setSiteSessionError = useCallback((siteId: string, error: string | null) => {
-    setSiteSessionErrors((current) => ({
+  /**
+   * Records the outcome of a user-triggered site-session action. Kept separate
+   * from the loader's error map so a refresh cannot clear it.
+   */
+  const setSiteSessionActionError = useCallback((siteId: string, error: string | null) => {
+    setSiteSessionActionErrors((current) => ({
       ...current,
       [siteId]: error,
     }));
@@ -844,6 +1004,13 @@ function SettingsPage() {
     void loadSiteSessionPanelState();
   }, [loadSiteSessionPanelState]);
 
+  useEffect(() => () => {
+    if (siteSessionSyncedTimerRef.current !== null) {
+      clearTimeout(siteSessionSyncedTimerRef.current);
+      siteSessionSyncedTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     let cleanup: (() => void) | null = null;
     void desktopEvents.on<SiteSessionStateChangedPayload>(
@@ -874,7 +1041,7 @@ function SettingsPage() {
       ? "sync_site_session_from_extension"
       : "clear_site_session";
 
-    setSiteSessionError(siteId, null);
+    setSiteSessionActionError(siteId, null);
     setBusySiteSessionAction({ siteId, action });
     try {
       const sessionState = await desktopCommands.invoke<SiteSessionState>(command, { siteId });
@@ -882,18 +1049,31 @@ function SettingsPage() {
         ...current,
         [siteId]: sessionState,
       }));
-      setSiteSessionError(siteId, null);
+      setSiteSessionActionError(siteId, null);
+      if (action === "sync") {
+        // A sync can succeed while leaving the visible state unchanged (still no
+        // credentials), so confirm the attempt itself instead of relying on the
+        // row quietly looking the same afterwards.
+        setRecentlySyncedSiteId(siteId);
+        if (siteSessionSyncedTimerRef.current !== null) {
+          clearTimeout(siteSessionSyncedTimerRef.current);
+        }
+        siteSessionSyncedTimerRef.current = setTimeout(() => {
+          siteSessionSyncedTimerRef.current = null;
+          setRecentlySyncedSiteId(null);
+        }, SITE_SESSION_SYNCED_LABEL_MS);
+      }
     } catch (err) {
       console.error(`Failed to ${action} site session capture:`, err);
-      setSiteSessionError(
-        siteId,
-        summarizeAppUpdateError(err) ?? t(`desktop:settings.siteSessions.errors.${action}`),
-      );
+      // The raw IPC error ("Error invoking remote method ...") tells the user
+      // nothing they can act on, so the row shows this action's guidance instead.
+      // The technical detail stays in the console.error above.
+      setSiteSessionActionError(siteId, t(`desktop:settings.siteSessions.errors.${action}`));
       await loadSiteSessionPanelState();
     } finally {
       setBusySiteSessionAction(null);
     }
-  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionError, t]);
+  }, [busySiteSessionAction, loadSiteSessionPanelState, setSiteSessionActionError, t]);
 
   const handleAppUpdateCheck = useCallback(async () => {
     if (appUpdatePhase === "checking" || appUpdatePhase === "downloading" || appUpdatePhase === "installing") {
@@ -1224,18 +1404,35 @@ function SettingsPage() {
   };
 
   const siteSessionError = siteSessionRegistryEntries
-    .map((site) => siteSessionErrors[site.siteId])
+    .map((site) => siteSessionActionErrors[site.siteId] ?? siteSessionErrors[site.siteId])
     .find((error): error is string => Boolean(error));
+  // One clock reading for every row so the ages stay consistent within a render.
+  const siteSessionNowMs = Date.now();
   const siteLoginBadges: SiteLoginBadgeModel[] = siteSessionRegistryEntries.map((site) => {
     const state = siteSessionStates[site.siteId];
-    const error = siteSessionErrors[site.siteId];
+    const actionError = siteSessionActionErrors[site.siteId];
+    const inlineError = actionError ?? siteSessionErrors[site.siteId] ?? state?.lastError ?? null;
     const availability = state?.availability ?? "missing";
     const Logo = SITE_SESSION_LOGOS[site.icon.key ?? site.siteId];
-    const statusKey = error ? "expired" : availability === "ready" ? "ready" : "missing";
+    const statusKey = inlineError ? "expired" : availability === "ready" ? "ready" : "missing";
     const statusLabel = t(`desktop:settings.siteSessions.status.${statusKey}`);
     const siteLabel = site.labelKey ? t(site.labelKey) : site.displayName;
     const disabled = isSiteSessionActionBusy;
+    const isSyncing = busySiteSessionAction?.siteId === site.siteId
+      && busySiteSessionAction.action === "sync";
+    const isRecentlySynced = recentlySyncedSiteId === site.siteId;
+    // A stored snapshot plus its age answers "did my last sync do anything?"
+    // even when availability itself did not change.
     const syncSource = formatSiteSessionSyncSource(state);
+    const age = formatSiteSessionAge(state?.updatedAtMs, t, siteSessionNowMs);
+    const cookieCount = typeof state?.cookieCount === "number" ? state.cookieCount : null;
+    const detailLabel = syncSource && age && cookieCount !== null
+      ? t("desktop:settings.siteSessions.syncedDetail", { source: syncSource, count: cookieCount, age })
+      : syncSource && age
+        ? t("desktop:settings.siteSessions.syncedFromAt", { source: syncSource, age })
+        : syncSource
+          ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
+          : t("desktop:settings.siteSessions.extensionSyncHint");
     return {
       id: site.siteId,
       icon: Logo
@@ -1255,9 +1452,10 @@ function SettingsPage() {
           ),
       label: siteLabel,
       statusLabel,
-      detailLabel: syncSource
-        ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
-        : t("desktop:settings.siteSessions.extensionSyncHint"),
+      detailLabel,
+      inlineError,
+      isSyncing,
+      isRecentlySynced,
       tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
       disabled,
       canSync: !disabled,
@@ -1360,6 +1558,18 @@ function SettingsPage() {
       ? "accent"
       : "muted";
   const networkProxyStatusText = t(`desktop:settings.networkProxy.status.${networkProxyStatusKind}`);
+  const localProxyStatusTone = localProxyPortInvalid || localProxyState?.lastError
+    ? "danger"
+    : localProxyState?.running
+      ? "accent"
+      : "default";
+  const localProxyStatusText = localProxyPortInvalid
+    ? t("desktop:settings.localProxy.status.invalid")
+    : localProxyState?.lastError
+      ? t("desktop:settings.localProxy.status.failed", { message: localProxyState.lastError })
+      : localProxyState?.running
+        ? t("desktop:settings.localProxy.status.running", { port: localProxyState.port })
+        : t("desktop:settings.localProxy.status.stopped");
   const systemSummary = appUpdateInfo
     ? t("desktop:settings.hub.summary.systemUpdateReady", { version: appUpdateInfo.latest })
     : networkProxyStatusKind === "manual"
@@ -1451,6 +1661,8 @@ function SettingsPage() {
         t("desktop:settings.networkProxy.title"),
         t("desktop:settings.networkProxy.system"),
         t("desktop:settings.networkProxy.manual"),
+        t("desktop:settings.localProxy.title"),
+        t("desktop:settings.localProxy.enable"),
         t("desktop:settings.supportLog.title"),
         t("desktop:settings.supportLog.button"),
         isDevBuild ? t("desktop:settings.developer.sectionTitle") : "",
@@ -1817,6 +2029,41 @@ function SettingsPage() {
           <NeonToggle checked={autostart} onChange={toggleAutostart} />
         </div>
       </NeonSection>
+
+      <NeonSection title={t("desktop:settings.magneticHover.title")}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            ...getFieldSurfaceStyle(colors, {
+              padding: "10px 12px",
+              height: 0,
+            }),
+          }}
+        >
+          <div style={{ minWidth: 0, display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+              {t("desktop:settings.magneticHover.title")}
+            </span>
+            <span
+              style={{
+                fontSize: 10.5,
+                lineHeight: 1.4,
+                color: colors.textSecondary,
+                opacity: 0.82,
+              }}
+            >
+              {t("desktop:settings.magneticHover.hint")}
+            </span>
+          </div>
+          <NeonToggle
+            checked={mainWindowMagneticHover}
+            onChange={() => void toggleMainWindowMagneticHover(!mainWindowMagneticHover)}
+          />
+        </div>
+      </NeonSection>
     </>
   );
 
@@ -2050,9 +2297,14 @@ function SettingsPage() {
                     onClick={() => void invokeSiteSessionCommand(site.id, "sync")}
                     disabled={isSiteSessionActionBusy || !site.canSync}
                     title={t("desktop:settings.siteSessions.syncButton")}
+                    aria-busy={site.isSyncing}
                     style={siteLoginInlineActionStyle}
                   >
-                    {t("desktop:settings.siteSessions.syncShortButton")}
+                    {site.isSyncing
+                      ? t("desktop:settings.siteSessions.syncingButton")
+                      : site.isRecentlySynced
+                        ? t("desktop:settings.siteSessions.syncedButton")
+                        : t("desktop:settings.siteSessions.syncShortButton")}
                   </NeonButton>
                   <NeonButton
                     type="button"
@@ -2066,13 +2318,27 @@ function SettingsPage() {
                     {t("desktop:settings.siteSessions.clearButton")}
                   </NeonButton>
                 </div>
+                {site.inlineError ? (
+                  <span
+                    style={{
+                      gridColumn: "1 / -1",
+                      minWidth: 0,
+                      fontSize: 10,
+                      lineHeight: 1.35,
+                      color: colors.dangerText,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {site.inlineError}
+                  </span>
+                ) : null}
               </div>
             ))}
           </div>
 
           {siteSessionError ? (
             <NeonHint tone="danger" size="sm">
-              {siteSessionError}
+              {t("desktop:settings.siteSessions.syncRecoveryHint")}
             </NeonHint>
           ) : null}
         </div>
@@ -2326,6 +2592,58 @@ function SettingsPage() {
           >
             {networkProxyStatusText}
           </NeonHint>
+        </div>
+      </NeonSection>
+
+      <NeonSection
+        title={t("desktop:settings.localProxy.title")}
+        hint={t("desktop:settings.localProxy.hint")}
+      >
+        <div style={{ display: "grid", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textPrimary }}>
+              {t("desktop:settings.localProxy.enable")}
+            </span>
+            <NeonToggle
+              checked={localProxyEnabled}
+              onChange={() => void toggleLocalProxyEnabled(!localProxyEnabled)}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <NeonInput
+              value={localProxyPortInput}
+              onChange={(event) => handleLocalProxyPortChange(event.target.value)}
+              inputMode="numeric"
+              spellCheck={false}
+              aria-invalid={localProxyPortInvalid}
+              aria-label={t("desktop:settings.localProxy.port")}
+              style={{ maxWidth: 96 }}
+            />
+            <span style={{ fontSize: 10, color: colors.textSecondary }}>
+              {t("desktop:settings.localProxy.portLabel")}
+            </span>
+          </div>
+
+          <NeonHint tone={localProxyStatusTone} size="sm">
+            {localProxyStatusText}
+          </NeonHint>
+
+          {localProxyState?.running ? (
+            <NeonHint size="sm">
+              {t("desktop:settings.localProxy.endpoints", {
+                http: localProxyState.httpProxyUrl,
+                socks: localProxyState.socksProxyUrl,
+              })}
+            </NeonHint>
+          ) : null}
         </div>
       </NeonSection>
 
