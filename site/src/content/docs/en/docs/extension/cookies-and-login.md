@@ -44,7 +44,7 @@ This is not a global sync for every website. Ameow only handles sites you have a
 
 For example, after you manually sync Bilibili once, later Bilibili downloads may refresh Bilibili cookies locally. That does not authorize YouTube. Ameow only maintains YouTube after you sync YouTube too. If sync fails, the extension is disconnected, or the wait times out, Ameow continues the normal download attempt.
 
-Saved site login states can be reviewed, refreshed, or cleared from the desktop Settings page under Site login states.
+Saved site login states can be reviewed, refreshed, or cleared from the desktop Settings page under Site login states. The sync button first shows "Syncing", then the row reports the outcome directly: on success the sync source, cookie count, and how long ago it happened; on failure the concrete reason on that same row (for example a disconnected extension), so you never have to guess whether it took effect.
 
 The extension popup's `Login state` drawer also shows a compact list of synchronized sites. This list is only a summary read from the desktop app, so you can confirm which sites have already been synchronized. Supported sites that have never been synchronized are not shown. The extension itself is not the long-term cookie store, and it does not replace the desktop Settings page for refreshing, clearing, or using saved login state during downloads.
 

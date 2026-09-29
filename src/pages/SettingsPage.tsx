@@ -105,6 +105,12 @@ type SiteLoginBadgeModel = {
   label: string;
   statusLabel: string;
   detailLabel: string | null;
+  /** Per-row outcome of the last action; the page-level summary stays separate. */
+  inlineError: string | null;
+  /** This row's own sync is in flight. */
+  isSyncing: boolean;
+  /** This row's sync just finished; the label is a short-lived confirmation. */
+  isRecentlySynced: boolean;
   tone: SiteLoginBadgeTone;
   disabled: boolean;
   canSync: boolean;
@@ -147,6 +153,45 @@ const formatSiteSessionSyncSource = (state: SiteSessionState | undefined): strin
   }
 
   return source.extensionId ? "browser extension" : null;
+};
+
+/** How long the action button keeps its success label after a completed sync. */
+const SITE_SESSION_SYNCED_LABEL_MS = 2200;
+
+/** Ages below this read as "just now" instead of a counted unit. */
+const SITE_SESSION_JUST_NOW_MS = 60_000;
+
+type SiteSessionTranslator = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Relative age of a session snapshot. Returns null when the site has never
+ * synced, so the caller can fall back to the neutral extension hint.
+ */
+const formatSiteSessionAge = (
+  updatedAtMs: number | null | undefined,
+  t: SiteSessionTranslator,
+  nowMs: number,
+): string | null => {
+  if (typeof updatedAtMs !== "number" || !Number.isFinite(updatedAtMs)) {
+    return null;
+  }
+
+  const elapsedMs = Math.max(0, nowMs - updatedAtMs);
+  if (elapsedMs < SITE_SESSION_JUST_NOW_MS) {
+    return t("desktop:settings.siteSessions.age.justNow");
+  }
+
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) {
+    return t("desktop:settings.siteSessions.age.minutes", { count: minutes });
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return t("desktop:settings.siteSessions.age.hours", { count: hours });
+  }
+
+  return t("desktop:settings.siteSessions.age.days", { count: Math.floor(hours / 24) });
 };
 
 const SHORTCUT_KEY_ALIASES: Record<string, string> = {
@@ -330,6 +375,7 @@ function SettingsPage() {
     useState<Partial<Record<string, string | null>>>({});
   const [busySiteSessionAction, setBusySiteSessionAction] =
     useState<{ siteId: string; action: SiteSessionAction } | null>(null);
+  const [recentlySyncedSiteId, setRecentlySyncedSiteId] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<SettingsPageId>(resolveInitialSettingsPage);
   const [settingsNavigationDirection, setSettingsNavigationDirection] =
     useState<SettingsNavigationDirection>("forward");
@@ -349,6 +395,7 @@ function SettingsPage() {
   const supportLogHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const networkProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localProxySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const siteSessionSyncedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supportLogExportInFlightRef = useRef(false);
 
   const applyAppUpdateState = useCallback((nextState: AppUpdateStatePayload) => {
@@ -948,6 +995,13 @@ function SettingsPage() {
     void loadSiteSessionPanelState();
   }, [loadSiteSessionPanelState]);
 
+  useEffect(() => () => {
+    if (siteSessionSyncedTimerRef.current !== null) {
+      clearTimeout(siteSessionSyncedTimerRef.current);
+      siteSessionSyncedTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     let cleanup: (() => void) | null = null;
     void desktopEvents.on<SiteSessionStateChangedPayload>(
@@ -987,6 +1041,19 @@ function SettingsPage() {
         [siteId]: sessionState,
       }));
       setSiteSessionError(siteId, null);
+      if (action === "sync") {
+        // A sync can succeed while leaving the visible state unchanged (still no
+        // credentials), so confirm the attempt itself instead of relying on the
+        // row quietly looking the same afterwards.
+        setRecentlySyncedSiteId(siteId);
+        if (siteSessionSyncedTimerRef.current !== null) {
+          clearTimeout(siteSessionSyncedTimerRef.current);
+        }
+        siteSessionSyncedTimerRef.current = setTimeout(() => {
+          siteSessionSyncedTimerRef.current = null;
+          setRecentlySyncedSiteId(null);
+        }, SITE_SESSION_SYNCED_LABEL_MS);
+      }
     } catch (err) {
       console.error(`Failed to ${action} site session capture:`, err);
       setSiteSessionError(
@@ -1330,16 +1397,33 @@ function SettingsPage() {
   const siteSessionError = siteSessionRegistryEntries
     .map((site) => siteSessionErrors[site.siteId])
     .find((error): error is string => Boolean(error));
+  // One clock reading for every row so the ages stay consistent within a render.
+  const siteSessionNowMs = Date.now();
   const siteLoginBadges: SiteLoginBadgeModel[] = siteSessionRegistryEntries.map((site) => {
     const state = siteSessionStates[site.siteId];
     const error = siteSessionErrors[site.siteId];
+    const inlineError = error ?? state?.lastError ?? null;
     const availability = state?.availability ?? "missing";
     const Logo = SITE_SESSION_LOGOS[site.icon.key ?? site.siteId];
-    const statusKey = error ? "expired" : availability === "ready" ? "ready" : "missing";
+    const statusKey = inlineError ? "expired" : availability === "ready" ? "ready" : "missing";
     const statusLabel = t(`desktop:settings.siteSessions.status.${statusKey}`);
     const siteLabel = site.labelKey ? t(site.labelKey) : site.displayName;
     const disabled = isSiteSessionActionBusy;
+    const isSyncing = busySiteSessionAction?.siteId === site.siteId
+      && busySiteSessionAction.action === "sync";
+    const isRecentlySynced = recentlySyncedSiteId === site.siteId;
+    // A stored snapshot plus its age answers "did my last sync do anything?"
+    // even when availability itself did not change.
     const syncSource = formatSiteSessionSyncSource(state);
+    const age = formatSiteSessionAge(state?.updatedAtMs, t, siteSessionNowMs);
+    const cookieCount = typeof state?.cookieCount === "number" ? state.cookieCount : null;
+    const detailLabel = syncSource && age && cookieCount !== null
+      ? t("desktop:settings.siteSessions.syncedDetail", { source: syncSource, count: cookieCount, age })
+      : syncSource && age
+        ? t("desktop:settings.siteSessions.syncedFromAt", { source: syncSource, age })
+        : syncSource
+          ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
+          : t("desktop:settings.siteSessions.extensionSyncHint");
     return {
       id: site.siteId,
       icon: Logo
@@ -1359,9 +1443,10 @@ function SettingsPage() {
           ),
       label: siteLabel,
       statusLabel,
-      detailLabel: syncSource
-        ? t("desktop:settings.siteSessions.syncedFrom", { source: syncSource })
-        : t("desktop:settings.siteSessions.extensionSyncHint"),
+      detailLabel,
+      inlineError,
+      isSyncing,
+      isRecentlySynced,
       tone: statusKey === "ready" ? "ready" : statusKey === "expired" ? "danger" : "muted",
       disabled,
       canSync: !disabled,
@@ -2203,9 +2288,14 @@ function SettingsPage() {
                     onClick={() => void invokeSiteSessionCommand(site.id, "sync")}
                     disabled={isSiteSessionActionBusy || !site.canSync}
                     title={t("desktop:settings.siteSessions.syncButton")}
+                    aria-busy={site.isSyncing}
                     style={siteLoginInlineActionStyle}
                   >
-                    {t("desktop:settings.siteSessions.syncShortButton")}
+                    {site.isSyncing
+                      ? t("desktop:settings.siteSessions.syncingButton")
+                      : site.isRecentlySynced
+                        ? t("desktop:settings.siteSessions.syncedButton")
+                        : t("desktop:settings.siteSessions.syncShortButton")}
                   </NeonButton>
                   <NeonButton
                     type="button"
@@ -2219,6 +2309,20 @@ function SettingsPage() {
                     {t("desktop:settings.siteSessions.clearButton")}
                   </NeonButton>
                 </div>
+                {site.inlineError ? (
+                  <span
+                    style={{
+                      gridColumn: "1 / -1",
+                      minWidth: 0,
+                      fontSize: 10,
+                      lineHeight: 1.35,
+                      color: colors.dangerText,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {site.inlineError}
+                  </span>
+                ) : null}
               </div>
             ))}
           </div>

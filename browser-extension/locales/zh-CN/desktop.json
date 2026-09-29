@@ -245,6 +245,16 @@
       "hint": "需要登录 Cookies 的站点会显示在这里。点击站点徽章即可开始、确认或取消会话捕获。",
       "extensionSyncHint": "从你的浏览器扩展同步",
       "syncedFrom": "已从 {{source}} 同步",
+      "syncingButton": "同步中",
+      "syncedButton": "已同步",
+      "syncedFromAt": "已从 {{source}} 同步 · {{age}}",
+      "syncedDetail": "已从 {{source}} 同步 · {{count}} cookies · {{age}}",
+      "age": {
+        "justNow": "刚刚",
+        "minutes": "{{count}} 分钟前",
+        "hours": "{{count}} 小时前",
+        "days": "{{count}} 天前"
+      },
       "capturePreparing": "正在打开 {{site}} 的官方登录窗口。",
       "captureAwaiting": "{{site}} 登录窗口已打开，完成登录后可确认保存。",
       "lastUpdated": "{{site}} 最近一次刷新：{{time}}",
