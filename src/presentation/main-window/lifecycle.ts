@@ -118,10 +118,18 @@ const beginExpand = (
   if (focus) {
     effects.push({ type: "focus.request" });
   }
+  // An `instant` recipe renders no animation frames, so Motion never calls
+  // onAnimationComplete and no `visualTransitionCompleted` ever arrives. Waiting
+  // for it stranded the machine in `expanding` forever — which is what happens
+  // after every download, because the foreground-outcome path expands instantly,
+  // and `only `full` can collapse. Settle to full directly for that recipe.
+  const phase: MainWindowPresentationState["phase"] = recipe === "instant"
+    ? { kind: "full" }
+    : { kind: "expanding", epoch, recipe };
   return {
     state: withEpoch({
       ...state,
-      phase: { kind: "expanding", epoch, recipe },
+      phase,
     }),
     effects,
   };

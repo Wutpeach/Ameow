@@ -135,13 +135,15 @@ describe("mainWindowPresentation lifecycle", () => {
     expect(staleCompactCompletion.effects).toEqual([]);
   });
 
-  it("programmatic full intent from compact uses the given recipe and requests focus", () => {
+  it("programmatic instant full intent from compact settles to full and requests focus", () => {
     const result = apply(
       createMainWindowPresentationState({ startsCompact: true }),
       { type: "requestFull", reason: "task", recipe: "instant" },
     );
 
-    expect(result.state.phase).toMatchObject({ kind: "expanding", recipe: "instant" });
+    // `instant` has no animation frames, so it must not wait for a completion
+    // callback that can never arrive.
+    expect(result.state.phase).toEqual({ kind: "full" });
     expect(result.state.pointerInside).toBe(false);
     expect(result.effects).toEqual([
       { type: "collapseTimer.cancel" },
@@ -184,7 +186,7 @@ describe("mainWindowPresentation lifecycle", () => {
     ).state;
 
     const result = apply(pending, { type: "requestFull", reason: "task", recipe: "instant" });
-    expect(result.state.phase).toMatchObject({ kind: "expanding", recipe: "instant" });
+    expect(result.state.phase).toEqual({ kind: "full" });
     expect(result.effects).toContainEqual({ type: "collapseTimer.cancel" });
     expect(result.effects).toContainEqual({ type: "focus.request" });
   });
@@ -400,5 +402,28 @@ describe("mainWindowPresentation lifecycle", () => {
       { type: "visualTransitionCompleted", target: "full", epoch: 0 },
     );
     expect(result.state.pointerInside).toBe(false);
+  });
+
+  it("settles an instant expand straight to full instead of awaiting a completion callback", () => {
+    // `instant` renders no animation frames, so Motion never calls
+    // onAnimationComplete and `visualTransitionCompleted` never arrives. Waiting
+    // for it left the machine stuck in `expanding`, and only `full` can collapse
+    // — which is exactly what happened after every finished download.
+    const result = apply(
+      createMainWindowPresentationState({ startsCompact: true }),
+      { type: "requestFull", reason: "foreground", recipe: "instant" },
+    );
+    expect(result.state.phase.kind).toBe("full");
+    expect(result.effects).toContainEqual(
+      expect.objectContaining({ type: "native.setInteraction", mode: "interactive" }),
+    );
+  });
+
+  it("still enters expanding for the animated recipe so its completion can be reported", () => {
+    const result = apply(
+      createMainWindowPresentationState({ startsCompact: true }),
+      { type: "requestFull", reason: "task", recipe: "animated" },
+    );
+    expect(result.state.phase.kind).toBe("expanding");
   });
 });

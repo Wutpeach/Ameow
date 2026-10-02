@@ -118,7 +118,7 @@ describe("compact completion contract", () => {
       { type: "requestFull", reason: "task", recipe: "instant" },
     ]);
 
-    expect(result.state.phase.kind).toBe("expanding");
+    expect(result.state.phase.kind).toBe("full");
     const lastEffects = result.effects[result.effects.length - 1];
     expect(lastEffects?.cancelCompactReachability).toBeDefined();
     expect(lastEffects?.setInteractionMode).toBeDefined();
