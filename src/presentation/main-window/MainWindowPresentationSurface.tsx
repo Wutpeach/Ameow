@@ -37,6 +37,7 @@ import { resolveMainWindowPresentationProjections } from "./projections";
 import type { MainWindowPresentationEvent, MainWindowPresentationLock } from "./lifecycle";
 import { reducePanelHover, type PanelHoverInput } from "./panelHover";
 import { resolveMainWindowGeometry } from "./geometry";
+import { getMainWindowCompactOuterSize } from "../../constants/windowMetrics";
 import {
   resolveMainWindowShellMotionRecipe,
   MAIN_WINDOW_INITIAL_PANEL_SCALE,
@@ -154,6 +155,8 @@ type UseMainWindowPanelDragOptions = {
   isMacOS: boolean;
   onCloseContextMenu: () => Promise<void>;
   onOutputFolderShortcut: (e: ReactMouseEvent<HTMLDivElement>) => Promise<void>;
+  /** Fired when a real window drag ends while the shell is compact. */
+  onWindowDragEnd?: () => void;
 };
 
 const useMainWindowPanelDrag = ({
@@ -167,6 +170,7 @@ const useMainWindowPanelDrag = ({
   isMacOS,
   onCloseContextMenu,
   onOutputFolderShortcut,
+  onWindowDragEnd,
 }: UseMainWindowPanelDragOptions) => {
   const pendingDragStartRef = useRef<PendingWindowDragStart | null>(null);
   const activeWindowDragRef = useRef<ActiveWindowDragState | null>(null);
@@ -266,8 +270,12 @@ const useMainWindowPanelDrag = ({
     isDraggingRef.current = false;
     if (wasDragging) {
       syncMainWindowInteraction();
+      // Only the compact ball snaps to an edge; the full square keeps free placement.
+      if (isCompact) {
+        onWindowDragEnd?.();
+      }
     }
-  }, [dispatch, releasePanelPointerCapture, syncMainWindowInteraction]);
+  }, [dispatch, isCompact, onWindowDragEnd, releasePanelPointerCapture, syncMainWindowInteraction]);
 
   const startWindowDrag = useCallback(async (screenX: number, screenY: number) => {
     const pendingDragStart = pendingDragStartRef.current;
@@ -562,6 +570,19 @@ export function MainWindowPresentationSurface({
     [environment.supportsCompactPassthrough, state],
   );
   const isCompact = projections.visual.mode === "compact";
+
+  // Settles the compact ball against whichever screen edge it was released nearest.
+  const snapCompactBallToNearestEdge = useCallback(() => {
+    void desktopCurrentWindow
+      .snapToNearestEdge({
+        frameSize: getMainWindowCompactOuterSize(environment.platform),
+        reducedMotion: environment.reducedMotion,
+        requestEpoch: Date.now(),
+      })
+      .catch((error) => {
+        console.error("Failed to snap the compact window to the nearest edge:", error);
+      });
+  }, [environment.platform, environment.reducedMotion]);
   const canDoubleClickOpenOutputFolder = !isCompact && !interactionBusy;
 
   const geometry = useMemo(
@@ -818,6 +839,7 @@ export function MainWindowPresentationSurface({
     isMacOS: environment.isMacOS,
     onCloseContextMenu,
     onOutputFolderShortcut,
+    onWindowDragEnd: snapCompactBallToNearestEdge,
   });
 
   const isPointInsidePanel = useCallback((clientX: number, clientY: number) => {

@@ -4,6 +4,7 @@ import {
   cancelMainWindowCompactReachability,
   ensureMainWindowCompactReachable,
   resolveCompactReachablePosition,
+  resolveCompactSnappedPosition,
 } from "./mainWindowSurfacePolicy.mjs";
 
 const monitor = {
@@ -15,6 +16,38 @@ const screenApi = {
   getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
   getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
 };
+
+describe("resolveCompactSnappedPosition", () => {
+  const frameSize = 56;
+
+  it("flushes the compact ball against whichever edge it is nearest", () => {
+    expect(resolveCompactSnappedPosition({ bounds: { x: 12, y: 500 }, frameSize, monitor }))
+      .toEqual({ x: 0, y: 500 });
+    expect(resolveCompactSnappedPosition({ bounds: { x: 1850, y: 500 }, frameSize, monitor }))
+      .toEqual({ x: 1920 - frameSize, y: 500 });
+    expect(resolveCompactSnappedPosition({ bounds: { x: 900, y: 4 }, frameSize, monitor }))
+      .toEqual({ x: 900, y: 0 });
+    expect(resolveCompactSnappedPosition({ bounds: { x: 900, y: 1020 }, frameSize, monitor }))
+      .toEqual({ x: 900, y: 1080 - frameSize });
+  });
+
+  it("keeps the free axis inside the work area when it was overshooting", () => {
+    // Nearest edge wins first: 10px from the left beats 3976px from the bottom,
+    // and the far-off vertical value is clamped into the work area.
+    expect(resolveCompactSnappedPosition({ bounds: { x: 10, y: 5000 }, frameSize, monitor }))
+      .toEqual({ x: 0, y: 1080 - frameSize });
+    // 20px from the top beats 400px from the left, so it snaps to the top edge
+    // and the off-screen horizontal value is clamped to the work-area origin.
+    expect(resolveCompactSnappedPosition({ bounds: { x: -400, y: 20 }, frameSize, monitor }))
+      .toEqual({ x: 0, y: 0 });
+  });
+
+  it("is idempotent once already flush against an edge", () => {
+    const snapped = resolveCompactSnappedPosition({ bounds: { x: 0, y: 500 }, frameSize, monitor });
+    expect(snapped).toEqual({ x: 0, y: 500 });
+    expect(resolveCompactSnappedPosition({ bounds: snapped, frameSize, monitor })).toEqual(snapped);
+  });
+});
 
 describe("resolveCompactReachablePosition", () => {
   it("keeps the current position when the compact frame is already visible", () => {

@@ -6,8 +6,8 @@
  * are pinned by `src/architecture/import-guard.test.ts` to the presentation
  * surface only. The Lab creates its own MotionValue pair (a Lab preview
  * input, never a production authority) and updates it directly with `.set()`.
- * The field starts and resets to the Compact attention center (40, 40) in the
- * 80×80 logical frame, so a neutral/pinned field projects a neutral character.
+ * The field starts and resets to the Compact attention center (28, 28) in the
+ * 56×56 logical frame, so a neutral/pinned field projects a neutral character.
  */
 import { useMemo } from "react";
 import { useMotionValue, type MotionValue } from "motion/react";
@@ -25,8 +25,8 @@ export type LabCompactPointerRect = Readonly<{
   height: number;
 }>;
 
-/** Compact attention center in the 80×80 logical frame (production center). */
-export const LAB_COMPACT_ATTENTION_CENTER = { x: 40, y: 40 };
+/** Compact attention center in the 56×56 logical frame (production center). */
+export const LAB_COMPACT_ATTENTION_CENTER = { x: 28, y: 28 };
 
 /** Pure client → logical-frame point with finite validation and clamping. */
 export const resolveLabCompactPointerPoint = (

@@ -183,6 +183,18 @@ export type AmeowCompactReachableResult = {
   position: AmeowPoint;
 };
 
+export type AmeowCompactSnapOptions = {
+  /** Compact ball outer size; the frame is flushed against the chosen edge. */
+  frameSize: number;
+  reducedMotion: boolean;
+  requestEpoch: number;
+};
+
+export type AmeowCompactSnapResult = {
+  requestEpoch: number;
+  position: AmeowPoint;
+};
+
 export type AmeowCurrentWindowInteractionMode = "interactive" | "compact-passthrough";
 
 export type AmeowCurrentWindowPointerBoundary = {
@@ -200,6 +212,7 @@ export interface AmeowCurrentWindowApi {
     options: AmeowCompactReachableOptions,
   ): Promise<AmeowCompactReachableResult>;
   cancelCompactReachability(): void;
+  snapToNearestEdge(options: AmeowCompactSnapOptions): Promise<AmeowCompactSnapResult>;
   rendererReady(): Promise<void>;
   close(): Promise<void>;
   hide(): Promise<void>;

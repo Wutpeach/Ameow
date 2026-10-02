@@ -248,3 +248,105 @@ export const ensureMainWindowCompactReachable = async (
 export const cancelMainWindowCompactReachability = (win: BrowserWindow) => {
   cancelActiveCorrection(win);
 };
+
+export type CompactSnapRequest = {
+  /** Compact ball outer size; the frame is flushed against the chosen edge. */
+  frameSize: number;
+  reducedMotion: boolean;
+  requestEpoch: number;
+};
+
+export type CompactSnapResult = {
+  requestEpoch: number;
+  position: { x: number; y: number };
+};
+
+/**
+ * Nearest-edge snap for the compact ball. Picks whichever work-area edge the
+ * window is already closest to and flushes the frame against it, keeping the
+ * other axis inside the work area. Ties resolve to the earlier candidate
+ * (left, then right, then top, then bottom) so the result is deterministic.
+ */
+export const resolveCompactSnappedPosition = ({
+  bounds,
+  frameSize,
+  monitor,
+}: {
+  bounds: { x: number; y: number };
+  frameSize: number;
+  monitor: CompactReachabilityMonitor;
+}): { x: number; y: number } => {
+  const size = Math.max(1, Math.round(frameSize));
+  const minX = monitor.position.x;
+  const minY = monitor.position.y;
+  const maxX = monitor.position.x + monitor.size.width - size;
+  const maxY = monitor.position.y + monitor.size.height - size;
+
+  const candidates: Array<{ distance: number; x: number; y: number }> = [
+    { distance: Math.abs(bounds.x - minX), x: minX, y: clamp(bounds.y, minY, maxY) },
+    { distance: Math.abs(bounds.x - maxX), x: maxX, y: clamp(bounds.y, minY, maxY) },
+    { distance: Math.abs(bounds.y - minY), x: clamp(bounds.x, minX, maxX), y: minY },
+    { distance: Math.abs(bounds.y - maxY), x: clamp(bounds.x, minX, maxX), y: maxY },
+  ];
+
+  const best = candidates.reduce((closest, candidate) => (
+    candidate.distance < closest.distance ? candidate : closest
+  ));
+
+  return { x: best.x, y: best.y };
+};
+
+/**
+ * Snaps the compact ball to its nearest screen edge with the same eased move
+ * used by the reachability correction. A new request supersedes an in-flight one.
+ */
+export const snapMainWindowToNearestEdge = async (
+  win: BrowserWindow,
+  request: CompactSnapRequest,
+  screenApi: MainWindowSurfaceScreenApi = screen,
+): Promise<CompactSnapResult> => {
+  if (win.isDestroyed()) {
+    return {
+      requestEpoch: request.requestEpoch,
+      position: { x: 0, y: 0 },
+    };
+  }
+
+  cancelActiveCorrection(win);
+
+  const bounds = win.getBounds();
+  const monitor = resolveMonitorForWindow(win, screenApi);
+  const target = resolveCompactSnappedPosition({
+    bounds: { x: bounds.x, y: bounds.y },
+    frameSize: request.frameSize,
+    monitor,
+  });
+
+  if (target.x === bounds.x && target.y === bounds.y) {
+    return {
+      requestEpoch: request.requestEpoch,
+      position: target,
+    };
+  }
+
+  if (request.reducedMotion) {
+    win.setPosition(target.x, target.y);
+    return {
+      requestEpoch: request.requestEpoch,
+      position: target,
+    };
+  }
+
+  await interpolatePosition(
+    win,
+    { x: bounds.x, y: bounds.y },
+    target,
+    MAIN_WINDOW_COMPACT_REACHABLE_MOVE_DURATION_MS,
+    request.requestEpoch,
+  );
+
+  return {
+    requestEpoch: request.requestEpoch,
+    position: target,
+  };
+};

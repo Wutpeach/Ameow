@@ -15,7 +15,7 @@ describe("mainWindow geometry (spatial only)", () => {
       clipPath: "inset(0 round 16px)",
     });
     expect(geometry.shadowShell).toEqual(geometry.visualShell);
-    expect(geometry.compactReachableFrame).toEqual({ x: 0, y: 0, width: 80, height: 80 });
+    expect(geometry.compactReachableFrame).toEqual({ x: 0, y: 0, width: 56, height: 56 });
   });
 
   it("full geometry has no gutter on platforms without one", () => {
@@ -29,17 +29,17 @@ describe("mainWindow geometry (spatial only)", () => {
     const geometry = resolveMainWindowGeometry({ mode: "compact", platform: "win32" });
     expect(geometry.viewportSize).toBe(228);
     expect(geometry.visualShell).toEqual({
-      x: 10,
-      y: 10,
-      width: 60,
-      height: 60,
+      x: 7,
+      y: 7,
+      width: 42,
+      height: 42,
       radius: 100,
       clipPath: "inset(0 round 100px)",
     });
     expect(geometry.hotspot).toEqual({
       frameSize: 38,
-      centerX: 40,
-      centerY: 40,
+      centerX: 28,
+      centerY: 28,
       enterRadius: 19,
       exitRadius: 23,
     });
@@ -48,11 +48,11 @@ describe("mainWindow geometry (spatial only)", () => {
   it("compact hotspot uses the shell frame on macOS", () => {
     const geometry = resolveMainWindowGeometry({ mode: "compact", platform: "darwin" });
     expect(geometry.hotspot).toEqual({
-      frameSize: 60,
-      centerX: 40,
-      centerY: 40,
-      enterRadius: 30,
-      exitRadius: 34,
+      frameSize: 42,
+      centerX: 28,
+      centerY: 28,
+      enterRadius: 21,
+      exitRadius: 25,
     });
   });
 

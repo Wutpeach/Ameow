@@ -3,9 +3,9 @@
 // authority.
 
 export const COMPACT_MASCOT_VIEWBOX = 300;
-export const COMPACT_MASCOT_VISUAL_SIZE = 56;
-// Keeps the 56px holder intact while the separated-ear action envelope clears
-// the unchanged 60px shell.
+export const COMPACT_MASCOT_VISUAL_SIZE = 40;
+// Keeps the 40px holder intact while the separated-ear action envelope clears
+// the unchanged 42px shell.
 export const COMPACT_MASCOT_RENDER_SCALE = 0.95;
 
 export const COMPACT_MASCOT_ATTENTION_RESPONSE_RADIUS = 46;

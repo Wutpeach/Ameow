@@ -75,6 +75,9 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   cancelCompactReachability() {
     resolveElectronBridge().currentWindow.cancelCompactReachability();
   },
+  async snapToNearestEdge(options) {
+    return resolveElectronBridge().currentWindow.snapToNearestEdge(options);
+  },
   async rendererReady() {
     await resolveElectronBridge().currentWindow.rendererReady();
   },

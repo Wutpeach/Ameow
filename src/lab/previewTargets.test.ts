@@ -34,23 +34,23 @@ describe("Lab Preview Target model", () => {
     expect(meta.radius).toBe(16);
   });
 
-  it("derives the Compact target from the production 80/60/56 geometry", () => {
+  it("derives the Compact target from the production 56/42/40 geometry", () => {
     const meta = LAB_PREVIEW_TARGETS.compact;
     expect(meta.logicalSize).toBe(MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE);
     expect(meta.shellSize).toBe(MAIN_WINDOW_COMPACT_SHELL_SIZE);
     expect(meta.characterSize).toBe(COMPACT_MASCOT_VISUAL_SIZE);
     expect(meta.radius).toBe(MAIN_WINDOW_MINIMIZED_PANEL_RADIUS);
-    // Explicit production geometry (60px shell radius reads as a circle).
-    expect(meta.logicalSize).toBe(80);
-    expect(meta.shellSize).toBe(60);
-    expect(meta.characterSize).toBe(56);
+    // Explicit production geometry (42px shell radius reads as a circle).
+    expect(meta.logicalSize).toBe(56);
+    expect(meta.shellSize).toBe(42);
+    expect(meta.characterSize).toBe(40);
     expect(meta.radius).toBe(100);
   });
 
   it("keeps Compact attention at the production outer-frame center", () => {
     const meta = LAB_PREVIEW_TARGETS.compact;
-    expect(meta.attentionCenterX).toBe(40);
-    expect(meta.attentionCenterY).toBe(40);
+    expect(meta.attentionCenterX).toBe(28);
+    expect(meta.attentionCenterY).toBe(28);
   });
 
   it("separates workspace display scale from production geometry", () => {
@@ -60,8 +60,8 @@ describe("Lab Preview Target model", () => {
     expect(LAB_DISPLAY_SCALE_DEFAULT).toBe("auto");
     expect(LAB_AUTO_SCALE_OPTIONS).toEqual([1, 2, 3]);
     expect(resolveLabPreviewScaledSize("full", 2)).toBe(400);
-    expect(resolveLabPreviewScaledSize("compact", 3)).toBe(240);
-    expect(resolveLabPreviewScaledSize("compact", 1)).toBe(80);
+    expect(resolveLabPreviewScaledSize("compact", 3)).toBe(168);
+    expect(resolveLabPreviewScaledSize("compact", 1)).toBe(56);
   });
 
   it("resolves Auto to the largest comfortable member of {1,2,3} that fits the usable stage", () => {

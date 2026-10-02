@@ -87,6 +87,7 @@ import {
 import {
   cancelMainWindowCompactReachability,
   ensureMainWindowCompactReachable,
+  snapMainWindowToNearestEdge,
 } from "./mainWindowSurfacePolicy.mjs";
 import {
   applyManualProxyToSession,
@@ -3569,8 +3570,26 @@ function registerIpcHandlers() {
     const edgePadding = Number(request?.edgePadding);
 
     return ensureMainWindowCompactReachable(win, {
-      reachableFrameSize: Number.isFinite(reachableFrameSize) ? reachableFrameSize : 80,
+      reachableFrameSize: Number.isFinite(reachableFrameSize) ? reachableFrameSize : 56,
       edgePadding: Number.isFinite(edgePadding) ? edgePadding : 8,
+      reducedMotion: request?.reducedMotion === true,
+      requestEpoch,
+    });
+  });
+
+  ipcMain.handle("ameow:current-window:snap-to-nearest-edge", async (event, request) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) {
+      throw new Error("Current window not found");
+    }
+
+    const requestEpoch = typeof request?.requestEpoch === "number"
+      ? request.requestEpoch
+      : 0;
+    const frameSize = Number(request?.frameSize);
+
+    return snapMainWindowToNearestEdge(win, {
+      frameSize: Number.isFinite(frameSize) ? frameSize : 56,
       reducedMotion: request?.reducedMotion === true,
       requestEpoch,
     });

@@ -17,10 +17,10 @@ import {
 const CENTER = { x: 40, y: 40 };
 
 describe("Compact Kirby cat geometry and attention", () => {
-  it("keeps the official 300 viewBox inside the production 56px visual leaf", () => {
+  it("keeps the official 300 viewBox inside the production 40px visual leaf", () => {
     expect(COMPACT_MASCOT_VIEWBOX).toBe(300);
-    expect(COMPACT_MASCOT_VISUAL_SIZE).toBe(56);
-    expect(COMPACT_MASCOT_VISUAL_SIZE).toBeLessThanOrEqual(60);
+    expect(COMPACT_MASCOT_VISUAL_SIZE).toBe(40);
+    expect(COMPACT_MASCOT_VISUAL_SIZE).toBeLessThanOrEqual(42);
     expect(COMPACT_MASCOT_RENDER_SCALE).toBe(0.95);
   });
 

@@ -98,6 +98,9 @@ contextBridge.exposeInMainWorld("ameow", {
     cancelCompactReachability() {
       ipcRenderer.send("ameow:current-window:cancel-compact-reachability");
     },
+    snapToNearestEdge(options) {
+      return invoke("ameow:current-window:snap-to-nearest-edge", options);
+    },
     rendererReady() {
       return invoke("ameow:current-window:renderer-ready");
     },
