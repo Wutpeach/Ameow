@@ -262,20 +262,27 @@ export type CompactSnapResult = {
 };
 
 /**
- * Nearest-edge snap for the compact ball. Picks whichever work-area edge the
- * window is already closest to and settles the ball half off-screen against it,
- * so only the inner half stays visible; the free axis is kept fully inside the
- * work area. Ties resolve to the earlier candidate (left, right, top, bottom) so
- * the result is deterministic.
+ * How close the ball must be released to an edge before it snaps there. A release
+ * anywhere else leaves the ball exactly where it was dropped.
+ */
+export const MAIN_WINDOW_COMPACT_SNAP_THRESHOLD = 64;
+
+/**
+ * Nearest-edge snap for the compact ball. Only snaps when the ball is released
+ * within the threshold of a work-area edge; otherwise the current position is
+ * returned unchanged. When it does snap, the ball settles half off-screen against
+ * that edge and the free axis is kept fully inside the work area.
  */
 export const resolveCompactSnappedPosition = ({
   bounds,
   frameSize,
   monitor,
+  threshold = MAIN_WINDOW_COMPACT_SNAP_THRESHOLD,
 }: {
   bounds: { x: number; y: number };
   frameSize: number;
   monitor: CompactReachabilityMonitor;
+  threshold?: number;
 }): { x: number; y: number } => {
   const size = Math.max(1, Math.round(frameSize));
   // Half the ball overhangs the display edge once snapped.
@@ -299,6 +306,11 @@ export const resolveCompactSnappedPosition = ({
   const best = candidates.reduce((closest, candidate) => (
     candidate.distance < closest.distance ? candidate : closest
   ));
+
+  // Dropped away from every edge: leave it exactly where the user put it.
+  if (best.distance > threshold) {
+    return { x: bounds.x, y: bounds.y };
+  }
 
   return { x: best.x, y: best.y };
 };

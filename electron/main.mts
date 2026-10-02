@@ -109,6 +109,10 @@ import {
   createMainWindowPointerBoundaryController,
   MAIN_WINDOW_POINTER_BOUNDARY_CHANNEL,
 } from "./mainWindowPointerBoundary.mjs";
+import {
+  createMainWindowCompactHotspotController,
+  MAIN_WINDOW_COMPACT_HOTSPOT_CENTER,
+} from "./mainWindowCompactHotspot.mjs";
 import { resolveMainWindowManualPosition } from "./mainWindowManualPosition.mjs";
 import {
   SETTINGS_WINDOW_CONTENT_HEIGHT,
@@ -251,6 +255,7 @@ let nextOpaqueSequence = 1;
 let hasShownMainWindowOnce = false;
 let mainWindowUsesTransparentShell = false;
 let mainWindowPointerBoundaryController = null;
+let mainWindowCompactHotspotController = null;
 
 const windows = new Map();
 const wsClients = new Set();
@@ -2354,6 +2359,8 @@ function registerWindow(label, win) {
     if (label === WINDOW_LABELS.main) {
       mainWindowPointerBoundaryController?.dispose();
       mainWindowPointerBoundaryController = null;
+      mainWindowCompactHotspotController?.dispose();
+      mainWindowCompactHotspotController = null;
     }
     windows.delete(label);
     if (label === WINDOW_LABELS.contextMenu) {
@@ -2407,6 +2414,15 @@ async function createMainWindow(startupConfigSnapshot = null) {
   mainWindowPointerBoundaryController = createMainWindowPointerBoundaryController({
     win: mainWindow,
     screenRef: screen,
+  });
+  mainWindowCompactHotspotController = createMainWindowCompactHotspotController({
+    win: mainWindow,
+    screenRef: screen,
+    resolveScaleFactor: (bounds) => screen.getDisplayMatching(bounds).scaleFactor,
+    hotspotCenter: {
+      x: MAIN_WINDOW_COMPACT_HOTSPOT_CENTER,
+      y: MAIN_WINDOW_COMPACT_HOTSPOT_CENTER,
+    },
   });
 
   const revealReadyPromise = waitForWindowReadyToReveal(
@@ -3536,14 +3552,22 @@ function registerIpcHandlers() {
     const mode = payload?.mode;
     if (mode === "compact-passthrough") {
       mainWindowPointerBoundaryController?.stop();
-      win.setIgnoreMouseEvents(true, { forward: true });
-      if (shouldToggleFocusabilityForInteractionMode()) {
-        win.setFocusable(false);
+      // Click-through everywhere except the ball itself. `forward: true` forwards
+      // only mousemove, and a non-focusable window never receives the click, so
+      // the controller owns both the ignore state and focusability.
+      if (win === getWindow(WINDOW_LABELS.main) && mainWindowCompactHotspotController) {
+        mainWindowCompactHotspotController.start();
+      } else {
+        win.setIgnoreMouseEvents(true, { forward: true });
+        if (shouldToggleFocusabilityForInteractionMode()) {
+          win.setFocusable(false);
+        }
       }
       keepMainWindowOffWindowsTaskbar(win);
       return;
     }
 
+    mainWindowCompactHotspotController?.stop();
     // Returning to interactive mode cancels any active compact placement
     // correction so a stale correction cannot move a newer full surface.
     cancelMainWindowCompactReachability(win);

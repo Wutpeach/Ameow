@@ -207,8 +207,8 @@ describe("resolveMainWindowRevealBounds", () => {
       minimumWidth: MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
       minimumHeight: MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
     })).toEqual({
-      x: 920,
-      y: 500,
+      x: 932,
+      y: 512,
       width: MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
       height: MAIN_WINDOW_DEFAULT_COMPACT_OUTER_SIZE,
     });

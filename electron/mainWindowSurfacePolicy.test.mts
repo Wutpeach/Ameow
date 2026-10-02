@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cancelMainWindowCompactReachability,
   ensureMainWindowCompactReachable,
+  MAIN_WINDOW_COMPACT_SNAP_THRESHOLD,
   resolveCompactReachablePosition,
   resolveCompactSnappedPosition,
 } from "./mainWindowSurfacePolicy.mjs";
@@ -47,6 +48,30 @@ describe("resolveCompactSnappedPosition", () => {
     const snapped = resolveCompactSnappedPosition({ bounds: { x: -half, y: 500 }, frameSize, monitor });
     expect(snapped).toEqual({ x: -half, y: 500 });
     expect(resolveCompactSnappedPosition({ bounds: snapped, frameSize, monitor })).toEqual(snapped);
+  });
+
+  it("leaves the ball where it was dropped when no edge is near", () => {
+    // Released in open space: snapping to the nearest edge would move it far away.
+    expect(resolveCompactSnappedPosition({ bounds: { x: 700, y: 500 }, frameSize, monitor }))
+      .toEqual({ x: 700, y: 500 });
+    expect(resolveCompactSnappedPosition({ bounds: { x: 960, y: 700 }, frameSize, monitor }))
+      .toEqual({ x: 960, y: 700 });
+  });
+
+  it("snaps only within the threshold band around an edge", () => {
+    const justInside = resolveCompactSnappedPosition({
+      bounds: { x: MAIN_WINDOW_COMPACT_SNAP_THRESHOLD - 1, y: 500 },
+      frameSize,
+      monitor,
+    });
+    expect(justInside).toEqual({ x: -half, y: 500 });
+
+    const justOutside = resolveCompactSnappedPosition({
+      bounds: { x: MAIN_WINDOW_COMPACT_SNAP_THRESHOLD + 1, y: 500 },
+      frameSize,
+      monitor,
+    });
+    expect(justOutside).toEqual({ x: MAIN_WINDOW_COMPACT_SNAP_THRESHOLD + 1, y: 500 });
   });
 });
 
