@@ -269,13 +269,13 @@ const useMainWindowPanelDrag = ({
     const wasDragging = isDraggingRef.current;
     isDraggingRef.current = false;
     if (wasDragging) {
-      syncMainWindowInteraction();
-      // Only the compact ball snaps to an edge; the full square keeps free placement.
+      // Dragging the ball must leave it a ball: no pointerEnter expand here, only
+      // the edge snap when the drag happened in compact mode.
       if (isCompact) {
         onWindowDragEnd?.();
       }
     }
-  }, [dispatch, isCompact, onWindowDragEnd, releasePanelPointerCapture, syncMainWindowInteraction]);
+  }, [dispatch, isCompact, onWindowDragEnd, releasePanelPointerCapture]);
 
   const startWindowDrag = useCallback(async (screenX: number, screenY: number) => {
     const pendingDragStart = pendingDragStartRef.current;
@@ -339,10 +339,8 @@ const useMainWindowPanelDrag = ({
       await onCloseContextMenu();
       return;
     }
-    if (isCompact) {
-      syncMainWindowInteraction();
-      return;
-    }
+    // Compact no longer expands on press. A press may become a drag, and dragging
+    // the ball must keep it a ball; a press that never drags expands on release.
     const targetIgnored = shouldIgnorePanelDoubleClickTarget(e.target);
     if (targetIgnored) {
       resetWindowDragState();
@@ -378,12 +376,10 @@ const useMainWindowPanelDrag = ({
   }, [
     canDoubleClickOpenOutputFolder,
     dispatch,
-    isCompact,
     isContextMenuOpen,
     isMacOS,
     onCloseContextMenu,
     resetWindowDragState,
-    syncMainWindowInteraction,
     triggerPanelOutputFolderShortcut,
   ]);
 
@@ -412,7 +408,7 @@ const useMainWindowPanelDrag = ({
       !pendingDragStart
       || pendingDragStart.pointerId !== e.pointerId
       || e.buttons !== 1
-      || isCompact
+      || !pendingDragStart
     ) {
       return;
     }
@@ -427,7 +423,6 @@ const useMainWindowPanelDrag = ({
 
     void startWindowDrag(e.screenX, e.screenY);
   }, [
-    isCompact,
     startWindowDrag,
     syncPointerFieldFromClientPoint,
     updateManualWindowDrag,
@@ -444,10 +439,15 @@ const useMainWindowPanelDrag = ({
       finishWindowDrag(e.pointerId);
       return;
     }
+    const wasPending = pendingDragStartRef.current !== null;
     resetWindowDragState({
       eventPointerId: e.pointerId,
     });
-  }, [finishWindowDrag, resetWindowDragState]);
+    // A compact press that never became a drag is a click on the ball: expand.
+    if (wasPending && isCompact) {
+      dispatch({ type: "pointerEnter" });
+    }
+  }, [dispatch, finishWindowDrag, isCompact, resetWindowDragState]);
 
   const handlePanelPointerCancel = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (isDraggingRef.current) {
@@ -504,6 +504,8 @@ const useMainWindowPanelDrag = ({
     handlePanelDoubleClick,
     syncPointerFieldFromClientPoint,
     resetWindowDragState,
+    /** True while a real window drag is in flight. */
+    isDraggingRef,
   };
 };
 
@@ -738,6 +740,22 @@ export function MainWindowPresentationSurface({
     };
   }, [handlePointerFact, projections.visual.mode]);
 
+  const drag = useMainWindowPanelDrag({
+    containerRef,
+    viewportRef,
+    pointerField,
+    dispatch,
+    isCompact,
+    isContextMenuOpen,
+    canDoubleClickOpenOutputFolder,
+    isMacOS: environment.isMacOS,
+    onCloseContextMenu,
+    onOutputFolderShortcut,
+    onWindowDragEnd: snapCompactBallToNearestEdge,
+  });
+  // Stable ref identity so the hotspot callback below never re-subscribes.
+  const dragIsDraggingRef = drag.isDraggingRef;
+
   // Windows compact hotspot: window-level mousemove hysteresis while the
   // compact passthrough surface is active.
   const evaluateCompactHotspot = useCallback((clientX: number, clientY: number) => {
@@ -768,8 +786,14 @@ export function MainWindowPresentationSurface({
       return;
     }
     compactHotspotInsideRef.current = true;
+    // A drag owns the gesture: entering the hotspot must not expand the ball the
+    // user is currently moving, otherwise dragging turns it into the square.
+    if (dragIsDraggingRef.current) {
+      return;
+    }
     handlePointerFact(true, { type: "pointerEnter" });
   }, [
+    dragIsDraggingRef,
     geometry.hotspot,
     handlePointerFact,
     pointerField,
@@ -827,20 +851,6 @@ export function MainWindowPresentationSurface({
       document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
     };
   }, [panelViewportSize, pointerField]);
-
-  const drag = useMainWindowPanelDrag({
-    containerRef,
-    viewportRef,
-    pointerField,
-    dispatch,
-    isCompact,
-    isContextMenuOpen,
-    canDoubleClickOpenOutputFolder,
-    isMacOS: environment.isMacOS,
-    onCloseContextMenu,
-    onOutputFolderShortcut,
-    onWindowDragEnd: snapCompactBallToNearestEdge,
-  });
 
   const isPointInsidePanel = useCallback((clientX: number, clientY: number) => {
     const container = containerRef.current;
@@ -1103,7 +1113,13 @@ export function MainWindowPresentationSurface({
           }}
           onMouseEnter={(e) => {
             drag.syncPointerFieldFromClientPoint(e.clientX, e.clientY);
-            handlePointerFact(true, { type: "pointerEnter" });
+            // Hovering the ball must not expand it into the square: a press on the
+            // ball decides between a drag (stays a ball) and a click (which expands
+            // on release, turning pointerInside on). The full shell keeps its
+            // existing hover behaviour.
+            if (!isCompact) {
+              handlePointerFact(true, { type: "pointerEnter" });
+            }
             containerRef.current?.focus();
           }}
           onMouseLeave={() => {

@@ -19,32 +19,33 @@ const screenApi = {
 
 describe("resolveCompactSnappedPosition", () => {
   const frameSize = 56;
+  const half = 28;
 
-  it("flushes the compact ball against whichever edge it is nearest", () => {
+  it("settles the ball half off-screen against whichever edge it is nearest", () => {
     expect(resolveCompactSnappedPosition({ bounds: { x: 12, y: 500 }, frameSize, monitor }))
-      .toEqual({ x: 0, y: 500 });
+      .toEqual({ x: -half, y: 500 });
     expect(resolveCompactSnappedPosition({ bounds: { x: 1850, y: 500 }, frameSize, monitor }))
-      .toEqual({ x: 1920 - frameSize, y: 500 });
+      .toEqual({ x: 1920 - half, y: 500 });
     expect(resolveCompactSnappedPosition({ bounds: { x: 900, y: 4 }, frameSize, monitor }))
-      .toEqual({ x: 900, y: 0 });
+      .toEqual({ x: 900, y: -half });
     expect(resolveCompactSnappedPosition({ bounds: { x: 900, y: 1020 }, frameSize, monitor }))
-      .toEqual({ x: 900, y: 1080 - frameSize });
+      .toEqual({ x: 900, y: 1080 - half });
   });
 
-  it("keeps the free axis inside the work area when it was overshooting", () => {
+  it("keeps the free axis fully inside the work area when it was overshooting", () => {
     // Nearest edge wins first: 10px from the left beats 3976px from the bottom,
-    // and the far-off vertical value is clamped into the work area.
+    // and the far-off vertical value is clamped so the ball stays fully visible.
     expect(resolveCompactSnappedPosition({ bounds: { x: 10, y: 5000 }, frameSize, monitor }))
-      .toEqual({ x: 0, y: 1080 - frameSize });
+      .toEqual({ x: -half, y: 1080 - frameSize });
     // 20px from the top beats 400px from the left, so it snaps to the top edge
     // and the off-screen horizontal value is clamped to the work-area origin.
     expect(resolveCompactSnappedPosition({ bounds: { x: -400, y: 20 }, frameSize, monitor }))
-      .toEqual({ x: 0, y: 0 });
+      .toEqual({ x: 0, y: -half });
   });
 
-  it("is idempotent once already flush against an edge", () => {
-    const snapped = resolveCompactSnappedPosition({ bounds: { x: 0, y: 500 }, frameSize, monitor });
-    expect(snapped).toEqual({ x: 0, y: 500 });
+  it("is idempotent once already settled against an edge", () => {
+    const snapped = resolveCompactSnappedPosition({ bounds: { x: -half, y: 500 }, frameSize, monitor });
+    expect(snapped).toEqual({ x: -half, y: 500 });
     expect(resolveCompactSnappedPosition({ bounds: snapped, frameSize, monitor })).toEqual(snapped);
   });
 });

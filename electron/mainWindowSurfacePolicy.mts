@@ -263,9 +263,10 @@ export type CompactSnapResult = {
 
 /**
  * Nearest-edge snap for the compact ball. Picks whichever work-area edge the
- * window is already closest to and flushes the frame against it, keeping the
- * other axis inside the work area. Ties resolve to the earlier candidate
- * (left, then right, then top, then bottom) so the result is deterministic.
+ * window is already closest to and settles the ball half off-screen against it,
+ * so only the inner half stays visible; the free axis is kept fully inside the
+ * work area. Ties resolve to the earlier candidate (left, right, top, bottom) so
+ * the result is deterministic.
  */
 export const resolveCompactSnappedPosition = ({
   bounds,
@@ -277,16 +278,22 @@ export const resolveCompactSnappedPosition = ({
   monitor: CompactReachabilityMonitor;
 }): { x: number; y: number } => {
   const size = Math.max(1, Math.round(frameSize));
+  // Half the ball overhangs the display edge once snapped.
+  const half = Math.round(size / 2);
   const minX = monitor.position.x;
   const minY = monitor.position.y;
-  const maxX = monitor.position.x + monitor.size.width - size;
-  const maxY = monitor.position.y + monitor.size.height - size;
+  const maxX = monitor.position.x + monitor.size.width;
+  const maxY = monitor.position.y + monitor.size.height;
+  // Distance is measured from the flush position so the nearest edge is chosen
+  // exactly as before the overhang existed.
+  const flushMaxX = maxX - size;
+  const flushMaxY = maxY - size;
 
   const candidates: Array<{ distance: number; x: number; y: number }> = [
-    { distance: Math.abs(bounds.x - minX), x: minX, y: clamp(bounds.y, minY, maxY) },
-    { distance: Math.abs(bounds.x - maxX), x: maxX, y: clamp(bounds.y, minY, maxY) },
-    { distance: Math.abs(bounds.y - minY), x: clamp(bounds.x, minX, maxX), y: minY },
-    { distance: Math.abs(bounds.y - maxY), x: clamp(bounds.x, minX, maxX), y: maxY },
+    { distance: Math.abs(bounds.x - minX), x: minX - half, y: clamp(bounds.y, minY, flushMaxY) },
+    { distance: Math.abs(bounds.x - flushMaxX), x: maxX - half, y: clamp(bounds.y, minY, flushMaxY) },
+    { distance: Math.abs(bounds.y - minY), x: clamp(bounds.x, minX, flushMaxX), y: minY - half },
+    { distance: Math.abs(bounds.y - flushMaxY), x: clamp(bounds.x, minX, flushMaxX), y: maxY - half },
   ];
 
   const best = candidates.reduce((closest, candidate) => (

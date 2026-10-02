@@ -392,9 +392,12 @@ function App() {
         if (!nativeSurfaceAvailable) {
           return;
         }
+        const compactOuterSize = getMainWindowCompactOuterSize(currentMainWindowPlatform);
         void desktopCurrentWindow.ensureMainWindowCompactReachable({
-          reachableFrameSize: getMainWindowCompactOuterSize(currentMainWindowPlatform),
-          edgePadding: WINDOW_EDGE_PADDING,
+          reachableFrameSize: compactOuterSize,
+          // A snapped ball rests half off-screen, so the reachability correction
+          // must permit that overhang instead of pulling it back into view.
+          edgePadding: -Math.round(compactOuterSize / 2),
           reducedMotion: Boolean(shouldReduceMotion),
           requestEpoch,
         }).catch((err) => {
