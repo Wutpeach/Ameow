@@ -101,6 +101,9 @@ contextBridge.exposeInMainWorld("ameow", {
     snapToNearestEdge(options) {
       return invoke("ameow:current-window:snap-to-nearest-edge", options);
     },
+    setGestureActive(active) {
+      ipcRenderer.send("ameow:current-window:set-gesture-active", { active });
+    },
     rendererReady() {
       return invoke("ameow:current-window:renderer-ready");
     },

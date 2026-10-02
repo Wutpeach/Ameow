@@ -78,6 +78,9 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   async snapToNearestEdge(options) {
     return resolveElectronBridge().currentWindow.snapToNearestEdge(options);
   },
+  setGestureActive(active) {
+    resolveElectronBridge().currentWindow.setGestureActive(active);
+  },
   async rendererReady() {
     await resolveElectronBridge().currentWindow.rendererReady();
   },

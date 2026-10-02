@@ -3553,15 +3553,18 @@ function registerIpcHandlers() {
     if (mode === "compact-passthrough") {
       mainWindowPointerBoundaryController?.stop();
       // Click-through everywhere except the ball itself. `forward: true` forwards
-      // only mousemove, and a non-focusable window never receives the click, so
-      // the controller owns both the ignore state and focusability.
+      // only mousemove, so the controller keeps the ignore state following the
+      // cursor.
       if (win === getWindow(WINDOW_LABELS.main) && mainWindowCompactHotspotController) {
         mainWindowCompactHotspotController.start();
       } else {
         win.setIgnoreMouseEvents(true, { forward: true });
-        if (shouldToggleFocusabilityForInteractionMode()) {
-          win.setFocusable(false);
-        }
+      }
+      // Focusability stays ON and is never toggled with the cursor: a
+      // non-focusable window receives no click, and toggling it makes the window
+      // flicker in and out of the taskbar.
+      if (shouldToggleFocusabilityForInteractionMode()) {
+        win.setFocusable(true);
       }
       keepMainWindowOffWindowsTaskbar(win);
       return;
@@ -3625,6 +3628,14 @@ function registerIpcHandlers() {
       return;
     }
     cancelMainWindowCompactReachability(win);
+  });
+
+  ipcMain.on("ameow:current-window:set-gesture-active", (event, payload) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win !== getWindow(WINDOW_LABELS.main)) {
+      return;
+    }
+    mainWindowCompactHotspotController?.setGestureActive(payload?.active === true);
   });
 
   ipcMain.handle("ameow:current-window:close", (event) => {

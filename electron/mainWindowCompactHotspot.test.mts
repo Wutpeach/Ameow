@@ -23,7 +23,6 @@ describe("isCursorInsideCompactHotspot", () => {
       cursor: { x: 1056 + 45, y: 556 },
       scaleFactor: 2,
     })).toBe(false);
-    // Inside the scaled radius.
     expect(isCursorInsideCompactHotspot({
       ...base,
       cursor: { x: 1056 + 30, y: 556 },
@@ -47,44 +46,70 @@ describe("isCursorInsideCompactHotspot", () => {
 describe("createMainWindowCompactHotspotController", () => {
   const createHarness = () => {
     const setIgnoreMouseEvents = vi.fn();
-    const setFocusable = vi.fn();
     const win = {
       getBounds: () => ({ x: 0, y: 0, width: 228, height: 228 }),
       isDestroyed: () => false,
       isVisible: () => true,
       setIgnoreMouseEvents,
-      setFocusable,
       on: () => undefined,
     };
-    return { win, setIgnoreMouseEvents, setFocusable };
+    return { win, setIgnoreMouseEvents };
   };
 
-  it("accepts mouse input only while the cursor is on the ball", () => {
-    let cursor = { x: 500, y: 500 };
-    const { win, setIgnoreMouseEvents, setFocusable } = createHarness();
-    const controller = createMainWindowCompactHotspotController({
-      win,
-      screenRef: { getCursorScreenPoint: () => cursor },
+  const createController = (win: object, cursorRef: { value: { x: number; y: number } }) =>
+    createMainWindowCompactHotspotController({
+      win: win as Parameters<typeof createMainWindowCompactHotspotController>[0]["win"],
+      screenRef: { getCursorScreenPoint: () => cursorRef.value },
       resolveScaleFactor: () => 1,
       hotspotCenter: { x: 28, y: 28 },
       pollMs: 10,
     });
 
+  it("accepts mouse input only while the cursor is on the ball", () => {
+    const { win, setIgnoreMouseEvents } = createHarness();
+    const cursorRef = { value: { x: 500, y: 500 } };
+    const controller = createController(win, cursorRef);
+
     controller.pollNow();
     expect(setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
-    // A non-focusable window never receives the click, so focus follows too.
-    expect(setFocusable).toHaveBeenLastCalledWith(false);
 
-    cursor = { x: 28, y: 28 };
+    cursorRef.value = { x: 28, y: 28 };
     controller.pollNow();
     expect(setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
-    expect(setFocusable).toHaveBeenLastCalledWith(true);
 
-    // An unchanged state must not re-issue the calls on every poll.
+    // An unchanged state must not re-issue the call on every poll.
     const calls = setIgnoreMouseEvents.mock.calls.length;
     controller.pollNow();
     expect(setIgnoreMouseEvents.mock.calls.length).toBe(calls);
 
     controller.dispose();
+  });
+
+  it("stays interactive for the whole gesture even when the cursor leaves the hotspot", () => {
+    // A drag moves the ball under the cursor, so re-evaluating the hotspot
+    // mid-gesture would hand the pointer to the window underneath and drop the drag.
+    const { win, setIgnoreMouseEvents } = createHarness();
+    const cursorRef = { value: { x: 28, y: 28 } };
+    const controller = createController(win, cursorRef);
+
+    controller.pollNow();
+    expect(setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+
+    controller.setGestureActive(true);
+    cursorRef.value = { x: 900, y: 900 };
+    controller.pollNow();
+    expect(setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+
+    controller.setGestureActive(false);
+    controller.pollNow();
+    expect(setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+
+    controller.dispose();
+  });
+
+  it("never touches focusability, which would flicker the taskbar button", () => {
+    const { win } = createHarness();
+    // The controller's window contract deliberately omits setFocusable.
+    expect(Object.keys(win)).not.toContain("setFocusable");
   });
 });

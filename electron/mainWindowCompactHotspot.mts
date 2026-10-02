@@ -22,7 +22,7 @@ export const MAIN_WINDOW_COMPACT_HOTSPOT_CENTER = 28;
 
 type CompactHotspotWindow = Pick<
   BrowserWindow,
-  "getBounds" | "isDestroyed" | "isVisible" | "setIgnoreMouseEvents" | "setFocusable"
+  "getBounds" | "isDestroyed" | "isVisible" | "setIgnoreMouseEvents"
 > & {
   on(event: "closed", listener: () => void): void;
 };
@@ -36,6 +36,11 @@ export type MainWindowCompactHotspotController = {
   stop(): void;
   pollNow(): void;
   dispose(): void;
+  /**
+   * Pins the surface interactive for the duration of a gesture so a moving ball
+   * cannot slip out from under its own hotspot and lose the drag.
+   */
+  setGestureActive(active: boolean): void;
 };
 
 /**
@@ -81,7 +86,6 @@ export const createMainWindowCompactHotspotController = ({
   hotspotCenter,
   radius = MAIN_WINDOW_COMPACT_HOTSPOT_RADIUS,
   pollMs = MAIN_WINDOW_COMPACT_HOTSPOT_POLL_MS,
-  manageFocusability = true,
 }: {
   win: CompactHotspotWindow;
   screenRef: CompactHotspotScreen;
@@ -89,17 +93,30 @@ export const createMainWindowCompactHotspotController = ({
   hotspotCenter: { x: number; y: number };
   radius?: number;
   pollMs?: number;
-  /**
-   * The compact surface is deliberately non-focusable, but a non-focusable
-   * window never receives the click, so focusability follows the hotspot too.
-   */
-  manageFocusability?: boolean;
 }): MainWindowCompactHotspotController => {
   let interval: ReturnType<typeof setInterval> | null = null;
-  let lastInteractive: boolean | null = null;
+  let lastIgnore: boolean | null = null;
+  let gestureActive = false;
+
+  const applyIgnore = (ignore: boolean) => {
+    if (ignore === lastIgnore) {
+      return;
+    }
+    lastIgnore = ignore;
+    win.setIgnoreMouseEvents(ignore, { forward: true });
+  };
 
   const emitIfChanged = () => {
     if (win.isDestroyed() || !win.isVisible()) {
+      return;
+    }
+
+    // A gesture owns the surface: the ball moves under the cursor, so re-evaluating
+    // the hotspot mid-drag would hand the pointer back to whatever is underneath
+    // and drop the drag. Focusability is deliberately NOT touched here — toggling
+    // it makes the window flicker in and out of the taskbar.
+    if (gestureActive) {
+      applyIgnore(false);
       return;
     }
 
@@ -112,15 +129,7 @@ export const createMainWindowCompactHotspotController = ({
       hotspotCenterY: hotspotCenter.y,
       radius,
     });
-
-    if (interactive === lastInteractive) {
-      return;
-    }
-    lastInteractive = interactive;
-    win.setIgnoreMouseEvents(!interactive, { forward: true });
-    if (manageFocusability) {
-      win.setFocusable(interactive);
-    }
+    applyIgnore(!interactive);
   };
 
   const stop = () => {
@@ -128,7 +137,8 @@ export const createMainWindowCompactHotspotController = ({
       clearInterval(interval);
       interval = null;
     }
-    lastInteractive = null;
+    lastIgnore = null;
+    gestureActive = false;
   };
 
   const start = () => {
@@ -152,5 +162,9 @@ export const createMainWindowCompactHotspotController = ({
     stop,
     pollNow: emitIfChanged,
     dispose,
+    setGestureActive: (active: boolean) => {
+      gestureActive = active;
+      emitIfChanged();
+    },
   };
 };

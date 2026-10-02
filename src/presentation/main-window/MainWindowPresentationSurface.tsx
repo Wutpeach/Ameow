@@ -261,6 +261,9 @@ const useMainWindowPanelDrag = ({
     pendingDragStartRef.current = null;
     activeWindowDragRef.current = null;
     isWindowPointerDownRef.current = false;
+    if (isCompact && isElectronRenderer()) {
+      desktopCurrentWindow.setGestureActive(false);
+    }
     dispatch({ type: "setLock", lock: "drag", active: false });
     if (windowDragFrameRef.current !== null) {
       window.cancelAnimationFrame(windowDragFrameRef.current);
@@ -357,6 +360,12 @@ const useMainWindowPanelDrag = ({
       return;
     }
     isWindowPointerDownRef.current = true;
+    // Pin the surface interactive for the whole press. The ball moves under the
+    // cursor while dragging, so letting the hotspot re-evaluate mid-gesture would
+    // hand the pointer back to the window underneath and drop the drag.
+    if (isCompact && isElectronRenderer()) {
+      desktopCurrentWindow.setGestureActive(true);
+    }
     dispatch({ type: "setLock", lock: "drag", active: true });
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -376,6 +385,7 @@ const useMainWindowPanelDrag = ({
   }, [
     canDoubleClickOpenOutputFolder,
     dispatch,
+    isCompact,
     isContextMenuOpen,
     isMacOS,
     onCloseContextMenu,

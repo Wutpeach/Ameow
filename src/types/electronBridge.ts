@@ -213,6 +213,11 @@ export interface AmeowCurrentWindowApi {
   ): Promise<AmeowCompactReachableResult>;
   cancelCompactReachability(): void;
   snapToNearestEdge(options: AmeowCompactSnapOptions): Promise<AmeowCompactSnapResult>;
+  /**
+   * Pins the compact surface interactive while a gesture is in flight, so a ball
+   * moving under the cursor cannot slip out of its own hotspot mid-drag.
+   */
+  setGestureActive(active: boolean): void;
   rendererReady(): Promise<void>;
   close(): Promise<void>;
   hide(): Promise<void>;
