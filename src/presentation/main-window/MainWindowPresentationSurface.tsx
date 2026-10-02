@@ -504,8 +504,6 @@ const useMainWindowPanelDrag = ({
     handlePanelDoubleClick,
     syncPointerFieldFromClientPoint,
     resetWindowDragState,
-    /** True while a real window drag is in flight. */
-    isDraggingRef,
   };
 };
 
@@ -753,8 +751,6 @@ export function MainWindowPresentationSurface({
     onOutputFolderShortcut,
     onWindowDragEnd: snapCompactBallToNearestEdge,
   });
-  // Stable ref identity so the hotspot callback below never re-subscribes.
-  const dragIsDraggingRef = drag.isDraggingRef;
 
   // Windows compact hotspot: window-level mousemove hysteresis while the
   // compact passthrough surface is active.
@@ -786,16 +782,13 @@ export function MainWindowPresentationSurface({
       return;
     }
     compactHotspotInsideRef.current = true;
-    // A drag owns the gesture: entering the hotspot must not expand the ball the
-    // user is currently moving, otherwise dragging turns it into the square.
-    if (dragIsDraggingRef.current) {
-      return;
-    }
-    handlePointerFact(true, { type: "pointerEnter" });
+    // Entering the hotspot must NOT expand the ball: expansion is a click gesture
+    // (a press that never dragged, handled on pointer up). Otherwise merely
+    // hovering the ball turns it into the square before a drag can even start.
+    // The pre-hotspot pointer-field write above is unaffected; it only feeds the
+    // character's glance.
   }, [
-    dragIsDraggingRef,
     geometry.hotspot,
-    handlePointerFact,
     pointerField,
     projections.interaction.hotspotActive,
     viewportRef,
