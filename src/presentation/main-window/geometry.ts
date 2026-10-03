@@ -78,15 +78,18 @@ const resolveVisualShell = (
 
 const resolveCompactHotspot = (platform: NodeJS.Platform): MainWindowHotspotFrame => {
   const compactOuterSize = getMainWindowCompactOuterSize(platform);
-  const frameSize = platform === "darwin"
-    ? MAIN_WINDOW_COMPACT_SHELL_SIZE
-    : MAIN_WINDOW_MINIMIZED_ICON_SIZE;
+  // Track the visible ball (the shell), not the smaller legacy icon bound: a press
+  // anywhere on the ball has to reach the surface. On Windows the old 38px icon
+  // frame was smaller than the 42px ball, so only a small centre patch was
+  // draggable. The exit radius adds hysteresis so a pointer on the rim does not
+  // flicker in and out of the hotspot.
+  const frameSize = MAIN_WINDOW_COMPACT_SHELL_SIZE;
   return {
     frameSize,
     centerX: compactOuterSize / 2,
     centerY: compactOuterSize / 2,
     enterRadius: frameSize / 2,
-    exitRadius: frameSize / 2 + 4,
+    exitRadius: frameSize / 2 + 6,
   };
 };
 

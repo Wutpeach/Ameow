@@ -58,6 +58,27 @@ describe("resolveCompactSnappedPosition", () => {
       .toEqual({ x: 960, y: 700 });
   });
 
+  it("returns the current position when an input is not finite", () => {
+    // A single non-finite value used to reach win.setPosition and throw a
+    // conversion error out of the animation timer, which surfaced as a
+    // main-process error dialog during a drag.
+    expect(resolveCompactSnappedPosition({
+      bounds: { x: 12, y: 500 },
+      frameSize: Number.NaN,
+      monitor,
+    })).toEqual({ x: 12, y: 500 });
+    expect(resolveCompactSnappedPosition({
+      bounds: { x: 12, y: 500 },
+      frameSize,
+      monitor: { position: { x: 0, y: 0 }, size: { width: Number.NaN, height: 1080 } },
+    })).toEqual({ x: 12, y: 500 });
+    expect(resolveCompactSnappedPosition({
+      bounds: { x: Number.POSITIVE_INFINITY, y: 500 },
+      frameSize,
+      monitor,
+    })).toEqual({ x: Number.POSITIVE_INFINITY, y: 500 });
+  });
+
   it("snaps only within the threshold band around an edge", () => {
     const justInside = resolveCompactSnappedPosition({
       bounds: { x: MAIN_WINDOW_COMPACT_SNAP_THRESHOLD - 1, y: 500 },

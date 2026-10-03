@@ -3638,6 +3638,14 @@ function registerIpcHandlers() {
     mainWindowCompactHotspotController?.setGestureActive(payload?.active === true);
   });
 
+  ipcMain.on("ameow:current-window:set-hotspot-active", (event, payload) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win !== getWindow(WINDOW_LABELS.main)) {
+      return;
+    }
+    mainWindowCompactHotspotController?.setHotspotHint(payload?.inside === true);
+  });
+
   ipcMain.handle("ameow:current-window:close", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.close();

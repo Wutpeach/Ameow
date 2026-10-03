@@ -104,6 +104,9 @@ contextBridge.exposeInMainWorld("ameow", {
     setGestureActive(active) {
       ipcRenderer.send("ameow:current-window:set-gesture-active", { active });
     },
+    setHotspotActive(inside) {
+      ipcRenderer.send("ameow:current-window:set-hotspot-active", { inside });
+    },
     rendererReady() {
       return invoke("ameow:current-window:renderer-ready");
     },

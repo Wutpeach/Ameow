@@ -787,16 +787,18 @@ export function MainWindowPresentationSurface({
       exitRadius: geometry.hotspot.exitRadius,
       wasInside: compactHotspotInsideRef.current,
     });
-    if (!insideHotspot || compactHotspotInsideRef.current) {
+    if (insideHotspot !== compactHotspotInsideRef.current) {
       compactHotspotInsideRef.current = insideHotspot;
-      return;
+      // Report both directions so the host switches click-through on the same
+      // frame the pointer arrives or leaves, instead of waiting for its next poll.
+      // Entering the hotspot must NOT expand the ball: expansion is a click
+      // gesture (a press that never dragged, handled on pointer up). The
+      // pre-hotspot pointer-field write above is unaffected; it only feeds the
+      // character's glance.
+      if (isElectronRenderer()) {
+        desktopCurrentWindow.setHotspotActive(insideHotspot);
+      }
     }
-    compactHotspotInsideRef.current = true;
-    // Entering the hotspot must NOT expand the ball: expansion is a click gesture
-    // (a press that never dragged, handled on pointer up). Otherwise merely
-    // hovering the ball turns it into the square before a drag can even start.
-    // The pre-hotspot pointer-field write above is unaffected; it only feeds the
-    // character's glance.
   }, [
     geometry.hotspot,
     pointerField,

@@ -218,6 +218,8 @@ export interface AmeowCurrentWindowApi {
    * moving under the cursor cannot slip out of its own hotspot mid-drag.
    */
   setGestureActive(active: boolean): void;
+  /** Renderer-observed hotspot reading, applied before the next host poll. */
+  setHotspotActive(inside: boolean): void;
   rendererReady(): Promise<void>;
   close(): Promise<void>;
   hide(): Promise<void>;

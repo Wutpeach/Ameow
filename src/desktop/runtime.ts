@@ -81,6 +81,9 @@ export const desktopCurrentWindow: AmeowCurrentWindowApi = {
   setGestureActive(active) {
     resolveElectronBridge().currentWindow.setGestureActive(active);
   },
+  setHotspotActive(inside) {
+    resolveElectronBridge().currentWindow.setHotspotActive(inside);
+  },
   async rendererReady() {
     await resolveElectronBridge().currentWindow.rendererReady();
   },

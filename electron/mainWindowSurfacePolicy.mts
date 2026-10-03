@@ -114,6 +114,15 @@ const interpolatePosition = (
   durationMs: number,
   requestEpoch: number,
 ): Promise<void> => new Promise<void>((resolve) => {
+  // Never hand Electron a non-finite coordinate: it raises a conversion error out
+  // of the frame timer instead of failing softly.
+  const isFinitePoint = (point: { x: number; y: number }) =>
+    Number.isFinite(point.x) && Number.isFinite(point.y);
+  if (!isFinitePoint(from) || !isFinitePoint(to)) {
+    resolve();
+    return;
+  }
+
   if (win.isDestroyed() || durationMs <= 0) {
     if (!win.isDestroyed()) {
       win.setPosition(to.x, to.y);
@@ -133,6 +142,30 @@ const interpolatePosition = (
     }
   };
 
+  /**
+   * Every `win.setPosition` goes through here. Electron raises "Error processing
+   * argument at index 0, conversion failure" when a coordinate is not a finite
+   * number, and because this runs inside a frame timer that surfaces as an
+   * uncaught main-process exception and a modal error dialog mid-download. A bad
+   * coordinate is not worth interrupting the user for: log it and stop moving.
+   */
+  const applyPosition = (x: number, y: number): boolean => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      console.error(
+        ">>> [Window] Refusing a non-finite window position:",
+        JSON.stringify({ x, y }),
+      );
+      return false;
+    }
+    try {
+      win.setPosition(Math.round(x), Math.round(y));
+      return true;
+    } catch (error) {
+      console.error(">>> [Window] Failed to move the window:", error);
+      return false;
+    }
+  };
+
   const finish = () => {
     if (frameTimer !== null) {
       clearTimeout(frameTimer);
@@ -140,7 +173,7 @@ const interpolatePosition = (
     }
     releaseOwnership();
     if (!win.isDestroyed()) {
-      win.setPosition(to.x, to.y);
+      applyPosition(to.x, to.y);
     }
     resolve();
   };
@@ -163,10 +196,15 @@ const interpolatePosition = (
     const elapsedMs = Date.now() - startedAtMs;
     const progress = Math.min(1, elapsedMs / durationMs);
     const easedProgress = easeInOutCubic(progress);
-    win.setPosition(
-      Math.round(from.x + ((to.x - from.x) * easedProgress)),
-      Math.round(from.y + ((to.y - from.y) * easedProgress)),
+    const moved = applyPosition(
+      from.x + ((to.x - from.x) * easedProgress),
+      from.y + ((to.y - from.y) * easedProgress),
     );
+    if (!moved) {
+      // A refused coordinate means the animation cannot continue sensibly.
+      finish();
+      return;
+    }
 
     if (progress >= 1) {
       finish();
@@ -284,6 +322,21 @@ export const resolveCompactSnappedPosition = ({
   monitor: CompactReachabilityMonitor;
   threshold?: number;
 }): { x: number; y: number } => {
+  // Guard every input: a single non-finite value would propagate into the eased
+  // move and reach `win.setPosition(NaN, ...)`, which throws "conversion failure"
+  // out of the animation timer and surfaces as a main-process error dialog.
+  if (
+    !Number.isFinite(bounds.x)
+    || !Number.isFinite(bounds.y)
+    || !Number.isFinite(frameSize)
+    || !Number.isFinite(monitor.position.x)
+    || !Number.isFinite(monitor.position.y)
+    || !Number.isFinite(monitor.size.width)
+    || !Number.isFinite(monitor.size.height)
+  ) {
+    return { x: bounds.x, y: bounds.y };
+  }
+
   const size = Math.max(1, Math.round(frameSize));
   // Half the ball overhangs the display edge once snapped.
   const half = Math.round(size / 2);

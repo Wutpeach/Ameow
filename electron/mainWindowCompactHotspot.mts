@@ -5,14 +5,20 @@ import {
   type VisibilityPoint,
 } from "./windowVisibility.mjs";
 
-export const MAIN_WINDOW_COMPACT_HOTSPOT_POLL_MS = 40;
+/**
+ * Poll interval. The ignore state can only change on a poll, so this is the delay
+ * between the pointer reaching the ball and the ball accepting the press. Keep it
+ * well under a normal click-to-press delay or quick presses land on the window
+ * underneath instead.
+ */
+export const MAIN_WINDOW_COMPACT_HOTSPOT_POLL_MS = 16;
 
 /**
- * Hotspot radius in renderer CSS pixels. Matches the compact hotspot frame the
- * renderer uses to decide "the pointer is on the ball", with a small margin so a
- * press just inside the visible circle still lands.
+ * Hotspot radius in renderer CSS pixels. The visible ball has a 21px radius, so
+ * this deliberately over-covers it: the pointer may be a few pixels outside the
+ * circle (and the poll may be one frame stale) and the press still lands.
  */
-export const MAIN_WINDOW_COMPACT_HOTSPOT_RADIUS = 21;
+export const MAIN_WINDOW_COMPACT_HOTSPOT_RADIUS = 30;
 
 /**
  * Hotspot centre in renderer CSS pixels, measured from the window's top-left.
@@ -41,6 +47,13 @@ export type MainWindowCompactHotspotController = {
    * cannot slip out from under its own hotspot and lose the drag.
    */
   setGestureActive(active: boolean): void;
+  /**
+   * Applies a hotspot reading observed by the renderer. `forward: true` still
+   * delivers mousemove, so the renderer sees the pointer before the next poll and
+   * can switch the ignore state on the same frame as the pointer arrives; polling
+   * remains as the fallback for when no moves are delivered.
+   */
+  setHotspotHint(inside: boolean): void;
 };
 
 /**
@@ -97,6 +110,12 @@ export const createMainWindowCompactHotspotController = ({
   let interval: ReturnType<typeof setInterval> | null = null;
   let lastIgnore: boolean | null = null;
   let gestureActive = false;
+  /**
+   * Latest hotspot reading from the renderer. It is measured in CSS pixels, so it
+   * needs no scale conversion; the host poll is only a fallback for when no moves
+   * are delivered, and must not override a fresh renderer reading.
+   */
+  let rendererHint: boolean | null = null;
 
   const applyIgnore = (ignore: boolean) => {
     if (ignore === lastIgnore) {
@@ -120,8 +139,12 @@ export const createMainWindowCompactHotspotController = ({
       return;
     }
 
+    // Both sources are consulted, and "on the ball" wins: the renderer reading
+    // accelerates entry (same frame), while the poll covers leaving and the case
+    // where forwarded mousemove never arrives. Letting a stale `false` hint win
+    // outright would pin the surface click-through and make the ball unreachable.
     const bounds = win.getBounds();
-    const interactive = isCursorInsideCompactHotspot({
+    const polledInside = isCursorInsideCompactHotspot({
       cursor: screenRef.getCursorScreenPoint(),
       bounds,
       scaleFactor: resolveScaleFactor(bounds),
@@ -129,7 +152,7 @@ export const createMainWindowCompactHotspotController = ({
       hotspotCenterY: hotspotCenter.y,
       radius,
     });
-    applyIgnore(!interactive);
+    applyIgnore(!(rendererHint === true || polledInside));
   };
 
   const stop = () => {
@@ -139,6 +162,7 @@ export const createMainWindowCompactHotspotController = ({
     }
     lastIgnore = null;
     gestureActive = false;
+    rendererHint = null;
   };
 
   const start = () => {
@@ -165,6 +189,14 @@ export const createMainWindowCompactHotspotController = ({
     setGestureActive: (active: boolean) => {
       gestureActive = active;
       emitIfChanged();
+    },
+    setHotspotHint: (inside: boolean) => {
+      rendererHint = inside;
+      if (gestureActive) {
+        applyIgnore(false);
+        return;
+      }
+      applyIgnore(!inside);
     },
   };
 };

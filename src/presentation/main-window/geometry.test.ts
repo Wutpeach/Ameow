@@ -37,11 +37,11 @@ describe("mainWindow geometry (spatial only)", () => {
       clipPath: "inset(0 round 100px)",
     });
     expect(geometry.hotspot).toEqual({
-      frameSize: 38,
+      frameSize: 42,
       centerX: 28,
       centerY: 28,
-      enterRadius: 19,
-      exitRadius: 23,
+      enterRadius: 21,
+      exitRadius: 27,
     });
   });
 
@@ -52,7 +52,7 @@ describe("mainWindow geometry (spatial only)", () => {
       centerX: 28,
       centerY: 28,
       enterRadius: 21,
-      exitRadius: 25,
+      exitRadius: 27,
     });
   });
 
