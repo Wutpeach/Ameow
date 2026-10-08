@@ -607,6 +607,30 @@ impl Render for Prototype {
                 }));
             }
         }
+        let surface_border = if p.night {
+            gpui::white().opacity(0.15)
+        } else {
+            p.border
+        };
+        // GPUI's style path paints fill/border separately. Combine them before outer AA
+        // coverage here, while the original div retains its 1px layout inset and hitbox.
+        let surface_paint = canvas(
+            |_, _, _| (),
+            move |bounds, _, window, _| {
+                window.paint_quad(quad(
+                    bounds,
+                    Corners::all(px(g.radius)).clamp_radii_for_quad_size(bounds.size),
+                    p.surface,
+                    Edges::all(px(1.)),
+                    surface_border,
+                    BorderStyle::default(),
+                ));
+            },
+        )
+        .absolute()
+        .left(px(g.gutter))
+        .top(px(g.gutter))
+        .size(px(g.surface));
         let surface = div()
             .id("surface")
             .absolute()
@@ -614,13 +638,8 @@ impl Render for Prototype {
             .top(px(g.gutter))
             .size(px(g.surface))
             .rounded(px(g.radius))
-            .bg(p.surface)
             .border_1()
-            .border_color(if p.night {
-                gpui::white().opacity(0.15)
-            } else {
-                p.border
-            })
+            .border_color(gpui::transparent_black())
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, _, window, cx| {
@@ -786,6 +805,7 @@ impl Render for Prototype {
             .top(px(visual_offset[1]))
             .size(px(g.native))
             .child(shadow)
+            .child(surface_paint)
             .child(surface)
             .child(slot)
             .child(badge);
