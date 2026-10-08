@@ -1,0 +1,16 @@
+[package]
+name = "ameow-next"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+gpui = { version = "=0.2.2", default-features = false, features = ["windows-manifest"] }
+raw-window-handle = "0.6"
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Graphics_Gdi", "Win32_UI_Input_KeyboardAndMouse"] }
+
+[profile.dev]
+debug = 0
+
+[workspace]

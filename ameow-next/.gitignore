@@ -1,0 +1,6 @@
+/target/
+/evidence/*.log
+__pycache__/
+*.pid
+/build.log
+/prototype-error.log
