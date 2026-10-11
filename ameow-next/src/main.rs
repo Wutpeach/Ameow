@@ -1,5 +1,6 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod edge_hover;
+mod download_bridge;
 mod indicator;
 mod magnetic_spring;
 mod model;
@@ -912,6 +913,10 @@ impl Render for Prototype {
     }
 }
 fn main() {
+    if std::env::args().any(|argument| argument == "--download-test-bridge") {
+        if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
+        return;
+    }
     let options = Options::from_args();
     Application::new()
         .with_assets(Assets)

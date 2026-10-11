@@ -1,0 +1,9 @@
+# Managed runtime provenance and notices
+
+Stage A downloads only the fixed official Windows x64 releases in runtime-manifest.json. No binaries are shipped in this source tree; the managed cache is prepared by the app. Official HTTPS release/checksum matches are verified by SHA-256; detached signatures were not verified. Digest mismatch fails closed.
+
+- yt-dlp 2026.08.19: official standalone executable is GPL-3.0-or-later, including bundled third-party dependencies. Repository source is Unlicense. Source and complete notices: https://github.com/yt-dlp/yt-dlp/tree/2026.08.19 and its LICENSE/THIRD_PARTY_LICENSES files. This release bundles EJS 0.8.0 (Unlicense; meriyah ISC and astring MIT notices), https://github.com/yt-dlp/ejs/tree/0.8.0.
+- Deno 2.9.7: MIT with third-party notices, official source/LICENSE https://github.com/denoland/deno/tree/v2.9.7.
+- FFmpeg N-127264-gf5d4fd186c-20261009: GPL-3.0-or-later build, fixed dated yt-dlp/FFmpeg-Builds autobuild-2026-10-09-19-22. Source revision https://github.com/FFmpeg/FFmpeg/tree/f5d4fd186c; build recipe/dependency source and notices https://github.com/yt-dlp/FFmpeg-Builds/tree/autobuild-2026-10-09-19-22. Archive checksum 13cc318a840c22f204cbfef0c6dc6465da3db83ff7f87e467a61e2100a9b06de matches that fixed release's checksums.sha256 and displayed official asset digest. Archive includes LICENSE.txt; the full GPL text is retained next to these notices. --enable-gpl/--enable-version3; no libfdk-aac. This fixed archive has renamed paths and therefore a different archive hash from the previous mutable latest experiment; its ffmpeg/ffprobe executable hashes are identical.
+
+Runtime acquisition, cache integrity and source/license pointers are Stage A engineering artifacts. Redistribution/Portable ZIP with complete corresponding source and notices is a separately gated Stage C deliverable; no compliant ordinary-user ZIP is claimed here.

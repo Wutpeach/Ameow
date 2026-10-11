@@ -1,0 +1,430 @@
+use ameow_next::download::{
+    Coordinator, Phase,
+    network::{Route, parse_proxy},
+    output::{DestinationStage, VerifiedMedia},
+    plan,
+    process_supervisor::Control,
+    request::{Accepted, DownloadIntent, Quality},
+    runtime::{RuntimeManager, check_file, hash},
+};
+use serde_json::json;
+use std::{
+    fs,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+fn accepted(url: &str, root: &std::path::Path) -> Result<Accepted, String> {
+    Accepted::new(DownloadIntent {
+        url: url.into(),
+        quality: Quality::Balanced,
+        output_dir: root.into(),
+    })
+}
+#[test]
+fn public_url_acceptance_fixes_one_identity_and_destination() -> Result<(), String> {
+    let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+    for url in [
+        "https://youtu.be/jNQXAC9IVRw",
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+        "https://youtube.com/shorts/jNQXAC9IVRw",
+    ] {
+        let a = accepted(url, root.path())?;
+        assert_eq!(a.intent.url, url);
+        assert_eq!(
+            a.intent.output_dir,
+            root.path().canonicalize().map_err(|e| e.to_string())?
+        );
+        assert!(
+            a.identity(&json!({"id":"jNQXAC9IVRw","extractor_key":"Youtube","title":"public"}))
+                .is_ok()
+        );
+        assert!(
+            a.identity(&json!({"id":"differentid","extractor_key":"Youtube","title":"public"}))
+                .is_err()
+        );
+    }
+    for url in [
+        "file:///media",
+        "https://user:pass@youtube.com/watch?v=jNQXAC9IVRw",
+        "https://youtube.com/watch?v=jNQXAC9IVRw&v=dQw4w9WgXcQ",
+        "https://youtu.be/jNQXAC9IVRw/other",
+        "https://bilibili.com/video/BV1vL411G7N7?p=1&p=2",
+        "https://bilibili.com/video/BV1vL411G7N7?p=0",
+    ] {
+        assert!(accepted(url, root.path()).is_err(), "{url}");
+    }
+    Ok(())
+}
+#[test]
+fn bilibili_part_and_playlist_ambiguity_fail_before_download() -> Result<(), String> {
+    let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let single = accepted("https://bilibili.com/video/BV1vL411G7N7", root.path())?;
+    let metadata = json!({"id":"BV1vL411G7N7","extractor_key":"BiliBili","title":"public"});
+    assert!(single.identity(&metadata).is_ok());
+    assert!(
+        single
+            .identity(
+                &json!({"id":"BV1vL411G7N7_p1","extractor_key":"BiliBili","title":"anthology"})
+            )
+            .is_err()
+    );
+    assert!(single.identity(&json!({"entries":[metadata]})).is_err());
+    let part = accepted("https://bilibili.com/video/BV1vL411G7N7?p=2", root.path())?;
+    assert!(
+        part.identity(&json!({"id":"BV1vL411G7N7_p2","extractor_key":"BiliBili","title":"public"}))
+            .is_ok()
+    );
+    assert!(
+        part.identity(&json!({"id":"BV1vL411G7N7_p1","extractor_key":"BiliBili","title":"public"}))
+            .is_err()
+    );
+    Ok(())
+}
+#[test]
+fn quality_resolution_precedes_codec_and_audio_is_required() -> Result<(), String> {
+    let metadata = json!({"formats":[
+        {"format_id":"a","vcodec":"none","acodec":"opus","abr":128},
+        {"format_id":"low","vcodec":"avc1","acodec":"none","height":480},
+        {"format_id":"h264","vcodec":"avc1","acodec":"none","height":1080},
+        {"format_id":"hevc","vcodec":"hev1","acodec":"none","height":1080},
+        {"format_id":"vp9","vcodec":"vp9","acodec":"none","height":1080},
+        {"format_id":"high","vcodec":"av01","acodec":"none","height":2160},
+        {"format_id":"drm","vcodec":"avc1","acodec":"aac","height":4320,"has_drm":true}
+    ]});
+    assert_eq!(
+        plan::select(&metadata, Quality::Highest)?.selector,
+        "high+a"
+    );
+    assert_eq!(
+        plan::select(&metadata, Quality::Balanced)?.selector,
+        "h264+a"
+    );
+    assert_eq!(plan::select(&metadata, Quality::Saver)?.selector, "low+a");
+    assert!(
+        plan::select(
+            &json!({"formats":[{"format_id":"v","vcodec":"h264","acodec":"none","height":480}]}),
+            Quality::Saver
+        )
+        .is_err()
+    );
+    Ok(())
+}
+#[test]
+fn static_proxy_result_is_explicit_and_ambiguous_routes_are_rejected() -> Result<(), String> {
+    assert_eq!(
+        parse_proxy("http=localhost:7897;https=localhost:7897", "https")?,
+        Route::Proxy("http://localhost:7897".into())
+    );
+    for route in [
+        "",
+        "a:1;b:2",
+        "PROXY a:1 DIRECT",
+        "socks5://localhost:1",
+        "http://user:pass@localhost:1",
+        "https=a:1;https=b:2",
+    ] {
+        assert!(parse_proxy(route, "https").is_err(), "{route}");
+    }
+    Ok(())
+}
+fn media(root: &std::path::Path) -> Result<VerifiedMedia, String> {
+    let path = root.join("sample.mkv");
+    fs::write(&path, b"settled output bytes").map_err(|e| e.to_string())?;
+    Ok(VerifiedMedia {
+        path,
+        bytes: 20,
+        sha256: hash(&b"settled output bytes"[..])?,
+        streams: json!({}),
+        identity_guard: None,
+    })
+}
+#[test]
+fn delivery_never_replaces_existing_files_and_cleans_only_owned_partial() -> Result<(), String> {
+    let source = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let dest = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let m = media(source.path())?;
+    fs::write(dest.path().join("video.mkv"), b"existing user file").map_err(|e| e.to_string())?;
+    fs::write(dest.path().join(".ameow-other.partial"), b"not owned").map_err(|e| e.to_string())?;
+    let mut stage = DestinationStage::create(&m, dest.path(), 1)?;
+    stage.fill(&m)?;
+    assert!(fs::write(&stage.path, b"external corruption").is_err());
+    assert!(fs::remove_file(&stage.path).is_err());
+    assert!(fs::rename(&stage.path, dest.path().join("external-rename.mkv")).is_err());
+    let delivered = stage.publish(dest.path(), "video")?;
+    drop(stage);
+    assert_eq!(delivered, dest.path().join("video (1).mkv"));
+    assert_eq!(
+        fs::read(dest.path().join("video.mkv")).map_err(|e| e.to_string())?,
+        b"existing user file"
+    );
+    let mut cancelled = DestinationStage::create(&m, dest.path(), 2)?;
+    cancelled.fill(&m)?;
+    let partial = cancelled.path.clone();
+    cancelled.cleanup()?;
+    drop(cancelled);
+    assert!(!partial.exists());
+    assert!(dest.path().join(".ameow-other.partial").exists());
+    let mut pending = DestinationStage::create(&m, dest.path(), 4)?;
+    pending.fill(&m)?;
+    let other_reader = fs::File::open(&pending.path).map_err(|e| e.to_string())?;
+    assert!(pending.cleanup().is_err());
+    assert!(pending.owned_path().is_some());
+    drop(other_reader);
+    pending.cleanup()?;
+    assert!(pending.owned_path().is_none());
+    assert!(DestinationStage::create(&m, &dest.path().join("missing"), 3).is_err());
+    assert_eq!(
+        fs::read(delivered).map_err(|e| e.to_string())?,
+        b"settled output bytes"
+    );
+    Ok(())
+}
+#[test]
+fn hash_lease_rejects_corruption_and_prevents_live_mutation() -> Result<(), String> {
+    let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let file = root.path().join("runtime.exe");
+    fs::write(&file, b"trusted bytes").map_err(|e| e.to_string())?;
+    let expected = hash(&b"trusted bytes"[..])?;
+    let lease = check_file(&file, &expected)?;
+    assert!(fs::write(&file, b"tamper").is_err());
+    assert!(fs::remove_file(&file).is_err());
+    drop(lease);
+    fs::write(&file, b"tamper").map_err(|e| e.to_string())?;
+    assert!(check_file(&file, &expected).is_err());
+    Ok(())
+}
+#[test]
+fn failed_job_has_one_terminal_releases_ownership_and_rejects_stale_cancel() -> Result<(), String> {
+    let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let invalid = root.path().join("file");
+    fs::write(&invalid, b"not directory").map_err(|e| e.to_string())?;
+    let coordinator = Coordinator::new(invalid);
+    for n in 1..=2 {
+        let job = coordinator.accept(DownloadIntent {
+            url: "https://youtu.be/jNQXAC9IVRw".into(),
+            quality: Quality::Saver,
+            output_dir: root.path().into(),
+        })?;
+        assert_eq!(job, n);
+        let start = Instant::now();
+        loop {
+            let s = coordinator.snapshot();
+            if s.phase.terminal() {
+                assert_eq!(s.phase, Phase::Failure);
+                assert_eq!(s.terminal_count, 1);
+                assert!(s.resources_released);
+                assert!(s.workspace.is_none());
+                break;
+            }
+            if start.elapsed() > Duration::from_secs(5) {
+                return Err("No terminal".into());
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!coordinator.cancel(job));
+        assert!(!coordinator.cancel(job + 1));
+    }
+    Ok(())
+}
+#[test]
+#[ignore = "Requires genuine production-prepared cache, supplied via AMEOW_RUNTIME_TEST_ROOT"]
+fn genuine_runtime_reuse_verifies_pins_and_lease() -> Result<(), String> {
+    let root = std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?;
+    let manager = RuntimeManager::new(root.into());
+    let lease = manager.prepare(&Control::default(), Arc::new(|_| {}), |s| {
+        println!(">>> {s}")
+    })?;
+    let file = lease.file("deno.exe")?;
+    assert!(fs::write(&file, b"tamper").is_err());
+    let reused = manager.prepare(&Control::default(), Arc::new(|_| {}), |s| {
+        println!(">>> {s}")
+    })?;
+    assert_eq!(lease.digest, reused.digest);
+    drop(lease);
+    drop(reused);
+    let fresh = RuntimeManager::new(manager.root.clone()).prepare(
+        &Control::default(),
+        Arc::new(|_| {}),
+        |_| {},
+    )?;
+    assert!(fresh.file("ffprobe.exe")?.exists());
+    Ok(())
+}
+#[test]
+fn frozen_transfer_metadata_cannot_supply_filesystem_paths_or_credentials() -> Result<(), String> {
+    let plan = ameow_next::download::plan::FormatPlan {
+        selector: "v".into(),
+        height: 480,
+        video_codec: "h264".into(),
+        audio_codec: "aac".into(),
+        requires_audio: true,
+    };
+    let source = json!({"id":"jNQXAC9IVRw","title":"public","filepath":"C:/outside/user-file","_filename":"C:/outside/user-file","__files_to_move":{"C:/outside/user-file":"C:/elsewhere"},"formats":[{"format_id":"v","url":"https://media.example/video","vcodec":"h264","acodec":"aac","height":480,"ext":"mp4","filepath":"C:/outside","http_headers":{"Referer":"https://www.bilibili.com/"}}]});
+    let frozen = ameow_next::download::plan::transfer_input(&source, &plan)?;
+    assert!(frozen.get("filepath").is_none());
+    assert!(frozen.get("__files_to_move").is_none());
+    assert!(frozen["formats"][0].get("filepath").is_none());
+    let mut segmented = source.clone();
+    segmented["formats"][0]["fragments"] =
+        json!([{"url":"https://media.example/fragment","filepath":"C:/outside"}]);
+    assert!(
+        ameow_next::download::plan::transfer_input(&segmented, &plan)?["formats"][0]["fragments"]
+            [0]
+        .get("filepath")
+        .is_none()
+    );
+    let mut credentials = source.clone();
+    credentials["formats"][0]["http_headers"]["Cookie"] = json!("auth");
+    assert!(ameow_next::download::plan::transfer_input(&credentials, &plan).is_err());
+    let mut local = source;
+    local["formats"][0]["url"] = json!("file:///C:/outside");
+    assert!(ameow_next::download::plan::transfer_input(&local, &plan).is_err());
+    Ok(())
+}
+#[test]
+#[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
+fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> Result<(), String> {
+    let root = std::path::PathBuf::from(
+        std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?,
+    );
+    let manager = RuntimeManager::new(root.clone());
+    let lease = manager.prepare(&Control::default(), Arc::new(|_| {}), |_| {})?;
+    let digest = lease.digest.clone();
+    let copy = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
+    let target = copy.path().join(format!("runtime-{digest}"));
+    fs::create_dir(&target).map_err(|e| e.to_string())?;
+    for name in [
+        "yt-dlp.exe",
+        "deno.exe",
+        "ffmpeg.exe",
+        "ffprobe.exe",
+        "complete.json",
+    ] {
+        fs::copy(
+            root.join(format!("runtime-{digest}")).join(name),
+            target.join(name),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    fs::write(target.join("complete.json"), b"incomplete").map_err(|e| e.to_string())?;
+    let error = RuntimeManager::new(copy.path().into())
+        .prepare(&Control::default(), Arc::new(|_| {}), |_| {})
+        .err()
+        .ok_or("Bad marker accepted")?;
+    assert!(error.contains("completion manifest mismatch"));
+    fs::copy(
+        root.join(format!("runtime-{digest}")).join("complete.json"),
+        target.join("complete.json"),
+    )
+    .map_err(|e| e.to_string())?;
+    fs::write(target.join("deno.exe"), b"tampered executable not to run")
+        .map_err(|e| e.to_string())?;
+    let error = RuntimeManager::new(copy.path().into())
+        .prepare(&Control::default(), Arc::new(|_| {}), |_| {})
+        .err()
+        .ok_or("Bad binary accepted")?;
+    assert!(error.contains("SHA-256 mismatch"));
+    Ok(())
+}
+#[test]
+#[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
+fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(), String> {
+    use ameow_next::download::{
+        output,
+        process_supervisor::{self, ProcessSpec},
+        runtime,
+    };
+    let root = std::path::PathBuf::from(
+        std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?,
+    );
+    let lease =
+        RuntimeManager::new(root.clone()).prepare(&Control::default(), Arc::new(|_| {}), |_| {})?;
+    let workspace = tempfile::tempdir_in(root).map_err(|e| e.to_string())?;
+    let media = workspace.path().join("fixture.mkv");
+    let result = process_supervisor::run(
+        ProcessSpec {
+            executable: lease.file("ffmpeg.exe")?,
+            args: vec![
+                "-nostdin",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=64x48:rate=5",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:sample_rate=44100",
+                "-t",
+                "1",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-n",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .chain(Some(media.display().to_string()))
+            .collect(),
+            cwd: workspace.path().into(),
+            env: runtime::child_environment(workspace.path())?,
+            stdout_limit: 1024,
+            stderr_limit: 128 * 1024,
+            timeout: Some(Duration::from_secs(30)),
+        },
+        &Control::default(),
+        Arc::new(|_| {}),
+    )?;
+    assert_eq!(
+        result.exit_code,
+        0,
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(result.facts.resources_releasable());
+    let mut plan = ameow_next::download::plan::FormatPlan {
+        selector: "fixture".into(),
+        height: 48,
+        video_codec: "avc1".into(),
+        audio_codec: "aac".into(),
+        requires_audio: true,
+    };
+    let verified = output::verify(
+        &media,
+        workspace.path(),
+        &plan,
+        &lease,
+        &Control::default(),
+        Arc::new(|_| {}),
+    )?;
+    assert!(verified.bytes > 0);
+    assert!(fs::write(&media, b"external corruption").is_err());
+    assert!(fs::remove_file(&media).is_err());
+    let destination = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let mut stage = DestinationStage::create(&verified, destination.path(), 1)?;
+    stage.fill(&verified)?;
+    let delivered = stage.publish(destination.path(), "fixture")?;
+    assert!(delivered.is_file());
+    plan.height = 1080;
+    assert!(
+        output::verify(
+            &media,
+            workspace.path(),
+            &plan,
+            &lease,
+            &Control::default(),
+            Arc::new(|_| {})
+        )
+        .is_err()
+    );
+    println!(
+        ">>> Synthetic fixture only: bytes={} sha256={} streams={}",
+        verified.bytes, verified.sha256, verified.streams
+    );
+    Ok(())
+}

@@ -89,3 +89,24 @@ Polish C and hover-tune scripts/evidence are historical baseline records that re
 `windows_shadow.py` records a focused shadow-only follow-up for Full/Compact in both themes. `evidence/shadow-followup/shadow-sheet.png` supersedes shadow appearance in the earlier state matrix and GIFs; the earlier workflow results remain applicable. Its edge observations measure every native outer-edge pixel against the owned neutral backdrop, with a maximum allowed difference of 1/255.
 
 macOS: **NOT VERIFIED**. This Phase 1 native adapter is Windows-only.
+
+## Stage A Rust download engineering probe
+
+The reusable `download` library now owns one immutable YouTube/Bilibili intent, pinned official runtime preparation, native Windows process settlement, format selection, ffprobe validation and atomic no-replace delivery. The ordinary prototype entry remains the existing UI. The opt-in same-app window and headless example use the identical coordinator; they are development probes rather than an accepted queue/product workflow.
+
+Use an isolated Cargo target to preserve the accepted UI executable:
+
+```powershell
+$env:CARGO_TARGET_DIR = 'target/stage-a'
+cargo build --bin ameow-next --example download_job
+target/stage-a/debug/ameow-next.exe --download-test-bridge --url 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --output 'D:/existing-output' --bridge-log 'D:/probe.jsonl'
+target/stage-a/debug/examples/download_job.exe --url 'https://www.bilibili.com/video/BV1vL411G7N7' --output 'D:/existing-output' --quality balanced
+```
+
+Quality is `highest` (unlimited), `balanced` (1080p cap), or `saver` (480p cap). Maximum available resolution within the cap precedes H264, HEVC, VP9, AV1 codec preference at equal resolution. Bilibili anthologies require explicit `?p=N`; playlists/ambiguous identities fail before transfer. Canonical single-video URLs are required in Stage A. The output directory must already exist.
+
+`--runtime-root` overrides the app-owned cache root (default `%LOCALAPPDATA%/AmeowNext/stage-a`); first preparation acquires only fixed HTTPS releases from the embedded manifest and verifies all hashes/version probes. No updater/PATH/config/default-plugin fallback is used. See `assets/runtime-notices.md` for provenance and licenses. Snapshot JSON records job/attempt/revision, retained workspace, diagnostics, settlement facts and `resources_released`. Close/Cancel wait for proved ownership release; Held keeps the window open until explicit Retry cleanup succeeds. `--safe-exit-after-ms` requests the same safe cancellation/close. Headless `--cancel-after-ms` requests cancellation once.
+
+The engine supports explicit Direct or one static HTTP(S) proxy without URL-sensitive bypass. Automatic/PAC, scheme-dependent routes and URL-sensitive bypass fail with `E_NETWORK_ENGINE_ROUTE_UNSUPPORTED`; host network settings are never changed. Runtime HTTP redirects use read-only Windows URL resolution. Opaque engine requests/redirects cannot be resolved individually through WinHTTP, so no per-request PAC guarantee is claimed. On the current validation host, the static proxy has URL-sensitive bypass: both specified public samples fail at this Network Gate before site extraction, and real-site successful transfer remains **BLOCKED / NOT VERIFIED**.
+
+Production tests are `tests/download_contracts.rs` and `tests/windows_process_supervisor.rs`, plus library ownership/fault tests. Genuine-runtime tests are opt-in (`--include-ignored`) with `AMEOW_RUNTIME_TEST_ROOT` pointing to a task-owned production-prepared cache. Synthetic FFmpeg media verifies the output boundary only; it does not substitute for the blocked public samples. The earlier packaged-provider EJS test remains explicitly offline/test-only. Stage B queue and Stage C portable distribution remain separately gated.
