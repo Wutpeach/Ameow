@@ -219,13 +219,23 @@ pub fn resolve(input: &str) -> Result<Route, String> {
     }
 }
 /// Freeze one representable route for every selected URL/fragment before handing metadata to
-/// the engine. Opaque manifests cannot prove per-request PAC routing and therefore fail closed.
+/// the engine. Native HLS keeps the same explicit static route for opaque manifest requests;
+/// exposed manifest/fragment URLs must still agree with that route. PAC remains unsupported.
 pub fn bind_media_routes(
     metadata: &serde_json::Value,
     plan: &super::plan::FormatPlan,
     accepted: &str,
 ) -> Result<Route, String> {
     let route = engine_route(accepted)?;
+    check_media_routes(metadata, plan, &route, resolve)?;
+    Ok(route)
+}
+fn check_media_routes(
+    metadata: &serde_json::Value,
+    plan: &super::plan::FormatPlan,
+    route: &Route,
+    mut resolve_url: impl FnMut(&str) -> Result<Route, String>,
+) -> Result<(), String> {
     let formats = metadata["formats"]
         .as_array()
         .ok_or("Media formats missing")?;
@@ -236,7 +246,7 @@ pub fn bind_media_routes(
             .ok_or("Frozen selected format missing")?;
         if format["protocol"]
             .as_str()
-            .is_some_and(|p| !matches!(p, "http" | "https" | "http_dash_segments"))
+            .is_some_and(|p| !matches!(p, "http" | "https" | "http_dash_segments" | "m3u8_native"))
         {
             return Err("Opaque media protocol cannot bind Windows per-request route".into());
         }
@@ -257,7 +267,7 @@ pub fn bind_media_routes(
             return Err("Selected format has no explicit media request URL".into());
         }
         for url in urls {
-            if resolve(&url)? != route {
+            if &resolve_url(&url)? != route {
                 return Err(
                     "Windows media URLs require differing routes; refusing engine route guess"
                         .into(),
@@ -265,10 +275,11 @@ pub fn bind_media_routes(
             }
         }
     }
-    Ok(route)
+    Ok(())
 }
 /// The engine cannot delegate its opaque requests back to WinHTTP. Restrict it to a
-/// static configuration with no URL-sensitive bypass, then explicitly override ambient proxy.
+/// static configuration whose bypass does not match the accepted origin. Selected media URLs
+/// are checked separately before transfer; unrelated bypass entries do not block public videos.
 pub fn engine_route(input: &str) -> Result<Route, String> {
     let mut config = WINHTTP_CURRENT_USER_IE_PROXY_CONFIG::default();
     if unsafe { WinHttpGetIEProxyConfigForCurrentUser(&mut config) } == 0 {
@@ -280,17 +291,39 @@ pub fn engine_route(input: &str) -> Result<Route, String> {
     let auto = unsafe { take_wide(config.lpszAutoConfigUrl) };
     let proxy = unsafe { take_wide(config.lpszProxy) };
     let excluded = unsafe { take_wide(config.lpszProxyBypass) };
-    if config.fAutoDetect != 0 || auto.is_some() {
+    static_engine_route(
+        input,
+        config.fAutoDetect != 0 || auto.is_some(),
+        proxy.as_deref(),
+        excluded.as_deref(),
+    )
+}
+fn static_engine_route(
+    input: &str,
+    automatic: bool,
+    proxy: Option<&str>,
+    excluded: Option<&str>,
+) -> Result<Route, String> {
+    if automatic {
         return Err("Automatic/PAC routes cannot bind opaque engine requests; no fallback".into());
     }
-    if excluded.as_deref().is_some_and(|s| !s.trim().is_empty()) {
-        return Err(
-            "URL-sensitive proxy bypass cannot bind opaque engine requests; no fallback".into(),
-        );
-    }
     if let Some(proxy) = proxy {
-        let http = parse_proxy(&proxy, "http")?;
-        let https = parse_proxy(&proxy, "https")?;
+        let url = Url::parse(input).map_err(|e| format!("Network URL: {e}"))?;
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err("Unsupported network scheme".into());
+        }
+        if excluded
+            .map(|patterns| bypass(url.host_str().unwrap_or(""), patterns))
+            .transpose()?
+            .unwrap_or(false)
+        {
+            return Err(
+                "Accepted origin matches proxy bypass; opaque engine route unsupported; no fallback"
+                    .into(),
+            );
+        }
+        let http = parse_proxy(proxy, "http")?;
+        let https = parse_proxy(proxy, "https")?;
         if http != https {
             return Err("Scheme-sensitive proxy routes unsupported by engine".into());
         }
@@ -383,6 +416,100 @@ pub fn acquire(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_hls_binds_explicit_urls_and_rejects_route_conflicts_and_unknown_protocols()
+    -> Result<(), String> {
+        let plan = super::super::plan::FormatPlan {
+            selector: "v".into(),
+            height: 240,
+            video_codec: "avc1".into(),
+            audio_codec: "aac".into(),
+            requires_audio: true,
+        };
+        let route = Route::Proxy("http://localhost:7897".into());
+        let mut metadata = serde_json::json!({"formats":[{
+            "format_id":"v", "protocol":"m3u8_native",
+            "url":"https://manifest.googlevideo.com/playlist.m3u8",
+            "fragments":[{"url":"https://media.googlevideo.com/segment"}]
+        }]});
+        check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone()))?;
+        assert!(
+            check_media_routes(&metadata, &plan, &route, |url| {
+                if url == "https://media.googlevideo.com/segment" {
+                    Ok(Route::Direct)
+                } else {
+                    Ok(route.clone())
+                }
+            })
+            .is_err()
+        );
+        for protocol in ["m3u8", "rtmp", "unknown"] {
+            metadata["formats"][0]["protocol"] = protocol.into();
+            assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
+        }
+        metadata["formats"][0]["protocol"] = "m3u8_native".into();
+        metadata["formats"][0]["fragments"] = serde_json::json!([{}]);
+        assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
+        metadata["formats"][0]
+            .as_object_mut()
+            .ok_or("Missing format")?
+            .remove("fragments");
+        metadata["formats"][0]
+            .as_object_mut()
+            .ok_or("Missing format")?
+            .remove("url");
+        assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
+        Ok(())
+    }
+    #[test]
+    fn public_video_routes_allow_unrelated_static_bypass() -> Result<(), String> {
+        for input in [
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+            "https://www.bilibili.com/video/BV1vL411G7N7",
+        ] {
+            for patterns in [
+                None,
+                Some(""),
+                Some("<local>;localhost;127.*;10.*;172.2*;*.local"),
+            ] {
+                assert_eq!(
+                    static_engine_route(
+                        input,
+                        false,
+                        Some("http=localhost:7897;https=localhost:7897"),
+                        patterns,
+                    )?,
+                    Route::Proxy("http://localhost:7897".into()),
+                );
+            }
+        }
+        Ok(())
+    }
+    #[test]
+    fn relevant_bypass_and_unrepresentable_engine_routes_remain_rejected() {
+        let input = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+        for patterns in [
+            "*.youtube.com",
+            "www.youtube.com",
+            "*",
+            "localhost;bad?pattern",
+        ] {
+            assert!(
+                static_engine_route(input, false, Some("localhost:7897"), Some(patterns)).is_err()
+            );
+        }
+        assert!(static_engine_route(input, true, Some("localhost:7897"), None).is_err());
+        for proxy in [
+            "",
+            "a:1;b:2",
+            "socks5://localhost:1",
+            "http://user:pass@localhost:1",
+            "https=a:1;https=b:2",
+            "http=a:1;https=b:2",
+        ] {
+            assert!(static_engine_route(input, false, Some(proxy), Some("<local>;127.*")).is_err());
+        }
+    }
     #[test]
     fn windows_suffix_prefix_wildcards_match_without_ignoring_invalid_patterns()
     -> Result<(), String> {

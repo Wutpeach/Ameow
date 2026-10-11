@@ -181,6 +181,48 @@ fn delivery_never_replaces_existing_files_and_cleans_only_owned_partial() -> Res
     Ok(())
 }
 #[test]
+fn publication_preserves_exact_filename_and_no_clobber_across_utf16_lengths() -> Result<(), String>
+{
+    let source = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let m = media(source.path())?;
+    for length in 0..16 {
+        let dest = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let destination = dest.path().canonicalize().map_err(|e| e.to_string())?;
+        let base = format!("video{}", "x".repeat(length));
+        let existing = destination.join(format!("{base}.mkv"));
+        let collision = destination.join(format!("{base} (1).mkv"));
+        fs::write(&existing, b"existing user file").map_err(|e| e.to_string())?;
+        fs::write(&collision, b"second existing user file").map_err(|e| e.to_string())?;
+        let mut stage = DestinationStage::create(&m, &destination, length as u64 + 1)?;
+        stage.fill(&m)?;
+        let delivered = stage.publish(&destination, &base)?;
+        assert_eq!(delivered, destination.join(format!("{base} (2).mkv")));
+        assert_eq!(
+            hash(fs::File::open(&delivered).map_err(|e| e.to_string())?)?,
+            m.sha256
+        );
+        assert_eq!(
+            fs::metadata(&delivered).map_err(|e| e.to_string())?.len(),
+            m.bytes
+        );
+        assert_eq!(
+            fs::read(&existing).map_err(|e| e.to_string())?,
+            b"existing user file"
+        );
+        assert_eq!(
+            fs::read(&collision).map_err(|e| e.to_string())?,
+            b"second existing user file"
+        );
+        assert_eq!(
+            fs::read_dir(&destination)
+                .map_err(|e| e.to_string())?
+                .count(),
+            3
+        );
+    }
+    Ok(())
+}
+#[test]
 fn hash_lease_rejects_corruption_and_prevents_live_mutation() -> Result<(), String> {
     let root = tempfile::tempdir().map_err(|e| e.to_string())?;
     let file = root.path().join("runtime.exe");

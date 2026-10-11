@@ -302,7 +302,13 @@ impl DestinationStage {
     }
 }
 fn rename_owned(file: &fs::File, destination: &Path) -> Result<(), std::io::Error> {
-    let name: Vec<u16> = destination.as_os_str().encode_wide().collect();
+    // FileName is NUL-terminated; FileNameLength excludes that terminator. Include it in the
+    // API buffer even when the counted filename exactly fills the aligned allocation.
+    let name: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
     let size = std::mem::offset_of!(FILE_RENAME_INFO, FileName) + name.len() * 2;
     let mut buffer = vec![0usize; size.div_ceil(std::mem::size_of::<usize>())];
     let info = buffer.as_mut_ptr().cast::<FILE_RENAME_INFO>();
@@ -311,7 +317,7 @@ fn rename_owned(file: &fs::File, destination: &Path) -> Result<(), std::io::Erro
             ReplaceIfExists: false,
         };
         (*info).RootDirectory = std::ptr::null_mut();
-        (*info).FileNameLength = (name.len() * 2) as u32;
+        (*info).FileNameLength = ((name.len() - 1) * 2) as u32;
         std::ptr::copy_nonoverlapping(
             name.as_ptr(),
             std::ptr::addr_of_mut!((*info).FileName).cast::<u16>(),
