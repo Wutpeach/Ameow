@@ -1,2 +1,2 @@
-//! Windows single-job download backend. Presentation is a read-only observer.
+//! Native download backend. One logical queue owns Jobs; presentation reads immutable snapshots.
 pub mod download;

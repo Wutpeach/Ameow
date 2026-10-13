@@ -1,5 +1,4 @@
 use ameow_next::download::{
-    Coordinator,
     request::{DownloadIntent, Quality},
     runtime::RuntimeManager,
 };
@@ -24,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("saver") => Quality::Saver,
         _ => return Err("invalid quality".into()),
     };
-    let coordinator = Coordinator::new(runtime);
+    let coordinator = ameow_next::download::composition::coordinator(runtime);
     let job = coordinator.accept(DownloadIntent {
         url: value("--url").ok_or("--url required")?,
         quality,

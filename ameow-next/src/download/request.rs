@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::path::PathBuf;
 use url::Url;
 
@@ -28,17 +27,25 @@ pub struct DownloadIntent {
 pub enum Object {
     Youtube(String),
     Bilibili { id: String, part: Option<u64> },
+    BilibiliShort { code: String, part: Option<u64> },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Accepted {
     pub intent: DownloadIntent,
     pub object: Object,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Site {
+    Youtube,
+    Bilibili,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Identity {
     pub id: String,
     pub title: String,
-    pub extractor: String,
+    pub site: Site,
+    pub part: Option<u64>,
 }
 
 impl Accepted {
@@ -57,6 +64,25 @@ impl Accepted {
             .filter(|s| !s.is_empty())
             .collect();
         let query: Vec<_> = u.query_pairs().collect();
+        if query.iter().any(|(key, _)| {
+            matches!(
+                key.as_ref(),
+                "list" | "playlist" | "season_id" | "series_id"
+            )
+        }) {
+            return Err("Playlist/series URLs do not identify one media object".into());
+        }
+        let parts: Vec<_> = query.iter().filter(|(key, _)| key == "p").collect();
+        if parts.len() > 1 {
+            return Err("Ambiguous Bilibili part".into());
+        }
+        let part = parts
+            .first()
+            .map(|(_, value)| value.parse::<u64>().map_err(|_| "Invalid Bilibili part"))
+            .transpose()?;
+        if part == Some(0) {
+            return Err("Bilibili part starts at 1".into());
+        }
         let object = match host {
             "youtu.be" if segments.len() == 1 => Object::Youtube(segments[0].to_string()),
             "www.youtube.com" | "youtube.com" | "m.youtube.com" => {
@@ -74,6 +100,7 @@ impl Accepted {
                 if part==Some(0) { return Err("Bilibili part starts at 1".into()); }
                 Object::Bilibili{id:id.to_owned(),part}
             },
+            "b23.tv" | "www.b23.tv" if segments.len() == 1 && !segments[0].is_empty() && segments[0].len() <= 64 && segments[0].bytes().all(|b| b.is_ascii_alphanumeric()) => Object::BilibiliShort { code: segments[0].into(), part },
             _ => return Err("Unsupported or ambiguous site URL; canonical YouTube/Bilibili single video required".into()),
         };
         if let Object::Youtube(id) = &object
@@ -93,59 +120,37 @@ impl Accepted {
         }
         Ok(Self { intent, object })
     }
-    pub fn identity(&self, metadata: &Value) -> Result<Identity, String> {
-        if metadata.get("entries").is_some()
-            || metadata
-                .get("_type")
-                .and_then(Value::as_str)
-                .is_some_and(|s| s != "video")
-        {
-            return Err("Metadata is a playlist/multiple/indirect object".into());
+}
+
+pub fn valid_bv(id: &str) -> bool {
+    id.starts_with("BV") && id.len() == 12 && id.bytes().all(|b| b.is_ascii_alphanumeric())
+}
+impl Object {
+    pub fn provisional_key(&self) -> String {
+        match self {
+            Self::Youtube(id) => format!("youtube:{id}"),
+            Self::Bilibili { id, part } => format!(
+                "bilibili:{id}:{}",
+                part.map_or_else(|| "single".into(), |p| p.to_string())
+            ),
+            Self::BilibiliShort { code, part } => format!(
+                "b23:{code}:{}",
+                part.map_or_else(|| "single".into(), |p| p.to_string())
+            ),
         }
-        let id = metadata["id"]
-            .as_str()
-            .ok_or("Metadata has no object identity")?;
-        let extractor = metadata["extractor_key"]
-            .as_str()
-            .ok_or("Metadata has no extractor identity")?;
-        let matches = match &self.object {
-            Object::Youtube(expected) => extractor == "Youtube" && id == expected,
-            Object::Bilibili { id: expected, part } => {
-                let (base, selected) = id
-                    .rsplit_once("_p")
-                    .map_or((id, None), |(a, b)| (a, b.parse::<u64>().ok()));
-                extractor == "BiliBili"
-                    && (base == expected
-                        || (expected.starts_with("av")
-                            && metadata["_old_archive_ids"].as_array().is_some_and(|ids| {
-                                let aid = &expected[2..];
-                                ids.iter().any(|v| {
-                                    v.as_str()
-                                        == Some(&format!(
-                                            "bilibili {aid}_part{}",
-                                            part.unwrap_or(1)
-                                        ))
-                                })
-                            })))
-                    && match part {
-                        Some(p) => selected == Some(*p),
-                        None => selected.is_none(),
-                    }
-            }
-        };
-        if !matches {
-            return Err(format!(
-                "Resolved object mismatch: accepted {:?}, got {extractor}/{id}",
-                self.object
-            ));
+    }
+    pub fn site(&self) -> &'static str {
+        match self {
+            Self::Youtube(_) => "youtube",
+            _ => "bilibili",
         }
-        Ok(Identity {
-            id: id.into(),
-            title: metadata["title"]
-                .as_str()
-                .ok_or("Metadata title missing")?
-                .into(),
-            extractor: extractor.into(),
-        })
+    }
+}
+impl Identity {
+    pub fn canonical_key(&self) -> String {
+        match self.site {
+            Site::Youtube => format!("youtube:{}", self.id),
+            Site::Bilibili => format!("bilibili:{}:{}", self.id, self.part.unwrap_or(1)),
+        }
     }
 }

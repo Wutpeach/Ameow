@@ -1,18 +1,37 @@
 pub mod bridge_commands;
+pub mod diagnostics;
 pub mod network;
 pub mod output;
-pub mod plan;
+pub mod contract;
+pub mod adapter;
+pub mod adapters;
+pub mod composition;
+pub mod verification;
 pub mod process_supervisor;
+pub mod progress;
+pub mod queue;
 pub mod request;
 pub mod runtime;
+pub mod settings;
+#[cfg(test)]
+mod neutral_tests;
+// Existing supervisor regression fixtures keep their original bytes; never a production path.
+#[cfg(test)]
+use adapters::yt_dlp::{parse_final_record, validate_engine_outcome};
 
-use process_supervisor::{Control, ProcessObservation, ProcessSpec};
+use process_supervisor::{Control, ProcessObservation};
+#[cfg(test)]
+use process_supervisor::ProcessSpec;
+use adapter::{DownloadServices, ExecutionContext, IdentityAdmission};
+use contract::{AdapterEvent, ExecutionRequest, VerificationRequirements};
+#[cfg(test)]
+use contract::MediaKind;
 use request::{Accepted, DownloadIntent, Identity};
-use runtime::{RuntimeLease, RuntimeManager};
+use runtime::RuntimeLease;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
-    fs::{self, File},
+    fs,
+    os::windows::fs::MetadataExt,
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
     thread,
@@ -46,7 +65,6 @@ pub struct Snapshot {
     pub phase: Phase,
     pub accepted: Option<Accepted>,
     pub identity: Option<Identity>,
-    pub plan: Option<plan::FormatPlan>,
     pub message: String,
     pub delivered: Option<output::VerifiedMedia>,
     pub terminal_count: u32,
@@ -56,6 +74,8 @@ pub struct Snapshot {
     pub resources_released: bool,
     pub settlements: Vec<String>,
     pub destination_stage: Option<PathBuf>,
+    pub failure: Option<diagnostics::Failure>,
+    pub transfer_progress: Option<progress::TransferProgress>,
 }
 impl Default for Snapshot {
     fn default() -> Self {
@@ -66,7 +86,6 @@ impl Default for Snapshot {
             phase: Phase::Idle,
             accepted: None,
             identity: None,
-            plan: None,
             message: String::new(),
             delivered: None,
             terminal_count: 0,
@@ -76,6 +95,8 @@ impl Default for Snapshot {
             resources_released: true,
             settlements: Vec::new(),
             destination_stage: None,
+            failure: None,
+            transfer_progress: None,
         }
     }
 }
@@ -100,7 +121,7 @@ impl State {
 }
 pub struct Coordinator {
     state: Arc<Mutex<State>>,
-    runtime: Arc<RuntimeManager>,
+    services: DownloadServices,
     published: Arc<Mutex<Arc<Snapshot>>>,
 }
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -110,7 +131,10 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     }
 }
 impl Coordinator {
-    pub fn new(root: PathBuf) -> Self {
+    pub fn new(services: DownloadServices) -> Self {
+        Self::with_services(services)
+    }
+    fn with_services(services: DownloadServices) -> Self {
         let published = Arc::new(Mutex::new(Arc::new(Snapshot::default())));
         Self {
             state: Arc::new(Mutex::new(State {
@@ -120,7 +144,7 @@ impl Coordinator {
                 #[cfg(test)]
                 probe: None,
             })),
-            runtime: Arc::new(RuntimeManager::new(root)),
+            services,
             published,
         }
     }
@@ -160,11 +184,11 @@ impl Coordinator {
         };
         state.publish();
         let shared = self.state.clone();
-        let manager = self.runtime.clone();
+        let services = self.services.clone();
         let control = state.control.clone();
         let spawn = thread::Builder::new()
             .name(format!("download-job-{job}"))
-            .spawn(move || execute(shared, manager, accepted, control, job, attempt));
+            .spawn(move || execute(shared, services, accepted, control, job, attempt, None));
         if let Err(error) = spawn {
             state.snapshot.phase = Phase::Failure;
             state.snapshot.message = format!("Job owner creation: {error}");
@@ -176,6 +200,47 @@ impl Coordinator {
         }
         Ok(job)
     }
+    // Stage B's outer logical authority owns this join; standalone Stage A API stays compatible.
+    fn start_prepared(
+        &self,
+        accepted: Accepted,
+        job: u64,
+        attempt: u64,
+        prepared: PreparedAttempt,
+    ) -> Result<thread::JoinHandle<()>, String> {
+        let mut state = lock(&self.state);
+        if !matches!(state.snapshot.phase, Phase::Idle) {
+            return Err("Attempt runner already started".into());
+        }
+        state.control = Control::default();
+        state.snapshot = Snapshot {
+            job_id: job,
+            attempt,
+            revision: 1,
+            phase: Phase::Accepted,
+            accepted: Some(accepted.clone()),
+            resources_released: false,
+            ..Default::default()
+        };
+        state.publish();
+        let shared = self.state.clone();
+        let services = self.services.clone();
+        let control = state.control.clone();
+        thread::Builder::new()
+            .name(format!("download-attempt-{job}-{attempt}"))
+            .spawn(move || {
+                execute(
+                    shared,
+                    services,
+                    accepted,
+                    control,
+                    job,
+                    attempt,
+                    Some(prepared),
+                )
+            })
+            .map_err(|_| "E_RUNTIME: Cannot create attempt owner".into())
+    }
     pub fn cancel(&self, job: u64) -> bool {
         let mut state = lock(&self.state);
         if state.snapshot.job_id != job
@@ -186,6 +251,7 @@ impl Coordinator {
             return false;
         }
         state.control.cancel();
+        state.snapshot.transfer_progress = None;
         state.snapshot.revision += 1;
         state.snapshot.message = "Cancellation requested; waiting for ownership barriers".into();
         state.publish();
@@ -200,14 +266,29 @@ impl Coordinator {
         true
     }
 }
-fn update(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, message: String) {
+struct PreparedAttempt {
+    lease: Arc<RuntimeLease>,
+    admit: IdentityAdmission,
+}
+fn update(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, _message: String) {
     let mut state = lock(state);
     if state.snapshot.job_id == job
         && state.snapshot.attempt == attempt
         && !state.snapshot.phase.terminal()
     {
-        state.snapshot.phase = phase;
-        state.snapshot.message = message;
+        state.snapshot.phase = phase.clone();
+        if phase != Phase::Downloading {
+            state.snapshot.transfer_progress = None;
+        }
+        state.snapshot.message = match phase {
+            Phase::Held => "Ownership retained; explicit cleanup retry required".into(),
+            Phase::Preparing => "Preparing fixed official runtime".into(),
+            Phase::Resolving => "Resolving one accepted video".into(),
+            Phase::Downloading => "Downloading or merging selected media streams".into(),
+            Phase::Validating => "Verifying video/audio and output integrity".into(),
+            Phase::Publishing => "Saving verified media without overwrite".into(),
+            _ => "Waiting for download ownership settlement".into(),
+        };
         state.snapshot.revision += 1;
         state.publish();
     }
@@ -219,6 +300,7 @@ fn terminal(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, mes
         && !state.snapshot.phase.terminal()
     {
         state.snapshot.phase = phase;
+        state.snapshot.transfer_progress = None;
         state.snapshot.message = message;
         state.snapshot.terminal_count += 1;
         state.snapshot.resources_released = true;
@@ -226,19 +308,46 @@ fn terminal(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, mes
         state.publish();
     }
 }
+fn publish_progress(
+    state: &Arc<Mutex<State>>,
+    job: u64,
+    attempt: u64,
+    sample: progress::TransferProgress,
+) {
+    let mut state = lock(state);
+    if state.snapshot.job_id == job
+        && state.snapshot.attempt == attempt
+        && state.snapshot.phase == Phase::Downloading
+        && !state.control.is_cancelled()
+    {
+        state.snapshot.transfer_progress = Some(sample);
+        state.snapshot.revision += 1;
+        state.publish();
+    }
+}
 fn execute(
     state: Arc<Mutex<State>>,
-    manager: Arc<RuntimeManager>,
+    services: DownloadServices,
     accepted: Accepted,
     control: Control,
     job: u64,
     attempt: u64,
+    prepared: Option<PreparedAttempt>,
 ) {
+    let manager = services.runtime.clone();
+    let mut adapter_failure = None;
     // Resources are owned outside the catch boundary, so unwind cannot release them prematurely.
     let mut workspace = None;
     let mut lease = None;
     let mut destination_stage = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if !accepted.intent.output_dir.is_dir() {
+            adapter_failure = Some(diagnostics::Failure::new(
+                diagnostics::FailureCode::Storage,
+                "publish",
+            ));
+            return Err("E_STORAGE: Frozen output directory no longer exists".into());
+        }
         fs::create_dir_all(manager.root.join("jobs"))
             .map_err(|e| format!("Job workspace root: {e}"))?;
         let owned = tempfile::Builder::new()
@@ -263,24 +372,15 @@ fn execute(
         let observe_state = state.clone();
         let observer: Arc<dyn Fn(ProcessObservation) + Send + Sync> =
             Arc::new(move |event| match event {
-                ProcessObservation::Held(reason) => {
-                    update(&observe_state, job, attempt, Phase::Held, reason)
-                }
-                ProcessObservation::Output { stderr, text } => {
-                    let mut state = lock(&observe_state);
-                    if state.snapshot.job_id == job
-                        && state.snapshot.attempt == attempt
-                        && !state.snapshot.phase.terminal()
-                    {
-                        state.snapshot.message = format!(
-                            "{}{}",
-                            if stderr { "Engine: " } else { "" },
-                            text.chars().take(1000).collect::<String>()
-                        );
-                        state.snapshot.revision += 1;
-                        state.publish();
-                    }
-                }
+                ProcessObservation::Held(_) => update(
+                    &observe_state,
+                    job,
+                    attempt,
+                    Phase::Held,
+                    "Ownership retained".into(),
+                ),
+                // Raw engine output is captured in private local evidence by invoke, never in projections.
+                ProcessObservation::Output { .. } => {}
                 ProcessObservation::Settled(facts) => {
                     let mut state = lock(&observe_state);
                     if state.snapshot.settlements.len() < 16 {
@@ -291,17 +391,21 @@ fn execute(
                 }
                 _ => {}
             });
-        lease = Some(manager.prepare(&control, observer.clone(), |message| {
-            use std::io::Write;
-            if let Ok(mut log) = fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(working.join("runtime-events.log"))
-            {
-                let _ = writeln!(log, "{message}");
-            }
-            update(&state, job, attempt, Phase::Preparing, message)
-        })?);
+        lease = Some(if let Some(prepared) = &prepared {
+            prepared.lease.clone()
+        } else {
+            manager.prepare(services.adapter.requirements(), &control, observer.clone(), |message| {
+                use std::io::Write;
+                if let Ok(mut log) = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(working.join("runtime-events.log"))
+                {
+                    let _ = writeln!(log, "{message}");
+                }
+                update(&state, job, attempt, Phase::Preparing, "Preparing trusted download runtime".into())
+            })?
+        });
         let runtime = lease.as_ref().ok_or("Runtime lease unavailable")?;
         {
             let mut state = lock(&state);
@@ -323,7 +427,8 @@ fn execute(
                     path,
                     bytes: 15,
                     sha256: runtime::hash(&b"settled fixture"[..])?,
-                    streams: serde_json::json!({}),
+                    kind: MediaKind::Data,
+                    facts: contract::VerifiedFacts::default(),
                     identity_guard: None,
                 };
                 destination_stage = Some(output::DestinationStage::create(
@@ -350,7 +455,7 @@ fn execute(
                         "await new Promise(r => setTimeout(r, 10000));".into(),
                     ],
                     cwd: working.into(),
-                    env: runtime::child_environment(working)?,
+                    env: services.adapter.requirements().environment(working)?,
                     stdout_limit: 1024,
                     stderr_limit: 1024,
                     timeout: Some(Duration::from_secs(20)),
@@ -364,131 +469,85 @@ fn execute(
         if control.is_cancelled() {
             return Err("Cancelled before media resolution".into());
         }
-        update(
-            &state,
-            job,
-            attempt,
-            Phase::Resolving,
-            "Resolving one accepted media object".into(),
-        );
-        let route = network::engine_route(&accepted.intent.url)
-            .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
-        let mut arguments = engine_args(runtime, &route)?;
-        arguments.extend([
-            "--dump-single-json".into(),
-            "--skip-download".into(),
-            "--".into(),
-            accepted.intent.url.clone(),
-        ]);
-        let metadata = invoke(
-            runtime,
-            arguments,
-            working,
-            &control,
-            observer.clone(),
-            "resolve",
-            Some(Duration::from_secs(120)),
-        )?;
-        let metadata: Value = serde_json::from_slice(&metadata)
-            .map_err(|e| format!("Single-object metadata JSON: {e}"))?;
-        let identity = accepted.identity(&metadata)?;
-        let plan = plan::select(&metadata, accepted.intent.quality)?;
-        {
-            let mut state = lock(&state);
-            state.snapshot.identity = Some(identity.clone());
-            state.snapshot.plan = Some(plan.clone());
+        let admitted_state = state.clone();
+        let admission = prepared.as_ref().map(|p| p.admit.clone());
+        let admit = Arc::new(move |proof: &contract::IdentityAttestation| {
+            if let Some(admission) = &admission {
+                admission(proof)?;
+            }
+            let mut state = lock(&admitted_state);
+            if state.snapshot.job_id != job
+                || state.snapshot.attempt != attempt
+                || state.control.is_cancelled()
+            {
+                return Err("E_IDENTITY: stale or cancelled identity admission".into());
+            }
+            state.snapshot.identity = Some(proof.identity.clone());
             state.snapshot.revision += 1;
             state.publish();
+            Ok(())
+        });
+        let event_state = state.clone();
+        let events = Arc::new(move |event| match event {
+            AdapterEvent::Resolving => update(&event_state, job, attempt, Phase::Resolving, String::new()),
+            AdapterEvent::Transferring => update(&event_state, job, attempt, Phase::Downloading, String::new()),
+            AdapterEvent::Finalizing => {
+                let mut state = lock(&event_state);
+                if state.snapshot.job_id == job
+                    && state.snapshot.attempt == attempt
+                    && !state.snapshot.phase.terminal()
+                {
+                    state.snapshot.transfer_progress = None;
+                    state.snapshot.revision += 1;
+                    state.publish();
+                }
+            }
+            AdapterEvent::Progress(sample) => publish_progress(&event_state, job, attempt, sample),
+        });
+        let context = ExecutionContext {
+            workspace: working,
+            lease: runtime,
+            requirements: services.adapter.requirements(),
+            control: &control,
+            observer: observer.clone(),
+            admission: admit,
+            events,
+        };
+        let artifact = services
+            .adapter
+            .execute(
+                &ExecutionRequest {
+                    accepted: accepted.clone(),
+                },
+                &context,
+            )
+            .map_err(|failure| {
+                let message = format!("{}: {}", failure.code, failure.reason);
+                adapter_failure = Some(failure);
+                message
+            })?;
+        if artifact.kind != services.adapter.kind()
+            || lock(&state)
+                .snapshot
+                .identity
+                .as_ref()
+                .is_none_or(|id| id.canonical_key() != artifact.identity.canonical_key())
+        {
+            return Err("Artifact kind or admitted identity mismatch".into());
         }
-        fs::write(
-            working.join("resolved.json"),
-            serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
-        let transfer_input = plan::transfer_input(&metadata, &plan)?;
-        fs::write(
-            working.join("transfer-input.json"),
-            serde_json::to_vec_pretty(&transfer_input).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
-        if control.is_cancelled() {
-            return Err("Cancelled before media transfer".into());
-        }
-        update(
-            &state,
-            job,
-            attempt,
-            Phase::Downloading,
-            format!(
-                "Selected {} / {}p {}",
-                plan.selector, plan.height, plan.video_codec
-            ),
-        );
-        let route = network::bind_media_routes(&metadata, &plan, &accepted.intent.url)?;
-        fs::write(
-            working.join("media-route.json"),
-            serde_json::to_vec_pretty(&route).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
-        let mut arguments = engine_args(runtime, &route)?;
-        arguments.extend([
-            "--no-simulate".into(),
-            "--load-info-json".into(),
-            working.join("transfer-input.json").display().to_string(),
-            "--format".into(),
-            plan.selector.clone(),
-            "--merge-output-format".into(),
-            "mkv".into(),
-            "--output".into(),
-            working.join("media.%(ext)s").display().to_string(),
-            "--write-info-json".into(),
-            "--no-overwrites".into(),
-            "--no-part".into(),
-            "--newline".into(),
-            "--print".into(),
-            "after_move:AMEOW_FINAL=%(filepath)j".into(),
-        ]);
-        let transfer = invoke(
-            runtime,
-            arguments,
-            working,
-            &control,
-            observer.clone(),
-            "transfer",
-            None,
-        )?;
-        let text = String::from_utf8(transfer).map_err(|e| e.to_string())?;
-        let final_paths: Vec<_> = text
-            .lines()
-            .filter_map(|line| line.strip_prefix("AMEOW_FINAL="))
-            .collect();
-        if final_paths.len() != 1 {
-            return Err("Transfer did not report exactly one final object".into());
-        }
-        let final_path: PathBuf =
-            serde_json::from_str(final_paths[0]).map_err(|e| format!("Final path JSON: {e}"))?;
-        let info: Value = serde_json::from_reader(
-            File::open(working.join("media.info.json"))
-                .map_err(|e| format!("Transfer identity record: {e}"))?,
-        )
-        .map_err(|e| e.to_string())?;
-        if accepted.identity(&info)? != identity {
-            return Err("Transfer object differs from resolved identity".into());
+        if let VerificationRequirements::Video(expected) = &artifact.verification
+            && (expected.height_cap != accepted.intent.quality.cap() || !expected.requires_audio)
+        {
+            return Err("Artifact verification changed frozen video requirements".into());
         }
         if control.is_cancelled() {
             return Err("Cancelled after settled transfer".into());
         }
-        update(
-            &state,
-            job,
-            attempt,
-            Phase::Validating,
-            "Verifying video/audio and settled output integrity".into(),
-        );
-        let media = output::verify(&final_path, working, &plan, runtime, &control, observer)?;
-        if control.is_cancelled() {
-            return Err("Cancelled before destination staging".into());
-        }
+        update(&state, job, attempt, Phase::Validating, String::new());
+        let identity = artifact.identity.clone();
+        let media = services
+            .verifiers
+            .verify(&artifact, working, runtime, &control, observer)?;
         update(
             &state,
             job,
@@ -496,11 +555,10 @@ fn execute(
             Phase::Publishing,
             "Staging verified output in fixed destination".into(),
         );
-        destination_stage = Some(output::DestinationStage::create(
-            &media,
-            &accepted.intent.output_dir,
-            job,
-        )?);
+        destination_stage = Some(
+            output::DestinationStage::create(&media, &accepted.intent.output_dir, job)
+                .map_err(|error| format!("E_STORAGE: {error}"))?,
+        );
         let staged = destination_stage
             .as_mut()
             .ok_or("Owned destination stage missing")?;
@@ -510,7 +568,9 @@ fn execute(
             state.snapshot.revision += 1;
             state.publish();
         }
-        staged.fill(&media)?;
+        staged
+            .fill(&media)
+            .map_err(|error| format!("E_STORAGE: {error}"))?;
         commit_delivery(
             &state,
             job,
@@ -522,6 +582,7 @@ fn execute(
         )?;
         Ok::<(), String>(())
     }));
+    let error_phase = lock(&state).snapshot.phase.clone();
     let (phase, mut message) = match outcome {
         Ok(Ok(())) => (Phase::Success, "Verified media safely delivered".into()),
         Ok(Err(error)) => (
@@ -552,6 +613,16 @@ fn execute(
             )
         }
     };
+    let failure = if phase == Phase::Failure {
+        Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::local(&error_phase)))
+    } else if phase == Phase::Cancelled {
+        Some(diagnostics::cancelled())
+    } else {
+        None
+    };
+    if let Some(working) = workspace.as_ref() {
+        let _ = fs::write(working.path().join("attempt-error.log"), &message);
+    }
     if let Some(stage) = destination_stage.as_mut() {
         {
             let mut state = lock(&state);
@@ -565,7 +636,14 @@ fn execute(
     // this owner's exact workspace. A failed cleanup remains Held with its runtime lease retained.
     if let Some(owned) = workspace {
         let path = owned.keep();
-        match preserve_diagnostics(&manager.root, &path, job) {
+        let evidence: Vec<_> = services
+            .adapter
+            .evidence_files()
+            .iter()
+            .chain(services.verifiers.evidence_files().iter())
+            .copied()
+            .collect();
+        match preserve_diagnostics(&manager.root, &path, job, &evidence) {
             Ok(diagnostics) => {
                 let mut state = lock(&state);
                 state.snapshot.diagnostics = Some(diagnostics);
@@ -595,13 +673,24 @@ fn execute(
         }
     }
     drop(lease);
+    drop(prepared); // shared attempt lease is released before this runner publishes resources_released.
     {
         let mut state = lock(&state);
         state.snapshot.workspace = None;
+        state.snapshot.failure = failure.clone();
         state.snapshot.revision += 1;
         state.publish();
     }
-    terminal(&state, job, attempt, phase, message);
+    terminal(
+        &state,
+        job,
+        attempt,
+        phase,
+        failure.map_or_else(
+            || "Verified media safely delivered".into(),
+            |failure| format!("{}: {}", failure.code, failure.reason),
+        ),
+    );
 }
 fn commit_delivery(
     state: &Arc<Mutex<State>>,
@@ -623,7 +712,9 @@ fn commit_delivery(
     if authority.control.is_cancelled() {
         return Err("Cancelled before atomic publication".into());
     }
-    media.path = staged.publish(destination, identity)?;
+    media.path = staged
+        .publish(destination, identity)
+        .map_err(|error| format!("E_STORAGE: {error}"))?;
     media.identity_guard = None;
     authority.snapshot.delivered = Some(media);
     authority.snapshot.destination_stage = None;
@@ -662,33 +753,37 @@ fn preserve_diagnostics(
     root: &std::path::Path,
     working: &std::path::Path,
     job: u64,
+    files: &[(&str, u64)],
 ) -> Result<PathBuf, String> {
     fs::create_dir_all(root.join("diagnostics")).map_err(|e| e.to_string())?;
     let dir = tempfile::Builder::new()
         .prefix(&format!("job-{job}-"))
         .tempdir_in(root.join("diagnostics"))
         .map_err(|e| e.to_string())?;
-    for name in [
-        "runtime-events.log",
-        "resolved.json",
-        "transfer-input.json",
-        "media.info.json",
-        "media-route.json",
-        "resolve-argv.json",
-        "resolve-stdout.log",
-        "resolve-stderr.log",
-        "resolve-settlement.txt",
-        "transfer-argv.json",
-        "transfer-stdout.log",
-        "transfer-stderr.log",
-        "transfer-settlement.txt",
-        "ffprobe.json",
-        "ffprobe-stderr.log",
-    ] {
+    let mut archived_bytes = 0_u64;
+    let common = [
+        ("runtime-events.log", 8 * 1024 * 1024),
+        ("attempt-error.log", 8 * 1024 * 1024),
+    ];
+    for &(name, limit) in files.iter().chain(common.iter()) {
+        if PathBuf::from(name).components().count() != 1
+            || !PathBuf::from(name)
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err("Evidence filename is not owned relative".into());
+        }
         let source = working.join(name);
         match fs::symlink_metadata(&source) {
-            Ok(meta) if meta.is_file() && meta.len() <= 8 * 1024 * 1024 => {
-                fs::copy(&source, dir.path().join(name)).map_err(|e| e.to_string())?;
+            Ok(meta) if meta.is_file() && meta.file_attributes() & 0x400 == 0 => {
+                if meta.len() <= limit
+                    && archived_bytes.saturating_add(meta.len()) <= 64 * 1024 * 1024
+                {
+                    fs::copy(&source, dir.path().join(name)).map_err(|e| e.to_string())?;
+                    archived_bytes += meta.len();
+                } else {
+                    fs::write(dir.path().join(format!("{name}.omitted.txt")), format!("Bounded local diagnostic omitted: bytes={} per_file_limit={limit}; original failure unchanged\n", meta.len())).map_err(|e| e.to_string())?;
+                }
             }
             Ok(_) => return Err(format!("Diagnostics bound/type {name}")),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -697,95 +792,84 @@ fn preserve_diagnostics(
     }
     Ok(dir.keep())
 }
-fn engine_args(runtime: &RuntimeLease, route: &network::Route) -> Result<Vec<String>, String> {
-    Ok(vec![
-        "--ignore-config".into(),
-        "--no-plugin-dirs".into(),
-        "--no-js-runtimes".into(),
-        "--js-runtimes".into(),
-        format!("deno:{}", runtime.file("deno.exe")?.display()),
-        "--no-cache-dir".into(),
-        "--no-playlist".into(),
-        "--proxy".into(),
-        route.cli(),
-        "--ffmpeg-location".into(),
-        runtime
-            .file("ffmpeg.exe")?
-            .parent()
-            .ok_or("Runtime parent missing")?
-            .display()
-            .to_string(),
-        "--extractor-args".into(),
-        "youtube:player_js_variant=tv".into(),
-        "--socket-timeout".into(),
-        "20".into(),
-        "--retries".into(),
-        "0".into(),
-        "--fragment-retries".into(),
-        "0".into(),
-        "--verbose".into(),
-    ])
-}
-fn invoke(
-    runtime: &RuntimeLease,
-    args: Vec<String>,
-    working: &std::path::Path,
-    control: &Control,
-    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
-    label: &str,
-    timeout: Option<Duration>,
-) -> Result<Vec<u8>, String> {
-    fs::write(
-        working.join(format!("{label}-argv.json")),
-        serde_json::to_vec_pretty(&args).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
-    let outcome = process_supervisor::run(
-        ProcessSpec {
-            executable: runtime.file("yt-dlp.exe")?,
-            args,
-            cwd: working.into(),
-            env: runtime::child_environment(working)?,
-            stdout_limit: 8 * 1024 * 1024,
-            stderr_limit: 1024 * 1024,
-            timeout,
-        },
-        control,
-        observer,
-    )?;
-    fs::write(working.join(format!("{label}-stdout.log")), &outcome.stdout)
-        .map_err(|e| e.to_string())?;
-    fs::write(working.join(format!("{label}-stderr.log")), &outcome.stderr)
-        .map_err(|e| e.to_string())?;
-    fs::write(
-        working.join(format!("{label}-settlement.txt")),
-        format!("{:?}", outcome.facts),
-    )
-    .map_err(|e| e.to_string())?;
-    if outcome.exit_code != 0
-        || outcome.facts.stdout_truncated
-        || !outcome.facts.resources_releasable()
-    {
-        return Err(format!(
-            "{label} engine exit {}: {}",
-            outcome.exit_code,
-            String::from_utf8_lossy(&outcome.stderr)
-                .chars()
-                .rev()
-                .take(3000)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect::<String>()
-        ));
-    }
-    Ok(outcome.stdout)
-}
-
 #[cfg(test)]
 mod ownership_tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
+    #[test]
+    fn progress_publication_rejects_other_identity_phase_cancel_and_terminal() {
+        let root = tempfile::tempdir().unwrap();
+        let coordinator = composition::coordinator(root.path().into());
+        {
+            let mut state = lock(&coordinator.state);
+            state.snapshot.job_id = 1;
+            state.snapshot.attempt = 2;
+            state.snapshot.phase = Phase::Downloading;
+        }
+        let sample = progress::TransferProgress {
+            downloaded_bytes: 25,
+            exact_total_bytes: Some(100),
+            bytes_per_second: Some(5.),
+            fraction: Some(0.25),
+            observed_at_ms: 1,
+            merging: false,
+        };
+        publish_progress(&coordinator.state, 2, 2, sample.clone());
+        publish_progress(&coordinator.state, 1, 1, sample.clone());
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        publish_progress(&coordinator.state, 1, 2, sample.clone());
+        assert!(coordinator.snapshot().transfer_progress.is_some());
+        update(&coordinator.state, 1, 2, Phase::Validating, String::new());
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        publish_progress(&coordinator.state, 1, 2, sample.clone());
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        update(&coordinator.state, 1, 2, Phase::Downloading, String::new());
+        publish_progress(&coordinator.state, 1, 2, sample.clone());
+        assert!(coordinator.cancel(1));
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        publish_progress(&coordinator.state, 1, 2, sample.clone());
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        terminal(&coordinator.state, 1, 2, Phase::Cancelled, String::new());
+        publish_progress(&coordinator.state, 1, 2, sample);
+        assert!(coordinator.snapshot().transfer_progress.is_none());
+        assert_eq!(coordinator.snapshot().terminal_count, 1);
+    }
+    #[test]
+    fn observation_messages_are_closed_phase_templates_not_metadata_or_private_logs()
+    -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let coordinator = composition::coordinator(root.path().into());
+        {
+            let mut state = lock(&coordinator.state);
+            state.snapshot.job_id = 1;
+            state.snapshot.attempt = 1;
+            state.snapshot.phase = Phase::Accepted;
+            state.publish();
+        }
+        for phase in [
+            Phase::Preparing,
+            Phase::Resolving,
+            Phase::Downloading,
+            Phase::Validating,
+            Phase::Publishing,
+            Phase::Held,
+        ] {
+            update(&coordinator.state,1,1,phase.clone(),"https://cdn/signed-SECRET?token=SECRET C:\\Users\\PRIVATE Authorization: SECRET Cookie: SECRET".into());
+            let snapshot = coordinator.snapshot();
+            assert_eq!(snapshot.phase, phase);
+            for secret in [
+                "SECRET",
+                "PRIVATE",
+                "://",
+                "Cookie",
+                "Authorization",
+                "C:\\",
+            ] {
+                assert!(!snapshot.message.contains(secret));
+            }
+        }
+        Ok(())
+    }
     #[test]
     fn cancel_and_publication_arbitrate_without_removing_delivery() -> Result<(), String> {
         for _ in 0..20 {
@@ -796,13 +880,14 @@ mod ownership_tests {
                 path: source,
                 bytes: 14,
                 sha256: runtime::hash(&b"settled output"[..])?,
-                streams: serde_json::json!({}),
+                kind: MediaKind::Data,
+                facts: contract::VerifiedFacts::default(),
                 identity_guard: None,
             };
             let mut stage = output::DestinationStage::create(&media, root.path(), 1)?;
             stage.fill(&media)?;
             let partial = stage.path.clone();
-            let coordinator = Arc::new(Coordinator::new(root.path().into()));
+            let coordinator = Arc::new(composition::coordinator(root.path().into()));
             {
                 let mut state = lock(&coordinator.state);
                 state.snapshot.job_id = 1;
@@ -868,7 +953,7 @@ mod ownership_tests {
         let root =
             PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
         let output = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = Coordinator::new(root.clone());
+        let coordinator = composition::coordinator(root.clone());
         let query_failure = Arc::new(AtomicBool::new(true));
         lock(&coordinator.state).probe = Some(Arc::new(TestProbe {
             query_failure: query_failure.clone(),
@@ -922,7 +1007,7 @@ mod ownership_tests {
     #[test]
     fn snapshot_remains_readable_during_publication_authority_checkpoint() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = Arc::new(Coordinator::new(root.path().into()));
+        let coordinator = Arc::new(composition::coordinator(root.path().into()));
         let mut held = lock(&coordinator.state);
         held.snapshot.job_id = 7;
         held.snapshot.attempt = 3;
@@ -953,7 +1038,7 @@ mod ownership_tests {
         let root =
             PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
         let output = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = Arc::new(Coordinator::new(root.clone()));
+        let coordinator = Arc::new(composition::coordinator(root.clone()));
         lock(&coordinator.state).probe = Some(Arc::new(TestProbe {
             query_failure: Arc::new(AtomicBool::new(false)),
             owner_panic: false,

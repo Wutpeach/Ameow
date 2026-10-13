@@ -22,6 +22,17 @@ pub struct Frame {
     center_alpha: f32,
     symbol_scale: f32,
 }
+impl Frame {
+    /// Whole-job percentage is unavailable; retain the accepted blue/glow with an honest moving arc.
+    pub fn indeterminate(mut self, now: u64, reduced: bool) -> Self {
+        if self.stage == Stage::Downloading {
+            self.start = if reduced { 0. } else { now as f32 / crate::model::ROTATION_MS as f32 };
+            self.sweep = 0.72;
+        }
+        self.center_alpha = 0.;
+        self
+    }
+}
 pub struct Indicator {
     last_stage: Stage,
     last_start: f32,
@@ -287,7 +298,11 @@ pub fn center(f: Frame) -> impl IntoElement {
         .child(format!("{}%", (f.percent * 100.).round() as u32))
 }
 pub fn label(f: Frame) -> impl IntoElement {
+    label_with_text(f, None)
+}
+pub fn label_with_text(f: Frame, text: Option<String>) -> impl IntoElement {
     let p = f.palette;
+    let live = text.is_some();
     div()
         .absolute()
         .left(px(0.))
@@ -312,7 +327,7 @@ pub fn label(f: Frame) -> impl IntoElement {
                 .text_size(px(8.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(f.previous_color)
-                .opacity(1. - f.mix)
+                .opacity(if live { 0. } else { 1. - f.mix })
                 .child(f.previous.name()),
         )
         .child(
@@ -320,7 +335,7 @@ pub fn label(f: Frame) -> impl IntoElement {
                 .absolute()
                 .left_0()
                 .right_0()
-                .top(px(2. * (1. - f.mix)))
+                .top(px(if live { 0. } else { 2. * (1. - f.mix) }))
                 .h(px(16.))
                 .flex()
                 .items_center()
@@ -328,7 +343,7 @@ pub fn label(f: Frame) -> impl IntoElement {
                 .text_size(px(8.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.ring(f.stage))
-                .opacity(f.mix)
-                .child(f.stage.name()),
+                .opacity(if live { 1. } else { f.mix })
+                .child(text.unwrap_or_else(|| f.stage.name().into())),
         )
 }

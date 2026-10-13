@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod edge_hover;
 mod download_bridge;
+mod download_ui;
+mod tray;
 mod indicator;
 mod magnetic_spring;
 mod model;
@@ -53,6 +55,7 @@ impl AssetSource for Assets {
     }
 }
 struct Options {
+    fixture: bool,
     night: bool,
     reduced: bool,
     demo: bool,
@@ -92,6 +95,7 @@ impl Options {
             _ => Stage::Idle,
         };
         Self {
+            fixture: args.iter().any(|arg| matches!(arg.as_str(), "--demo" | "--stage" | "--probe-period-ms")),
             night: args.iter().any(|s| s == "--night"),
             reduced: args.iter().any(|s| s == "--reduced") || Native::reduced_motion(),
             demo: args.iter().any(|s| s == "--demo"),
@@ -142,6 +146,10 @@ impl Options {
     }
 }
 struct Prototype {
+    downloads: Option<download_ui::DownloadUi>,
+    tray: Option<tray::Tray>,
+    close_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    _download_poll: Option<Task<()>>,
     clock: Instant,
     model: Model,
     native: Option<Native>,
@@ -181,10 +189,30 @@ impl Prototype {
             } else {
                 options.stage
             },
-            0.46,
+            if options.fixture { 0.46 } else { 0. },
             0,
         );
+        let close_requested = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let close_signal = close_requested.clone();
+        if !options.fixture {
+            window.on_window_should_close(cx, move |_, _| {
+                close_signal.store(true, std::sync::atomic::Ordering::Release);
+                false
+            });
+        }
+        let downloads = (!options.fixture).then(download_ui::DownloadUi::start);
+        let tray = if downloads.is_some() { tray::Tray::new().ok() } else { None };
+        let download_poll = downloads.as_ref().map(|_| cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_millis(100)).await;
+                if this.update_in(cx, |this, window, cx| { this.poll_downloads(window, cx); cx.notify(); }).is_err() { break; }
+            }
+        }));
         Self {
+            downloads,
+            tray,
+            close_requested,
+            _download_poll: download_poll,
             clock: Instant::now(),
             model,
             native: None,
@@ -225,6 +253,10 @@ impl Prototype {
         cx.notify();
     }
     fn copy(&mut self, cx: &mut Context<Self>) {
+        if self.downloads.is_some() {
+            self.copy_download(cx);
+            return;
+        }
         if self.model.stage == Stage::Failure {
             cx.write_to_clipboard(ClipboardItem::new_string(DIAGNOSTIC.into()));
             self.copied_at = Some(self.now());
@@ -232,11 +264,15 @@ impl Prototype {
         }
     }
     fn close_menu(&mut self, cx: &mut Context<Self>) {
-        self.model.locks.menu = false;
+        self.model.locks.menu = self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open || ui.folder_pending);
         self.model.locks_changed(self.now());
         cx.notify();
     }
     fn key(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.downloads.is_some() {
+            self.production_key(key, cx);
+            return;
+        }
         match key {
             "0" => self.state(Stage::Idle, cx),
             "1" => self.state(Stage::Resolving, cx),
@@ -307,7 +343,7 @@ impl Prototype {
                 writer.flush().expect("flush research measurements");
             }
             self.exit_after_ms = None;
-            cx.quit();
+            if self.downloads.is_some() { self.stop_and_exit(cx); } else { cx.quit(); }
         }
         if self.copied_at.is_some_and(|at| now >= at + 900) {
             self.copied_at = None;
@@ -579,6 +615,15 @@ impl Render for Prototype {
         };
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
         let frame = self.indicator.sample(&self.model, p, now);
+        let frame = if self
+            .downloads
+            .as_ref()
+            .is_some_and(|ui| ui.selected_fraction.is_none())
+        {
+            frame.indeterminate(now, self.model.reduced)
+        } else {
+            frame
+        };
         let stage = self.model.stage;
         let copied = self.copied_at.is_some_and(|t| now < t + 900);
         self.wake = None;
@@ -676,7 +721,7 @@ impl Render for Prototype {
             .opacity(alpha)
             .child(indicator::ring(frame))
             .child(indicator::center(frame))
-            .child(indicator::label(frame))
+            .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() })
             .when(stage.active() || stage == Stage::Failure, |s| {
                 s.child(
                     div()
@@ -742,32 +787,39 @@ impl Render for Prototype {
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if stage == Stage::Failure {
                                 this.copy(cx);
+                            } else if this.downloads.is_some() {
+                                this.cancel_main(cx);
                             } else {
                                 this.state(Stage::Cancelled, cx);
                             }
                         })),
                 )
             });
+        let live_badge = self.downloads.as_ref().and_then(|ui| ui.badge());
+        let badge_visible = if self.downloads.is_some() { live_badge.is_some() } else { stage.active() };
+        let (badge_count, failure_dot, download_dot) = live_badge.unwrap_or((2, false, true));
         let badge = div()
+            .id("queue-badge")
             .absolute()
             .left(px(g.gutter + 10.))
             .top(px(g.gutter + 10.))
             .w(px(42.))
             .h(px(28.))
-            .rounded(px(7.))
+            .rounded(px(20.))
             .bg(p.badge)
             .border_2()
             .border_color(p.border)
-            .opacity(if stage.active() { alpha } else { 0. })
-            .flex()
-            .items_center()
-            .justify_center()
-            .gap(px(4.))
+            .opacity(if badge_visible { alpha } else { 0. })
+            .cursor_pointer()
             .text_color(p.neutral)
             .font_family("JetBrains Mono")
             .text_size(px(12.))
-            .child("2")
-            .child(div().size(px(8.)).rounded_full().bg(p.semantic(stage)));
+            .font_weight(FontWeight::MEDIUM)
+            .child(div().absolute().left(px(9.)).top(px(4.5)).child(badge_count.to_string()))
+            .when(download_dot, |badge| badge.child(div().absolute().left(px(if failure_dot { 24. } else { 21. })).top(px(7.5)).size(px(8.)).rounded_full().bg(if self.downloads.is_some() { p.blue } else { p.semantic(stage) })))
+            .when(failure_dot, |badge| badge.child(div().absolute().left(px(21.)).top(px(7.5)).size(px(8.)).rounded_full().bg(p.red)))
+            .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+            .on_click(cx.listener(move |this, _, _, cx| { if badge_visible { this.open_queue(cx); } }));
         let surface_extra = self.model.window_motion.extra;
         // Endpoint elasticity belongs to the Surface alone; shadow uses native travel.
         let shadow_surface = g.native - 2. * g.gutter;
@@ -808,7 +860,7 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .child(slot)
+            .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
             .child(badge);
         let result = div()
             .id("ameow-root")
@@ -825,7 +877,12 @@ impl Render for Prototype {
             }))
             .on_mouse_move(cx.listener(|_, _: &MouseMoveEvent, _, cx| cx.notify()))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                this.key(event.keystroke.key.as_str(), cx)
+                if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
+                    this.paste_download(cx);
+                    cx.stop_propagation();
+                } else {
+                    this.key(event.keystroke.key.as_str(), cx)
+                }
             }))
             .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
                 this.model.locks.drop = true;
@@ -835,12 +892,17 @@ impl Render for Prototype {
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
                 this.model.locks.drop = false;
                 this.model.locks_changed(this.now());
-                if !paths.paths().is_empty() {
+                if this.downloads.is_none() && !paths.paths().is_empty() {
                     this.state(Stage::Resolving, cx);
                 }
             }))
             .child(visual_group)
-            .when(self.model.locks.menu, |s| s.child(self.menu(cx)));
+            .when(self.downloads.as_ref().is_some_and(|ui| ui.queue_open), |s| s.child(self.queue_panel(cx)))
+            .when(self.downloads.as_ref().is_some_and(|ui| ui.exit_open), |s| s.child(self.exit_panel(cx)))
+            .when(self.model.locks.menu && !self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open || ui.folder_pending), |s| {
+                if self.downloads.is_some() { s.child(self.download_menu(cx)) } else { s.child(self.menu(cx)) }
+            })
+            .when(self.downloads.is_some() && (!self.model.locks.menu || self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open)), |s| s.child(self.download_feedback()));
         if let Some(writer) = &mut self.measure {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();
@@ -928,7 +990,7 @@ fn main() {
                         size(px(80.), px(80.)),
                     ))),
                     titlebar: Some(TitlebarOptions {
-                        title: Some("Ameow Next · Phase 1".into()),
+                        title: Some("Ameow Next".into()),
                         appears_transparent: false,
                         ..Default::default()
                     }),

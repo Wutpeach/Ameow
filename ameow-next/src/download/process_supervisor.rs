@@ -21,7 +21,8 @@ use windows_sys::Win32::{
     System::{JobObjects::*, Pipes::CreatePipe, Threading::*},
 };
 
-const STDOUT_CAP: usize = 4 * 1024 * 1024;
+pub const MAX_STDOUT_CAPTURE: usize = 16 * 1024 * 1024;
+const STDOUT_CAP: usize = MAX_STDOUT_CAPTURE;
 const STDERR_CAP: usize = 1024 * 1024;
 type Callback = Arc<dyn Fn(ProcessObservation) + Send + Sync>;
 
@@ -88,7 +89,7 @@ impl SettlementFacts {
 #[derive(Clone, Debug)]
 pub enum ProcessObservation {
     Held(String),
-    Output { stderr: bool, text: String },
+    Output { stderr: bool, sequence: u64, text: String },
     Running { pid: u32 },
     Settled(SettlementFacts),
 }
@@ -774,6 +775,7 @@ fn spawn_reader(
             .into(),
         )
         .spawn(move || {
+            let mut sequence = 0_u64;
             loop {
                 let mut bytes = [0; 8192];
                 let mut count = 0;
@@ -811,8 +813,10 @@ fn spawn_reader(
                     capture.bytes.extend_from_slice(&bytes[..available]);
                 }
                 // A full/failed consumer cannot block either native pipe reader.
+                sequence = sequence.saturating_add(1);
                 match sender.try_send(ProcessObservation::Output {
                     stderr,
+                    sequence,
                     text: String::from_utf8_lossy(bytes).into_owned(),
                 }) {
                     Ok(()) | Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => {}
@@ -971,3 +975,72 @@ pub(crate) fn run_with_test_query_failure(
 #[cfg(test)]
 #[path = "../../tests/support/windows_process_faults.rs"]
 mod fault_tests;
+#[cfg(test)]
+#[path = "../../tests/support/windows_process_fixture.rs"]
+mod capture_fixture;
+#[cfg(test)]
+mod capture_regressions {
+    use super::capture_fixture as fixture;
+    use super::*;
+    #[test]
+    fn transfer_progress_stdout_overflow_is_optional_after_actual_settlement() {
+        let root = fixture::case("r7-optional-transfer-output");
+        let outcome = run(
+            ProcessSpec {
+                executable: fixture::fixture(),
+                args: vec![
+                    "flood".into(),
+                    root.join("markers.txt").to_string_lossy().into(),
+                ],
+                cwd: root,
+                env: vec![("PATH".into(), String::new())],
+                stdout_limit: 1024,
+                stderr_limit: 1024,
+                timeout: Some(Duration::from_secs(15)),
+            },
+            &Control::default(),
+            Arc::new(|_| {}),
+        )
+        .unwrap();
+        assert!(outcome.facts.stdout_truncated);
+        assert_eq!(outcome.facts.stdout_bytes, 7 * 1024 * 1024);
+        assert!(outcome.facts.resources_releasable());
+        super::super::validate_engine_outcome(&outcome, "transfer")
+            .expect("optional progress capture cannot fail a settled transfer");
+        assert!(super::super::parse_final_record(b"AMEOW_FINAL=\"media.mkv\"\n").is_ok());
+        assert!(super::super::parse_final_record(b"").is_err());
+    }
+    #[test]
+    fn requested_bounded_eight_mib_capture_accepts_seven_mib_and_still_drains_overflow() {
+        let root = fixture::case("r7-finite-capture");
+        let spec = ProcessSpec {
+            executable: fixture::fixture(),
+            args: vec![
+                "flood".into(),
+                root.join("markers.txt").to_string_lossy().into(),
+            ],
+            cwd: root.clone(),
+            env: vec![("PATH".into(), String::new())],
+            stdout_limit: 8 * 1024 * 1024,
+            stderr_limit: 1024,
+            timeout: Some(Duration::from_secs(15)),
+        };
+        let outcome = run(spec.clone(), &Control::default(), Arc::new(|_| {})).unwrap();
+        fixture::write_record(
+            &root,
+            "eight-mib-facts.txt",
+            format!("{:#?}", outcome.facts),
+        );
+        assert_eq!(outcome.exit_code, 0);
+        assert!(outcome.facts.resources_releasable());
+        assert_eq!(outcome.stdout.len(), 7 * 1024 * 1024);
+        assert!(!outcome.facts.stdout_truncated);
+        let mut bounded = spec;
+        bounded.stdout_limit = 1024;
+        let outcome = run(bounded, &Control::default(), Arc::new(|_| {})).unwrap();
+        assert_eq!(outcome.stdout.len(), 1024);
+        assert!(outcome.facts.stdout_truncated);
+        assert_eq!(outcome.facts.stdout_bytes, 7 * 1024 * 1024);
+        assert!(outcome.facts.resources_releasable());
+    }
+}

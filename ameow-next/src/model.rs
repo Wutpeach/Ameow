@@ -31,7 +31,7 @@ impl Stage {
         match self {
             Self::Idle => "待机",
             Self::Resolving => "解析中",
-            Self::Downloading => "下载中 · 8.2 MB/s",
+            Self::Downloading => "下载中",
             Self::Transcoding => "转码中 · 0:24",
             Self::Success => "下载完成",
             Self::Failure => "下载失败",
@@ -134,6 +134,8 @@ pub struct Model {
     pub blue_trace_at: Option<u64>,
     last_tick: u64,
     pub window_motion: Motion,
+    manual_compact: bool,
+    compact_left: bool,
 }
 impl Model {
     pub fn new(now: u64, reduced: bool) -> Self {
@@ -156,15 +158,25 @@ impl Model {
             blue_trace_at: None,
             last_tick: now,
             window_motion: Motion::new(Candidate::default(), false, now),
+            manual_compact: false,
+            compact_left: false,
         }
     }
     pub fn blocked(&self) -> bool {
         self.locks.drag
             || self.locks.menu
             || self.locks.drop
-            || self.stage.active()
-            || self.terminal.is_some()
-            || self.pending_transcode.is_some()
+            || (!self.manual_compact
+                && (self.stage.active()
+                    || self.terminal.is_some()
+                    || self.pending_transcode.is_some()))
+    }
+    /// Explicit Compact affects presentation only. A real leave/re-entry retires the override.
+    pub fn request_compact(&mut self, now: u64) {
+        self.manual_compact = true;
+        self.compact_left = !self.pointer;
+        self.collapse = None;
+        self.set_target(false, now);
     }
     /// Transfer at the input/deadline timestamp; previous idle time belongs to the old target.
     pub fn set_target(&mut self, full: bool, now: u64) {
@@ -199,6 +211,12 @@ impl Model {
         }
     }
     pub fn pointer(&mut self, inside: bool, now: u64) {
+        if self.manual_compact && !inside {
+            self.compact_left = true;
+        } else if self.manual_compact && inside && self.compact_left {
+            self.manual_compact = false;
+            self.compact_left = false;
+        }
         if inside == self.pointer {
             return;
         }
@@ -270,11 +288,15 @@ impl Model {
         self.stage = stage;
         self.stage_at = now;
         if stage.active() {
-            self.set_target(true, now);
+            if !self.manual_compact {
+                self.set_target(true, now);
+            }
             self.progress = Progress::new(percent.clamp(0., 1.), now);
         }
         if stage.terminal() {
-            self.set_target(true, now);
+            if !self.manual_compact {
+                self.set_target(true, now);
+            }
             self.terminal = Some(Deadline {
                 at: now + stage.retention(),
                 epoch: self.epoch,
@@ -464,6 +486,27 @@ pub fn reachable_anchor(anchor: [f32; 2], geometry: Geometry, work: [f32; 4]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn explicit_compact_survives_menu_dismiss_and_job_updates_until_real_reentry() {
+        let mut model = Model::new(0, true);
+        model.pointer(true, 0);
+        model.state(Stage::Downloading, 0., 1);
+        model.tick(2);
+        assert_eq!(model.fullness, 1.);
+        model.request_compact(3);
+        model.pointer(true, 4);
+        model.state(Stage::Downloading, 0., 5);
+        model.tick(6);
+        assert_eq!((model.target_full, model.fullness), (false, 0.));
+        model.state(Stage::Success, 1., 7);
+        model.tick(8);
+        assert_eq!(model.fullness, 0.);
+        assert_eq!(model.stage, Stage::Success);
+        model.pointer(false, 9);
+        model.pointer(true, 10);
+        model.tick(11);
+        assert_eq!((model.target_full, model.fullness), (true, 1.));
+    }
     #[test]
     fn reduced_toggle_after_due_leave_uses_compact_owner_without_replay() {
         let mut m = Model::new(0, false);

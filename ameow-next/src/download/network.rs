@@ -218,68 +218,8 @@ pub fn resolve(input: &str) -> Result<Route, String> {
         Some(proxy) => parse_proxy(&proxy, url.scheme()),
     }
 }
-/// Freeze one representable route for every selected URL/fragment before handing metadata to
-/// the engine. Native HLS keeps the same explicit static route for opaque manifest requests;
-/// exposed manifest/fragment URLs must still agree with that route. PAC remains unsupported.
-pub fn bind_media_routes(
-    metadata: &serde_json::Value,
-    plan: &super::plan::FormatPlan,
-    accepted: &str,
-) -> Result<Route, String> {
-    let route = engine_route(accepted)?;
-    check_media_routes(metadata, plan, &route, resolve)?;
-    Ok(route)
-}
-fn check_media_routes(
-    metadata: &serde_json::Value,
-    plan: &super::plan::FormatPlan,
-    route: &Route,
-    mut resolve_url: impl FnMut(&str) -> Result<Route, String>,
-) -> Result<(), String> {
-    let formats = metadata["formats"]
-        .as_array()
-        .ok_or("Media formats missing")?;
-    for id in plan.selector.split('+') {
-        let format = formats
-            .iter()
-            .find(|f| f["format_id"].as_str() == Some(id))
-            .ok_or("Frozen selected format missing")?;
-        if format["protocol"]
-            .as_str()
-            .is_some_and(|p| !matches!(p, "http" | "https" | "http_dash_segments" | "m3u8_native"))
-        {
-            return Err("Opaque media protocol cannot bind Windows per-request route".into());
-        }
-        let mut urls = Vec::new();
-        if let Some(url) = format["url"].as_str() {
-            urls.push(url.to_owned());
-        }
-        if let Some(fragments) = format["fragments"].as_array() {
-            for fragment in fragments {
-                if let Some(url) = fragment["url"].as_str() {
-                    urls.push(url.to_owned());
-                } else {
-                    return Err("Relative/implicit media fragment route unsupported".into());
-                }
-            }
-        }
-        if urls.is_empty() {
-            return Err("Selected format has no explicit media request URL".into());
-        }
-        for url in urls {
-            if &resolve_url(&url)? != route {
-                return Err(
-                    "Windows media URLs require differing routes; refusing engine route guess"
-                        .into(),
-                );
-            }
-        }
-    }
-    Ok(())
-}
 /// The engine cannot delegate its opaque requests back to WinHTTP. Restrict it to a
-/// static configuration whose bypass does not match the accepted origin. Selected media URLs
-/// are checked separately before transfer; unrelated bypass entries do not block public videos.
+/// static configuration whose bypass does not match the accepted origin. Native media requests use this explicit accepted-origin route; unrelated bypass entries do not block public videos. This does not attest every future redirect/CDN request.
 pub fn engine_route(input: &str) -> Result<Route, String> {
     let mut config = WINHTTP_CURRENT_USER_IE_PROXY_CONFIG::default();
     if unsafe { WinHttpGetIEProxyConfigForCurrentUser(&mut config) } == 0 {
@@ -416,51 +356,6 @@ pub fn acquire(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn native_hls_binds_explicit_urls_and_rejects_route_conflicts_and_unknown_protocols()
-    -> Result<(), String> {
-        let plan = super::super::plan::FormatPlan {
-            selector: "v".into(),
-            height: 240,
-            video_codec: "avc1".into(),
-            audio_codec: "aac".into(),
-            requires_audio: true,
-        };
-        let route = Route::Proxy("http://localhost:7897".into());
-        let mut metadata = serde_json::json!({"formats":[{
-            "format_id":"v", "protocol":"m3u8_native",
-            "url":"https://manifest.googlevideo.com/playlist.m3u8",
-            "fragments":[{"url":"https://media.googlevideo.com/segment"}]
-        }]});
-        check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone()))?;
-        assert!(
-            check_media_routes(&metadata, &plan, &route, |url| {
-                if url == "https://media.googlevideo.com/segment" {
-                    Ok(Route::Direct)
-                } else {
-                    Ok(route.clone())
-                }
-            })
-            .is_err()
-        );
-        for protocol in ["m3u8", "rtmp", "unknown"] {
-            metadata["formats"][0]["protocol"] = protocol.into();
-            assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
-        }
-        metadata["formats"][0]["protocol"] = "m3u8_native".into();
-        metadata["formats"][0]["fragments"] = serde_json::json!([{}]);
-        assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
-        metadata["formats"][0]
-            .as_object_mut()
-            .ok_or("Missing format")?
-            .remove("fragments");
-        metadata["formats"][0]
-            .as_object_mut()
-            .ok_or("Missing format")?
-            .remove("url");
-        assert!(check_media_routes(&metadata, &plan, &route, |_| Ok(route.clone())).is_err());
-        Ok(())
-    }
     #[test]
     fn public_video_routes_allow_unrelated_static_bypass() -> Result<(), String> {
         for input in [

@@ -1,10 +1,8 @@
 use super::{
-    plan::FormatPlan,
-    process_supervisor::{self, Control, ProcessObservation, ProcessSpec},
-    runtime::{RuntimeLease, hash},
+    contract::{MediaKind, VerifiedFacts},
+    runtime::hash,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     fs::{self, OpenOptions},
     io::{Seek, SeekFrom, Write},
@@ -15,7 +13,6 @@ use std::{
     },
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     DELETE, FILE_DISPOSITION_INFO, FILE_RENAME_INFO, FILE_RENAME_INFO_0, FileDispositionInfo,
@@ -40,18 +37,12 @@ pub struct VerifiedMedia {
     pub path: PathBuf,
     pub bytes: u64,
     pub sha256: String,
-    pub streams: Value,
+    pub kind: MediaKind,
+    pub facts: VerifiedFacts,
     #[serde(skip)]
     pub identity_guard: Option<Arc<fs::File>>,
 }
-pub fn verify(
-    path: &Path,
-    workspace: &Path,
-    plan: &FormatPlan,
-    lease: &RuntimeLease,
-    control: &Control,
-    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
-) -> Result<VerifiedMedia, String> {
+pub fn verify_data(path: &Path, workspace: &Path) -> Result<VerifiedMedia, String> {
     let path_metadata =
         fs::symlink_metadata(path).map_err(|e| format!("Final media identity: {e}"))?;
     if !path_metadata.is_file() || path_metadata.file_attributes() & 0x400 != 0 {
@@ -73,77 +64,15 @@ pub fn verify(
     {
         return Err("Final media is not one owned, nonempty regular file".into());
     }
-    let probe = process_supervisor::run(
-        ProcessSpec {
-            executable: lease.file("ffprobe.exe")?,
-            args: vec![
-                "-v".into(),
-                "error".into(),
-                "-show_streams".into(),
-                "-show_format".into(),
-                "-of".into(),
-                "json".into(),
-                canonical.display().to_string(),
-            ],
-            cwd: workspace.into(),
-            env: super::runtime::child_environment(workspace)?,
-            stdout_limit: 1024 * 1024,
-            stderr_limit: 128 * 1024,
-            timeout: Some(Duration::from_secs(30)),
-        },
-        control,
-        observer,
-    )?;
-    fs::write(workspace.join("ffprobe.json"), &probe.stdout).map_err(|e| e.to_string())?;
-    fs::write(workspace.join("ffprobe-stderr.log"), &probe.stderr).map_err(|e| e.to_string())?;
-    if probe.exit_code != 0 || probe.facts.stdout_truncated || !probe.facts.resources_releasable() {
-        return Err(format!(
-            "Media ffprobe failed: {}",
-            String::from_utf8_lossy(&probe.stderr)
-        ));
-    }
-    let info: Value =
-        serde_json::from_slice(&probe.stdout).map_err(|e| format!("ffprobe JSON: {e}"))?;
-    let streams = info["streams"].as_array().ok_or("No ffprobe streams")?;
-    if !streams.iter().any(|s| {
-        s["codec_type"] == "video"
-            && s["width"].as_u64().is_some_and(|w| w > 0)
-            && s["height"].as_u64() == Some(plan.height)
-            && s["codec_name"]
-                .as_str()
-                .is_some_and(|name| codec_matches(&plan.video_codec, name))
-    }) {
-        return Err("Delivered media video dimensions do not match accepted format".into());
-    }
-    if plan.requires_audio
-        && !streams
-            .iter()
-            .any(|s| s["codec_type"] == "audio" && s["channels"].as_u64().is_some_and(|n| n > 0))
-    {
-        return Err("Delivered media missing required audio".into());
-    }
-    if info["format"]["duration"]
-        .as_str()
-        .and_then(|s| s.parse::<f64>().ok())
-        .is_none_or(|n| !n.is_finite() || n <= 0.)
-    {
-        return Err("Media duration is not valid".into());
-    }
     let sha256 = hash(&mut identity_guard)?;
     Ok(VerifiedMedia {
         path: canonical,
         bytes: metadata.len(),
         sha256,
-        streams: info,
+        kind: MediaKind::Data,
+        facts: VerifiedFacts::default(),
         identity_guard: Some(Arc::new(identity_guard)),
     })
-}
-fn codec_matches(expected: &str, actual: &str) -> bool {
-    (actual == "h264" && (expected.starts_with("avc") || expected.starts_with("h264")))
-        || (actual == "hevc" && (expected.starts_with("hev") || expected.starts_with("hvc")))
-        || (actual == "vp9" && (expected.starts_with("vp9") || expected.starts_with("vp09")))
-        || (actual == "av1" && (expected.starts_with("av1") || expected.starts_with("av01")))
-        || expected == actual
 }
 #[must_use = "Owned stages require explicit cleanup or successful publication"]
 pub struct DestinationStage {

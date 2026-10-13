@@ -190,7 +190,7 @@ pub fn run() -> Result<(), String> {
         .map(|s| s.parse::<u64>().map(Duration::from_millis))
         .transpose()
         .map_err(|e| e.to_string())?;
-    let coordinator = Arc::new(Coordinator::new(runtime));
+    let coordinator = Arc::new(ameow_next::download::composition::coordinator(runtime));
     Application::new().run(move |cx: &mut App| {
         let result = cx.open_window(
             WindowOptions {

@@ -115,7 +115,9 @@ fn cancellation_waits_for_root_child_grandchild_and_readers() {
 #[test]
 fn flood_is_fully_drained_and_capture_capped_when_observer_ignores_output() {
     let root = fixture::case("ignored-flood");
-    let result = process::run(spec(&root, "flood"), &Control::default(), Arc::new(|_| {})).unwrap();
+    let mut input = spec(&root, "flood");
+    input.stdout_limit = 4 * 1024 * 1024;
+    let result = process::run(input, &Control::default(), Arc::new(|_| {})).unwrap();
     assert_eq!(result.exit_code, 0);
     assert_eq!(result.facts.stdout_bytes, 7 * 1024 * 1024);
     assert_eq!(result.facts.stderr_bytes, 2 * 1024 * 1024);
