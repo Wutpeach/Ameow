@@ -1,7 +1,8 @@
 //! One stable presentation slot. Ring continuity is sampled here; lifecycle belongs to Model.
 use crate::{
     model::{Model, PROGRESS_MS, Stage},
-    tokens::Palette,
+    ring_glow,
+    tokens::{self, Palette},
 };
 use gpui::{prelude::*, *};
 use std::f32::consts::{FRAC_PI_2, TAU};
@@ -243,43 +244,64 @@ fn draw_symbol(
 }
 
 pub fn ring(f: Frame) -> impl IntoElement {
-    canvas(
-        |_, _, _| (),
-        move |b, _, window, _| {
-            if f.stage == Stage::Idle {
-                return;
-            }
-            arc(
-                window,
-                b.origin,
+    let blur = tokens::ring_glow_blur(f.stage);
+    let glow = tokens::RING_GLOW_OPACITY;
+    div()
+        .absolute()
+        .left(px(23.))
+        .top(px(0.))
+        .size(px(50.))
+        .when(f.stage != Stage::Idle, |s| {
+            s.child(ring_glow::arc(
                 0.,
                 1.,
-                f.color.opacity(if f.stage == Stage::Resolving {
-                    0.12
-                } else {
-                    0.14
-                }),
-            );
-            if f.blue_trace > 0. {
-                arc(
-                    window,
-                    b.origin,
-                    0.,
-                    1.,
-                    f.palette.blue.opacity(f.blue_trace),
-                );
-            }
-            if matches!(f.stage, Stage::Downloading | Stage::Transcoding) {
-                arc(window, b.origin, f.start, 1., f.color.opacity(0.3));
-            }
-            arc(window, b.origin, f.start, f.sweep, f.color);
-            draw_symbol(window, b.origin, f.stage, f.symbol, f.color, f.symbol_scale);
-        },
-    )
-    .absolute()
-    .left(px(23.))
-    .top(px(0.))
-    .size(px(50.))
+                blur,
+                f.palette.blue.opacity(f.blue_trace * glow),
+            ))
+            .child(ring_glow::arc(
+                f.start,
+                f.sweep,
+                blur,
+                f.color.opacity(glow),
+            ))
+        })
+        .child(
+            canvas(
+                |_, _, _| (),
+                move |b, _, window, _| {
+                    if f.stage == Stage::Idle {
+                        return;
+                    }
+                    arc(
+                        window,
+                        b.origin,
+                        0.,
+                        1.,
+                        f.color.opacity(if f.stage == Stage::Resolving {
+                            0.12
+                        } else {
+                            0.14
+                        }),
+                    );
+                    if f.blue_trace > 0. {
+                        arc(
+                            window,
+                            b.origin,
+                            0.,
+                            1.,
+                            f.palette.blue.opacity(f.blue_trace),
+                        );
+                    }
+                    if matches!(f.stage, Stage::Downloading | Stage::Transcoding) {
+                        arc(window, b.origin, f.start, 1., f.color.opacity(0.3));
+                    }
+                    arc(window, b.origin, f.start, f.sweep, f.color);
+                    draw_symbol(window, b.origin, f.stage, f.symbol, f.color, f.symbol_scale);
+                },
+            )
+            .absolute()
+            .size(px(50.)),
+        )
 }
 pub fn center(f: Frame) -> impl IntoElement {
     div()
@@ -290,7 +312,7 @@ pub fn center(f: Frame) -> impl IntoElement {
         .flex()
         .items_center()
         .justify_center()
-        .font_family("JetBrains Mono")
+        .font_family(tokens::LATIN_FONT)
         .text_size(px(14.))
         .font_weight(FontWeight::MEDIUM)
         .text_color(f.color)

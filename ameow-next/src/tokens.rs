@@ -1,7 +1,30 @@
 //! Measured Penpot tokens, 2026-10-06. Raw Night values take precedence over
 //! resolvedValue, which can still reflect the active Light token-set alias.
 use crate::model::Stage;
-use gpui::{Hsla, rgb};
+use gpui::{Font, FontFallbacks, Hsla, font, rgb};
+
+pub const LATIN_FONT: &str = "JetBrains Mono";
+pub const LATIN_FONT_BYTES: [&[u8]; 2] = [
+    include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf"),
+    include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf"),
+];
+pub const CHINESE_FONT: &str = if cfg!(target_os = "macos") {
+    "PingFang SC"
+} else {
+    "Microsoft YaHei UI"
+};
+
+pub fn ui_font() -> Font {
+    let mut font = font(LATIN_FONT);
+    font.fallbacks = Some(FontFallbacks::from_fonts(vec![CHINESE_FONT.into()]));
+    font
+}
+
+// Penpot's ring duplicates use 30% opacity and Gaussian blur 4px (failure: 10px).
+pub const RING_GLOW_OPACITY: f32 = 0.3;
+pub fn ring_glow_blur(stage: Stage) -> u8 {
+    if stage == Stage::Failure { 10 } else { 4 }
+}
 #[derive(Clone, Copy)]
 pub struct Palette {
     pub surface: Hsla,
@@ -89,5 +112,95 @@ mod tests {
         assert_eq!(light.ring(Stage::Downloading), light.blue);
         assert_eq!(night.blue, Hsla::from(rgb(0x3d9aff)));
         assert_eq!(night.ring(Stage::Downloading), night.blue);
+    }
+
+    // Native text shaping is an integration check, separate from headless logic tests.
+    #[cfg(target_os = "windows")]
+    #[test]
+    #[ignore = "requires the Windows native text system; run with --ignored --test-threads=1"]
+    fn native_mixed_labels_use_platform_chinese_and_bundled_latin() {
+        use gpui::*;
+        use std::borrow::Cow;
+        struct FontCheck;
+        impl Render for FontCheck {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                div()
+            }
+        }
+        Application::new().run(|cx| {
+            cx.text_system()
+                .add_fonts(LATIN_FONT_BYTES.into_iter().map(Cow::Borrowed).collect())
+                .unwrap();
+            cx.open_window(
+                WindowOptions {
+                    show: false,
+                    focus: false,
+                    ..Default::default()
+                },
+                |window, cx| {
+                    let text_system = window.text_system();
+                    let mut mixed_font = ui_font();
+                    mixed_font.weight = FontWeight::MEDIUM;
+                    let latin_id = text_system.resolve_font(&mixed_font);
+                    let mut chinese_font = font(CHINESE_FONT);
+                    chinese_font.weight = FontWeight::MEDIUM;
+                    let chinese_id = text_system.resolve_font(&chinese_font);
+                    for stage in [
+                        Stage::Resolving,
+                        Stage::Downloading,
+                        Stage::Transcoding,
+                        Stage::Success,
+                        Stage::Failure,
+                        Stage::Cancelled,
+                    ] {
+                        let text = stage.name();
+                        let line = text_system.shape_line(
+                            text.into(),
+                            px(8.),
+                            &[TextRun {
+                                len: text.len(),
+                                font: mixed_font.clone(),
+                                color: black(),
+                                background_color: None,
+                                underline: None,
+                                strikethrough: None,
+                            }],
+                            None,
+                        );
+                        assert!(
+                            line.width <= px(94.),
+                            "label overflows its pill: {text}, {}",
+                            line.width
+                        );
+                        assert!(
+                            line.ascent + line.descent <= px(16.),
+                            "label overflows vertically: {text}"
+                        );
+                        for (index, character) in text.char_indices() {
+                            if character.is_ascii_alphanumeric() {
+                                assert_eq!(
+                                    line.font_id_for_index(index),
+                                    Some(latin_id),
+                                    "Latin fallback changed for {text}"
+                                );
+                            } else if ('一'..='鿿').contains(&character) {
+                                assert_eq!(
+                                    line.font_id_for_index(index),
+                                    Some(chinese_id),
+                                    "Chinese fallback changed for {text}"
+                                );
+                            }
+                        }
+                        println!(
+                            "{text}: {}; platform Chinese and JetBrains Mono verified",
+                            line.width
+                        );
+                    }
+                    cx.new(|_| FontCheck)
+                },
+            )
+            .unwrap();
+            cx.quit();
+        });
     }
 }

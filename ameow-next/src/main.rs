@@ -8,6 +8,7 @@ mod magnetic_spring;
 mod model;
 mod native;
 mod repair_motion;
+mod ring_glow;
 mod tokens;
 
 use gpui::{prelude::*, *};
@@ -44,13 +45,14 @@ impl AssetSource for Assets {
             "icons/x.svg" => Some(Cow::Borrowed(include_bytes!("../assets/x.svg"))),
             "icons/copy.svg" => Some(Cow::Borrowed(include_bytes!("../assets/copy.svg"))),
             "icons/check.svg" => Some(Cow::Borrowed(include_bytes!("../assets/check.svg"))),
-            _ => None,
+            _ => ring_glow::load(path).map(Cow::Owned),
         })
     }
     fn list(&self, _: &str) -> anyhow::Result<Vec<SharedString>> {
         Ok(["icons/x.svg", "icons/copy.svg", "icons/check.svg"]
             .into_iter()
             .map(Into::into)
+            .chain(ring_glow::asset_paths())
             .collect())
     }
 }
@@ -738,26 +740,14 @@ impl Render for Prototype {
                         .justify_center()
                         .text_color(p.neutral)
                         .hover(move |s| {
-                            s.bg(if stage == Stage::Failure {
-                                p.badge
-                            } else {
-                                p.red
-                            })
-                            .text_color(if stage == Stage::Failure {
-                                p.neutral
-                            } else {
-                                gpui::white()
-                            })
-                            .shadow(vec![BoxShadow {
-                                color: p.red.opacity(if stage == Stage::Failure {
-                                    0.
-                                } else {
-                                    0.3
-                                }),
-                                offset: point(px(0.), px(2.4)),
-                                blur_radius: px(4.8),
-                                spread_radius: px(0.),
-                            }])
+                            s.bg(p.red)
+                                .text_color(gpui::white())
+                                .shadow(vec![BoxShadow {
+                                    color: p.red.opacity(0.3),
+                                    offset: point(px(0.), px(2.4)),
+                                    blur_radius: px(4.8),
+                                    spread_radius: px(0.),
+                                }])
                         })
                         .child(
                             svg()
@@ -770,15 +760,9 @@ impl Render for Prototype {
                                 } else {
                                     "icons/x.svg"
                                 })
-                                .size(px(16.))
+                                .size(px(if stage == Stage::Failure { 10. } else { 16. }))
                                 .text_color(p.neutral)
-                                .group_hover("state-action", move |s| {
-                                    s.text_color(if stage == Stage::Failure {
-                                        p.neutral
-                                    } else {
-                                        gpui::white()
-                                    })
-                                }),
+                                .group_hover("state-action", move |s| s.text_color(gpui::white())),
                         )
                         .on_mouse_down(
                             MouseButton::Left,
@@ -812,7 +796,7 @@ impl Render for Prototype {
             .opacity(if badge_visible { alpha } else { 0. })
             .cursor_pointer()
             .text_color(p.neutral)
-            .font_family("JetBrains Mono")
+            .font_family(tokens::LATIN_FONT)
             .text_size(px(12.))
             .font_weight(FontWeight::MEDIUM)
             .child(div().absolute().left(px(9.)).top(px(4.5)).child(badge_count.to_string()))
@@ -868,7 +852,7 @@ impl Render for Prototype {
             .relative()
             .size_full()
             .overflow_hidden()
-            .font_family("Microsoft YaHei UI")
+            .font(tokens::ui_font())
             .on_hover(cx.listener(|this, inside, _, cx| {
                 if this.probe_period_ms.is_none() {
                     this.model.pointer(*inside, this.now());
@@ -983,6 +967,14 @@ fn main() {
     Application::new()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
+            cx.text_system()
+                .add_fonts(
+                    tokens::LATIN_FONT_BYTES
+                        .into_iter()
+                        .map(Cow::Borrowed)
+                        .collect(),
+                )
+                .expect("bundled JetBrains Mono fonts");
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(Bounds::new(
