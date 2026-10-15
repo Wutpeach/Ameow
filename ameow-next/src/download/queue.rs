@@ -1,19 +1,24 @@
 //! One logical download authority. Each Job has one engine execution and one settled terminal.
 use super::{
     Coordinator, Phase, PreparedAttempt, Snapshot,
-    diagnostics::{self, Failure, FailureCode},
     adapter::DownloadServices,
     contract::IdentityAttestation,
+    diagnostics::{self, Failure, FailureCode},
     lock,
+    preparation::{
+        ErrorCategory, PreparationFailure, PreparationPhase, PreparationSnapshot, PreparationStage,
+        RuntimeComponent,
+    },
     process_supervisor::{Control, ProcessObservation},
     request::{Accepted, DownloadIntent, Identity},
     runtime::RuntimeLease,
     settings::Settings,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use std::fs;
 use std::{
     collections::{BTreeMap, VecDeque},
-    fs,
     path::PathBuf,
     sync::{
         Arc, Mutex,
@@ -83,17 +88,155 @@ mod preparation_fixture;
 mod tests {
     use super::super::request::Quality;
     use super::*;
-    use serde_json::{json, Value};
-    use crate::download::{composition, adapters::yt_dlp::{identity as native_identity, diagnostics as native_diagnostics}, runtime::RuntimeManager};
-    trait NativeFixture { fn identity(&self, metadata: &Value) -> Result<Identity, String>; }
-    impl NativeFixture for Accepted { fn identity(&self, metadata: &Value) -> Result<Identity, String> { native_identity::attest(self, metadata) } }
-    fn admit_fixture(shared: &Shared, job: u64, identity: &Identity, metadata: &Value) -> Result<(), String> {
+    use crate::download::{
+        adapters::yt_dlp::{diagnostics as native_diagnostics, identity as native_identity},
+        composition,
+        runtime::RuntimeManager,
+    };
+    use serde_json::{Value, json};
+    trait NativeFixture {
+        fn identity(&self, metadata: &Value) -> Result<Identity, String>;
+    }
+    impl NativeFixture for Accepted {
+        fn identity(&self, metadata: &Value) -> Result<Identity, String> {
+            native_identity::attest(self, metadata)
+        }
+    }
+    fn admit_fixture(
+        shared: &Shared,
+        job: u64,
+        identity: &Identity,
+        metadata: &Value,
+    ) -> Result<(), String> {
         let accepted = lock(&shared.model).records[&job].view.accepted.clone();
         let mut proof = native_identity::proof(&accepted, metadata)?;
         proof.identity = identity.clone();
         admit_identity(shared, job, &proof)
     }
     use std::time::Instant;
+    #[test]
+    fn r12_startup_shared_failure_manual_retry_resumes_same_fifo_jobs_and_preserves_history()
+    -> Result<(), String> {
+        use crate::download::{
+            neutral_tests::DataAdapter, runtime::TrustedRuntimeRequirements,
+            verification::VerifierRegistry,
+        };
+        use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        Arc::get_mut(&mut backend.shared).unwrap().services = DownloadServices {
+            runtime: manager.clone(),
+            adapter: Arc::new(DataAdapter {
+                requirements: TrustedRuntimeRequirements::empty(),
+                mode: Arc::new(AtomicU8::new(3)),
+            }),
+            verifiers: Arc::new(VerifierRegistry::data()),
+        };
+        let release = Arc::new(AtomicBool::new(false));
+        let released = release.clone();
+        let weak = Arc::downgrade(&backend.shared);
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            let shared = weak.upgrade().unwrap();
+            let attempt = lock(&shared.model).preparation.attempt;
+            if attempt == 1 {
+                while !released.load(Ordering::Acquire) && !control.is_cancelled() {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                let failure = PreparationFailure::new(
+                    RuntimeComponent::Deno,
+                    PreparationStage::Acquire,
+                    ErrorCategory::Timeout,
+                );
+                let mut event = lock(&shared.model).preparation.clone();
+                event.phase = PreparationPhase::Failed;
+                event.component = Some(failure.component);
+                event.stage = failure.stage;
+                event.failure = Some(failure);
+                observe_preparation(&shared, event);
+                Err(Failure::new(FailureCode::Runtime, "runtime"))
+            } else {
+                manager
+                    .prepare(
+                        &TrustedRuntimeRequirements::empty(),
+                        &control,
+                        observer,
+                        |_| {},
+                    )
+                    .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+            }
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |v| v.preparing)?;
+        assert!(backend.snapshot().jobs.is_empty());
+        assert_eq!(backend.snapshot().active_slots, 0);
+        for n in 1..=5 {
+            backend.submit(format!("https://youtu.be/{n:011}"))?;
+        }
+        assert!(!backend.retry_preparation());
+        release.store(true, Ordering::Release);
+        let failed = wait_until(&backend, |v| {
+            !v.preparing && v.preparation.phase == PreparationPhase::Failed
+        })?;
+        assert_eq!(failed.active_slots, 0);
+        assert_eq!(failed.unfinished, 5);
+        assert_eq!(failed.failures, 0);
+        assert!(failed.jobs.iter().all(|j| j.phase == JobPhase::Preparing
+            && j.message.contains("manual preparation Retry")
+            && j.attempt == 0
+            && j.terminal_count == 0));
+        thread::sleep(Duration::from_millis(80));
+        assert_eq!(backend.snapshot().preparation.attempt, 1);
+        let copied = match backend.apply(QueueCommand::CopyPreparationDiagnostic) {
+            CommandReply::Diagnostic(text) => text,
+            _ => panic!("missing safe diagnostic"),
+        };
+        assert!(copied.contains("Deno"));
+        assert!(copied.contains("timeout"));
+        let late_job = backend.submit("https://youtu.be/00000000006".into())?;
+        let late = backend.snapshot();
+        let late = late.jobs.iter().find(|job| job.job_id == late_job).unwrap();
+        assert_eq!(late.phase, JobPhase::Preparing);
+        assert!(late.message.contains("Deno"));
+        assert!(late.message.contains("timeout"));
+        assert!(late.message.contains("manual preparation Retry"));
+        assert!(backend.cancel(late_job));
+        assert!(backend.retry_preparation());
+        assert!(!backend.retry_preparation());
+        let running = wait_until(&backend, |v| v.active_slots == 3)?;
+        assert_eq!(
+            running.jobs.iter().map(|j| j.job_id).collect::<Vec<_>>(),
+            vec![1, 2, 3, 4, 5, 6]
+        );
+        assert_eq!(
+            running
+                .jobs
+                .iter()
+                .filter(|j| j.slot_owned)
+                .map(|j| j.start_order)
+                .collect::<Vec<_>>(),
+            vec![Some(1), Some(2), Some(3)]
+        );
+        assert!(backend.cancel(2));
+        let resumed = wait_until(&backend, |v| v.jobs[3].slot_owned)?;
+        assert_eq!(resumed.jobs[3].start_order, Some(4));
+        assert!(
+            resumed
+                .preparation
+                .history
+                .iter()
+                .any(|e| e.attempt == 1 && e.category == Some(ErrorCategory::Timeout))
+        );
+        assert!(resumed.preparation.history.iter().any(|e| e.attempt == 2));
+        backend.stop();
+        wait_until(&backend, |v| v.stopped)?;
+        owner.join().map_err(|_| "dispatcher panic")?;
+        let persisted = fs::read_to_string(root.path().join("preparation-history.json"))
+            .map_err(|e| e.to_string())?;
+        assert!(persisted.contains("Timeout"));
+        Ok(())
+    }
     #[test]
     fn progress_projection_rejects_stale_identity_and_clears_manual_retry_cancel_stop_terminal()
     -> Result<(), String> {
@@ -638,8 +781,7 @@ mod tests {
             reason: "C:\\Users\\secret\\private".into(),
             suggestion: "Authorization: SECRET".into(),
         };
-        let text =
-            diagnostics::copy_text(8, "https://proxy:password@secret", &vec![attack; 200]);
+        let text = diagnostics::copy_text(8, "https://proxy:password@secret", &vec![attack; 200]);
         for forbidden in [
             "SECRET",
             "secret",
@@ -759,6 +901,9 @@ mod tests {
         *lock(&backend.shared.preparation_test) = Some(Arc::new(|_, _| {
             panic!("test-only started preparation panic, no native process");
         }));
+        // Startup preparation can now fail before later admission. Seed the pending
+        // Job before starting the owner to test the intended unresolved-Job barrier.
+        let job = backend.submit("https://youtu.be/00000000001".into())?;
         let shared = backend.shared.clone();
         let owner = thread::spawn(move || dispatch(shared));
         struct DispatchGuard(Arc<Shared>);
@@ -768,7 +913,6 @@ mod tests {
             }
         }
         let guard = DispatchGuard(backend.shared.clone());
-        let job = backend.submit("https://youtu.be/00000000001".into())?;
         let started = Instant::now();
         while !backend
             .shared
@@ -1242,6 +1386,7 @@ pub struct QueueSnapshot {
     pub failures: usize,
     pub active_slots: usize,
     pub preparing: bool,
+    pub preparation: PreparationSnapshot,
     pub preparation_held: bool,
     /// The outer preparation owner unwound without verified process/file settlement facts.
     pub preparation_owner_lost: bool,
@@ -1257,6 +1402,8 @@ pub enum QueueCommand {
     RetryCleanup(u64),
     Stop,
     CopyDiagnostic(u64),
+    RetryPreparation,
+    CopyPreparationDiagnostic,
 }
 #[derive(Clone, Debug)]
 pub enum CommandReply {
@@ -1289,6 +1436,8 @@ struct Model {
     revision: u64,
     settings: Settings,
     preparing: bool,
+    preparation: PreparationSnapshot,
+    preparation_requested: bool,
     preparation_held: bool,
     preparation_owner_lost: bool,
     stopping: bool,
@@ -1326,6 +1475,8 @@ impl Model {
             revision: 0,
             settings,
             preparing: false,
+            preparation: PreparationSnapshot::default(),
+            preparation_requested: true,
             preparation_held: false,
             preparation_owner_lost: false,
             stopping: false,
@@ -1359,6 +1510,7 @@ impl Model {
             failures: jobs.iter().filter(|r| r.phase == JobPhase::Failure).count(),
             active_slots: self.active(),
             preparing: self.preparing,
+            preparation: self.preparation.clone(),
             preparation_held: self.preparation_held,
             preparation_owner_lost: self.preparation_owner_lost,
             stopping: self.stopping,
@@ -1413,11 +1565,24 @@ impl Model {
                     job_id: job,
                     revision: 0,
                     attempt: 0,
-                    phase: JobPhase::Queued,
+                    phase: if self.preparing || self.preparation.phase == PreparationPhase::Failed {
+                        JobPhase::Preparing
+                    } else {
+                        JobPhase::Queued
+                    },
                     accepted,
                     identity: None,
                     title: "Waiting for video identity".into(),
-                    message: "Queued in acceptance order".into(),
+                    message: if self.preparation.phase == PreparationPhase::Failed {
+                        self.preparation.failure.as_ref().map_or_else(
+                            || "Components failed; waiting for manual preparation Retry".into(),
+                            |failure| format!("{}; waiting for manual preparation Retry", failure.safe().message),
+                        )
+                    } else if self.preparing {
+                        "Waiting for shared download components".into()
+                    } else {
+                        "Queued in acceptance order".into()
+                    },
                     failure: None,
                     transfer_progress: None,
                     delivered: None,
@@ -1740,6 +1905,10 @@ impl DownloadCoordinator {
     }
     pub fn apply(&self, command: QueueCommand) -> CommandReply {
         match command {
+            QueueCommand::RetryPreparation => CommandReply::Applied(self.retry_preparation()),
+            QueueCommand::CopyPreparationDiagnostic => {
+                CommandReply::Diagnostic(self.snapshot().preparation.diagnostic())
+            }
             QueueCommand::Submit { url } => self
                 .submit(url)
                 .map(CommandReply::Accepted)
@@ -1763,6 +1932,23 @@ impl DownloadCoordinator {
                 CommandReply::Stopping
             }
         }
+    }
+    pub fn retry_preparation(&self) -> bool {
+        let _ordered = lock(&self.shared.command_gate);
+        let mut model = lock(&self.shared.model);
+        if model.stopping
+            || model.preparing
+            || model.preparation_held
+            || model.preparation_owner_lost
+            || model.preparation_requested
+            || model.preparation.phase != PreparationPhase::Failed
+        {
+            return false;
+        }
+        model.preparation_requested = true;
+        model.revision += 1;
+        self.shared.publish(&model);
+        true
     }
 }
 impl Drop for DownloadCoordinator {
@@ -1831,11 +2017,7 @@ pub fn run_commands(
     }
 }
 
-fn admit_identity(
-    shared: &Shared,
-    job: u64,
-    proof: &IdentityAttestation,
-) -> Result<(), String> {
+fn admit_identity(shared: &Shared, job: u64, proof: &IdentityAttestation) -> Result<(), String> {
     let mut model = lock(&shared.model);
     let identity = &proof.identity;
     let key = identity.canonical_key();
@@ -1948,7 +2130,60 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
         model.event(job, &format!("process-settled: {facts}"));
     }
 }
+fn persist_preparation(shared: &Shared, history: &[super::preparation::PreparationEvent]) {
+    // A separate safe history leaves the historical raw R11 evidence untouched.
+    let result = (|| -> Result<(), std::io::Error> {
+        use std::io::Write;
+        let mut file = tempfile::NamedTempFile::new_in(&shared.manager.root)?;
+        serde_json::to_writer(&mut file, history)?;
+        file.flush()?;
+        file.as_file().sync_all()?;
+        file.persist(shared.manager.root.join("preparation-history.json"))
+            .map_err(|e| e.error)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        // Keep the failure in memory even if the same filesystem prevents diagnostic persistence.
+        let mut model = lock(&shared.model);
+        model.revision += 1;
+        shared.publish(&model);
+    }
+}
+fn observe_preparation(shared: &Shared, event: PreparationSnapshot) {
+    let history = {
+        let mut model = lock(&shared.model);
+        let changed = model.preparation.observe(
+            event.phase,
+            event.component,
+            event.stage,
+            event.downloaded_bytes,
+            event.total_bytes,
+            event.failure,
+        );
+        model.revision += 1;
+        shared.publish(&model);
+        changed.then(|| model.preparation.history.clone())
+    };
+    if let Some(history) = history {
+        persist_preparation(shared, &history);
+    }
+}
 fn dispatch(shared: Arc<Shared>) {
+    // Background-only bounded read. Never restore Jobs or infer a live preparation from disk.
+    if let Ok(file) = std::fs::File::open(shared.manager.root.join("preparation-history.json")) {
+        use std::io::Read;
+        if let Ok(history) = serde_json::from_reader::<_, Vec<super::preparation::PreparationEvent>>(
+            file.take(65537),
+        ) && history.len() <= 96
+        {
+            let mut model = lock(&shared.model);
+            model.preparation.attempt =
+                history.iter().map(|event| event.attempt).max().unwrap_or(0);
+            model.preparation.history = history;
+            shared.publish(&model);
+        }
+    }
+
     let mut prepared: Option<Arc<RuntimeLease>> = None;
     let mut preparation: Option<JoinHandle<Result<Arc<RuntimeLease>, Failure>>> = None;
     loop {
@@ -2015,34 +2250,57 @@ fn dispatch(shared: Arc<Shared>) {
             model.revision += 1;
             match result {
                 Ok(Ok(lease)) => {
+                    model.preparation.observe(
+                        PreparationPhase::Ready,
+                        None,
+                        PreparationStage::Publish,
+                        0,
+                        None,
+                        None,
+                    );
                     prepared = Some(lease);
-                    for record in model.records.values_mut().filter(|r| {
-                        !r.view.phase.terminal() && !r.view.slot_owned
-                    }) {
+                    for record in model
+                        .records
+                        .values_mut()
+                        .filter(|r| !r.view.phase.terminal() && !r.view.slot_owned)
+                    {
                         record.view.phase = JobPhase::Queued;
                         record.view.message = "Queued in acceptance order".into();
                         record.view.revision += 1;
                     }
                 }
                 Ok(Err(failure)) => {
-                    let jobs: Vec<_> = model
+                    // Failed components stay discoverable without consuming media slots or
+                    // manufacturing terminal media Jobs. An explicit preparation Retry resumes them.
+                    if model.preparation.phase != PreparationPhase::Failed {
+                        let safe = PreparationFailure::new(
+                            RuntimeComponent::Runtime,
+                            PreparationStage::Cache,
+                            ErrorCategory::Unknown,
+                        );
+                        model.preparation.observe(
+                            PreparationPhase::Failed,
+                            Some(safe.component),
+                            safe.stage,
+                            0,
+                            None,
+                            Some(safe),
+                        );
+                    }
+                    let message = model
+                        .preparation
+                        .failure
+                        .as_ref()
+                        .map(|f| format!("{}; waiting for manual preparation Retry", f.message))
+                        .unwrap_or(failure.reason);
+                    for record in model
                         .records
-                        .iter()
-                        .filter(|(_, r)| !r.view.phase.terminal() && !r.view.slot_owned)
-                        .map(|(job, _)| *job)
-                        .collect();
-                    let phase = if model.stopping {
-                        JobPhase::Cancelled
-                    } else {
-                        JobPhase::Failure
-                    };
-                    for job in jobs {
-                        if let Some(record) = model.records.get_mut(&job) {
-                            record.history.push(failure.clone());
-                            record.view.failure = Some(failure.clone());
-                            record.view.message = format!("{}: {}", failure.code, failure.reason);
-                        }
-                        model.terminal(job, phase.clone());
+                        .values_mut()
+                        .filter(|r| !r.view.phase.terminal() && !r.view.slot_owned)
+                    {
+                        record.view.phase = JobPhase::Preparing;
+                        record.view.message = message.clone();
+                        record.view.revision += 1;
                     }
                 }
                 Err(_) => {
@@ -2052,6 +2310,9 @@ fn dispatch(shared: Arc<Shared>) {
                 }
             }
             shared.publish(&model);
+            let history = model.preparation.history.clone();
+            drop(model);
+            persist_preparation(&shared, &history);
             #[cfg(test)]
             shared
                 .preparation_test_joined
@@ -2064,10 +2325,20 @@ fn dispatch(shared: Arc<Shared>) {
                 && preparation.is_none()
                 && !model.preparation_held
                 && !model.preparation_owner_lost
-                && model.records.values().any(|r| !r.view.phase.terminal());
+                && model.preparation_requested;
             if need {
                 *lock(&shared.preparation_control) = Control::default();
                 model.preparing = true;
+                model.preparation_requested = false;
+                model.preparation.attempt = model.preparation.attempt.saturating_add(1);
+                model.preparation.observe(
+                    PreparationPhase::Preparing,
+                    None,
+                    PreparationStage::Cache,
+                    0,
+                    None,
+                    None,
+                );
                 model.revision += 1;
                 for record in model
                     .records
@@ -2131,19 +2402,26 @@ fn dispatch(shared: Arc<Shared>) {
                     if let Some(test) = lock(&worker.preparation_test).clone() {
                         return test(control, observer);
                     }
-                    let mut evidence = String::new();
-                    let result = worker.manager.prepare(worker.services.adapter.requirements(), &control, observer, |line| {
-                        if evidence.len() < 128_000 {
-                            evidence.push_str(&line);
-                            evidence.push('\n');
-                        }
-                    });
-                    // Raw runtime messages stay local; failures expose only stable classified fields.
-                    let _ = fs::write(
-                        worker.manager.root.join("queue-runtime-events.log"),
-                        evidence,
+                    let result = worker.manager.prepare_observed(
+                        worker.services.adapter.requirements(),
+                        &control,
+                        observer,
+                        |event| observe_preparation(&worker, event),
                     );
-                    result.map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+                    if let Err(failure) = &result {
+                        let mut event = lock(&worker.model).preparation.clone();
+                        event.phase = PreparationPhase::Failed;
+                        event.component = Some(failure.component);
+                        event.stage = failure.stage;
+                        event.failure = Some(failure.clone());
+                        observe_preparation(&worker, event);
+                    }
+                    result.map_err(|error| Failure {
+                        code: "E_RUNTIME".into(),
+                        stage: "runtime".into(),
+                        reason: error.message,
+                        suggestion: error.suggestion,
+                    })
                 });
             match spawn {
                 Ok(owner) => preparation = Some(owner),
@@ -2151,6 +2429,19 @@ fn dispatch(shared: Arc<Shared>) {
                     let failure = Failure::new(FailureCode::Runtime, "runtime");
                     let mut model = lock(&shared.model);
                     model.preparing = false;
+                    let safe = PreparationFailure::new(
+                        RuntimeComponent::Runtime,
+                        PreparationStage::Cache,
+                        ErrorCategory::Unknown,
+                    );
+                    model.preparation.observe(
+                        PreparationPhase::Failed,
+                        Some(safe.component),
+                        safe.stage,
+                        0,
+                        None,
+                        Some(safe),
+                    );
                     let jobs: Vec<_> = model
                         .records
                         .iter()
@@ -2218,7 +2509,7 @@ fn dispatch(shared: Arc<Shared>) {
                 shared.publish(&model);
             }
         }
-        let (stopping, no_ownership, idle) = {
+        let (stopping, no_ownership) = {
             let model = lock(&shared.model);
             (
                 model.stopping,
@@ -2226,12 +2517,8 @@ fn dispatch(shared: Arc<Shared>) {
                     && !model.preparing
                     && !model.preparation_owner_lost
                     && preparation.is_none(),
-                model.records.values().all(|r| r.view.phase.terminal()),
             )
         };
-        if idle && preparation.is_none() {
-            prepared = None;
-        }
         if stopping && no_ownership {
             drop(prepared.take());
             let mut model = lock(&shared.model);

@@ -278,17 +278,58 @@ pub fn acquire(
     path: &Path,
     expected_bytes: u64,
     cancel: &AtomicBool,
-    mut observed: impl FnMut(&str, &Route),
+    observed: impl FnMut(&str, &Route),
 ) -> Result<(), String> {
-    let mut url = Url::parse(input).map_err(|e| e.to_string())?;
+    acquire_observed(input, path, expected_bytes, cancel, observed, |_, _| {}).map_err(|error| {
+        format!(
+            "Runtime acquisition: {} HTTP {:?}",
+            error.category.label(),
+            error.http_status
+        )
+    })
+}
+#[derive(Debug)]
+pub(crate) struct AcquisitionError {
+    pub category: super::preparation::ErrorCategory,
+    pub http_status: Option<u16>,
+}
+impl From<super::preparation::ErrorCategory> for AcquisitionError {
+    fn from(category: super::preparation::ErrorCategory) -> Self {
+        Self {
+            category,
+            http_status: None,
+        }
+    }
+}
+fn request_error(error: reqwest::Error) -> AcquisitionError {
+    use super::preparation::ErrorCategory as E;
+    (if error.is_timeout() {
+        E::Timeout
+    } else if error.is_connect() {
+        E::Connect
+    } else {
+        E::Unknown
+    })
+    .into()
+}
+pub(crate) fn acquire_observed(
+    input: &str,
+    path: &Path,
+    expected_bytes: u64,
+    cancel: &AtomicBool,
+    mut observed: impl FnMut(&str, &Route),
+    progress: impl FnMut(u64, Option<u64>),
+) -> Result<(), AcquisitionError> {
+    use super::preparation::ErrorCategory as E;
+    let mut url = Url::parse(input).map_err(|_| E::Unknown)?;
     for _ in 0..8 {
         if cancel.load(Ordering::Acquire) {
-            return Err("Runtime acquisition cancelled".into());
+            return Err(E::Cancelled.into());
         }
         if url.scheme() != "https" {
-            return Err("Runtime download requires trusted HTTPS redirects".into());
+            return Err(E::Http.into());
         }
-        let route = resolve(url.as_str())?;
+        let route = resolve(url.as_str()).map_err(|_| E::ProxyRouting)?;
         let mut public_url = url.clone();
         public_url.set_query(None);
         observed(public_url.as_str(), &route);
@@ -298,64 +339,169 @@ pub fn acquire(
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(300));
         if let Route::Proxy(proxy) = route {
-            builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|e| e.to_string())?);
+            builder = builder.proxy(reqwest::Proxy::all(proxy).map_err(|_| E::ProxyRouting)?);
         }
-        let mut response = builder
+        let response = builder
             .build()
-            .map_err(|e| format!("Runtime HTTP client: {e}"))?
+            .map_err(request_error)?
             .get(url.clone())
             .header("User-Agent", "Ameow-Next/0.1")
             .send()
-            .map_err(|e| format!("Runtime HTTPS request: {e}"))?;
+            .map_err(request_error)?;
         if response.status().is_redirection() {
             let location = response
                 .headers()
                 .get(reqwest::header::LOCATION)
-                .ok_or("Runtime redirect missing location")?
+                .ok_or(E::Http)?
                 .to_str()
-                .map_err(|e| e.to_string())?;
-            url = url.join(location).map_err(|e| e.to_string())?;
+                .map_err(|_| E::Http)?;
+            url = url.join(location).map_err(|_| E::Http)?;
             continue;
         }
         if !response.status().is_success() {
-            return Err(format!("Runtime HTTPS status {}", response.status()));
+            return Err(AcquisitionError {
+                category: E::Http,
+                http_status: Some(response.status().as_u16()),
+            });
         }
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(path)
-            .map_err(|e| format!("Runtime exclusive staging: {e}"))?;
-        let mut total = 0_u64;
-        let mut buffer = [0_u8; 65536];
-        loop {
-            if cancel.load(Ordering::Acquire) {
-                return Err("Runtime acquisition cancelled".into());
-            }
-            let n = response
-                .read(&mut buffer)
-                .map_err(|e| format!("Runtime HTTP stream: {e}"))?;
-            if n == 0 {
-                break;
-            }
-            total += n as u64;
-            if total > expected_bytes {
-                return Err("Runtime artifact exceeds fixed size".into());
-            }
-            file.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
-        }
-        if total != expected_bytes {
-            return Err(format!(
-                "Runtime artifact size mismatch {total}/{expected_bytes}"
-            ));
-        }
-        file.sync_all().map_err(|e| e.to_string())?;
-        return Ok(());
+        return store_artifact(response, path, expected_bytes, cancel, progress);
     }
-    Err("Runtime redirect bound exceeded".into())
+    Err(E::Http.into())
 }
+fn store_artifact(
+    mut response: impl Read,
+    path: &Path,
+    expected_bytes: u64,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(u64, Option<u64>),
+) -> Result<(), AcquisitionError> {
+    use super::preparation::ErrorCategory as E;
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| E::io(&e))?;
+    let mut total = 0_u64;
+    // The compiled manifest is an exact artifact byte contract, independent of HTTP headers.
+    progress(0, Some(expected_bytes));
+    let mut last_progress = std::time::Instant::now();
+    let mut buffer = [0_u8; 65536];
+    loop {
+        if cancel.load(Ordering::Acquire) {
+            return Err(E::Cancelled.into());
+        }
+        let n = response.read(&mut buffer).map_err(|e| {
+            let mut source = std::error::Error::source(&e);
+            while let Some(cause) = source {
+                if let Some(request) = cause.downcast_ref::<reqwest::Error>() {
+                    if request.is_timeout() {
+                        return E::Timeout;
+                    }
+                    if request.is_connect() {
+                        return E::Connect;
+                    }
+                }
+                source = cause.source();
+            }
+            if e.kind() == std::io::ErrorKind::TimedOut {
+                E::Timeout
+            } else {
+                E::Unknown
+            }
+        })?;
+        if n == 0 {
+            break;
+        }
+        total += n as u64;
+        if total > expected_bytes {
+            return Err(E::Size.into());
+        }
+        file.write_all(&buffer[..n]).map_err(|e| E::io(&e))?;
+        if last_progress.elapsed() >= Duration::from_millis(200) {
+            progress(total, Some(expected_bytes));
+            last_progress = std::time::Instant::now();
+        }
+    }
+    if total != expected_bytes {
+        return Err(E::Size.into());
+    }
+    file.sync_all().map_err(|e| E::io(&e))?;
+    progress(total, Some(expected_bytes));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn r12_acquisition_stream_has_real_bytes_and_distinct_size_timeout_cancel_errors() {
+        use super::super::preparation::ErrorCategory as E;
+        let root = tempfile::tempdir().unwrap();
+        let cancel = AtomicBool::new(false);
+        let mut samples = Vec::new();
+        let path = root.path().join("valid");
+        store_artifact(
+            std::io::Cursor::new(b"abc"),
+            &path,
+            3,
+            &cancel,
+            |bytes, total| samples.push((bytes, total)),
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(path).unwrap(), b"abc");
+        assert_eq!(samples, vec![(0, Some(3)), (3, Some(3))]);
+        for (name, bytes, expected) in [
+            ("short", b"ab".as_slice(), 3),
+            ("large", b"abcd".as_slice(), 3),
+        ] {
+            assert_eq!(
+                store_artifact(
+                    std::io::Cursor::new(bytes),
+                    &root.path().join(name),
+                    expected,
+                    &cancel,
+                    |_, _| {}
+                )
+                .unwrap_err()
+                .category,
+                E::Size
+            );
+        }
+        struct TimedOut;
+        impl Read for TimedOut {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "private raw message",
+                ))
+            }
+        }
+        assert_eq!(
+            store_artifact(
+                TimedOut,
+                &root.path().join("timeout"),
+                3,
+                &cancel,
+                |_, _| {}
+            )
+            .unwrap_err()
+            .category,
+            E::Timeout
+        );
+        cancel.store(true, Ordering::Release);
+        assert_eq!(
+            store_artifact(
+                std::io::Cursor::new(b"abc"),
+                &root.path().join("cancelled"),
+                3,
+                &cancel,
+                |_, _| {}
+            )
+            .unwrap_err()
+            .category,
+            E::Cancelled
+        );
+    }
     #[test]
     fn public_video_routes_allow_unrelated_static_bypass() -> Result<(), String> {
         for input in [

@@ -1,5 +1,6 @@
 //! Production GPUI command boundary. Initialization, persistence and polling stay off the UI.
 use ameow_next::download::{
+    preparation::{ErrorCategory, PreparationPhase, PreparationSnapshot, PreparationStage},
     queue::{
         CommandReply, JobPhase, JobSnapshot, QueueCommand, QueueSnapshot,
     },
@@ -20,9 +21,53 @@ use std::{
 
 pub enum UiReply {
     Reply(CommandReply),
+    PreparationRetry(CommandReply),
     Settings(CommandReply),
     Diagnostic { job: u64, text: String },
     StartupError(String),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExitAction {
+    Quit,
+    Stop,
+    Confirm,
+}
+#[derive(Default)]
+struct ExitIntent {
+    pending: bool,
+}
+impl ExitIntent {
+    fn request(&mut self) {
+        self.pending = true;
+    }
+    fn resolve(
+        &mut self,
+        snapshot: Option<&QueueSnapshot>,
+        startup_failed: bool,
+    ) -> Option<ExitAction> {
+        if !self.pending {
+            return None;
+        }
+        let action = if startup_failed {
+            ExitAction::Quit
+        } else {
+            // Unknown startup state is not active work or a safe-stop acknowledgement.
+            let snapshot = snapshot?;
+            if snapshot.stopped {
+                ExitAction::Quit
+            } else if snapshot.unfinished == 0
+                && !snapshot.preparing
+                && !snapshot.preparation_held
+                && !snapshot.preparation_owner_lost
+            {
+                ExitAction::Stop
+            } else {
+                ExitAction::Confirm
+            }
+        };
+        self.pending = false;
+        Some(action)
+    }
 }
 pub struct DownloadUi {
     commands: SyncSender<QueueCommand>,
@@ -37,12 +82,16 @@ pub struct DownloadUi {
     pub queue_open: bool,
     pub exit_open: bool,
     pub exit_when_stopped: bool,
+    exit_intent: ExitIntent,
     pub hidden: bool,
     pub selected_job: Option<u64>,
     selected_presentation: Option<(u64, u32, JobPhase)>,
     pub selected_fraction: Option<f32>,
     pub seen_terminals: std::collections::HashSet<u64>,
     pub feedback: Option<(String, u64)>,
+    pub preparation_hovered: bool,
+    preparation_retry_pending: bool,
+    preparation_copied_at: Option<u64>,
 }
 impl DownloadUi {
     pub fn start() -> Self {
@@ -82,11 +131,13 @@ impl DownloadUi {
                         append_evidence(&mut evidence, &started, command_summary(&command));
                         let diagnostic_job = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
+                        let retrying_preparation = matches!(&command, QueueCommand::RetryPreparation);
                         let reply = coordinator.apply(command);
                         append_evidence(&mut evidence, &started, reply_summary(&reply));
                         let event = match reply {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic_job.unwrap_or(0), text },
                             reply if saving => UiReply::Settings(reply),
+                            reply if retrying_preparation => UiReply::PreparationRetry(reply),
                             reply => UiReply::Reply(reply),
                         };
                         let _ = sender.send(event);
@@ -109,7 +160,7 @@ impl DownloadUi {
                             "revision":snapshot.revision,"unfinished":snapshot.unfinished,"failures":snapshot.failures,
                             "active_slots":snapshot.active_slots,"main_job":snapshot.main_job,"stopping":snapshot.stopping,
                             "stopped":snapshot.stopped,"preparing":snapshot.preparing,"preparation_held":snapshot.preparation_held,
-                            "preparation_owner_lost":snapshot.preparation_owner_lost,"jobs":jobs})).and_then(|_| file.flush());
+                            "preparation_owner_lost":snapshot.preparation_owner_lost,"preparation":snapshot.preparation,"jobs":jobs})).and_then(|_| file.flush());
                     }
                     last_revision = Some(snapshot.revision);
                 }
@@ -136,12 +187,16 @@ impl DownloadUi {
             queue_open: false,
             exit_open: false,
             exit_when_stopped: false,
+            exit_intent: ExitIntent::default(),
             hidden: false,
             selected_job: None,
             selected_presentation: None,
             selected_fraction: None,
             seen_terminals: Default::default(),
             feedback: None,
+            preparation_hovered: false,
+            preparation_retry_pending: false,
+            preparation_copied_at: None,
         }
     }
     fn evidence(&self, value: serde_json::Value) {
@@ -204,6 +259,8 @@ fn command_summary(command: &QueueCommand) -> serde_json::Value {
             serde_json::json!({"type":"command","command":"copy-diagnostic","job":job})
         }
         QueueCommand::Stop => serde_json::json!({"type":"command","command":"stop"}),
+        QueueCommand::RetryPreparation => serde_json::json!({"type":"command","command":"retry-preparation"}),
+        QueueCommand::CopyPreparationDiagnostic => serde_json::json!({"type":"command","command":"copy-preparation-diagnostic"}),
     }
 }
 fn reply_summary(reply: &CommandReply) -> serde_json::Value {
@@ -254,6 +311,19 @@ pub fn phase_label(job: &JobSnapshot) -> String {
         JobPhase::Cancelled => "已取消".into(),
     }
 }
+fn preparation_wait_label(phase: &JobPhase, snapshot: &QueueSnapshot) -> Option<String> {
+    if *phase != JobPhase::Preparing {
+        return None;
+    }
+    if snapshot.preparation_owner_lost {
+        return Some("准备异常，清理未确认".into());
+    }
+    if snapshot.preparation_held {
+        return Some("正在等待组件清理".into());
+    }
+    (snapshot.preparation.phase == PreparationPhase::Failed)
+        .then(|| "组件准备失败，等待重试".into())
+}
 fn transfer_label(
     sample: Option<&ameow_next::download::progress::TransferProgress>,
     now: u64,
@@ -285,6 +355,65 @@ fn presentation_fraction(
         .and_then(|sample| sample.fraction_at(now))
         .map(|fraction| fraction.min(0.99))
 }
+const PREPARATION_SUCCESS_MS: u64 = 1800;
+fn preparation_visible(snapshot: &QueueSnapshot, now: u64) -> bool {
+    if snapshot.stopping || snapshot.stopped {
+        return false;
+    }
+    snapshot.preparation_held
+        || snapshot.preparation_owner_lost
+        || match snapshot.preparation.phase {
+            PreparationPhase::Idle => false,
+            PreparationPhase::Ready => {
+                now.saturating_sub(snapshot.preparation.updated_at_ms) < PREPARATION_SUCCESS_MS
+            }
+            _ => true,
+        }
+}
+fn preparation_fraction(preparation: &PreparationSnapshot) -> Option<f32> {
+    if preparation.phase != PreparationPhase::Downloading {
+        return None;
+    }
+    preparation
+        .total_bytes
+        .filter(|total| *total > 0 && preparation.downloaded_bytes <= *total)
+        .map(|total| (preparation.downloaded_bytes as f64 / total as f64) as f32)
+}
+fn preparation_stage(stage: PreparationStage) -> &'static str {
+    match stage {
+        PreparationStage::Cache => "检查缓存",
+        PreparationStage::Acquire => "下载组件",
+        PreparationStage::Verify => "校验完整性",
+        PreparationStage::Extract => "解压组件",
+        PreparationStage::Probe => "检查版本",
+        PreparationStage::Publish => "准备就绪",
+    }
+}
+fn preparation_bytes(bytes: u64) -> String {
+    if bytes >= 1_000_000 {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.)
+    } else if bytes >= 1000 {
+        format!("{:.1} KB", bytes as f64 / 1000.)
+    } else {
+        format!("{bytes} B")
+    }
+}
+fn preparation_failure_copy(category: ErrorCategory) -> (&'static str, &'static str) {
+    match category {
+        ErrorCategory::Timeout => ("连接超时", "检查连接后可重试，或复制诊断。"),
+        ErrorCategory::Connect => ("连接失败", "检查连接后可重试，或复制诊断。"),
+        ErrorCategory::ProxyRouting => ("系统路由不受支持", "检查现有系统路由，未尝试直连。"),
+        ErrorCategory::Http => ("服务器响应失败", "稍后可手动重试，或复制诊断。"),
+        ErrorCategory::Size => ("组件大小不符", "可手动重试，或复制诊断。"),
+        ErrorCategory::Hash => ("完整性校验失败", "可手动重试，或复制诊断。"),
+        ErrorCategory::Extract => ("解压失败", "可手动重试，或复制诊断。"),
+        ErrorCategory::Permission => ("存储权限不足", "检查组件目录权限后可重试。"),
+        ErrorCategory::Probe => ("组件检查失败", "可手动重试，或复制诊断。"),
+        ErrorCategory::Storage => ("存储失败", "检查可用空间和目录权限后可重试。"),
+        ErrorCategory::Cancelled => ("准备已停止", "组件尚未准备完成。"),
+        ErrorCategory::Unknown => ("原因尚未确认", "复制诊断以进一步检查，或手动重试。"),
+    }
+}
 use crate::{
     Prototype, indicator,
     model::{Progress, Stage},
@@ -298,8 +427,9 @@ impl Prototype {
         if self
             .close_requested
             .swap(false, std::sync::atomic::Ordering::AcqRel)
+            && let Some(ui) = &mut self.downloads
         {
-            self.request_exit(window, cx);
+            ui.exit_intent.request();
         }
         let events = self
             .tray
@@ -310,8 +440,9 @@ impl Prototype {
             match event {
                 TrayEvent::Restore => self.restore_downloads(window, cx),
                 TrayEvent::Exit => {
-                    self.restore_downloads(window, cx);
-                    self.request_exit(window, cx);
+                    if let Some(ui) = &mut self.downloads {
+                        ui.exit_intent.request();
+                    }
                 }
             }
         }
@@ -320,6 +451,14 @@ impl Prototype {
         };
         for reply in ui.poll() {
             match reply {
+                UiReply::PreparationRetry(reply) => {
+                    ui.preparation_retry_pending = false;
+                    ui.feedback = Some((match reply {
+                        CommandReply::Applied(true) => "已重新准备组件".into(),
+                        CommandReply::Error(error) => error,
+                        _ => "组件状态已变化，请重新查看".into(),
+                    }, now));
+                }
                 UiReply::StartupError(error) => {
                     ui.startup_error = Some(error.clone());
                     ui.feedback = Some((error, now));
@@ -346,8 +485,13 @@ impl Prototype {
                     );
                     match result {
                         Ok(()) => {
-                            self.copied_at = Some(now);
-                            ui.feedback = Some((format!("已复制任务 {job} 的诊断"), now));
+                            if job == 0 {
+                                ui.preparation_copied_at = Some(now);
+                                ui.feedback = Some(("已复制组件诊断".into(), now));
+                            } else {
+                                self.copied_at = Some(now);
+                                ui.feedback = Some((format!("已复制任务 {job} 的诊断"), now));
+                            }
                         }
                         Err(error) => {
                             ui.feedback = Some((error, now));
@@ -382,6 +526,9 @@ impl Prototype {
         }
         if ui.feedback.as_ref().is_some_and(|(_, at)| now >= at + 5000) {
             ui.feedback = None;
+        }
+        if self.model.fullness < 0.98 || self.model.locks.menu || self.model.locks.drag || self.model.locks.drop {
+            ui.preparation_hovered = false;
         }
         let snapshot = ui.snapshot.clone();
         if let Some(snapshot) = snapshot {
@@ -451,8 +598,11 @@ impl Prototype {
             ui.last_evidence_ms = now;
             ui.evidence(serde_json::json!({"type":"presentation","selected_job":ui.selected_job,"stage":format!("{:?}",self.model.stage),
                 "selected_attempt":ui.selected_presentation.as_ref().map(|(_, attempt, _)| *attempt),"whole_fraction":ui.selected_fraction,
-                "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge()}));
+                "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge(),
+                "preparation_visible":ui.snapshot.as_ref().is_some_and(|s| preparation_visible(s, ameow_next::download::progress::now_ms())),
+                "preparation_hovered":ui.preparation_hovered}));
         }
+        self.process_exit_request(window, cx);
         self.model.tick(now);
         cx.notify();
     }
@@ -469,26 +619,46 @@ impl Prototype {
         cx.notify();
     }
     fn request_exit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.restore_downloads(window, cx);
-        let now = self.now();
         if let Some(ui) = &mut self.downloads {
-            if ui.startup_error.is_some() {
+            ui.exit_intent.request();
+        }
+        self.process_exit_request(window, cx);
+    }
+    fn process_exit_request(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let now = self.now();
+        let action = self.downloads.as_mut().and_then(|ui| {
+            ui.exit_intent.resolve(ui.snapshot.as_deref(), ui.startup_error.is_some())
+        });
+        match action {
+            Some(ExitAction::Quit) => {
                 cx.quit();
-                return;
             }
-            if ui.snapshot.as_ref().is_some_and(|snapshot| {
-                snapshot.unfinished == 0
-                    && !snapshot.preparing
-                    && !snapshot.preparation_held
-                    && !snapshot.preparation_owner_lost
-            }) {
+            Some(ExitAction::Stop) => {
                 self.stop_and_exit(cx);
-            } else {
-                ui.queue_open = false;
-                ui.exit_open = true;
+                if let Some(ui) = &mut self.downloads
+                    && !ui.exit_when_stopped
+                {
+                    // Retain the request if the bounded command channel is temporarily full.
+                    ui.exit_intent.request();
+                }
+            }
+            Some(ExitAction::Confirm) => {
+                if let Some(ui) = &mut self.downloads {
+                    ui.queue_open = false;
+                    ui.exit_open = true;
+                    ui.hidden = false;
+                }
+                if let Some(native) = &self.native {
+                    native.show_without_activation();
+                }
+                // WM_CLOSE may be programmatic: never use GPUI's Windows activation
+                // path here, which synthesizes global Alt input before taking foreground.
+                window.focus(&self.focus);
+                self.model.pointer(true, now);
                 self.model.locks.menu = true;
                 self.model.locks_changed(now);
             }
+            None => return,
         }
         cx.notify();
     }
@@ -601,7 +771,7 @@ impl Prototype {
                         ameow_next::download::progress::now_ms(),
                     )
                 } else {
-                    phase_label(job)
+                    preparation_wait_label(&job.phase, snapshot).unwrap_or_else(|| phase_label(job))
                 });
             }
         }
@@ -836,6 +1006,9 @@ impl Prototype {
                 let unresolved = owner_lost && !job.slot_owned && !job.phase.terminal();
                 let held = job.phase == JobPhase::Held && (job.slot_owned || preparation_held);
                 let cleanup_job = if job.slot_owned { id } else { 0 };
+                let preparation_wait = snapshot.as_ref().and_then(|snapshot| {
+                    preparation_wait_label(&job.phase, snapshot)
+                });
                 let mut row = div()
                     .id(SharedString::from(format!("job-{id}")))
                     .flex()
@@ -861,7 +1034,7 @@ impl Prototype {
                             .flex()
                             .justify_between()
                             .text_size(px(9.))
-                            .text_color(if failure {
+                            .text_color(if failure || preparation_wait.is_some() {
                                 p.red
                             } else if held {
                                 p.neutral
@@ -871,10 +1044,21 @@ impl Prototype {
                             .child(if unresolved {
                                 "准备异常，清理未确认".into()
                             } else {
-                                phase_label(&job)
+                                preparation_wait.clone().unwrap_or_else(|| phase_label(&job))
                             })
                             .child(format!("#{id}")),
                     );
+                if preparation_wait.is_some() && !unresolved && !held {
+                    if let Some(reason) = snapshot.as_ref().and_then(|s| s.preparation.failure.as_ref()) {
+                        row = row.child(div().text_size(px(9.)).child(format!(
+                            "{} · {} · {}",
+                            reason.component.label(),
+                            preparation_stage(reason.stage),
+                            preparation_failure_copy(reason.category).0,
+                        )));
+                    }
+                    row = row.child(div().text_size(px(9.)).child("关闭队列后，从左下角重试组件"));
+                }
                 if let Some(reason) = job.failure.as_ref().filter(|_| failure) {
                     row = row
                         .child(
@@ -1107,6 +1291,230 @@ impl Prototype {
             )
             .into_any_element()
     }
+    pub(super) fn preparation_indicator_visible(&self) -> bool {
+        self.model.fullness >= 0.98
+            && !self.model.locks.menu
+            && !self.model.locks.drag
+            && !self.model.locks.drop
+            && self
+                .downloads
+                .as_ref()
+                .and_then(|ui| ui.snapshot.as_ref())
+                .is_some_and(|snapshot| {
+                    preparation_visible(snapshot, ameow_next::download::progress::now_ms())
+                })
+    }
+    pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
+        let preparation = &self.downloads.as_ref()?.snapshot.as_ref()?.preparation;
+        (self.preparation_indicator_visible()
+            && !self.model.reduced
+            && matches!(
+                preparation.phase,
+                PreparationPhase::Preparing
+                    | PreparationPhase::Downloading
+                    | PreparationPhase::Verifying
+            )
+            && preparation_fraction(preparation).is_none())
+        .then_some(32)
+    }
+    pub(super) fn preparation_indicator(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(ui) = &self.downloads else {
+            return div().into_any_element();
+        };
+        let Some(snapshot) = &ui.snapshot else {
+            return div().into_any_element();
+        };
+        let preparation = &snapshot.preparation;
+        let p = Palette::new(self.night);
+        let g = self.model.geometry();
+        let failed = preparation.phase == PreparationPhase::Failed
+            || snapshot.preparation_held
+            || snapshot.preparation_owner_lost;
+        let ready = preparation.phase == PreparationPhase::Ready && !failed;
+        let fraction = preparation_fraction(preparation);
+        let now = self.now();
+        let can_retry = preparation.phase == PreparationPhase::Failed
+            && !snapshot.preparation_held
+            && !snapshot.preparation_owner_lost
+            && !snapshot.stopping
+            && !ui.preparation_retry_pending;
+        let component = preparation
+            .failure
+            .as_ref()
+            .map(|failure| failure.component)
+            .or(preparation.component)
+            .map_or("下载组件", |component| component.label());
+        let headline = if snapshot.preparation_owner_lost {
+            "准备异常，清理未确认".into()
+        } else if snapshot.preparation_held {
+            "正在等待组件清理".into()
+        } else if failed {
+            format!("{component} 准备失败")
+        } else if ready {
+            "组件已就绪".into()
+        } else {
+            format!("{component} · {}", preparation_stage(preparation.stage))
+        };
+        let color = if failed {
+            p.red
+        } else if ready {
+            p.green
+        } else {
+            p.orange
+        };
+        let mut details = div()
+            .id("component-preparation-details")
+            .w(px(176.))
+            .max_h(px(142.))
+            .overflow_y_scroll()
+            .p(px(9.))
+            .flex()
+            .flex_col()
+            .gap(px(5.))
+            .rounded(px(9.))
+            .bg(p.surface)
+            .border_1()
+            .border_color(p.border)
+            .text_color(p.neutral)
+            .text_size(px(9.))
+            .child(
+                div()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_size(px(10.))
+                    .text_color(color)
+                    .child(headline),
+            );
+        if preparation.phase == PreparationPhase::Downloading {
+            let bytes = preparation_bytes(preparation.downloaded_bytes);
+            details = details.child(if let Some(fraction) = fraction {
+                format!(
+                    "{bytes} / {} · {:.0}%",
+                    preparation_bytes(preparation.total_bytes.unwrap()),
+                    (fraction * 100.).floor()
+                )
+            } else {
+                format!("{bytes} · 总量未知")
+            });
+        }
+        if let Some(failure) = &preparation.failure {
+            let (reason, suggestion) = preparation_failure_copy(failure.category);
+            details = details
+                .child(
+                    div().child(format!(
+                        "{} · {reason}{}",
+                        preparation_stage(failure.stage),
+                        failure
+                            .http_status
+                            .map_or(String::new(), |status| format!(" ({status})"))
+                    )),
+                )
+                .child(div().child(suggestion));
+        } else if snapshot.preparation_owner_lost {
+            details = details.child("准备线程异常结束，清理未确认，暂不能继续。");
+        } else if snapshot.preparation_held {
+            details = details.child("资源尚未收束，可从退出面板查看清理状态。");
+        } else if !ready {
+            details = details.child("后台准备中，仍可粘贴视频链接");
+        }
+        if failed {
+            let copied = ui
+                .preparation_copied_at
+                .is_some_and(|at| now.saturating_sub(at) < 2000);
+            let mut actions = div().flex().gap(px(5.));
+            if can_retry {
+                actions = actions.child(self.row_action(
+                    "preparation-retry".into(),
+                    "重试",
+                    false,
+                    cx,
+                    |this, cx| {
+                        let now = this.now();
+                        if let Some(ui) = &mut this.downloads {
+                            ui.preparation_retry_pending = ui.send(QueueCommand::RetryPreparation, now);
+                        }
+                        cx.notify();
+                    },
+                ));
+            }
+            details = details.child(actions.child(self.row_action(
+                "preparation-copy".into(),
+                if copied { "已复制" } else { "复制诊断" },
+                false,
+                cx,
+                |this, cx| {
+                    let now = this.now();
+                    if let Some(ui) = &mut this.downloads {
+                        ui.send(QueueCommand::CopyPreparationDiagnostic, now);
+                    }
+                    cx.notify();
+                },
+            )));
+        }
+        div()
+            .id("component-preparation-indicator")
+            .absolute()
+            .left(px(g.gutter + 12.))
+            .bottom(px(g.gutter + 12.))
+            .w(px(if ui.preparation_hovered && !ready { 176. } else { 24. }))
+            .flex()
+            .flex_col()
+            .items_start()
+            .on_hover(cx.listener(|this, hovered, _, cx| {
+                if let Some(ui) = &mut this.downloads {
+                    ui.preparation_hovered = *hovered;
+                }
+                cx.notify();
+            }))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|_, _, _, cx| cx.stop_propagation()),
+            )
+            .when(ui.preparation_hovered && !ready, |indicator| {
+                // Keep the popover, bridge and ring inside one real hover hitbox.
+                indicator.child(div().pb(px(6.)).child(details))
+            })
+            .child(
+                div()
+                    .relative()
+                    .size(px(24.))
+                    .flex_none()
+                    .rounded_full()
+                    .bg(p.badge)
+                    .child(indicator::preparation_ring(
+                        p,
+                        fraction,
+                        failed,
+                        ready,
+                        now,
+                        self.model.reduced,
+                    ))
+                    .when(failed, |ring| {
+                        ring.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(10.))
+                                .text_color(p.red)
+                                .child("!"),
+                        )
+                    })
+                    .when(ready, |ring| {
+                        ring.child(
+                            svg()
+                                .path("icons/check.svg")
+                                .absolute()
+                                .left(px(7.))
+                                .top(px(7.))
+                                .size(px(10.))
+                                .text_color(p.green),
+                        )
+                    }),
+            )
+            .into_any_element()
+    }
     pub(super) fn download_feedback(&self) -> AnyElement {
         let p = Palette::new(self.night);
         let g = self.model.geometry();
@@ -1133,9 +1541,9 @@ impl Prototype {
             });
         div()
             .absolute()
-            .left(px(g.gutter + 10.))
+            .left(px(g.gutter + if self.preparation_indicator_visible() { 42. } else { 10. }))
             .top(px(g.gutter + 174.))
-            .w(px(180.))
+            .w(px(if self.preparation_indicator_visible() { 148. } else { 180. }))
             .h(px(16.))
             .truncate()
             .text_size(px(8.))
@@ -1170,13 +1578,137 @@ fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: boo
 #[cfg(test)]
 mod tests {
     use super::badge_counts;
-    use super::{cleanup_targets, exit_cleanup_message};
+    use super::{ExitAction, ExitIntent, cleanup_targets, exit_cleanup_message};
     use ameow_next::download::{
         queue::{JobPhase, JobSnapshot, QueueSnapshot},
         request::{Accepted, DownloadIntent, Quality},
         settings::Settings,
     };
     use core::prelude::v1::test;
+    fn exit_snapshot() -> QueueSnapshot {
+        QueueSnapshot {
+            revision: 1,
+            jobs: Vec::new(),
+            settings: Settings {
+                quality: Quality::Balanced,
+                output_dir: std::env::temp_dir(),
+            },
+            unfinished: 0,
+            failures: 0,
+            active_slots: 0,
+            preparing: false,
+            preparation_held: false,
+            preparation_owner_lost: false,
+            stopping: false,
+            stopped: false,
+            main_job: None,
+            preparation: Default::default(),
+        }
+    }
+    #[test]
+    fn component_status_is_transient_on_success_and_persistent_on_failure() {
+        use ameow_next::download::preparation::PreparationPhase;
+        let mut snapshot = exit_snapshot();
+        assert!(!super::preparation_visible(&snapshot, 100));
+        snapshot.preparation.phase = PreparationPhase::Downloading;
+        assert!(super::preparation_visible(&snapshot, 100));
+        // Component preparation never contributes to media counts.
+        assert_eq!(badge_counts(snapshot.unfinished, snapshot.failures), None);
+        snapshot.preparation.phase = PreparationPhase::Ready;
+        snapshot.preparation.updated_at_ms = 100;
+        assert!(super::preparation_visible(&snapshot, 1899));
+        assert!(!super::preparation_visible(&snapshot, 1900));
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        assert!(super::preparation_visible(&snapshot, 50_000));
+        snapshot.preparation_owner_lost = true;
+        snapshot.preparation.phase = PreparationPhase::Idle;
+        assert!(super::preparation_visible(&snapshot, 50_000));
+        snapshot.stopping = true;
+        assert!(!super::preparation_visible(&snapshot, 50_000));
+    }
+    #[test]
+    fn component_percentage_requires_real_download_bytes_and_known_total() {
+        use ameow_next::download::preparation::{PreparationPhase, PreparationSnapshot};
+        let mut preparation = PreparationSnapshot {
+            phase: PreparationPhase::Downloading, downloaded_bytes: 25, ..Default::default()
+        };
+        assert_eq!(super::preparation_fraction(&preparation), None);
+        preparation.total_bytes = Some(100);
+        assert_eq!(super::preparation_fraction(&preparation), Some(0.25));
+        preparation.total_bytes = Some(0);
+        assert_eq!(super::preparation_fraction(&preparation), None);
+        preparation.total_bytes = Some(20);
+        assert_eq!(super::preparation_fraction(&preparation), None);
+        preparation.total_bytes = Some(100);
+        preparation.phase = PreparationPhase::Verifying;
+        assert_eq!(super::preparation_fraction(&preparation), None);
+        preparation.phase = PreparationPhase::Ready;
+        assert_eq!(super::preparation_fraction(&preparation), None);
+    }
+    #[test]
+    fn waiting_job_label_distinguishes_component_failure_retry_and_owner_loss() {
+        let mut snapshot = exit_snapshot();
+        snapshot.preparation.phase = super::PreparationPhase::Failed;
+        assert_eq!(super::preparation_wait_label(&JobPhase::Preparing, &snapshot).as_deref(),
+            Some("组件准备失败，等待重试"));
+        assert_eq!(super::preparation_wait_label(&JobPhase::Downloading, &snapshot), None);
+        snapshot.preparation.phase = super::PreparationPhase::Preparing;
+        assert_eq!(super::preparation_wait_label(&JobPhase::Preparing, &snapshot), None);
+        snapshot.preparation_owner_lost = true;
+        assert_eq!(super::preparation_wait_label(&JobPhase::Preparing, &snapshot).as_deref(),
+            Some("准备异常，清理未确认"));
+        snapshot.preparation_owner_lost = false;
+        snapshot.preparation_held = true;
+        assert_eq!(super::preparation_wait_label(&JobPhase::Preparing, &snapshot).as_deref(),
+            Some("正在等待组件清理"));
+    }
+    #[test]
+    fn early_close_waits_for_idle_startup_then_requires_safe_stop() {
+        let mut exit = ExitIntent::default();
+        exit.request();
+        assert_eq!(exit.resolve(None, false), None);
+        assert_eq!(exit.resolve(None, false), None);
+        let mut snapshot = exit_snapshot();
+        assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Stop));
+        assert_eq!(exit.resolve(Some(&snapshot), false), None);
+        snapshot.stopping = true;
+        exit.request();
+        assert_ne!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Quit));
+        snapshot.stopped = true;
+        exit.request();
+        assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Quit));
+    }
+    #[test]
+    fn early_close_requires_confirmation_for_work_and_uncertain_owners() {
+        let idle = exit_snapshot();
+        let mut unfinished = idle.clone();
+        unfinished.unfinished = 1;
+        unfinished.active_slots = 1;
+        let mut preparing = idle.clone();
+        preparing.preparing = true;
+        let mut held = idle.clone();
+        held.preparation_held = true;
+        held.stopping = true;
+        let mut owner_lost = idle;
+        owner_lost.preparation_owner_lost = true;
+        owner_lost.stopping = true;
+        for snapshot in [unfinished, preparing, held, owner_lost] {
+            let mut exit = ExitIntent::default();
+            exit.request();
+            assert_eq!(exit.resolve(None, false), None);
+            assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Confirm));
+            // Continuing does not reopen the confirmation when the next projection arrives.
+            assert_eq!(exit.resolve(Some(&snapshot), false), None);
+        }
+    }
+    #[test]
+    fn early_close_quits_after_startup_failure_without_a_second_request() {
+        let mut exit = ExitIntent::default();
+        exit.request();
+        assert_eq!(exit.resolve(None, false), None);
+        assert_eq!(exit.resolve(None, true), Some(ExitAction::Quit));
+        assert_eq!(exit.resolve(None, true), None);
+    }
     #[test]
     fn transfer_label_uses_live_measurement_and_never_finished_or_stale_speed() {
         use ameow_next::download::progress::TransferProgress;
@@ -1231,6 +1763,7 @@ mod tests {
             stopping: true,
             stopped: false,
             main_job: None,
+            preparation: Default::default(),
         };
         assert!(cleanup_targets(&snapshot).is_empty());
         let message = exit_cleanup_message(true, false, true);

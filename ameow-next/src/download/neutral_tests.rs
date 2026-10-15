@@ -23,9 +23,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct DataAdapter {
-    requirements: TrustedRuntimeRequirements,
-    mode: Arc<AtomicU8>,
+pub(crate) struct DataAdapter {
+    pub(crate) requirements: TrustedRuntimeRequirements,
+    pub(crate) mode: Arc<AtomicU8>,
 }
 impl DownloaderAdapter for DataAdapter {
     fn kind(&self) -> MediaKind {

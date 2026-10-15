@@ -170,6 +170,55 @@ fn stroke(window: &mut Window, points: &[Point<Pixels>], width: f32, color: Hsla
     dot(window, points[0], width / 2., color);
     dot(window, *points.last().unwrap(), width / 2., color);
 }
+/// The component preparation ring has its own geometry and never enters media ring/glow state.
+pub fn preparation_ring(
+    palette: Palette,
+    fraction: Option<f32>,
+    failed: bool,
+    ready: bool,
+    now: u64,
+    reduced: bool,
+) -> impl IntoElement {
+    let color = if failed {
+        palette.red
+    } else if ready {
+        palette.green
+    } else {
+        palette.orange
+    };
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let center = bounds.center();
+            let start = if fraction.is_some() || failed || ready || reduced {
+                0.
+            } else {
+                now as f32 / 1250.
+            };
+            let sweep = if failed || ready {
+                1.
+            } else {
+                fraction.unwrap_or(0.28)
+            };
+            let points = |start: f32, sweep: f32| {
+                (0..=64)
+                    .map(|i| {
+                        let angle = (start + sweep * i as f32 / 64.) * TAU - FRAC_PI_2;
+                        point(
+                            center.x + px(7. * angle.cos()),
+                            center.y + px(7. * angle.sin()),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            stroke(window, &points(0., 1.), 1.6, palette.border);
+            if sweep > 0. {
+                stroke(window, &points(start, sweep), 1.6, color);
+            }
+        },
+    )
+    .size(px(24.))
+}
 fn arc(window: &mut Window, origin: Point<Pixels>, start: f32, sweep: f32, color: Hsla) {
     if sweep <= 0.0001 {
         return;

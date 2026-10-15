@@ -639,7 +639,8 @@ impl Render for Prototype {
             .map(|at| (at + 900).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = hover_moving.then_some(16);
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay]
+        let preparation_delay = self.preparation_animation_delay();
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay]
             .into_iter()
             .flatten()
             .min();
@@ -845,7 +846,8 @@ impl Render for Prototype {
             .child(surface_paint)
             .child(surface)
             .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
-            .child(badge);
+            .child(badge)
+            .when(self.preparation_indicator_visible(), |group| group.child(self.preparation_indicator(cx)));
         let result = div()
             .id("ameow-root")
             .track_focus(&self.focus)

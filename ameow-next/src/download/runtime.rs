@@ -142,10 +142,37 @@ impl TrustedRuntimeRequirements {
         }
     }
     #[cfg(test)]
-    pub(crate) fn empty() -> Self { Self { probes: BTreeMap::new(), additions: Vec::new(), empty: true } }
-    pub fn contains(&self, file: &str) -> bool { self.probes.contains_key(file) }
-    pub fn versions(&self) -> Vec<(String, String)> { if self.empty { Vec::new() } else { self.selected_manifest().map(|(m, _)| m.components.into_iter().map(|c| (c.name, c.version)).collect()).unwrap_or_default() } }
-    fn identity(&self) -> Result<String, String> { hash(serde_json::to_vec(&(&self.probes, &self.additions, self.empty)).map_err(|e| e.to_string())?.as_slice()) }
+    pub(crate) fn empty() -> Self {
+        Self {
+            probes: BTreeMap::new(),
+            additions: Vec::new(),
+            empty: true,
+        }
+    }
+    pub fn contains(&self, file: &str) -> bool {
+        self.probes.contains_key(file)
+    }
+    pub fn versions(&self) -> Vec<(String, String)> {
+        if self.empty {
+            Vec::new()
+        } else {
+            self.selected_manifest()
+                .map(|(m, _)| {
+                    m.components
+                        .into_iter()
+                        .map(|c| (c.name, c.version))
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+    }
+    fn identity(&self) -> Result<String, String> {
+        hash(
+            serde_json::to_vec(&(&self.probes, &self.additions, self.empty))
+                .map_err(|e| e.to_string())?
+                .as_slice(),
+        )
+    }
     fn validate(&self) -> Result<(), String> {
         if self.empty {
             return Ok(());
@@ -251,12 +278,22 @@ impl RuntimeLease {
 pub struct RuntimeManager {
     pub root: PathBuf,
     cache: Mutex<Weak<RuntimeLease>>,
+    #[cfg(test)]
+    test_catalog: Mutex<Option<Manifest>>,
+    #[cfg(test)]
+    test_acquirer: Mutex<Option<TestAcquirer>>,
 }
+#[cfg(test)]
+type TestAcquirer = Arc<dyn Fn(&Path, u64) -> Result<(), network::AcquisitionError> + Send + Sync>;
 impl RuntimeManager {
     pub fn new(root: PathBuf) -> Self {
         Self {
             root,
             cache: Mutex::new(Weak::new()),
+            #[cfg(test)]
+            test_catalog: Mutex::new(None),
+            #[cfg(test)]
+            test_acquirer: Mutex::new(None),
         }
     }
     pub fn default_root() -> Result<PathBuf, String> {
@@ -272,250 +309,654 @@ impl RuntimeManager {
         observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
         mut record: impl FnMut(String),
     ) -> Result<Arc<RuntimeLease>, String> {
-        requirements.validate()?;
-        let requirement_id = requirements.identity()?;
+        self.prepare_observed(requirements, control, observer, |event| {
+            record(format!(
+                "{:?} {:?} {:?} bytes={} total={:?}",
+                event.phase,
+                event.component,
+                event.stage,
+                event.downloaded_bytes,
+                event.total_bytes
+            ));
+        })
+        .map_err(|error| error.to_string())
+    }
+    pub(crate) fn prepare_observed(
+        &self,
+        requirements: &TrustedRuntimeRequirements,
+        control: &Control,
+        observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
+        mut observed: impl FnMut(super::preparation::PreparationSnapshot),
+    ) -> Result<Arc<RuntimeLease>, super::preparation::PreparationFailure> {
+        use super::preparation::{
+            ErrorCategory as E, PreparationFailure as F, PreparationPhase as P,
+            PreparationSnapshot, PreparationStage as S, RuntimeComponent as C,
+        };
+        let fail = |stage, category| F::new(C::Runtime, stage, category);
+        requirements
+            .validate()
+            .map_err(|_| fail(S::Cache, E::Unknown))?;
+        if control.is_cancelled() {
+            return Err(fail(S::Cache, E::Cancelled));
+        }
+        let requirement_id = requirements
+            .identity()
+            .map_err(|_| fail(S::Cache, E::Unknown))?;
+        let mut state = PreparationSnapshot::default();
+        state.observe(P::Preparing, None, S::Cache, 0, None, None);
+        observed(state.clone());
         if requirements.empty {
-            safe_dir(&self.root)?;
+            safe_dir(&self.root).map_err(|_| fail(S::Cache, E::Storage))?;
             return Ok(Arc::new(RuntimeLease {
                 directory: self.root.clone(),
                 requirement_id,
                 marker_bytes: 0,
                 files: BTreeMap::new(),
                 versions: Vec::new(),
-                digest: hash(b"empty-trusted-set".as_slice())?,
+                digest: hash(b"empty-trusted-set".as_slice())
+                    .map_err(|_| fail(S::Cache, E::Unknown))?,
                 _guards: Vec::new(),
             }));
         }
-        let mut cache = self
-            .cache
-            .lock()
-            .map_err(|_| "Runtime preparation lock poisoned")?;
+        let mut cache = self.cache.lock().map_err(|_| fail(S::Cache, E::Unknown))?;
+        let (manifest, marker_content) = requirements
+            .selected_manifest()
+            .map_err(|_| fail(S::Cache, E::Unknown))?;
+        #[cfg(test)]
+        let (manifest, marker_content) = match self.test_catalog.lock().unwrap().clone() {
+            Some(catalog) => {
+                let content = serde_json::to_vec(&catalog).unwrap();
+                (catalog, content)
+            }
+            None => (manifest, marker_content),
+        };
+        let digest = hash(marker_content.as_slice()).map_err(|_| fail(S::Cache, E::Unknown))?;
         if let Some(lease) = cache.upgrade() {
             if lease.requirement_id != requirement_id {
-                return Err("Live runtime requirements differ".into());
+                return Err(fail(S::Cache, E::Unknown));
             }
-            let target = lease.directory.clone();
-            let _marker = marker_guard(&target, &lease.digest, lease.marker_bytes)?;
-            for component in requirements.selected_manifest()?.0.components {
-                for file in component.files {
-                    let _guard = check_file(&lease.file(&file.name)?, &file.sha256)?;
+            typed_marker_guard(&lease.directory, &digest, lease.marker_bytes)?;
+            for component in &manifest.components {
+                for file in &component.files {
+                    typed_check_file(
+                        &lease.directory.join(&file.name),
+                        &file.sha256,
+                        C::from_name(&component.name),
+                        S::Cache,
+                    )?;
                 }
             }
-            record(format!(
-                "Reuse live immutable runtime lease {}",
-                lease.digest
-            ));
             return Ok(lease);
         }
-        safe_dir(&self.root)?;
-        let (manifest, marker_content) = requirements.selected_manifest()?;
-        let digest = hash(marker_content.as_slice())?;
-        struct PreparationLock {
-            _file: File,
-        }
-        let lock_path = self.root.join("prepare.lock");
-        let exclusive = OpenOptions::new()
+        typed_safe_dir(&self.root, C::Runtime, S::Cache)?;
+        let _exclusive = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(false)
             .share_mode(0)
-            .open(&lock_path)
-            .map_err(|e| format!("Runtime preparation busy/exclusive lock: {e}"))?;
-        let _lock = PreparationLock { _file: exclusive };
-        let prepared = (|| {
-            let target = self.root.join(format!("runtime-{digest}"));
+            .open(self.root.join("prepare.lock"))
+            .map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+        // Search only bounded application-owned immutable candidates; never mutate a rejected cache.
+        let primary = self.root.join(format!("runtime-{digest}"));
+        let mut candidates = vec![primary.clone()];
+        for entry in fs::read_dir(&self.root)
+            .map_err(|e| F::io(C::Runtime, S::Cache, e))?
+            .take(128)
+        {
+            let entry = entry.map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&format!("runtime-{digest}-recovered-"))
+            {
+                candidates.push(entry.path());
+            }
+        }
+        for target in candidates {
+            if control.is_cancelled() {
+                return Err(fail(S::Cache, E::Cancelled));
+            }
             if !target.exists() {
-                let stage = tempfile::Builder::new()
-                    .prefix("runtime-stage-")
-                    .tempdir_in(&self.root)
-                    .map_err(|e| e.to_string())?;
+                continue;
+            }
+            let candidate = (|| {
+                typed_safe_existing_dir(&target)?;
+                let marker = typed_marker_guard(&target, &digest, marker_content.len() as u64)?;
+                let mut guards = Vec::new();
                 for component in &manifest.components {
-                    let archive = stage.path().join(format!("{}.artifact", component.name));
-                    network::acquire(
-                        &component.url,
-                        &archive,
-                        component.bytes,
-                        control.cancellation_flag(),
-                        |url, route| record(format!("Acquire {} route {:?}", url, route)),
+                    for file in &component.files {
+                        guards.push(typed_check_file(
+                            &target.join(&file.name),
+                            &file.sha256,
+                            C::from_name(&component.name),
+                            S::Cache,
+                        )?);
+                    }
+                }
+                Ok::<_, F>((marker, guards))
+            })();
+            match candidate {
+                Ok((marker, mut guards)) => {
+                    // A complete cache still runs supervised local probes; it never resolves a network route.
+                    self.probe(
+                        &target,
+                        &manifest,
+                        requirements,
+                        control,
+                        observer.clone(),
+                        &mut state,
+                        &mut observed,
                     )?;
-                    let guard = check_file(&archive, &component.sha256)?;
-                    drop(guard);
-                    if component.files.iter().all(|f| f.archive_path.is_none()) {
-                        fs::copy(&archive, stage.path().join(&component.files[0].name))
-                            .map_err(|e| e.to_string())?;
-                    } else {
-                        let mut zip =
-                            zip::ZipArchive::new(File::open(&archive).map_err(|e| e.to_string())?)
-                                .map_err(|e| format!("Runtime ZIP: {e}"))?;
-                        for entry in &component.files {
-                            let source = entry
+                    guards.push(marker);
+                    let lease = runtime_lease(
+                        target,
+                        requirement_id.clone(),
+                        digest.clone(),
+                        marker_content.len() as u64,
+                        &manifest,
+                        guards,
+                    );
+                    *cache = Arc::downgrade(&lease);
+                    return Ok(lease);
+                }
+                Err(error) => {
+                    if error.category == E::Permission {
+                        return Err(error);
+                    }
+                    state.observe(
+                        P::Preparing,
+                        Some(error.component),
+                        S::Cache,
+                        0,
+                        None,
+                        Some(error),
+                    );
+                    observed(state.clone());
+                }
+            }
+        }
+        let stage = tempfile::Builder::new()
+            .prefix("runtime-stage-")
+            .tempdir_in(&self.root)
+            .map_err(|e| F::io(C::Runtime, S::Acquire, e))?;
+        for component in &manifest.components {
+            let component_id = C::from_name(&component.name);
+            let archive = stage.path().join(format!("{}.artifact", component.name));
+            state.observe(
+                P::Downloading,
+                Some(component_id),
+                S::Acquire,
+                0,
+                Some(component.bytes),
+                None,
+            );
+            observed(state.clone());
+            self.acquire_component(component, &archive, control, |bytes, total| {
+                state.observe(
+                    P::Downloading,
+                    Some(component_id),
+                    S::Acquire,
+                    bytes,
+                    total,
+                    None,
+                );
+                observed(state.clone());
+            })
+            .map_err(|error| {
+                let mut failure = F::new(component_id, S::Acquire, error.category);
+                failure.http_status = error.http_status;
+                failure
+            })?;
+            state.observe(
+                P::Verifying,
+                Some(component_id),
+                S::Verify,
+                component.bytes,
+                Some(component.bytes),
+                None,
+            );
+            observed(state.clone());
+            drop(typed_check_file(
+                &archive,
+                &component.sha256,
+                component_id,
+                S::Verify,
+            )?);
+            state.observe(P::Verifying, Some(component_id), S::Extract, 0, None, None);
+            observed(state.clone());
+            if component.files.iter().all(|f| f.archive_path.is_none()) {
+                fs::copy(&archive, stage.path().join(&component.files[0].name))
+                    .map_err(|e| F::io(component_id, S::Extract, e))?;
+            } else {
+                let mut zip = zip::ZipArchive::new(
+                    File::open(&archive).map_err(|e| F::io(component_id, S::Extract, e))?,
+                )
+                .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
+                for entry in &component.files {
+                    if control.is_cancelled() {
+                        return Err(F::new(component_id, S::Extract, E::Cancelled));
+                    }
+                    let mut item = zip
+                        .by_name(
+                            entry
                                 .archive_path
                                 .as_deref()
-                                .ok_or("Mixed manifest archive types")?;
-                            let mut item = zip
-                                .by_name(source)
-                                .map_err(|e| format!("Pinned ZIP entry {source}: {e}"))?;
-                            if item.is_dir() || item.size() > 512_000_000 {
-                                return Err("Runtime ZIP entry invalid/bound exceeded".into());
-                            }
-                            let mut out = OpenOptions::new()
-                                .create_new(true)
-                                .write(true)
-                                .open(stage.path().join(&entry.name))
-                                .map_err(|e| e.to_string())?;
-                            std::io::copy(&mut item, &mut out).map_err(|e| e.to_string())?;
-                            out.sync_all().map_err(|e| e.to_string())?;
-                        }
+                                .ok_or_else(|| F::new(component_id, S::Extract, E::Extract))?,
+                        )
+                        .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
+                    if item.is_dir() || item.size() > 512_000_000 {
+                        return Err(F::new(component_id, S::Extract, E::Extract));
                     }
-                    fs::remove_file(archive).map_err(|e| e.to_string())?;
+                    let mut out = OpenOptions::new()
+                        .create_new(true)
+                        .write(true)
+                        .open(stage.path().join(&entry.name))
+                        .map_err(|e| F::io(component_id, S::Extract, e))?;
+                    std::io::copy(&mut item, &mut out)
+                        .map_err(|e| F::io(component_id, S::Extract, e))?;
+                    out.sync_all()
+                        .map_err(|e| F::io(component_id, S::Extract, e))?;
                 }
-                self.verify(
-                    stage.path(),
-                    &manifest,
-                    requirements,
-                    control,
-                    observer.clone(),
-                    &mut record,
-                )?;
-                let mut marker = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(stage.path().join("complete.json"))
-                    .map_err(|e| e.to_string())?;
-                marker
-                    .write_all(&marker_content)
-                    .map_err(|e| e.to_string())?;
-                marker.sync_all().map_err(|e| e.to_string())?;
-                drop(marker);
-                super::output::move_no_replace(stage.path(), &target)
-                    .map_err(|e| format!("Runtime immutable publication: {e}"))?;
             }
-            safe_dir(&target)?;
-            let marker = marker_guard(&target, &digest, marker_content.len() as u64)?;
-            let mut guards = self.verify(
-                &target,
-                &manifest,
-                requirements,
-                control,
-                observer,
-                &mut record,
-            )?;
-            guards.push(marker);
-            let files = manifest
-                .components
-                .iter()
-                .flat_map(|c| {
-                    c.files
-                        .iter()
-                        .map(|f| (f.name.clone(), target.join(&f.name)))
-                })
-                .collect();
-            Ok(Arc::new(RuntimeLease {
-                directory: target,
-                requirement_id,
-                marker_bytes: marker_content.len() as u64,
-                files,
-                versions: manifest
-                    .components
-                    .iter()
-                    .map(|c| (c.name.clone(), c.version.clone()))
-                    .collect(),
-                digest,
-                _guards: guards,
-            }))
-        })();
-        if let Ok(lease) = &prepared {
-            *cache = Arc::downgrade(lease);
+            fs::remove_file(archive).map_err(|e| F::io(component_id, S::Extract, e))?;
         }
-        prepared
+        self.probe(
+            stage.path(),
+            &manifest,
+            requirements,
+            control,
+            observer,
+            &mut state,
+            &mut observed,
+        )?;
+        if control.is_cancelled() {
+            return Err(fail(S::Publish, E::Cancelled));
+        }
+        state.observe(P::Verifying, None, S::Publish, 0, None, None);
+        observed(state.clone());
+        let mut marker = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(stage.path().join("complete.json"))
+            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
+        marker
+            .write_all(&marker_content)
+            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
+        marker
+            .sync_all()
+            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
+        drop(marker);
+        // An invalid primary remains as evidence. Publish a fresh immutable sibling, no in-place repair.
+        let target = if primary.exists() {
+            self.root.join(format!(
+                "runtime-{digest}-recovered-{}",
+                stage.path().file_name().unwrap().to_string_lossy()
+            ))
+        } else {
+            primary
+        };
+        super::output::move_no_replace(stage.path(), &target)
+            .map_err(|e| F::io(C::Runtime, S::Publish, e))?;
+        let mut guards = vec![typed_marker_guard(
+            &target,
+            &digest,
+            marker_content.len() as u64,
+        )?];
+        for component in &manifest.components {
+            for file in &component.files {
+                guards.push(typed_check_file(
+                    &target.join(&file.name),
+                    &file.sha256,
+                    C::from_name(&component.name),
+                    S::Verify,
+                )?);
+            }
+        }
+        let lease = runtime_lease(
+            target,
+            requirement_id,
+            digest,
+            marker_content.len() as u64,
+            &manifest,
+            guards,
+        );
+        *cache = Arc::downgrade(&lease);
+        Ok(lease)
     }
-    fn verify(
+    fn acquire_component(
+        &self,
+        component: &Component,
+        archive: &Path,
+        control: &Control,
+        progress: impl FnMut(u64, Option<u64>),
+    ) -> Result<(), network::AcquisitionError> {
+        #[cfg(test)]
+        if let Some(acquire) = self.test_acquirer.lock().unwrap().clone() {
+            return acquire(archive, component.bytes);
+        }
+        network::acquire_observed(
+            &component.url,
+            archive,
+            component.bytes,
+            control.cancellation_flag(),
+            |_, _| {},
+            progress,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn probe(
         &self,
         path: &Path,
         manifest: &Manifest,
         requirements: &TrustedRuntimeRequirements,
         control: &Control,
         observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
-        record: &mut impl FnMut(String),
-    ) -> Result<Vec<File>, String> {
-        let mut guards = Vec::new();
+        state: &mut super::preparation::PreparationSnapshot,
+        observed: &mut impl FnMut(super::preparation::PreparationSnapshot),
+    ) -> Result<(), super::preparation::PreparationFailure> {
+        use super::preparation::{
+            ErrorCategory as E, PreparationFailure as F, PreparationPhase as P,
+            PreparationStage as S, RuntimeComponent as C,
+        };
         for component in &manifest.components {
+            let component_id = C::from_name(&component.name);
+            state.observe(P::Verifying, Some(component_id), S::Probe, 0, None, None);
+            observed(state.clone());
             for file in &component.files {
                 if control.is_cancelled() {
-                    return Err("Runtime verification cancelled".into());
+                    return Err(F::new(component_id, S::Probe, E::Cancelled));
                 }
                 let executable = path.join(&file.name);
-                guards.push(check_file(&executable, &file.sha256)?);
+                let _guard = typed_check_file(&executable, &file.sha256, component_id, S::Verify)?;
                 let probe = tempfile::Builder::new()
                     .prefix("probe-")
                     .tempdir_in(&self.root)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| F::io(component_id, S::Probe, e))?;
                 let outcome = process_supervisor::run(
                     ProcessSpec {
                         executable,
                         args: requirements
                             .probes
                             .get(&file.name)
-                            .ok_or("Missing trusted probe")?
+                            .ok_or_else(|| F::new(component_id, S::Probe, E::Probe))?
                             .clone(),
                         cwd: probe.path().into(),
-                        env: requirements.environment(probe.path())?,
+                        env: requirements
+                            .environment(probe.path())
+                            .map_err(|_| F::new(component_id, S::Probe, E::Storage))?,
                         stdout_limit: 64 * 1024,
                         stderr_limit: 64 * 1024,
                         timeout: Some(Duration::from_secs(20)),
                     },
                     control,
                     observer.clone(),
-                )?;
-                let text = format!(
-                    "{}{}",
-                    String::from_utf8_lossy(&outcome.stdout),
-                    String::from_utf8_lossy(&outcome.stderr)
-                );
-                record(format!(
-                    "Runtime probe {} exit={} settlement={:?} output={text}",
-                    file.name, outcome.exit_code, outcome.facts
-                ));
+                )
+                // The supervisor exposes an opaque error here: retain the verified probe
+                // stage without guessing a timeout or network cause from its prose.
+                .map_err(|_| F::new(component_id, S::Probe, E::Probe))?;
                 if control.is_cancelled() {
-                    return Err(
-                        "Runtime preparation cancelled after owned process settlement".into(),
-                    );
+                    return Err(F::new(component_id, S::Probe, E::Cancelled));
                 }
                 if outcome.exit_code != 0
                     || outcome.facts.stdout_truncated
+                    || outcome.facts.stderr_truncated
                     || !outcome.facts.resources_releasable()
-                    || !text.contains(&file.version_contains)
+                    || !format!(
+                        "{}{}",
+                        String::from_utf8_lossy(&outcome.stdout),
+                        String::from_utf8_lossy(&outcome.stderr)
+                    )
+                    .contains(&file.version_contains)
                 {
-                    return Err(format!(
-                        "Runtime version probe mismatch {}: {text}",
-                        file.name
-                    ));
+                    return Err(F::new(component_id, S::Probe, E::Probe));
                 }
-                record(format!(
-                    "Verified {} SHA256={} version={}",
-                    file.name, file.sha256, file.version_contains
-                ));
             }
         }
-        Ok(guards)
+        Ok(())
     }
 }
-fn marker_guard(target: &Path, digest: &str, expected_bytes: u64) -> Result<File, String> {
-    let path = target.join("complete.json");
-    if fs::symlink_metadata(&path)
-        .map_err(|e| format!("Runtime completion marker: {e}"))?
-        .len()
-        != expected_bytes
-    {
-        return Err("Runtime completion manifest mismatch; refusing cache".into());
+fn runtime_lease(
+    target: PathBuf,
+    requirement_id: String,
+    digest: String,
+    marker_bytes: u64,
+    manifest: &Manifest,
+    guards: Vec<File>,
+) -> Arc<RuntimeLease> {
+    Arc::new(RuntimeLease {
+        directory: target.clone(),
+        requirement_id,
+        marker_bytes,
+        files: manifest
+            .components
+            .iter()
+            .flat_map(|c| {
+                c.files
+                    .iter()
+                    .map(|f| (f.name.clone(), target.join(&f.name)))
+            })
+            .collect(),
+        versions: manifest
+            .components
+            .iter()
+            .map(|c| (c.name.clone(), c.version.clone()))
+            .collect(),
+        digest,
+        _guards: guards,
+    })
+}
+fn typed_safe_existing_dir(path: &Path) -> Result<(), super::preparation::PreparationFailure> {
+    use super::preparation::{
+        ErrorCategory as E, PreparationFailure as F, PreparationStage as S, RuntimeComponent as C,
+    };
+    for ancestor in path.ancestors() {
+        let metadata =
+            fs::symlink_metadata(ancestor).map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+        if metadata.file_attributes() & 0x400 != 0 || !metadata.is_dir() {
+            return Err(F::new(C::Runtime, S::Cache, E::Storage));
+        }
     }
-    check_file(&path, digest)
-        .map_err(|e| format!("Runtime completion manifest mismatch; refusing cache: {e}"))
+    Ok(())
+}
+fn typed_safe_dir(
+    path: &Path,
+    component: super::preparation::RuntimeComponent,
+    stage: super::preparation::PreparationStage,
+) -> Result<(), super::preparation::PreparationFailure> {
+    if let Some(existing) = path.ancestors().find(|ancestor| ancestor.exists()) {
+        typed_safe_existing_dir(existing)?;
+    }
+    fs::create_dir_all(path)
+        .map_err(|e| super::preparation::PreparationFailure::io(component, stage, e))?;
+    typed_safe_existing_dir(path)
+}
+fn typed_check_file(
+    path: &Path,
+    expected: &str,
+    component: super::preparation::RuntimeComponent,
+    stage: super::preparation::PreparationStage,
+) -> Result<File, super::preparation::PreparationFailure> {
+    use super::preparation::{ErrorCategory as E, PreparationFailure as F};
+    let metadata = fs::symlink_metadata(path).map_err(|e| F::io(component, stage, e))?;
+    if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 {
+        return Err(F::new(component, stage, E::Hash));
+    }
+    let mut file = OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(path)
+        .map_err(|e| F::io(component, stage, e))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|e| F::io(component, stage, e))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+    if format!("{:X}", hasher.finalize()) != expected {
+        return Err(F::new(component, stage, E::Hash));
+    }
+    Ok(file)
+}
+fn typed_marker_guard(
+    path: &Path,
+    digest: &str,
+    bytes: u64,
+) -> Result<File, super::preparation::PreparationFailure> {
+    use super::preparation::{
+        ErrorCategory as E, PreparationFailure as F, PreparationStage as S, RuntimeComponent as C,
+    };
+    let marker = path.join("complete.json");
+    let file = typed_check_file(&marker, digest, C::Runtime, S::Cache)?;
+    if file
+        .metadata()
+        .map_err(|e| F::io(C::Runtime, S::Cache, e))?
+        .len()
+        != bytes
+    {
+        return Err(F::new(C::Runtime, S::Cache, E::Hash));
+    }
+    Ok(file)
 }
 
 #[cfg(test)]
+#[path = "../../tests/support/windows_process_fixture.rs"]
+mod runtime_fixture;
+#[cfg(test)]
 mod requirement_tests {
+    use super::runtime_fixture as fixture;
     use super::*;
+    fn fixture_catalog(root: &Path) -> (Manifest, TrustedRuntimeRequirements, PathBuf) {
+        let executable = fixture::fixture();
+        let file_hash = hash(File::open(&executable).unwrap()).unwrap();
+        let catalog = Manifest {
+            schema: 1,
+            platform: "windows-x64".into(),
+            components: vec![Component {
+                name: "ffmpeg".into(),
+                version: "fixture".into(),
+                url: "https://invalid.example/never-request".into(),
+                bytes: fs::metadata(&executable).unwrap().len(),
+                sha256: file_hash.clone(),
+                license: "fixture".into(),
+                source: "fixture".into(),
+                files: vec![RuntimeFile {
+                    archive_path: None,
+                    name: "ffprobe.exe".into(),
+                    sha256: file_hash,
+                    probe: "echo".into(),
+                    version_contains: "fixture-ready".into(),
+                }],
+            }],
+        };
+        let marker = root.join("probe-marker.txt").display().to_string();
+        let requirements = TrustedRuntimeRequirements::compiled(
+            &[("ffprobe.exe", &["echo", &marker, "fixture-ready"])],
+            &[],
+        );
+        (catalog, requirements, executable)
+    }
+    #[test]
+    fn r12_verified_cache_works_with_failing_acquisition_and_keeps_native_leases() {
+        use super::super::preparation::{ErrorCategory as E, PreparationPhase};
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, executable) = fixture_catalog(root.path());
+        let content = serde_json::to_vec(&catalog).unwrap();
+        let digest = hash(content.as_slice()).unwrap();
+        let target = root.path().join(format!("runtime-{digest}"));
+        fs::create_dir(&target).unwrap();
+        fs::copy(executable, target.join("ffprobe.exe")).unwrap();
+        fs::write(target.join("complete.json"), content).unwrap();
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| Err(E::Connect.into())));
+        let mut events = Vec::new();
+        let lease = manager
+            .prepare_observed(
+                &requirements,
+                &Control::default(),
+                Arc::new(|_| {}),
+                |event| events.push(event),
+            )
+            .unwrap();
+        assert_eq!(lease.directory, target);
+        assert!(
+            events
+                .iter()
+                .all(|event| event.phase != PreparationPhase::Downloading)
+        );
+        assert!(
+            OpenOptions::new()
+                .write(true)
+                .open(lease.file("ffprobe.exe").unwrap())
+                .is_err()
+        );
+        let live = manager
+            .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
+            .unwrap();
+        assert!(Arc::ptr_eq(&lease, &live));
+        drop(live);
+        drop(lease);
+        // A fresh manager still succeeds through marker/hash/native probes with the failing provider.
+        assert!(
+            manager
+                .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
+                .is_ok()
+        );
+    }
+    #[test]
+    fn r12_corrupt_cache_is_preserved_and_recovered_into_a_verified_immutable_sibling() {
+        use super::super::preparation::{ErrorCategory as E, PreparationStage as S};
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, executable) = fixture_catalog(root.path());
+        let content = serde_json::to_vec(&catalog).unwrap();
+        let digest = hash(content.as_slice()).unwrap();
+        let target = root.path().join(format!("runtime-{digest}"));
+        fs::create_dir(&target).unwrap();
+        fs::write(target.join("complete.json"), b"corrupt-original-evidence").unwrap();
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| Err(E::Connect.into())));
+        let failure = manager
+            .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
+            .err()
+            .unwrap();
+        assert_eq!((failure.stage, failure.category), (S::Acquire, E::Connect));
+        assert_eq!(
+            fs::read(target.join("complete.json")).unwrap(),
+            b"corrupt-original-evidence"
+        );
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(move |path, bytes| {
+            fs::copy(&executable, path).unwrap();
+            assert_eq!(fs::metadata(path).unwrap().len(), bytes);
+            Ok(())
+        }));
+        let lease = manager
+            .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
+            .unwrap();
+        assert_ne!(lease.directory, target);
+        assert_eq!(
+            fs::read(target.join("complete.json")).unwrap(),
+            b"corrupt-original-evidence"
+        );
+        assert!(
+            OpenOptions::new()
+                .write(true)
+                .open(lease.file("ffprobe.exe").unwrap())
+                .is_err()
+        );
+        drop(lease);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| Err(E::Connect.into())));
+        assert!(
+            manager
+                .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
+                .is_ok()
+        );
+    }
     #[test]
     fn full_catalog_keeps_exact_marker_and_subset_contains_only_declared_tools() {
         let full = crate::download::composition::requirements();
