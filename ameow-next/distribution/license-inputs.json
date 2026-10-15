@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "scope": "private-owner-validation",
+  "materials": [
+    {
+      "kind": "Ameow-owned code",
+      "obligation": "Preserve exact MIT copyright and permission; third-party terms remain separate.",
+      "source": "LICENSE",
+      "destination": "LICENSE",
+      "sha256": "6B884099768B4997B2A4B071E3C175A812740F22F377F26FAF6372FA5CFE9C35"
+    },
+    {
+      "kind": "embedded font",
+      "obligation": "Preserve JetBrains Mono OFL and attribution.",
+      "source": "assets/fonts/OFL.txt",
+      "destination": "licenses/JetBrains-Mono-OFL.txt",
+      "sha256": "30F0C136E3C88E422D0791ACD97238870F9054A9729BC34CF2FF0D4ED8CAC4AD"
+    },
+    {
+      "kind": "adapted icons",
+      "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
+      "source": "distribution/notices/icon-licenses.txt",
+      "destination": "licenses/icon-licenses.txt",
+      "sha256": "130456514CB87A94A968A20CAD07CF107AF32009B09E40AE04494AD0240E9FAB"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-dependency-licenses.txt",
+      "destination": "licenses/rust-dependency-licenses.txt",
+      "sha256": "E8EF2CEB89FC99F0AFFFA040BCACA409F1C4EBE6FFCEB70953BAE908B59AD6F2"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-dependency-inventory.json",
+      "destination": "licenses/rust-dependency-inventory.json",
+      "sha256": "555F68DC2209C2BC6425A75A7E97EA6183F2EDC93C9FB91C95D15FA12F99E0F2"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-standard-library-notices.txt",
+      "destination": "licenses/rust-standard-library-notices.txt",
+      "sha256": "D93D65853736BDE4E8649691233A98848BA709673873AEB39487BC1CA6EE292A"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-standard-library-MIT.txt",
+      "destination": "licenses/rust-standard-library-MIT.txt",
+      "sha256": "B85DCD3E453D05982552C52B5FC9E0BDD6D23C6F8E844B984A88AF32570B0CC0"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-standard-library-Apache-2.0.txt",
+      "destination": "licenses/rust-standard-library-Apache-2.0.txt",
+      "sha256": "074E6E32C86A4C0EF8B3ED25B721CA23ACA83DF277CD88106EF7177C354615FF"
+    },
+    {
+      "kind": "Rust material/provenance",
+      "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
+      "source": "distribution/notices/rust-standard-library-provenance.md",
+      "destination": "licenses/rust-standard-library-provenance.md",
+      "sha256": "34A8D9063A475925903C7D2D130DD913516A30D2FE2688A87AB27604E6CC924B"
+    },
+    {
+      "kind": "on-demand tools",
+      "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
+      "source": "distribution/notices/runtime-acquisition.md",
+      "destination": "licenses/runtime-acquisition.md",
+      "sha256": "5221159F873BCDE59FC5E0C47BA08C5A6D4AB32C3242DB04BA780294862C9FB2"
+    },
+    {
+      "kind": "on-demand GPL context",
+      "obligation": "Provide GPL text as context; redistribution/source review stays blocked.",
+      "source": "assets/runtime-GPL-3.0.txt",
+      "destination": "licenses/runtime-GPL-3.0.txt",
+      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
+    },
+    {
+      "kind": "MSVC provenance",
+      "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
+      "source": "distribution/notices/msvc-build-context.md",
+      "destination": "licenses/msvc-build-context.md",
+      "sha256": "D34AF1EAC0836BA70A1F590E3AD930BB8F60D82B211657E142CB248ECE47CA02"
+    }
+  ],
+  "publicGateB": {
+    "status": "blocked",
+    "blockers": [
+      "External/public distribution is not authorized by R11 or this private flow trial.",
+      "Complete external redistribution/source/third-party review of the actual product and future bundled tools remains pending.",
+      "Exact historical icon tag and four upstream package-text provenance gaps remain disclosed.",
+      "Applicable MSVC generated-binary external redistribution review remains pending."
+    ]
+  }
+}
