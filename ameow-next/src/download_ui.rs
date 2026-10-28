@@ -21,6 +21,8 @@ use std::{
 
 pub enum UiReply {
     Reply(CommandReply),
+    Retry { source: u64, reply: CommandReply },
+    RowCommand { job: u64, cleanup: bool, reply: CommandReply },
     PreparationRetry(CommandReply),
     Settings(CommandReply),
     Diagnostic { job: u64, text: String },
@@ -87,7 +89,16 @@ pub struct DownloadUi {
     pub selected_job: Option<u64>,
     selected_presentation: Option<(u64, u32, JobPhase)>,
     pub selected_fraction: Option<f32>,
-    pub seen_terminals: std::collections::HashSet<u64>,
+    presentation: crate::queue_presentation::Presentation,
+    queue_scroll: gpui::ScrollHandle,
+    fixture: bool,
+    preview_scenes: Option<SyncSender<&'static str>>,
+    row_notices: std::collections::HashMap<u64, (&'static str, u64)>,
+    queue_visible_ids: Vec<u64>,
+    title_browse: Option<TitleBrowse>,
+    hovered_action: Option<QueueActionHint>,
+    action_focus: Vec<QueueActionFocus>,
+    retry_pending: std::collections::HashSet<u64>,
     pub feedback: Option<(String, u64)>,
     pub preparation_hovered: bool,
     preparation_retry_pending: bool,
@@ -132,12 +143,23 @@ impl DownloadUi {
                         let diagnostic_job = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
                         let retrying_preparation = matches!(&command, QueueCommand::RetryPreparation);
+                        let retry_source = match &command { QueueCommand::Retry(id) => Some(*id), _ => None };
+                        let row_command = match &command {
+                            QueueCommand::Cancel(id) => Some((*id, false)),
+                            QueueCommand::RetryCleanup(id) => Some((*id, true)),
+                            _ => None,
+                        };
                         let reply = coordinator.apply(command);
                         append_evidence(&mut evidence, &started, reply_summary(&reply));
                         let event = match reply {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic_job.unwrap_or(0), text },
                             reply if saving => UiReply::Settings(reply),
                             reply if retrying_preparation => UiReply::PreparationRetry(reply),
+                            reply if retry_source.is_some() => UiReply::Retry { source: retry_source.unwrap(), reply },
+                            reply if row_command.is_some() => {
+                                let (job, cleanup) = row_command.unwrap();
+                                UiReply::RowCommand { job, cleanup, reply }
+                            }
                             reply => UiReply::Reply(reply),
                         };
                         let _ = sender.send(event);
@@ -174,6 +196,32 @@ impl DownloadUi {
                 "无法启动下载命令处理，请重新打开 Ameow".into(),
             ));
         }
+        Self::with_transport(commands, evidence, replies, latest)
+    }
+    pub fn fixture(path: PathBuf) -> Self {
+        Self::fixture_transport(Some(path), false)
+    }
+    pub fn preview() -> Self {
+        let mut ui = Self::fixture_transport(None, true);
+        ui.queue_open = true;
+        ui
+    }
+    fn fixture_transport(path: Option<PathBuf>, preview: bool) -> Self {
+        let (commands, receiver) = mpsc::sync_channel(64);
+        let (evidence, evidence_receiver) = mpsc::sync_channel(64);
+        let (sender, replies) = mpsc::channel();
+        let latest = Arc::new(Mutex::new(None));
+        let (scenes, scene_receiver) = mpsc::sync_channel(16);
+        crate::queue_fixture::start(path, scene_receiver, receiver, evidence_receiver, sender, latest.clone());
+        let mut ui = Self::with_transport(commands, evidence, replies, latest);
+        ui.fixture = true;
+        ui.preview_scenes = preview.then_some(scenes);
+        ui
+    }
+    fn with_transport(
+        commands: SyncSender<QueueCommand>, evidence: SyncSender<serde_json::Value>,
+        replies: Receiver<UiReply>, latest: Arc<Mutex<Option<Arc<QueueSnapshot>>>>,
+    ) -> Self {
         Self {
             commands,
             evidence,
@@ -192,7 +240,16 @@ impl DownloadUi {
             selected_job: None,
             selected_presentation: None,
             selected_fraction: None,
-            seen_terminals: Default::default(),
+            presentation: Default::default(),
+            queue_scroll: gpui::ScrollHandle::new(),
+            fixture: false,
+            preview_scenes: None,
+            row_notices: Default::default(),
+            queue_visible_ids: Vec::new(),
+            title_browse: None,
+            hovered_action: None,
+            action_focus: Vec::new(),
+            retry_pending: Default::default(),
             feedback: None,
             preparation_hovered: false,
             preparation_retry_pending: false,
@@ -203,9 +260,26 @@ impl DownloadUi {
         let _ = self.evidence.try_send(value);
     }
     pub fn send(&mut self, command: QueueCommand, now: u64) -> bool {
+        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation) {
+            self.feedback = Some(("Fixture · 不受理真实下载或设置写入".into(), now));
+            return false;
+        }
         match self.commands.try_send(command) {
             Ok(()) => true,
-            Err(_) => {
+            Err(error) => {
+                let (mpsc::TrySendError::Full(command) | mpsc::TrySendError::Disconnected(command)) = error;
+                match command {
+                    QueueCommand::Cancel(job) => {
+                        self.complete_row_command(job, false, &CommandReply::Applied(false), now);
+                    }
+                    QueueCommand::RetryCleanup(job) => {
+                        self.complete_row_command(job, true, &CommandReply::Applied(false), now);
+                    }
+                    QueueCommand::Retry(job) | QueueCommand::CopyDiagnostic(job) => {
+                        self.set_row_notice(job, "操作未受理，请重试", now);
+                    }
+                    _ => {}
+                }
                 self.feedback = Some(("操作未受理，请稍后重试".into(), now));
                 false
             }
@@ -228,10 +302,165 @@ impl DownloadUi {
             .as_ref()
             .map(|snapshot| snapshot.settings.clone())
     }
+    fn present(
+        &mut self,
+        model: &mut crate::model::Model,
+        indicator: &mut indicator::Indicator,
+        now: u64,
+    ) {
+        let Some(snapshot) = self.snapshot.clone() else {
+            return;
+        };
+        let chosen = self
+            .presentation
+            .update(&snapshot, self.queue_open, now)
+            .and_then(|id| snapshot.jobs.iter().find(|job| job.job_id == id))
+            .cloned()
+            .or_else(|| self.preview_scenes.as_ref().and_then(|_| {
+                (snapshot.jobs.len() == 1 && snapshot.jobs[0].phase.terminal()).then(|| snapshot.jobs[0].clone())
+            }));
+        self.sync_queue_rows(now);
+        if let Some(job) = chosen {
+            let stage = match job.phase {
+                JobPhase::Downloading
+                | JobPhase::Validating
+                | JobPhase::Publishing
+                | JobPhase::Held => Stage::Downloading,
+                JobPhase::Success => Stage::Success,
+                JobPhase::Failure => Stage::Failure,
+                JobPhase::Cancelled => Stage::Cancelled,
+                _ => Stage::Resolving,
+            };
+            let presentation = (job.job_id, job.attempt, job.phase.clone());
+            let changed = self.selected_presentation.as_ref() != Some(&presentation);
+            if self
+                .selected_presentation
+                .as_ref()
+                .is_none_or(|(id, attempt, _)| *id != job.job_id || *attempt != job.attempt)
+            {
+                // Reset only presentation continuity; accepted shell geometry and hover stay intact.
+                *indicator = indicator::Indicator::default();
+                model.state(Stage::Idle, 0., now);
+                model.previous = Stage::Idle;
+                model.previous_progress = 0.;
+                model.progress = Progress::new(0., now);
+                self.selected_job = Some(job.job_id);
+            }
+            self.selected_presentation = Some(presentation);
+            let fraction = if job.phase == JobPhase::Downloading {
+                presentation_fraction(
+                    job.transfer_progress.as_ref(),
+                    ameow_next::download::progress::now_ms(),
+                )
+            } else {
+                None
+            };
+            self.selected_fraction = fraction;
+            if let Some(fraction) = fraction { model.progress.retarget(fraction, now); }
+            if changed || !job.phase.terminal() {
+                model.state(
+                    stage,
+                    if stage == Stage::Success {
+                        1.
+                    } else {
+                        fraction.unwrap_or(model.progress.target)
+                    },
+                    now,
+                );
+            }
+        } else if self.selected_job.take().is_some() {
+            self.selected_presentation = None;
+            self.selected_fraction = None;
+            model.state(Stage::Idle, 0., now);
+        }
+    }
+    pub fn is_fixture(&self) -> bool { self.fixture }
+    pub fn preview_key(&mut self, key: &str) -> bool {
+        if self.preview_scenes.is_some() && key.eq_ignore_ascii_case("q") {
+            self.queue_open = !self.queue_open;
+            self.title_browse = None;
+            self.hovered_action = None;
+            self.action_focus.clear();
+            return true;
+        }
+        let Some(scenes) = &self.preview_scenes else { return false; };
+        let scene = match key {
+            "0" => "0", "1" => "1", "2" => "2", "3" => "3", "4" => "4", "5" => "5",
+            "6" => "6", "7" => "7", "8" => "8", "9" => "9", _ => return false,
+        };
+        let _ = scenes.try_send(scene);
+        self.presentation = Default::default();
+        self.selected_presentation = None;
+        self.queue_open = matches!(scene, "8" | "9");
+        self.title_browse = None;
+        self.hovered_action = None;
+        self.action_focus.clear();
+        true
+    }
     pub fn badge(&self) -> Option<(usize, bool, bool)> {
         self.snapshot
             .as_ref()
-            .and_then(|snapshot| badge_counts(snapshot.unfinished, snapshot.failures))
+            .and_then(|snapshot| badge_counts(snapshot.unfinished, self.presentation.failures(snapshot)))
+    }
+    fn complete_diagnostic(&mut self, job: u64, result: Result<(), String>, now: u64) -> bool {
+        match result {
+            Ok(()) => {
+                if job == 0 {
+                    self.preparation_copied_at = Some(now);
+                    self.feedback = Some(("已复制组件诊断".into(), now));
+                } else {
+                    self.set_row_notice(job, "诊断已复制", now);
+                    self.feedback = Some((format!("已复制任务 {job} 的诊断"), now));
+                }
+                true
+            }
+            Err(error) => {
+                if job != 0 { self.set_row_notice(job, "复制失败，请重试", now); }
+                self.feedback = Some((error, now));
+                false
+            }
+        }
+    }
+    fn complete_retry(&mut self, source: u64, reply: &CommandReply, now: u64) {
+        self.retry_pending.remove(&source);
+        self.presentation.retry_reply(source, reply);
+        if let CommandReply::Accepted(job) = reply {
+            // The source Failure retires on acceptance; the new waiting row owns this notice.
+            self.set_row_notice(*job, "已加入下载队列", now);
+        } else {
+            self.set_row_notice(source, "重试未受理", now);
+        }
+        self.feedback = Some((match reply {
+            CommandReply::Accepted(_) => "已加入下载队列".into(),
+            CommandReply::Error(error) => error.clone(),
+            _ => "任务状态已变化，请重新查看".into(),
+        }, now));
+    }
+    fn row_notice(&self, job: u64, now: u64) -> Option<&'static str> {
+        self.row_notices.get(&job).filter(|(_, at)| now < at + 5000).map(|(text, _)| *text)
+    }
+    fn row_title(&self, job: &JobSnapshot, now: u64) -> String {
+        self.row_notice(job.job_id, now).map(str::to_owned).unwrap_or_else(||
+            if job.title.is_empty() { format!("任务 {}", job.job_id) } else { job.title.clone() })
+    }
+    fn set_row_notice(&mut self, job: u64, text: &'static str, now: u64) {
+        if self.title_browse.as_ref().is_some_and(|browse| browse.job == job) {
+            self.title_browse = None;
+        }
+        self.row_notices.insert(job, (text, now));
+    }
+    fn complete_row_command(&mut self, job: u64, cleanup: bool, reply: &CommandReply, now: u64) {
+        if matches!(reply, CommandReply::Applied(true)) { return; }
+        let text = if cleanup { "清理未受理，请重试" } else { "取消未受理，请重试" };
+        if job == 0 {
+            // Shared preparation cleanup addresses owner0; retain feedback on its visible Held rows.
+            let rows: Vec<_> = self.snapshot.as_ref().into_iter().flat_map(|s| &s.jobs)
+                .filter(|j| j.phase == JobPhase::Held && !j.slot_owned).map(|j| j.job_id).collect();
+            for id in rows { self.set_row_notice(id, text, now); }
+        } else {
+            self.set_row_notice(job, text, now);
+        }
+        self.feedback = Some((text.into(), now));
     }
 }
 fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_json::Value) {
@@ -240,7 +469,7 @@ fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_
         let _ = writeln!(file, "{event}").and_then(|_| file.flush());
     }
 }
-fn command_summary(command: &QueueCommand) -> serde_json::Value {
+pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
     match command {
         QueueCommand::Submit { .. } => serde_json::json!({"type":"command","command":"submit"}),
         QueueCommand::SaveSettings(settings) => {
@@ -328,11 +557,16 @@ fn transfer_label(
     sample: Option<&ameow_next::download::progress::TransferProgress>,
     now: u64,
 ) -> String {
-    if sample.is_some_and(|sample| sample.merging) {
-        return "合并中".into();
+    if sample.is_some_and(|sample| sample.merging) { return "合并中".into(); }
+    if let Some(sample) = sample {
+        match sample.phase {
+            ameow_next::download::progress::TransferPhase::Audio => return "音频下载中".into(),
+            ameow_next::download::progress::TransferPhase::Processing => return "处理中".into(),
+            _ => {}
+        }
     }
     let Some(speed) = sample.and_then(|sample| sample.speed_at(now)) else {
-        return "下载中".into();
+        return if sample.is_some_and(|s| s.estimated_total_bytes.is_some() && s.recent(now)) { "下载中 · 估算" } else { "下载中" }.into();
     };
     let (value, unit) = if speed >= 1_000_000_000. {
         (speed / 1_000_000_000., "GB/s")
@@ -344,7 +578,7 @@ fn transfer_label(
     if value > 999. {
         "下载中".into()
     } else {
-        format!("下载 {value:.1}{unit}")
+        format!("{} {value:.1}{unit}", if sample.is_some_and(|s| s.estimated_total_bytes.is_some() && s.recent(now)) { "估算" } else { "下载" })
     }
 }
 fn presentation_fraction(
@@ -389,6 +623,260 @@ fn preparation_stage(stage: PreparationStage) -> &'static str {
         PreparationStage::Publish => "准备就绪",
     }
 }
+impl DownloadUi {
+    fn sync_queue_rows(&mut self, now: u64) {
+        let next: Vec<_> = self.snapshot.as_ref().into_iter().flat_map(|s| &s.jobs)
+            .filter(|job| self.presentation.visible(job, now)).map(|job| job.job_id).collect();
+        let offset = self.queue_scroll.offset();
+        let y = anchored_queue_offset(&self.queue_visible_ids, &next, f32::from(offset.y));
+        self.queue_scroll.set_offset(point(offset.x, px(y)));
+        if self.title_browse.as_ref().is_some_and(|browse| !next.contains(&browse.job)
+            || self.snapshot.as_ref().is_none_or(|s| s.jobs.iter().find(|j| j.job_id == browse.job)
+                .is_none_or(|j| j.title.replace(['\n', '\r', '\t'], " ") != browse.title
+                    || j.phase != browse.phase || j.attempt != browse.attempt
+                    || queue_title_width(queue_row_icons(j, s.preparation_held).len()) != browse.slot))) { self.title_browse = None; }
+        self.queue_visible_ids = next;
+        self.sync_action_hints(now);
+    }
+    pub(super) fn queue_animation_delay(&mut self, now: u64, reduced: bool) -> Option<u64> {
+        self.sync_action_hints(now);
+        if !self.queue_open || reduced || self.title_browse.as_ref().is_some_and(|browse|
+            browse.scroll_y != f32::from(self.queue_scroll.offset().y)) {
+            self.title_browse = None;
+        }
+        self.title_browse.as_ref().and_then(|browse| browse.delay(now))
+    }
+}
+const QUEUE_ROW_HEIGHT: f32 = 56.;
+const QUEUE_CONTENT_WIDTH: f32 = 180.;
+const QUEUE_ICON_SIZE: f32 = 24.;
+const QUEUE_ICON_GAP: f32 = 2.;
+const QUEUE_LINE_GAP: f32 = 4.;
+const QUEUE_TRACK_WIDTH: f32 = 122.;
+const QUEUE_STATUS_WIDTH: f32 = QUEUE_CONTENT_WIDTH - QUEUE_TRACK_WIDTH - QUEUE_LINE_GAP;
+fn queue_action_width(count: usize) -> f32 {
+    count as f32 * QUEUE_ICON_SIZE + count.saturating_sub(1) as f32 * QUEUE_ICON_GAP
+}
+fn queue_title_width(count: usize) -> f32 {
+    QUEUE_CONTENT_WIDTH - queue_action_width(count) - if count > 0 { QUEUE_LINE_GAP } else { 0. }
+}
+fn queue_text_width(text: &str, size: f32, weight: FontWeight, window: &Window) -> f32 {
+    let mut font = crate::tokens::ui_font();
+    font.weight = weight;
+    let run = TextRun { len: text.len(), font, color: transparent_black(),
+        background_color: None, underline: None, strikethrough: None };
+    f32::from(window.text_system().shape_line(text.to_owned().into(), px(size), &[run], None).width)
+}
+const TITLE_WAIT_MS: u64 = 700;
+const TITLE_PIXELS_PER_MS: f32 = 0.014;
+#[derive(Clone, Debug)]
+struct TitleBrowse {
+    job: u64,
+    phase: JobPhase,
+    attempt: u32,
+    title: String,
+    slot: f32,
+    started: u64,
+    overflow: f32,
+    scroll_y: f32,
+}
+impl TitleBrowse {
+    fn new(job: &JobSnapshot, title: String, width: f32, slot: f32, started: u64, scroll_y: f32) -> Option<Self> {
+        let overflow = width - slot;
+        (overflow > 0.5 && overflow.is_finite()).then_some(Self {
+            job: job.job_id, phase: job.phase.clone(), attempt: job.attempt, title, slot, started, overflow, scroll_y,
+        })
+    }
+    fn offset(&self, now: u64) -> f32 {
+        (now.saturating_sub(self.started + TITLE_WAIT_MS) as f32 * TITLE_PIXELS_PER_MS).min(self.overflow)
+    }
+    fn delay(&self, now: u64) -> Option<u64> {
+        if now < self.started + TITLE_WAIT_MS {
+            Some(self.started + TITLE_WAIT_MS - now)
+        } else {
+            (self.offset(now) < self.overflow).then_some(16)
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum QueueIcon { Retry, Copy, Clear, Cancel, Cleanup }
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct QueueActionHint {
+    job: u64,
+    phase: JobPhase,
+    attempt: u32,
+    slot_owned: bool,
+    icon: QueueIcon,
+}
+impl QueueActionHint {
+    fn new(job: &JobSnapshot, icon: QueueIcon) -> Self {
+        Self { job: job.job_id, phase: job.phase.clone(), attempt: job.attempt, slot_owned: job.slot_owned, icon }
+    }
+}
+struct QueueActionFocus {
+    action: QueueActionHint,
+    handle: FocusHandle,
+}
+fn queue_row_icons(job: &JobSnapshot, preparation_held: bool) -> &'static [QueueIcon] {
+    match job.phase {
+        JobPhase::Failure => &[QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear],
+        JobPhase::Success | JobPhase::Cancelled => &[],
+        JobPhase::Held if job.slot_owned || preparation_held => &[QueueIcon::Cancel, QueueIcon::Cleanup],
+        _ => &[QueueIcon::Cancel],
+    }
+}
+fn queue_progress_label(job: &JobSnapshot, fraction: Option<f32>, now: u64) -> String {
+    if job.phase != JobPhase::Downloading { return phase_label(job); }
+    let label = transfer_label(job.transfer_progress.as_ref(), now);
+    let Some(fraction) = fraction else { return label; };
+    let percent = format!("{}{}%",
+        if job.transfer_progress.as_ref().is_some_and(|s| s.estimated_total_bytes.is_some()) { "≈" } else { "" },
+        (fraction * 100.).floor() as u32);
+    // The phase is already conveyed by the blue track; keep percent and measured rate legible.
+    match label.split_once(' ') {
+        Some(("下载" | "估算", rate)) if rate.ends_with("/s") => format!("{percent} {rate}"),
+        _ => percent,
+    }
+}
+fn queue_row_status(job: &JobSnapshot, snapshot: &QueueSnapshot, fraction: Option<f32>, now: u64) -> String {
+    if snapshot.preparation_owner_lost && !job.slot_owned && !job.phase.terminal() {
+        "清理未确认".into()
+    } else if job.phase == JobPhase::Preparing {
+        // Queue-only concise copy fits the fixed status slot. Other surfaces retain details.
+        if snapshot.preparation_held {
+            "等待组件清理".into()
+        } else if snapshot.preparation.phase == PreparationPhase::Failed {
+            "组件准备失败".into()
+        } else {
+            phase_label(job)
+        }
+    } else if job.phase == JobPhase::Failure {
+        "下载失败".into()
+    } else {
+        queue_progress_label(job, fraction, now)
+    }
+}
+impl QueueIcon {
+    fn name(self) -> &'static str {
+        match self { Self::Retry => "retry", Self::Copy => "copy", Self::Clear => "clear", Self::Cancel => "cancel", Self::Cleanup => "cleanup" }
+    }
+    fn label(self) -> &'static str {
+        match self { Self::Retry => "重试", Self::Copy => "复制诊断", Self::Clear => "清除记录", Self::Cancel => "取消", Self::Cleanup => "重试清理" }
+    }
+}
+impl DownloadUi {
+    fn action_hint_allowed(&self, action: &QueueActionHint, now: u64) -> bool {
+        self.row_action_allowed(action.job, action.icon, now)
+            && self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|j|
+                j.job_id == action.job && j.phase == action.phase && j.attempt == action.attempt
+                    && j.slot_owned == action.slot_owned
+                    && queue_row_icons(j, s.preparation_held).contains(&action.icon)))
+    }
+    fn sync_action_hints(&mut self, now: u64) {
+        if self.hovered_action.as_ref().is_some_and(|action| !self.action_hint_allowed(action, now)) {
+            self.hovered_action = None;
+        }
+        // Dropping invalid handles also prevents a reopened/replaced row inheriting old focus.
+        let mut focus = std::mem::take(&mut self.action_focus);
+        focus.retain(|entry| self.action_hint_allowed(&entry.action, now));
+        self.action_focus = focus;
+    }
+    fn prepare_action_focus(&mut self, now: u64, cx: &mut Context<Prototype>) {
+        self.sync_action_hints(now);
+        let actions: Vec<_> = self.snapshot.as_ref().into_iter().flat_map(|s| s.jobs.iter()
+            .flat_map(|job| queue_row_icons(job, s.preparation_held).iter()
+                .map(move |&icon| QueueActionHint::new(job, icon))))
+            .filter(|action| self.action_hint_allowed(action, now)).collect();
+        for action in actions {
+            if !self.action_focus.iter().any(|entry| entry.action == action) {
+                // GPUI does not copy div tab settings onto an explicitly tracked handle.
+                self.action_focus.push(QueueActionFocus { action, handle: cx.focus_handle().tab_index(0).tab_stop(true) });
+            }
+        }
+    }
+    fn hover_action(&mut self, action: &QueueActionHint, hovered: bool, now: u64) {
+        if hovered && self.action_hint_allowed(action, now) {
+            self.hovered_action = Some(action.clone());
+        } else if self.hovered_action.as_ref() == Some(action) {
+            self.hovered_action = None;
+        }
+    }
+    fn row_action_label(&self, job: u64, focused: Option<&QueueActionHint>, now: u64) -> Option<&'static str> {
+        // A pointer over an action takes precedence; leaving falls back to real keyboard focus.
+        self.hovered_action.as_ref().filter(|action| action.job == job && self.action_hint_allowed(action, now))
+            .or_else(|| focused.filter(|action| action.job == job && self.action_hint_allowed(action, now)))
+            .map(|action| action.icon.label())
+    }
+    fn row_action_allowed(&self, id: u64, icon: QueueIcon, now: u64) -> bool {
+        let Some(snapshot) = &self.snapshot else { return false; };
+        let Some(job) = snapshot.jobs.iter().find(|j| j.job_id == id) else { return false; };
+        if !self.queue_open || !self.presentation.visible(job, now) { return false; }
+        match icon {
+            QueueIcon::Retry | QueueIcon::Copy | QueueIcon::Clear =>
+                job.phase == JobPhase::Failure && !self.retry_pending.contains(&id),
+            QueueIcon::Cancel => !job.phase.terminal() && (!snapshot.preparation_owner_lost || job.slot_owned),
+            QueueIcon::Cleanup => job.phase == JobPhase::Held &&
+                (job.slot_owned || snapshot.preparation_held && !snapshot.preparation_owner_lost),
+        }
+    }
+    fn activate_row_action(&mut self, id: u64, icon: QueueIcon, now: u64) {
+        // Check current authority again, including a keyboard/click racing a snapshot or Retry reply.
+        if !self.row_action_allowed(id, icon, now) { return; }
+        self.title_browse = None;
+        match icon {
+            QueueIcon::Clear => {
+                self.presentation.clear(id);
+                self.sync_queue_rows(now);
+                self.evidence(serde_json::json!({"type":"presentation-clear","job":id}));
+            }
+            QueueIcon::Retry => {
+                if self.send(QueueCommand::Retry(id), now) { self.retry_pending.insert(id); }
+            }
+            QueueIcon::Copy => { self.send(QueueCommand::CopyDiagnostic(id), now); }
+            QueueIcon::Cancel => { self.send(QueueCommand::Cancel(id), now); }
+            QueueIcon::Cleanup => {
+                let slot_owned = self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|j| j.job_id == id && j.slot_owned));
+                self.send(QueueCommand::RetryCleanup(if slot_owned { id } else { 0 }), now);
+            }
+        }
+    }
+}
+// Native outline vectors at14px, with a shared1.2px stroke. No platform font glyphs.
+fn queue_icon_drawing(icon: QueueIcon, color: Hsla) -> impl IntoElement {
+    canvas(|_, _, _| (), move |bounds, _, window, _| {
+        let paths: &[&[(f32, f32)]] = match icon {
+            QueueIcon::Retry | QueueIcon::Cleanup => &[
+                &[(11.8, 5.3), (10.5, 3.4), (8.5, 2.4), (6.1, 2.5), (4.1, 3.7), (3.1, 5.8), (3.2, 8.2), (4.6, 10.3), (6.7, 11.2), (9.1, 10.8), (10.8, 9.3)],
+                &[(11.8, 2.3), (11.8, 5.5), (8.6, 5.5)],
+            ],
+            QueueIcon::Copy => &[
+                &[(5., 5.), (11.5, 5.), (11.5, 11.5), (5., 11.5), (5., 5.)],
+                &[(8.5, 2.5), (2.5, 2.5), (2.5, 8.5)],
+            ],
+            QueueIcon::Clear => &[
+                &[(2.4, 4.), (11.6, 4.)], &[(5., 4.), (5., 2.5), (9., 2.5), (9., 4.)],
+                &[(3.5, 4.), (4.1, 11.5), (9.9, 11.5), (10.5, 4.)],
+                &[(5.7, 6.2), (5.9, 9.3)], &[(8.3, 6.2), (8.1, 9.3)],
+            ],
+            QueueIcon::Cancel => &[&[(3.5, 3.5), (10.5, 10.5)], &[(10.5, 3.5), (3.5, 10.5)]],
+        };
+        for points in paths {
+            let mut path = PathBuilder::stroke(px(1.2));
+            for (index, (x, y)) in points.iter().enumerate() {
+                let point = bounds.origin + point(px(*x), px(*y));
+                if index == 0 { path.move_to(point); } else { path.line_to(point); }
+            }
+            if let Ok(path) = path.build() { window.paint_path(path, color); }
+        }
+    }).size(px(14.))
+}
+fn anchored_queue_offset(previous: &[u64], next: &[u64], offset: f32) -> f32 {
+    let first = ((-offset).max(0.) / QUEUE_ROW_HEIGHT).floor() as usize;
+    previous.iter().enumerate().skip(first).find_map(|(old_index, id)| {
+        next.iter().position(|next_id| next_id == id).map(|new_index|
+            (offset + (old_index as f32 - new_index as f32) * QUEUE_ROW_HEIGHT).min(0.))
+    }).unwrap_or(offset)
+}
 fn preparation_bytes(bytes: u64) -> String {
     if bytes >= 1_000_000 {
         format!("{:.1} MB", bytes as f64 / 1_000_000.)
@@ -424,6 +912,9 @@ use gpui::{prelude::*, *};
 impl Prototype {
     pub(super) fn poll_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let now = self.now();
+        // A removed/disabled action can release the last focused handle. Restore the existing
+        // root only in that case, so queue return and scene changes keep keyboard navigation live.
+        if window.focused(cx).is_none() { window.focus(&self.focus); }
         if self
             .close_requested
             .swap(false, std::sync::atomic::Ordering::AcqRel)
@@ -451,6 +942,13 @@ impl Prototype {
         };
         for reply in ui.poll() {
             match reply {
+                UiReply::Retry { source, reply } => {
+                    ui.evidence(serde_json::json!({"type":"retry-reply","source":source,"accepted":matches!(reply, CommandReply::Accepted(_))}));
+                    ui.complete_retry(source, &reply, now);
+                }
+                UiReply::RowCommand { job, cleanup, reply } => {
+                    ui.complete_row_command(job, cleanup, &reply, now);
+                }
                 UiReply::PreparationRetry(reply) => {
                     ui.preparation_retry_pending = false;
                     ui.feedback = Some((match reply {
@@ -483,19 +981,8 @@ impl Prototype {
                     ui.evidence(
                         serde_json::json!({"type":"clipboard","job":job,"success":result.is_ok()}),
                     );
-                    match result {
-                        Ok(()) => {
-                            if job == 0 {
-                                ui.preparation_copied_at = Some(now);
-                                ui.feedback = Some(("已复制组件诊断".into(), now));
-                            } else {
-                                self.copied_at = Some(now);
-                                ui.feedback = Some((format!("已复制任务 {job} 的诊断"), now));
-                            }
-                        }
-                        Err(error) => {
-                            ui.feedback = Some((error, now));
-                        }
+                    if ui.complete_diagnostic(job, result, now) && job != 0 {
+                        self.copied_at = Some(now);
                     }
                 }
                 UiReply::Reply(reply) => match reply {
@@ -536,69 +1023,17 @@ impl Prototype {
                 cx.quit();
                 return;
             }
-            let newest_terminal = snapshot
-                .jobs
-                .iter()
-                .rfind(|job| job.phase.terminal() && !ui.seen_terminals.contains(&job.job_id))
-                .cloned();
-            for job in snapshot.jobs.iter().filter(|job| job.phase.terminal()) {
-                ui.seen_terminals.insert(job.job_id);
-            }
-            let chosen = snapshot
-                .main_job
-                .and_then(|id| snapshot.jobs.iter().find(|job| job.job_id == id))
-                .cloned()
-                .or_else(|| newest_terminal.clone())
-                .or_else(|| {
-                    snapshot
-                        .jobs
-                        .iter()
-                        .find(|job| !job.phase.terminal())
-                        .cloned()
-                });
-            if let Some(job) = chosen {
-                let stage = match job.phase {
-                    JobPhase::Downloading
-                    | JobPhase::Validating
-                    | JobPhase::Publishing
-                    | JobPhase::Held => Stage::Downloading,
-                    JobPhase::Success => Stage::Success,
-                    JobPhase::Failure => Stage::Failure,
-                    JobPhase::Cancelled => Stage::Cancelled,
-                    _ => Stage::Resolving,
-                };
-                let presentation = (job.job_id, job.attempt, job.phase.clone());
-                if ui.selected_presentation.as_ref() != Some(&presentation) {
-                    // Reset only presentation continuity; accepted shell geometry and hover stay intact.
-                    self.indicator = indicator::Indicator::default();
-                    self.model.state(Stage::Idle, 0., now);
-                    self.model.previous = Stage::Idle;
-                    self.model.previous_progress = 0.;
-                    self.model.progress = Progress::new(0., now);
-                    ui.selected_job = Some(job.job_id);
-                    ui.selected_presentation = Some(presentation);
-                }
-                let fraction = if job.phase == JobPhase::Downloading {
-                    presentation_fraction(
-                        job.transfer_progress.as_ref(),
-                        ameow_next::download::progress::now_ms(),
-                    )
-                } else {
-                    None
-                };
-                if ui.selected_fraction.is_some() != fraction.is_some() {
-                    self.model.progress = Progress::new(0., now);
-                }
-                ui.selected_fraction = fraction;
-                self.model
-                    .state(stage, if stage == Stage::Success { 1. } else { fraction.unwrap_or(0.) }, now);
-            }
+            ui.present(&mut self.model, &mut self.indicator, now);
         }
-        if now >= ui.last_evidence_ms + 1000 {
+        if now >= ui.last_evidence_ms + if ui.fixture { 100 } else { 200 } {
             ui.last_evidence_ms = now;
             ui.evidence(serde_json::json!({"type":"presentation","selected_job":ui.selected_job,"stage":format!("{:?}",self.model.stage),
-                "selected_attempt":ui.selected_presentation.as_ref().map(|(_, attempt, _)| *attempt),"whole_fraction":ui.selected_fraction,
+                "selected_attempt":ui.selected_presentation.as_ref().map(|(_, attempt, _)| *attempt),"primary_fraction":ui.selected_fraction,
+                "tween_fraction":self.model.progress.sample(now),"displayed_percent":ui.selected_fraction.map(|_| ((if self.model.reduced { self.model.progress.target } else { self.model.progress.sample(now) }).min(0.99) * 100.).round() as u32),
+                "observed_at_ms":ameow_next::download::progress::now_ms(),
                 "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge(),
+                "visible_rows":ui.snapshot.as_ref().map(|s| s.jobs.iter().filter(|j| ui.presentation.visible(j, now)).map(|j| j.job_id).collect::<Vec<_>>()),
+                "queue_scroll":[f32::from(ui.queue_scroll.offset().x), f32::from(ui.queue_scroll.offset().y)],
                 "preparation_visible":ui.snapshot.as_ref().is_some_and(|s| preparation_visible(s, ameow_next::download::progress::now_ms())),
                 "preparation_hovered":ui.preparation_hovered}));
         }
@@ -645,6 +1080,8 @@ impl Prototype {
             Some(ExitAction::Confirm) => {
                 if let Some(ui) = &mut self.downloads {
                     ui.queue_open = false;
+                    ui.title_browse = None;
+                    ui.presentation.close_queue();
                     ui.exit_open = true;
                     ui.hidden = false;
                 }
@@ -678,6 +1115,8 @@ impl Prototype {
                 ui.exit_when_stopped = true;
                 ui.exit_open = true;
                 ui.queue_open = false;
+                    ui.title_browse = None;
+                ui.presentation.close_queue();
             }
             self.model.locks.menu = true;
             self.model.locks_changed(now);
@@ -695,6 +1134,8 @@ impl Prototype {
             "escape" => {
                 if let Some(ui) = &mut self.downloads {
                     ui.queue_open = false;
+                    ui.title_browse = None;
+                    ui.presentation.close_queue();
                     ui.exit_open = false;
                     ui.exit_when_stopped = false;
                 }
@@ -778,6 +1219,7 @@ impl Prototype {
         Some("准备下载".into())
     }
     fn save_quality(&mut self, quality: Quality, cx: &mut Context<Self>) {
+        if self.downloads.as_ref().is_some_and(|ui| ui.fixture) { return; }
         let now = self.now();
         if let Some(ui) = &mut self.downloads {
             if ui.settings_pending || ui.folder_pending {
@@ -791,6 +1233,7 @@ impl Prototype {
         self.close_menu(cx);
     }
     fn choose_directory(&mut self, cx: &mut Context<Self>) {
+        if self.downloads.as_ref().is_some_and(|ui| ui.fixture) { return; }
         let Some(ui) = &mut self.downloads else {
             return;
         };
@@ -891,9 +1334,6 @@ impl Prototype {
                 cx,
                 |this, _, cx| this.choose_directory(cx),
             ))
-            .child(self.menu_action("queue", "下载队列", cx, |this, _, cx| {
-                this.open_queue(cx)
-            }))
             .child(
                 self.menu_action("theme", "切换 Light / Night", cx, |this, _, cx| {
                     this.night = !this.night;
@@ -983,165 +1423,144 @@ impl Prototype {
             .on_click(cx.listener(move |this, _, _, cx| action(this, cx)))
             .into_any_element()
     }
-    pub(super) fn queue_panel(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn queue_icon(&self, id: u64, icon: QueueIcon, enabled: bool, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.night);
+        let enabled = enabled && self.downloads.as_ref().is_some_and(|ui| ui.row_action_allowed(id, icon, self.now()));
+        let focus = self.downloads.as_ref().and_then(|ui| ui.action_focus.iter()
+            .find(|entry| entry.action.job == id && entry.action.icon == icon))
+            .map(|entry| (entry.action.clone(), entry.handle.clone()));
+        let color = if icon == QueueIcon::Clear { p.red.opacity(0.8) } else { p.neutral };
+        div().id(SharedString::from(format!("{}-{id}", icon.name())))
+            .size(px(QUEUE_ICON_SIZE)).flex_none().flex().items_center().justify_center()
+            .rounded(px(4.)).border_1().border_color(transparent_black())
+            .child(queue_icon_drawing(icon, color.opacity(if enabled { 1. } else { 0.35 })))
+            .when(enabled, |button| button
+                .focusable().tab_index(0).cursor_pointer()
+                .when_some(focus, |button, (action, handle)| button
+                    .track_focus(&handle)
+                    .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                        let now = this.now();
+                        if let Some(ui) = &mut this.downloads { ui.hover_action(&action, *hovered, now); }
+                        cx.notify();
+                    })))
+                .hover(move |s| s.bg(p.badge))
+                .active(move |s| s.bg(p.border))
+                .focus(move |s| s.border_color(p.blue))
+                .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                // GPUI sends focused Enter/Space key-up through this same click handler.
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    let now = this.now();
+                    if let Some(ui) = &mut this.downloads { ui.activate_row_action(id, icon, now); }
+                    cx.notify();
+                })))
+            .into_any_element()
+    }
+    fn queue_title(&self, id: u64, title: String, slot: f32, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        // Shape the same font/size inside the first line's actual remaining viewport.
+        let title = title.replace(['\n', '\r', '\t'], " ");
+        let width = queue_text_width(&title, 10., FontWeight::MEDIUM, window);
+        let ui = self.downloads.as_ref().unwrap();
+        let notice = ui.row_notice(id, self.now()).is_some();
+        let browse = ui.title_browse.as_ref().filter(|b| !notice && b.job == id && b.title == title && b.slot == slot && !self.model.reduced);
+        let offset = browse.map_or(0., |b| b.offset(self.now()));
+        let moving = browse.is_some_and(|b| self.now() >= b.started + TITLE_WAIT_MS);
+        div().id(SharedString::from(format!("title-{id}")))
+            .relative().h(px(14.)).w(px(slot)).flex_none().overflow_hidden()
+            .text_size(px(10.)).line_height(px(14.)).font_weight(FontWeight::MEDIUM)
+            .child(if moving {
+                div().absolute().left(px(-offset)).top_0().w(px(width.max(slot)))
+                    .whitespace_nowrap().child(title.clone())
+            } else {
+                div().w_full().truncate().child(title.clone())
+            })
+            .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+                let now = this.now();
+                let reduced = this.model.reduced;
+                if let Some(ui) = &mut this.downloads {
+                    if *hovered && !reduced && ui.row_notice(id, now).is_none() {
+                        ui.title_browse = ui.snapshot.as_ref().and_then(|s| s.jobs.iter().find(|j| j.job_id == id))
+                            .and_then(|job| TitleBrowse::new(job, title.clone(), width, slot, now, f32::from(ui.queue_scroll.offset().y)));
+                    } else if ui.title_browse.as_ref().is_some_and(|b| b.job == id) { ui.title_browse = None; }
+                }
+                cx.notify();
+            }))
+            .into_any_element()
+    }
+    pub(super) fn queue_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.night);
         let g = self.model.geometry();
-        let snapshot = self.downloads.as_ref().and_then(|ui| ui.snapshot.clone());
-        let jobs = snapshot
-            .as_ref()
-            .map(|snapshot| snapshot.jobs.clone())
-            .unwrap_or_default();
-        let owner_lost = snapshot
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.preparation_owner_lost);
-        let preparation_held = snapshot
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.preparation_held);
-        let rows: Vec<_> = jobs
+        let now = self.now();
+        let transfer_now = ameow_next::download::progress::now_ms();
+        if let Some(ui) = &mut self.downloads { ui.prepare_action_focus(now, cx); }
+        let ui = self.downloads.as_ref().unwrap();
+        let focused = ui.action_focus.iter().find(|entry| entry.handle.is_focused(window)).map(|entry| &entry.action);
+        let snapshot = ui.snapshot.as_ref();
+        let executing = snapshot.map_or(0, |s| {
+            s.jobs
+                .iter()
+                .filter(|j| j.slot_owned && !j.phase.terminal())
+                .count()
+        });
+        let waiting = snapshot.map_or(0, |s| s.unfinished.saturating_sub(executing));
+        let preparation_held = snapshot.is_some_and(|s| s.preparation_held);
+        let rows: Vec<_> = snapshot
             .into_iter()
-            .filter(|job| !matches!(job.phase, JobPhase::Success | JobPhase::Cancelled))
+            .flat_map(|s| &s.jobs)
+            .filter(|job| ui.presentation.visible(job, now))
             .map(|job| {
                 let id = job.job_id;
                 let failure = job.phase == JobPhase::Failure;
-                let unresolved = owner_lost && !job.slot_owned && !job.phase.terminal();
+                let success = job.phase == JobPhase::Success;
                 let held = job.phase == JobPhase::Held && (job.slot_owned || preparation_held);
-                let cleanup_job = if job.slot_owned { id } else { 0 };
-                let preparation_wait = snapshot.as_ref().and_then(|snapshot| {
-                    preparation_wait_label(&job.phase, snapshot)
-                });
-                let mut row = div()
-                    .id(SharedString::from(format!("job-{id}")))
-                    .flex()
-                    .flex_col()
-                    .gap(px(3.))
-                    .py(px(6.))
-                    .border_b_1()
-                    .border_color(p.border)
-                    .child(
-                        div()
-                            .w_full()
-                            .truncate()
-                            .text_size(px(10.))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(if job.title.is_empty() {
-                                format!("任务 {id}")
-                            } else {
-                                job.title.clone()
-                            }),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .justify_between()
-                            .text_size(px(9.))
-                            .text_color(if failure || preparation_wait.is_some() {
-                                p.red
-                            } else if held {
-                                p.neutral
-                            } else {
-                                p.blue
-                            })
-                            .child(if unresolved {
-                                "准备异常，清理未确认".into()
-                            } else {
-                                preparation_wait.clone().unwrap_or_else(|| phase_label(&job))
-                            })
-                            .child(format!("#{id}")),
-                    );
-                if preparation_wait.is_some() && !unresolved && !held {
-                    if let Some(reason) = snapshot.as_ref().and_then(|s| s.preparation.failure.as_ref()) {
-                        row = row.child(div().text_size(px(9.)).child(format!(
-                            "{} · {} · {}",
-                            reason.component.label(),
-                            preparation_stage(reason.stage),
-                            preparation_failure_copy(reason.category).0,
-                        )));
-                    }
-                    row = row.child(div().text_size(px(9.)).child("关闭队列后，从左下角重试组件"));
-                }
-                if let Some(reason) = job.failure.as_ref().filter(|_| failure) {
-                    row = row
-                        .child(
-                            div()
-                                .text_size(px(9.))
-                                .child(format!("{} · {}", reason.code, reason.reason)),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(9.))
-                                .text_color(p.neutral)
-                                .child(reason.suggestion.clone()),
-                        );
-                }
-                let actions = if failure {
-                    div()
-                        .flex()
-                        .gap(px(5.))
-                        .child(self.row_action(
-                            format!("retry-{id}"),
-                            "重试",
-                            false,
-                            cx,
-                            move |this, cx| {
-                                let now = this.now();
-                                if let Some(ui) = &mut this.downloads {
-                                    ui.send(QueueCommand::Retry(id), now);
-                                }
-                                cx.notify();
-                            },
-                        ))
-                        .child(self.row_action(
-                            format!("copy-{id}"),
-                            "复制诊断",
-                            false,
-                            cx,
-                            move |this, cx| {
-                                let now = this.now();
-                                if let Some(ui) = &mut this.downloads {
-                                    ui.send(QueueCommand::CopyDiagnostic(id), now);
-                                }
-                                cx.notify();
-                            },
-                        ))
-                } else if unresolved {
-                    div()
-                        .text_size(px(9.))
-                        .text_color(p.neutral)
-                        .child("暂不能继续或安全退出")
+                let preparation_wait = snapshot.and_then(|s| preparation_wait_label(&job.phase, s));
+                let fraction = if success {
+                    Some(1.)
+                } else if job.phase == JobPhase::Downloading {
+                    presentation_fraction(job.transfer_progress.as_ref(), transfer_now)
                 } else {
-                    div()
-                        .flex()
-                        .gap(px(5.))
-                        .child(self.row_action(
-                            format!("cancel-{id}"),
-                            "取消",
-                            true,
-                            cx,
-                            move |this, cx| {
-                                let now = this.now();
-                                if let Some(ui) = &mut this.downloads {
-                                    ui.send(QueueCommand::Cancel(id), now);
-                                }
-                                cx.notify();
-                            },
-                        ))
-                        .when(held, |actions| {
-                            actions.child(self.row_action(
-                                format!("cleanup-{id}"),
-                                "重试清理",
-                                false,
-                                cx,
-                                move |this, cx| {
-                                    let now = this.now();
-                                    if let Some(ui) = &mut this.downloads {
-                                        ui.send(QueueCommand::RetryCleanup(cleanup_job), now);
-                                    }
-                                    cx.notify();
-                                },
-                            ))
-                        })
+                    None
                 };
-                row.child(actions)
+                let color = if failure || preparation_wait.is_some() {
+                    p.red
+                } else if success {
+                    p.green
+                } else if !job.slot_owned || held {
+                    p.neutral
+                } else {
+                    p.blue
+                };
+                let title = ui.row_title(job, now);
+                // Hints replace only text in a fixed slot; the fill still uses current snapshot facts.
+                // Actual command outcomes remain in the separate first-line title viewport.
+                let row_status = ui.row_action_label(id, focused, now).map(str::to_owned)
+                    .unwrap_or_else(|| queue_row_status(job, snapshot.unwrap(), fraction, transfer_now));
+                let icons = queue_row_icons(job, preparation_held);
+                let title_width = queue_title_width(icons.len());
+                let mut first_line = div().h(px(24.)).w_full().flex_none().flex().items_center().gap(px(QUEUE_LINE_GAP))
+                    .child(self.queue_title(id, title, title_width, window, cx));
+                if !icons.is_empty() {
+                    let mut actions = div().w(px(queue_action_width(icons.len()))).flex_none().flex().items_center().gap(px(QUEUE_ICON_GAP));
+                    for &icon in icons {
+                        actions = actions.child(self.queue_icon(id, icon, true, cx));
+                    }
+                    first_line = first_line.child(actions);
+                }
+                div()
+                    .id(SharedString::from(format!("job-{id}")))
+                    .h(px(QUEUE_ROW_HEIGHT)).min_h(px(QUEUE_ROW_HEIGHT)).flex_shrink_0()
+                    .w_full().flex().flex_col().justify_center().gap(px(QUEUE_LINE_GAP))
+                    .border_b_1().border_color(p.border)
+                    .hover(move |s| s.bg(p.badge.opacity(0.45)))
+                    .child(first_line)
+                    .child(div().h(px(14.)).w_full().flex_none().flex().items_center().gap(px(QUEUE_LINE_GAP))
+                        .child(div().h(px(3.)).w(px(QUEUE_TRACK_WIDTH)).flex_none().rounded(px(2.)).bg(p.border.opacity(0.7))
+                            .when_some(fraction, |track, f| track.child(div().h_full().w(relative(f)).rounded(px(2.)).bg(color))))
+                        .child(div().h(px(14.)).w(px(QUEUE_STATUS_WIDTH)).flex_none().truncate()
+                            .text_right()
+                            .text_size(px(8.)).line_height(px(14.)).font_weight(FontWeight::NORMAL)
+                            .text_color(color)
+                            .child(row_status)))
+
             })
             .collect();
         let empty = rows.is_empty();
@@ -1149,7 +1568,7 @@ impl Prototype {
             .absolute()
             .left(px(g.gutter + 10.))
             .top(px(g.gutter + 10.))
-            .w(px(180.))
+            .w(px(QUEUE_CONTENT_WIDTH))
             .h(px(180.))
             .bg(p.surface)
             .text_color(p.neutral)
@@ -1163,9 +1582,9 @@ impl Prototype {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .text_size(px(11.))
+                    .text_size(px(10.))
                     .font_weight(FontWeight::MEDIUM)
-                    .child("下载队列")
+                    .child(if ui.fixture { "队列 · Fixture" } else { "下载队列" })
                     .child(self.row_action(
                         "queue-back".into(),
                         "返回",
@@ -1174,6 +1593,8 @@ impl Prototype {
                         |this, cx| {
                             if let Some(ui) = &mut this.downloads {
                                 ui.queue_open = false;
+                    ui.title_browse = None;
+                                ui.presentation.close_queue();
                             }
                             this.close_menu(cx);
                         },
@@ -1181,15 +1602,26 @@ impl Prototype {
             )
             .child(
                 div()
+                    .h(px(16.))
+                    .text_size(px(9.))
+                    .child(format!("执行 {executing} · 等待 {waiting}")),
+            )
+            .child(
+                div()
                     .id("download-queue-scroll")
                     .h(px(140.))
                     .overflow_y_scroll()
+                    .track_scroll(&ui.queue_scroll)
+                    .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                        if let Some(ui) = &mut this.downloads { ui.title_browse = None; }
+                        cx.notify();
+                    }))
                     .when(empty, |list| {
                         list.child(
                             div()
                                 .pt(px(20.))
                                 .text_size(px(10.))
-                                .child("队列为空，Ctrl+V 粘贴视频链接"),
+                                .child(if ui.fixture { "Fixture · 0–9 切换预览" } else { "队列为空，Ctrl+V 粘贴视频链接" }),
                         )
                     })
                     .children(rows),
@@ -1527,6 +1959,7 @@ impl Prototype {
                     .or_else(|| ui.startup_error.clone())
             })
             .unwrap_or_else(|| {
+                if ui.is_some_and(|ui| ui.fixture) { return "Fixture · 0–9 状态 · Q 队列".into(); }
                 if ui.is_some_and(|ui| {
                     ui.snapshot
                         .as_ref()
@@ -1577,6 +2010,508 @@ fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: boo
 }
 #[cfg(test)]
 mod tests {
+    fn row_ui(phase: super::JobPhase, slot: bool) -> (super::DownloadUi, super::Receiver<super::QueueCommand>) {
+        use super::*;
+        let (commands, receiver) = mpsc::sync_channel(8);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.queue_open = true;
+        ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(5, phase, slot.then_some(5), None)])));
+        (ui, receiver)
+    }
+    #[test]
+    fn title_browse_is_overflow_only_delayed_slow_bounded_and_has_no_idle_loop() {
+        use super::*;
+        let job = crate::queue_fixture::job(5, JobPhase::Failure, Some(5), None);
+        assert!(TitleBrowse::new(&job, "短标题".into(), 40., 100., 100, 0.).is_none());
+        assert!(TitleBrowse::new(&job, "fits".into(), 100., 100., 100, 0.).is_none());
+        let browse = TitleBrowse::new(&job, "long".into(), 128., 100., 100, 0.).unwrap();
+        assert_eq!(browse.offset(799), 0.);
+        assert_eq!(browse.delay(100), Some(700));
+        assert_eq!(browse.delay(800), Some(16));
+        assert!((browse.offset(1800) - 14.).abs() < 0.001);
+        assert_eq!(browse.offset(2800), 28.);
+        assert_eq!(browse.offset(99999), 28.);
+        assert_eq!(browse.delay(2800), None);
+    }
+    #[test]
+    fn title_browse_retires_on_motion_preference_scroll_close_removal_and_content_replacement() {
+        use super::*;
+        for reason in 0..5 {
+            let (mut ui, _) = row_ui(JobPhase::Failure, false);
+            let title = ui.snapshot.as_ref().unwrap().jobs[0].title.clone();
+            ui.title_browse = TitleBrowse::new(&ui.snapshot.as_ref().unwrap().jobs[0], title, 200., 100., 0, 0.);
+            match reason {
+                0 => { ui.queue_animation_delay(800, true); }
+                1 => { ui.queue_scroll.set_offset(point(px(0.), px(-1.))); ui.queue_animation_delay(800, false); }
+                2 => { ui.queue_open = false; ui.queue_animation_delay(800, false); }
+                3 => { ui.presentation.clear(5); ui.sync_queue_rows(800); }
+                _ => { Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].title = "changed".into(); ui.sync_queue_rows(800); }
+            }
+            assert!(ui.title_browse.is_none(), "stale title after lifecycle case {reason}");
+            assert_eq!(ui.queue_animation_delay(900, false), None);
+        }
+    }
+    #[test]
+    fn first_line_gives_title_only_actual_action_space_and_second_line_keeps_a_track() {
+        use super::*;
+        for (phase, expected_icons, expected_title) in [
+            (JobPhase::Success, 0, 180.), (JobPhase::Downloading, 1, 152.),
+            (JobPhase::Held, 2, 126.), (JobPhase::Failure, 3, 100.),
+        ] {
+            let job = crate::queue_fixture::job(5, phase, Some(5), None);
+            let count = queue_row_icons(&job, false).len();
+            assert_eq!(count, expected_icons);
+            assert_eq!(queue_title_width(count), expected_title);
+            assert_eq!(queue_title_width(count) + queue_action_width(count)
+                + if count > 0 { QUEUE_LINE_GAP } else { 0. }, 180.);
+            // A 128px shaped title overflows a Failure, but fits Downloading and Success.
+            let browse = TitleBrowse::new(&job, "same title".into(), 128., expected_title, 0, 0.);
+            assert_eq!(browse.is_some(), expected_title < 128.);
+        }
+        assert_eq!(QUEUE_TRACK_WIDTH, 122.);
+        assert_eq!(QUEUE_STATUS_WIDTH, 54.);
+        assert_eq!(QUEUE_TRACK_WIDTH + QUEUE_LINE_GAP + QUEUE_STATUS_WIDTH, 180.);
+    }
+    #[test]
+    fn enabled_action_labels_follow_hover_and_focus_without_sending_commands() {
+        use super::*;
+        for (phase, icons) in [(JobPhase::Failure, vec![QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear]),
+            (JobPhase::Downloading, vec![QueueIcon::Cancel]), (JobPhase::Held, vec![QueueIcon::Cancel, QueueIcon::Cleanup])] {
+            let (mut ui, receiver) = row_ui(phase, true);
+            for icon in icons {
+                let action = QueueActionHint::new(&ui.snapshot.as_ref().unwrap().jobs[0], icon);
+                ui.hover_action(&action, true, 100);
+                assert_eq!(ui.row_action_label(5, None, 100), Some(icon.label()));
+                ui.hover_action(&action, false, 101);
+                assert_eq!(ui.row_action_label(5, None, 101), None);
+                assert_eq!(ui.row_action_label(5, Some(&action), 101), Some(icon.label()));
+                assert_eq!(ui.row_action_label(5, None, 102), None, "blur restores genuine state");
+                assert_eq!(QUEUE_TRACK_WIDTH + QUEUE_LINE_GAP + QUEUE_STATUS_WIDTH, 180.);
+            }
+            assert!(receiver.try_recv().is_err());
+        }
+    }
+    #[test]
+    fn hover_takes_precedence_over_focus_and_leaving_restores_current_progress() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Failure, true);
+        let job = &ui.snapshot.as_ref().unwrap().jobs[0];
+        let retry = QueueActionHint::new(job, QueueIcon::Retry);
+        let copy = QueueActionHint::new(job, QueueIcon::Copy);
+        ui.hover_action(&copy, true, 100);
+        assert_eq!(ui.row_action_label(5, Some(&retry), 100), Some("复制诊断"));
+        ui.hover_action(&retry, false, 101);
+        assert_eq!(ui.row_action_label(5, Some(&retry), 101), Some("复制诊断"));
+        ui.hover_action(&copy, false, 102);
+        assert_eq!(ui.row_action_label(5, Some(&retry), 102), Some("重试"));
+        assert_eq!(ui.row_action_label(5, None, 103), None);
+        let (mut ui, _) = row_ui(JobPhase::Downloading, true);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0] = crate::queue_fixture::job(5, JobPhase::Downloading, Some(5), Some(0.34));
+        let job = &ui.snapshot.as_ref().unwrap().jobs[0];
+        let at = job.transfer_progress.as_ref().unwrap().observed_at_ms;
+        let cancel = QueueActionHint::new(job, QueueIcon::Cancel);
+        ui.hover_action(&cancel, true, 100);
+        let sample = Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].transfer_progress.as_mut().unwrap();
+        sample.fraction = Some(0.61);
+        sample.bytes_per_second = Some(2_500_000.);
+        ui.sync_queue_rows(101);
+        assert_eq!(ui.row_action_label(5, None, 101), Some("取消"));
+        let s = ui.snapshot.as_ref().unwrap();
+        let fraction = presentation_fraction(s.jobs[0].transfer_progress.as_ref(), at);
+        assert_eq!(fraction, Some(0.61), "authoritative fill updates behind the hint");
+        assert!(QUEUE_TRACK_WIDTH * fraction.unwrap() > QUEUE_TRACK_WIDTH * 0.34);
+        ui.hover_action(&cancel, false, 102);
+        assert_eq!(ui.row_action_label(5, None, 102), None);
+        let s = ui.snapshot.as_ref().unwrap();
+        assert_eq!(queue_row_status(&s.jobs[0], s, fraction, at), "61% 2.5MB/s");
+    }
+    #[test]
+    fn stale_or_disabled_action_intents_never_leak_to_replaced_or_reopened_rows() {
+        use super::*;
+        for reason in 0..7 {
+            let (mut ui, _) = row_ui(JobPhase::Failure, true);
+            let action = QueueActionHint::new(&ui.snapshot.as_ref().unwrap().jobs[0], QueueIcon::Copy);
+            ui.hover_action(&action, true, 100);
+            match reason {
+                0 => ui.queue_open = false,
+                1 => Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].phase = JobPhase::Downloading,
+                2 => Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt += 1,
+                3 => Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].slot_owned = true,
+                4 => { ui.retry_pending.insert(5); }
+                5 => ui.presentation.clear(5),
+                _ => Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].job_id = 6,
+            }
+            ui.sync_queue_rows(101);
+            assert!(ui.hovered_action.is_none(), "stale hover reason {reason}");
+            assert_eq!(ui.row_action_label(5, Some(&action), 101), None);
+            ui.hover_action(&action, true, 102);
+            assert!(ui.hovered_action.is_none());
+            if reason == 0 {
+                ui.queue_open = true;
+                assert_eq!(ui.row_action_label(5, None, 103), None);
+            }
+        }
+        let (mut ui, _) = row_ui(JobPhase::Held, false);
+        let action = QueueActionHint::new(&ui.snapshot.as_ref().unwrap().jobs[0], QueueIcon::Cleanup);
+        ui.hover_action(&action, true, 100);
+        assert_eq!(ui.row_action_label(5, Some(&action), 100), None);
+    }
+    #[test]
+    fn title_browse_retires_when_action_width_phase_or_attempt_changes() {
+        use super::*;
+        for reason in 0..3 {
+            let (mut ui, _) = row_ui(JobPhase::Held, true);
+            let job = &ui.snapshot.as_ref().unwrap().jobs[0];
+            ui.title_browse = TitleBrowse::new(job, job.title.clone(), 250., 126., 0, 0.);
+            let job = &mut Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0];
+            match reason {
+                0 => job.slot_owned = false, // Two actions become one, without a phase change.
+                1 => job.phase = JobPhase::Downloading,
+                _ => job.attempt += 1,
+            }
+            ui.sync_queue_rows(800);
+            assert!(ui.title_browse.is_none());
+            assert_eq!(ui.queue_animation_delay(800, false), None);
+        }
+    }
+    #[test]
+    fn compact_progress_status_keeps_integer_percent_and_only_live_video_rate() {
+        use super::*;
+        use ameow_next::download::progress::TransferPhase;
+        let mut job = crate::queue_fixture::job(1, JobPhase::Downloading, Some(1), Some(0.46));
+        let now = job.transfer_progress.as_ref().unwrap().observed_at_ms;
+        assert_eq!(queue_progress_label(&job, presentation_fraction(job.transfer_progress.as_ref(), now), now), "46% 1.2MB/s");
+        job.transfer_progress.as_mut().unwrap().estimated_total_bytes = Some(100);
+        assert_eq!(queue_progress_label(&job, presentation_fraction(job.transfer_progress.as_ref(), now), now), "≈46% 1.2MB/s");
+        job.transfer_progress.as_mut().unwrap().bytes_per_second = None;
+        assert_eq!(queue_progress_label(&job, presentation_fraction(job.transfer_progress.as_ref(), now), now), "≈46%");
+        for (phase, label) in [(TransferPhase::Audio, "音频下载中"), (TransferPhase::Processing, "处理中")] {
+            job.transfer_progress.as_mut().unwrap().phase = phase;
+            assert_eq!(queue_progress_label(&job, presentation_fraction(job.transfer_progress.as_ref(), now), now), label);
+        }
+        job.transfer_progress.as_mut().unwrap().phase = TransferPhase::Primary;
+        assert_eq!(queue_progress_label(&job, presentation_fraction(job.transfer_progress.as_ref(), now + 2000), now + 2000), "下载中");
+        job.phase = JobPhase::Queued;
+        assert_eq!(queue_progress_label(&job, None, now), "等待下载");
+        job.phase = JobPhase::Success;
+        assert_eq!(queue_progress_label(&job, Some(1.), now), "下载完成");
+    }
+    #[test]
+    fn command_notice_preserves_live_second_line_and_restores_unbrowsed_title_at_deadline() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Downloading, true);
+        let snapshot = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+        snapshot.jobs[0] = crate::queue_fixture::job(5, JobPhase::Downloading, Some(5), Some(0.34));
+        let job = &snapshot.jobs[0];
+        let transfer_now = job.transfer_progress.as_ref().unwrap().observed_at_ms;
+        let title = job.title.clone();
+        ui.title_browse = TitleBrowse::new(job, title.clone(), 250., 152., 0, 0.);
+        let status = |ui: &DownloadUi, at| {
+            let s = ui.snapshot.as_ref().unwrap();
+            let j = &s.jobs[0];
+            queue_row_status(j, s, presentation_fraction(j.transfer_progress.as_ref(), at), at)
+        };
+        assert_eq!(status(&ui, transfer_now), "34% 1.2MB/s");
+        ui.complete_row_command(5, false, &CommandReply::Applied(false), 100);
+        assert!(ui.title_browse.is_none());
+        assert_eq!(ui.row_title(&ui.snapshot.as_ref().unwrap().jobs[0], 100), "取消未受理，请重试");
+        assert_eq!(status(&ui, transfer_now), "34% 1.2MB/s");
+        let sample = Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].transfer_progress.as_mut().unwrap();
+        sample.fraction = Some(0.61);
+        sample.bytes_per_second = Some(2_500_000.);
+        assert_eq!(status(&ui, transfer_now), "61% 2.5MB/s");
+        assert_eq!(ui.row_title(&ui.snapshot.as_ref().unwrap().jobs[0], 5099), "取消未受理，请重试");
+        assert_eq!(ui.row_title(&ui.snapshot.as_ref().unwrap().jobs[0], 5100), title);
+        assert_eq!(ui.queue_animation_delay(5100, false), None);
+        // Genuine freshness and phase changes remain visible during and after a notice.
+        assert_eq!(status(&ui, transfer_now + 2000), "下载中");
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].phase = JobPhase::Validating;
+        assert_eq!(status(&ui, transfer_now), "校验媒体");
+    }
+    #[test]
+    fn failure_status_is_friendly_and_notices_keep_diagnostic_authority() {
+        use super::*;
+        use ameow_next::download::diagnostics::{Failure, FailureCode};
+        let (mut ui, _) = row_ui(JobPhase::Failure, false);
+        for code in [FailureCode::Media, FailureCode::Runtime, FailureCode::Storage, FailureCode::Unknown] {
+            let s = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+            s.jobs[0].failure = Some(Failure::new(code, "verify"));
+            let failure = s.jobs[0].failure.clone();
+            assert_eq!(queue_row_status(&s.jobs[0], s, None, 100), "下载失败");
+            assert_eq!(queue_row_icons(&s.jobs[0], false), &[QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear]);
+            for result in [Err("OS clipboard busy".into()), Ok(())] {
+                let success = result.is_ok();
+                assert_eq!(ui.complete_diagnostic(5, result, 100), success);
+                let s = ui.snapshot.as_ref().unwrap();
+                assert_eq!(queue_row_status(&s.jobs[0], s, None, 100), "下载失败");
+                assert_eq!(ui.row_title(&s.jobs[0], 100), if success { "诊断已复制" } else { "复制失败，请重试" });
+                assert_eq!(s.jobs[0].failure, failure);
+            }
+        }
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].failure = None;
+        let s = ui.snapshot.as_ref().unwrap();
+        assert_eq!(queue_row_status(&s.jobs[0], s, None, 100), "下载失败");
+    }
+    #[test]
+    fn retry_results_and_shared_cleanup_refusal_are_visible_on_current_rows() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Failure, false);
+        ui.complete_retry(5, &CommandReply::Error("E_RETRY".into()), 100);
+        let old = &ui.snapshot.as_ref().unwrap().jobs[0];
+        assert_eq!(ui.row_title(old, 100), "重试未受理");
+        assert!(ui.presentation.visible(old, 100));
+        let new = crate::queue_fixture::job(6, JobPhase::Queued, None, None);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs.push(new.clone());
+        ui.complete_retry(5, &CommandReply::Accepted(6), 101);
+        assert!(!ui.presentation.visible(&ui.snapshot.as_ref().unwrap().jobs[0], 101));
+        assert_eq!(ui.row_title(&new, 101), "已加入下载队列");
+        assert_eq!(queue_row_status(&new, ui.snapshot.as_ref().unwrap(), None, 101), "等待下载");
+        assert_eq!(ui.row_title(&new, 5101), new.title);
+        let (mut ui, receiver) = row_ui(JobPhase::Held, false);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).preparation_held = true;
+        ui.complete_row_command(0, true, &CommandReply::Applied(false), 100);
+        assert_eq!(ui.row_title(&ui.snapshot.as_ref().unwrap().jobs[0], 100), "清理未受理，请重试");
+        drop(receiver);
+        assert!(!ui.send(QueueCommand::RetryCleanup(0), 200));
+        assert_eq!(ui.row_notice(5, 200), Some("清理未受理，请重试"));
+    }
+    #[test]
+    fn direct_retry_blocks_duplicates_and_retires_only_after_accept_even_when_queue_closed() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        ui.activate_row_action(5, QueueIcon::Retry, 100);
+        ui.activate_row_action(5, QueueIcon::Retry, 101);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Retry(5))));
+        assert!(receiver.try_recv().is_err());
+        assert_eq!(ui.badge(), Some((1, true, false)));
+        ui.complete_retry(5, &CommandReply::Error("refused".into()), 102);
+        assert!(ui.row_action_allowed(5, QueueIcon::Retry, 102));
+        assert_eq!(ui.badge(), Some((1, true, false)));
+        assert_eq!(ui.row_notice(5, 102), Some("重试未受理"));
+        ui.activate_row_action(5, QueueIcon::Retry, 103);
+        ui.queue_open = false;
+        ui.complete_retry(5, &CommandReply::Accepted(6), 104);
+        assert_eq!(ui.badge(), None);
+        assert!(!ui.presentation.visible(&ui.snapshot.as_ref().unwrap().jobs[0], 104));
+        assert_eq!(ui.snapshot.as_ref().unwrap().jobs[0].phase, JobPhase::Failure);
+    }
+    #[test]
+    fn refused_command_transport_keeps_failure_visible_and_actions_retryable() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        for _ in 0..8 { ui.commands.try_send(QueueCommand::Cancel(99)).unwrap(); }
+        ui.activate_row_action(5, QueueIcon::Retry, 100);
+        assert_eq!(ui.row_notice(5, 100), Some("操作未受理，请重试"));
+        assert!(ui.row_action_allowed(5, QueueIcon::Retry, 100));
+        assert_eq!(ui.badge(), Some((1, true, false)));
+        while receiver.try_recv().is_ok() {}
+        ui.activate_row_action(5, QueueIcon::Retry, 101);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Retry(5))));
+        assert!(!ui.row_action_allowed(5, QueueIcon::Retry, 101));
+        ui.complete_retry(5, &CommandReply::Error("refused".into()), 102);
+        drop(receiver);
+        ui.activate_row_action(5, QueueIcon::Retry, 103);
+        assert_eq!(ui.row_notice(5, 103), Some("操作未受理，请重试"));
+        assert!(ui.row_action_allowed(5, QueueIcon::Retry, 103));
+        assert_eq!(ui.badge(), Some((1, true, false)));
+        ui.activate_row_action(5, QueueIcon::Copy, 104);
+        assert_ne!(ui.row_notice(5, 104), Some("诊断已复制"));
+        ui.activate_row_action(5, QueueIcon::Clear, 105);
+        assert_eq!(ui.badge(), None);
+        assert!(ui.snapshot.as_ref().unwrap().jobs[0].failure.is_some());
+    }
+    #[test]
+    fn shared_owner_loss_preserves_independent_live_attempt_cleanup() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Held, true);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).preparation_owner_lost = true;
+        ui.activate_row_action(5, QueueIcon::Cleanup, 100);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::RetryCleanup(5))));
+        ui.activate_row_action(5, QueueIcon::Cancel, 101);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Cancel(5))));
+    }
+    #[test]
+    fn copy_acknowledges_real_result_and_clear_only_changes_session_presentation() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        ui.activate_row_action(5, QueueIcon::Copy, 100);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::CopyDiagnostic(5))));
+        assert_eq!(ui.row_notice(5, 100), None);
+        assert!(!ui.complete_diagnostic(5, Err("OS clipboard busy".into()), 101));
+        assert_eq!(ui.row_notice(5, 101), Some("复制失败，请重试"));
+        assert!(ui.complete_diagnostic(5, Ok(()), 102));
+        assert_eq!(ui.row_notice(5, 102), Some("诊断已复制"));
+        ui.activate_row_action(5, QueueIcon::Clear, 103);
+        assert_eq!(ui.badge(), None);
+        assert!(ui.snapshot.as_ref().unwrap().jobs[0].failure.is_some());
+        assert!(receiver.try_recv().is_err(), "Clear must never send a backend/file command");
+        ui.activate_row_action(5, QueueIcon::Retry, 104);
+        assert!(receiver.try_recv().is_err(), "stale removed-row events have no authority");
+    }
+    #[test]
+    fn held_and_owner_lost_rows_keep_cleanup_and_cancel_permissions() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Held, true);
+        for icon in [QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear] {
+            ui.activate_row_action(5, icon, 100);
+        }
+        assert!(receiver.try_recv().is_err());
+        ui.activate_row_action(5, QueueIcon::Cleanup, 101);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::RetryCleanup(5))));
+        let s = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+        s.jobs[0].slot_owned = false;
+        s.preparation_held = true;
+        ui.activate_row_action(5, QueueIcon::Cleanup, 102);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::RetryCleanup(0))));
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).preparation_owner_lost = true;
+        ui.activate_row_action(5, QueueIcon::Cleanup, 103);
+        ui.activate_row_action(5, QueueIcon::Cancel, 103);
+        assert!(receiver.try_recv().is_err());
+        ui.queue_open = false;
+        assert!(!ui.row_action_allowed(5, QueueIcon::Cleanup, 104));
+    }
+    #[test]
+    fn fixture_refuses_real_submit_and_persistence_before_transport() {
+        use super::*;
+        let (commands, receiver) = mpsc::sync_channel(8);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.fixture = true;
+        for command in [QueueCommand::Submit { url: "https://youtu.be/jNQXAC9IVRw".into() },
+            QueueCommand::SaveSettings(Settings { quality: Quality::Balanced, output_dir: PathBuf::new() }),
+            QueueCommand::RetryPreparation] {
+            assert!(!ui.send(command, 100));
+            assert!(receiver.try_recv().is_err());
+        }
+        assert!(ui.send(QueueCommand::Cancel(3), 100));
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Cancel(3))));
+        assert!(!ui.preview_key("8"), "ordinary production transport has no numeric scene keys");
+    }
+    #[test]
+    fn primary_estimate_correction_tweens_to_new_fact_and_audio_hides_numeric_progress() {
+        use super::*;
+        use ameow_next::download::progress::TransferPhase;
+        let (commands, _) = mpsc::sync_channel(1);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        let mut model = crate::model::Model::new(0, false);
+        let mut indicator = indicator::Indicator::default();
+        let mut s = crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(3, JobPhase::Downloading, Some(3), Some(0.8))]);
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 0);
+        assert_eq!(model.progress.sample(1000), 0.8);
+        let sample = s.jobs[0].transfer_progress.as_mut().unwrap();
+        sample.fraction = Some(0.4);
+        sample.exact_total_bytes = None;
+        sample.estimated_total_bytes = Some(200);
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 1000);
+        assert_eq!(model.progress.sample(1000), 0.8);
+        assert!(model.progress.sample(1110) < 0.8 && model.progress.sample(1110) > 0.4);
+        assert_eq!(model.progress.sample(1220), 0.4);
+        let sample = s.jobs[0].transfer_progress.as_mut().unwrap();
+        assert!(transfer_label(Some(sample), sample.observed_at_ms).contains("估算"));
+        sample.phase = TransferPhase::Audio;
+        assert_eq!(presentation_fraction(Some(sample), sample.observed_at_ms), None);
+        assert_eq!(transfer_label(Some(sample), sample.observed_at_ms), "音频下载中");
+        sample.phase = TransferPhase::Processing;
+        assert_eq!(presentation_fraction(Some(sample), sample.observed_at_ms), None);
+        assert_eq!(transfer_label(Some(sample), sample.observed_at_ms), "处理中");
+        ui.snapshot = Some(Arc::new(s));
+        ui.present(&mut model, &mut indicator, 1300);
+        assert_eq!(ui.selected_fraction, None);
+        assert_eq!(model.stage, Stage::Downloading);
+    }
+    #[test]
+    fn retiring_rows_preserves_visible_anchor_and_partial_row_offset() {
+        use super::anchored_queue_offset;
+        assert_eq!(anchored_queue_offset(&[1,2,3,4,5,6,7], &[2,3,4,5,6,7], -260.), -204.);
+        assert_eq!(anchored_queue_offset(&[1,2,3,4], &[1,2,3], -70.), -70.);
+        assert_eq!(anchored_queue_offset(&[1,2,3,4], &[1,3,4], -70.), -14.);
+        assert_eq!(anchored_queue_offset(&[1,2,3], &[2,3], 0.), 0.);
+    }
+    #[test]
+    fn rejected_row_commands_show_feedback_without_retiring_failure() {
+        use super::*;
+        for disconnected in [false, true] {
+            for command in [QueueCommand::Retry(5), QueueCommand::CopyDiagnostic(5),
+                QueueCommand::Cancel(5), QueueCommand::RetryCleanup(5)] {
+                let (commands, receiver) = mpsc::sync_channel(1);
+                commands.try_send(QueueCommand::Cancel(9)).unwrap();
+                let receiver = if disconnected { None } else { Some(receiver) };
+                let (evidence, _) = mpsc::sync_channel(1);
+                let (_, replies) = mpsc::channel();
+                let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+                ui.queue_open = true;
+                let failed = crate::queue_fixture::job(5, JobPhase::Failure, Some(5), None);
+                ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(vec![failed.clone()])));
+                let expected = match &command {
+                    QueueCommand::Cancel(_) => "取消未受理，请重试",
+                    QueueCommand::RetryCleanup(_) => "清理未受理，请重试",
+                    _ => "操作未受理，请重试",
+                };
+                assert!(!ui.send(command, 100));
+                assert_eq!(ui.row_notice(5, 100), Some(expected));
+                assert_eq!(ui.row_notice(5, 5099), Some(expected));
+                assert_eq!(ui.row_notice(5, 5100), None);
+                assert!(ui.presentation.visible(&failed, 100));
+                assert_eq!(ui.badge(), Some((1, true, false)));
+                drop(receiver);
+            }
+        }
+    }
+    #[test]
+    fn production_ring_projection_preserves_known_progress_across_unknown_and_processing() {
+        use super::*;
+        let (commands, _) = mpsc::sync_channel(1);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui =
+            DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        let mut model = crate::model::Model::new(0, false);
+        let mut indicator = indicator::Indicator::default();
+        let mut s = crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(
+            3,
+            JobPhase::Downloading,
+            Some(3),
+            Some(0.6),
+        )]);
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 0);
+        assert_eq!(ui.selected_fraction, Some(0.6));
+        assert_eq!(model.progress.sample(1000), 0.6);
+        s.jobs[0].transfer_progress = None;
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 1000);
+        assert_eq!(ui.selected_fraction, None);
+        assert_eq!(model.progress.sample(1000), 0.6);
+        s.jobs[0] = crate::queue_fixture::job(3, JobPhase::Downloading, Some(3), Some(0.8));
+        ui.snapshot = Some(Arc::new(s.clone()));
+        ui.present(&mut model, &mut indicator, 1100);
+        assert_eq!(ui.selected_fraction, Some(0.8));
+        assert_eq!(model.progress.sample(1100), 0.6);
+        assert!(model.progress.sample(1210) > 0.6);
+        assert_eq!(model.progress.sample(1320), 0.8);
+        for phase in [JobPhase::Validating, JobPhase::Publishing, JobPhase::Held] {
+            s.jobs[0].phase = phase;
+            ui.snapshot = Some(Arc::new(s.clone()));
+            ui.present(&mut model, &mut indicator, 1400);
+            assert_eq!(ui.selected_fraction, None);
+            assert_eq!(model.stage, Stage::Downloading);
+        }
+        s.jobs[0] = crate::queue_fixture::job(3, JobPhase::Success, Some(3), None);
+        ui.snapshot = Some(Arc::new(s));
+        ui.present(&mut model, &mut indicator, 1500);
+        assert_eq!(model.stage, Stage::Success);
+        // Repeated production polls must not restart the terminal retention.
+        ui.present(&mut model, &mut indicator, 2900);
+        ui.present(&mut model, &mut indicator, 3000);
+        assert_eq!(model.stage, Stage::Idle);
+    }
     use super::badge_counts;
     use super::{ExitAction, ExitIntent, cleanup_targets, exit_cleanup_message};
     use ameow_next::download::{
@@ -1663,6 +2598,34 @@ mod tests {
             Some("正在等待组件清理"));
     }
     #[test]
+    fn concise_queue_safety_status_preserves_preparation_failure_and_uncertain_cleanup() {
+        use super::*;
+        let mut snapshot = exit_snapshot();
+        let mut job = crate::queue_fixture::job(5, JobPhase::Preparing, None, None);
+        snapshot.preparation.phase = PreparationPhase::Preparing;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "准备下载组件");
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "组件准备失败");
+        // Failure is shared preparation failure, not a media terminal or implicit retry grant.
+        assert_eq!(job.phase, JobPhase::Preparing);
+        assert!(!job.resources_released);
+        assert_eq!(preparation_wait_label(&job.phase, &snapshot).as_deref(), Some("组件准备失败，等待重试"));
+        snapshot.preparation_held = true;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "等待组件清理");
+        snapshot.preparation_owner_lost = true;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "清理未确认");
+        assert_eq!(preparation_wait_label(&job.phase, &snapshot).as_deref(), Some("准备异常，清理未确认"));
+        job.phase = JobPhase::Held;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "清理未确认");
+        job.slot_owned = true;
+        assert_eq!(queue_row_status(&job, &snapshot, None, 100), "清理待确认");
+        // Unrelated preparation owner loss does not replace a final media failure or its details.
+        let failed = crate::queue_fixture::job(6, JobPhase::Failure, Some(6), None);
+        let failure = failed.failure.clone();
+        assert_eq!(queue_row_status(&failed, &snapshot, None, 100), "下载失败");
+        assert_eq!(failed.failure, failure);
+    }
+    #[test]
     fn early_close_waits_for_idle_startup_then_requires_safe_stop() {
         let mut exit = ExitIntent::default();
         exit.request();
@@ -1719,6 +2682,7 @@ mod tests {
             fraction: None,
             observed_at_ms: 10,
             merging: false,
+            ..Default::default()
         };
         assert_eq!(super::transfer_label(Some(&sample), 10), "下载 1.2MB/s");
         assert_eq!(super::transfer_label(Some(&sample), 2010), "下载中");

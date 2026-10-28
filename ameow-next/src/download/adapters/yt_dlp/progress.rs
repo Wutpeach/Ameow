@@ -3,7 +3,34 @@ use serde_json::Value;
 
 pub const DOWNLOAD_TEMPLATE: &str = r#"download:AMEOW_PROGRESS={"status":%(progress.status)j,"format_id":%(info.format_id)j,"downloaded_bytes":%(progress.downloaded_bytes)j,"total_bytes":%(progress.total_bytes)j,"total_bytes_estimate":%(progress.total_bytes_estimate)j,"speed":%(progress.speed)j}"#;
 pub const PP_TEMPLATE: &str = r#"postprocess:AMEOW_PP={"postprocessor":%(progress.postprocessor)j,"status":%(progress.status)j}"#;
-use crate::download::progress::TransferProgress;
+use crate::download::progress::{TransferPhase, TransferProgress};
+use std::{fs::OpenOptions, io::Write, sync::mpsc};
+
+/// Explicit local diagnostic only. The callback never performs filesystem IO or waits.
+/// Stream ordinals replace private format IDs; only scalar progress facts leave the adapter.
+#[derive(Clone, Default)]
+pub(super) struct Timeline(Option<mpsc::SyncSender<serde_json::Value>>);
+impl Timeline {
+    pub(super) fn from_args() -> Self {
+        let args: Vec<_> = std::env::args().collect();
+        let Some(path) = args.windows(2).find(|p| p[0] == "--progress-timeline").map(|p| &p[1]) else {
+            return Self::default();
+        };
+        let Ok(mut file) = OpenOptions::new().write(true).create_new(true).open(path) else {
+            return Self::default();
+        };
+        let (sender, receiver) = mpsc::sync_channel::<serde_json::Value>(128);
+        let spawned = std::thread::Builder::new().name("sanitized-progress-timeline".into()).spawn(move || {
+            for event in receiver.iter().take(8192) {
+                if writeln!(file, "{event}").and_then(|_| file.flush()).is_err() { break; }
+            }
+        });
+        Self(spawned.ok().map(|_| sender))
+    }
+    fn record(&self, value: serde_json::Value) {
+        if let Some(sender) = &self.0 { let _ = sender.try_send(value); }
+    }
+}
 const MAX_LINE: usize = 2048;
 const MAX_BYTES: u64 = 1 << 53;
 #[derive(Default)]
@@ -55,6 +82,9 @@ struct Stream {
     total: Option<u64>,
     fragmented: bool,
     seen: bool,
+    video: bool,
+    audio: bool,
+    contradictory: bool,
 }
 pub struct ProgressFeed {
     frames: [Framer; 2],
@@ -62,6 +92,8 @@ pub struct ProgressFeed {
     latest: Option<TransferProgress>,
     last_publish: Option<u64>,
     postprocessing: bool,
+    primary: Option<usize>,
+    timeline: Timeline,
 }
 fn scalar_bytes(value: &Value) -> Option<u64> {
     value.as_u64().filter(|n| *n <= MAX_BYTES)
@@ -69,7 +101,9 @@ fn scalar_bytes(value: &Value) -> Option<u64> {
 impl ProgressFeed {
     pub fn selected(metadata: &Value) -> Self {
         let mut streams = Vec::new();
-        for selected in super::selection::chosen(metadata).into_iter().take(3) {
+        let selected_streams = super::selection::chosen(metadata);
+        let selected_count = selected_streams.len();
+        for selected in selected_streams.into_iter().take(3) {
             if let Some(id) = selected["format_id"]
                 .as_str()
                 .filter(|id| !id.is_empty() && id.len() <= 128)
@@ -87,10 +121,14 @@ impl ProgressFeed {
                     },
                     fragmented,
                     seen: false,
+                    video: selected["vcodec"].as_str().is_some_and(|c| c != "none"),
+                    audio: selected["vcodec"] == "none" && selected["acodec"].as_str().is_some_and(|c| c != "none"),
+                    contradictory: false,
                 });
             }
         }
-        if streams.len() > 2
+        if streams.len() != selected_count
+            || streams.len() > 2
             || streams
                 .iter()
                 .enumerate()
@@ -98,7 +136,13 @@ impl ProgressFeed {
         {
             streams.clear();
         }
+        let primary = if streams.len() == 1 { Some(0) } else {
+            let video: Vec<_> = streams.iter().enumerate().filter(|(_, s)| s.video).map(|(i, _)| i).collect();
+            (video.len() == 1).then(|| video[0])
+        };
         Self {
+            primary,
+            timeline: Timeline::default(),
             frames: Default::default(),
             streams,
             latest: None,
@@ -129,6 +173,9 @@ impl ProgressFeed {
                     },
                     fragmented,
                     seen: false,
+                    video: selected["vcodec"].as_str().is_some_and(|c| c != "none"),
+                    audio: selected["vcodec"] == "none" && selected["acodec"].as_str().is_some_and(|c| c != "none"),
+                    contradictory: false,
                 })
             })
             .collect();
@@ -139,13 +186,23 @@ impl ProgressFeed {
         {
             streams.clear();
         }
+        let primary = if streams.len() == 1 { Some(0) } else {
+            let video: Vec<_> = streams.iter().enumerate().filter(|(_, s)| s.video).map(|(i, _)| i).collect();
+            (video.len() == 1).then(|| video[0])
+        };
         Self {
+            primary,
+            timeline: Timeline::default(),
             frames: Default::default(),
             streams,
             latest: None,
             last_publish: None,
             postprocessing: false,
         }
+    }
+    pub(super) fn with_timeline(mut self, timeline: Timeline) -> Self {
+        self.timeline = timeline;
+        self
     }
     pub fn push(
         &mut self,
@@ -182,7 +239,10 @@ impl ProgressFeed {
                     fraction: None,
                     observed_at_ms: now,
                     merging: value["status"] == "started",
+                    phase: TransferPhase::Processing,
+                    estimated_total_bytes: None,
                 });
+                self.timeline.record(serde_json::json!({"observed_at_ms":now,"phase":"Processing","merging":value["status"] == "started","fraction":null}));
                 changed = true;
                 urgent = true;
             } else if let Some(raw) = line.strip_prefix(b"AMEOW_PROGRESS=") {
@@ -222,7 +282,10 @@ impl ProgressFeed {
                 let Some(id) = value["format_id"].as_str() else {
                     continue;
                 };
-                let Some(stream) = self.streams.iter_mut().find(|stream| stream.id == id) else {
+                let Some(index) = self.streams.iter().position(|stream| stream.id == id) else {
+                    continue;
+                };
+                let Some(stream) = self.streams.get_mut(index) else {
                     continue;
                 };
                 let speed = if value["speed"].is_null() {
@@ -253,34 +316,50 @@ impl ProgressFeed {
                 stream.seen = true;
                 if !stream.fragmented && status == "downloading" {
                     if stream.total.is_some() && total.is_some() && stream.total != total {
-                        stream.fragmented = true;
+                        stream.contradictory = true;
                         stream.total = None;
-                    } else if total.is_some() {
+                    } else if total.is_some() && !stream.contradictory {
                         stream.total = total;
                     }
                 }
-                let downloaded_bytes = self.streams.iter().map(|s| s.bytes).sum();
-                let exact_total_bytes = if self.streams.is_empty()
-                    || self
-                        .streams
-                        .iter()
-                        .any(|s| !s.seen || s.fragmented || s.total.is_none())
-                {
-                    None
-                } else {
-                    Some(self.streams.iter().filter_map(|s| s.total).sum())
-                };
-                let fraction = exact_total_bytes
-                    .filter(|total| *total > 0 && downloaded_bytes <= *total)
-                    .map(|total| (downloaded_bytes as f64 / total as f64) as f32);
+                if stream.total.is_some_and(|total| bytes > total) {
+                    stream.contradictory = true;
+                    stream.total = None;
+                }
+                let exact_total_bytes = (!stream.fragmented && !stream.contradictory)
+                    .then_some(stream.total).flatten();
+                let estimated_total_bytes = if exact_total_bytes.is_none() && !stream.contradictory {
+                    scalar_bytes(&value["total_bytes_estimate"]).filter(|total| *total > 0 && bytes <= *total)
+                } else { None };
+                let phase = if Some(index) == self.primary && status == "downloading" {
+                    TransferPhase::Primary
+                } else if stream.audio && status == "downloading" {
+                    TransferPhase::Audio
+                } else { TransferPhase::Processing };
+                let fraction = (phase == TransferPhase::Primary).then(|| {
+                    exact_total_bytes.or(estimated_total_bytes)
+                        .filter(|total| *total > 0 && bytes <= *total)
+                        .map(|total| (bytes as f64 / total as f64) as f32)
+                }).flatten();
+                urgent |= self.latest.as_ref().is_some_and(|last| last.phase != phase);
                 self.latest = Some(TransferProgress {
-                    downloaded_bytes,
+                    downloaded_bytes: bytes,
                     exact_total_bytes,
+                    estimated_total_bytes,
+                    phase,
                     bytes_per_second: if status == "downloading" { speed } else { None },
                     fraction,
                     observed_at_ms: now,
                     merging: false,
                 });
+                self.timeline.record(serde_json::json!({
+                    "stream":index,"primary_stream":self.primary,"observed_at_ms":now,
+                    "status":status,"downloaded_bytes":bytes,"total_bytes":total,
+                    "total_bytes_estimate":scalar_bytes(&value["total_bytes_estimate"]),
+                    "exact_total_bytes":exact_total_bytes,"estimated_total_bytes":estimated_total_bytes,
+                    "old_all_streams_exact":!self.streams.is_empty() && self.streams.iter().all(|s| s.seen && !s.fragmented && s.total.is_some()),
+                    "phase":phase,"fraction":fraction,"fresh_for_ms":crate::download::progress::MAX_AGE_MS
+                }));
                 changed = true;
                 urgent |= status == "finished";
             }
@@ -303,6 +382,16 @@ impl ProgressFeed {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn incomplete_selected_identity_never_promotes_audio_to_primary() {
+        for invalid_id in [Value::Null, json!(""), json!("x".repeat(129))] {
+            let mut parser = ProgressFeed::selected(&json!({"requested_formats":[
+                {"format_id":invalid_id,"protocol":"https","vcodec":"avc1","acodec":"none"},
+                {"format_id":"a","protocol":"https","vcodec":"none","acodec":"aac"}
+            ]}));
+            assert!(parser.push(true, 1, &record("downloading", "a", 25, json!(100), json!(5)), 0).is_none());
+        }
+    }
     fn feed(fragmented: bool) -> ProgressFeed {
         ProgressFeed::new(
             &json!({"formats":[{"format_id":"v","protocol": if fragmented {"m3u8_native"} else {"https"}}]}),
@@ -378,90 +467,51 @@ mod tests {
         assert_eq!(sample.speed_at(1401), None);
     }
     #[test]
-    fn exact_whole_multistream_fraction_needs_all_selected_and_consistent_totals() {
-        let metadata = json!({"formats":[{"format_id":"v","protocol":"https","filesize":100},{"format_id":"a","protocol":"https","filesize":50}]});
-        for selector in ["v+a", "v+missing", "v+v", "v+a+other"] {
-            let mut parser = ProgressFeed::new(&metadata, selector);
-            let sample = parser.push(
-                true,
-                1,
-                &record("downloading", "v", 50, json!(100), json!(5)),
-                0,
-            );
-            assert!(sample.is_none_or(|s| s.fraction.is_none()));
-        }
+    fn primary_video_has_progress_before_audio_and_never_claims_delivery() {
+        let metadata = json!({"formats":[{"format_id":"v","protocol":"https","filesize":100,"vcodec":"avc1","acodec":"none"},{"format_id":"a","protocol":"https","filesize":50,"vcodec":"none","acodec":"aac"}]});
         let mut parser = ProgressFeed::new(&metadata, "v+a");
-        parser.push(
-            true,
-            1,
-            &record("finished", "v", 100, json!(100), json!(55)),
-            0,
-        );
-        let sample = parser
-            .push(
-                true,
-                2,
-                &record("downloading", "a", 25, json!(50), json!(5)),
-                200,
-            )
-            .unwrap();
-        assert_eq!(sample.downloaded_bytes, 125);
-        assert_eq!(sample.exact_total_bytes, Some(150));
-        assert!(sample.fraction.unwrap() < 1.);
-        let sample = parser
-            .push(
-                true,
-                3,
-                &record("downloading", "a", 30, json!(60), json!(5)),
-                400,
-            )
-            .unwrap();
+        let sample = parser.push(true, 1, &record("downloading", "v", 25, json!(100), json!(5)), 0).unwrap();
+        assert_eq!(sample.fraction_at(0), Some(0.25));
+        assert_eq!(sample.exact_total_bytes, Some(100));
+        assert_eq!(sample.phase, TransferPhase::Primary);
+        assert_eq!(sample.fraction_at(2000), None);
+        let sample = parser.push(true, 2, &record("downloading", "v", 70, json!(100), json!(5)), 200).unwrap();
+        assert_eq!(sample.fraction, Some(0.7));
+        let sample = parser.push(true, 3, &record("finished", "v", 100, json!(100), json!(999)), 201).unwrap();
         assert_eq!(sample.fraction, None);
-        let sample = parser
-            .push(
-                true,
-                4,
-                &record("downloading", "a", 35, json!(50), json!(5)),
-                600,
-            )
-            .unwrap();
-        assert_eq!(sample.fraction, None);
+        assert_eq!(sample.phase, TransferPhase::Processing);
+        assert_eq!(sample.speed_at(201), None);
+        let sample = parser.push(true, 4, &record("downloading", "a", 25, json!(50), json!(5)), 202).unwrap();
+        assert_eq!(sample.phase, TransferPhase::Audio);
+        assert_eq!(sample.fraction_at(202), None);
+        assert_eq!(sample.downloaded_bytes, 25);
+        assert_eq!(sample.speed_at(202), Some(5.));
+        let mut parser = ProgressFeed::new(&metadata, "a+v");
+        let sample = parser.push(true, 1, &record("downloading", "v", 40, json!(100), json!(5)), 0).unwrap();
+        assert_eq!(sample.fraction, Some(0.4));
+        for selector in ["v+missing", "v+v", "v+a+other"] {
+            let mut parser = ProgressFeed::new(&metadata, selector);
+            assert!(parser.push(true, 1, &record("downloading", "v", 50, json!(100), json!(5)), 0).is_none());
+        }
+    }
+    #[test]
+    fn estimate_is_explicit_fresh_and_bounded_and_contradiction_stays_unknown() {
         let mut parser = feed(true);
-        parser.push(
-            true,
-            1,
-            &record("downloading", "v", 25, Value::Null, json!(5)),
-            0,
-        );
-        let sample = parser
-            .push(
-                true,
-                2,
-                &record("downloading", "v", 35, Value::Null, json!(5)),
-                200,
-            )
-            .unwrap();
-        assert_eq!(sample.downloaded_bytes, 35);
+        let sample = parser.push(true, 1, &record("downloading", "v", 90, Value::Null, json!(5)), 0).unwrap();
+        assert_eq!(sample.exact_total_bytes, None);
+        assert_eq!(sample.estimated_total_bytes, Some(900));
+        assert_eq!(sample.fraction, Some(0.1));
+        assert_eq!(sample.fraction_at(2000), None);
+        let sample = parser.push(true, 2, &record("downloading", "v", 901, Value::Null, json!(5)), 200).unwrap();
+        assert_eq!(sample.estimated_total_bytes, None);
         assert_eq!(sample.fraction, None);
-        let sample = parser
-            .push(
-                true,
-                3,
-                "AMEOW_PP={\"postprocessor\":\"Merger\",\"status\":\"started\"}\n",
-                201,
-            )
-            .unwrap();
-        assert!(sample.merging);
-        assert!(
-            parser
-                .push(
-                    false,
-                    1,
-                    &record("downloading", "v", 40, Value::Null, json!(5)),
-                    500
-                )
-                .is_none()
-        );
+        let mut parser = feed(false);
+        parser.push(true, 1, &record("downloading", "v", 20, json!(100), json!(5)), 0);
+        let sample = parser.push(true, 2, &record("downloading", "v", 30, json!(120), json!(5)), 200).unwrap();
+        assert_eq!(sample.fraction, None);
+        assert_eq!(sample.estimated_total_bytes, None);
+        let sample = parser.push(true, 3, &record("downloading", "v", 40, json!(100), json!(5)), 400).unwrap();
+        assert_eq!(sample.fraction, None);
     }
     #[test]
     #[ignore = "requires task-owned pinned native-records.py evidence; no public site claim"]
@@ -544,7 +594,8 @@ mod tests {
                 0,
             )
             .unwrap();
-        assert_eq!(sample.fraction, None);
+        assert_eq!(sample.estimated_total_bytes, Some(900));
+        assert!(sample.fraction.is_some());
         let sample = parser
             .push(
                 true,

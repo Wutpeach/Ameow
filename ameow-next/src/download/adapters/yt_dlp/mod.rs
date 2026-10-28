@@ -135,7 +135,8 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--".into(),
                 canonical,
             ]);
-            let feed = Mutex::new((false, progress::ProgressFeed::selected(&Value::Null)));
+            let timeline = progress::Timeline::from_args();
+            let feed = Mutex::new((false, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
             let selected_path = working.join("selection.txt");
             let expected = proof.identity.canonical_key();
             let accepted_for_progress = accepted.clone();
@@ -155,7 +156,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                         && selection::expectation(&value, accepted_for_progress.intent.quality)
                             .is_ok()
                     {
-                        state.1 = progress::ProgressFeed::selected(&value);
+                        state.1 = progress::ProgressFeed::selected(&value).with_timeline(timeline.clone());
                         state.0 = true;
                     }
                     if let Some(sample) =

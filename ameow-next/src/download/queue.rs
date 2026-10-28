@@ -251,6 +251,7 @@ mod tests {
             fraction: Some(0.25),
             observed_at_ms: 1,
             merging: false,
+            ..Default::default()
         };
         let mut snapshot = Snapshot {
             job_id: job,

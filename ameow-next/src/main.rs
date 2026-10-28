@@ -2,6 +2,8 @@
 mod edge_hover;
 mod download_bridge;
 mod download_ui;
+mod queue_presentation;
+mod queue_fixture;
 mod tray;
 mod indicator;
 mod magnetic_spring;
@@ -58,6 +60,9 @@ impl AssetSource for Assets {
 }
 struct Options {
     fixture: bool,
+    preview: bool,
+    unknown_downloading: bool,
+    queue_fixture: Option<std::path::PathBuf>,
     night: bool,
     reduced: bool,
     demo: bool,
@@ -87,6 +92,10 @@ impl Options {
         {
             panic!("--native-probe measurement controls require --probe-period-ms");
         }
+        let unknown_downloading = args.iter().any(|arg| arg == "--unknown-downloading");
+        let queue_fixture = value("--queue-fixture-control").map(std::path::PathBuf::from);
+        let queue_fixture_enabled = queue_fixture.is_some();
+        let preview = args.iter().any(|arg| arg == "--preview");
         let stage = match value("--stage").map(String::as_str) {
             Some("resolving") => Stage::Resolving,
             Some("downloading") => Stage::Downloading,
@@ -97,11 +106,14 @@ impl Options {
             _ => Stage::Idle,
         };
         Self {
-            fixture: args.iter().any(|arg| matches!(arg.as_str(), "--demo" | "--stage" | "--probe-period-ms")),
+            unknown_downloading,
+            preview,
+            queue_fixture,
+            fixture: preview || queue_fixture_enabled || unknown_downloading || args.iter().any(|arg| matches!(arg.as_str(), "--demo" | "--stage" | "--probe-period-ms")),
             night: args.iter().any(|s| s == "--night"),
             reduced: args.iter().any(|s| s == "--reduced") || Native::reduced_motion(),
             demo: args.iter().any(|s| s == "--demo"),
-            stage,
+            stage: if unknown_downloading { Stage::Downloading } else { stage },
             telemetry: value("--telemetry")
                 .map(|p| File::create(p).expect("create local telemetry")),
             measure: value("--measure")
@@ -120,8 +132,9 @@ impl Options {
                 _ => panic!("--native-flags always|init-only"),
             },
             native_metrics: value("--native-metrics").cloned(),
-            exit_after_ms: value("--exit-after-ms")
-                .map(|v| v.parse().expect("--exit-after-ms integer")),
+            exit_after_ms: if queue_fixture_enabled {
+                Some(value("--exit-after-ms").map_or(120_000, |v| v.parse::<u64>().expect("--exit-after-ms integer")).min(120_000))
+            } else { value("--exit-after-ms").map(|v| v.parse().expect("--exit-after-ms integer")) },
             native_probe: match value("--native-probe").map_or("normal", String::as_str) {
                 "normal" | "origin-only" | "resize-only" => value("--native-probe")
                     .cloned()
@@ -149,6 +162,7 @@ impl Options {
 }
 struct Prototype {
     downloads: Option<download_ui::DownloadUi>,
+    unknown_downloading: bool,
     tray: Option<tray::Tray>,
     close_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     _download_poll: Option<Task<()>>,
@@ -191,9 +205,10 @@ impl Prototype {
             } else {
                 options.stage
             },
-            if options.fixture { 0.46 } else { 0. },
+            if options.fixture && !options.unknown_downloading { 0.46 } else { 0. },
             0,
         );
+        if options.preview { model.locks.menu = true; model.locks_changed(0); }
         let close_requested = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let close_signal = close_requested.clone();
         if !options.fixture {
@@ -202,9 +217,11 @@ impl Prototype {
                 false
             });
         }
-        let downloads = (!options.fixture).then(download_ui::DownloadUi::start);
-        let tray = if downloads.is_some() { tray::Tray::new().ok() } else { None };
-        let download_poll = downloads.as_ref().map(|_| cx.spawn_in(window, async move |this, cx| {
+        let downloads = if options.preview { Some(download_ui::DownloadUi::preview()) } else if let Some(path) = options.queue_fixture {
+            Some(download_ui::DownloadUi::fixture(path))
+        } else { (!options.fixture).then(download_ui::DownloadUi::start) };
+        let tray = if !options.fixture { tray::Tray::new().ok() } else { None };
+        let download_poll = (downloads.is_some() || options.unknown_downloading).then(|| cx.spawn_in(window, async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
                 if this.update_in(cx, |this, window, cx| { this.poll_downloads(window, cx); cx.notify(); }).is_err() { break; }
@@ -212,6 +229,7 @@ impl Prototype {
         }));
         Self {
             downloads,
+            unknown_downloading: options.unknown_downloading,
             tray,
             close_requested,
             _download_poll: download_poll,
@@ -271,6 +289,12 @@ impl Prototype {
         cx.notify();
     }
     fn key(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.downloads.as_mut().is_some_and(|ui| ui.preview_key(key)) {
+            self.model.locks.menu = self.downloads.as_ref().is_some_and(|ui| ui.queue_open);
+            self.model.locks_changed(self.now());
+            cx.notify();
+            return;
+        }
         if self.downloads.is_some() {
             self.production_key(key, cx);
             return;
@@ -617,11 +641,11 @@ impl Render for Prototype {
         };
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
         let frame = self.indicator.sample(&self.model, p, now);
-        let frame = if self
+        let indeterminate = self.unknown_downloading || self
             .downloads
             .as_ref()
-            .is_some_and(|ui| ui.selected_fraction.is_none())
-        {
+            .is_some_and(|ui| ui.selected_fraction.is_none());
+        let frame = if indeterminate {
             frame.indeterminate(now, self.model.reduced)
         } else {
             frame
@@ -629,7 +653,8 @@ impl Render for Prototype {
         let stage = self.model.stage;
         let copied = self.copied_at.is_some_and(|t| now < t + 900);
         self.wake = None;
-        let motion_delay = if self.demo || self.probe_period_ms.is_some() {
+        let motion_delay = if self.demo || self.probe_period_ms.is_some()
+            || self.model.indeterminate_animation(indeterminate) {
             Some(16)
         } else {
             self.model.next_wake_ms(now)
@@ -640,7 +665,8 @@ impl Render for Prototype {
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = hover_moving.then_some(16);
         let preparation_delay = self.preparation_animation_delay();
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay]
+        let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay]
             .into_iter()
             .flatten()
             .min();
@@ -862,8 +888,16 @@ impl Render for Prototype {
                 cx.notify();
             }))
             .on_mouse_move(cx.listener(|_, _: &MouseMoveEvent, _, cx| cx.notify()))
-            .capture_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
-                if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
+            .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                // GPUI registers tab stops but requires the application to move focus.
+                if event.keystroke.key == "tab"
+                    && this.downloads.as_ref().is_some_and(|ui| ui.queue_open)
+                {
+                    if event.keystroke.modifiers.shift { window.focus_prev(); }
+                    else { window.focus_next(); }
+                    cx.stop_propagation();
+                    cx.notify();
+                } else if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
                     this.paste_download(cx);
                     cx.stop_propagation();
                 } else {
@@ -883,12 +917,13 @@ impl Render for Prototype {
                 }
             }))
             .child(visual_group)
-            .when(self.downloads.as_ref().is_some_and(|ui| ui.queue_open), |s| s.child(self.queue_panel(cx)))
+            .when(self.downloads.as_ref().is_some_and(|ui| ui.is_fixture() && !ui.queue_open), |s| s.child(div().absolute().left(px(g.gutter + 70.)).top(px(g.gutter + 8.)).text_size(px(8.)).text_color(p.neutral).child("Fixture · 0–9")))
+            .when(self.downloads.as_ref().is_some_and(|ui| ui.queue_open), |s| s.child(self.queue_panel(window, cx)))
             .when(self.downloads.as_ref().is_some_and(|ui| ui.exit_open), |s| s.child(self.exit_panel(cx)))
             .when(self.model.locks.menu && !self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open || ui.folder_pending), |s| {
                 if self.downloads.is_some() { s.child(self.download_menu(cx)) } else { s.child(self.menu(cx)) }
             })
-            .when(self.downloads.is_some() && (!self.model.locks.menu || self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open)), |s| s.child(self.download_feedback()));
+            .when(self.downloads.is_some() && !self.model.locks.menu, |s| s.child(self.download_feedback()));
         if let Some(writer) = &mut self.measure {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();
@@ -961,7 +996,10 @@ impl Render for Prototype {
     }
 }
 fn main() {
-    if std::env::args().any(|argument| argument == "--download-test-bridge") {
+    let args: Vec<_> = std::env::args().collect();
+    if !args.iter().any(|argument| argument == "--preview")
+        && args.iter().any(|argument| argument == "--download-test-bridge")
+    {
         if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
         return;
     }

@@ -104,9 +104,14 @@ impl Progress {
             return;
         }
         let value = value.clamp(0., 1.).max(self.target);
-        if value > self.target {
+        self.retarget(value, now);
+    }
+    /// Optional measured facts can correct an estimate in either direction.
+    /// The standard update path remains monotonic for existing lifecycle animation.
+    pub fn retarget(&mut self, value: f32, now: u64) {
+        if value.is_finite() && value.clamp(0., 1.) != self.target {
             self.from = self.sample(now);
-            self.target = value;
+            self.target = value.clamp(0., 1.);
             self.start = now;
         }
     }
@@ -379,6 +384,9 @@ impl Model {
             self.window_motion.geometry()
         }
     }
+    pub fn indeterminate_animation(&self, unknown: bool) -> bool {
+        unknown && self.stage == Stage::Downloading && !self.reduced
+    }
     /// One view-owned wakeup: animate only while visible motion is in flight.
     /// Determinate/reduced states sleep until native input or a deadline.
     pub fn next_wake_ms(&self, now: u64) -> Option<u64> {
@@ -485,6 +493,19 @@ pub fn reachable_anchor(anchor: [f32; 2], geometry: Geometry, work: [f32; 4]) ->
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unknown_downloading_keeps_rotating_after_initial_wake_window() {
+        let mut model = super::Model::new(0, false);
+        model.state(super::Stage::Downloading, 0., 0);
+        for now in (0..=2000).step_by(16) { model.tick(now); }
+        assert_eq!(model.next_wake_ms(2000), None);
+        assert!(model.indeterminate_animation(true));
+        assert!(!model.indeterminate_animation(false));
+        model.set_reduced(true, 2000);
+        assert!(!model.indeterminate_animation(true));
+        model.state(super::Stage::Success, 1., 2000);
+        assert!(!model.indeterminate_animation(true));
+    }
     use super::*;
     #[test]
     fn explicit_compact_survives_menu_dismiss_and_job_updates_until_real_reentry() {

@@ -814,6 +814,7 @@ mod ownership_tests {
             fraction: Some(0.25),
             observed_at_ms: 1,
             merging: false,
+            ..Default::default()
         };
         publish_progress(&coordinator.state, 2, 2, sample.clone());
         publish_progress(&coordinator.state, 1, 1, sample.clone());

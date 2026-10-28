@@ -135,10 +135,28 @@ impl Indicator {
             blue_trace: m.blue_trace(now),
             symbol: m.symbol(now),
             mix,
-            percent: m.progress.target,
+            percent: if m.reduced { m.progress.target } else { m.progress.sample(now) },
             center_alpha,
             symbol_scale,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Indicator, Model, Palette, Stage};
+    #[test]
+    fn reduced_numeric_progress_matches_immediate_arc_without_tween() {
+        let mut model = Model::new(0, true);
+        model.state(Stage::Downloading, 0.2, 0);
+        model.progress.retarget(0.8, 100);
+        let frame = Indicator::default().sample(&model, Palette::new(false), 100);
+        assert_eq!(frame.percent, 0.8);
+        assert_eq!(frame.sweep, 0.8);
+        model.set_reduced(false, 100);
+        let frame = Indicator::default().sample(&model, Palette::new(false), 100);
+        assert_eq!(frame.percent, model.progress.sample(100));
+        assert_eq!(frame.percent, frame.sweep);
     }
 }
 
