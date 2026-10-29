@@ -5,7 +5,10 @@ import argparse
 import ctypes as c
 from ctypes import wintypes as w
 import json
+import hashlib
+import math
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -32,6 +35,206 @@ u.GetClipboardData.restype = w.HANDLE
 k.GlobalLock.argtypes = [w.HANDLE]
 k.GlobalLock.restype = c.c_void_p
 k.GlobalUnlock.argtypes = [w.HANDLE]
+
+
+def action_pixels(image):
+    pixels = list(image.convert('RGB').getdata())
+    return {'red_pixels': sum(r > 200 and g < 110 and b < 110 for r, g, b in pixels),
+            'white_pixels': sum(min(p) > 240 for p in pixels)}
+
+
+def feedback_pixels(before, feedback, after):
+    return {'feedback_icon_changed': ImageChops.difference(before, feedback).getbbox() is not None,
+            'original_copy_restored': ImageChops.difference(before, after).getbbox() is None}
+
+
+def glyph_margins(image, scale):
+    # Exclude the Light surface at the rounded disc's corners, preserving 3dip inset.
+    cx, cy = image.width/2, image.height/2
+    radius = min(cx, cy)-scale
+    white = [(x,y) for y in range(image.height) for x in range(image.width)
+             if (x+.5-cx)**2+(y+.5-cy)**2<=radius**2 and min(image.getpixel((x,y))[:3])>240]
+    if not white:
+        return None
+    return [min(x for x,y in white), min(y for x,y in white),
+            image.width-1-max(x for x,y in white), image.height-1-max(y for x,y in white)]
+
+
+def current_ui_layout(source):
+    """Read the current fixture's named layout, failing closed if selectors change."""
+    main = (source / 'src/main.rs').read_text(encoding='utf-8')
+    indicator = (source / 'src/indicator.rs').read_text(encoding='utf-8')
+    glow = (source / 'src/ring_glow.rs').read_text(encoding='utf-8')
+    def block(text, start, end):
+        if text.count(start) != 1:
+            raise RuntimeError(f'Ambiguous layout selector: {start}')
+        return text.split(start, 1)[1].split(end, 1)[0]
+    def number(text, prefix):
+        values = re.findall(re.escape(prefix) + '([0-9.]+)', text)
+        if len(values) != 1:
+            raise RuntimeError(f'Layout changed; review selector {prefix}: {values}')
+        return float(values[0])
+    slot = block(main, '.id("persistent-state-slot")', '.child(indicator::ring')
+    action = block(main, '.id("state-action")', '.rounded_full()')
+    ring = block(indicator, 'pub fn ring(f: Frame)', '.when(f.stage')
+    return {'padding':number(glow, 'const PADDING: f32 = '),
+            'slot': [number(slot, 'left(px(g.gutter + '),
+                     number(slot, 'top(px(g.gutter + ')],
+            'action': [number(action, 'left(px('), number(action, 'top(px('), number(action, 'size(px(')],
+            'ring': [number(ring, 'left(px('), number(ring, 'top(px('), number(ring, 'size(px(')]}
+
+
+def radial_profile(image, center, radius, scale, background):
+    return [max(abs(a-b) for a,b in zip(image.getpixel((round(center[0]+radius*scale*math.cos(i*math.tau/64)),
+                     round(center[1]+radius*scale*math.sin(i*math.tau/64))))[:3], background)) for i in range(64)]
+
+
+def validate_ui_regression(exe, out, source):
+    # Import lazily: the shared native runtime itself imports Runtime from here.
+    from repair_a_runtime import RepairRuntime, CropCapture, read_jsonl
+    out.mkdir(parents=True, exist_ok=False)
+    result = {'checks': [], 'exe': str(exe.resolve()), 'exe_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(),
+              'source': str(source.resolve()), 'platform': 'Windows', 'macOS': 'NOT VERIFIED',
+              'limits': 'Synthetic native fixture input/rendering only. Harness sets TOPMOST; no natural z-order claim. '
+                        'One desktop DPI, not mixed DPI. Pixel sampling is not optical acceptance or GPU frame pacing.',
+              'visual_review': {'status': 'REQUIRED', 'artifacts': ['light-rings.png', 'night-rings.png', 'controls.png', 'resolving.gif', 'states.gif'],
+                                'questions': ['Are halos softly fading without a visible cut edge?', 'Are both action glyphs comfortably inset and quiet after leave?']}}
+    app = None
+    def check(name, condition, observed):
+        result['checks'].append({'name': name, 'status': 'PASS' if condition else 'FAIL', 'observed': observed})
+        print(f"{'PASS' if condition else 'FAIL'}: {name}: {observed}", flush=True)
+        if not condition:
+            raise RuntimeError(f'STOP RETAIN: {name}')
+    try:
+        layout = current_ui_layout(source)
+        result['layout'] = layout
+        app = RepairRuntime(exe, out, 'converged', lifetime=90000,
+                            extra_args=['--stage', 'idle', '--reduced', '--hover', 'off', '--telemetry', str((out/'telemetry.jsonl').resolve())])
+        result.update(pid=app.proc.pid, command=app.command, dpi=96*app.scale)
+        app.inside(); app.wait(.35)
+        # Focus fixture root without triggering production background actions.
+        app.click(app.size()[0]/app.scale/2, app.size()[1]/app.scale/2)
+        app.key('0'); app.wait(.2)
+        measured = read_jsonl(app.log)[-1]
+        telemetry = read_jsonl(out/'telemetry.jsonl')[-1]
+        check('fixture startup is Idle/reduced/hover-off with a settled Full',
+              telemetry['stage']=='Idle' and telemetry['reduced'] and not measured['hover']['enabled'] and measured['rawfullness']==1, telemetry)
+        gutter = measured['gutter']; scale = app.scale
+        sx, sy = [gutter+v for v in layout['slot']]
+        ax, ay, side = layout['action']; rx, ry, diameter = layout['ring']
+        center = ((sx+rx+diameter/2)*scale, (sy+ry+diameter/2)*scale)
+        area = tuple(round(v*scale) for v in (sx+ax, sy+ay, sx+ax+side, sy+ay+side))
+        extent=diameter/2+layout['padding']
+        ring_area = (math.floor(center[0]-extent*scale), math.floor(center[1]-extent*scale),
+                     math.ceil(center[0]+extent*scale), math.ceil(center[1]+extent*scale))
+        full = app.rect()
+        check('ring padded sample domain remains within current canvas',
+              min(ring_area)>=0 and ring_area[2]<=app.size()[0] and ring_area[3]<=app.size()[1], {'native':app.size(),'ring_roi':ring_area})
+        result['geometry'] = {'gutter':gutter, 'action_box':area, 'ring_center_px':center, 'ring_roi':ring_area, 'native':full}
+        def point(x,y):
+            r=app.rect(); app.move(r[0]+x*scale,r[1]+y*scale); app.wait(.16)
+        def neutral(): point(sx+rx+diameter/2, sy+ry+diameter/2)
+        def select(key, stage, theme, reduced=True):
+            before=read_jsonl(out/'telemetry.jsonl')[-1]['ms']
+            app.key(key); app.wait(.25)
+            deadline=time.monotonic()+.75
+            while True:
+                state=read_jsonl(out/'telemetry.jsonl')[-1]
+                valid=state['ms']>before and state['stage']==stage and state['night']==(theme=='night') and state['reduced']==reduced
+                if valid or time.monotonic()>=deadline: break
+                app.wait(.04)
+            check(theme+' '+stage+' fresh fixture state/theme/motion confirmed',valid,{'before_ms':before,'frame':state})
+        def shot(name=None):
+            app.backdrop.update(); u.SetWindowPos(app.hwnd,w.HWND(-1),0,0,0,0,0x13)
+            crop=CropCapture(app.rect())
+            try: image=crop.grab()
+            finally: crop.close()
+            app.capture_guard(image)
+            if name: image.save(out/(name+'.png'))
+            return image
+        def sheet(name, images, columns=2):
+            width=max(130,max(im.width for _,im in images)); height=max(im.height for _,im in images)+20
+            canvas=Image.new('RGB',(width*columns,height*math.ceil(len(images)/columns)),(232,232,232)); draw=ImageDraw.Draw(canvas)
+            for i,(label,im) in enumerate(images):
+                x=i%columns*width; y=i//columns*height; draw.text((x+4,y+3),label,fill=(20,20,20)); canvas.paste(im,(x,y+20))
+            canvas.save(out/name)
+        control_images=[]
+        for theme in ('light','night'):
+            if theme=='night': app.key('T')
+            neutral(); select('0','Idle',theme)
+            idle=shot(theme+'-idle')
+            background=idle.getpixel((round(center[0]),round(center[1])))[:3]
+            values=radial_profile(idle,center,diameter/2+3,scale,background)
+            check(theme+' Idle has no halo', max(values)<=1, values)
+            images=[('Idle',idle.crop(ring_area))]
+            for key, stage in [('1','Resolving'),('2','Downloading'),('3','Transcoding'),('4','Success'),('5','Failure'),('6','Cancelled')]:
+                select(key,stage,theme); neutral()
+                image=shot(theme+'-'+stage.lower()); images.append((stage,image.crop(ring_area)))
+                values=radial_profile(image,center,diameter/2+3,scale,background)
+                check(theme+' '+stage+' halo extends beyond ring',sum(v>=2 for v in values)>=16,values)
+                # Upper semicircle avoids the separate label/action below the ring.
+                outer=radial_profile(image,center,extent-1,scale,background)[32:]
+                check(theme+' '+stage+' outer halo fades before padded edge',max(outer)<=1,outer)
+                app.wait(.25); later=shot()
+                delta=ImageChops.difference(image.crop(ring_area),later.crop(ring_area)).getbbox()
+                check(theme+' '+stage+' Reduced Motion is stable',delta is None,delta)
+                check(theme+' '+stage+' keeps current native bounds',app.rect()==full,app.rect())
+            sheet(theme+'-rings.png',images)
+            for key, name in [('2','cancel'),('5','copy')]:
+                select(key,'Downloading' if name=='cancel' else 'Failure',theme); neutral(); app.wait(.15)
+                default=shot(theme+'-'+name+'-default').crop(area)
+                check(theme+' '+name+' default has no red disc',action_pixels(default)['red_pixels']==0,action_pixels(default))
+                point(sx+ax+side/2,sy+ay+side/2)
+                hovered=shot(theme+'-'+name+'-hover').crop(area)
+                counts=action_pixels(hovered)
+                check(theme+' '+name+' hover paints red disc and white glyph',counts['red_pixels']>30*scale*scale and counts['white_pixels']>5*scale*scale,counts)
+                margins=glyph_margins(hovered,scale)
+                check(theme+' '+name+' glyph keeps design breathing room',margins is not None and min(margins)>=math.floor(3*scale),{'margins_px':margins,'minimum_dip':3})
+                if name=='copy':
+                    app.click(sx+ax+side/2,sy+ay+side/2); feedback=shot(theme+'-copy-feedback').crop(area)
+                    expected='Ameow Next · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.'
+                    check(theme+' Copy writes actual mock diagnostic',app.clipboard()==expected,{'clipboard_matched':app.clipboard()==expected})
+                    app.wait(1.05); after=shot(theme+'-copy-restored').crop(area)
+                    feedback_state=feedback_pixels(hovered,feedback,after)
+                    check(theme+' Copy changes icon and restores after 900ms',all(feedback_state.values()),feedback_state)
+                neutral(); left=shot(theme+'-'+name+'-leave').crop(area)
+                check(theme+' '+name+' leave restores quiet default',action_pixels(left)['red_pixels']==0 and ImageChops.difference(default,left).getbbox() is None,action_pixels(left))
+                control_images.extend([(theme+' '+name+' '+label,im.resize((im.width*3,im.height*3),Image.Resampling.NEAREST)) for label,im in [('default',default),('hover',hovered),('leave',left)]])
+        sheet('controls.png',control_images,3)
+        app.key('R'); select('1','Resolving','night',False); neutral()
+        frames=[]; times=[]; profiles=[]
+        for _ in range(15):
+            image=shot(); frames.append(image.crop(ring_area)); times.append(time.perf_counter())
+            profiles.append(radial_profile(image,center,diameter/2+3,scale,background)); app.wait(.065)
+        differences=[sum(abs(a-b)>=3 for a,b in zip(profiles[0],profile)) for profile in profiles[1:]]
+        check('animated Resolving halo follows actual arc rotation',max(differences)>=24,differences)
+        def movie(name,images,times):
+            delays=[max(20,round((b-a)*1000)) for a,b in zip(times,times[1:])]+[150]
+            images[0].save(out/name,save_all=True,append_images=images[1:],duration=delays,loop=0)
+        movie('resolving.gif',frames,times)
+        frames=[];times=[]; stages=[]
+        for key in ['2','+','+','3','4','5']:
+            app.key(key)
+            for _ in range(4):
+                app.wait(.06); frames.append(shot().crop(ring_area)); times.append(time.perf_counter())
+            stages.append(read_jsonl(out/'telemetry.jsonl')[-1])
+        movie('states.gif',frames,times)
+        check('animated fixture changes progress and state on screen',
+              stages[1]['progress']>stages[0]['progress'] and stages[2]['progress']>stages[1]['progress'] and
+              [s['stage'] for s in stages]==['Downloading','Downloading','Downloading','Transcoding','Success','Failure'] and
+              len({im.tobytes() for im in frames})>6,stages)
+        result['dynamic_samples']={'times_s':times,'distinct_frames':len({im.tobytes() for im in frames})}
+        app.key('0'); app.save_host()
+    except Exception as error:
+        result['error']={'type':type(error).__name__,'message':str(error)}
+        print('STOP RETAIN: '+str(error),flush=True)
+    finally:
+        if app:
+            app.close(); result['exit_code']=app.proc.returncode
+            result['checks'].append({'name':'owned fixture exited normally','status':'PASS' if app.proc.returncode==0 else 'FAIL','observed':app.proc.returncode})
+        result['overall']='PASS' if result['checks'] and all(x['status']=='PASS' for x in result['checks']) and 'error' not in result else 'FAIL'
+        (out/'ui-regression.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+    return 0 if result['overall']=='PASS' else 1
 
 
 class Runtime:
@@ -253,8 +456,8 @@ def validate(exe, out):
                     action=hover.crop(tuple(round(v*app.scale) for v in (107,158,123,174)))
                     pixels=list(action.getdata())
                     if state=='2':
-                        red=sum(p[0]>200 and p[1]<110 and p[2]<110 for p in pixels)
-                        white=sum(min(p[:3])>240 for p in pixels)
+                        counts=action_pixels(action)
+                        red=counts['red_pixels']; white=counts['white_pixels']
                         check(f"{theme} cancel hover visibly paints red and white X",{"red_pixels":red,"white_pixels":white},red>30 and white>5)
                     else:
                         surface=(255,255,255) if theme=='light' else (35,36,39)
@@ -280,8 +483,9 @@ def validate(exe, out):
         check("Failure action copies mock diagnostic",{"clipboard_matched":clipboard==expected},clipboard==expected)
         time.sleep(1.05);copy_after=app.snap("copy-after-feedback")
         action_area=tuple(round(v*app.scale) for v in (107,158,123,174))
-        showed_feedback=ImageChops.difference(copy_before.crop(action_area),copy_feedback.crop(action_area)).getbbox() is not None
-        returned_copy=ImageChops.difference(copy_before.crop(action_area),copy_after.crop(action_area)).getbbox() is None
+        feedback_state=feedback_pixels(copy_before.crop(action_area),copy_feedback.crop(action_area),copy_after.crop(action_area))
+        showed_feedback=feedback_state['feedback_icon_changed']
+        returned_copy=feedback_state['original_copy_restored']
         check("copy feedback changes icon then restores after 900ms",{"feedback_icon_changed":showed_feedback,"original_copy_restored":returned_copy},showed_feedback and returned_copy)
         for state,retain in (("4",1.5),("5",5.0)):
             app.inside();app.key(state);time.sleep(retain+.25)
@@ -339,5 +543,7 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--exe",type=Path,default=Path(__file__).resolve().parents[1]/"target/debug/ameow-next.exe")
     parser.add_argument("--out",type=Path,default=Path(__file__).resolve().parents[1]/"evidence")
+    parser.add_argument("--ui-regression",action="store_true",help="Current fixture controls/ring intent gate (does not run historical workflow assumptions)")
+    parser.add_argument("--source",type=Path,default=Path(__file__).resolve().parents[1],help="Source package matching the executable")
     args=parser.parse_args()
-    raise SystemExit(validate(args.exe,args.out))
+    raise SystemExit(validate_ui_regression(args.exe,args.out,args.source) if args.ui_regression else validate(args.exe,args.out))
