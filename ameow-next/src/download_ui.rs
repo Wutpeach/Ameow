@@ -80,7 +80,7 @@ pub struct DownloadUi {
     pub snapshot: Option<Arc<QueueSnapshot>>,
     pub startup_error: Option<String>,
     pub settings_pending: bool,
-    pub folder_pending: bool,
+    acknowledged_settings: Option<Settings>,
     pub queue_open: bool,
     pub exit_open: bool,
     pub exit_when_stopped: bool,
@@ -231,7 +231,7 @@ impl DownloadUi {
             snapshot: None,
             startup_error: None,
             settings_pending: false,
-            folder_pending: false,
+            acknowledged_settings: None,
             queue_open: false,
             exit_open: false,
             exit_when_stopped: false,
@@ -298,9 +298,22 @@ impl DownloadUi {
         self.replies.try_iter().collect()
     }
     pub fn settings(&self) -> Option<Settings> {
-        self.snapshot
+        self.acknowledged_settings.clone().or_else(|| self.snapshot
             .as_ref()
-            .map(|snapshot| snapshot.settings.clone())
+            .map(|snapshot| snapshot.settings.clone()))
+    }
+    pub fn background_actions_available(&self) -> bool {
+        !self.queue_open && !self.exit_open && !self.settings_pending
+    }
+    fn complete_settings(&mut self,reply:CommandReply,now:u64) {
+        if let CommandReply::SettingsSaved(settings)=&reply {self.acknowledged_settings=Some(settings.clone());}
+        self.settings_pending=false;
+        self.feedback=Some((match reply {CommandReply::SettingsSaved(_)=>"默认设置已保存".into(),CommandReply::Error(error)=>error,_=>"设置未保存，请重新查看".into()},now));
+    }
+    fn request_quality(&mut self,quality:Quality,now:u64) -> bool {
+        if self.settings_pending{return false;}
+        if let Some(mut settings)=self.settings(){settings.quality=quality;self.settings_pending=self.send(QueueCommand::SaveSettings(settings),now);}
+        self.settings_pending
     }
     fn present(
         &mut self,
@@ -374,7 +387,6 @@ impl DownloadUi {
             model.state(Stage::Idle, 0., now);
         }
     }
-    pub fn is_fixture(&self) -> bool { self.fixture }
     pub fn preview_key(&mut self, key: &str) -> bool {
         if self.preview_scenes.is_some() && key.eq_ignore_ascii_case("q") {
             self.queue_open = !self.queue_open;
@@ -396,6 +408,19 @@ impl DownloadUi {
         self.hovered_action = None;
         self.action_focus.clear();
         true
+    }
+    /// None means there is no Full feedback element, including fixture idle.
+    fn feedback_message(&self) -> Option<&str> {
+        self.feedback.as_ref().map(|(text, _)| text.as_str())
+            .filter(|text| !text.is_empty())
+            .or(self.startup_error.as_deref().filter(|text| !text.is_empty()))
+            .or_else(|| {
+                if self.snapshot.as_ref().is_some_and(|snapshot| snapshot.stopping) {
+                    Some("已关闭新任务受理，正在安全停止")
+                } else if self.snapshot.is_none() && !self.fixture {
+                    Some("正在读取下载设置…")
+                } else { None }
+            })
     }
     pub fn badge(&self) -> Option<(usize, bool, bool)> {
         self.snapshot
@@ -909,6 +934,29 @@ use crate::{
     tray::{self, TrayEvent},
 };
 use gpui::{prelude::*, *};
+#[derive(Clone, Copy)]
+enum MenuIcon { Empty, Back, Forward, Check, Quality, Hide, Settings }
+fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> impl IntoElement {
+    canvas(|_, _, _| (), move |bounds, _, window, _| {
+        let paths: &[&[(f32, f32)]] = match icon {
+            MenuIcon::Empty => &[],
+            MenuIcon::Back => &[&[(9.5, 3.5), (5., 8.), (9.5, 12.5)]],
+            MenuIcon::Forward => &[&[(6., 4.), (10., 8.), (6., 12.)]],
+            MenuIcon::Check => &[&[(3., 8.), (6.5, 11.5), (13., 4.5)]],
+            MenuIcon::Quality => &[&[(2.5, 4.), (13.5, 4.)], &[(2.5, 8.), (13.5, 8.)], &[(2.5, 12.), (13.5, 12.)], &[(6., 2.5), (6., 5.5)], &[(10., 6.5), (10., 9.5)], &[(5., 10.5), (5., 13.5)]],
+            MenuIcon::Hide => &[&[(8., 2.), (8., 10.)], &[(4.5, 6.5), (8., 10.), (11.5, 6.5)], &[(2.5, 9.), (2.5, 13.), (13.5, 13.), (13.5, 9.)]],
+            MenuIcon::Settings => &[&[(2.5, 5.), (13.5, 5.)], &[(2.5, 11.), (13.5, 11.)], &[(5., 2.5), (5., 7.5)], &[(10.5, 8.5), (10.5, 13.5)]],
+        };
+        for points in paths {
+            let mut path = PathBuilder::stroke(px(1.2));
+            for (index, (x, y)) in points.iter().enumerate() {
+                let position = bounds.origin + point(px(*x), px(*y));
+                if index == 0 { path.move_to(position); } else { path.line_to(position); }
+            }
+            if let Ok(path) = path.build() { window.paint_path(path, color); }
+        }
+    }).size(px(16.)).flex_none()
+}
 impl Prototype {
     pub(super) fn poll_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let now = self.now();
@@ -940,6 +988,7 @@ impl Prototype {
         let Some(ui) = &mut self.downloads else {
             return;
         };
+        let mut menu_saved = false;
         for reply in ui.poll() {
             match reply {
                 UiReply::Retry { source, reply } => {
@@ -962,15 +1011,10 @@ impl Prototype {
                     ui.feedback = Some((error, now));
                 }
                 UiReply::Settings(reply) => {
-                    ui.settings_pending = false;
-                    ui.feedback = Some((
-                        match reply {
-                            CommandReply::SettingsSaved(_) => "默认设置已保存".into(),
-                            CommandReply::Error(error) => error,
-                            _ => "设置未保存，请重新查看".into(),
-                        },
-                        now,
-                    ));
+                    if let Some(generation) = self.menu_save_generation.take() {
+                        menu_saved = self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)), now);
+                    }
+                    ui.complete_settings(reply,now);
                 }
                 UiReply::Diagnostic { job, text } => {
                     let result = self
@@ -1032,11 +1076,14 @@ impl Prototype {
                 "tween_fraction":self.model.progress.sample(now),"displayed_percent":ui.selected_fraction.map(|_| ((if self.model.reduced { self.model.progress.target } else { self.model.progress.sample(now) }).min(0.99) * 100.).round() as u32),
                 "observed_at_ms":ameow_next::download::progress::now_ms(),
                 "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge(),
+                "menu_page":self.surface_menu.name(),"menu_selected":self.surface_menu.selected,
+                "menu_pending":ui.settings_pending,"menu_hint":self.surface_menu.hint.is_some(),"visual_offset":self.visual_offset,
                 "visible_rows":ui.snapshot.as_ref().map(|s| s.jobs.iter().filter(|j| ui.presentation.visible(j, now)).map(|j| j.job_id).collect::<Vec<_>>()),
                 "queue_scroll":[f32::from(ui.queue_scroll.offset().x), f32::from(ui.queue_scroll.offset().y)],
                 "preparation_visible":ui.snapshot.as_ref().is_some_and(|s| preparation_visible(s, ameow_next::download::progress::now_ms())),
                 "preparation_hovered":ui.preparation_hovered}));
         }
+        if menu_saved { self.close_menu(cx); }
         self.process_exit_request(window, cx);
         self.model.tick(now);
         cx.notify();
@@ -1052,12 +1099,6 @@ impl Prototype {
         window.focus(&self.focus);
         self.model.pointer(true, self.now());
         cx.notify();
-    }
-    fn request_exit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(ui) = &mut self.downloads {
-            ui.exit_intent.request();
-        }
-        self.process_exit_request(window, cx);
     }
     fn process_exit_request(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let now = self.now();
@@ -1078,6 +1119,7 @@ impl Prototype {
                 }
             }
             Some(ExitAction::Confirm) => {
+                self.surface_menu.close(now);self.background_clicks.reset();
                 if let Some(ui) = &mut self.downloads {
                     ui.queue_open = false;
                     ui.title_browse = None;
@@ -1101,6 +1143,7 @@ impl Prototype {
     }
     pub(super) fn stop_and_exit(&mut self, cx: &mut Context<Self>) {
         let now = self.now();
+        self.surface_menu.close(now);self.background_clicks.reset();
         if let Some(ui) = &mut self.downloads {
             if ui.startup_error.is_some()
                 || ui
@@ -1218,181 +1261,145 @@ impl Prototype {
         }
         Some("准备下载".into())
     }
-    fn save_quality(&mut self, quality: Quality, cx: &mut Context<Self>) {
-        if self.downloads.as_ref().is_some_and(|ui| ui.fixture) { return; }
+    pub(super) fn surface_menu_action(&mut self, action: crate::context_menu::Action, cx: &mut Context<Self>) {
+        use crate::context_menu::Action;
         let now = self.now();
-        if let Some(ui) = &mut self.downloads {
-            if ui.settings_pending || ui.folder_pending {
-                return;
+        self.background_clicks.reset();
+        match action {
+            Action::Back => {
+                if self.surface_menu.back(now) { self.close_menu(cx); }
             }
-            if let Some(mut settings) = ui.settings() {
-                settings.quality = quality;
-                ui.settings_pending = ui.send(QueueCommand::SaveSettings(settings), now);
+            Action::OpenQuality => {
+                let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
+                self.surface_menu.quality(quality, now);
             }
-        }
-        self.close_menu(cx);
-    }
-    fn choose_directory(&mut self, cx: &mut Context<Self>) {
-        if self.downloads.as_ref().is_some_and(|ui| ui.fixture) { return; }
-        let Some(ui) = &mut self.downloads else {
-            return;
-        };
-        if ui.settings_pending || ui.folder_pending || ui.settings().is_none() {
-            return;
-        }
-        ui.folder_pending = true;
-        let picker = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some("选择下载目录".into()),
-        });
-        cx.spawn(async move |this, cx| {
-            let result = picker.await;
-            let _ = this.update(cx, |this, cx| {
-                let now = this.now();
-                if let Some(ui) = &mut this.downloads {
-                    ui.folder_pending = false;
-                    match result {
-                        Ok(Ok(Some(paths))) => {
-                            if let (Some(path), Some(mut settings)) =
-                                (paths.into_iter().next(), ui.settings())
-                            {
-                                settings.output_dir = path;
-                                ui.settings_pending =
-                                    ui.send(QueueCommand::SaveSettings(settings), now);
-                            }
-                        }
-                        Ok(Ok(None)) => {}
-                        _ => {
-                            ui.feedback = Some(("无法打开目录选择，请重试".into(), now));
-                        }
+            Action::Quality(quality) => {
+                if let Some(ui) = &mut self.downloads {
+                    if ui.request_quality(quality, now) {
+                        self.menu_save_generation = Some(self.surface_menu.generation());
+                        self.surface_menu.hint = Some("正在保存画质…".into());
+                    } else if !ui.settings_pending {
+                        self.surface_menu.hint = Some("暂时无法保存，请稍后重试".into());
                     }
                 }
-                this.close_menu(cx);
-            });
-        })
-        .detach();
+            }
+            Action::Hide => self.hide_downloads(cx),
+            Action::Settings => {
+                self.close_menu(cx);
+                if let Some(ui) = &mut self.downloads { ui.feedback = Some(("设置功能即将开放".into(), now)); }
+            }
+        }
         cx.notify();
     }
-    pub(super) fn download_menu(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn surface_menu_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        use crate::context_menu::{Action, Page};
         let p = Palette::new(self.night);
         let g = self.model.geometry();
-        let quality = self
-            .downloads
-            .as_ref()
-            .and_then(|ui| ui.settings())
-            .map(|settings| settings.quality);
-        let busy = self
-            .downloads
-            .as_ref()
-            .is_some_and(|ui| ui.settings_pending || ui.folder_pending || ui.snapshot.is_none());
-        let labels = [
-            ("highest", "最高可得", Quality::Highest),
-            ("balanced", "Balanced · ≤1080p", Quality::Balanced),
-            ("saver", "Saver · ≤480p", Quality::Saver),
-        ];
-        div()
-            .absolute()
-            .left(px(g.gutter + 10.))
-            .top(px(g.gutter + 10.))
-            .w(px(180.))
-            .p(px(5.))
-            .bg(p.badge)
-            .border_1()
-            .border_color(p.border)
-            .rounded(px(9.))
-            .text_size(px(10.))
-            .text_color(p.neutral)
-            .children(labels.into_iter().map(|(id, label, level)| {
-                div()
-                    .id(id)
-                    .h(px(20.))
-                    .px(px(6.))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .rounded(px(4.))
-                    .cursor_pointer()
-                    .opacity(if busy { 0.5 } else { 1. })
-                    .hover(move |s| s.bg(p.surface))
-                    .child(label)
-                    .child(if quality == Some(level) { "✓" } else { "" })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|_, _, _, cx| cx.stop_propagation()),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| this.save_quality(level, cx)))
+        let now = self.now();
+        let quality_page = self.surface_menu.page == Some(Page::Quality);
+        let back = div().id("surface-menu-back").size(px(28.)).flex_none()
+            .flex().items_center().justify_center().rounded(px(5.)).cursor_pointer()
+            .hover(move |s| s.bg(p.badge))
+            .child(surface_menu_icon(MenuIcon::Back, p.neutral))
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                this.background_clicks.reset(); cx.stop_propagation();
             }))
-            .child(self.menu_action(
-                "folder",
-                if busy {
-                    "正在保存默认设置…"
-                } else {
-                    "下载目录…"
-                },
-                cx,
-                |this, _, cx| this.choose_directory(cx),
-            ))
-            .child(
-                self.menu_action("theme", "切换 Light / Night", cx, |this, _, cx| {
-                    this.night = !this.night;
-                    this.close_menu(cx);
-                }),
-            )
-            .child(
-                self.menu_action("compact", "收起为 Compact", cx, |this, _, cx| {
-                    let now = this.now();
-                    this.close_menu(cx);
-                    this.model.request_compact(now);
-                    cx.notify();
-                }),
-            )
-            .child(self.menu_action("hide", "隐藏到托盘", cx, |this, _, cx| {
-                let now = this.now();
-                if this.tray.is_none() {
-                    if let Some(ui) = &mut this.downloads {
-                        ui.feedback = Some(("托盘不可用，请保持窗口打开".into(), now));
-                    }
-                } else if let Some(native) = &this.native {
-                    tray::Tray::hide(native.hwnd);
-                    if let Some(ui) = &mut this.downloads {
-                        ui.hidden = true;
-                    }
+            .on_click(cx.listener(|this, _, _, cx| this.surface_menu_action(Action::Back, cx)));
+        let header = div().absolute().left(px(12.)).top(px(12.)).w(px(176.)).h(px(28.))
+            .flex().items_center().gap(px(6.)).child(back)
+            .child(div().id("surface-menu-header-drag").h_full().flex_1().flex().items_center()
+                .text_size(px(12.)).text_color(p.neutral).child(if quality_page { "画质" } else { "" })
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
+                    this.background_clicks.reset(); window.focus(&this.focus);
+                    this.drag = Some((crate::native::Native::cursor(), this.anchor));
+                    this.model.locks.drag = true; this.model.locks_changed(this.now());
+                    cx.stop_propagation(); cx.notify();
+                })));
+        let list = div().absolute().left(px(12.)).top(px(44.)).w(px(176.)).h(px(152.))
+            .overflow_hidden()
+            .children(self.surface_menu.pages(now, self.model.reduced).into_iter().map(|(page, x, interactive)| {
+                self.surface_menu_rows(page, x, interactive, cx)
+            }));
+        div().id("surface-menu-page").absolute().left(px(g.gutter)).top(px(g.gutter))
+            .size(px(200.)).rounded(px(20.)).overflow_hidden()
+            .opacity(self.surface_menu.content_alpha(now, self.model.reduced))
+            // The whole page consumes background presses; only the header above starts dragging.
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                this.background_clicks.reset(); cx.stop_propagation();
+            }))
+            .on_mouse_down(MouseButton::Right, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+            .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                if this.drag.take().is_some() {
+                    this.model.locks.drag = false; this.model.locks_changed(this.now()); cx.notify();
                 }
-                this.close_menu(cx);
             }))
-            .child(
-                self.menu_action("exit", "退出 Ameow", cx, |this, window, cx| {
-                    this.request_exit(window, cx)
-                }),
-            )
-            .into_any_element()
+            .child(header).child(list).into_any_element()
     }
-    fn menu_action(
-        &self,
-        id: &'static str,
-        label: &'static str,
-        cx: &mut Context<Self>,
-        action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
-    ) -> AnyElement {
+    fn surface_menu_rows(&self, page: crate::context_menu::Page, x: f32, interactive: bool, cx: &mut Context<Self>) -> AnyElement {
+        use crate::context_menu::{Menu, Page};
         let p = Palette::new(self.night);
-        div()
-            .id(id)
-            .h(px(20.))
-            .px(px(6.))
-            .flex()
-            .items_center()
-            .rounded(px(4.))
-            .cursor_pointer()
-            .hover(move |s| s.bg(p.surface))
-            .child(label)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|_, _, _, cx| cx.stop_propagation()),
-            )
-            .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
-            .into_any_element()
+        let now = self.now();
+        let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
+        let busy = self.downloads.as_ref().is_none_or(|ui| ui.settings_pending || ui.settings().is_none());
+        let labels = if page == Page::Primary {
+            [("画质", "", MenuIcon::Quality), ("隐藏到托盘", "", MenuIcon::Hide), ("设置", "", MenuIcon::Settings)]
+        } else {
+            [("Highest", "最高可得", MenuIcon::Empty), ("Balanced", "≤1080p", MenuIcon::Empty), ("Saver", "≤480p", MenuIcon::Empty)]
+        };
+        let mut rows = div().absolute().left(px(x)).top(px(0.)).w(px(176.)).h(px(152.));
+        for (index, (label, detail, icon)) in labels.into_iter().enumerate() {
+            let marker = page == Page::Quality && quality == Some([Quality::Highest, Quality::Balanced, Quality::Saver][index]);
+            let highlight = if interactive { self.surface_menu.highlight(index, now, self.model.reduced) } else { 0. };
+            let disabled = page == Page::Quality && busy;
+            let row = div().id(SharedString::from(format!("surface-menu-{}-{index}", if page == Page::Primary { "primary" } else { "quality" })))
+                .absolute().left(px(0.)).top(px(index as f32 * 44.)).w(px(176.)).h(px(40.))
+                .px(px(8.)).flex().items_center().gap(px(10.)).rounded(px(6.))
+                .bg(p.neutral.opacity(highlight * if p.night { 0.12 } else { 0.06 }))
+                .text_color(p.neutral).opacity(if disabled { 0.5 } else { 1. })
+                .when(!disabled, |row| row.cursor_pointer())
+                .child(surface_menu_icon(if marker { MenuIcon::Check } else { icon }, if marker { p.blue } else { p.neutral }))
+                .child(div().flex_1().min_w(px(0.)).flex().flex_col().justify_center()
+                    .text_size(px(12.)).line_height(px(17.)).child(label)
+                    .when(!detail.is_empty(), |s| s.child(div().text_size(px(10.)).line_height(px(13.)).opacity(0.75).child(detail))))
+                .when(page == Page::Primary && index == 0, |s| s.child(surface_menu_icon(MenuIcon::Forward, p.neutral)))
+                .when(interactive, |row| row
+                    .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                        this.background_clicks.reset(); cx.stop_propagation();
+                    }))
+                    .on_hover(cx.listener(move |this, inside, _, cx| {
+                        this.surface_menu.hover(index, *inside, this.now()); cx.notify();
+                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if this.surface_menu.page == Some(page) && !disabled
+                            && let Some(action) = Menu::action(page, index) { this.surface_menu_action(action, cx); }
+                    })));
+            rows = rows.child(row);
+        }
+        if interactive && let Some(hint) = &self.surface_menu.hint {
+            rows = rows.child(div().absolute().top(px(132.)).w(px(176.)).h(px(20.)).px(px(3.))
+                .flex().items_center().text_size(px(10.)).text_color(p.neutral).truncate().child(hint.clone()));
+        }
+        rows.into_any_element()
+    }
+    fn hide_downloads(&mut self,cx:&mut Context<Self>) {
+        self.close_menu(cx);let now=self.now();
+        if self.tray.is_none(){if let Some(ui)=&mut self.downloads{ui.feedback=Some(("托盘不可用，请保持窗口打开".into(),now));}}
+        else if let Some(native)=&self.native {tray::Tray::hide(native.hwnd);if let Some(ui)=&mut self.downloads{ui.hidden=true;}}
+    }
+    pub(super) fn open_output_directory(&mut self,cx:&mut Context<Self>) {
+        let Some(path)=self.downloads.as_ref().and_then(|ui|ui.settings()).map(|s|s.output_dir) else{return;};
+        let task=cx.background_executor().spawn(async move {
+            let explorer=std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("explorer.exe");
+            std::process::Command::new(explorer).arg(path).spawn().is_ok()
+        });
+        cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{let now=this.now();if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));if !success{ui.feedback=Some(("无法打开下载目录，请稍后重试".into(),now));}}cx.notify();});}).detach();
+    }
+    pub(super) fn drop_output_directory(&mut self,paths:&[PathBuf],cx:&mut Context<Self>) {
+        let now=self.now();let Some(ui)=&mut self.downloads else{return;};
+        if ui.settings_pending {ui.feedback=Some(("正在保存默认设置，请稍后再试".into(),now));return;}
+        let Some(path)=crate::surface_actions::single_drop(paths) else{ui.feedback=Some(("请拖入一个可写文件夹".into(),now));return;};
+        if let Some(mut settings)=ui.settings(){settings.output_dir=path;ui.settings_pending=ui.send(QueueCommand::SaveSettings(settings),now);}
+        self.close_menu(cx);
     }
     fn row_action(
         &self,
@@ -1947,43 +1954,24 @@ impl Prototype {
             )
             .into_any_element()
     }
-    pub(super) fn download_feedback(&self) -> AnyElement {
+    pub(super) fn download_feedback(&self, opacity: f32) -> Option<AnyElement> {
+        let message = self.downloads.as_ref()?.feedback_message()?.to_owned();
         let p = Palette::new(self.night);
         let g = self.model.geometry();
-        let ui = self.downloads.as_ref();
-        let message = ui
-            .and_then(|ui| {
-                ui.feedback
-                    .as_ref()
-                    .map(|(text, _)| text.clone())
-                    .or_else(|| ui.startup_error.clone())
-            })
-            .unwrap_or_else(|| {
-                if ui.is_some_and(|ui| ui.fixture) { return "Fixture · 0–9 状态 · Q 队列".into(); }
-                if ui.is_some_and(|ui| {
-                    ui.snapshot
-                        .as_ref()
-                        .is_some_and(|snapshot| snapshot.stopping)
-                }) {
-                    "已关闭新任务受理，正在安全停止".into()
-                } else if ui.is_some_and(|ui| ui.snapshot.is_some()) {
-                    "Ctrl+V 粘贴视频链接 · 右键设置".into()
-                } else {
-                    "正在读取下载设置…".into()
-                }
-            });
-        div()
+        Some(div()
             .absolute()
             .left(px(g.gutter + if self.preparation_indicator_visible() { 42. } else { 10. }))
             .top(px(g.gutter + 174.))
             .w(px(if self.preparation_indicator_visible() { 148. } else { 180. }))
             .h(px(16.))
+            .opacity(opacity)
             .truncate()
             .text_size(px(8.))
             .text_color(p.neutral)
             .child(message)
-            .into_any_element()
+            .into_any_element())
     }
+
 }
 fn cleanup_targets(snapshot: &QueueSnapshot) -> Vec<u64> {
     let mut targets = Vec::new();
@@ -2010,6 +1998,68 @@ fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: boo
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn full_idle_has_no_feedback_but_real_loading_errors_stopping_and_receipts_remain() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Success, false);
+        assert_eq!(ui.feedback_message(), None);
+        ui.fixture = true;
+        assert_eq!(ui.feedback_message(), None);
+        ui.snapshot = None;
+        assert_eq!(ui.feedback_message(), None);
+        ui.fixture = false;
+        assert_eq!(ui.feedback_message(), Some("正在读取下载设置…"));
+        ui.startup_error = Some("E_STARTUP".into());
+        assert_eq!(ui.feedback_message(), Some("E_STARTUP"));
+        ui.feedback = Some(("目录设置未保存".into(), 100));
+        assert_eq!(ui.feedback_message(), Some("目录设置未保存"));
+        ui.feedback = Some((String::new(), 100));
+        assert_eq!(ui.feedback_message(), Some("E_STARTUP"));
+        ui.feedback = None;
+        ui.startup_error = None;
+        let mut snapshot = crate::queue_fixture::snapshot(Vec::new());
+        snapshot.stopping = true;
+        ui.snapshot = Some(Arc::new(snapshot));
+        assert_eq!(ui.feedback_message(), Some("已关闭新任务受理，正在安全停止"));
+        ui.feedback = Some(("默认设置已保存".into(), 200));
+        assert_eq!(ui.feedback_message(), Some("默认设置已保存"));
+        ui.feedback = None;
+        ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(Vec::new())));
+        assert_eq!(ui.feedback_message(), None);
+    }
+
+    #[test]
+    fn background_directory_open_waits_for_settings_ack_and_recovers_on_failure() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Failure, false);
+        ui.queue_open = false;
+        assert!(ui.background_actions_available());
+        let old = ui.settings().unwrap();
+        ui.settings_pending = true;
+        assert!(!ui.background_actions_available());
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 100);
+        assert!(ui.background_actions_available());
+        assert_eq!(ui.settings().unwrap(), old);
+        ui.settings_pending = true;
+        let newer = Settings { output_dir: PathBuf::from("acknowledged-folder"), ..old };
+        ui.complete_settings(CommandReply::SettingsSaved(newer.clone()), 200);
+        assert!(ui.background_actions_available());
+        assert_eq!(ui.settings().unwrap(), newer);
+        ui.exit_open = true;
+        assert!(!ui.background_actions_available());
+    }
+    #[test]
+    fn next_quality_save_keeps_acknowledged_folder_before_snapshot_catches_up() {
+        use super::*;
+        let (mut ui,receiver)=row_ui(JobPhase::Failure,false);
+        let old=ui.snapshot.as_ref().unwrap().settings.clone();
+        let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder")};
+        ui.settings_pending=true;ui.complete_settings(CommandReply::SettingsSaved(newer.clone()),100);
+        assert_eq!(ui.snapshot.as_ref().unwrap().settings,old);
+        ui.request_quality(Quality::Saver,101);
+        let QueueCommand::SaveSettings(requested)=receiver.try_recv().unwrap() else{panic!("expected settings action")};
+        assert_eq!(requested.output_dir,newer.output_dir);assert_eq!(requested.quality,Quality::Saver);
+    }
     fn row_ui(phase: super::JobPhase, slot: bool) -> (super::DownloadUi, super::Receiver<super::QueueCommand>) {
         use super::*;
         let (commands, receiver) = mpsc::sync_channel(8);

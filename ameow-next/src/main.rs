@@ -12,6 +12,8 @@ mod native;
 mod repair_motion;
 mod ring_glow;
 mod tokens;
+mod context_menu;
+mod surface_actions;
 
 use gpui::{prelude::*, *};
 use model::{Geometry, Model, Stage};
@@ -161,6 +163,11 @@ impl Options {
     }
 }
 struct Prototype {
+    surface_menu: context_menu::Menu,
+    menu_save_generation: Option<u64>,
+    _menu_activation: Subscription,
+    visual_offset: [f32; 2],
+    background_clicks: surface_actions::BackgroundClicks,
     downloads: Option<download_ui::DownloadUi>,
     unknown_downloading: bool,
     tray: Option<tray::Tray>,
@@ -197,6 +204,11 @@ impl Prototype {
     fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
         window.focus(&focus);
+        let menu_activation = cx.observe_window_activation(window, |this, window, cx| {
+            if !window.is_window_active() && this.surface_menu.is_open() {
+                this.close_menu(cx);
+            }
+        });
         let mut model = Model::new(0, options.reduced);
         model.window_motion = Motion::new(options.candidate, options.uncapped, 0);
         model.state(
@@ -228,6 +240,11 @@ impl Prototype {
             }
         }));
         Self {
+            surface_menu: context_menu::Menu::default(),
+            menu_save_generation: None,
+            _menu_activation: menu_activation,
+            visual_offset: [0., 0.],
+            background_clicks: surface_actions::BackgroundClicks::default(),
             downloads,
             unknown_downloading: options.unknown_downloading,
             tray,
@@ -284,11 +301,35 @@ impl Prototype {
         }
     }
     fn close_menu(&mut self, cx: &mut Context<Self>) {
-        self.model.locks.menu = self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open || ui.folder_pending);
+        self.surface_menu.close(self.now());
+        self.background_clicks.reset();
+        self.drag = None;
+        self.model.locks.drag = false;
+        self.model.locks.menu = self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open);
         self.model.locks_changed(self.now());
         cx.notify();
     }
+    fn show_context_menu(&mut self, cx: &mut Context<Self>) {
+        if self.surface_menu.is_open() { return; }
+        if !self.model.target_full || self.model.fullness < 0.999 { return; }
+        if self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open) { return; }
+        self.surface_menu.open(self.now());
+        self.model.locks.menu = true;
+        self.background_clicks.reset();
+        self.drag=None;self.model.locks.drag=false;
+        self.model.locks_changed(self.now());
+        cx.notify();
+    }
+    fn background_eligible(&self) -> bool {
+        self.downloads.as_ref().is_some_and(|ui| ui.background_actions_available()) && self.model.target_full && self.model.fullness >= 0.999
+            && !self.model.locks.menu && !self.model.locks.drop
+    }
     fn key(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.surface_menu.is_open() {
+            if let Some(action) = self.surface_menu.key(key) { self.surface_menu_action(action, cx); }
+            cx.notify();
+            return;
+        }
         if self.downloads.as_mut().is_some_and(|ui| ui.preview_key(key)) {
             self.model.locks.menu = self.downloads.as_ref().is_some_and(|ui| ui.queue_open);
             self.model.locks_changed(self.now());
@@ -301,6 +342,8 @@ impl Prototype {
         }
         match key {
             "0" => self.state(Stage::Idle, cx),
+            // Keep the historical manual-Compact exercise in mock fixtures only.
+            "s" | "S" => { self.close_menu(cx); self.model.request_compact(self.now()); cx.notify(); }
             "1" => self.state(Stage::Resolving, cx),
             "2" => self.state(Stage::Downloading, cx),
             "3" => self.state(Stage::Transcoding, cx),
@@ -384,6 +427,7 @@ impl Prototype {
         if let Some((cursor, anchor)) = self.drag {
             if Native::left_down() {
                 let p = Native::cursor();
+                if (p[0]-cursor[0]).hypot(p[1]-cursor[1])>4. { self.background_clicks.reset(); }
                 self.anchor = [anchor[0] + p[0] - cursor[0], anchor[1] + p[1] - cursor[1]];
                 self.clamp_anchor(self.model.window_motion.candidate.max_geometry());
             } else {
@@ -458,29 +502,17 @@ impl Prototype {
                 let n = self.native.as_ref().unwrap();
                 let arc = self.model.arc(now);
                 let viewport = window.viewport_size();
-                let _ = writeln!(
-                    log,
-                    "{{\"ms\":{},\"stage\":\"{:?}\",\"fullness\":{:.6},\"target_full\":{},\"pointer\":{},\"drag\":{},\"menu\":{},\"drop\":{},\"night\":{},\"reduced\":{},\"bounds\":{:?},\"viewport\":[{},{}],\"anchor\":{:?},\"scale\":{},\"arc\":[{},{}],\"progress\":{},\"symbol\":{}}}",
-                    now,
-                    self.model.stage,
-                    self.model.fullness,
-                    self.model.target_full,
-                    self.model.pointer,
-                    self.model.locks.drag,
-                    self.model.locks.menu,
-                    self.model.locks.drop,
-                    self.night,
-                    self.model.reduced,
-                    n.bounds(),
-                    f32::from(viewport.width),
-                    f32::from(viewport.height),
-                    self.anchor,
-                    n.scale(),
-                    arc.0,
-                    arc.1,
-                    self.model.progress.sample(now),
-                    self.model.symbol(now)
-                );
+                let _ = writeln!(log, "{}", serde_json::json!({
+                    "ms":now,"stage":format!("{:?}",self.model.stage),"fullness":self.model.fullness,
+                    "target_full":self.model.target_full,"pointer":self.model.pointer,"drag":self.model.locks.drag,
+                    "menu":self.model.locks.menu,"drop":self.model.locks.drop,"night":self.night,"reduced":self.model.reduced,
+                    "bounds":n.bounds(),"viewport":[f32::from(viewport.width),f32::from(viewport.height)],
+                    "anchor":self.anchor,"scale":n.scale(),"arc":[arc.0,arc.1],
+                    "progress":self.model.progress.sample(now),"symbol":self.model.symbol(now),
+                    "menu_page":self.surface_menu.name(),"menu_selected":self.surface_menu.selected,
+                    "menu_pending":self.downloads.as_ref().is_some_and(|ui|ui.settings_pending),
+                    "menu_hint":self.surface_menu.hint.is_some(),"visual_offset":self.visual_offset
+                }));
                 let _ = log.flush();
             }
         }
@@ -640,6 +672,7 @@ impl Render for Prototype {
             }
         };
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
+        self.visual_offset = visual_offset;
         let frame = self.indicator.sample(&self.model, p, now);
         let indeterminate = self.unknown_downloading || self
             .downloads
@@ -663,7 +696,7 @@ impl Render for Prototype {
             .copied_at
             .map(|at| (at + 900).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
-        let hover_delay = hover_moving.then_some(16);
+        let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
         let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay]
@@ -717,27 +750,34 @@ impl Render for Prototype {
             .border_color(gpui::transparent_black())
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| {
-                    window.activate_window();
+                cx.listener(|this, event: &MouseDownEvent, window, cx| {
+                    if this.surface_menu.is_open() { cx.stop_propagation(); return; }
                     window.focus(&this.focus);
                     if this.model.locks.menu {
                         this.close_menu(cx);
                         return;
                     }
-                    this.drag = Some((Native::cursor(), this.anchor));
-                    this.model.locks.drag = true;
+                    let paired=this.background_clicks.press(this.now(),[event.position.x.into(),event.position.y.into()],event.click_count,this.background_eligible());
+                    this.drag = (!paired).then(||(Native::cursor(), this.anchor));
+                    this.model.locks.drag = !paired;
                     this.model.locks_changed(this.now());
                     cx.notify();
                 }),
             )
+            .on_mouse_up(MouseButton::Left,cx.listener(|this,event:&MouseUpEvent,_,cx| {
+                if this.surface_menu.is_open() { cx.stop_propagation(); return; }
+                let open=this.background_clicks.release(this.now(),[event.position.x.into(),event.position.y.into()],this.background_eligible());
+                this.drag=None;this.model.locks.drag=false;this.model.locks_changed(this.now());
+                if open {this.open_output_directory(cx);}
+            }))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|this, _, window, cx| {
-                    window.activate_window();
                     window.focus(&this.focus);
-                    this.model.locks.menu = !this.model.locks.menu;
-                    this.model.locks_changed(this.now());
-                    cx.notify();
+                    if this.downloads.is_some() {this.show_context_menu(cx);} else {
+                        this.model.locks.menu = !this.model.locks.menu;
+                        this.model.locks_changed(this.now());cx.notify();
+                    }
                 }),
             );
         let slot = div()
@@ -793,7 +833,7 @@ impl Render for Prototype {
                         )
                         .on_mouse_down(
                             MouseButton::Left,
-                            cx.listener(|_, _, _, cx| cx.stop_propagation()),
+                            cx.listener(|this, _, _, cx| {this.background_clicks.reset();cx.stop_propagation();}),
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if stage == Stage::Failure {
@@ -809,6 +849,7 @@ impl Render for Prototype {
         let live_badge = self.downloads.as_ref().and_then(|ui| ui.badge());
         let badge_visible = if self.downloads.is_some() { live_badge.is_some() } else { stage.active() };
         let (badge_count, failure_dot, download_dot) = live_badge.unwrap_or((2, false, true));
+        let badge_text = badge_count.to_string();
         let badge = div()
             .id("queue-badge")
             .absolute()
@@ -826,10 +867,13 @@ impl Render for Prototype {
             .font_family(tokens::LATIN_FONT)
             .text_size(px(12.))
             .font_weight(FontWeight::MEDIUM)
-            .child(div().absolute().left(px(9.)).top(px(4.5)).child(badge_count.to_string()))
-            .when(download_dot, |badge| badge.child(div().absolute().left(px(if failure_dot { 24. } else { 21. })).top(px(7.5)).size(px(8.)).rounded_full().bg(if self.downloads.is_some() { p.blue } else { p.semantic(stage) })))
-            .when(failure_dot, |badge| badge.child(div().absolute().left(px(21.)).top(px(7.5)).size(px(8.)).rounded_full().bg(p.red)))
-            .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+            // One vertical center for both themes; fixed slots preserve dot x21/x24.
+            .child(div().w_full().h_full().flex().items_center().gap(px(5.))
+                .child(div().w(px(16.)).h(px(12.)).flex_none().line_height(px(12.)).text_align(TextAlign::Right).child(badge_text))
+                .child(div().relative().w(px(11.)).h(px(8.)).flex_none()
+                    .when(download_dot, |group| group.child(div().absolute().left(px(if failure_dot { 3. } else { 0. })).top(px(0.)).size(px(8.)).rounded_full().bg(if self.downloads.is_some() { p.blue } else { p.semantic(stage) })))
+                    .when(failure_dot, |group| group.child(div().absolute().left(px(0.)).top(px(0.)).size(px(8.)).rounded_full().bg(p.red)))))
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {this.background_clicks.reset();cx.stop_propagation();}))
             .on_click(cx.listener(move |this, _, _, cx| { if badge_visible { this.open_queue(cx); } }));
         let surface_extra = self.model.window_motion.extra;
         // Endpoint elasticity belongs to the Surface alone; shadow uses native travel.
@@ -862,6 +906,12 @@ impl Render for Prototype {
         )
         .absolute()
         .size_full();
+        let menu_open = self.surface_menu.is_open();
+        let content_alpha = self.surface_menu.content_alpha(now, self.model.reduced);
+        let main_content = div().absolute().size(px(g.native)).opacity(content_alpha)
+            .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
+            .when(badge_visible, |group| group.child(badge))
+            .when(self.preparation_indicator_visible(), |group| group.child(self.preparation_indicator(cx)));
         let visual_group = div()
             .id("full-visual-object")
             .absolute()
@@ -871,9 +921,15 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
-            .child(badge)
-            .when(self.preparation_indicator_visible(), |group| group.child(self.preparation_indicator(cx)));
+            .when(!menu_open, |group| group.child(main_content))
+            .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
+        let feedback = if self.downloads.is_some() && !self.model.locks.menu && !menu_open {
+            self.download_feedback(content_alpha)
+        } else { None };
+        let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
+            .when(self.downloads.as_ref().is_some_and(|ui|ui.queue_open),|s|s.child(self.queue_panel(window,cx)))
+            .when(self.downloads.as_ref().is_some_and(|ui|ui.exit_open),|s|s.child(self.exit_panel(cx)))
+            .children(feedback);
         let result = div()
             .id("ameow-root")
             .track_focus(&self.focus)
@@ -881,16 +937,20 @@ impl Render for Prototype {
             .size_full()
             .overflow_hidden()
             .font(tokens::ui_font())
-            .on_hover(cx.listener(|this, inside, _, cx| {
+            .on_hover(cx.listener(|this, inside: &bool, _, cx| {
+                if !*inside {this.background_clicks.reset();}
                 if this.probe_period_ms.is_none() {
                     this.model.pointer(*inside, this.now());
                 }
                 cx.notify();
             }))
-            .on_mouse_move(cx.listener(|_, _: &MouseMoveEvent, _, cx| cx.notify()))
+            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {this.background_clicks.motion([event.position.x.into(),event.position.y.into()]);cx.notify();}))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 // GPUI registers tab stops but requires the application to move focus.
-                if event.keystroke.key == "tab"
+                if this.surface_menu.is_open() {
+                    this.key(event.keystroke.key.as_str(), cx);
+                    cx.stop_propagation();
+                } else if event.keystroke.key == "tab"
                     && this.downloads.as_ref().is_some_and(|ui| ui.queue_open)
                 {
                     if event.keystroke.modifiers.shift { window.focus_prev(); }
@@ -905,25 +965,26 @@ impl Render for Prototype {
                 }
             }))
             .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
+                if this.surface_menu.is_open() { cx.stop_propagation(); return; }
+                this.background_clicks.reset();
                 this.model.locks.drop = true;
                 this.model.locks_changed(this.now());
                 cx.notify();
             }))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                if this.surface_menu.is_open() { cx.stop_propagation(); return; }
                 this.model.locks.drop = false;
                 this.model.locks_changed(this.now());
+                if this.downloads.is_some() {this.drop_output_directory(paths.paths(),cx);}
                 if this.downloads.is_none() && !paths.paths().is_empty() {
                     this.state(Stage::Resolving, cx);
                 }
             }))
             .child(visual_group)
-            .when(self.downloads.as_ref().is_some_and(|ui| ui.is_fixture() && !ui.queue_open), |s| s.child(div().absolute().left(px(g.gutter + 70.)).top(px(g.gutter + 8.)).text_size(px(8.)).text_color(p.neutral).child("Fixture · 0–9")))
-            .when(self.downloads.as_ref().is_some_and(|ui| ui.queue_open), |s| s.child(self.queue_panel(window, cx)))
-            .when(self.downloads.as_ref().is_some_and(|ui| ui.exit_open), |s| s.child(self.exit_panel(cx)))
-            .when(self.model.locks.menu && !self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open || ui.folder_pending), |s| {
-                if self.downloads.is_some() { s.child(self.download_menu(cx)) } else { s.child(self.menu(cx)) }
-            })
-            .when(self.downloads.is_some() && !self.model.locks.menu, |s| s.child(self.download_feedback()));
+            .child(overlays)
+            .when(self.downloads.is_none() && self.model.locks.menu, |s| {
+                s.child(self.menu(cx))
+            });
         if let Some(writer) = &mut self.measure {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();

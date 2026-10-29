@@ -625,6 +625,12 @@ mod tests {
             .intent;
         assert_eq!(accepted.quality, a.quality);
         assert_eq!(accepted.output_dir, a.output_dir);
+        let future = backend.submit("https://youtu.be/dQw4w9WgXcQ".into())?;
+        let future_view = backend.snapshot();
+        let future_intent = &future_view.jobs.iter().find(|r| r.job_id == future)
+            .ok_or("Missing future Job")?.accepted.intent;
+        assert_eq!(future_intent.quality, b.quality);
+        assert_eq!(future_intent.output_dir, b.output_dir);
         assert_eq!(
             Settings::load(&backend.shared.settings_path, defaults(root.path()))?,
             b

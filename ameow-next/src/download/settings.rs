@@ -12,6 +12,39 @@ pub struct Settings {
     pub quality: Quality,
     pub output_dir: PathBuf,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn acknowledged_canonical_directory_can_be_saved_again_for_quality_change() {
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("output");
+        fs::create_dir(&output).unwrap();
+        let path = root.path().join("settings.json");
+        let first = Settings { quality: Quality::Balanced, output_dir: output }.persist(&path).unwrap();
+        let next = Settings { quality: Quality::Saver, ..first };
+        let saved = next.persist(&path).unwrap();
+        assert_eq!(saved.quality, Quality::Saver);
+        assert_eq!(Settings::load(&path, next).unwrap(), saved);
+        assert_eq!(fs::read_dir(&saved.output_dir).unwrap().count(), 0);
+    }
+    #[test]
+    fn directory_validation_keeps_acknowledged_defaults_and_removes_probe() {
+        let root=tempfile::tempdir().unwrap();let output=root.path().join("output");fs::create_dir(&output).unwrap();
+        let path=root.path().join("settings.json");
+        let saved=Settings{quality:Quality::Balanced,output_dir:output.clone()}.persist(&path).unwrap();
+        assert_eq!(fs::read_dir(&output).unwrap().count(),0);
+        let before=fs::read(&path).unwrap();let file=root.path().join("file.txt");fs::write(&file,b"ordinary").unwrap();
+        for candidate in [file,root.path().join("missing")] {
+            assert!(Settings{quality:Quality::Saver,output_dir:candidate}.persist(&path).is_err());
+            assert_eq!(fs::read(&path).unwrap(),before);
+            assert_eq!(Settings::load(&path,saved.clone()).unwrap(),saved);
+        }
+        assert_eq!(fs::read_dir(&output).unwrap().count(),0);
+    }
+}
+
 impl Settings {
     pub fn load(path: &Path, defaults: Self) -> Result<Self, String> {
         match fs::read(path) {
@@ -30,6 +63,13 @@ impl Settings {
         if !output_dir.is_dir() {
             return Err("E_SETTINGS_SAVE: Output must be a directory".into());
         }
+        // Runs on the existing settings command owner, before publication/acknowledgement.
+        let mut probe = tempfile::Builder::new().prefix(".ameow-write-probe-")
+            .tempfile_in(&output_dir)
+            .map_err(|_| "E_SETTINGS_SAVE: Output directory is not writable")?;
+        probe.write_all(b"").and_then(|_| probe.as_file().sync_all())
+            .map_err(|_| "E_SETTINGS_SAVE: Cannot write to output directory")?;
+        probe.close().map_err(|_| "E_SETTINGS_SAVE: Cannot finish output directory check")?;
         let saved = Self {
             quality: self.quality,
             output_dir,

@@ -149,7 +149,12 @@ impl Native {
             rect[0] = (500. * scale).round() as i32;
             rect[1] = (300. * scale).round() as i32;
         }
-        if self.last != Some(rect) {
+        // Geometry can remain unchanged after the window loses its floating band.
+        // Check membership on the existing apply path so dedup does not hide that.
+        let topmost = unsafe {
+            GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0
+        };
+        if self.last != Some(rect) || !topmost {
             // GPUI on_resize updates Window. Calling SetWindowPos during Render
             // reenters a borrowed Window and leaves its cached viewport stale.
             // Run atomically on the foreground executor after that borrow ends.
@@ -171,14 +176,18 @@ impl Native {
                         return;
                     }
                     let (start_us,framechanged,previous)={let r=research.borrow();(r.clock.elapsed().as_micros(),r.always_framechanged||r.apply_count==0,r.last_applied)};
-                    // Keep Z-order treatment identical: FRAMECHANGED is the only
-                    // varied flag in this controlled experiment.
-                    let flags=SWP_NOACTIVATE | if framechanged {SWP_FRAMECHANGED}else{SET_WINDOW_POS_FLAGS(0)};
+                    // Read again when the coalesced operation actually executes.
+                    // Restore a lost floating band, but never re-raise a window
+                    // already in that band above the shell's drag image.
+                    let needs_topmost=unsafe {GetWindowLongPtrW(hwnd,GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize == 0};
+                    let flags=SWP_NOACTIVATE
+                        | if framechanged {SWP_FRAMECHANGED}else{SET_WINDOW_POS_FLAGS(0)}
+                        | if needs_topmost {SET_WINDOW_POS_FLAGS(0)}else{SWP_NOZORDER};
                     // SAFETY: this is the owned HWND on the GPUI foreground thread.
                     unsafe {
                         SetWindowPos(
                             hwnd,
-                            Some(HWND_TOPMOST),
+                            if needs_topmost {Some(HWND_TOPMOST)}else{None},
                             rect[0],
                             rect[1],
                             rect[2],
