@@ -1,0 +1,34 @@
+{
+  "id": "weibo-popup-api-variant-options",
+  "name": "weibo-popup-api-variant-options",
+  "title": "Fix Weibo popup API variant options",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Mabel-WIN",
+  "assignee": "Mabel-WIN",
+  "createdAt": "2026-07-28",
+  "completedAt": "2026-10-30",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "local_closeout_20261030": {
+      "reason": "Existing scoped implementation/planning deliverable complete; see archive-eligibility.md. Parent planning closure does not complete its future child features.",
+      "outcome_preserved": true,
+      "product_revalidation_run": false,
+      "evidence_relocation": ".trellis/tasks/archive/2026-10/07-28-weibo-popup-api-variant-options",
+      "authority": "Explicit user instruction to locally commit and archive completed tasks on 2026-10-30."
+    }
+  }
+}
