@@ -418,8 +418,8 @@ impl Prototype {
             self.copied_at = None;
         }
         if self.native.is_none() {
-            let mut native = Native::attach(window);
-            native.set_research(self.native_flags_always, self.native_metrics.take());
+            let mut native = Native::attach(window, self.native_metrics.take());
+            native.set_research(self.native_flags_always);
             native.set_probe(&self.native_probe);
             self.native = Some(native);
             self.clamp_anchor(self.model.window_motion.candidate.max_geometry());
@@ -1088,6 +1088,10 @@ fn main() {
                         ..Default::default()
                     }),
                     kind: WindowKind::PopUp,
+                    // Native completes first geometry and TOPMOST on the foreground
+                    // executor before showing this Windows popup without activation.
+                    show: !cfg!(target_os = "windows"),
+                    focus: !cfg!(target_os = "windows"),
                     window_background: WindowBackgroundAppearance::Transparent,
                     is_resizable: false,
                     is_minimizable: false,

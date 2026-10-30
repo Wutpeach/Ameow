@@ -1095,6 +1095,10 @@ impl Prototype {
         if let Some(ui) = &mut self.downloads {
             ui.hidden = false;
         }
+        // Windows Tray::restore already shows and requests foreground; its native
+        // WM_ACTIVATE updates GPUI's active state. Activating again through GPUI
+        // would replay the hidden startup placement and synthesize global Alt.
+        #[cfg(not(target_os = "windows"))]
         window.activate_window();
         window.focus(&self.focus);
         self.model.pointer(true, self.now());

@@ -22,7 +22,7 @@ use windows::{
             WindowsAndMessaging::*,
         },
     },
-    core::Result,
+    core::{Error, Result},
 };
 
 pub struct Native {
@@ -46,6 +46,32 @@ struct NativeResearch {
     last_applied: Option<[i32; 4]>,
 }
 impl NativeResearch {
+    fn new(metrics_path: Option<String>) -> Self {
+        Self {
+            clock: Instant::now(),
+            writer: metrics_path.map(|path| BufWriter::with_capacity(256 * 1024, File::create(path).expect("native metrics file"))),
+            always_framechanged: true,
+            request_count: 0, apply_count: 0, skipped_count: 0, unchanged_count: 0,
+            last_applied: None,
+        }
+    }
+    fn window_event(&mut self, event: &str, hwnd: HWND, result: Option<bool>) {
+        if self.writer.is_none() { return; }
+        let exstyle = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+        self.emit(&serde_json::json!({
+            "type":"native_startup", "version":"r12-first-show", "event":event,
+            "timestamp_us":self.clock.elapsed().as_micros(),
+            "unix_us":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros(),
+            "hwnd":hwnd.0 as usize, "exstyle":exstyle,
+            "style":unsafe {GetWindowLongPtrW(hwnd,GWL_STYLE)},
+            "owner":unsafe {GetWindow(hwnd,GW_OWNER).map(|h|h.0 as usize).unwrap_or(0)},
+            "insert_after_topmost":HWND_TOPMOST.0 as isize,
+            "topmost":exstyle & WS_EX_TOPMOST.0 as isize != 0,
+            "visible":unsafe { IsWindowVisible(hwnd).as_bool() },
+            "foreground":unsafe { GetForegroundWindow().0 as usize }, "result":result
+        }).to_string());
+        if let Some(writer) = &mut self.writer { writer.flush().expect("startup metrics flush"); }
+    }
     fn emit(&mut self, event: &str) {
         if let Some(writer) = &mut self.writer {
             writeln!(writer, "{event}").expect("native research record");
@@ -71,8 +97,51 @@ impl Drop for NativeResearch {
         }
     }
 }
+
+fn is_topmost(hwnd: HWND) -> bool {
+    // SAFETY: callers supply the owned live HWND on its foreground thread.
+    unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0 }
+}
+
+/// Runs only after Render releases Window: geometry messages synchronously call GPUI.
+/// Initial membership is verified while hidden, then shown without changing Z-order.
+/// GPUI 0.2.2's deferred placement is intentionally not consumed through activate(),
+/// which synthesizes Alt input and forces foreground; explicit tray restore uses
+/// native ShowWindow/SetForegroundWindow and its WM_ACTIVATE updates GPUI normally.
+fn apply_window_bounds(
+    hwnd: HWND,
+    rect: [i32; 4],
+    first_show: bool,
+    framechanged: bool,
+    research: &RefCell<NativeResearch>,
+) -> Result<()> {
+    let needs_topmost = !is_topmost(hwnd);
+    let flags = SWP_NOACTIVATE
+        | if framechanged { SWP_FRAMECHANGED } else { SET_WINDOW_POS_FLAGS(0) }
+        | if first_show { SWP_NOOWNERZORDER } else { SET_WINDOW_POS_FLAGS(0) }
+        | if needs_topmost { SET_WINDOW_POS_FLAGS(0) } else { SWP_NOZORDER };
+    // NOOWNERZORDER is material on initial promotion: a successful call alone did
+    // not establish TOPMOST in the bounded R12 native/GPUI comparison without it.
+    let result = unsafe { SetWindowPos(hwnd, if needs_topmost { Some(HWND_TOPMOST) } else { None }, rect[0], rect[1], rect[2], rect[3], flags) };
+    if first_show { research.borrow_mut().window_event("initial_position_topmost_hidden", hwnd, Some(result.is_ok())); }
+    result?;
+    if first_show {
+        if !is_topmost(hwnd) {
+            return Err(Error::new(windows::Win32::Foundation::E_FAIL, "Initial native TOPMOST membership not established"));
+        }
+        // SetWindowPos avoids ShowWindow's first-call STARTUPINFO show override.
+        let shown = unsafe { SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE) };
+        research.borrow_mut().window_event("initial_show_complete", hwnd, Some(shown.is_ok()));
+        shown?;
+        if !is_topmost(hwnd) || !unsafe { IsWindowVisible(hwnd).as_bool() } {
+            return Err(Error::new(windows::Win32::Foundation::E_FAIL, "Initial native visibility/TOPMOST completion failed"));
+        }
+    }
+    Ok(())
+}
+
 impl Native {
-    pub fn attach(window: &Window) -> Self {
+    pub fn attach(window: &Window, metrics_path: Option<String>) -> Self {
         let handle = HasWindowHandle::window_handle(window)
             .expect("GPUI HWND")
             .as_raw();
@@ -80,35 +149,25 @@ impl Native {
             panic!("Windows native prototype")
         };
         let hwnd = HWND(handle.hwnd.get() as *mut std::ffi::c_void);
+        let mut research = NativeResearch::new(metrics_path);
+        research.window_event("attach_created_hidden", hwnd, None);
         // TitlebarOptions.appears_transparent=false lets DefWindowProc handle the
         // WS_POPUP nonclient area; GPUI's transparent-titlebar insets are not used.
         unsafe {
-            SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_POPUP | WS_VISIBLE).0 as isize);
-            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, WS_POPUP.0 as isize);
         }
+        research.window_event("attach_styled_hidden", hwnd, None);
         Self {
             hwnd,
             last: None,
             latest: Rc::new(Cell::new(None)),
-            research: Rc::new(RefCell::new(NativeResearch {
-                clock: Instant::now(),
-                writer: None,
-                always_framechanged: true,
-                request_count: 0,
-                apply_count: 0,
-                skipped_count: 0,
-                unchanged_count: 0,
-                last_applied: None,
-            })),
+            research: Rc::new(RefCell::new(research)),
             probe: "normal".into(),
         }
     }
-    pub fn set_research(&mut self, frame_changed_always: bool, metrics_path: Option<String>) {
+    pub fn set_research(&mut self, frame_changed_always: bool) {
         let mut research = self.research.borrow_mut();
         research.always_framechanged = frame_changed_always;
-        research.writer = metrics_path.map(|path| {
-            BufWriter::with_capacity(256 * 1024, File::create(path).expect("native metrics file"))
-        });
     }
     /// Diagnostic stimuli only, not product window behavior. Both controls follow
     /// the same size trajectory but constrain which native dimensions may change.
@@ -180,22 +239,10 @@ impl Native {
                     // Restore a lost floating band, but never re-raise a window
                     // already in that band above the shell's drag image.
                     let needs_topmost=unsafe {GetWindowLongPtrW(hwnd,GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize == 0};
-                    let flags=SWP_NOACTIVATE
-                        | if framechanged {SWP_FRAMECHANGED}else{SET_WINDOW_POS_FLAGS(0)}
-                        | if needs_topmost {SET_WINDOW_POS_FLAGS(0)}else{SWP_NOZORDER};
-                    // SAFETY: this is the owned HWND on the GPUI foreground thread.
-                    unsafe {
-                        SetWindowPos(
-                            hwnd,
-                            if needs_topmost {Some(HWND_TOPMOST)}else{None},
-                            rect[0],
-                            rect[1],
-                            rect[2],
-                            rect[3],
-                            flags,
-                        )
-                        .expect("atomic native bounds");
-                    }
+                    if needs_topmost || previous.is_none() { research.borrow_mut().window_event("apply_before", hwnd, None); }
+                    let result = apply_window_bounds(hwnd, rect, previous.is_none(), framechanged, &research);
+                    if needs_topmost || previous.is_none() { research.borrow_mut().window_event("apply_after", hwnd, Some(result.is_ok())); }
+                    result.expect("atomic native bounds");
                     let end_us=research.borrow().clock.elapsed().as_micros();
                     let mut actual=RECT::default();
                     unsafe { GetWindowRect(hwnd,&mut actual).expect("research actual bounds"); }
@@ -273,5 +320,58 @@ impl Native {
             .expect("animation preference");
         }
         !enabled.as_bool()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::core::w;
+
+    struct OwnedWindow(HWND);
+    impl OwnedWindow {
+        fn hidden() -> Self {
+            // Real task-owned offscreen popup; no GPUI, user windows or input.
+            Self(unsafe {
+                CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP, w!("STATIC"), w!("Ameow native lifecycle regression"), WS_POPUP, -10000, -10000, 80, 80, None, None, None, None).expect("test popup")
+            })
+        }
+    }
+    impl Drop for OwnedWindow {
+        fn drop(&mut self) { unsafe { let _ = DestroyWindow(self.0); } }
+    }
+
+    fn is_above(upper: HWND, lower: HWND) -> bool {
+        let mut current = lower;
+        for _ in 0..2048 {
+            let Ok(previous) = (unsafe { GetWindow(current, GW_HWNDPREV) }) else { return false; };
+            if previous == upper { return true; }
+            current = previous;
+        }
+        false
+    }
+
+    #[test]
+    fn initial_show_is_topmost_without_focus_and_runtime_preserves_overlay_order() {
+        let foreground = unsafe { GetForegroundWindow() };
+        let popup = OwnedWindow::hidden();
+        let research = RefCell::new(NativeResearch::new(None));
+        assert!(!unsafe { IsWindowVisible(popup.0).as_bool() });
+        assert!(!is_topmost(popup.0));
+        apply_window_bounds(popup.0, [-10000, -10000, 80, 80], true, true, &research).expect("initial popup show");
+        assert!(is_topmost(popup.0));
+        assert!(unsafe { IsWindowVisible(popup.0).as_bool() });
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+
+        let overlay = OwnedWindow::hidden();
+        apply_window_bounds(overlay.0, [-10000, -10000, 20, 20], true, true, &research).expect("test overlay show");
+        assert!(is_above(overlay.0, popup.0));
+        apply_window_bounds(popup.0, [-9998, -9998, 228, 228], false, true, &research).expect("runtime resize");
+        assert!(is_topmost(popup.0));
+        assert!(is_above(overlay.0, popup.0), "runtime geometry must not raise above an existing topmost overlay");
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        let mut actual = RECT::default();
+        unsafe { GetWindowRect(popup.0, &mut actual).unwrap(); }
+        assert_eq!([actual.left, actual.top, actual.right - actual.left, actual.bottom - actual.top], [-9998, -9998, 228, 228]);
     }
 }
