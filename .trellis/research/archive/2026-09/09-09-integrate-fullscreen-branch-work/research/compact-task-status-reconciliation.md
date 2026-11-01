@@ -76,9 +76,9 @@ This disposition preserves the feature ref as a recovery pointer without pretend
 - `.trellis/spec/frontend/index.md:1-47` — frontend scope and fixed 200x200/Compact constraints.
 - `.trellis/spec/frontend/character-motion.md:1-73` — source-specific Compact leaf, behind-head composition, one-clock runtime, pointer/reduced-motion/disposal boundaries, and Lab-only `previewPose`.
 - `.trellis/spec/frontend/component-guidelines.md` and `quality-guidelines.md` — composition boundary, no duplicate renderer/authority, cleanup, and no per-frame React/IPC motion.
-- `.trellis/tasks/09-09-integrate-fullscreen-branch-work/research/fullscreen-branch-inventory.md:5-27,45-69,220-280` — accepted fullscreen chain already in `main`, old branch snapshot, dirty-path overlap, and no-current-integration plan.
-- `.trellis/tasks/09-09-integrate-fullscreen-branch-work/research/branch-audit-active-work.md:60-143,290-328` — prior retain/block verdict and deletion gates for the Compact ref; live checks above update its stale-main caveat.
-- `.trellis/tasks/09-09-integrate-fullscreen-branch-work/research/branch-cleanup-remote-policy.md:146-159,190-227,280-356` — archive-tag policy, local-only-main ordering, and remote-deletion boundary.
+- `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work/research/fullscreen-branch-inventory.md:5-27,45-69,220-280` — accepted fullscreen chain already in `main`, old branch snapshot, dirty-path overlap, and no-current-integration plan.
+- `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work/research/branch-audit-active-work.md:60-143,290-328` — prior retain/block verdict and deletion gates for the Compact ref; live checks above update its stale-main caveat.
+- `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work/research/branch-cleanup-remote-policy.md:146-159,190-227,280-356` — archive-tag policy, local-only-main ordering, and remote-deletion boundary.
 - `.trellis/workspace/Mabel-WIN/journal-6.md:10-41,183-229` — completed tooling history, prior Compact PASS, current workspace classification, and completed 09-09 root-integration session.
 - `src/presentation/main-window/compactMascotDefinition.ts:49-86`, `compactMascotBehaviorRuntime.ts:34-153`, and `CompactMascot.tsx:57-138` — canonical geometry, shared root fix/preview seam, and production-vs-Lab runtime boundary.
 

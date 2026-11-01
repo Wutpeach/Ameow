@@ -25,7 +25,7 @@ Three gates must be explicit before implementation:
 The AGPL-3.0-only core/derivative governance question remains a separate formal
 release gate, not an internal planning blocker (`package.json:47-51`;
 `package-lock.json:312-323`; prior approved report at
-`.trellis/tasks/archive/2026-08/08-23-compact-mascot-visual-planning/research/
+`.trellis/research/archive/2026-08/08-23-compact-mascot-visual-planning/research/
 upstream-bible-strong-avatar-lab.md:48-54`).
 
 ## Authoritative seam (verified)

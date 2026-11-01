@@ -101,7 +101,7 @@ A dev-only pure-Vite Browser Presentation Lab was added in this worktree. It is 
 | No fake controls | **PASS** | Inspector exposes only controls that map to real production inputs (reducedMotion prop, activation origin, determinate target) plus live uniform readouts. Distortion/chromatic and time scrub/pause controls are intentionally omitted — production has no independent distortion uniform and `uTime` is continuous, so those controls would be fake. |
 | Authority boundary | **PASS** | Lab state is a pure reducer over synthetic `ExpandedPresentationTarget`; no Download/Product/lifecycle state, no Electron commands, no Browser Extension, no downloader interaction. Downward/replacement semantics are executed by the production `expandedPresentationRuntime`, not Lab-side animation. |
 
-Reproducible validation: `node .trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs`.
+Reproducible validation: `node .trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs`.
 
 This section records Browser Lab results only; all earlier runtime/downloader/Electron evidence above remains authoritative and untouched. Task lifecycle remains `in_progress`; no archive, merge, commit, or Final Closure PASS is implied.
 

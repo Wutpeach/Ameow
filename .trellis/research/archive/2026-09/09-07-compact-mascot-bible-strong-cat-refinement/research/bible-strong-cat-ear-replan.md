@@ -66,7 +66,7 @@ The existing local checkout is `.cindy-upstream/bible-strong-avatar-lab-175691a`
 
 ## OneWorks comparison (reference only)
 
-The primary archived reference is `.trellis/tasks/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md:11-31`, with supporting implementation/evidence reports under the same archived task family. It records the pinned OneWorks source revision `3ad2542ea4487e95884f313b84943df602c0e742` and registry packages `1.0.0-rc.6`; those artifacts are evidence, not a production recommendation.
+The primary archived reference is `.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md:11-31`, with supporting implementation/evidence reports under the same archived task family. It records the pinned OneWorks source revision `3ad2542ea4487e95884f313b84943df602c0e742` and registry packages `1.0.0-rc.6`; those artifacts are evidence, not a production recommendation.
 
 Relevant mechanisms only:
 
@@ -174,9 +174,9 @@ This alignment follows the upstream ADR shape (one versioned definition plus sem
 - `.trellis/spec/frontend/component-guidelines.md`
 - `.trellis/spec/frontend/motion-guidelines.md`
 - `.trellis/spec/frontend/quality-guidelines.md`
-- `.trellis/tasks/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`
+- `.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`
 - `.trellis/tasks/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/implementation-report.md`
-- `.trellis/tasks/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning/research/production-adoption-research.md`
+- `.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning/research/production-adoption-research.md`
 
 ### External/local upstream references
 

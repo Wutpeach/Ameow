@@ -1,6 +1,6 @@
 # Ripple Lab implementation report
 
-- Active task: `.trellis/tasks/09-09-integrate-fullscreen-branch-work`
+- Active task: `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`
 - Implemented: 2026-09-09
 - Approved source: `818057f664c7474ec1722b143fcc84dcf3ec67e9`
 

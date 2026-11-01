@@ -15,9 +15,9 @@ Evidence legend:
   or reject.
 
 Primary sources:
-- Candidate/diamond provenance: `.trellis/tasks/archive/2026-08/08-25-oneworks-ameow-mascot-visual-candidate/`
+- Candidate/diamond provenance: `.trellis/research/archive/2026-08/08-25-oneworks-ameow-mascot-visual-candidate`
   (`canonical-candidate.json`, `implementation-report.md`, `calibration-notes.md`)
-- Prior Route A Lab spike: `.trellis/tasks/08-25-oneworks-avatar-cat-source-fidelity/`
+- Prior Route A Lab spike: `.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity`
   (`research/oneworks-cat-source-fidelity.md`, `implementation-report.md`)
 - Production Compact renderer: `src/presentation/main-window/{CompactMascot.tsx,compactMascotDefinition.ts,compactMascotBehaviorRuntime.ts,compactMascotRecipe.ts,MainWindowPresentationSurface.tsx}`
 - Architecture guards: `src/architecture/import-guard.test.ts`,
@@ -80,7 +80,7 @@ is an unrelated regex in `src/utils/imageDrag.ts:7`).
 - `renderCompactMascotScene` (lines 33-51) renders the head (`bodyNodes: []`) and then a second `renderAvatar` with `bodyNodes: BODY.nodes`, then splices `backPaths/backNodeIds/frontPaths/frontNodeIds` into one `AvatarScene`; `BODY` is built once at module scope (line 31).
 - `CompactMascot.tsx:7-9` imports `renderAvatarDefinition` for the one-time initial scene (`initialScene`, lines 49-57) and `createCompactMascotBehaviorRuntime` for live frames; `applyScene` (lines 59-81) writes `d`/`fill`/`opacity` attributes into **four fixed ear slots** (`backPaths[0/1]`, `frontPaths[0/1]`) + head path + clip + two eye paths.
 - [OBSERVED] `CompactMascot.tsx:70` comment: "These are fixed slots for the two pinned diamond ears, not a body-node renderer." `compactMascotArchitecture.test.ts:10-16` pins `data-compact-mascot="kirby-cat"`, `data-compact-mascot-ear=` × 4, and absence of `@bible-strong/avatar-react`/`<canvas`.
-- [OBSERVED] avatar-core geometry classifies each accessory as whole-node front/back by one center depth + projected depth radius (`packages/avatar-core/src/geometry.ts:1155-1234` in the vendored `.cindy-upstream/bible-strong-avatar-lab-175691a`); there is no per-part face mask, so partial ear-root occlusion by the head is impossible — this is the representation gap identified by the Route A research (`.trellis/tasks/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`, §2).
+- [OBSERVED] avatar-core geometry classifies each accessory as whole-node front/back by one center depth + projected depth radius (`packages/avatar-core/src/geometry.ts:1155-1234` in the vendored `.cindy-upstream/bible-strong-avatar-lab-175691a`); there is no per-part face mask, so partial ear-root occlusion by the head is impossible — this is the representation gap identified by the Route A research (`.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`, §2).
 
 ### 1.4 Pointer Field authority (one writer)
 
@@ -379,13 +379,13 @@ Experiment (temp dir, junction to the repo `node_modules`, Vite 8 = the app's bu
 
 [OBSERVED] `git status --short` (main, HEAD `fadb225`) — unrelated in-progress work, NOT touched by this research:
 - Modified (unrelated yt-dlp/managed-runtime work): `electron/main.mts`, `electron/managedPythonPackageManifest.mts`, `electron/managedRuntimeBootstrap.mts` (+ test), `src/electron-runtime/{advancedQualityProbe,contracts,engineExecutionContext,engineManifest,galleryDlEngineAdapter,service,ytDlpCommandPlan(+test),ytDlpDownload(+test),ytDlpEngineAdapter,ytDlpMetadata(+test)}.ts`, `scripts/ensure-capability-probe-runtime.mjs`, `browser-extension/locales/contract.json`, `.trellis/spec/backend/*`, `AGENTS.md`.
-- Untracked: `.cindy-upstream/`, `.cindy-worktrees/`, `.trellis/tasks/08-25-diagnostics-backend-managed-ytdlp-planning/`, `.trellis/tasks/08-25-managed-ytdlp-p2v-evidence-gates/`, `.trellis/tasks/08-25-managed-ytdlp-p2v-runtime-contract-repair/`, `.trellis/tasks/08-25-managed-ytdlp-update-rollback-planning/`, `.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/`, `agentation-placement-package-output/`, `electron/runtimeSetLifecycle.mts` (+ test), `spike-package-output/`.
+- Untracked: `.cindy-upstream/`, `.cindy-worktrees/`, `.trellis/research/archive/2026-10/08-25-diagnostics-backend-managed-ytdlp-planning`, `.trellis/research/archive/2026-08/08-25-managed-ytdlp-p2v-evidence-gates`, `.trellis/research/archive/2026-08/08-25-managed-ytdlp-p2v-runtime-contract-repair`, `.trellis/research/archive/2026-10/08-25-managed-ytdlp-update-rollback-planning`, `.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning`, `agentation-placement-package-output/`, `electron/runtimeSetLifecycle.mts` (+ test), `spike-package-output/`.
 
 **Overlap guidance for implementation:**
 - Files this adoption touches (`src/presentation/main-window/…`, `package.json`, `package-lock.json`, `src/architecture/import-guard.test.ts`, `src/lab/*`, `vite*`, `electron-builder.config.mjs`, `THIRD_PARTY_NOTICES.md`) are **clean** today — no conflict with the dirty set, except:
   - `electron/main.mts` is dirty → P2 `npm run build`'s electron step (`tsc -p tsconfig.electron.json`) compiles in their in-progress code; build gates may transiently fail for unrelated reasons. Coordinate/sequence P2 after the yt-dlp work settles, or run gates on a clean worktree/CI.
   - `tsconfig.electron.json`/`package-lock.json` changes from the other work must not be reverted; adoption PRs should branch from current main with these dirty files excluded (they are not ours).
-- `.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/` is this task's own untracked dir; only `research/production-adoption-research.md` was added here (no other task artifacts were modified).
+- `.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning` is this task's own untracked dir; only `research/production-adoption-research.md` was added here (no other task artifacts were modified).
 
 ---
 

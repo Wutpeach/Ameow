@@ -1,8 +1,8 @@
 # Compact seam preservation and 09-07 closure
 
 - Date: 2026-09-09 (Asia/Shanghai)
-- Active implementation task: `.trellis/tasks/09-09-integrate-fullscreen-branch-work`
-- Closed task: `.trellis/tasks/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement`
+- Active implementation task: `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`
+- Closed task: `.trellis/research/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement`
 - Outcome: **validated Lab-only seam preserved; Compact geometry exploration stopped/rejected.**
 
 ## Scope result
@@ -45,12 +45,12 @@ were not re-edited: `src/presentation/main-window/compactMascotBehaviorRuntime.t
 
 - `.trellis/tasks/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement/task.json`
 - `.trellis/tasks/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement/prd.md`
-- `.trellis/tasks/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement/design.md`
+- `.trellis/research/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement/design.md`
 - `.trellis/tasks/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement/implement.md`
-- `.trellis/tasks/09-09-integrate-fullscreen-branch-work/research/compact-seam-preservation.md`
+- `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work/research/compact-seam-preservation.md`
 
 The supported archive command moved the complete 09-07 task directory from
-`.trellis/tasks/09-07-compact-mascot-bible-strong-cat-refinement/` to the
+`.trellis/research/archive/2026-09/09-07-compact-mascot-bible-strong-cat-refinement` to the
 archive path above. Its task record now has `status: completed` and
 `completedAt: 2026-09-09`, while explicit metadata records
 `closure: stopped_rejected`, `architecture_pass: false`, and
@@ -92,7 +92,7 @@ Untracked paths outside this closure:
 - `agentation-placement-package-output/`
 - `spike-package-output/`
 
-`.trellis/tasks/09-09-integrate-fullscreen-branch-work/` remains the active
+`.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work` remains the active
 task's own untracked artifact tree and is not part of this Compact source seam.
 
 ## Approved preservation split for the Lead

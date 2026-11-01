@@ -120,7 +120,7 @@ Adopt **option 1: retain the dedicated Vite multi-page `/lab.html` entry**. It i
 - `src/main.tsx`, `src/App.tsx`, `src/pages/*` — production bootstrap, router, Electron bridge readiness, and route boundaries.
 - `src/contexts/ThemeContext.tsx`, `src/i18n/index.ts`, `src/lab/i18n.ts` — bridge-free theme and Lab i18n setup.
 - `.trellis/spec/frontend/directory-structure.md`, `.trellis/spec/frontend/quality-guidelines.md`, `.trellis/spec/frontend/component-guidelines.md`, `.trellis/spec/frontend/state-management.md`, `.trellis/spec/frontend/design-system.md`, `.trellis/spec/frontend/motion-guidelines.md` — relevant frontend contracts.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` and `repeated-lab-refresh-white-screen.md` — measured Vite startup, transform, optimizer, and cache behavior.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` and `repeated-lab-refresh-white-screen.md` — measured Vite startup, transform, optimizer, and cache behavior.
 
 ## External references
 

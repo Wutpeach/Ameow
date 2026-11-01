@@ -97,7 +97,7 @@ and never touches the motion/contact formulas:
 ## 5. Evidence paths
 
 Captures and harness (relative to
-`.trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/`):
+`.trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement`):
 
 - **Harness**: `research/capture-mr9-edge-repair.mjs` (polls `uTime` to hit
   exact `k` phases; `backingScale=4` → 800×800 backing, one canvas).

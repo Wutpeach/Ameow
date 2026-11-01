@@ -60,7 +60,7 @@ Vite 8's scanner source is specific about its precedence:
 
 Because the current Lab config already sets `build.rollupOptions.input` to `lab.html` (`vite.lab.config.ts:23-26`), the initial dependency scan is effectively Lab-only today. Adding `optimizeDeps.entries: ["lab.html"]` is still a small, explicit contract and protects against a future build-input change, but it should not be sold as a measured cold-start reduction without an implementation experiment.
 
-The explicit scan does not make the server reject `/`. Vite's optimizer can register a missing bare import after a browser request; the previous report observed the production root discover `react-router-dom`, `clsx`, `image-max-url`, and `tailwind-merge` after the server was ready (`.trellis/tasks/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md:40-56,65-70`). Thus `entries` and `open` address initial intent/ergonomics, while a manual or stale `/` tab can still mutate the shared cache unless the server is structurally made Lab-only (out of scope for this task).
+The explicit scan does not make the server reject `/`. Vite's optimizer can register a missing bare import after a browser request; the previous report observed the production root discover `react-router-dom`, `clsx`, `image-max-url`, and `tailwind-merge` after the server was ready (`.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md:40-56,65-70`). Thus `entries` and `open` address initial intent/ergonomics, while a manual or stale `/` tab can still mutate the shared cache unless the server is structurally made Lab-only (out of scope for this task).
 
 ### Cache swap and concurrency limitation
 
@@ -80,7 +80,7 @@ The preceding slow-start task and session history supply useful but non-equivale
 | Evidence | What it establishes | Limitation |
 | --- | --- | --- |
 | Active PRD baseline (`.trellis/tasks/09-10-optimize-vite-lab-cold-start-loading/prd.md:7-10`) | User observed Vite `ready` at 390 ms while the first `/lab.html` request blocked about 26.8 s. | User-provided baseline; not independently reproduced here. |
-| Prior diagnosis (`.trellis/tasks/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md:44-56`) | Isolated Lab starts measured about 25.9 s and 39.2 s to first Lab DOM under cold/uncached transform conditions; server ready was 416/181 ms. | Different ports/processes/cache state; not a before/after result for this task. |
+| Prior diagnosis (`.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md:44-56`) | Isolated Lab starts measured about 25.9 s and 39.2 s to first Lab DOM under cold/uncached transform conditions; server ready was 416/181 ms. | Different ports/processes/cache state; not a before/after result for this task. |
 | Prior diagnosis (`.../vite-lab-loading-diagnosis.md:58-92`) | A settled warm Lab navigation was about 1.216 s; production `/` then introduced a ~54 s graph/optimizer wait and late production deps. | Warm result came after a production-root experiment and is environment-sensitive. |
 | Repeated-refresh probe (`.../repeated-lab-refresh-white-screen.md:9-25,43-70`) | Warm cache-enabled refreshes were 99–293 ms to first workspace; cache-disabled refreshes reproduced 56–106 s waits while source transforms queued. | Cache-disabled mode is not the user's ordinary-cache baseline; no antivirus/file-writer cause was proven. |
 | Live 1421 probe (`.../live-port-1421-refresh-probe.md:15-24,62-79`) | A fresh normal-cache context reached first workspace in 151/75/60 ms with one navigation each and no optimizer reload loop. | Server was already warm; it does not disprove a cold-start backlog. |
@@ -148,7 +148,7 @@ These are real, existing paths suitable for `implement.jsonl`/`check.jsonl` cura
 - `.trellis/spec/frontend/docs-site.md:1-18,35-66` — docs-site trigger and `npm run docs:build` validation when startup guidance changes.
 - `.trellis/spec/guides/cross-platform-thinking-guide.md:1-17,31-61` — script/path/platform review and Windows process-cleanup safety.
 - `.trellis/spec/guides/code-reuse-thinking-guide.md:1-32,48-59` — search/reuse before adding configuration or helpers.
-- `.trellis/tasks/09-10-optimize-vite-lab-cold-start-loading/research/lab-cold-start.md` — this research artifact (add to manifests only if implementation/check needs its protocol and caveats).
+- `.trellis/research/archive/2026-09/09-10-optimize-vite-lab-cold-start-loading/research/lab-cold-start.md` — this research artifact (add to manifests only if implementation/check needs its protocol and caveats).
 
 ## Caveats / Not Found
 

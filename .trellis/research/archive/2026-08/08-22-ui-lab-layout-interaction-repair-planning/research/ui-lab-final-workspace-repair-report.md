@@ -32,7 +32,7 @@ Small, Lab-only implementation of the Lead's final Workspace decisions on top of
 - `src/lab/rendererReuse.test.ts` — new assertions: three-region markers (incl. strip=header first content, body=stage, footer wraps controls), Auto rename (no stale `fit`, no `toFixed`), conditional origin marker, Reset affordance, secondary Export (no `EXPORT_BUTTON_STYLE`, no `#b56a4a`).
 - `src/lab/locales/en.json` + `zh-CN.json` — `workspace.auto` / `autoLabel` / `reset` / `resetHint`; removed `fit`/`fitLabel`; valid JSON, mirrored.
 - `.trellis/tasks/08-22-ui-lab-layout-interaction-repair-planning/prd.md` — Lead Overrides section (supersedes A4; adds A1′/A3′/A5′/A7′).
-- `.trellis/tasks/08-22-ui-lab-layout-interaction-repair-planning/design.md` — section 4 → Auto model; new section 5 Final Workspace Shell pass; renumbered.
+- `.trellis/research/archive/2026-08/08-22-ui-lab-layout-interaction-repair-planning/design.md` — section 4 → Auto model; new section 5 Final Workspace Shell pass; renumbered.
 - `.trellis/tasks/08-22-ui-lab-layout-interaction-repair-planning/implement.md` — Phase 1 superseded by Auto; new Phase 7; status updated.
 - `.trellis/tasks/08-22-ui-lab-layout-interaction-repair-planning/artifacts/validate-final-repair.cjs` — new Playwright/Edge validation script for the Lead (asserts every decision + captures `final-layout-repair-{full,compact,export}.png` + `browser-final-repair-result.json`).
 

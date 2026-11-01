@@ -3,7 +3,7 @@
 - Query: Audit current GitHub branches and pull-request associations, reconcile them with the stale local `origin/*` evidence, and define a failure-safe path to integrate the approved Ripple Lab cleanup, preserve every unique local tip, close the preview worktree/server, remove every non-`main` local branch, and optionally retire a stale remote development branch.
 - Scope: mixed (read-only GitHub REST API plus existing local task reports; no local Git mutation)
 - Date: 2026-09-09 (Asia/Shanghai)
-- Active task: `.trellis/tasks/09-09-integrate-fullscreen-branch-work`
+- Active task: `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`
 
 ## Executive result
 

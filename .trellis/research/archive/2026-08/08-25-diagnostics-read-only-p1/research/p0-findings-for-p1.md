@@ -10,5 +10,5 @@
 - Platform/security gaps that cannot be safely proved remain `not_verified`; P1 does not repair them.
 
 Full evidence with file:line anchors remains in the parent report:
-`.trellis/tasks/08-25-diagnostics-backend-managed-ytdlp-planning/research/repository-grounded-planning-report.md`.
+`.trellis/research/archive/2026-10/08-25-diagnostics-backend-managed-ytdlp-planning/research/repository-grounded-planning-report.md`.
 

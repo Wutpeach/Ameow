@@ -4,7 +4,7 @@
 
 Planning only. This document does not authorize implementation and does not grant Architecture PASS.
 
-> **P2-V closure (2026-08-25):** `.trellis/tasks/08-25-managed-ytdlp-p2v-evidence-gates/design.md` supersedes this document's earlier assumption that shared FFmpeg/FFprobe/Deno must use digest-addressed storage. Packaged/runtime evidence supports mutable app-owned singletons with one atomic full-runtime-set lifecycle coordinator and leases through process-tree settlement. The current P2-V verdict is `REPAIR REQUIRED`; P2-A remains unopened.
+> **P2-V closure (2026-08-25):** `.trellis/research/archive/2026-08/08-25-managed-ytdlp-p2v-evidence-gates/design.md` supersedes this document's earlier assumption that shared FFmpeg/FFprobe/Deno must use digest-addressed storage. Packaged/runtime evidence supports mutable app-owned singletons with one atomic full-runtime-set lifecycle coordinator and leases through process-tree settlement. The current P2-V verdict is `REPAIR REQUIRED`; P2-A remains unopened.
 
 P2 is feasible only after a baseline/identity foundation and platform trust gates. The current repository cannot safely activate or roll back managed yt-dlp releases because it has no immutable bundled yt-dlp candidate, no persisted selection authority, no attempt-level runtime identity, and no protection against in-place replacement of dependencies used by active processes.
 

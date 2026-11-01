@@ -2,13 +2,13 @@
 
 ## Scope and baseline qualification
 
-- Active task: `.trellis/tasks/09-11-download-diagnostic-export-research`
+- Active task: `.trellis/research/archive/2026-09/09-11-download-diagnostic-export-research`
 - Research date: 2026-09-11
 - Requested baseline: `f1b4991c58982fc5a896e61bf58840c2aeec9cfa`
 - Observed local main `HEAD`: `9440310326382691217e606664ef53de001dd9fa`
 - Scope: local repository evidence only; no implementation, tests, code/spec changes, or logging redesign were performed.
 
-I compared Git blob IDs between the requested baseline and local `HEAD` for every cited chain file: the application recorder/job service/API, orchestrator, runtime sink/service/telemetry/contracts, protocol mapper and feature client/model/reducer, runtime log and Electron composition, Quick Copy and Support Log controllers/builders, diagnostics snapshot/controllers, renderer/App/overlay/Settings files, and the transcode bridge/service. All comparisons were `MATCH`; therefore the current-main line citations below are baseline-qualified for the requested chain. `git status --short` showed only untracked `.trellis/tasks/09-11-download-diagnostic-export-research/` and `.trellis/tmp/`; no tracked chain file differed. The `.trellis/tmp/` material was not used as code evidence.
+I compared Git blob IDs between the requested baseline and local `HEAD` for every cited chain file: the application recorder/job service/API, orchestrator, runtime sink/service/telemetry/contracts, protocol mapper and feature client/model/reducer, runtime log and Electron composition, Quick Copy and Support Log controllers/builders, diagnostics snapshot/controllers, renderer/App/overlay/Settings files, and the transcode bridge/service. All comparisons were `MATCH`; therefore the current-main line citations below are baseline-qualified for the requested chain. `git status --short` showed only untracked `.trellis/research/archive/2026-09/09-11-download-diagnostic-export-research` and `.trellis/tmp/`; no tracked chain file differed. The `.trellis/tmp/` material was not used as code evidence.
 
 ## End-to-end ownership map
 

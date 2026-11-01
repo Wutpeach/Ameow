@@ -1,6 +1,6 @@
 # Branch audit: history, recovery, and temporary Ripple preview
 
-Active task: `.trellis/tasks/09-09-integrate-fullscreen-branch-work`
+Active task: `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`
 
 Date: 2026-09-09 (Asia/Shanghai)
 
@@ -59,7 +59,7 @@ branch name:
   `2b46f91` (`.git/logs/refs/heads/recovery/main-pre-phase4-2b46f91:1`). The
   Phase-4 design names this ref as the pre-integration rollback pointer and
   requires preserving it while advancing main
-  (`.trellis/tasks/archive/2026-08/08-24-phase4-main-integration/design.md:3-11`).
+  (`.trellis/research/archive/2026-08/08-24-phase4-main-integration/design.md:3-11`).
 - `lab/mr9-ripple-source-fidelity` was created from the immutable Product/Lab
   baseline `2bb9a22` and has one commit, `818057f`,
   (`.git/logs/refs/heads/lab/mr9-ripple-source-fidelity:1-2`). The temporary
@@ -91,7 +91,7 @@ must never be wholesale reintegrated
 (`D:/Ameow-phase3/m3-history/.trellis/tasks/08-11-m3-download-intake-motion-planning/historical-disposition.md:3-16`).
 The repository disposition lists the M3 tracked/untracked boundaries and says
 to preserve them on a dedicated historical line, not in Product ancestry
-(`.trellis/tasks/archive/2026-08/08-24-repository-state-consolidation/research/repository-disposition.md:46-49`).
+(`.trellis/research/archive/2026-08/08-24-repository-state-consolidation/research/repository-disposition.md:46-49`).
 
 **Recovery guarantee that would be lost.** The dirty worktree contains 16
 tracked modified files and 16 individual untracked files. The authoritative

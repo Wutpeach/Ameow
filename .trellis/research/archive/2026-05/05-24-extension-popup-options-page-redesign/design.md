@@ -16,7 +16,7 @@ More menu    = external links and help/documentation
 
 The popup should not be the full settings surface. The options page should not compete with the media browser. The More menu should not become another feature drawer.
 
-This task supersedes the earlier popup `Sites` tab direction from `.trellis/tasks/05-24-extension-popup-console-media-browser/`. Hidden-site list management moves to the options page.
+This task supersedes the earlier popup `Sites` tab direction from `.trellis/research/archive/2026-06/05-24-extension-popup-console-media-browser`. Hidden-site list management moves to the options page.
 
 ## RedFrog Reference
 

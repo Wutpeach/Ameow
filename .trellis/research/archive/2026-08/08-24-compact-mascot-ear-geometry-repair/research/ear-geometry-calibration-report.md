@@ -104,7 +104,7 @@ renderer, and do not migrate the Compact renderer.
   only three Compact scenarios: neutral, live pointer, and live Reduced Motion.
 
 Evidence files are under:
-`.trellis/tasks/archive/2026-08/08-24-compact-mascot-cat-behavior-planning/research/evidence/`.
+`.trellis/research/archive/2026-08/08-24-compact-mascot-cat-behavior-planning/research/evidence/`.
 
 | Pose/evidence | Required observation |
 | --- | --- |

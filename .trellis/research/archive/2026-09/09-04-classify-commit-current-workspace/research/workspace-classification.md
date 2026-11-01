@@ -114,8 +114,8 @@ that is a separate change and was not performed here.
 
 No Mascot implementation is present in the root dirty set. The immediate
 Mascot continuation is the already `in_progress`
-`.trellis/tasks/08-25-oneworks-avatar-cat-source-fidelity/`; the adoption plan
-`.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/` remains the
+`.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity`; the adoption plan
+`.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning` remains the
 next planning gate. Neither should be implemented or activated by this task.
 
 ## Caveats / Not Found

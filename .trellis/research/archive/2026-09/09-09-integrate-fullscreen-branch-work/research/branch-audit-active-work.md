@@ -95,7 +95,7 @@ patch is preserved with SHA-256
 (`task.json:25-28`, `artifacts/implementation-report.md:32-38`).
 
 The accepted follow-up behind-head composition task is already archived under
-`.trellis/tasks/archive/2026-09/09-09-compact-mascot-ear-root-integration/`.
+`.trellis/research/archive/2026-09/09-09-compact-mascot-ear-root-integration`.
 Its implementation report says the shared Production/Lab seam now flattens
 projected ear paths into the behind-head layer, with no avatar-core geometry or
 renderer change; the accompanying journal records commits `fc0ba3c` and
@@ -227,7 +227,7 @@ repair from `main@5619ba0`, including typed-facts-first Quick Copy v2,
 allowlist-first Support Export v2, the shared pre-egress sanitizer, and
 Windows Electron validation; it records focused suites, type-check, lint,
 build, docs build, and the known single pre-existing full-suite failure
-(`.trellis/tasks/archive/2026-08/08-18-diagnostics-readability-export-cleanup-planning/research/implementation-report.md:5-8,31-58`).
+(`.trellis/research/archive/2026-08/08-18-diagnostics-readability-export-cleanup-planning/research/implementation-report.md:5-8,31-58`).
 The report says no Architecture PASS was granted on that branch
 (`:5-8`), while the durable closure explicitly resolves the implementation
 line as a duplicate: canonical Product Diagnostics truth is

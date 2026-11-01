@@ -77,7 +77,7 @@ Do not claim a combined reclaim total: the children have different historical ow
 
 - Exact target: root mr3-windows-smoke-evidence.json, tracked clean, 3,429 B.
 - Evidence: non-standard MR3_SMOKE_EVIDENCE snapshot with 11 scenarios and draw/arc/rAF/pixel counters; added in 73cb29a2. Its mr3-smoke.cjs producer was removed by 30e0e545. No current reader/producer found; the current task PRD is the only live filename reference.
-- Recommendation: preferred destination .trellis/tasks/archive/2026-08/08-13-mr3-progress-field/research/evidence/mr3-windows-smoke-evidence.json, then update references (none currently found) and add it to the archived task's discoverable evidence list. Retaining root is the zero-risk alternative if preserving the historical filename is more important. Do not delete.
+- Recommendation: preferred destination .trellis/research/archive/2026-08/08-13-mr3-progress-field/research/evidence/mr3-windows-smoke-evidence.json, then update references (none currently found) and add it to the archived task's discoverable evidence list. Retaining root is the zero-risk alternative if preserving the historical filename is more important. Do not delete.
 - Validation/rollback: git diff --name-status, FFF search old/new paths, and inspect the archived task index/report; moving back is a normal file move, with no Git-history rewrite.
 
 ### 8. Decide on old root screenshot captures and stale README wording (root clarity; optional)

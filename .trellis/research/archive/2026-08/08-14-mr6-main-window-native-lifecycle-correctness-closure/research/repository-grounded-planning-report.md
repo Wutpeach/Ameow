@@ -6,7 +6,7 @@ The authoritative Planning Architecture Report is `../design.md`. This file reco
 
 - `motion/presentation-integration@e8b4e4442155f49eeed0b79d1a2afac1d541f1d6`.
 - Clean worktree: `D:/Ameow/.cindy-worktrees/motion-integration`.
-- MR5 archive: `.trellis/tasks/archive/2026-08/08-13-mr5-motion-consolidation-polish/`.
+- MR5 archive: `.trellis/research/archive/2026-08/08-13-mr5-motion-consolidation-polish`.
 
 ## Risk A anchors
 

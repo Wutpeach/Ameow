@@ -19,7 +19,7 @@ Repository evidence was collected read-only by the Orca `research` Worker and sy
 - `electron/managedRuntimeBootstrap.mts:595-710` provides route-aware streaming, stall timeout, and progress, but accepts `response.ok` without checking redirect/final URL. It is not sufficient as the managed-release trust boundary without a stricter wrapper.
 - `scripts/prepare-ytdlp-baseline.mjs:83-118` already has the stronger release-prep pattern: authoritative PyPI JSON, wheel-kind checks, `files.pythonhosted.org` allowlisting, redirect rejection, size, and SHA-256 verification.
 - `electron/diagnostics.mts`, `src/types/diagnostics.ts`, and `electron/main.mts:1917-1935` use read-only inspection paths. Candidate observation must preserve that property.
-- P2-A deliberately persisted no selection (`.trellis/tasks/archive/2026-08/08-25-managed-ytdlp-p2a-baseline-attempt-pinning-planning/design.md:95-99,151`). Its broad statement that P2-B/C might later introduce `selection.json` is narrowed here: P2-B does not; P2-C owns that decision.
+- P2-A deliberately persisted no selection (`.trellis/research/archive/2026-08/08-25-managed-ytdlp-p2a-baseline-attempt-pinning-planning/design.md:95-99,151`). Its broad statement that P2-B/C might later introduce `selection.json` is narrowed here: P2-B does not; P2-C owns that decision.
 
 ## Lead decisions
 

@@ -4,7 +4,7 @@
 Add a new session to journal file and update index.md.
 
 Usage:
-    python add_session.py --title "Title" --commit "hash" --summary "Summary" [--package cli]
+    python add_session.py --title "Title" --commit "hash" --summary "Summary" [--topic .trellis/research/topic.md]
     python add_session.py --title "Title" --branch "feat/my-branch"
 
     # Pipe detailed content via stdin (use --stdin to opt in):
@@ -48,10 +48,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from common.paths import (
     DIR_TASKS,
@@ -515,6 +517,29 @@ def compute_legacy_fingerprint(payload: dict, date: str) -> str:
 def render_marker(fingerprint: str) -> str:
     """Machine-readable record marker; renders as nothing in Markdown."""
     return f"{MARKER_PREFIX} v={MARKER_VERSION} fp={fingerprint} -->"
+
+
+def _append_topic_links(
+    summary: str,
+    topic_paths: list[str] | None,
+    link_base: Path | None = None,
+    repo_root: Path | None = None,
+) -> str:
+    """Append topic links, resolving them relative to the journal file.
+
+    The record fingerprint keeps project-relative paths stable, while the
+    rendered Markdown link must resolve from the journal's directory.
+    """
+    if not topic_paths:
+        return summary
+
+    links: list[str] = []
+    for topic in topic_paths:
+        href = topic
+        if link_base is not None and repo_root is not None:
+            href = quote(Path(os.path.relpath(repo_root / topic, start=link_base)).as_posix())
+        links.append(f"[{topic}]({href})")
+    return summary + "\nTopics: " + ", ".join(links)
 
 
 def render_legacy_marker(fingerprint: str) -> str:
@@ -1197,6 +1222,7 @@ def add_session(
     branch: str | None = None,
     commit_subjects: list[str] | None = None,
     idempotency_key: str | None = None,
+    topic_paths: list[str] | None = None,
 ) -> int:
     """Add a new session, resuming an interrupted one instead of duplicating it."""
     repo_root = get_repo_root()
@@ -1243,8 +1269,9 @@ def add_session(
     index_file = dev_dir / "index.md"
     today = datetime.now().strftime("%Y-%m-%d")
 
+    record_summary = _append_topic_links(summary, topic_paths)
     payload = _fingerprint_payload(
-        developer, title, summary, package, branch, evidence,
+        developer, title, record_summary, package, branch, evidence,
         changes, extra_content, tests, next_steps, idempotency_key,
     )
     marker = render_marker(compute_record_fingerprint(payload))
@@ -1310,8 +1337,9 @@ def add_session(
         journal_file, current_num, current_lines = get_latest_journal_info(dev_dir)
         new_session = resolve_next_session(repo_root, dev_dir, index_file)
 
+        rendered_summary = _append_topic_links(summary, topic_paths, dev_dir, repo_root)
         session_content = generate_session_content(
-            new_session, title, evidence, summary, today, marker, package, branch,
+            new_session, title, evidence, rendered_summary, today, marker, package, branch,
             changes=changes, extra_content=extra_content, tests=tests,
             next_steps=next_steps,
         )
@@ -1413,12 +1441,12 @@ def add_session(
 
     print("", file=sys.stderr)
     print("========================================", file=sys.stderr)
-    print(f"[OK] Session {new_session} added successfully!", file=sys.stderr)
+    print(f"[OK] Journal session {new_session} and index recorded (topic content must be verified separately).", file=sys.stderr)
     print("========================================", file=sys.stderr)
     print("", file=sys.stderr)
     print("Files updated:", file=sys.stderr)
-    print(f"  - {target_file.name if target_file else 'journal'}", file=sys.stderr)
-    print("  - index.md", file=sys.stderr)
+    print(f"  - {target_file.relative_to(repo_root).as_posix() if target_file else 'journal'}", file=sys.stderr)
+    print(f"  - {index_file.relative_to(repo_root).as_posix()}", file=sys.stderr)
 
     # -------------------------------------------------------------------
     # Index-recorded → committed
@@ -1478,8 +1506,12 @@ def main() -> int:
         ),
     )
     parser.add_argument("--summary", default="Session summary was not supplied.", help="Brief summary")
+    parser.add_argument(
+        "--topic", action="append", default=[], metavar="PATH",
+        help="Existing spec/research Markdown to validate and link in the journal (repeatable); does not edit or verify its conclusions",
+    )
     parser.add_argument("--content-file", help="Path to file with detailed content")
-    parser.add_argument("--package", help="Package name tag (e.g., cli, docs-site)")
+    parser.add_argument("--package", help="Package name tag (e.g., cli, core)")
     parser.add_argument("--branch", help="Branch name (auto-detected if omitted)")
     parser.add_argument("--change", action="append", help="Main Changes bullet (repeatable)")
     parser.add_argument("--test", action="append", help="Testing bullet (repeatable)")
@@ -1508,6 +1540,21 @@ def main() -> int:
 
     # Load active task once — shared by package and branch resolution
     repo_root = get_repo_root()
+    topic_links: list[str] = []
+    for topic in args.topic:
+        try:
+            candidate = (repo_root / topic).resolve(strict=True)
+            relative = candidate.relative_to(repo_root.resolve()).as_posix()
+            if (not relative.startswith((".trellis/spec/", ".trellis/research/"))
+                    or candidate.suffix.lower() != ".md"
+                    or not candidate.is_file()
+                    or not candidate.read_text(encoding="utf-8").strip()):
+                raise ValueError("expected a non-empty spec/research Markdown file")
+        except (OSError, ValueError, UnicodeError):
+            print("Error: --topic must name a readable, non-empty spec/research Markdown inside this project; journal not written.", file=sys.stderr)
+            return 1
+        if relative not in topic_links:
+            topic_links.append(relative)
     current = get_current_task(repo_root)
     task_data = load_task(repo_root / current) if current else None
 
@@ -1538,8 +1585,47 @@ def main() -> int:
         branch=branch,
         commit_subjects=args.commit_subject,
         idempotency_key=args.idempotency_key,
+        topic_paths=topic_links,
     )
 
 
+def _write_recording_status(exit_code: int) -> None:
+    """Best-effort last completed attempt, with no note content or user identity.
+
+    Atomic replacement keeps concurrent diagnostics readable. The journal and
+    index remain the source of truth; failure may leave a resumable checkpoint.
+    """
+    try:
+        trellis = get_repo_root() / DIR_WORKFLOW
+        if not trellis.is_dir():
+            return
+        target = trellis / ".runtime" / "writes" / "latest.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "schema": 1,
+            "last_write_at": datetime.now(timezone.utc).isoformat(),
+            "last_status": "ok" if exit_code == 0 else "error",
+            "last_exit_code": exit_code,
+        }
+        if exit_code != 0:
+            payload["last_error_category"] = "recording-failed"
+        if write_text_atomic(target, json.dumps(payload) + "\n"):
+            return
+    except OSError:
+        pass
+    print("mini-trellis: recording diagnostic write failed (state-write)", file=sys.stderr)
+
+
+def run_with_status() -> int:
+    try:
+        result = main()
+    except Exception:
+        _write_recording_status(1)
+        raise
+    # argparse's --help / invalid arguments exit before a recording attempt.
+    _write_recording_status(result)
+    return result
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_with_status())

@@ -123,8 +123,8 @@ The old 25–39 s cold measurements and the 56–106 s cache-disabled measuremen
 - `src/lab/i18n.ts:23-29` — local static i18n initialization.
 - `src/lab/ripple/RippleCanvas.tsx:103-188` — post-mount fixture/WebGL initialization.
 - `node_modules/.vite/deps/_metadata.json` — observed hash `12233d1e`, 16 optimized entries, zero discovered entries.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/repeated-lab-refresh-white-screen.md` — prior warm/cache-disabled refresh measurements.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` — prior cold/production-entry diagnosis.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/repeated-lab-refresh-white-screen.md` — prior warm/cache-disabled refresh measurements.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` — prior cold/production-entry diagnosis.
 - `.trellis/spec/frontend/directory-structure.md` and `.trellis/spec/frontend/quality-guidelines.md` — Browser Lab boundaries and frontend quality contracts.
 
 ## External references

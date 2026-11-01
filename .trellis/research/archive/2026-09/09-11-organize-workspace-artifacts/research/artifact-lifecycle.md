@@ -66,7 +66,7 @@ The smallest implementation is in scripts/package-portable.ps1 immediately after
 
 ### Phase C: tracked historical artifact decision
 
-- Move mr3-windows-smoke-evidence.json to .trellis/tasks/archive/2026-08/08-13-mr3-progress-field/research/evidence/ only if the owner accepts a tracked path change; update references (none found), then verify the archived task remains discoverable. Retaining root is the zero-risk alternative.
+- Move mr3-windows-smoke-evidence.json to .trellis/research/archive/2026-08/08-13-mr3-progress-field/research/evidence/ only if the owner accepts a tracked path change; update references (none found), then verify the archived task remains discoverable. Retaining root is the zero-risk alternative.
 - Delete the tracked .trellis/tmp/browser-extension-package-check and extracted snapshot only after current scripts/package-browser-extension.mjs and existing package tests produce/inspect the modern package. Git history preserves the old beta ZIP; no duplicate task evidence needs to be created.
 
 ### Phase D: documentation and screenshot clarity (optional)

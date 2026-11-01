@@ -29,7 +29,7 @@ Domain typed error/category
 ```
 
 The exact ownership statement is in
-`.trellis/tasks/archive/2026-08/08-10-p6-site-engine-extension-observability/research/current-observability-audit.md:188-207`.
+`.trellis/research/archive/2026-08/08-10-p6-site-engine-extension-observability/research/current-observability-audit.md:188-207`.
 The vocabulary was intentionally download-only and closed, not an Event Bus
 (`current-observability-audit.md:81-101`). Therefore the current cleanup should
 extend/project the implemented P6B facts rather than create another diagnostic
@@ -57,7 +57,7 @@ not add a diagnostic database, tracing store, or replay model.
 The terminal-authority repair established that `DownloadJobService` is the only
 ordinary Job terminal authority while Infrastructure owns fallible output
 settlement
-(`.trellis/tasks/archive/2026-08/08-11-terminal-authority-correction/design.md:5-18`).
+(`.trellis/research/archive/2026-08/08-11-terminal-authority-correction/design.md:5-18`).
 The current backend contract further requires settlement to occur before the
 single structured diagnostic terminal and `video-download-complete`, and says
 diagnostic and Product terminal outcomes must always agree
@@ -125,7 +125,7 @@ The MR9 design explicitly preserves typed terminal truth, diagnostic payload,
 bounded retention, and lifecycle behavior, and retains the restrained DOM
 diagnostic/copy affordance while removing only the fullscreen terminal shader
 recipe
-(`.trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/design.md:100-107`).
+(`.trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/design.md:100-107`).
 
 Repository-grounded recommendation: **independent implementation line, not an
 MR9 prerequisite repair**.

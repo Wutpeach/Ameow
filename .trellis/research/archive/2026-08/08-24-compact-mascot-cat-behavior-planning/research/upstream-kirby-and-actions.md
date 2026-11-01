@@ -7,7 +7,7 @@ under `.cindy-upstream/bible-strong-avatar-lab-175691a`). Kirby first appears in
 the upstream Studio document at commit `3b2e134` and remains in the pinned
 document. The previously archived report records the public source URL and
 license evidence at
-`.trellis/tasks/archive/2026-08/08-23-compact-mascot-visual-planning/research/upstream-bible-strong-avatar-lab.md:3-10,39-54`.
+`.trellis/research/archive/2026-08/08-23-compact-mascot-visual-planning/research/upstream-bible-strong-avatar-lab.md:3-10,39-54`.
 
 ## Kirby: verified source shape
 

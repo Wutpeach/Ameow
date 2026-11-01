@@ -58,7 +58,7 @@ Scenario switching is already Lab-local. The Refresh must preserve that boundary
 - `src/presentation/main-window/ExpandedPresentationSurface.tsx:786-798` renders a single `aria-hidden` canvas with `pointer-events: none`.
 - `src/lab/rendererReuse.test.ts:80-137` requires one production Full surface, forbids a Lab canvas/shader/runtime, and requires browser-safe imports.
 
-One known visual mismatch should be removed in the Refresh: the Lab wrapper uses a `14px` radius (`LabOverlayStage.tsx:125-135`), while the production Full shell uses `16px` (`src/presentation/main-window/geometry.ts:45-75`). The prior MR9 visual report recorded the same mismatch in `.trellis/tasks/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/mr9-grammar-realignment-prototype.md:151-166`.
+One known visual mismatch should be removed in the Refresh: the Lab wrapper uses a `14px` radius (`LabOverlayStage.tsx:125-135`), while the production Full shell uses `16px` (`src/presentation/main-window/geometry.ts:45-75`). The prior MR9 visual report recorded the same mismatch in `.trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/mr9-grammar-realignment-prototype.md:151-166`.
 
 ## Compact Preview Reuse Direction
 

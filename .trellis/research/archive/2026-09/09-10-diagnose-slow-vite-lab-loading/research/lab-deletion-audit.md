@@ -91,7 +91,7 @@ An archived OneWorks Lab build gives a historical artifact-size reference, not a
 | Lab locale JSON | `src/lab/i18n.ts:16-17,27-28`; `src/lab/locales/en.json` and `zh-CN.json` are approximately 3,041 B and 2,985 B. | **(1) Core support.** Keep the `lab` namespace. |
 | Production locale resources transitively loaded by shared `src/i18n` | `src/i18n/resources.ts:3-25` statically imports eight common/desktop/extension/native JSON files (about 62,672 B total from the current tree). | **(1) Copy-fidelity support, not repo deletion.** Lab uses production `desktop` strings through shared components; deleting extension/native resources would break other consumers. A future supported resource-slicing seam could reduce Lab cold work, but is not a deletion-only change and should follow measurement. |
 | Ripple PNG | `RippleCanvas.tsx:12`, loaded before WebGL1 initialization (`RippleCanvas.tsx:53-58,103-160`). | **(4) Remove with Ripple.** It is a 7,267 B experiment fixture, not a production application asset. |
-| OneWorks archived assets | Canonical JSON, protected baseline, and screenshots are under `.trellis/tasks/archive/2026-08/08-25-oneworks-ameow-mascot-visual-candidate/`. They are not imported by current production/Lab runtime. | **Preserve.** Do not delete historical evidence while removing runtime packages/files. |
+| OneWorks archived assets | Canonical JSON, protected baseline, and screenshots are under `.trellis/research/archive/2026-08/08-25-oneworks-ameow-mascot-visual-candidate`. They are not imported by current production/Lab runtime. | **Preserve.** Do not delete historical evidence while removing runtime packages/files. |
 
 ## OneWorks/avatar end-to-end trace
 
@@ -320,9 +320,9 @@ Relevant repository contracts:
 - `.trellis/spec/frontend/motion-guidelines.md` — `motion/react` import contract, bounded renderer-local motion, and Reduced Motion behavior.
 - `.trellis/spec/frontend/character-motion.md` — Compact mascot geometry, pointer field, preview-pose seam, and Reduced Motion contract.
 - `.trellis/spec/frontend/quality-guidelines.md` — browser/Electron boundary, locale source-of-truth, and production build constraints.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` — Vite readiness/optimizer/root-entry measurements.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/repeated-lab-refresh-white-screen.md` — repeated warm/cache-disabled refresh and WebGL timing evidence.
-- `.trellis/tasks/09-10-diagnose-slow-vite-lab-loading/research/lab-preview-architecture-options.md` — dedicated-entry recommendation, fixture contract, and automation-first follow-up.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/vite-lab-loading-diagnosis.md` — Vite readiness/optimizer/root-entry measurements.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/repeated-lab-refresh-white-screen.md` — repeated warm/cache-disabled refresh and WebGL timing evidence.
+- `.trellis/research/archive/2026-09/09-10-diagnose-slow-vite-lab-loading/research/lab-preview-architecture-options.md` — dedicated-entry recommendation, fixture contract, and automation-first follow-up.
 
 External references used by the existing task research:
 

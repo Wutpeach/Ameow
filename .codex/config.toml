@@ -1,4 +1,4 @@
-# Project-scoped Codex defaults for Trellis workflows.
+# Project-scoped Codex defaults written by mini-trellis.
 # Codex merges this layer after the user-level config when the project
 # is marked as a trusted project. To trust this project, add it under
 # `[projects]` in ~/.codex/config.toml, e.g.:
@@ -9,15 +9,15 @@
 # Keep AGENTS.md as the primary project instruction file.
 project_doc_fallback_filenames = ["AGENTS.md"]
 
-# Codex hooks (`hooks.json` in this directory) only fire when the user
-# has enabled them in their USER-level config: `[features].hooks = true`
-# in ~/.codex/config.toml (Codex 0.129+; legacy name: `codex_hooks = true`,
-# still works but emits a deprecation warning on 0.129+). Project-level
-# config.toml cannot set feature flags; they must be user-level.
+# Recent Codex versions enable hooks by default. If hooks are disabled in the
+# user configuration, re-enable them there with `[features].hooks = true` in
+# ~/.codex/config.toml (the legacy `codex_hooks = true` alias may still work).
+# Project-level config.toml cannot set feature flags; this file only documents
+# the requirement.
 # Codex 0.129+ additionally gates each installed hook behind a one-time
 # `/hooks` TUI review; until the user approves it, the hook stays inactive.
 
-# NOTE: Trellis intentionally does NOT write a [features.multi_agent_v2]
+# NOTE: mini-trellis intentionally does NOT write a [features.multi_agent_v2]
 # block here. Codex CLI changed `features` deserialization between 0.130
 # and 0.131: the structured table form (with max_concurrent_threads_per_session
 # / *_wait_timeout_ms) is only accepted by 0.131+. On 0.130 and earlier —
@@ -27,6 +27,17 @@ project_doc_fallback_filenames = ["AGENTS.md"]
 # default for multi_agent_v2 is used instead; tune it in your user-level
 # config if needed.
 
+# mini-trellis is a memory layer and does not set agent recursion or other
+# orchestration defaults. Keep those choices in the user's Codex config.
+
+# Codex hooks (`hooks.json` in this directory) only fire when the user
+# has enabled them in their USER-level config: `[features].hooks = true`
+# in ~/.codex/config.toml (Codex 0.129+; legacy name: `codex_hooks = true`,
+# still works but emits a deprecation warning on 0.129+). Project-level
+# config.toml cannot set feature flags; they must be user-level.
+
+# NOTE: Trellis intentionally does NOT write a [features.multi_agent_v2]
+
 # Pin the subagent recursion depth explicitly instead of relying on Codex's
 # default. #445 removed the per-agent `[features] multi_agent = false` guard
 # (the #240/#241 wait_agent-deadlock structural fix) because native subagent
@@ -35,5 +46,3 @@ project_doc_fallback_filenames = ["AGENTS.md"]
 # it here means an upstream default change, or a user's own global override,
 # can't silently reopen the recursion the #240/#241 fix closed. Project config
 # (this file) takes precedence over user-level `~/.codex/config.toml`.
-[agents]
-max_depth = 1

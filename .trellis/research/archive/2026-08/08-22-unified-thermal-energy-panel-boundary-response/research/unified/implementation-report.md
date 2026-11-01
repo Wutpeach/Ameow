@@ -10,7 +10,7 @@
 **Date:** 2026-08-22
 **Status:** one implementation/evidence round COMPLETE — hypothesis **PASS** (no falsification); hard stop before GPT Architecture Lead Review. NOT an Architecture PASS, no commit, no archive, no production integration.
 **Authoritative worktree:** `D:/Ameow/.cindy-worktrees/mr9-fullscreen-activation-fx` (branch `motion/mr9-fullscreen-activation-fx`)
-**Task:** `.trellis/tasks/08-22-unified-thermal-energy-panel-boundary-response/`
+**Task:** `.trellis/research/archive/2026-08/08-22-unified-thermal-energy-panel-boundary-response`
 **Worker:** `x4355jcnfl4kfwjp4fa8gcp5`
 
 ## 1. Baseline checkpoint gate

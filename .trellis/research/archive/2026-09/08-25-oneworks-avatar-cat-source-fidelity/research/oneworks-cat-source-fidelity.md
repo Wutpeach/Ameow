@@ -79,6 +79,6 @@ Capability assessment:
 
 Only this research artifact was created/changed:
 
-- `.trellis/tasks/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`
+- `.trellis/research/archive/2026-09/08-25-oneworks-avatar-cat-source-fidelity/research/oneworks-cat-source-fidelity.md`
 
 No product files, archived mascot implementation files, or unrelated working-tree files were modified.

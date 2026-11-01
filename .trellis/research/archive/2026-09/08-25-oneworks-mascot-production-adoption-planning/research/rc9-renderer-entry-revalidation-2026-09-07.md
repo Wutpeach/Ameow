@@ -46,9 +46,9 @@
 
 ## Related specs and files
 
-- Existing decision boundary: `.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/design.md:109-124`.
+- Existing decision boundary: `.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning/design.md:109-124`.
 - Existing entry gate and required scan: `.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/implement.md:3-14,74-80`.
-- Previous baseline: `.trellis/tasks/08-25-oneworks-mascot-production-adoption-planning/research/production-adoption-research.md` (2026-08-25; rc.6 root-only artifact).
+- Previous baseline: `.trellis/research/archive/2026-09/08-25-oneworks-mascot-production-adoption-planning/research/production-adoption-research.md` (2026-08-25; rc.6 root-only artifact).
 - Current Ameow dependency state: `package.json:49-59`, `package-lock.json:1255-1274`.
 
 ## Caveats / Not Found

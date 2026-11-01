@@ -1,149 +1,38 @@
 <!-- TRELLIS:START -->
-# Trellis Instructions
+# mini-trellis
 
-These instructions are for AI assistants working in this project.
+This project uses mini-trellis as a memory layer. Working knowledge lives under `.trellis/`:
 
-This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+- `.trellis/spec/` — durable contracts (short markdown; read `index.md` first)
+- `.trellis/research/` — topic inbox (`<topic>.md`; `README.md` is not a topic)
+- `.trellis/workspace/` — per-developer journals
 
-- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
-- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
-- `.trellis/workspace/` — per-developer journals and session traces
-- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+Record a session with `/mini-trellis:remember` (Claude/OpenCode), `/mini-trellis-remember` (Pi), or `$mini-trellis-remember` (Codex). When earlier decisions or relevant project rules are needed, use `mini-trellis mem recall "<topic or path>"`; expand evidence with `mini-trellis mem read "<ref>"`. No search is required for unrelated work. Promote lasting boundaries into spec with `mini-trellis-update-spec`.
 
-If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+Record only confirmed decisions, reusable research findings, or the session/compact handoff. Skip ordinary turns and unconfirmed guesses. New installs write notes without an automatic git commit; use `mini-trellis doctor` to check host wiring and `mini-trellis refresh --dry-run` before refreshing assets.
 
-If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
-- `.agents/skills/` — reusable Trellis skills
-- `.codex/agents/` — optional custom subagents
+Keep confirmed rules short and faithful. Unconfirmed scope, exceptions, and implementation choices stay open or are labeled as inference, not added to the contract.
 
-Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
+For a confirmed update, follow this short order: read the existing topic; edit that file; read it back and check the new rule, limits, and negations; run `python3 ./.trellis/scripts/add_session.py --title "..." --summary "..." --topic <actual-topic-path>`; read the journal and check its topic link. Journal-only success is not topic success; report partial writes accurately. New notes follow the requested or discussion language; updates preserve the document language.
 
+When recall excerpts already answer the question with source and qualifiers, cite them and stop. Expand only missing context; do not repeat a lookup or fall back to dialogue-only `search` merely to reconfirm sufficient evidence.
+
+mini-trellis does not create or drive tasks.
+
+Managed by mini-trellis. Edits outside this block are preserved.
 <!-- TRELLIS:END -->
 
-## Mandatory Orca Worker Dispatch
+## Agent Collaboration
 
-The current session is the Lead Coordinator. For every non-trivial repository
-task, it MUST use real Orca orchestration and MUST NOT substitute Codex native
-sub-agents or inline execution.
+The Lead owns coordination, integration, validation, and the final report.
 
-Choose the Trellis role for each dispatched phase and read its definition first:
-
-- Investigation / debugging → `.codex/agents/trellis-research.toml`
-- Implementation / code changes → `.codex/agents/trellis-implement.toml`
-- Validation / tests / review → `.codex/agents/trellis-check.toml`
-
-The Lead owns planning, dispatch, result review, commits, and user
-communication. Workers must not spawn additional workers.
-
-### Dispatch
-
-For each worker:
-
-1. Get the exact active task path from Trellis. Never guess it.
-2. Create or bind an Orca Run. Reuse the current Run across related phases
-   unless it is unavailable or the workflow intentionally requires a separate
-   Run.
-3. Create an Orca Task whose spec starts with the exact
-   `Active task: <path>` and tells the worker to read and follow the selected
-   TOML. Do not copy the full TOML into the Task spec.
-4. Start a fresh visible Codex terminal in the current worktree with:
-
-   `orca orchestration worker-start --task <task_id> --worktree current --agent codex --model <model> --effort <model_reasoning_effort> --json`
-
-   Use the selected TOML's exact `model` and `model_reasoning_effort` values.
-
-### After Dispatch
-
-After a successful dispatch, keep exactly one filtered lifecycle-message wait
-open for the Run:
-
-`orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 900000 --json`
-
-This waits only for structured Orca messages. It is not progress monitoring and
-must not be combined with transcript, terminal, task, dispatch, or worker-state
-reads. While the wait is active, the user may still steer the Lead conversation.
-
-While any expected Dispatch is unsettled, the Lead turn itself MUST remain
-open. Do not send a final response or otherwise end the turn merely because a
-filtered wait is running. A background wait process that outlives an ended turn
-cannot wake or resume the Lead, so it does not count as active coordination.
-Use commentary updates for user communication while preserving the open turn.
-
-If the wait times out with no messages, do not inspect the worker or treat the
-timeout as failure. In the same still-open Lead turn, immediately re-arm the
-same filtered wait while an expected Dispatch is unsettled, unless the user
-asks to stop waiting. Repeat until every expected Dispatch settles; only then
-may the Lead send its final response. Do not rely on a host notification to wake
-an ended Lead turn; durable mailbox storage alone does not resume the
-coordinator.
-
-Do not:
-
-- poll `task-list`, `dispatch-show`, terminal state, or worker state
-- use `worker-read` to watch progress
-- use `terminal read` or `terminal wait` to watch progress
-- run sleeps or any additional monitoring loop alongside the filtered wait
-- restart or replace a worker merely because no notification has arrived
-
-Orca messages are durable. A worker's `worker_done`, question, or escalation
-remains in the Run until the Lead processes and acknowledges its Delivery.
-The single filtered wait is the Delivery consumer; no worker transcript or
-status polling is required.
-
-### Processing Orca Messages
-
-When the filtered wait returns a Delivery, process it directly. If no wait is
-active and the host injects an Orca notification with an exact check command,
-run that command once instead.
-
-1. Process every message in the returned Delivery.
-2. For `worker_done`, verify the task ID, dispatch ID, outcome, modified files,
-   and report path.
-3. Read the worker's task-local report from `reportPath` first. Do not use
-   `worker-read` when the completion message and report are sufficient.
-4. Review the result, then either:
-   - immediately reuse the same worker for the next Orca Task; or
-   - release it with `worker-release`.
-5. After all messages and worker lifecycle decisions in the Delivery have been
-   handled, acknowledge the Delivery using its `deliveryId`.
-6. If other expected Dispatches remain unsettled, open one new filtered wait
-   after the acknowledgement.
-
-For a question, reply through Orca before acknowledging the Delivery. For an
-escalation, inspect and resolve the reported condition before deciding whether
-the worker should continue, be replaced, or be released.
-
-### Bounded Status Checks
-
-If the user explicitly asks for worker status, perform only one bounded
-`task-list` or `dispatch-show` query and report the result. Do not turn the
-request into recurring monitoring.
-
-The absence of a lifecycle message or a wait timeout is not evidence that a
-worker failed or stalled.
-
-### `worker-read` Restrictions
-
-Do not use `worker-read` for progress monitoring.
-
-Use it only when:
-
-- a completed worker's `worker_done` and task-local report are insufficient;
-- Orca reports an explicit failure or escalation that requires transcript
-  inspection; or
-- the user explicitly asks to inspect the worker's detailed execution.
-
-Prefer the task-local report over the full worker transcript because
-`worker-read` can inject a large amount of unnecessary context and consume
-substantial tokens.
-
-### Inline Work
-
-Inline work is allowed only for simple explanations, trivial read-only
-actions, user clarification, Lead-owned planning/task artifacts, commits, or a
-tiny instruction-only edit that the user explicitly asks the Lead to make
-directly.
-
+- Handle simple or tightly coupled work locally. Prefer a native Codex agent when an independent boundary adds value.
+- Delegate multi-file investigation and architecture tracing to `researcher`; use `implementer` for clearly bounded changes and `reviewer` for independent review.
+- `researcher` and `reviewer` must operate read-only; the reviewer reports findings and does not make fixes. Their role files declare the intended sandbox mode, but Codex 0.159.2 inherits the parent's runtime permissions. Do not claim that per-role isolation is enforced without verifying it.
+- When an independent review is actually requested and stronger read-only isolation is required, Cindy's local `/review` may be used as a temporary fallback if its read-only restrictions and review scope are confirmed. It does not replace Linear Review or user acceptance and is not started automatically.
+- Use a Cindy Worker when a separate provider or a persistent multi-turn independent session is useful. Do not assign a native agent and Worker the same scope by default.
+- Orca is optional. Do not require a Trellis Task, Orca dispatch, or a fixed Research → Implement → Review sequence.
+- The Lead supplies the approved scope and relevant context, protects existing changes, integrates results, and verifies completion.
 
 ## File Search
 

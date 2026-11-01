@@ -24,7 +24,7 @@ research (`research/paper-shaders-heatmap-checkpoint-{b,c}.md`,
 
 Visual reference (learned, never explicitly drawn): the preserved seven-frame
 contact sheet
-`.trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/mr9-paper-heatmap-reference-7frame.png`
+`.trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/mr9-paper-heatmap-reference-7frame.png`
 (diamond form; heat starts at the top apex, grows into an inward thermal shell,
 morphs a cool cavity, peaks as a perimeter shell + cool centre, then contracts
 to the bottom apex). The Ameow field is adapted to the **rounded Main Window**,

@@ -72,7 +72,7 @@ No MR4 Reveal, outcome material, terminal hold, folder confirmation, terminal-no
 - Canvas host lifetime: `src/presentation/main-window/DotFieldCanvas.tsx:43-142`
 - local retarget/sleep/dispose: `src/presentation/main-window/dotFieldRuntime.ts:186-228,230-370`
 - MR0/MR1 normative contract: `.trellis/spec/frontend/motion-guidelines.md:589-665,683-743`
-- MR1 validation evidence: `.trellis/tasks/archive/2026-08/08-13-mr1-expanded-dot-field-substrate/research/dot-field-windows-validation.md`
+- MR1 validation evidence: `.trellis/research/archive/2026-08/08-13-mr1-expanded-dot-field-substrate/research/dot-field-windows-validation.md`
 
 ## Planning status
 

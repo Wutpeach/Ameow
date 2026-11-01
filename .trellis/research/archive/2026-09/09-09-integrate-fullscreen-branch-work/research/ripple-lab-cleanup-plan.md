@@ -3,7 +3,7 @@
 - Query: Make the approved 818057f Ripple checkpoint the maintained Vite Lab Full experience, remove the superseded Intake and Heatmap experiment UI, and later retire only proven fullscreen experiment branches.
 - Scope: internal code, specs, archived task reports, and the read-only branch/ref inventory.
 - Date: 2026-09-09 (Asia/Shanghai)
-- Active task: .trellis/tasks/09-09-integrate-fullscreen-branch-work
+- Active task: .trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work
 
 ## Decision summary
 
@@ -391,7 +391,7 @@ npm run dev:lab
    tag before deleting its local branch.
 
 The historical MR9 Browser Lab command
-node .trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs
+node .trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs
 still validates the ordinary production-reuse fixture route. It does not
 replace the Ripple WebGL1 lifecycle and one-scene checks above.
 

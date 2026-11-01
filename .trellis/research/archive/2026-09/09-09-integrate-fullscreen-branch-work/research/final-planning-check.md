@@ -1,7 +1,7 @@
 # Final planning check
 
 - Date: 2026-09-09 (Asia/Shanghai)
-- Active task: `.trellis/tasks/09-09-integrate-fullscreen-branch-work`
+- Active task: `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`
 - Review type: independent planning/spec check only
 - Verdict: **PASS**
 
@@ -120,8 +120,8 @@ record, plus all frontend files named by this task's check manifest.
 
 ## Verification
 
-- `python ./.trellis/scripts/task.py validate .trellis/tasks/09-09-integrate-fullscreen-branch-work`: **pass**.
-- `git diff --check -- .trellis/tasks/09-09-integrate-fullscreen-branch-work`: **pass**.
+- `python ./.trellis/scripts/task.py validate .trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`: **pass**.
+- `git diff --check -- .trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work`: **pass**.
 - Whole-repository lint/type-check/build/test: **not run by design**. Product
   implementation has not started, and the shared worktree contains unrelated
   edits; the dispatch explicitly excluded those suites from this planning review.
@@ -129,4 +129,4 @@ record, plus all frontend files named by this task's check manifest.
 ## Modified files
 
 - `.trellis/tasks/09-09-integrate-fullscreen-branch-work/implement.md`
-- `.trellis/tasks/09-09-integrate-fullscreen-branch-work/research/final-planning-check.md`
+- `.trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work/research/final-planning-check.md`

@@ -1,6 +1,6 @@
 # Fullscreen branch/ref inventory
 
-Active task: .trellis/tasks/09-09-integrate-fullscreen-branch-work
+Active task: .trellis/research/archive/2026-09/09-09-integrate-fullscreen-branch-work
 
 Inventory date: 2026-09-09 (Asia/Shanghai). The inspected worktree is main at
 ff53f9749aa095c69f8a84d6537838d46ce3037c; the working tree is intentionally
@@ -321,7 +321,7 @@ npx vitest run src/lab/paperHeatmapOfficial.test.ts src/lab/paperHeatmapPanelCom
 ~~~
 
 The existing MR9 Browser Lab validation command is
-node .trellis/tasks/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs;
+node .trellis/research/archive/2026-08/08-15-mr9-fullscreen-activation-fx-progress-visual-refinement/research/run-browser-lab-validation.mjs;
 it validates the ordinary production-reuse route, not Ripple or Paper.
 
 ## Caveats

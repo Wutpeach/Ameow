@@ -4,7 +4,7 @@ Date: 2026-08-09
 
 ## Scope and method
 
-Read-only audit of persisted proxy config, Electron session proxy application and resolution, downloader/runtime process entry points, ambient proxy variables, failure diagnostics, telemetry, and existing tests. `fff` MCP was unavailable in this session, so repository searches used `rg` as the permitted fallback. Historical task `.trellis/tasks/archive/2026-07/07-16-network-proxy-settings/` and relevant Trellis contracts were also reviewed.
+Read-only audit of persisted proxy config, Electron session proxy application and resolution, downloader/runtime process entry points, ambient proxy variables, failure diagnostics, telemetry, and existing tests. `fff` MCP was unavailable in this session, so repository searches used `rg` as the permitted fallback. Historical task `.trellis/research/archive/2026-07/07-16-network-proxy-settings` and relevant Trellis contracts were also reviewed.
 
 Baseline focused validation before product-code edits:
 

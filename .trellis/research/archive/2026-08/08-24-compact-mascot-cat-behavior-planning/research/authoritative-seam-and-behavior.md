@@ -116,7 +116,7 @@ it is not an internal planning blocker.
   unbounded queues, and ambiguous Reduced Motion completion. It requires stale
   callbacks to be no-ops and transient state to restore the latest persistent
   baseline.
-- `.trellis/tasks/archive/2026-08/08-23-compact-mascot-visual-planning/
+- `.trellis/research/archive/2026-08/08-23-compact-mascot-visual-planning
   research/ameow-compact-boundary.md:9-69` records the prior seam, 38px
   Windows hotspot/80px reachability independence, Full/MR9 isolation, Lab
   reuse, and the prior conclusion of no internal architecture blocker.

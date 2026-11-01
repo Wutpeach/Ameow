@@ -57,5 +57,5 @@ zero continuous frames.
 The validation command is syntax-checked with:
 
 ```powershell
-node --check .trellis/tasks/08-14-mr8-download-intake-reveal-planning/research/run-mr8-windows-validation.mjs
+node --check .trellis/research/archive/2026-08/08-14-mr8-download-intake-reveal-planning/research/run-mr8-windows-validation.mjs
 ```

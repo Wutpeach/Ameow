@@ -1,6 +1,6 @@
 # Paper Processed Material Unity — 14px-Bounded Edge Treatment Repair Report
 
-- Task: `.trellis/tasks/08-21-paper-heatmap-geometry-rendering-domain-audit`
+- Task: `.trellis/research/archive/2026-08/08-21-paper-heatmap-geometry-rendering-domain-audit`
 - Worktree: `D:\Ameow\.cindy-worktrees\mr9-fullscreen-activation-fx` (branch `motion/mr9-fullscreen-activation-fx`)
 - Round: **single authorized repair round** (no further visual tuning performed)
 - Date: 2026-08-21

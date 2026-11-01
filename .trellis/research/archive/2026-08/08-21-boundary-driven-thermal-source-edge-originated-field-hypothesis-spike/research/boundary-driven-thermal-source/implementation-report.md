@@ -1,6 +1,6 @@
 # Boundary-Driven Thermal Source — Implementation Report (FINAL)
 
-Task: `.trellis/tasks/08-21-boundary-driven-thermal-source-edge-originated-field-hypothesis-spike`
+Task: `.trellis/research/archive/2026-08/08-21-boundary-driven-thermal-source-edge-originated-field-hypothesis-spike`
 Worktree: `D:\Ameow\.cindy-worktrees\mr9-fullscreen-activation-fx`
 Worker: x4355jcnfl4kfwjp4fa8gcp5
 Status: implementation + Lead repair + final real-Lab evidence complete; **no commit**.

@@ -13,12 +13,12 @@ repository-state truth; Phase 4 main integration/merge remains excluded.
   empty, so the main-only delta is archive/journal state, not Product code.
   Combined normalized patch ID: `73a9a14891088e2df14cd296fdea06e72662f7e3`.
 - Main-only truth: `94692a9` preserves the 31-path Paper archive at
-  `.trellis/tasks/archive/2026-08/08-23-paper-official-source-level-adaptation-planning/`
+  `.trellis/research/archive/2026-08/08-23-paper-official-source-level-adaptation-planning`
   (patch `95fe4c6950d2749e78396751e95bb3af635f424d`); `a5db244` updates
   `.trellis/workspace/Mabel-WIN/index.md`/`journal-5.md` (patch
   `c66dd583f19e12c4432ecc785e3fc274b36c6a8e`); `0ef5238` preserves the
   684-path Ripple archive at
-  `.trellis/tasks/archive/2026-08/08-23-mr9-ripple-motion-foundation-planning/`
+  `.trellis/research/archive/2026-08/08-23-mr9-ripple-motion-foundation-planning`
   (patch `5508735cd0b5ec43fca285dce1237c1510e931d3`); `2b46f91` updates the
   same index/journal (patch `e577ecbf619640ec8990e2b67e1e136e23e0ed4a`).
   These remain reachable by starting the Phase 3 line at exact main.
@@ -54,7 +54,7 @@ means only after the specified canonical evidence is recorded.
 | Active Paper tasks `08-23-mr9-paper-heatmap-official-component-source-fidelity-baseline` and `08-23-mr9-paper-heatmap-panel-mapping-comparison` (`in_progress`, reports `UNDECIDED`) | **Safely superseded/close** | Close/archive as final NO-GO using `77eb561` and canonical Paper archive evidence, while retaining each unique report/evidence file. Do not infer a Product choice from their old undecided wording. |
 | Ripple `lab/mr9-ripple-source-fidelity@818057f664c7474ec1722b143fcc84dcf3ec67e9`, patch `ab8c42dc09a0869045fb485f87686c936aabd87b`; `src/lab/lab-main.tsx`, `src/lab/ripple/*`, `evidence/mr9-ripple/*`; archive `0ef5238` | **Exclude from Product** | Retain Lab feasibility PASS/STOP evidence and archive; no Lab/evidence path enters Product or is copied into main ancestry. |
 | Root MR8 duplicate task `08-14-mr8-download-intake-reveal-planning` (`planning`) versus completed archive `4c43c08` and implementation `3a3aeb3` | **Safely superseded/close** | Use the completed candidate archive as canonical; close/archive the duplicate while retaining any unique notes. |
-| Empty task directories `.trellis/tasks/08-23-agentation-integration-planning` and `.trellis/tasks/08-23-compact-mascot-visual-planning` | **Safely superseded/close** | Verify they remain empty and have no unique evidence, then remove/close only during the accepted Phase 3 execution. No cleanup occurs in this correction. |
+| Empty task directories `.trellis/research/archive/2026-08/08-23-agentation-integration-planning` and `.trellis/research/archive/2026-08/08-23-compact-mascot-visual-planning` | **Safely superseded/close** | Verify they remain empty and have no unique evidence, then remove/close only during the accepted Phase 3 execution. No cleanup occurs in this correction. |
 | `.cindy-worktrees/` (~5.79 GB/156,157 files), `.cindy-upstream/bible-strong-avatar-lab-175691a`, `spike-package-output` (~431 MB), `agentation-placement-package-output` (~431 MB), `.trellis/.runtime`, `.trellis/tmp`, `__pycache__`, logs, generated packages | **Exclude from Product** | Leave untouched. Never stage, copy, commit, clean, or delete these operational artifacts in Phase 3. |
 
 ## MR8 comparison used for M3 closure

@@ -177,7 +177,7 @@ No current reference to browser-extension-package-check, its extracted directory
 
 Git status is tracked and clean; size is 3,429 B; no .gitignore or .git/info/exclude rule matches it. The file begins with the non-standard marker MR3_SMOKE_EVIDENCE and records 11 compact/expanded/determinate/click/removal scenarios with draw, arc, requestAnimationFrame, canvas dimensions, pixel probes, and title Ameow. Git history identifies 73cb29a2 (feat(presentation): add progress field) as the add commit; the associated mr3-smoke.cjs producer was removed by 30e0e545 (feat(presentation): consolidate browser lab). Current FFF searches found no reader/producer for the exact filename/content; only the current task PRD names it. It is unique historical evidence, not a reproducible generated build input.
 
-Preferred future destination is an evidence subdirectory under the archived MR3 task, for example .trellis/tasks/archive/2026-08/08-13-mr3-progress-field/research/evidence/mr3-windows-smoke-evidence.json, with any references updated and a small archive discoverability check. Retaining it at root is also defensible if preserving the historical filename is more important than root cleanliness. Deletion is not supported by current evidence.
+Preferred future destination is an evidence subdirectory under the archived MR3 task, for example .trellis/research/archive/2026-08/08-13-mr3-progress-field/research/evidence/mr3-windows-smoke-evidence.json, with any references updated and a small archive discoverability check. Retaining it at root is also defensible if preserving the historical filename is more important than root cleanliness. Deletion is not supported by current evidence.
 
 ### simple-icons-16.20.0.tgz
 
