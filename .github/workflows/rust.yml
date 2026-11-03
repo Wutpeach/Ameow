@@ -3,9 +3,9 @@ name: Rust Windows
 on:
   push:
     branches: [main]
-    paths: ['rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
   pull_request:
-    paths: ['rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:

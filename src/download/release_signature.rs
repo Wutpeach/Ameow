@@ -131,6 +131,8 @@ mod tests {
     #[test]
     fn authentic_release_and_tampering() {
         assert!(verify(SUMS, SIG).is_ok());
+        let crlf = std::str::from_utf8(SUMS).unwrap().replace('\n', "\r\n");
+        assert!(verify(crlf.as_bytes(), SIG).is_err());
         let mut sums = SUMS.to_vec();
         sums[0] ^= 1;
         assert!(verify(&sums, SIG).is_err());
