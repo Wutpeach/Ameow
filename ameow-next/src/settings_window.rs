@@ -6,7 +6,7 @@ use crate::{
     tokens::{self, Palette},
     ui_text::Language,
 };
-use ameow_next::download::settings::{LanguagePreference, ThemePreference};
+use ameow_next::download::settings::{LanguagePreference, ThemePreference, TrayIconPreference};
 use gpui::{prelude::*, *};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::path::{Path, PathBuf};
@@ -85,7 +85,7 @@ struct Projection {
     error: Option<String>,
     night: bool,
     language: Language,
-    preferences: Option<(ThemePreference, LanguagePreference)>,
+    preferences: Option<(ThemePreference, LanguagePreference, TrayIconPreference)>,
     queue: Option<std::sync::Arc<ameow_next::download::queue::QueueSnapshot>>,
     preparation_retry_available: bool,
     preparation_copy_pending: bool,
@@ -107,7 +107,7 @@ impl Projection {
             language: main.language,
             preferences: ui
                 .and_then(|ui| ui.settings())
-                .map(|s| (s.theme, s.language)),
+                .map(|s| (s.theme, s.language, s.tray_icon)),
             queue: ui.and_then(|ui| ui.snapshot.clone()),
             preparation_retry_available: ui.is_some_and(|ui| ui.preparation_retry_available()),
             preparation_copy_pending: ui.is_some_and(|ui| ui.preparation_copy_pending),
@@ -125,6 +125,9 @@ enum Page {
     Download,
     Components,
     About,
+}
+fn general_select_menu(menu: Option<Page>) -> Option<Page> {
+    menu.filter(|menu| matches!(menu, Page::General | Page::Download | Page::Components))
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ButtonStyle {
@@ -162,6 +165,7 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        crate::brand_icons::set_window(hwnd(window));
         let observer = cx.observe(&main, |this, main, cx| {
             let next = Projection::from_main(main.read(cx));
             if next.path != this.projection.path || next.status != this.projection.status {
@@ -306,7 +310,7 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night);
         let prefs = self.projection.preferences;
         let enabled = prefs.is_some() && !self.projection.pending && !self.picker_pending;
-        let (theme, language) = prefs.unwrap_or_default();
+        let (theme, language, tray_icon) = prefs.unwrap_or_default();
         let theme_label = match theme {
             ThemePreference::System => l.text("跟随系统", "System"),
             ThemePreference::Light => l.text("浅色", "Light"),
@@ -316,6 +320,11 @@ impl SettingsWindow {
             LanguagePreference::System => l.text("跟随系统", "System"),
             LanguagePreference::Chinese => "简体中文",
             LanguagePreference::English => "English",
+        };
+        let tray_icon_label = match tray_icon {
+            TrayIconPreference::FollowAppearance => l.text("跟随外观", "Follow appearance"),
+            TrayIconPreference::AmeowBlue => "Ameow Blue",
+            TrayIconPreference::Apricot => "Apricot",
         };
         let on = matches!(self.startup, Some(Ok(StartupState::Enabled)));
         let switch_enabled = !self.startup_pending && self.startup.is_some();
@@ -369,6 +378,11 @@ impl SettingsWindow {
             LanguagePreference::Chinese => 1,
             LanguagePreference::English => 2,
         };
+        let tray_icon_index = match tray_icon {
+            TrayIconPreference::FollowAppearance => 0,
+            TrayIconPreference::AmeowBlue => 1,
+            TrayIconPreference::Apricot => 2,
+        };
         let group = div()
             .flex()
             .flex_col()
@@ -400,6 +414,18 @@ impl SettingsWindow {
                     language_label,
                     [l.text("跟随系统", "System"), "简体中文", "English"],
                     language_index,
+                    enabled,
+                    cx,
+                ),
+            ))
+            .child(row(
+                l.text("托盘图标", "Tray icon"),
+                self.select_menu(
+                    Page::Components,
+                    "tray-icon-menu",
+                    tray_icon_label,
+                    [l.text("跟随外观", "Follow appearance"), "Ameow Blue", "Apricot"],
+                    tray_icon_index,
                     enabled,
                     cx,
                 ),
@@ -453,7 +479,7 @@ impl SettingsWindow {
             .flex_col()
             .child(self.page_header(
                 l.text("常规", "General"),
-                l.text("启动、主题与语言", "Startup, theme and language"),
+                l.text("启动、主题、语言与托盘图标", "Startup, theme, language and tray icon"),
             ))
             .child(group)
             .when_some(status, |s, (text, danger)| {
@@ -504,8 +530,10 @@ impl SettingsWindow {
             let mut list = div()
                 .id(if menu == Page::General {
                     "theme-options"
-                } else {
+                } else if menu == Page::Download {
                     "language-options"
+                } else {
+                    "tray-icon-options"
                 })
                 .w(px(144.))
                 .p(px(4.))
@@ -550,7 +578,7 @@ impl SettingsWindow {
     }
     fn select_option(&mut self, menu: Page, index: usize, cx: &mut Context<Self>) {
         self.menu = None;
-        if let Some((theme, language)) = self.projection.preferences {
+        if let Some((theme, language, tray_icon)) = self.projection.preferences {
             if menu == Page::General {
                 let next = [
                     ThemePreference::System,
@@ -570,6 +598,20 @@ impl SettingsWindow {
                 if next != language {
                     self.save_preferences(theme, next, cx);
                     return;
+                }
+            } else if menu == Page::Components {
+                let next = [TrayIconPreference::FollowAppearance, TrayIconPreference::AmeowBlue, TrayIconPreference::Apricot][index];
+                if next != tray_icon && !self.projection.pending && !self.picker_pending {
+                    self.notice = None;
+                    let admitted = self.main.update(cx, |main, cx| {
+                        let now = main.now();
+                        let admitted = main.downloads.as_mut().is_some_and(|ui| ui.request_tray_icon(next, now));
+                        cx.notify();
+                        admitted
+                    }).unwrap_or(false);
+                    if !admitted {
+                        self.notice = Some(("当前无法保存，若另一个设置正在保存，请稍后重试".into(), true));
+                    }
                 }
             }
         }
@@ -1126,7 +1168,7 @@ impl Render for SettingsWindow {
                     return;
                 }
                 if this.page == Page::General {
-                    if let Some(menu @ (Page::General | Page::Download)) = this.menu {
+                    if let Some(menu) = general_select_menu(this.menu) {
                         match event.keystroke.key.as_str() {
                             "escape" => {
                                 this.menu = None;
@@ -1551,6 +1593,15 @@ mod tests {
         Language, directory_health, display_path, normalize_selection, path_preview,
         settings_message, side_bounds,
     };
+    #[test]
+    fn all_general_select_menus_receive_keyboard_navigation() {
+        use super::{Page, general_select_menu};
+        for menu in [Page::General, Page::Download, Page::Components] {
+            assert!(general_select_menu(Some(menu)) == Some(menu));
+        }
+        assert!(general_select_menu(Some(Page::About)).is_none());
+        assert!(general_select_menu(None).is_none());
+    }
     #[test]
     fn path_preview_preserves_short_paths_and_bounds_long_unicode() {
         let normal = r"C:\Users\Administrator\Desktop\223";

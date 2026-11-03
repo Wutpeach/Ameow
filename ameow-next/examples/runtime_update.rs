@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = PathBuf::from(value("--runtime-root").ok_or("--runtime-root required")?);
     let output = PathBuf::from(value("--output").ok_or("--output required")?);
     let action = value("--action").unwrap_or_else(|| "verify".into());
-    let backend = composition::download_coordinator(root.clone(), root.join("probe-settings.json"), Settings {quality:Quality::Saver, output_dir:output, theme:Default::default(), language:Default::default()})?;
+    let backend = composition::download_coordinator(root.clone(), root.join("probe-settings.json"), Settings {quality:Quality::Saver, output_dir:output, theme:Default::default(), language:Default::default(), tray_icon:Default::default()})?;
     let started = Instant::now();
     let mut last = None;
     let mut admitted = false;

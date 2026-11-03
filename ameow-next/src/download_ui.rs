@@ -6,7 +6,7 @@ use ameow_next::download::{
     },
     request::Quality,
     runtime::RuntimeManager,
-    settings::{Settings, ThemePreference, LanguagePreference},
+    settings::{Settings, ThemePreference, LanguagePreference, TrayIconPreference},
 };
 use std::{
     fs::File,
@@ -135,7 +135,7 @@ impl DownloadUi {
                 let root = value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)?;
                 let settings_path = value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json"));
                 let output_dir = value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)?;
-                ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default() })
+                ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default() })
             })();
             let coordinator = match setup {
                 Ok(coordinator) => coordinator,
@@ -402,6 +402,15 @@ impl DownloadUi {
         settings.language = language;
         self.request_settings(settings, now)
     }
+    pub fn request_tray_icon(&mut self, tray_icon: TrayIconPreference, now: u64) -> bool {
+        if self.settings_pending { return false; }
+        let Some(mut settings) = self.settings() else {
+            self.settings_status = SettingsStatus::Failed("下载设置尚未就绪，请稍后重试".into());
+            return false;
+        };
+        settings.tray_icon = tray_icon;
+        self.request_settings(settings, now)
+    }
     fn request_settings(&mut self, settings:Settings, now:u64) -> bool {
         self.settings_pending=self.send(QueueCommand::SaveSettings(settings),now);
         self.settings_status=if self.settings_pending {SettingsStatus::Saving} else {SettingsStatus::Failed("保存未受理，请稍后重试".into())};
@@ -606,7 +615,7 @@ pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
     match command {
         QueueCommand::Submit { .. } => serde_json::json!({"type":"command","command":"submit"}),
         QueueCommand::SaveSettings(settings) => {
-            serde_json::json!({"type":"command","command":"save-settings","quality":settings.quality})
+            serde_json::json!({"type":"command","command":"save-settings","quality":settings.quality,"theme":settings.theme,"language":settings.language,"tray_icon":settings.tray_icon})
         }
         QueueCommand::Cancel(job) => {
             serde_json::json!({"type":"command","command":"cancel","job":job})
@@ -633,7 +642,7 @@ fn reply_summary(reply: &CommandReply) -> serde_json::Value {
             serde_json::json!({"type":"reply","reply":"accepted","job":job})
         }
         CommandReply::SettingsSaved(settings) => {
-            serde_json::json!({"type":"reply","reply":"settings-saved","quality":settings.quality})
+            serde_json::json!({"type":"reply","reply":"settings-saved","quality":settings.quality,"theme":settings.theme,"language":settings.language,"tray_icon":settings.tray_icon})
         }
         CommandReply::Applied(applied) => {
             serde_json::json!({"type":"reply","reply":"applied","applied":applied})
@@ -2274,6 +2283,23 @@ mod tests {
         assert!(!ui.settings_pending);
     }
     #[test]
+    fn tray_icon_waits_for_ack_and_preserves_previous_value_on_failure() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        let old = ui.settings().unwrap();
+        assert!(ui.request_tray_icon(TrayIconPreference::AmeowBlue, 1));
+        assert!(!ui.request_tray_icon(TrayIconPreference::Apricot, 2));
+        let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
+        assert_eq!(requested.tray_icon, TrayIconPreference::AmeowBlue);
+        assert_eq!(ui.settings(), Some(old.clone()));
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 3);
+        assert_eq!(ui.settings(), Some(old));
+        assert!(ui.request_tray_icon(TrayIconPreference::Apricot, 4));
+        let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
+        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 5);
+        assert_eq!(ui.settings(), Some(requested));
+    }
+    #[test]
     fn localized_queue_copy_keeps_unknown_text_and_formats_speed() {
         use super::local_text;
         use crate::ui_text::Language;
@@ -2384,7 +2410,7 @@ mod tests {
         use super::*;
         let (mut ui,receiver)=row_ui(JobPhase::Failure,false);
         let old=ui.snapshot.as_ref().unwrap().settings.clone();
-        let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder"),theme:Default::default(),language:Default::default()};
+        let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder"),theme:Default::default(),language:Default::default(), tray_icon:Default::default()};
         ui.settings_pending=true;ui.complete_settings(CommandReply::SettingsSaved(newer.clone()),100);
         assert_eq!(ui.snapshot.as_ref().unwrap().settings,old);
         ui.request_quality(Quality::Saver,101);
@@ -2762,7 +2788,7 @@ mod tests {
         let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
         ui.fixture = true;
         for command in [QueueCommand::Submit { url: "https://youtu.be/jNQXAC9IVRw".into() },
-            QueueCommand::SaveSettings(Settings { quality: Quality::Balanced, output_dir: PathBuf::new(), theme: Default::default(), language: Default::default() }),
+            QueueCommand::SaveSettings(Settings { quality: Quality::Balanced, output_dir: PathBuf::new(), theme: Default::default(), language: Default::default(), tray_icon: Default::default() }),
             QueueCommand::RetryPreparation] {
             assert!(!ui.send(command, 100));
             assert!(receiver.try_recv().is_err());
@@ -2908,7 +2934,7 @@ mod tests {
             settings: Settings {
                 quality: Quality::Balanced,
                 output_dir: std::env::temp_dir(),
-                theme: Default::default(), language: Default::default(),
+                theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
             },
             unfinished: 0,
             failures: 0,
@@ -3136,7 +3162,7 @@ mod tests {
         let settings = Settings {
             quality: Quality::Balanced,
             output_dir: root.path().into(),
-            theme: Default::default(), language: Default::default(),
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
         };
         let mut snapshot = QueueSnapshot {
             revision: 1,

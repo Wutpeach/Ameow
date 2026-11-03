@@ -18,6 +18,7 @@ mod surface_actions;
 mod settings_window;
 mod login_startup;
 mod ui_text;
+mod brand_icons;
 
 use gpui::{prelude::*, *};
 use model::{Geometry, Model, Stage};
@@ -319,7 +320,12 @@ impl Prototype {
             (self.night, self.language) = self.system_preferences.effective(settings.theme, settings.language);
         }
         if let Some(ui) = &mut self.downloads { ui.language = self.language; }
-        if let Some(tray) = &mut self.tray { tray.set_language(self.language); }
+        let icon = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.tray_icon).unwrap_or_default();
+        if let Some(tray) = &mut self.tray {
+            if let Err(error) = tray.set_preferences(self.language, icon, self.night) {
+                if let Some(ui) = &mut self.downloads { ui.feedback = Some((error, now)); }
+            }
+        }
     }
     fn state(&mut self, stage: Stage, cx: &mut Context<Self>) {
         let now = self.now();

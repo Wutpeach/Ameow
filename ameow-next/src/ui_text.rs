@@ -41,6 +41,8 @@ impl Language {
             );
         }
         let direct = match message {
+            "无法加载托盘图标，请重新打开 Ameow" => Some((message, "Cannot load the tray icon. Reopen Ameow.")),
+            "托盘图标更新失败，请重新打开 Ameow" => Some((message, "Cannot update the tray icon. Reopen Ameow.")),
             "Ameow 已被 Windows 禁用，请在 Windows 设置的启动应用中启用 Ameow" => {
                 Some((
                     message,

@@ -107,7 +107,7 @@ fn setup(mode: u8) -> Result<(tempfile::TempDir, DownloadCoordinator, Arc<Atomic
         root.path().join("settings.json"),
         Settings {
             quality: Quality::Balanced,
-            output_dir: output, theme: Default::default(), language: Default::default(),
+            output_dir: output, theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
         },
     )?;
     Ok((root, queue, mode))
@@ -175,7 +175,7 @@ fn neutral_final_failure_stays_terminal_and_manual_retry_is_new_frozen_job() -> 
     assert_eq!(queue.snapshot().jobs[0].attempt, 1);
     queue.save_settings(Settings {
         quality: Quality::Saver,
-        output_dir: frozen.intent.output_dir.clone(), theme: Default::default(), language: Default::default(),
+        output_dir: frozen.intent.output_dir.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
     })?;
     mode.store(0, Ordering::Release);
     let new = queue.retry(old)?; assert_ne!(new, old);

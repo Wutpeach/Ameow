@@ -149,6 +149,7 @@ impl Native {
             panic!("Windows native prototype")
         };
         let hwnd = HWND(handle.hwnd.get() as *mut std::ffi::c_void);
+        crate::brand_icons::set_window(hwnd);
         let mut research = NativeResearch::new(metrics_path);
         research.window_event("attach_created_hidden", hwnd, None);
         // TitlebarOptions.appears_transparent=false lets DefWindowProc handle the

@@ -8,7 +8,7 @@ use std::{
 use windows::{
     Win32::{
         Foundation::{GlobalFree, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
-        Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect},
+        Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromRect, MonitorFromWindow},
         System::{
             Com::CoTaskMemFree,
             DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
@@ -120,6 +120,10 @@ fn fallback_icon_rect(point: POINT, width: i32, height: i32) -> RECT {
 }
 struct State {
     language: Cell<crate::ui_text::Language>,
+    resource: Cell<u16>,
+    size: Cell<i32>,
+    hicon: Cell<HICON>,
+    retry: Cell<bool>,
     events: Arc<Mutex<VecDeque<TrayEvent>>>,
     taskbar_created: u32,
 }
@@ -127,7 +131,7 @@ pub struct Tray {
     hwnd: HWND,
     state: Box<State>,
 }
-fn icon(hwnd: HWND, language: crate::ui_text::Language) -> NOTIFYICONDATAW {
+fn icon(hwnd: HWND, state: &State) -> NOTIFYICONDATAW {
     let mut data = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd: hwnd,
@@ -136,15 +140,32 @@ fn icon(hwnd: HWND, language: crate::ui_text::Language) -> NOTIFYICONDATAW {
         uCallbackMessage: CALLBACK,
         ..Default::default()
     };
-    data.hIcon = unsafe { LoadIconW(None, IDI_APPLICATION) }.unwrap_or_default();
+    data.hIcon = state.hicon.get();
     for (dest, value) in data.szTip.iter_mut().zip(
-        language
+        state.language.get()
             .text("Ameow · 下载继续运行", "Ameow · Running in background")
             .encode_utf16(),
     ) {
         *dest = value;
     }
     data
+}
+fn current_icon_size() -> i32 {
+    unsafe {
+        let taskbar = FindWindowW(w!("Shell_TrayWnd"), None).unwrap_or_default();
+        let monitor = MonitorFromWindow(taskbar, MONITOR_DEFAULTTONEAREST);
+        let (mut dpi, mut dpi_y) = (96, 96);
+        if GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y).is_err() || dpi == 0 { dpi = 96; }
+        crate::brand_icons::tray_size(GetSystemMetricsForDpi(SM_CXSMICON, dpi))
+    }
+}
+fn refresh_icon(state: &State) -> Result<(), String> {
+    let size = current_icon_size();
+    let hicon = crate::brand_icons::load(state.resource.get(), size)
+        .map_err(|_| "无法加载托盘图标，请重新打开 Ameow".to_string())?;
+    state.size.set(size);
+    state.hicon.set(hicon);
+    Ok(())
 }
 unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
@@ -155,7 +176,8 @@ unsafe extern "system" fn window_proc(hwnd: HWND, message: u32, wp: WPARAM, lp: 
         let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const State;
         if let Some(state) = ptr.as_ref() {
             if state.taskbar_created != 0 && message == state.taskbar_created {
-                let _ = Shell_NotifyIconW(NIM_ADD, &icon(hwnd, state.language.get()));
+                let _ = refresh_icon(state);
+                state.retry.set(!Shell_NotifyIconW(NIM_ADD, &icon(hwnd, state)).as_bool());
             }
             if message == CALLBACK {
                 match lp.0 as u32 {
@@ -254,9 +276,14 @@ impl Tray {
             }
             let mut state = Box::new(State {
                 language: Cell::new(crate::ui_text::SystemPreferences::read().language),
+                resource: Cell::new(101),
+                size: Cell::new(0),
+                hicon: Cell::new(HICON::default()),
+                retry: Cell::new(false),
                 events: Arc::new(Mutex::new(VecDeque::new())),
                 taskbar_created: RegisterWindowMessageW(w!("TaskbarCreated")),
             });
+            refresh_icon(&state)?;
             // A hidden top-level window receives Explorer's TaskbarCreated broadcast.
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -273,7 +300,7 @@ impl Tray {
                 Some((&mut *state as *mut State).cast()),
             )
             .map_err(|_| "无法创建托盘入口")?;
-            if !Shell_NotifyIconW(NIM_ADD, &icon(hwnd, state.language.get())).as_bool() {
+            if !Shell_NotifyIconW(NIM_ADD, &icon(hwnd, &state)).as_bool() {
                 let _ = DestroyWindow(hwnd);
                 return Err("托盘入口不可用，请保持窗口打开".into());
             }
@@ -288,12 +315,23 @@ impl Tray {
             .drain(..)
             .collect()
     }
-    pub fn set_language(&mut self, language: crate::ui_text::Language) {
-        if self.state.language.replace(language) != language {
+    pub fn set_preferences(&mut self, language: crate::ui_text::Language, preference: ameow_next::download::settings::TrayIconPreference, night: bool) -> Result<(), String> {
+        let resource = crate::brand_icons::tray_resource(preference, night);
+        let changed = self.state.language.replace(language) != language
+            || self.state.resource.get() != resource || self.state.size.get() != current_icon_size();
+        if changed || self.state.retry.get() {
+            self.state.resource.set(resource);
+            self.state.retry.set(true);
+            refresh_icon(&self.state)?;
             unsafe {
-                let _ = Shell_NotifyIconW(NIM_MODIFY, &icon(self.hwnd, language));
+                let data = icon(self.hwnd, &self.state);
+                let success = Shell_NotifyIconW(NIM_MODIFY, &data).as_bool()
+                    || Shell_NotifyIconW(NIM_ADD, &data).as_bool();
+                self.state.retry.set(!success);
+                if !success { return Err("托盘图标更新失败，请重新打开 Ameow".into()); }
             }
         }
+        Ok(())
     }
     pub fn hide(hwnd: HWND) {
         unsafe {
@@ -310,7 +348,7 @@ impl Tray {
 impl Drop for Tray {
     fn drop(&mut self) {
         unsafe {
-            let _ = Shell_NotifyIconW(NIM_DELETE, &icon(self.hwnd, self.state.language.get()));
+            let _ = Shell_NotifyIconW(NIM_DELETE, &icon(self.hwnd, &self.state));
             let _ = DestroyWindow(self.hwnd);
         }
     }

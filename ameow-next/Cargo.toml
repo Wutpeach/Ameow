@@ -23,4 +23,7 @@ windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsA
 [profile.dev]
 debug = 0
 
+[build-dependencies]
+embed-resource = "=3.0.11"
+
 [workspace]

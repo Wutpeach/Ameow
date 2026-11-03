@@ -25,6 +25,15 @@ pub enum LanguagePreference {
     English,
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayIconPreference {
+    #[default]
+    FollowAppearance,
+    AmeowBlue,
+    Apricot,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Settings {
     pub quality: Quality,
@@ -33,6 +42,8 @@ pub struct Settings {
     pub theme: ThemePreference,
     #[serde(default)]
     pub language: LanguagePreference,
+    #[serde(default)]
+    pub tray_icon: TrayIconPreference,
 }
 
 #[cfg(test)]
@@ -42,11 +53,12 @@ mod tests {
     fn old_settings_default_preferences_and_new_preferences_round_trip() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("settings.json");
-        let defaults = Settings { quality: Quality::Saver, output_dir: root.path().into(), theme: ThemePreference::Dark, language: LanguagePreference::English };
+        let defaults = Settings { quality: Quality::Saver, output_dir: root.path().into(), theme: ThemePreference::Dark, language: LanguagePreference::English, tray_icon: TrayIconPreference::Apricot };
         fs::write(&path, serde_json::json!({"quality": "Balanced", "output_dir": root.path()}).to_string()).unwrap();
         let old = Settings::load(&path, defaults).unwrap();
         assert_eq!(old.theme, ThemePreference::Light);
         assert_eq!(old.language, LanguagePreference::System);
+        assert_eq!(old.tray_icon, TrayIconPreference::FollowAppearance);
         let changed = Settings { theme: ThemePreference::Dark, language: LanguagePreference::Chinese, ..old };
         let saved = changed.persist(&path).unwrap();
         assert_eq!(Settings::load(&path, changed).unwrap(), saved);
@@ -55,12 +67,28 @@ mod tests {
         assert_eq!(json["language"], "chinese");
     }
     #[test]
+    fn tray_icon_preferences_round_trip() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        for (tray_icon, encoded) in [
+            (TrayIconPreference::FollowAppearance, "follow_appearance"),
+            (TrayIconPreference::AmeowBlue, "ameow_blue"),
+            (TrayIconPreference::Apricot, "apricot"),
+        ] {
+            let settings = Settings { quality: Quality::Balanced, output_dir: root.path().into(), theme: Default::default(), language: Default::default(), tray_icon };
+            let saved = settings.persist(&path).unwrap();
+            assert_eq!(Settings::load(&path, settings).unwrap(), saved);
+            let json: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            assert_eq!(json["tray_icon"], encoded);
+        }
+    }
+    #[test]
     fn acknowledged_canonical_directory_can_be_saved_again_for_quality_change() {
         let root = tempfile::tempdir().unwrap();
         let output = root.path().join("output");
         fs::create_dir(&output).unwrap();
         let path = root.path().join("settings.json");
-        let first = Settings { quality: Quality::Balanced, output_dir: output , theme: Default::default(), language: Default::default()}.persist(&path).unwrap();
+        let first = Settings { quality: Quality::Balanced, output_dir: output , theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).unwrap();
         let next = Settings { quality: Quality::Saver, ..first };
         let saved = next.persist(&path).unwrap();
         assert_eq!(saved.quality, Quality::Saver);
@@ -71,11 +99,11 @@ mod tests {
     fn directory_validation_keeps_acknowledged_defaults_and_removes_probe() {
         let root=tempfile::tempdir().unwrap();let output=root.path().join("output");fs::create_dir(&output).unwrap();
         let path=root.path().join("settings.json");
-        let saved=Settings{quality:Quality::Balanced,output_dir:output.clone(), theme: Default::default(), language: Default::default()}.persist(&path).unwrap();
+        let saved=Settings{quality:Quality::Balanced,output_dir:output.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).unwrap();
         assert_eq!(fs::read_dir(&output).unwrap().count(),0);
         let before=fs::read(&path).unwrap();let file=root.path().join("file.txt");fs::write(&file,b"ordinary").unwrap();
         for candidate in [file,root.path().join("missing")] {
-            assert!(Settings{quality:Quality::Saver,output_dir:candidate, theme: Default::default(), language: Default::default()}.persist(&path).is_err());
+            assert!(Settings{quality:Quality::Saver,output_dir:candidate, theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).is_err());
             assert_eq!(fs::read(&path).unwrap(),before);
             assert_eq!(Settings::load(&path,saved.clone()).unwrap(),saved);
         }
@@ -113,6 +141,7 @@ impl Settings {
             output_dir,
             theme: self.theme,
             language: self.language,
+            tray_icon: self.tray_icon,
         };
         saved.persist_preferences(path)
     }

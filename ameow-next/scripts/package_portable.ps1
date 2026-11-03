@@ -52,7 +52,7 @@ function File-Record([string]$RelativePath) {
 }
 
 function Source-Inventory {
-    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
+    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
     # Own license and the reviewed requirements are mandatory package inputs, even if ignored.
     if (-not $BuildOnly) { $paths += @('LICENSE', $requirementsPath) }
     return @($paths | Sort-Object -Unique | ForEach-Object { File-Record $_ })
