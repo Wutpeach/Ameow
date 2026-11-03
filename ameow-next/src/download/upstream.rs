@@ -7,8 +7,20 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const RELEASE_URL: &str = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
-const MAX_BODY: u64 = 256 * 1024;
+#[derive(Clone, Copy)]
+enum Source {
+    YtDlpPyPi,
+}
+
+impl Source {
+    fn url(self) -> &'static str {
+        match self {
+            Self::YtDlpPyPi => "https://pypi.org/pypi/yt-dlp/json",
+        }
+    }
+}
+
+const MAX_BODY: u64 = 16 * 1024 * 1024;
 const COOLDOWN: Duration = Duration::from_secs(5);
 const DEADLINE: Duration = Duration::from_secs(30);
 
@@ -128,16 +140,17 @@ fn request_error(error: reqwest::Error) -> UpstreamError {
     }
 }
 
-/// Queries GitHub once, using the current Windows route without fallback.
+/// Queries the official PyPI project once using the current Windows route.
 pub fn query_latest() -> Result<String, UpstreamError> {
     let started = Instant::now();
-    let route = network::resolve(RELEASE_URL);
+    let source = Source::YtDlpPyPi;
+    let route = network::resolve(source.url());
     let remaining = DEADLINE.saturating_sub(started.elapsed());
     if remaining.is_zero() {
         return Err(UpstreamError::Timeout);
     }
     let route = route.map_err(|_| UpstreamError::Route)?;
-    query_route(RELEASE_URL, route, remaining.min(Duration::from_secs(15)))
+    query_route(source.url(), route, remaining.min(Duration::from_secs(15)))
 }
 
 fn query_route(url: &str, route: Route, timeout: Duration) -> Result<String, UpstreamError> {
@@ -154,7 +167,7 @@ fn query_route(url: &str, route: Route, timeout: Duration) -> Result<String, Ups
         .map_err(request_error)?
         .get(url)
         .header(reqwest::header::USER_AGENT, "Ameow-Next/0.1")
-        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .map_err(request_error)?;
     if !response.status().is_success() {
@@ -170,10 +183,20 @@ fn query_route(url: &str, route: Route, timeout: Duration) -> Result<String, Ups
 }
 
 #[derive(Deserialize)]
-struct Release {
-    tag_name: String,
-    draft: bool,
-    prerelease: bool,
+struct Project {
+    info: ProjectInfo,
+    releases: std::collections::HashMap<String, Vec<Distribution>>,
+}
+
+#[derive(Deserialize)]
+struct ProjectInfo {
+    name: String,
+    version: String,
+}
+
+#[derive(Deserialize)]
+struct Distribution {
+    yanked: bool,
 }
 
 fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
@@ -203,46 +226,48 @@ fn parse_response(response: impl Read) -> Result<String, UpstreamError> {
     if bytes.len() as u64 > MAX_BODY {
         return Err(UpstreamError::TooLarge);
     }
-    let release: Release =
+    let project: Project =
         serde_json::from_slice(&bytes).map_err(|_| UpstreamError::InvalidResponse)?;
-    if release.draft || release.prerelease || !valid_tag(&release.tag_name) {
+    if project.info.name != "yt-dlp" {
         return Err(UpstreamError::InvalidResponse);
     }
-    Ok(release.tag_name)
-}
-
-fn valid_tag(tag: &str) -> bool {
-    let (date, patch) = match tag.get(10..) {
-        Some("") => (tag, None),
-        Some(suffix) => (&tag[..10], Some(suffix)),
-        None => return false,
-    };
-    if let Some(suffix) = patch {
-        let Some(number) = suffix.strip_prefix('.') else {
-            return false;
-        };
-        if number.is_empty()
-            || number.len() > 6
-            || !number.bytes().all(|c| c.is_ascii_digit())
-            || !number.bytes().any(|c| c != b'0')
+    let latest =
+        normalize_stable_version(&project.info.version).ok_or(UpstreamError::InvalidResponse)?;
+    let files = project
+        .releases
+        .get(&project.info.version)
+        .ok_or(UpstreamError::InvalidResponse)?;
+    if !files.iter().any(|file| !file.yanked) {
+        return Err(UpstreamError::InvalidResponse);
+    }
+    for (version, files) in &project.releases {
+        if files.iter().any(|file| !file.yanked)
+            && compare_stable_versions(version, &latest) == Some(std::cmp::Ordering::Greater)
         {
-            return false;
+            return Err(UpstreamError::InvalidResponse);
         }
     }
-    let b = date.as_bytes();
-    if b.len() != 10
-        || b[4] != b'.'
-        || b[7] != b'.'
-        || !b
+    Ok(latest)
+}
+
+/// Converts a stable yt-dlp calendar version to its release-asset spelling.
+pub fn normalize_stable_version(version: &str) -> Option<String> {
+    let parts: Vec<_> = version.split('.').collect();
+    if !(parts.len() == 3 || parts.len() == 4)
+        || parts[0].len() != 4
+        || parts[1].is_empty()
+        || parts[1].len() > 2
+        || parts[2].is_empty()
+        || parts[2].len() > 2
+        || parts
             .iter()
-            .enumerate()
-            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+            .any(|part| !part.bytes().all(|c| c.is_ascii_digit()))
     {
-        return false;
+        return None;
     }
-    let year = date[0..4].parse::<u32>().unwrap_or(0);
-    let month = date[5..7].parse::<u32>().unwrap_or(0);
-    let day = date[8..10].parse::<u32>().unwrap_or(0);
+    let year: u32 = parts[0].parse().ok()?;
+    let month: u32 = parts[1].parse().ok()?;
+    let day: u32 = parts[2].parse().ok()?;
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
     let days = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -251,7 +276,37 @@ fn valid_tag(tag: &str) -> bool {
         2 => 28,
         _ => 0,
     };
-    year > 0 && day > 0 && day <= days
+    if year == 0 || day == 0 || day > days {
+        return None;
+    }
+    let patch = if parts.len() == 4 {
+        if parts[3].is_empty() || parts[3].len() > 6 {
+            return None;
+        }
+        let patch: u32 = parts[3].parse().ok()?;
+        if patch == 0 {
+            return None;
+        }
+        format!(".{patch}")
+    } else {
+        String::new()
+    };
+    Some(format!("{year:04}.{month:02}.{day:02}{patch}"))
+}
+
+/// Compares stable calendar versions; malformed or pre-release inputs are incomparable.
+pub fn compare_stable_versions(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    fn components(version: &str) -> Option<(u32, u32, u32, u32)> {
+        let normalized = normalize_stable_version(version)?;
+        let mut parts = normalized.split('.').map(str::parse::<u32>);
+        Some((
+            parts.next()?.ok()?,
+            parts.next()?.ok()?,
+            parts.next()?.ok()?,
+            parts.next().transpose().ok()?.unwrap_or(0),
+        ))
+    }
+    Some(components(left)?.cmp(&components(right)?))
 }
 
 #[cfg(test)]
@@ -292,14 +347,18 @@ mod tests {
             );
         }
         assert_eq!(
-            local_response("200 OK", "Content-Length: 262145\r\n", ""),
+            local_response(
+                "200 OK",
+                &format!("Content-Length: {}\r\n", MAX_BODY + 1),
+                ""
+            ),
             Err(UpstreamError::TooLarge)
         );
     }
 
     #[test]
     fn local_http_success_and_connection_refusal() {
-        let body = r#"{"tag_name":"2024.02.29","draft":false,"prerelease":false}"#;
+        let body = r#"{"info":{"name":"yt-dlp","version":"2024.2.29"},"releases":{"2024.2.29":[{"yanked":false}]}}"#;
         assert_eq!(
             local_response(
                 "200 OK",
@@ -336,37 +395,75 @@ mod tests {
     }
 
     #[test]
-    fn accepts_only_stable_calendar_tags_and_bounded_json() {
-        let json = |tag: &str, draft: bool, prerelease: bool| {
-            format!("{{\"tag_name\":\"{tag}\",\"draft\":{draft},\"prerelease\":{prerelease}}}")
-        };
+    fn stable_versions_are_normalized_and_compared_numerically() {
         assert_eq!(
-            parse_response(json("2024.02.29", false, false).as_bytes()),
-            Ok("2024.02.29".into())
+            normalize_stable_version("2026.3.17"),
+            Some("2026.03.17".into())
         );
         assert_eq!(
-            parse_response(json("2021.03.24.1", false, false).as_bytes()),
-            Ok("2021.03.24.1".into())
+            normalize_stable_version("2021.03.24.1"),
+            Some("2021.03.24.1".into())
+        );
+        assert_eq!(
+            compare_stable_versions("2024.1.1.10", "2024.01.01.2"),
+            Some(std::cmp::Ordering::Greater)
+        );
+        assert_eq!(
+            compare_stable_versions("2024.1.1", "2024.01.01"),
+            Some(std::cmp::Ordering::Equal)
         );
         for tag in [
             "2023.02.29",
             "2024.04.31",
             "2024.13.01",
             "0000.01.01",
-            "2024.1.01",
             "2024.01.01.0",
             "2024.01.01.1234567",
             "2024.01.01.-1",
             "2024.01.01.1.2",
+            "2024.01.01.dev1",
+            "2024.01.01rc1",
+            "２０２４.01.01",
+        ] {
+            assert_eq!(normalize_stable_version(tag), None, "{tag}");
+            assert_eq!(compare_stable_versions(tag, "2024.01.01"), None);
+        }
+    }
+
+    #[test]
+    fn pypi_identity_latest_and_non_yanked_files_are_required() {
+        let json = |name: &str, latest: &str, releases: &str| {
+            format!(r#"{{"info":{{"name":"{name}","version":"{latest}"}},"releases":{releases}}}"#)
+        };
+        let valid = r#"{"2026.3.17":[{"yanked":false}],"2026.3.18rc1":[{"yanked":false}],"2026.3.19":[{"yanked":true}]}"#;
+        assert_eq!(
+            parse_response(json("yt-dlp", "2026.3.17", valid).as_bytes()),
+            Ok("2026.03.17".into())
+        );
+        for (name, latest, releases) in [
+            ("other", "2026.3.17", valid),
+            ("yt-dlp", "2026.3.17rc1", valid),
+            ("yt-dlp", "2026.3.18", valid),
+            ("yt-dlp", "2026.3.19", valid),
+            ("yt-dlp", "2026.3.17", r#"{"2026.3.17":[]}"#),
+            (
+                "yt-dlp",
+                "2026.3.17",
+                r#"{"2026.3.17":[{"yanked":false}],"2026.3.18":[{"yanked":false}]}"#,
+            ),
         ] {
             assert_eq!(
-                parse_response(json(tag, false, false).as_bytes()),
+                parse_response(json(name, latest, releases).as_bytes()),
                 Err(UpstreamError::InvalidResponse)
             );
         }
-        for (draft, prerelease) in [(true, false), (false, true)] {
+        for invalid in [
+            "{}",
+            r#"{"info":{"name":"yt-dlp","version":"2026.3.17"},"releases":{"2026.3.17":[{}]}}"#,
+            "{",
+        ] {
             assert_eq!(
-                parse_response(json("2024.01.01", draft, prerelease).as_bytes()),
+                parse_response(invalid.as_bytes()),
                 Err(UpstreamError::InvalidResponse)
             );
         }
@@ -374,23 +471,6 @@ mod tests {
             parse_response(vec![b' '; MAX_BODY as usize + 1].as_slice()),
             Err(UpstreamError::TooLarge)
         );
-        assert_eq!(
-            parse_response(b"{}".as_slice()),
-            Err(UpstreamError::InvalidResponse)
-        );
-        for json in [
-            r#"{"tag_name":"2024.01.01","draft":false}"#,
-            r#"{"tag_name":"2024.01.01","draft":false,"prerelease":false"#,
-            r#"{"tag_name":"2024.01.01","tag_name":"2025.01.01","draft":false,"prerelease":false}"#,
-            r#"{"tag_name":"2024.01.01<script>","draft":false,"prerelease":false}"#,
-            r#"{"tag_name":"２０２４.01.01","draft":false,"prerelease":false}"#,
-            r#"{"tag_name":"2024.01.01","draft":"false","prerelease":false}"#,
-        ] {
-            assert_eq!(
-                parse_response(json.as_bytes()),
-                Err(UpstreamError::InvalidResponse)
-            );
-        }
     }
 
     fn wait_until_finished(checker: &UpstreamChecker) {

@@ -24,6 +24,7 @@ pub enum UiReply {
     Retry { source: u64, reply: CommandReply },
     RowCommand { job: u64, cleanup: bool, reply: CommandReply },
     PreparationRetry(CommandReply),
+    RuntimeUpdate(CommandReply),
     Settings(CommandReply),
     Diagnostic { job: u64, text: String },
     StartupError(String),
@@ -108,6 +109,8 @@ pub struct DownloadUi {
     pub preparation_copy_pending: bool,
     pub preparation_status: Option<(String, bool)>,
     pub upstream: ameow_next::download::upstream::UpstreamChecker,
+    pub engine_command_pending: bool,
+    pub engine_notice: Option<bool>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum SettingsStatus {
@@ -156,6 +159,7 @@ impl DownloadUi {
                         let diagnostic_job = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
                         let retrying_preparation = matches!(&command, QueueCommand::RetryPreparation);
+                        let updating_runtime = matches!(&command, QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended);
                         let retry_source = match &command { QueueCommand::Retry(id) => Some(*id), _ => None };
                         let row_command = match &command {
                             QueueCommand::Cancel(id) => Some((*id, false)),
@@ -168,6 +172,7 @@ impl DownloadUi {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic_job.unwrap_or(0), text },
                             reply if saving => UiReply::Settings(reply),
                             reply if retrying_preparation => UiReply::PreparationRetry(reply),
+                            reply if updating_runtime => UiReply::RuntimeUpdate(reply),
                             reply if retry_source.is_some() => UiReply::Retry { source: retry_source.unwrap(), reply },
                             reply if row_command.is_some() => {
                                 let (job, cleanup) = row_command.unwrap();
@@ -196,7 +201,7 @@ impl DownloadUi {
                             "active_slots":snapshot.active_slots,"main_job":snapshot.main_job,"stopping":snapshot.stopping,
                             "stopped":snapshot.stopped,"preparing":snapshot.preparing,"preparation_held":snapshot.preparation_held,
                             "preparation_owner_lost":snapshot.preparation_owner_lost,"preparation":snapshot.preparation,
-                            "verified_runtime_versions":snapshot.verified_runtime_versions,"preparation_retry_allowed":snapshot.preparation_retry_allowed,"jobs":jobs})).and_then(|_| file.flush());
+                            "verified_runtime_versions":snapshot.verified_runtime_versions,"preparation_retry_allowed":snapshot.preparation_retry_allowed,"runtime_update":snapshot.runtime_update,"jobs":jobs})).and_then(|_| file.flush());
                     }
                     last_revision = Some(snapshot.revision);
                 }
@@ -273,13 +278,15 @@ impl DownloadUi {
             preparation_copy_pending: false,
             preparation_status: None,
             upstream: Default::default(),
+            engine_command_pending: false,
+            engine_notice: None,
         }
     }
     pub(super) fn evidence(&self, value: serde_json::Value) {
         let _ = self.evidence.try_send(value);
     }
     pub fn send(&mut self, command: QueueCommand, now: u64) -> bool {
-        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation) {
+        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
             self.feedback = Some(("Fixture · 不受理真实下载或设置写入".into(), now));
             return false;
         }
@@ -338,6 +345,24 @@ impl DownloadUi {
         let accepted = self.upstream_check_available() && self.upstream.request();
         self.evidence(serde_json::json!({"type":"upstream_check_admission","accepted":accepted,"fixture":self.fixture}));
         accepted
+    }
+    pub fn request_engine_update(&mut self, version: Option<String>, now: u64) -> bool {
+        if self.fixture || self.engine_command_pending { return false; }
+        if let Some(version) = &version {
+            let query = self.upstream.snapshot();
+            let current = self.snapshot.as_ref().and_then(|s| s.verified_runtime_versions.iter().find(|(name, _)| name == "yt-dlp")).map(|(_, v)| v.as_str());
+            if query.pending || query.worker_running
+                || query.checked_at_ms.is_none_or(|at| ameow_next::download::progress::now_ms().saturating_sub(at) > 600_000)
+                || query.result.as_ref().and_then(|r| r.as_ref().ok()) != Some(version)
+                || current.is_none_or(|current| ameow_next::download::upstream::compare_stable_versions(version, current) != Some(std::cmp::Ordering::Greater)) {
+                self.engine_notice = Some(false);
+                return false;
+            }
+        }
+        let command = version.map_or(QueueCommand::RestoreRecommended, |version| QueueCommand::UpgradeEngine { version });
+        self.engine_command_pending = self.send(command, now);
+        self.engine_notice = if self.engine_command_pending { None } else { Some(false) };
+        self.engine_command_pending
     }
     pub fn retry_preparation(&mut self, now: u64) {
         if !self.preparation_retry_available() { return; }
@@ -598,6 +623,8 @@ pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
         QueueCommand::Stop => serde_json::json!({"type":"command","command":"stop"}),
         QueueCommand::RetryPreparation => serde_json::json!({"type":"command","command":"retry-preparation"}),
         QueueCommand::CopyPreparationDiagnostic => serde_json::json!({"type":"command","command":"copy-preparation-diagnostic"}),
+        QueueCommand::UpgradeEngine { version } => serde_json::json!({"type":"command","command":"upgrade-engine","version":version}),
+        QueueCommand::RestoreRecommended => serde_json::json!({"type":"command","command":"restore-recommended"}),
     }
 }
 fn reply_summary(reply: &CommandReply) -> serde_json::Value {
@@ -1185,6 +1212,10 @@ impl Prototype {
         let mut menu_saved = false;
         for reply in ui.poll() {
             match reply {
+                UiReply::RuntimeUpdate(reply) => {
+                    ui.engine_command_pending = false;
+                    ui.engine_notice = Some(matches!(reply, CommandReply::Applied(true)));
+                }
                 UiReply::Retry { source, reply } => {
                     ui.evidence(serde_json::json!({"type":"retry-reply","source":source,"accepted":matches!(reply, CommandReply::Accepted(_))}));
                     ui.complete_retry(source, &reply, now);
@@ -2886,6 +2917,7 @@ mod tests {
             preparation_held: false,
             preparation_owner_lost: false,
             verified_runtime_versions: Vec::new(),
+            runtime_update: Default::default(),
             preparation_retry_allowed: false,
             stopping: false,
             stopped: false,
@@ -3117,6 +3149,7 @@ mod tests {
             preparation_held: true,
             preparation_owner_lost: true,
             verified_runtime_versions: Vec::new(),
+            runtime_update: Default::default(),
             preparation_retry_allowed: false,
             stopping: true,
             stopped: false,

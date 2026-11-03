@@ -4,6 +4,10 @@
 
 追溯迁移后保留的旧任务路径时，按需查阅[历史引用映射](./migration-reference-map.md)。
 
+## 当前开发交付
+
+- [Ameow #17 / T04 完整开发 Report](./t04-runtime-update-report.md)及[离线恢复与最终 UI 验收补充](./t04-offline-recovery-acceptance.md)：可信主动更新、官方签名缓存与回滚证据；最终恢复 UI 已获用户验收，未覆盖项继续保留。
+
 ## 本工作区的历史主题
 
 - [便携运行时依赖存储](./06-09-portable-runtime-dependency-storage-evaluation/legacy/)：历史原始资料。

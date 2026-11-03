@@ -115,6 +115,271 @@ mod tests {
     }
     use std::time::Instant;
     #[test]
+    fn update_progress_tracks_cache_download_and_probe_for_recommended_runtime() -> Result<(), String> {
+        use super::super::runtime_update::RuntimeUpdatePhase;
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        {
+            let mut model = lock(&backend.shared.model);
+            model.update_preparing = true;
+            model.preparation_requested = false;
+            model.preparation.phase = PreparationPhase::Failed;
+            model.runtime_update.phase = RuntimeUpdatePhase::Preparing;
+            assert!(!model.can_retry_preparation());
+        }
+        let mut event = PreparationSnapshot::default();
+        for (phase, stage, expected) in [
+            (PreparationPhase::Preparing, PreparationStage::Cache, RuntimeUpdatePhase::Preparing),
+            (PreparationPhase::Downloading, PreparationStage::Acquire, RuntimeUpdatePhase::Downloading),
+            (PreparationPhase::Verifying, PreparationStage::Probe, RuntimeUpdatePhase::Verifying),
+        ] {
+            event.observe(phase, None, stage, 0, None, None);
+            observe_preparation(&backend.shared, event.clone());
+            assert_eq!(backend.snapshot().runtime_update.phase, expected);
+            assert_eq!(runtime_update_phase(phase), Some(expected));
+        }
+        Ok(())
+    }
+    #[test]
+    fn stopping_during_candidate_preparation_does_not_commit() -> Result<(), String> {
+        use super::super::runtime::TrustedRuntimeRequirements;
+        use super::super::runtime_update::Selection;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(AtomicBool::new(false));
+        let calls_worker = calls.clone();
+        let entered_worker = entered.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            if calls_worker.fetch_add(1, Ordering::AcqRel) > 0 {
+                entered_worker.store(true, Ordering::Release);
+                while !control.is_cancelled() { thread::sleep(Duration::from_millis(5)); }
+            }
+            manager.prepare(&TrustedRuntimeRequirements::empty(), &control, observer, |_| {})
+                .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |view| view.preparation.phase == PreparationPhase::Ready)?;
+        {
+            let mut model = lock(&backend.shared.model);
+            model.runtime_update.active_version = Some("2026.08.19".into());
+            backend.shared.publish(&model);
+        }
+        assert!(matches!(backend.apply(QueueCommand::UpgradeEngine { version: "2026.10.01".into() }), CommandReply::Applied(true)));
+        wait_until(&backend, |_| entered.load(Ordering::Acquire))?;
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        assert_eq!(Selection::load(root.path())?, Selection::default());
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn candidate_waits_for_owned_slot_before_committing() -> Result<(), String> {
+        use super::super::runtime::TrustedRuntimeRequirements;
+        use super::super::runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            manager.prepare(&TrustedRuntimeRequirements::empty(), &control, observer, |_| {})
+                .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |view| view.preparation.phase == PreparationPhase::Ready)?;
+        let job;
+        {
+            let mut model = lock(&backend.shared.model);
+            model.runtime_update.active_version = Some("2026.08.19".into());
+            job = model.accept(accepted(root.path(), 42)?, None)?;
+            model.records.get_mut(&job).unwrap().view.slot_owned = true;
+            model.ready.clear();
+            backend.shared.publish(&model);
+        }
+        assert!(matches!(backend.apply(QueueCommand::UpgradeEngine { version: "2026.10.01".into() }), CommandReply::Applied(true)));
+        let waiting = wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::Waiting)?;
+        assert_eq!(waiting.preparation.phase, PreparationPhase::Ready);
+        assert_eq!(Selection::load(root.path())?.policy, RuntimeSelectionPolicy::FollowAmeow);
+        thread::sleep(Duration::from_millis(80));
+        assert_eq!(backend.snapshot().runtime_update.phase, RuntimeUpdatePhase::Waiting);
+        {
+            let mut model = lock(&backend.shared.model);
+            model.records.get_mut(&job).unwrap().view.slot_owned = false;
+            model.terminal(job, JobPhase::Cancelled);
+            backend.shared.publish(&model);
+        }
+        wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::Activated)?;
+        assert_eq!(Selection::load(root.path())?.policy, RuntimeSelectionPolicy::UserSelected);
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn failed_pinned_restart_can_retry_without_replacing_selection() -> Result<(), String> {
+        use super::super::runtime::TrustedRuntimeRequirements;
+        use super::super::runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2026.10.01".into()), previous: None };
+        selected.persist(root.path())?;
+        let backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_worker = attempts.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            if attempts_worker.fetch_add(1, Ordering::AcqRel) == 0 {
+                let mut failure = Failure::new(FailureCode::Runtime, "runtime");
+                failure.reason = super::super::runtime_update::candidate_error("E_UPDATE_HTTP");
+                Err(failure)
+            } else {
+                manager.prepare(&TrustedRuntimeRequirements::empty(), &control, observer, |_| {})
+                    .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+            }
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        let failed = wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::RecoveryRequired)?;
+        assert!(failed.runtime_update.error.as_deref().unwrap_or_default().starts_with("E_UPDATE_HTTP:"));
+        assert!(failed.preparation_retry_allowed);
+        assert_eq!(Selection::load(root.path())?, selected);
+        assert!(backend.retry_preparation());
+        assert!(!backend.retry_preparation());
+        wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::Activated)?;
+        assert_eq!(attempts.load(Ordering::Acquire), 2);
+        assert_eq!(Selection::load(root.path())?, selected);
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn selection_commit_failure_keeps_previous_policy_and_lease() -> Result<(), String> {
+        use std::os::windows::fs::OpenOptionsExt;
+        use super::super::runtime::TrustedRuntimeRequirements;
+        use super::super::runtime_update::{RuntimeUpdatePhase, Selection};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let original = Selection::default();
+        original.persist(root.path())?;
+        let backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            manager.prepare(&TrustedRuntimeRequirements::empty(), &control, observer, |_| {})
+                .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |view| view.preparation.phase == PreparationPhase::Ready)?;
+        {
+            let mut model = lock(&backend.shared.model);
+            model.runtime_update.active_version = Some("2026.08.19".into());
+            backend.shared.publish(&model);
+        }
+        let guard = fs::OpenOptions::new().read(true).share_mode(0)
+            .open(root.path().join("runtime-selection.json")).map_err(|e| e.to_string())?;
+        assert!(matches!(backend.apply(QueueCommand::UpgradeEngine { version: "2026.10.01".into() }), CommandReply::Applied(true)));
+        let view = wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::RolledBack)?;
+        assert_eq!(view.runtime_update.active_version.as_deref(), Some("2026.08.19"));
+        assert_eq!(view.runtime_update.policy, original.policy);
+        assert_eq!(view.preparation.phase, PreparationPhase::Ready);
+        drop(guard);
+        assert_eq!(Selection::load(root.path())?, original);
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn restart_revalidates_user_selection_before_activation() -> Result<(), String> {
+        use super::super::runtime::TrustedRuntimeRequirements;
+        use super::super::runtime_update::{RuntimeSelectionPolicy, RuntimeUpdatePhase, Selection};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let selected = Selection { policy: RuntimeSelectionPolicy::UserSelected, version: Some("2025.01.01".into()), previous: None };
+        let baseline = super::super::runtime::manifest()?.components.into_iter()
+            .find(|component| component.name == "yt-dlp").ok_or("Missing baseline")?.version;
+        assert_eq!(super::super::upstream::compare_stable_versions(selected.version.as_deref().unwrap(), &baseline), Some(std::cmp::Ordering::Less));
+        selected.persist(root.path())?;
+        let backend = fake_backend(root.path());
+        let manager = backend.shared.manager.clone();
+        let entered = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let release = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let entered_worker = entered.clone();
+        let release_worker = release.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |control, observer| {
+            entered_worker.store(true, std::sync::atomic::Ordering::Release);
+            while !release_worker.load(std::sync::atomic::Ordering::Acquire) && !control.is_cancelled() {
+                thread::sleep(Duration::from_millis(5));
+            }
+            manager.prepare(&TrustedRuntimeRequirements::empty(), &control, observer, |_| {})
+                .map_err(|_| Failure::new(FailureCode::Runtime, "runtime"))
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |_| entered.load(std::sync::atomic::Ordering::Acquire))?;
+        assert_ne!(backend.snapshot().runtime_update.phase, RuntimeUpdatePhase::Activated);
+        assert_eq!(backend.snapshot().runtime_update.requested_version, selected.version);
+        assert_eq!(Selection::load(root.path())?, selected);
+        release.store(true, std::sync::atomic::Ordering::Release);
+        wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::Activated)?;
+        assert_eq!(Selection::load(root.path())?, selected);
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn malformed_selection_blocks_startup_instead_of_using_baseline() -> Result<(), String> {
+        use super::super::runtime_update::RuntimeUpdatePhase;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        fs::write(root.path().join("runtime-selection.json"), b"{broken").map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_worker = attempts.clone();
+        *lock(&backend.shared.preparation_test) = Some(Arc::new(move |_, _| {
+            attempts_worker.fetch_add(1, Ordering::AcqRel);
+            Err(Failure::new(FailureCode::Runtime, "runtime"))
+        }));
+        let shared = backend.shared.clone();
+        let owner = thread::spawn(move || dispatch(shared));
+        let view = wait_until(&backend, |view| view.runtime_update.phase == RuntimeUpdatePhase::RecoveryRequired)?;
+        assert!(view.runtime_update.active_version.is_none());
+        thread::sleep(Duration::from_millis(80));
+        assert_eq!(attempts.load(Ordering::Acquire), 0);
+        assert!(!backend.retry_preparation());
+        assert_eq!(fs::read(root.path().join("runtime-selection.json")).map_err(|e| e.to_string())?, b"{broken");
+        backend.stop();
+        wait_until(&backend, |view| view.stopped)?;
+        owner.join().map_err(|_| "dispatch panic")?;
+        Ok(())
+    }
+    #[test]
+    fn runtime_activation_requires_all_owners_settled() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut model = Model::new(defaults(root.path()));
+        assert!(model.can_activate_update(false));
+        assert!(!model.can_activate_update(true));
+        model.preparing = true;
+        assert!(!model.can_activate_update(false));
+        model.preparing = false;
+        model.preparation_held = true;
+        assert!(!model.can_activate_update(false));
+        model.preparation_held = false;
+        model.preparation_owner_lost = true;
+        assert!(!model.can_activate_update(false));
+        model.preparation_owner_lost = false;
+        let job = model.accept(accepted(root.path(), 42)?, None)?;
+        model.records.get_mut(&job).unwrap().view.slot_owned = true;
+        assert!(!model.can_activate_update(false));
+        model.records.get_mut(&job).unwrap().view.slot_owned = false;
+        model.stopping = true;
+        assert!(!model.can_activate_update(false));
+        Ok(())
+    }
+    #[test]
     fn r7_preparation_projection_and_retry_gate() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let mut model = Model::new(defaults(root.path()));
@@ -1474,6 +1739,8 @@ mod tests {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QueueSnapshot {
     pub revision: u64,
+    #[serde(default)]
+    pub runtime_update: super::runtime_update::RuntimeUpdateSnapshot,
     pub jobs: Vec<JobSnapshot>,
     pub settings: Settings,
     pub unfinished: usize,
@@ -1493,6 +1760,8 @@ pub struct QueueSnapshot {
     pub main_job: Option<u64>,
 }
 pub enum QueueCommand {
+    UpgradeEngine { version: String },
+    RestoreRecommended,
     Submit { url: String },
     SaveSettings(Settings),
     Cancel(u64),
@@ -1528,6 +1797,9 @@ struct Record {
 }
 struct Model {
     records: BTreeMap<u64, Record>,
+    runtime_update: super::runtime_update::RuntimeUpdateSnapshot,
+    update_request: Option<super::runtime_update::Selection>,
+    update_preparing: bool,
     ready: VecDeque<u64>,
     next_job: u64,
     next_start: u64,
@@ -1569,6 +1841,9 @@ impl Model {
     fn new(settings: Settings) -> Self {
         Self {
             records: BTreeMap::new(),
+            runtime_update: Default::default(),
+            update_request: None,
+            update_preparing: false,
             ready: VecDeque::new(),
             next_job: 0,
             next_start: 0,
@@ -1587,10 +1862,19 @@ impl Model {
     fn active(&self) -> usize {
         self.records.values().filter(|r| r.view.slot_owned).count()
     }
+    fn can_activate_update(&self, preparation_owner_outstanding: bool) -> bool {
+        !self.stopping && self.active() == 0 && !self.preparing && !self.preparation_held
+            && !self.preparation_owner_lost && !preparation_owner_outstanding
+    }
     fn can_retry_preparation(&self) -> bool {
         !self.stopping && !self.stopped && !self.preparing && !self.preparation_held
             && !self.preparation_owner_lost && !self.preparation_requested
-            && self.preparation.phase == PreparationPhase::Failed && self.active() == 0
+            && self.update_request.is_none()
+            && !matches!(self.runtime_update.phase, super::runtime_update::RuntimeUpdatePhase::Preparing | super::runtime_update::RuntimeUpdatePhase::Downloading | super::runtime_update::RuntimeUpdatePhase::Verifying | super::runtime_update::RuntimeUpdatePhase::Waiting)
+            && (self.preparation.phase == PreparationPhase::Failed ||
+                (self.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::RecoveryRequired
+                    && self.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected))
+            && self.active() == 0
     }
     fn event(&mut self, job: u64, kind: &str) {
         let active_slots = self.active();
@@ -1612,6 +1896,7 @@ impl Model {
         let jobs: Vec<_> = self.records.values().map(|r| r.view.clone()).collect();
         QueueSnapshot {
             revision: self.revision,
+            runtime_update: self.runtime_update.clone(),
             unfinished: jobs.iter().filter(|r| !r.phase.terminal()).count(),
             failures: jobs.iter().filter(|r| r.phase == JobPhase::Failure).count(),
             active_slots: self.active(),
@@ -1619,8 +1904,8 @@ impl Model {
             preparation: self.preparation.clone(),
             preparation_held: self.preparation_held,
             preparation_owner_lost: self.preparation_owner_lost,
-            verified_runtime_versions: if self.preparation.phase == PreparationPhase::Ready
-                && !self.preparing && !self.preparation_held && !self.preparation_owner_lost
+            verified_runtime_versions: if (self.preparation.phase == PreparationPhase::Ready || (self.update_preparing && self.runtime_update.active_version.is_some()))
+                && (!self.preparing || self.update_preparing) && !self.preparation_held && !self.preparation_owner_lost
                 && !self.stopping && !self.stopped {
                 self.verified_runtime_versions.clone()
             } else { Vec::new() },
@@ -2028,13 +2313,46 @@ impl DownloadCoordinator {
     }
     pub fn apply(&self, command: QueueCommand) -> CommandReply {
         match command {
+            QueueCommand::UpgradeEngine { version } => {
+                let mut model = lock(&self.shared.model);
+                let valid = super::upstream::normalize_stable_version(&version).as_deref() == Some(version.as_str())
+                    && model.runtime_update.active_version.as_ref().is_some_and(|active|
+                        super::upstream::compare_stable_versions(&version, active) == Some(std::cmp::Ordering::Greater));
+                if !valid || model.stopping || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
+                    return CommandReply::Error("E_RUNTIME_UPDATE: Invalid version or update unavailable".into());
+                }
+                model.update_request = Some(super::runtime_update::Selection {
+                    policy: super::runtime_update::RuntimeSelectionPolicy::UserSelected,
+                    version: Some(version.clone()), previous: None,
+                });
+                model.runtime_update.requested_version = Some(version);
+                model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
+                model.runtime_update.error = None;
+                model.revision += 1;
+                self.shared.publish(&model);
+                CommandReply::Applied(true)
+            }
+            QueueCommand::RestoreRecommended => {
+                let mut model = lock(&self.shared.model);
+                if model.stopping || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
+                    return CommandReply::Error("E_RUNTIME_UPDATE: Update unavailable".into());
+                }
+                model.update_request = Some(Default::default());
+                model.runtime_update.requested_version = None;
+                model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
+                model.runtime_update.error = None;
+                model.revision += 1;
+                self.shared.publish(&model);
+                CommandReply::Applied(true)
+            }
             QueueCommand::RetryPreparation => CommandReply::Applied(self.retry_preparation()),
             QueueCommand::CopyPreparationDiagnostic => {
                 let snapshot = self.snapshot();
                 let text = format!(
-                    "Preparation state: owner_lost={} held={} preparing={} stopping={} stopped={}\n{}",
+                    "Preparation state: owner_lost={} held={} preparing={} stopping={} stopped={}\nRuntime update: phase={:?} policy={:?} requested={:?} active={:?} error={:?}\n{}",
                     snapshot.preparation_owner_lost, snapshot.preparation_held, snapshot.preparing,
-                    snapshot.stopping, snapshot.stopped, snapshot.preparation.diagnostic()
+                    snapshot.stopping, snapshot.stopped, snapshot.runtime_update.phase, snapshot.runtime_update.policy,
+                    snapshot.runtime_update.requested_version, snapshot.runtime_update.active_version, snapshot.runtime_update.error, snapshot.preparation.diagnostic()
                 );
                 let mut end = 4096.min(text.len());
                 while !text.is_char_boundary(end) { end -= 1; }
@@ -2070,7 +2388,19 @@ impl DownloadCoordinator {
         if !model.can_retry_preparation() {
             return false;
         }
-        model.preparation_requested = true;
+        if model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::RecoveryRequired
+            && model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected {
+            let Ok(selection) = super::runtime_update::Selection::load(&self.shared.manager.root) else { return false; };
+            if selection.policy != super::runtime_update::RuntimeSelectionPolicy::UserSelected { return false; }
+            model.update_request = Some(selection.clone());
+            model.runtime_update.requested_version = selection.version;
+            model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
+            model.runtime_update.error = None;
+        } else if model.runtime_update.policy == super::runtime_update::RuntimeSelectionPolicy::FollowAmeow {
+            model.preparation_requested = true;
+        } else {
+            return false;
+        }
         model.revision += 1;
         self.shared.publish(&model);
         true
@@ -2278,6 +2608,9 @@ fn persist_preparation(shared: &Shared, history: &[super::preparation::Preparati
 fn observe_preparation(shared: &Shared, event: PreparationSnapshot) {
     let history = {
         let mut model = lock(&shared.model);
+        if model.update_preparing && let Some(phase) = runtime_update_phase(event.phase) {
+            model.runtime_update.phase = phase;
+        }
         let changed = model.preparation.observe(
             event.phase,
             event.component,
@@ -2292,6 +2625,15 @@ fn observe_preparation(shared: &Shared, event: PreparationSnapshot) {
     };
     if let Some(history) = history {
         persist_preparation(shared, &history);
+    }
+}
+fn runtime_update_phase(phase: PreparationPhase) -> Option<super::runtime_update::RuntimeUpdatePhase> {
+    use super::runtime_update::RuntimeUpdatePhase as Update;
+    match phase {
+        PreparationPhase::Preparing => Some(Update::Preparing),
+        PreparationPhase::Downloading => Some(Update::Downloading),
+        PreparationPhase::Verifying => Some(Update::Verifying),
+        PreparationPhase::Idle | PreparationPhase::Ready | PreparationPhase::Failed => None,
     }
 }
 fn dispatch(shared: Arc<Shared>) {
@@ -2312,6 +2654,32 @@ fn dispatch(shared: Arc<Shared>) {
 
     let mut prepared: Option<Arc<RuntimeLease>> = None;
     let mut preparation: Option<JoinHandle<Result<Arc<RuntimeLease>, Failure>>> = None;
+    let mut update_owner: Option<super::runtime_update::Selection> = None;
+    let mut candidate: Option<(super::runtime_update::Selection, Arc<RuntimeLease>)> = None;
+    let mut selection_invalid = false;
+    let mut selection = match super::runtime_update::Selection::load(&shared.manager.root) {
+        Ok(selection) => {
+            if selection.policy == super::runtime_update::RuntimeSelectionPolicy::UserSelected {
+                let mut model = lock(&shared.model);
+                model.preparation_requested = false;
+                model.update_request = Some(selection.clone());
+                model.runtime_update.policy = selection.policy;
+                model.runtime_update.requested_version = selection.version.clone();
+                model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Preparing;
+                shared.publish(&model);
+            }
+            selection
+        }
+        Err(error) => {
+            selection_invalid = true;
+            let mut model = lock(&shared.model);
+            model.preparation_requested = false;
+            model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::RecoveryRequired;
+            model.runtime_update.error = Some(error);
+            shared.publish(&model);
+            super::runtime_update::Selection::default()
+        }
+    };
     loop {
         #[cfg(test)]
         if shared
@@ -2372,10 +2740,47 @@ fn dispatch(shared: Arc<Shared>) {
             let result = owner.join();
             let mut model = lock(&shared.model);
             model.preparing = false;
+            model.update_preparing = false;
             model.preparation_held = false;
             model.revision += 1;
+            if let Some(request) = update_owner.take() {
+                match result {
+                    Ok(Ok(lease)) if !model.stopping => {
+                        if let Some(old) = &prepared {
+                            model.verified_runtime_versions = old.versions.clone();
+                            model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
+                        }
+                        candidate = Some((request, lease));
+                        model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Waiting;
+                    }
+                    Ok(Err(failure)) => {
+                        if let Some(lease) = &prepared {
+                            model.verified_runtime_versions = lease.versions.clone();
+                            model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
+                        } else {
+                            let failure = PreparationFailure::new(RuntimeComponent::Runtime, PreparationStage::Cache, ErrorCategory::Unknown);
+                            model.preparation.observe(PreparationPhase::Failed, Some(failure.component), failure.stage, 0, None, Some(failure));
+                        }
+                        model.runtime_update.phase = if prepared.is_some() { super::runtime_update::RuntimeUpdatePhase::Failed } else { super::runtime_update::RuntimeUpdatePhase::RecoveryRequired };
+                        model.runtime_update.error = Some(failure.reason);
+                    }
+                    Ok(Ok(_)) => {
+                        model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Failed;
+                        model.runtime_update.error = Some("Update cancelled while stopping".into());
+                    }
+                    Err(_) => {
+                        model.mark_preparation_owner_lost();
+                        model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::RecoveryRequired;
+                        model.runtime_update.error = Some("Candidate owner ended without confirmed cleanup".into());
+                    }
+                }
+                shared.publish(&model);
+                drop(model);
+                continue;
+            }
             match result {
                 Ok(Ok(lease)) => {
+                    model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == "yt-dlp").map(|(_, version)| version.clone());
                     if !model.stopping && !model.stopped && !model.preparation_owner_lost {
                         model.verified_runtime_versions = lease.versions.clone();
                     }
@@ -2451,13 +2856,15 @@ fn dispatch(shared: Arc<Shared>) {
         let need_preparation = {
             let mut model = lock(&shared.model);
             let need = !model.stopping
-                && prepared.is_none()
+                && (model.update_request.is_some() || prepared.is_none())
                 && preparation.is_none()
                 && !model.preparation_held
                 && !model.preparation_owner_lost
-                && model.preparation_requested;
+                && (model.update_request.is_some() || model.preparation_requested);
             if need {
-                model.verified_runtime_versions.clear();
+                update_owner = model.update_request.take();
+                model.update_preparing = update_owner.is_some();
+                if !model.update_preparing { model.verified_runtime_versions.clear(); }
                 *lock(&shared.preparation_control) = Control::default();
                 model.preparing = true;
                 model.preparation_requested = false;
@@ -2486,7 +2893,9 @@ fn dispatch(shared: Arc<Shared>) {
         };
         if need_preparation {
             let control = lock(&shared.preparation_control).clone();
+            let allow_acquire = prepared.is_some();
             let worker = shared.clone();
+            let update = update_owner.clone();
             let observer_shared = shared.clone();
             let observer = Arc::new(move |event: ProcessObservation| {
                 if let ProcessObservation::Settled(_) = &event {
@@ -2534,6 +2943,24 @@ fn dispatch(shared: Arc<Shared>) {
                     if let Some(test) = lock(&worker.preparation_test).clone() {
                         return test(control, observer);
                     }
+                    if let Some(request) = update
+                        && let Some(version) = request.version {
+                        return super::runtime_update_trust::prepare_candidate(
+                            worker.manager.root.clone(), &version, allow_acquire, worker.services.adapter.requirements(),
+                            &control, observer, |event| {
+                                let mut model = lock(&worker.model);
+                                if let Some(phase) = runtime_update_phase(event.phase) {
+                                    model.runtime_update.phase = phase;
+                                }
+                                model.revision += 1;
+                                worker.publish(&model);
+                            },
+                        ).map_err(|error| {
+                            let mut failure = Failure::new(FailureCode::Runtime, "runtime update");
+                            failure.reason = super::runtime_update::candidate_error(&error);
+                            failure
+                        });
+                    }
                     let result = worker.manager.prepare_observed(
                         worker.services.adapter.requirements(),
                         &control,
@@ -2558,6 +2985,20 @@ fn dispatch(shared: Arc<Shared>) {
             match spawn {
                 Ok(owner) => preparation = Some(owner),
                 Err(_) => {
+                    if update_owner.take().is_some() {
+                        let mut model = lock(&shared.model);
+                        model.preparing = false;
+                        model.update_preparing = false;
+                        if let Some(lease) = &prepared {
+                            model.verified_runtime_versions = lease.versions.clone();
+                            model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
+                        }
+                        model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Failed;
+                        model.runtime_update.error = Some("Cannot start candidate preparation".into());
+                        model.revision += 1;
+                        shared.publish(&model);
+                        continue;
+                    }
                     let failure = Failure::new(FailureCode::Runtime, "runtime");
                     let mut model = lock(&shared.model);
                     model.preparing = false;
@@ -2591,7 +3032,46 @@ fn dispatch(shared: Arc<Shared>) {
                 }
             }
         }
-        if let Some(lease) = &prepared {
+        if candidate.is_some() {
+            let mut model = lock(&shared.model);
+            if model.stopping {
+                candidate.take();
+            } else if model.can_activate_update(preparation.is_some()) {
+                let (mut next, lease) = candidate.take().unwrap();
+                let unchanged = !selection_invalid && next.policy == selection.policy && next.version == selection.version;
+                if !unchanged {
+                    let mut previous = selection.clone();
+                    previous.previous = None;
+                    next.previous = Some(Box::new(previous));
+                }
+                let committed = if unchanged { Ok(()) } else { next.persist(&shared.manager.root) };
+                match committed {
+                    Ok(()) => {
+                        model.verified_runtime_versions = lease.versions.clone();
+                        model.runtime_update.active_version = lease.versions.iter().find(|(name, _)| name == "yt-dlp").map(|(_, version)| version.clone());
+                        model.runtime_update.policy = next.policy;
+                        model.runtime_update.requested_version = None;
+                        model.runtime_update.error = None;
+                        model.runtime_update.phase = super::runtime_update::RuntimeUpdatePhase::Activated;
+                        model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
+                        prepared = Some(lease);
+                        selection = next;
+                        selection_invalid = false;
+                    }
+                    Err(_) => {
+                        if let Some(old) = &prepared {
+                            model.verified_runtime_versions = old.versions.clone();
+                            model.preparation.observe(PreparationPhase::Ready, None, PreparationStage::Publish, 0, None, None);
+                        }
+                        model.runtime_update.phase = if prepared.is_some() { super::runtime_update::RuntimeUpdatePhase::RolledBack } else { super::runtime_update::RuntimeUpdatePhase::RecoveryRequired };
+                        model.runtime_update.error = Some("Cannot save runtime selection; previous selection retained".into());
+                    }
+                }
+                model.revision += 1;
+                shared.publish(&model);
+            }
+        }
+        if candidate.is_none() && let Some(lease) = &prepared {
             loop {
                 let mut model = lock(&shared.model);
                 let Some(job) = model.launch() else {

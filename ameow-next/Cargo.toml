@@ -10,6 +10,7 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+ring = "=0.17.14"
 url = "2"
 tempfile = "3"
 zip = { version = "2", default-features = false, features = ["deflate"] }

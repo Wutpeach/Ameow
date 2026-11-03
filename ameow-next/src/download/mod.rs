@@ -14,6 +14,9 @@ pub mod upstream;
 pub mod queue;
 pub mod request;
 pub mod runtime;
+pub mod runtime_update;
+mod runtime_update_trust;
+mod release_signature;
 pub mod settings;
 #[cfg(test)]
 mod neutral_tests;

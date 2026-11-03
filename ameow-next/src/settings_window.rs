@@ -92,6 +92,8 @@ struct Projection {
     preparation_status: Option<(String, bool)>,
     upstream: ameow_next::download::upstream::UpstreamChecker,
     upstream_available: bool,
+    engine_command_pending: bool,
+    engine_notice: Option<bool>,
 }
 impl Projection {
     fn from_main(main: &Prototype) -> Self {
@@ -112,6 +114,8 @@ impl Projection {
             preparation_status: ui.and_then(|ui| ui.preparation_status_at(main.now())),
             upstream: ui.map(|ui| ui.upstream.clone()).unwrap_or_default(),
             upstream_available: ui.is_some_and(|ui| ui.upstream_check_available()),
+            engine_command_pending: ui.is_some_and(|ui| ui.engine_command_pending),
+            engine_notice: ui.and_then(|ui| ui.engine_notice),
         }
     }
 }
@@ -149,6 +153,7 @@ pub struct SettingsWindow {
     keyboard_focus: bool,
     upstream_feedback: Option<(std::time::Instant, bool)>,
     title_language: Language,
+    engine_confirmation: Option<Option<String>>,
 }
 impl SettingsWindow {
     fn new(
@@ -188,6 +193,7 @@ impl SettingsWindow {
             menu_index: 0,
             keyboard_focus: false,
             upstream_feedback: None,
+            engine_confirmation: None,
         };
         this.refresh_health(true, cx);
         this.refresh_startup(None, cx);

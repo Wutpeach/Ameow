@@ -85,6 +85,7 @@ pub fn snapshot(jobs: Vec<JobSnapshot>) -> QueueSnapshot {
         preparation_held: false,
         preparation_owner_lost: false,
         verified_runtime_versions: Vec::new(),
+            runtime_update: Default::default(),
         preparation_retry_allowed: false,
         stopping: false,
         stopped: false,
