@@ -1,0 +1,1311 @@
+[
+  {
+    "old": "ameow-next/.gitignore",
+    "new": ".gitignore",
+    "status": "changed",
+    "oldBlob": "53968281642e16b418db240747af1e953e20b04c",
+    "newBlob": "d7e7e7b03bbcf3d56afd97b1c49522a30c1742a6"
+  },
+  {
+    "old": "ameow-next/Cargo.lock",
+    "new": "Cargo.lock",
+    "status": "changed",
+    "oldBlob": "722287de93b95654fbb707337377b922aa751cc3",
+    "newBlob": "29cc4a55b1b2ea0ff72629ca44f53b1fc56b072b"
+  },
+  {
+    "old": "ameow-next/Cargo.toml",
+    "new": "Cargo.toml",
+    "status": "changed",
+    "oldBlob": "90c890bdad92c94ef2cbf6f4eca556b96cfc86ff",
+    "newBlob": "6d5c95ef35f1ca91d3ba278fdff02ee283ae015f"
+  },
+  {
+    "old": "ameow-next/LICENSE",
+    "new": "LICENSE",
+    "status": "identical",
+    "oldBlob": "1f951f685b95daafde781470c552519af4f94dd9",
+    "newBlob": "1f951f685b95daafde781470c552519af4f94dd9"
+  },
+  {
+    "old": "ameow-next/README.md",
+    "new": "README.md",
+    "status": "changed",
+    "oldBlob": "0b5c0c0edaabcf70f634cfc7346a4e7b0ff87839",
+    "newBlob": "5e06705f59d1e36ea76cc6df854d5f6a2c5f7af8"
+  },
+  {
+    "old": "ameow-next/assets/LICENSE",
+    "new": "assets/LICENSE",
+    "status": "identical",
+    "oldBlob": "1aae53ae22e7a0444b255785e3195a0f5e118eda",
+    "newBlob": "1aae53ae22e7a0444b255785e3195a0f5e118eda"
+  },
+  {
+    "old": "ameow-next/assets/blocks.svg",
+    "new": "assets/blocks.svg",
+    "status": "identical",
+    "oldBlob": "1aa0ac0c3292cf48a065c20d36373347fa673e5c",
+    "newBlob": "1aa0ac0c3292cf48a065c20d36373347fa673e5c"
+  },
+  {
+    "old": "ameow-next/assets/brand/README.md",
+    "new": "assets/brand/README.md",
+    "status": "identical",
+    "oldBlob": "499c38a5ca91a9ff0fdf228ab4e63f049a992edf",
+    "newBlob": "499c38a5ca91a9ff0fdf228ab4e63f049a992edf"
+  },
+  {
+    "old": "ameow-next/assets/brand/ameow.ico",
+    "new": "assets/brand/ameow.ico",
+    "status": "identical",
+    "oldBlob": "00921b40281901f9276d96fedadfe19656eb86a5",
+    "newBlob": "00921b40281901f9276d96fedadfe19656eb86a5"
+  },
+  {
+    "old": "ameow-next/assets/brand/source-manifest.json",
+    "new": "assets/brand/source-manifest.json",
+    "status": "identical",
+    "oldBlob": "ab7a7db2f7aac27e9c7c005421a84f05455c8cce",
+    "newBlob": "ab7a7db2f7aac27e9c7c005421a84f05455c8cce"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/16.png",
+    "new": "assets/brand/tray/ameow-blue/16.png",
+    "status": "identical",
+    "oldBlob": "de1bc41c46a18956f5db40e64ef3e3ca60320a1c",
+    "newBlob": "de1bc41c46a18956f5db40e64ef3e3ca60320a1c"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/20.png",
+    "new": "assets/brand/tray/ameow-blue/20.png",
+    "status": "identical",
+    "oldBlob": "b0274089f5208e0472c92054ccb19f4243d85a69",
+    "newBlob": "b0274089f5208e0472c92054ccb19f4243d85a69"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/24.png",
+    "new": "assets/brand/tray/ameow-blue/24.png",
+    "status": "identical",
+    "oldBlob": "bb14852c361b68e88c802f9c0fb7d948e04a3b77",
+    "newBlob": "bb14852c361b68e88c802f9c0fb7d948e04a3b77"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/32.png",
+    "new": "assets/brand/tray/ameow-blue/32.png",
+    "status": "identical",
+    "oldBlob": "cb24774079a2b78dd5fabfccf182880742be24a7",
+    "newBlob": "cb24774079a2b78dd5fabfccf182880742be24a7"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/40.png",
+    "new": "assets/brand/tray/ameow-blue/40.png",
+    "status": "identical",
+    "oldBlob": "df9f75502a0b972b65b4c7ce7efaf039781cdc15",
+    "newBlob": "df9f75502a0b972b65b4c7ce7efaf039781cdc15"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/48.png",
+    "new": "assets/brand/tray/ameow-blue/48.png",
+    "status": "identical",
+    "oldBlob": "4e800ae38ec2a772f4865455b38987b4c91e18cf",
+    "newBlob": "4e800ae38ec2a772f4865455b38987b4c91e18cf"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/ameow-blue/64.png",
+    "new": "assets/brand/tray/ameow-blue/64.png",
+    "status": "identical",
+    "oldBlob": "dcffaa7a28f93f744db6d917fe6cc5b2c520df7b",
+    "newBlob": "dcffaa7a28f93f744db6d917fe6cc5b2c520df7b"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/16.png",
+    "new": "assets/brand/tray/apricot/16.png",
+    "status": "identical",
+    "oldBlob": "7a0f3a3e34085d84c9d0c70aab80f0b57a838120",
+    "newBlob": "7a0f3a3e34085d84c9d0c70aab80f0b57a838120"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/20.png",
+    "new": "assets/brand/tray/apricot/20.png",
+    "status": "identical",
+    "oldBlob": "734016c972ab2785582cdce180f8e89267292096",
+    "newBlob": "734016c972ab2785582cdce180f8e89267292096"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/24.png",
+    "new": "assets/brand/tray/apricot/24.png",
+    "status": "identical",
+    "oldBlob": "e33f8624b8b7f59af65a85acce887a380dade2c5",
+    "newBlob": "e33f8624b8b7f59af65a85acce887a380dade2c5"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/32.png",
+    "new": "assets/brand/tray/apricot/32.png",
+    "status": "identical",
+    "oldBlob": "3090de4216a17d8dd8ff102a3a9c9c0dbdfe3b7b",
+    "newBlob": "3090de4216a17d8dd8ff102a3a9c9c0dbdfe3b7b"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/40.png",
+    "new": "assets/brand/tray/apricot/40.png",
+    "status": "identical",
+    "oldBlob": "df90b3e7ce8b21e0a784d8ef7027107abb23a305",
+    "newBlob": "df90b3e7ce8b21e0a784d8ef7027107abb23a305"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/48.png",
+    "new": "assets/brand/tray/apricot/48.png",
+    "status": "identical",
+    "oldBlob": "ff2d1c334b785a66a5d76c7f7497bd3d236721d2",
+    "newBlob": "ff2d1c334b785a66a5d76c7f7497bd3d236721d2"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/apricot/64.png",
+    "new": "assets/brand/tray/apricot/64.png",
+    "status": "identical",
+    "oldBlob": "5a490ad281a2238378e8b4ed905cbce4f3a4b34f",
+    "newBlob": "5a490ad281a2238378e8b4ed905cbce4f3a4b34f"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/16.png",
+    "new": "assets/brand/tray/follow-appearance/light/16.png",
+    "status": "identical",
+    "oldBlob": "118e6abc0c89498387197261c528897caffc1f33",
+    "newBlob": "118e6abc0c89498387197261c528897caffc1f33"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/20.png",
+    "new": "assets/brand/tray/follow-appearance/light/20.png",
+    "status": "identical",
+    "oldBlob": "ac28b514d6a908c2021277ef7d66577999b504b8",
+    "newBlob": "ac28b514d6a908c2021277ef7d66577999b504b8"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/24.png",
+    "new": "assets/brand/tray/follow-appearance/light/24.png",
+    "status": "identical",
+    "oldBlob": "c7f482ea5706c24c9b3d728706f5ee776bb68268",
+    "newBlob": "c7f482ea5706c24c9b3d728706f5ee776bb68268"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/32.png",
+    "new": "assets/brand/tray/follow-appearance/light/32.png",
+    "status": "identical",
+    "oldBlob": "407293ffe68f2449c962c9c830baeaf548c72ccf",
+    "newBlob": "407293ffe68f2449c962c9c830baeaf548c72ccf"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/40.png",
+    "new": "assets/brand/tray/follow-appearance/light/40.png",
+    "status": "identical",
+    "oldBlob": "32b4aa79c4ece7f47b5ec048399dd2b9d0aa1a7b",
+    "newBlob": "32b4aa79c4ece7f47b5ec048399dd2b9d0aa1a7b"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/48.png",
+    "new": "assets/brand/tray/follow-appearance/light/48.png",
+    "status": "identical",
+    "oldBlob": "b6bf9d73b01f62146660fdb2b2224e21b164f9be",
+    "newBlob": "b6bf9d73b01f62146660fdb2b2224e21b164f9be"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/light/64.png",
+    "new": "assets/brand/tray/follow-appearance/light/64.png",
+    "status": "identical",
+    "oldBlob": "9566b6283bf432b7da9ee7f1a03eb2c929d5aba3",
+    "newBlob": "9566b6283bf432b7da9ee7f1a03eb2c929d5aba3"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/16.png",
+    "new": "assets/brand/tray/follow-appearance/night/16.png",
+    "status": "identical",
+    "oldBlob": "b1cfe2cda3c1d211844fc2baff898b4cdc929b33",
+    "newBlob": "b1cfe2cda3c1d211844fc2baff898b4cdc929b33"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/20.png",
+    "new": "assets/brand/tray/follow-appearance/night/20.png",
+    "status": "identical",
+    "oldBlob": "cbffb7a8a670c6a2679f13cb1fb1b3555b2d6f3f",
+    "newBlob": "cbffb7a8a670c6a2679f13cb1fb1b3555b2d6f3f"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/24.png",
+    "new": "assets/brand/tray/follow-appearance/night/24.png",
+    "status": "identical",
+    "oldBlob": "b66d3220a0f89fd444a2337e4ac9faaa0168a7ab",
+    "newBlob": "b66d3220a0f89fd444a2337e4ac9faaa0168a7ab"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/32.png",
+    "new": "assets/brand/tray/follow-appearance/night/32.png",
+    "status": "identical",
+    "oldBlob": "7e0cbfa8c4ec20b96676774a77fdbc90eab14b5b",
+    "newBlob": "7e0cbfa8c4ec20b96676774a77fdbc90eab14b5b"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/40.png",
+    "new": "assets/brand/tray/follow-appearance/night/40.png",
+    "status": "identical",
+    "oldBlob": "6e03aba406bffeb6ceac5f42b7554d40e09b4602",
+    "newBlob": "6e03aba406bffeb6ceac5f42b7554d40e09b4602"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/48.png",
+    "new": "assets/brand/tray/follow-appearance/night/48.png",
+    "status": "identical",
+    "oldBlob": "82d969615116897c1f431352306863c391e7aa98",
+    "newBlob": "82d969615116897c1f431352306863c391e7aa98"
+  },
+  {
+    "old": "ameow-next/assets/brand/tray/follow-appearance/night/64.png",
+    "new": "assets/brand/tray/follow-appearance/night/64.png",
+    "status": "identical",
+    "oldBlob": "e68cc18830744fa1dae5c97ccd1cb544dd221d88",
+    "newBlob": "e68cc18830744fa1dae5c97ccd1cb544dd221d88"
+  },
+  {
+    "old": "ameow-next/assets/check.svg",
+    "new": "assets/check.svg",
+    "status": "identical",
+    "oldBlob": "12857bbe726dc94d1836bf6e4bc0b54f8991c95c",
+    "newBlob": "12857bbe726dc94d1836bf6e4bc0b54f8991c95c"
+  },
+  {
+    "old": "ameow-next/assets/chevron-down.svg",
+    "new": "assets/chevron-down.svg",
+    "status": "identical",
+    "oldBlob": "9a9daca607bb332c19b9db2cfdc9baccf950e4b3",
+    "newBlob": "9a9daca607bb332c19b9db2cfdc9baccf950e4b3"
+  },
+  {
+    "old": "ameow-next/assets/chevron-right.svg",
+    "new": "assets/chevron-right.svg",
+    "status": "identical",
+    "oldBlob": "e68a15c9a6f8a3ccdc4a2df74ac924d769c55129",
+    "newBlob": "e68a15c9a6f8a3ccdc4a2df74ac924d769c55129"
+  },
+  {
+    "old": "ameow-next/assets/circle-alert.svg",
+    "new": "assets/circle-alert.svg",
+    "status": "identical",
+    "oldBlob": "bb176fd31d6c9128f1e639a3da8635d8d9321cc0",
+    "newBlob": "bb176fd31d6c9128f1e639a3da8635d8d9321cc0"
+  },
+  {
+    "old": "ameow-next/assets/copy.svg",
+    "new": "assets/copy.svg",
+    "status": "identical",
+    "oldBlob": "02ed918fc6673611a473387c678fddb6be213650",
+    "newBlob": "02ed918fc6673611a473387c678fddb6be213650"
+  },
+  {
+    "old": "ameow-next/assets/download.svg",
+    "new": "assets/download.svg",
+    "status": "identical",
+    "oldBlob": "523a268c304edc8a640c30cfc56f70661dba3b80",
+    "newBlob": "523a268c304edc8a640c30cfc56f70661dba3b80"
+  },
+  {
+    "old": "ameow-next/assets/eye-off.svg",
+    "new": "assets/eye-off.svg",
+    "status": "identical",
+    "oldBlob": "7104dc896924dfe2708e3d935b37a3aa9787d261",
+    "newBlob": "7104dc896924dfe2708e3d935b37a3aa9787d261"
+  },
+  {
+    "old": "ameow-next/assets/fonts/JetBrainsMono-Medium.ttf",
+    "new": "assets/fonts/JetBrainsMono-Medium.ttf",
+    "status": "identical",
+    "oldBlob": "97671156df256e850498054fdebcd41d74a65d6b",
+    "newBlob": "97671156df256e850498054fdebcd41d74a65d6b"
+  },
+  {
+    "old": "ameow-next/assets/fonts/JetBrainsMono-Regular.ttf",
+    "new": "assets/fonts/JetBrainsMono-Regular.ttf",
+    "status": "identical",
+    "oldBlob": "dff66cc50702c75abd025dcf49f62a4dcc2d72de",
+    "newBlob": "dff66cc50702c75abd025dcf49f62a4dcc2d72de"
+  },
+  {
+    "old": "ameow-next/assets/fonts/OFL.txt",
+    "new": "assets/fonts/OFL.txt",
+    "status": "identical",
+    "oldBlob": "8bee4148c1d54dbf5dae6d6c117fc80414266abb",
+    "newBlob": "8bee4148c1d54dbf5dae6d6c117fc80414266abb"
+  },
+  {
+    "old": "ameow-next/assets/info.svg",
+    "new": "assets/info.svg",
+    "status": "identical",
+    "oldBlob": "938f8bb2d25a779520b4c5d6e79fb033f5a3ee30",
+    "newBlob": "938f8bb2d25a779520b4c5d6e79fb033f5a3ee30"
+  },
+  {
+    "old": "ameow-next/assets/runtime-GPL-3.0.txt",
+    "new": "assets/runtime-GPL-3.0.txt",
+    "status": "identical",
+    "oldBlob": "94a9ed024d3859793618152ea559a168bbcbb5e2",
+    "newBlob": "94a9ed024d3859793618152ea559a168bbcbb5e2"
+  },
+  {
+    "old": "ameow-next/assets/runtime-manifest.json",
+    "new": "assets/runtime-manifest.json",
+    "status": "identical",
+    "oldBlob": "98bd1b9bbc6daf010c2af12d0193b7f521da601e",
+    "newBlob": "98bd1b9bbc6daf010c2af12d0193b7f521da601e"
+  },
+  {
+    "old": "ameow-next/assets/runtime-notices.md",
+    "new": "assets/runtime-notices.md",
+    "status": "identical",
+    "oldBlob": "7d014c2a31cfc19a54e7ced6fae2bbb71470d1f1",
+    "newBlob": "7d014c2a31cfc19a54e7ced6fae2bbb71470d1f1"
+  },
+  {
+    "old": "ameow-next/assets/settings.svg",
+    "new": "assets/settings.svg",
+    "status": "identical",
+    "oldBlob": "eca1fe53f1d59dc663f51c5889f7421b8a1e1b9c",
+    "newBlob": "eca1fe53f1d59dc663f51c5889f7421b8a1e1b9c"
+  },
+  {
+    "old": "ameow-next/assets/sliders-horizontal.svg",
+    "new": "assets/sliders-horizontal.svg",
+    "status": "identical",
+    "oldBlob": "732970f3b8bdeac15f5d224b563b2cbbdbb4fe92",
+    "newBlob": "732970f3b8bdeac15f5d224b563b2cbbdbb4fe92"
+  },
+  {
+    "old": "ameow-next/assets/test/yt-dlp-2026.10.26-SHA2-256SUMS",
+    "new": "assets/test/yt-dlp-2026.10.26-SHA2-256SUMS",
+    "status": "identical",
+    "oldBlob": "40bafad8741e19eaac5170de6499ba719f12a50b",
+    "newBlob": "40bafad8741e19eaac5170de6499ba719f12a50b"
+  },
+  {
+    "old": "ameow-next/assets/test/yt-dlp-2026.10.26-SHA2-256SUMS.sig",
+    "new": "assets/test/yt-dlp-2026.10.26-SHA2-256SUMS.sig",
+    "status": "identical",
+    "oldBlob": "eb2b580533607fbb6a073553ec3e54d9b93e8fb4",
+    "newBlob": "eb2b580533607fbb6a073553ec3e54d9b93e8fb4"
+  },
+  {
+    "old": "ameow-next/assets/test/yt-dlp-release-fixtures.md",
+    "new": "assets/test/yt-dlp-release-fixtures.md",
+    "status": "identical",
+    "oldBlob": "9e473c3ecd21a52fba12ffea3ce9da910ba5170b",
+    "newBlob": "9e473c3ecd21a52fba12ffea3ce9da910ba5170b"
+  },
+  {
+    "old": "ameow-next/assets/x.svg",
+    "new": "assets/x.svg",
+    "status": "identical",
+    "oldBlob": "8ddb975a4a539a8e3b05704eb8839177b4d4e8a8",
+    "newBlob": "8ddb975a4a539a8e3b05704eb8839177b4d4e8a8"
+  },
+  {
+    "old": "ameow-next/assets/yt-dlp-release-public.asc",
+    "new": "assets/yt-dlp-release-public.asc",
+    "status": "identical",
+    "oldBlob": "b3af31e9aa2476149045e56ebe82c4a9c41cf09c",
+    "newBlob": "b3af31e9aa2476149045e56ebe82c4a9c41cf09c"
+  },
+  {
+    "old": "ameow-next/assets/yt-dlp-release-rsa-modulus.bin",
+    "new": "assets/yt-dlp-release-rsa-modulus.bin",
+    "status": "identical",
+    "oldBlob": "ae67efe15e11b9e2059a5b8fd3d2bc430a6c4f70",
+    "newBlob": "ae67efe15e11b9e2059a5b8fd3d2bc430a6c4f70"
+  },
+  {
+    "old": "ameow-next/build.rs",
+    "new": "build.rs",
+    "status": "changed",
+    "oldBlob": "acbac79a5341b55321bbd6a3992f43c0825fa109",
+    "newBlob": "cad4d7f996fc9336c912086842da84460e5eb3f9"
+  },
+  {
+    "old": "ameow-next/distribution/README.txt",
+    "new": "distribution/README.txt",
+    "status": "changed",
+    "oldBlob": "75d938be0f558c78938fca6c2e9467383d45076f",
+    "newBlob": "32850c1a23ff62bd77883eab6aea0c60c81c2941"
+  },
+  {
+    "old": "ameow-next/distribution/license-inputs.json",
+    "new": "distribution/license-inputs.json",
+    "status": "identical",
+    "oldBlob": "d04d1e084badb5faff0351c99d07a483511d8b59",
+    "newBlob": "d04d1e084badb5faff0351c99d07a483511d8b59"
+  },
+  {
+    "old": "ameow-next/distribution/notices/icon-licenses.txt",
+    "new": "distribution/notices/icon-licenses.txt",
+    "status": "identical",
+    "oldBlob": "772c6722e545369652be471fac7c925011f9c62a",
+    "newBlob": "772c6722e545369652be471fac7c925011f9c62a"
+  },
+  {
+    "old": "ameow-next/distribution/notices/msvc-build-context.md",
+    "new": "distribution/notices/msvc-build-context.md",
+    "status": "identical",
+    "oldBlob": "2739f90c11d71a945b3073c7052d8dfb25f42924",
+    "newBlob": "2739f90c11d71a945b3073c7052d8dfb25f42924"
+  },
+  {
+    "old": "ameow-next/distribution/notices/runtime-acquisition.md",
+    "new": "distribution/notices/runtime-acquisition.md",
+    "status": "identical",
+    "oldBlob": "05e69be4c9dc6309a804763d2f5855c51f56cbb5",
+    "newBlob": "05e69be4c9dc6309a804763d2f5855c51f56cbb5"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-dependency-inventory.json",
+    "new": "distribution/notices/rust-dependency-inventory.json",
+    "status": "identical",
+    "oldBlob": "fd21e3bdd6d2a0a90446a23515603f0756d38ab9",
+    "newBlob": "fd21e3bdd6d2a0a90446a23515603f0756d38ab9"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-dependency-licenses.txt",
+    "new": "distribution/notices/rust-dependency-licenses.txt",
+    "status": "identical",
+    "oldBlob": "ed34a7666b9076bfea2c33141e8575ad0fe3c4a4",
+    "newBlob": "ed34a7666b9076bfea2c33141e8575ad0fe3c4a4"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-standard-library-Apache-2.0.txt",
+    "new": "distribution/notices/rust-standard-library-Apache-2.0.txt",
+    "status": "identical",
+    "oldBlob": "137069b823873b8bcf42979bcf8e9371052d26a2",
+    "newBlob": "137069b823873b8bcf42979bcf8e9371052d26a2"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-standard-library-MIT.txt",
+    "new": "distribution/notices/rust-standard-library-MIT.txt",
+    "status": "identical",
+    "oldBlob": "2071b23b0e08594ea6bc99ac71129ef992abf498",
+    "newBlob": "2071b23b0e08594ea6bc99ac71129ef992abf498"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-standard-library-notices.txt",
+    "new": "distribution/notices/rust-standard-library-notices.txt",
+    "status": "identical",
+    "oldBlob": "cbd93f98bf5eb16d89cc9c808b33cdf09db64b25",
+    "newBlob": "cbd93f98bf5eb16d89cc9c808b33cdf09db64b25"
+  },
+  {
+    "old": "ameow-next/distribution/notices/rust-standard-library-provenance.md",
+    "new": "distribution/notices/rust-standard-library-provenance.md",
+    "status": "identical",
+    "oldBlob": "d6300da5b775ed9411eaecf7089a91a1e69d5d44",
+    "newBlob": "d6300da5b775ed9411eaecf7089a91a1e69d5d44"
+  },
+  {
+    "old": "ameow-next/distribution/packaging.md",
+    "new": "distribution/packaging.md",
+    "status": "changed",
+    "oldBlob": "b5801fdef94692f336862b98289826bf7b0079c1",
+    "newBlob": "75eecfce10e8b2ca6d419979e462a027f9cd96b4"
+  },
+  {
+    "old": "ameow-next/examples/download_job.rs",
+    "new": "examples/download_job.rs",
+    "status": "identical",
+    "oldBlob": "767f664169b15070f884862ddcd470096dfac0d1",
+    "newBlob": "767f664169b15070f884862ddcd470096dfac0d1"
+  },
+  {
+    "old": "ameow-next/examples/download_queue.rs",
+    "new": "examples/download_queue.rs",
+    "status": "identical",
+    "oldBlob": "d39efd4008a07161fb53dec4a7320acf27fd496c",
+    "newBlob": "d39efd4008a07161fb53dec4a7320acf27fd496c"
+  },
+  {
+    "old": "ameow-next/examples/runtime_update.rs",
+    "new": "examples/runtime_update.rs",
+    "status": "identical",
+    "oldBlob": "f508e5a8ac9f9d3dabc3f26e70e5249343ac7690",
+    "newBlob": "f508e5a8ac9f9d3dabc3f26e70e5249343ac7690"
+  },
+  {
+    "old": "ameow-next/scripts/UI_REGRESSION.md",
+    "new": "scripts/UI_REGRESSION.md",
+    "status": "changed",
+    "oldBlob": "8135547fe9123130402eadc002f50da140b30f7b",
+    "newBlob": "da4dc0500230a2eb07395f2881a0337bc4075c9e"
+  },
+  {
+    "old": "ameow-next/scripts/glow_removal_validate.py",
+    "new": "scripts/glow_removal_validate.py",
+    "status": "identical",
+    "oldBlob": "8b80cd7bc283b99ab5a85a553932131770164d4a",
+    "newBlob": "8b80cd7bc283b99ab5a85a553932131770164d4a"
+  },
+  {
+    "old": "ameow-next/scripts/hover_tune_analyze.py",
+    "new": "scripts/hover_tune_analyze.py",
+    "status": "retired",
+    "oldBlob": "6f057e93c0a5b4f884b623f9d71462936ca2d00a",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/hover_tune_pixels.py",
+    "new": "scripts/hover_tune_pixels.py",
+    "status": "retired",
+    "oldBlob": "998b54719ad495989cd58af0ff258158bfa44982",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/hover_tune_run.py",
+    "new": "scripts/hover_tune_run.py",
+    "status": "retired",
+    "oldBlob": "97cf5b870e109d1c9894c11f5efec6ab39f6b56a",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/hover_tune_shadow.py",
+    "new": "scripts/hover_tune_shadow.py",
+    "status": "retired",
+    "oldBlob": "939205bd6e50e40f59dbf3c2a6941a611848afec",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/package_portable.ps1",
+    "new": "scripts/package_portable.ps1",
+    "status": "changed",
+    "oldBlob": "38481b82ff3f7dcf8d8963bc741a3ea6f7fb4028",
+    "newBlob": "c1facb660528caa8e59cb3d1fd3acb42cdb570bf"
+  },
+  {
+    "old": "ameow-next/scripts/polish_c_analyze.py",
+    "new": "scripts/polish_c_analyze.py",
+    "status": "retired",
+    "oldBlob": "8764754cc994636b64c1a560cbf93a8024834ebd",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_c_run.py",
+    "new": "scripts/polish_c_run.py",
+    "status": "retired",
+    "oldBlob": "6cfc1506244369b66e0c07fdd906a75d81850299",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_c_runtime.py",
+    "new": "scripts/polish_c_runtime.py",
+    "status": "identical",
+    "oldBlob": "7b8a235a813ddd97446e20916d4a315ee8a04f11",
+    "newBlob": "7b8a235a813ddd97446e20916d4a315ee8a04f11"
+  },
+  {
+    "old": "ameow-next/scripts/polish_c_shadow.py",
+    "new": "scripts/polish_c_shadow.py",
+    "status": "retired",
+    "oldBlob": "d918cf86cf66a7f63613f26c50b4a481e9c89a6c",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_analyze.py",
+    "new": "scripts/polish_d_analyze.py",
+    "status": "retired",
+    "oldBlob": "66fbd55e04e373f9b131ed6339e6d281270f5578",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_core.py",
+    "new": "scripts/polish_d_core.py",
+    "status": "retired",
+    "oldBlob": "bde944da512140456065339ca2bb6efe457c453b",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_nested_analyze.py",
+    "new": "scripts/polish_d_nested_analyze.py",
+    "status": "retired",
+    "oldBlob": "cf6ca962c0f1183d8bdb7b06ccb55470e66c78a6",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_nested_package.py",
+    "new": "scripts/polish_d_nested_package.py",
+    "status": "retired",
+    "oldBlob": "c969a8bc97d443af13c1b3228d469dd3b4f89dfb",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_nested_reference.py",
+    "new": "scripts/polish_d_nested_reference.py",
+    "status": "retired",
+    "oldBlob": "7a93502876fdd973ab14764e7cc2ec26a07636c8",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_nested_regress.py",
+    "new": "scripts/polish_d_nested_regress.py",
+    "status": "retired",
+    "oldBlob": "288ec733ef7fc6517975bfe6417c4997e037870a",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_nested_run.py",
+    "new": "scripts/polish_d_nested_run.py",
+    "status": "retired",
+    "oldBlob": "ec815c2fdf51e4289184c90a1e851a83c17daf49",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_package.py",
+    "new": "scripts/polish_d_package.py",
+    "status": "retired",
+    "oldBlob": "472d7984a76a1cd9115ac22022cc17c2bea0de0d",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_repair.py",
+    "new": "scripts/polish_d_repair.py",
+    "status": "retired",
+    "oldBlob": "eab50568880dacf126d33e4740594659e09431a4",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_retention.py",
+    "new": "scripts/polish_d_retention.py",
+    "status": "retired",
+    "oldBlob": "b21fe169036f82f188a869de6f0394da606a202b",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_run.py",
+    "new": "scripts/polish_d_run.py",
+    "status": "retired",
+    "oldBlob": "37a081bdacff9596fe0b48288a39bd79c3780d99",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_d_suite.py",
+    "new": "scripts/polish_d_suite.py",
+    "status": "retired",
+    "oldBlob": "3a43503b5c5e3c9f6c5812b84488fb6a966bf45d",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_e_analyze.py",
+    "new": "scripts/polish_e_analyze.py",
+    "status": "retired",
+    "oldBlob": "5144fe8c957f24c2bb305d8c70ded0204c86ad79",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_e_default_validate.py",
+    "new": "scripts/polish_e_default_validate.py",
+    "status": "retired",
+    "oldBlob": "301403f766ce223f3a0fcc2b93c7dcdb0ccf1928",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_e_package.py",
+    "new": "scripts/polish_e_package.py",
+    "status": "retired",
+    "oldBlob": "7e753530005042b740624ec01090c523a44b7952",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_e_space.py",
+    "new": "scripts/polish_e_space.py",
+    "status": "retired",
+    "oldBlob": "2a5f9f23a671769d7592c1ac81e3465ba8eb4f39",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_e_summary.py",
+    "new": "scripts/polish_e_summary.py",
+    "status": "retired",
+    "oldBlob": "eb7cd19886a42a992b56cb5c714948c28e4983e6",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_capture.py",
+    "new": "scripts/polish_f_capture.py",
+    "status": "retired",
+    "oldBlob": "48463c17cab76f403bdf54c1848b1bff694af2aa",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_core.py",
+    "new": "scripts/polish_f_core.py",
+    "status": "identical",
+    "oldBlob": "f0c1679f5485bd8bb5c3ea1a6335d1026c8e4f1b",
+    "newBlob": "f0c1679f5485bd8bb5c3ea1a6335d1026c8e4f1b"
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_default_trace.py",
+    "new": "scripts/polish_f_default_trace.py",
+    "status": "retired",
+    "oldBlob": "15dc2b887726494e7a983fa99dd3e771cb9e712d",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_dynamic.py",
+    "new": "scripts/polish_f_dynamic.py",
+    "status": "retired",
+    "oldBlob": "d9f8498c951ee06736e09ceb2e0afdd9afb6565c",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_package.py",
+    "new": "scripts/polish_f_package.py",
+    "status": "retired",
+    "oldBlob": "b6ddec503e0cd4302588798ba7f41f4c6bfb718d",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_pixels.py",
+    "new": "scripts/polish_f_pixels.py",
+    "status": "retired",
+    "oldBlob": "1652da24c514dff432f3fc986ec755ef434dae6c",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_review.py",
+    "new": "scripts/polish_f_review.py",
+    "status": "retired",
+    "oldBlob": "8d933de9740fea00da0b32516cc098d6a7999245",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/polish_f_states.py",
+    "new": "scripts/polish_f_states.py",
+    "status": "retired",
+    "oldBlob": "9c5645540760ccaeb70d39a75aff6b04d2ef704b",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_a_analyze.py",
+    "new": "scripts/repair_a_analyze.py",
+    "status": "retired",
+    "oldBlob": "f9ffed9aca5187aee3e929193689cc6c47db6c15",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_a_focus.py",
+    "new": "scripts/repair_a_focus.py",
+    "status": "retired",
+    "oldBlob": "56c2a878aa07799ae824ea1e0e95559b64e10a9b",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_a_geometry.py",
+    "new": "scripts/repair_a_geometry.py",
+    "status": "retired",
+    "oldBlob": "34c8b4b6288f67d9cf5c5194ae01b1ddd2d7d658",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_a_run.py",
+    "new": "scripts/repair_a_run.py",
+    "status": "retired",
+    "oldBlob": "823b74d821d8b4622c206fa2c644dac6d1c69f3c",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_a_runtime.py",
+    "new": "scripts/repair_a_runtime.py",
+    "status": "identical",
+    "oldBlob": "0afa5c11b5a7274b70658322066f5d84f56d8a19",
+    "newBlob": "0afa5c11b5a7274b70658322066f5d84f56d8a19"
+  },
+  {
+    "old": "ameow-next/scripts/repair_b_analyze.py",
+    "new": "scripts/repair_b_analyze.py",
+    "status": "retired",
+    "oldBlob": "076832f789a2976895cf7d2c3bc337c5e81d7316",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_b_edge.py",
+    "new": "scripts/repair_b_edge.py",
+    "status": "retired",
+    "oldBlob": "77f4fb5688eb3a465883cc8bfbd34b55d0e44918",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_b_run.py",
+    "new": "scripts/repair_b_run.py",
+    "status": "retired",
+    "oldBlob": "c974c66e02eb52c8340dadf55c0ed09ee3a16711",
+    "newBlob": null
+  },
+  {
+    "old": "ameow-next/scripts/repair_b_runtime.py",
+    "new": "scripts/repair_b_runtime.py",
+    "status": "identical",
+    "oldBlob": "06d9a07a4a69edb8a0ee5eedc453dc29a303f9d0",
+    "newBlob": "06d9a07a4a69edb8a0ee5eedc453dc29a303f9d0"
+  },
+  {
+    "old": "ameow-next/scripts/test_windows_validate.py",
+    "new": "scripts/test_windows_validate.py",
+    "status": "identical",
+    "oldBlob": "bab55cd459a47b3e6c4b379720320a451bbd613c",
+    "newBlob": "bab55cd459a47b3e6c4b379720320a451bbd613c"
+  },
+  {
+    "old": "ameow-next/scripts/verify_brand_icons.py",
+    "new": "scripts/verify_brand_icons.py",
+    "status": "changed",
+    "oldBlob": "0c3f7816959b8382f6d906a710db2e89bc505886",
+    "newBlob": "da0fa88b6de9b7fe76ca2813c623d99a7166fe0a"
+  },
+  {
+    "old": "ameow-next/scripts/windows_cross_monitor.py",
+    "new": "scripts/windows_cross_monitor.py",
+    "status": "changed",
+    "oldBlob": "f706d62e549616a1dbd4dcc3140c807dc01ef01f",
+    "newBlob": "a9f3c2b1b6049ed647de37bfa86f6c130cfb1bd0"
+  },
+  {
+    "old": "ameow-next/scripts/windows_shadow.py",
+    "new": "scripts/windows_shadow.py",
+    "status": "changed",
+    "oldBlob": "4388a774b1a88bbb599553a280a5e23fef3649c7",
+    "newBlob": "9b98c05baa7ea4d35acb5090f2dc680f9005f326"
+  },
+  {
+    "old": "ameow-next/scripts/windows_telemetry.py",
+    "new": "scripts/windows_telemetry.py",
+    "status": "identical",
+    "oldBlob": "3ba185422ae9203d4920dc88b3a211ae4484bd1b",
+    "newBlob": "3ba185422ae9203d4920dc88b3a211ae4484bd1b"
+  },
+  {
+    "old": "ameow-next/scripts/windows_validate.py",
+    "new": "scripts/windows_validate.py",
+    "status": "changed",
+    "oldBlob": "1eeba3037ab7cd33eb977efc74abee7b58f9bd77",
+    "newBlob": "daadf34d7e5387c728f7b4ba57b2d7f4919e4c3b"
+  },
+  {
+    "old": "ameow-next/src/brand_icons.rs",
+    "new": "src/brand_icons.rs",
+    "status": "identical",
+    "oldBlob": "2e2b631c8751148c7e481e1ff09ecdeb25ebf953",
+    "newBlob": "2e2b631c8751148c7e481e1ff09ecdeb25ebf953"
+  },
+  {
+    "old": "ameow-next/src/context_menu.rs",
+    "new": "src/context_menu.rs",
+    "status": "identical",
+    "oldBlob": "bda64b12f7d8d499a0f30fdc15d61851c4398458",
+    "newBlob": "bda64b12f7d8d499a0f30fdc15d61851c4398458"
+  },
+  {
+    "old": "ameow-next/src/download/adapter.rs",
+    "new": "src/download/adapter.rs",
+    "status": "identical",
+    "oldBlob": "82ad58a61807f30f556bef699e4e6f295ae53ad6",
+    "newBlob": "82ad58a61807f30f556bef699e4e6f295ae53ad6"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/mod.rs",
+    "new": "src/download/adapters/mod.rs",
+    "status": "identical",
+    "oldBlob": "e91fcfd0b32b87361195b4ea417737bfb61c8003",
+    "newBlob": "e91fcfd0b32b87361195b4ea417737bfb61c8003"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/yt_dlp/diagnostics.rs",
+    "new": "src/download/adapters/yt_dlp/diagnostics.rs",
+    "status": "identical",
+    "oldBlob": "9f7f2f1bbb3723f49c6065ff9e287ff4e5933adb",
+    "newBlob": "9f7f2f1bbb3723f49c6065ff9e287ff4e5933adb"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/yt_dlp/identity.rs",
+    "new": "src/download/adapters/yt_dlp/identity.rs",
+    "status": "identical",
+    "oldBlob": "4f266136522afa95ffa60145ff94714b7819c859",
+    "newBlob": "4f266136522afa95ffa60145ff94714b7819c859"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/yt_dlp/mod.rs",
+    "new": "src/download/adapters/yt_dlp/mod.rs",
+    "status": "identical",
+    "oldBlob": "7689756dac6bed2f0b5857fdabf3d1f8dceb87c6",
+    "newBlob": "7689756dac6bed2f0b5857fdabf3d1f8dceb87c6"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/yt_dlp/progress.rs",
+    "new": "src/download/adapters/yt_dlp/progress.rs",
+    "status": "identical",
+    "oldBlob": "76c391cf8069cb978b33ab0752d4d4df986e5f74",
+    "newBlob": "76c391cf8069cb978b33ab0752d4d4df986e5f74"
+  },
+  {
+    "old": "ameow-next/src/download/adapters/yt_dlp/selection.rs",
+    "new": "src/download/adapters/yt_dlp/selection.rs",
+    "status": "identical",
+    "oldBlob": "75e3076c236df5fb8635adf360ed0f573bbff50a",
+    "newBlob": "75e3076c236df5fb8635adf360ed0f573bbff50a"
+  },
+  {
+    "old": "ameow-next/src/download/bridge_commands.rs",
+    "new": "src/download/bridge_commands.rs",
+    "status": "identical",
+    "oldBlob": "6d1a25a4e9564c79830ea9b758316a86b4489ca5",
+    "newBlob": "6d1a25a4e9564c79830ea9b758316a86b4489ca5"
+  },
+  {
+    "old": "ameow-next/src/download/composition.rs",
+    "new": "src/download/composition.rs",
+    "status": "identical",
+    "oldBlob": "d4ef85480ab053455203c3ec6cf0bb6752f8cd76",
+    "newBlob": "d4ef85480ab053455203c3ec6cf0bb6752f8cd76"
+  },
+  {
+    "old": "ameow-next/src/download/contract.rs",
+    "new": "src/download/contract.rs",
+    "status": "identical",
+    "oldBlob": "76923f92ae4d83d2edb8df63b0ec5f1fb20ef7c6",
+    "newBlob": "76923f92ae4d83d2edb8df63b0ec5f1fb20ef7c6"
+  },
+  {
+    "old": "ameow-next/src/download/diagnostics.rs",
+    "new": "src/download/diagnostics.rs",
+    "status": "changed",
+    "oldBlob": "e6800dfefa69a207448ecfbd5b8bbb2dbf4cbd31",
+    "newBlob": "d5ea8f827e8f3353b4c87c652f67fffb99a1387a"
+  },
+  {
+    "old": "ameow-next/src/download/mod.rs",
+    "new": "src/download/mod.rs",
+    "status": "identical",
+    "oldBlob": "df476531a4e497276a962b1e3ed6f220fc368b35",
+    "newBlob": "df476531a4e497276a962b1e3ed6f220fc368b35"
+  },
+  {
+    "old": "ameow-next/src/download/network.rs",
+    "new": "src/download/network.rs",
+    "status": "identical",
+    "oldBlob": "1609f9d457fc84bc2edc4b6d70daa515c4345198",
+    "newBlob": "1609f9d457fc84bc2edc4b6d70daa515c4345198"
+  },
+  {
+    "old": "ameow-next/src/download/neutral_tests.rs",
+    "new": "src/download/neutral_tests.rs",
+    "status": "identical",
+    "oldBlob": "d2b4bf05d2b409af93c22b136a13f1d9357fd05c",
+    "newBlob": "d2b4bf05d2b409af93c22b136a13f1d9357fd05c"
+  },
+  {
+    "old": "ameow-next/src/download/output.rs",
+    "new": "src/download/output.rs",
+    "status": "identical",
+    "oldBlob": "bdad9709616b0324b7f0c222c80eadb65fb3124e",
+    "newBlob": "bdad9709616b0324b7f0c222c80eadb65fb3124e"
+  },
+  {
+    "old": "ameow-next/src/download/preparation.rs",
+    "new": "src/download/preparation.rs",
+    "status": "changed",
+    "oldBlob": "968997120d58e197134502521b58b0b49ea451f2",
+    "newBlob": "face34c39fa3b897cc09b61d30f333d014e88aa2"
+  },
+  {
+    "old": "ameow-next/src/download/process_supervisor.rs",
+    "new": "src/download/process_supervisor.rs",
+    "status": "identical",
+    "oldBlob": "47598e5d51458a9da8e8bfceb746e25b8efc1fd0",
+    "newBlob": "47598e5d51458a9da8e8bfceb746e25b8efc1fd0"
+  },
+  {
+    "old": "ameow-next/src/download/progress.rs",
+    "new": "src/download/progress.rs",
+    "status": "identical",
+    "oldBlob": "d6e048c429107225334206dcbc2ed1185cd6d2b2",
+    "newBlob": "d6e048c429107225334206dcbc2ed1185cd6d2b2"
+  },
+  {
+    "old": "ameow-next/src/download/queue.rs",
+    "new": "src/download/queue.rs",
+    "status": "identical",
+    "oldBlob": "a891aba92e68ccf113b5f85a72a2655e872cb309",
+    "newBlob": "a891aba92e68ccf113b5f85a72a2655e872cb309"
+  },
+  {
+    "old": "ameow-next/src/download/release_signature.rs",
+    "new": "src/download/release_signature.rs",
+    "status": "identical",
+    "oldBlob": "b4c196f78bce47bd37120d8fe0e1203265b1e41f",
+    "newBlob": "b4c196f78bce47bd37120d8fe0e1203265b1e41f"
+  },
+  {
+    "old": "ameow-next/src/download/request.rs",
+    "new": "src/download/request.rs",
+    "status": "identical",
+    "oldBlob": "df70995abe7a3a182c0930c9f248d1655a4d3b73",
+    "newBlob": "df70995abe7a3a182c0930c9f248d1655a4d3b73"
+  },
+  {
+    "old": "ameow-next/src/download/runtime.rs",
+    "new": "src/download/runtime.rs",
+    "status": "changed",
+    "oldBlob": "3e936e172efe6a701b241894cea79b1909c2596a",
+    "newBlob": "71ddb6a86cfbdad6acb28133c6b43898ca3a4870"
+  },
+  {
+    "old": "ameow-next/src/download/runtime_update.rs",
+    "new": "src/download/runtime_update.rs",
+    "status": "identical",
+    "oldBlob": "13ff170bf288af86cd617e5d9207d778862fbaaf",
+    "newBlob": "13ff170bf288af86cd617e5d9207d778862fbaaf"
+  },
+  {
+    "old": "ameow-next/src/download/runtime_update_trust.rs",
+    "new": "src/download/runtime_update_trust.rs",
+    "status": "identical",
+    "oldBlob": "548ca5b4dcd1bc725d59a95017bba44dd309e2d8",
+    "newBlob": "548ca5b4dcd1bc725d59a95017bba44dd309e2d8"
+  },
+  {
+    "old": "ameow-next/src/download/settings.rs",
+    "new": "src/download/settings.rs",
+    "status": "identical",
+    "oldBlob": "4f9f156107bc33c6194d985a62c2275a268e4e60",
+    "newBlob": "4f9f156107bc33c6194d985a62c2275a268e4e60"
+  },
+  {
+    "old": "ameow-next/src/download/upstream.rs",
+    "new": "src/download/upstream.rs",
+    "status": "identical",
+    "oldBlob": "f5e2e44b340b0373eafe6bc500557cc4d779da3a",
+    "newBlob": "f5e2e44b340b0373eafe6bc500557cc4d779da3a"
+  },
+  {
+    "old": "ameow-next/src/download/verification/mod.rs",
+    "new": "src/download/verification/mod.rs",
+    "status": "identical",
+    "oldBlob": "afc83f20587a23089da69d2ec62776d8141c528e",
+    "newBlob": "afc83f20587a23089da69d2ec62776d8141c528e"
+  },
+  {
+    "old": "ameow-next/src/download/verification/video.rs",
+    "new": "src/download/verification/video.rs",
+    "status": "identical",
+    "oldBlob": "545a644bae383eb9afbc4d9e36aed39671368fb4",
+    "newBlob": "545a644bae383eb9afbc4d9e36aed39671368fb4"
+  },
+  {
+    "old": "ameow-next/src/download_bridge.rs",
+    "new": "src/download_bridge.rs",
+    "status": "changed",
+    "oldBlob": "b2ec304c7d85b8ec7cb98ab064e340bb58407a43",
+    "newBlob": "842dc512934e1c2b1885a3c89bfc67c416f78e96"
+  },
+  {
+    "old": "ameow-next/src/download_ui.rs",
+    "new": "src/download_ui.rs",
+    "status": "identical",
+    "oldBlob": "ea8a8fb0980350ccb7cef1a1f5001a62e8ec91ee",
+    "newBlob": "ea8a8fb0980350ccb7cef1a1f5001a62e8ec91ee"
+  },
+  {
+    "old": "ameow-next/src/edge_hover.rs",
+    "new": "src/edge_hover.rs",
+    "status": "identical",
+    "oldBlob": "238db09cb6361b37793ece6d9b132af87dc577d8",
+    "newBlob": "238db09cb6361b37793ece6d9b132af87dc577d8"
+  },
+  {
+    "old": "ameow-next/src/indicator.rs",
+    "new": "src/indicator.rs",
+    "status": "identical",
+    "oldBlob": "f2b4ee0ec3be9f73bca3614cdcf9ab0d0b4ebce6",
+    "newBlob": "f2b4ee0ec3be9f73bca3614cdcf9ab0d0b4ebce6"
+  },
+  {
+    "old": "ameow-next/src/lib.rs",
+    "new": "src/lib.rs",
+    "status": "identical",
+    "oldBlob": "b7cc9c1e2ea04f1caa67d83d2fcb0b9dd620dff5",
+    "newBlob": "b7cc9c1e2ea04f1caa67d83d2fcb0b9dd620dff5"
+  },
+  {
+    "old": "ameow-next/src/login_startup.rs",
+    "new": "src/login_startup.rs",
+    "status": "changed",
+    "oldBlob": "62f9ad03179d4f8375df04396fd739746c64649e",
+    "newBlob": "6de450c2100b32de8f9d810e77cba13561ede1f2"
+  },
+  {
+    "old": "ameow-next/src/magnetic_spring.rs",
+    "new": "src/magnetic_spring.rs",
+    "status": "identical",
+    "oldBlob": "ad8701c9a206669298e28056f43e7540f71be289",
+    "newBlob": "ad8701c9a206669298e28056f43e7540f71be289"
+  },
+  {
+    "old": "ameow-next/src/main.rs",
+    "new": "src/main.rs",
+    "status": "changed",
+    "oldBlob": "671c4e90860034a0ac24aed5d4f510deacfe847e",
+    "newBlob": "2cb560ec4e43f86d37b51b6eaa69567abc2e5775"
+  },
+  {
+    "old": "ameow-next/src/model.rs",
+    "new": "src/model.rs",
+    "status": "identical",
+    "oldBlob": "095c939dec65a9e1438e4b532fff559172b686d0",
+    "newBlob": "095c939dec65a9e1438e4b532fff559172b686d0"
+  },
+  {
+    "old": "ameow-next/src/native.rs",
+    "new": "src/native.rs",
+    "status": "identical",
+    "oldBlob": "9b3dcc01e0ac300191b20646ec950d8bb36c7b22",
+    "newBlob": "9b3dcc01e0ac300191b20646ec950d8bb36c7b22"
+  },
+  {
+    "old": "ameow-next/src/queue_fixture.rs",
+    "new": "src/queue_fixture.rs",
+    "status": "identical",
+    "oldBlob": "8937fc927300015bb8d09d97a3d935289e7c6179",
+    "newBlob": "8937fc927300015bb8d09d97a3d935289e7c6179"
+  },
+  {
+    "old": "ameow-next/src/queue_presentation.rs",
+    "new": "src/queue_presentation.rs",
+    "status": "identical",
+    "oldBlob": "3a7a18de5f3b2547fb28f3ed16e2e5394ee322bd",
+    "newBlob": "3a7a18de5f3b2547fb28f3ed16e2e5394ee322bd"
+  },
+  {
+    "old": "ameow-next/src/repair_motion.rs",
+    "new": "src/repair_motion.rs",
+    "status": "identical",
+    "oldBlob": "0d9a5fa91d3f0871be4307b4a3eb832453d5feba",
+    "newBlob": "0d9a5fa91d3f0871be4307b4a3eb832453d5feba"
+  },
+  {
+    "old": "ameow-next/src/ring_glow.rs",
+    "new": "src/ring_glow.rs",
+    "status": "identical",
+    "oldBlob": "e87fe00b808383c8149a491800eb3dd3f21c4f62",
+    "newBlob": "e87fe00b808383c8149a491800eb3dd3f21c4f62"
+  },
+  {
+    "old": "ameow-next/src/settings_components.rs",
+    "new": "src/settings_components.rs",
+    "status": "identical",
+    "oldBlob": "b51bf239740b352b832b20251eaa0a4cddd7fa77",
+    "newBlob": "b51bf239740b352b832b20251eaa0a4cddd7fa77"
+  },
+  {
+    "old": "ameow-next/src/settings_window.rs",
+    "new": "src/settings_window.rs",
+    "status": "identical",
+    "oldBlob": "ede6a9b0d43795c368a78137ae7f8296e18a73a9",
+    "newBlob": "ede6a9b0d43795c368a78137ae7f8296e18a73a9"
+  },
+  {
+    "old": "ameow-next/src/surface_actions.rs",
+    "new": "src/surface_actions.rs",
+    "status": "identical",
+    "oldBlob": "400c133290fcf8f99f6fb4808322803dff3cf060",
+    "newBlob": "400c133290fcf8f99f6fb4808322803dff3cf060"
+  },
+  {
+    "old": "ameow-next/src/tokens.rs",
+    "new": "src/tokens.rs",
+    "status": "identical",
+    "oldBlob": "108f0ff6f5804ba795ca5a54eaf703987f01b247",
+    "newBlob": "108f0ff6f5804ba795ca5a54eaf703987f01b247"
+  },
+  {
+    "old": "ameow-next/src/tray.rs",
+    "new": "src/tray.rs",
+    "status": "identical",
+    "oldBlob": "1a6bd7c64bfd3198bf43a8261fcb0357a2d5fbb5",
+    "newBlob": "1a6bd7c64bfd3198bf43a8261fcb0357a2d5fbb5"
+  },
+  {
+    "old": "ameow-next/src/tray_popup.rs",
+    "new": "src/tray_popup.rs",
+    "status": "identical",
+    "oldBlob": "11534c2717a3d705559886ac379681db5ffc7e83",
+    "newBlob": "11534c2717a3d705559886ac379681db5ffc7e83"
+  },
+  {
+    "old": "ameow-next/src/ui_text.rs",
+    "new": "src/ui_text.rs",
+    "status": "identical",
+    "oldBlob": "8644badbec213a2b8ef12bf39d0f25bf9e7fdd4b",
+    "newBlob": "8644badbec213a2b8ef12bf39d0f25bf9e7fdd4b"
+  },
+  {
+    "old": "ameow-next/tests/assets/ejs_probe.py",
+    "new": "tests/assets/ejs_probe.py",
+    "status": "identical",
+    "oldBlob": "7524128fff4c696177b34e60407bf6260c5d9e83",
+    "newBlob": "7524128fff4c696177b34e60407bf6260c5d9e83"
+  },
+  {
+    "old": "ameow-next/tests/download_contracts.rs",
+    "new": "tests/download_contracts.rs",
+    "status": "identical",
+    "oldBlob": "c22f59b91749e0f3a6ba14d1cc7cbc5003ccfd9c",
+    "newBlob": "c22f59b91749e0f3a6ba14d1cc7cbc5003ccfd9c"
+  },
+  {
+    "old": "ameow-next/tests/ejs_packaged_provider.rs",
+    "new": "tests/ejs_packaged_provider.rs",
+    "status": "identical",
+    "oldBlob": "26f7dbfd568b2d9090adc38967f1b8970c732329",
+    "newBlob": "26f7dbfd568b2d9090adc38967f1b8970c732329"
+  },
+  {
+    "old": "ameow-next/tests/fixtures/windows_process_tree.rs",
+    "new": "tests/fixtures/windows_process_tree.rs",
+    "status": "identical",
+    "oldBlob": "9b35c0a181aefb823f61d834066834fe7dc83f08",
+    "newBlob": "9b35c0a181aefb823f61d834066834fe7dc83f08"
+  },
+  {
+    "old": "ameow-next/tests/neutral_download_boundary.rs",
+    "new": "tests/neutral_download_boundary.rs",
+    "status": "identical",
+    "oldBlob": "9e6aeeff38477f22923262791576080ae33039ab",
+    "newBlob": "9e6aeeff38477f22923262791576080ae33039ab"
+  },
+  {
+    "old": "ameow-next/tests/support/ejs_job.rs",
+    "new": "tests/support/ejs_job.rs",
+    "status": "identical",
+    "oldBlob": "13e4fedbf62f65f5c13cb5871b4cd834fc6ecde0",
+    "newBlob": "13e4fedbf62f65f5c13cb5871b4cd834fc6ecde0"
+  },
+  {
+    "old": "ameow-next/tests/support/windows_process_faults.rs",
+    "new": "tests/support/windows_process_faults.rs",
+    "status": "identical",
+    "oldBlob": "1a078aa9167262860661d53394d08467e17954d6",
+    "newBlob": "1a078aa9167262860661d53394d08467e17954d6"
+  },
+  {
+    "old": "ameow-next/tests/support/windows_process_fixture.rs",
+    "new": "tests/support/windows_process_fixture.rs",
+    "status": "identical",
+    "oldBlob": "62b5288c7ca548a53b70c5bc1d80bda0e531520c",
+    "newBlob": "62b5288c7ca548a53b70c5bc1d80bda0e531520c"
+  },
+  {
+    "old": "ameow-next/tests/windows_process_supervisor.rs",
+    "new": "tests/windows_process_supervisor.rs",
+    "status": "identical",
+    "oldBlob": "e7c7b13c3f198fe3de5c79c5d64887b9de866865",
+    "newBlob": "e7c7b13c3f198fe3de5c79c5d64887b9de866865"
+  }
+]

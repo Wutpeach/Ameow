@@ -1,0 +1,102 @@
+{
+  "builtCommit": "41150f7c311a6c1ac8be31e69a328d6c83c0f95c",
+  "cleanCheckout": true,
+  "build": "package_portable.ps1 -BuildOnly; release; x86_64-pc-windows-msvc; crt-static; locked; offline",
+  "executable": {
+    "bytes": 19344384,
+    "sha256": "C44C757C17D7296413961A2FA27F798542395C318FAA00EB8CAC12DA9A517850",
+    "productName": "Ameow",
+    "fileDescription": "Ameow",
+    "originalFilename": "Ameow.exe",
+    "version": "0.1.0"
+  },
+  "tests": {
+    "passed": 27,
+    "failed": 0,
+    "ignored": 3,
+    "settings": 4,
+    "startup": 3,
+    "downloadContractsPassed": 9,
+    "downloadContractsIgnored": 3,
+    "neutralBoundary": 2,
+    "windowsSupervisor": 9
+  },
+  "native": {
+    "windowTitle": "Ameow",
+    "pid": 60672,
+    "readyElapsedMs": 2350,
+    "verifiedRuntimeVersions": [
+      [
+        "yt-dlp",
+        "2026.08.19"
+      ],
+      [
+        "deno",
+        "2.9.7"
+      ],
+      [
+        "ffmpeg",
+        "N-127264-gf5d4fd186c-20261009"
+      ]
+    ],
+    "currentAttemptNoAcquisition": true,
+    "singleInstance": {
+      "primaryPid": 60672,
+      "secondPid": 18588,
+      "secondExitCode": 0,
+      "primaryRetained": true
+    },
+    "realSettingsUnchanged": true,
+    "startupRegistrationUnchanged": true,
+    "interactionAndExit": "NOT VERIFIED: remote driver returned unknown; idle candidate left available for manual review"
+  },
+  "pages": {
+    "builtPages": 63,
+    "requiredRoutesVerified": 6,
+    "siteTree": "d41017bd4cfe9b65a063128935f78f211e0a47b6",
+    "node": "22.19.0",
+    "rootNodeDependenciesRequired": false,
+    "existingAuditFindings": {
+      "moderate": 2,
+      "high": 8,
+      "critical": 1
+    }
+  },
+  "packageGates": [
+    {
+      "case": "public",
+      "code": "PUBLIC_GATE_B_BLOCKED",
+      "outputCreated": false,
+      "status": "PASS"
+    },
+    {
+      "case": "private-missing-review",
+      "code": "PRIVATE_GATE_A_BLOCKED",
+      "outputCreated": false,
+      "status": "PASS"
+    },
+    {
+      "case": "no-mode",
+      "code": "PRIVATE_MODE_REQUIRED",
+      "outputCreated": false,
+      "status": "PASS"
+    }
+  ],
+  "preservation": {
+    "electronSnapshot": "07fcdf0c0f1ffbe8eb0ae23f70a9db0c46c1eaca",
+    "extensionSnapshot": "4163b63074618c4abe515a191300865ff91b7ee3",
+    "independentTreesVerified": true,
+    "bundleBytes": 2043835395,
+    "bundleSha256": "39f079c92c1890598b0e892f65d2085400bb7b83b47c12f485bb11a97c7d7803",
+    "independentMirrorFsck": "PASS",
+    "nestedFilesVerified": 254,
+    "originalWorktreesRetained": true,
+    "exclusions": ".trellis/tmp scratch repositories and ignored caches/binaries remain in original worktrees; originals are not certified for deletion"
+  },
+  "limits": [
+    "No new public media download matrix",
+    "No new non-admin portable or sign-in startup acceptance",
+    "No settings/menu/exit interaction PASS from unknown driver delivery",
+    "No main merge, old branch/worktree deletion, tag mutation or public release"
+  ]
+}
