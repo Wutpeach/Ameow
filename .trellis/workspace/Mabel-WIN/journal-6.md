@@ -419,6 +419,77 @@ Completed self-check checkpoint, bounded shared Report evidence repair and manag
 - Stopped after P2-B stage-only. Production allowlist is empty; real release approval and retained platform/live gates remain open. Activation requires a separately authorized phase.
 
 
+## Session 310: mini-trellis migration knowledge routing
+<!-- trellis-session: v=2 fp=c916987811a7bcf1 -->
+
+**Date**: 2026-11-01
+**Task**: mini-trellis migration knowledge routing
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+Added Rust-first Spec and Research routers and a historical reference map; preserved original reports and identified unverified role sandbox enforcement.
+Topics: [.trellis/spec/index.md](../../spec/index.md), [.trellis/spec/context-curation.md](../../spec/context-curation.md), [.trellis/research/index.md](../../research/index.md), [.trellis/research/migration-reference-map.md](../../research/migration-reference-map.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 311: Cindy 历史检索回退规则
+<!-- trellis-session: v=2 fp=a763bbd21841c4c0 -->
+
+**Date**: 2026-11-01
+**Task**: Cindy 历史检索回退规则
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+记录 mini-trellis 0.3.1 与 Cindy 会话目录不同时的历史检索限制和原生回退方式。
+Topics: [.trellis/spec/context-curation.md](../../spec/context-curation.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 两处工作区的 Cindy 历史检索均返回 TRA-28 命中；不推断全量覆盖。
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 312: 历史引用补充 Git 快照定位
+<!-- trellis-session: v=2 fp=13ef470703acf543 -->
+
+**Date**: 2026-11-01
+**Task**: 历史引用补充 Git 快照定位
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+核对 M3 原始历史快照并更新引用映射；保留历史报告原文。
+Topics: [.trellis/research/migration-reference-map.md](../../research/migration-reference-map.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 七份 Git blob 与历史清单的大小和 SHA-256 一致；映射相对链接存在。
+
+### Status
+
+[OK] **Completed**
+
+
 ## Session 313: Ameow #15 R8 阶段 D 工程完成
 <!-- trellis-session: v=2 fp=387fbd8a1373ba08 -->
 
@@ -556,6 +627,48 @@ Topics: [.trellis/research/tra28-r10-settings-master-report.md](../../research/t
 
 用户授权保存R3–R10累积成果；核对R10人工视觉验收、产品与报告范围，复用最终测试和原生证据。本次快照不等于整体Final，托盘未最终验收，不push或启动T04。
 Topics: [.trellis/research/tra28-r3-r10-stage-checkpoint.md](../../research/tra28-r3-r10-stage-checkpoint.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 320: Ameow #17 T04 完整开发交付
+<!-- trellis-session: v=2 fp=2cd126d650639655 -->
+
+**Date**: 2026-11-03
+**Task**: Ameow #17 T04 完整开发交付
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+从 cb24c158 连续实现 PyPI 稳定版查询、显式升级、可信准备、安全激活、选择策略与回滚；全量 252 项通过，额外 5 项真实 Windows ownership/queue 测试通过，真实升级/提交失败保留/重启/缓存恢复证据留存。用户指出缓存恢复误显下载，已修复 Preparing 映射并以最终源代码实测。工作保持未提交，完整报告回写 #17 后等待验收；离线固定版及跨应用双构建等未覆盖项如实列明。
+Topics: [.trellis/research/t04-runtime-update-report.md](../../research/t04-runtime-update-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 321: T04 离线可信恢复与最终 UI 验收通过
+<!-- trellis-session: v=2 fp=dc11ab611c6f7276 -->
+
+**Date**: 2026-11-03
+**Task**: T04 离线可信恢复与最终 UI 验收通过
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+以固定官方RSA公钥重新验证缓存摘要签名，实现user_selected离线重启，保留哈希/精确probe/lease/安全激活门；58项定向测试通过、真实WFP阻断下重启成功，签名篡改、EXE损坏和版本错标均安全失败。用户亲自完成Preparing修正版恢复并明确验收通过，记录无Downloading/Acquire，最终2026.08.19/follow_ameow。补充Report与契约同步，未commit/push/merge/发布/关闭Issue。
+Topics: [.trellis/research/t04-offline-recovery-acceptance.md](../../research/t04-offline-recovery-acceptance.md)
 
 ### Git Commits
 

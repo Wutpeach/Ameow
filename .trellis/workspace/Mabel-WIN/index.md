@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-6.md`
-- **Total Sessions**: 319
+- **Total Sessions**: 321
 - **Last Active**: 2026-11-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-6.md` | ~566 | Active |
+| `journal-6.md` | ~679 | Active |
 | `journal-5.md` | ~1987 | Archived |
 | `journal-4.md` | ~1983 | Archived |
 | `journal-3.md` | ~1979 | Archived |
@@ -34,6 +34,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 321 | 2026-11-03 | T04 离线可信恢复与最终 UI 验收通过 | - | `next/tra26-r7-stage-b` |
+| 320 | 2026-11-03 | Ameow #17 T04 完整开发交付 | - | `next/tra26-r7-stage-b` |
 | 319 | 2026-11-03 | Ameow #15 R3–R10 阶段性保存 | - | `next/tra26-r7-stage-b` |
 | 318 | 2026-11-02 | R10 设置中心人工视觉验收通过 | - | `next/tra26-r7-stage-b` |
 | 317 | 2026-11-02 | Ameow R10 常规下载关于样式统一 | - | `next/tra26-r7-stage-b` |
@@ -41,6 +43,9 @@
 | 315 | 2026-11-02 | R9 视觉反馈与 GitHub 暂停交接 | - | `next/tra26-r7-stage-b` |
 | 314 | 2026-11-02 | Ameow #15 R9 UI Polish 与 B9 修复完成 | - | `next/tra26-r7-stage-b` |
 | 313 | 2026-11-02 | Ameow #15 R8 阶段 D 工程完成 | - | `next/tra26-r7-stage-b` |
+| 312 | 2026-11-01 | 历史引用补充 Git 快照定位 | - | `next/tra26-r7-stage-b` |
+| 311 | 2026-11-01 | Cindy 历史检索回退规则 | - | `next/tra26-r7-stage-b` |
+| 310 | 2026-11-01 | mini-trellis migration knowledge routing | - | `next/tra26-r7-stage-b` |
 | 267 | 2026-09-12 | Self-check checkpoint, Report repair and P2-B stage-only completion | `f4041e1c`, `7c022826` | `main` |
 | 266 | 2026-09-11 | Complete current Download incident diagnostic export | `25598b97` | `main` |
 | 265 | 2026-09-11 | Review, fix, and merge documentation PRs 5-7 | `4ead70fd`, `83a508ea`, `e97a5c84`, `b7b254e7` | `main` |
