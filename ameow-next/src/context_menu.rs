@@ -15,6 +15,7 @@ pub enum Action {
     Quality(Quality),
     Hide,
     Settings,
+    Exit,
 }
 #[derive(Default)]
 pub struct Menu {
@@ -114,14 +115,19 @@ impl Menu {
             None => false,
         }
     }
-    pub fn row_count(_page: Page) -> usize {
-        3
+    pub fn row_count(page: Page) -> usize {
+        if page == Page::Primary { 4 } else { 3 }
+    }
+    /// Local to the list at y44; the hint starts at y132 on either page.
+    pub fn row_metrics(page: Page) -> (f32, f32) {
+        if page == Page::Primary { (33., 32.) } else { (44., 40.) }
     }
     pub fn action(page: Page, index: usize) -> Option<Action> {
         match (page, index) {
             (Page::Primary, 0) => Some(Action::OpenQuality),
             (Page::Primary, 1) => Some(Action::Hide),
             (Page::Primary, 2) => Some(Action::Settings),
+            (Page::Primary, 3) => Some(Action::Exit),
             (Page::Quality, 0) => Some(Action::Quality(Quality::Highest)),
             (Page::Quality, 1) => Some(Action::Quality(Quality::Balanced)),
             (Page::Quality, 2) => Some(Action::Quality(Quality::Saver)),
@@ -229,7 +235,7 @@ mod tests {
         assert_ne!(menu.generation(), session);
     }
     #[test]
-    fn navigation_uses_the_current_page_and_has_no_exit_action() {
+    fn navigation_uses_four_primary_rows_and_three_quality_rows() {
         let mut menu = Menu::default();
         menu.open(0);
         menu.key("down");
@@ -238,11 +244,23 @@ mod tests {
         menu.key("up");
         assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
         assert_eq!(Menu::action(Page::Quality, 3), None);
-        assert_eq!(Menu::action(Page::Primary, 3), None);
+        assert_eq!(Menu::action(Page::Primary, 3), Some(Action::Exit));
         menu.open(30);
         for _ in 0..3 { menu.key("down"); }
+        assert_eq!(menu.key("enter"), Some(Action::Exit));
+        assert_eq!(menu.key("space"), Some(Action::Exit));
+        menu.key("down");
         assert_eq!(menu.selected, 0);
         assert_eq!(menu.key("enter"), Some(Action::OpenQuality));
+    }
+    #[test]
+    fn all_menu_hit_rows_fit_above_the_hint_without_overlap() {
+        for page in [Page::Primary, Page::Quality] {
+            let (stride, height) = Menu::row_metrics(page);
+            assert!(height <= stride);
+            assert!((Menu::row_count(page) - 1) as f32 * stride + height <= 132.);
+            assert!(44. + 132. + 20. <= 200.);
+        }
     }
     #[test]
     fn transitions_only_move_content_reverse_direction_and_respect_reduced_motion() {

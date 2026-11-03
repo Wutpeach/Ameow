@@ -20,6 +20,13 @@ pub fn ui_font() -> Font {
     font
 }
 
+// Settings and tray use native UI text; the floating surface retains its measured font.
+pub fn desktop_ui_font() -> Font {
+    let mut font = font(if cfg!(target_os = "windows") { "Segoe UI" } else { "Helvetica Neue" });
+    font.fallbacks = Some(FontFallbacks::from_fonts(vec![CHINESE_FONT.into()]));
+    font
+}
+
 // Penpot's ring duplicates use 30% opacity and Gaussian blur 4px (failure: 10px).
 pub const RING_GLOW_OPACITY: f32 = 0.3;
 pub fn ring_glow_blur(stage: Stage) -> u8 {
@@ -64,6 +71,17 @@ impl Palette {
                 night,
             }
         }
+    }
+    pub fn primary_text(self) -> Hsla {
+        let mut text = self.neutral;
+        text.l = if self.night { 0.90 } else { 0.16 };
+        text
+    }
+    pub fn disabled_text(self) -> Hsla {
+        self.neutral.opacity(0.55)
+    }
+    pub fn control_border(self) -> Hsla {
+        self.neutral.opacity(if self.night { 0.35 } else { 0.23 })
     }
     pub fn semantic(self, stage: Stage) -> Hsla {
         match stage {

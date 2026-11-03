@@ -10,6 +10,7 @@ pub mod verification;
 pub mod process_supervisor;
 pub mod progress;
 pub mod preparation;
+pub mod upstream;
 pub mod queue;
 pub mod request;
 pub mod runtime;

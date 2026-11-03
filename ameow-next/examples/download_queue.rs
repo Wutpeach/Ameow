@@ -32,12 +32,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         settings_path,
         Settings {
             quality,
-            output_dir: output.clone(),
+            output_dir: output.clone(), theme: Default::default(), language: Default::default(),
         },
     )?;
     backend.save_settings(Settings {
         quality,
-        output_dir: output,
+        output_dir: output, theme: Default::default(), language: Default::default(),
     })?;
     let urls: Vec<_> = args
         .iter()

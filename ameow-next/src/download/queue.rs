@@ -115,6 +115,69 @@ mod tests {
     }
     use std::time::Instant;
     #[test]
+    fn r7_preparation_projection_and_retry_gate() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut model = Model::new(defaults(root.path()));
+        model.verified_runtime_versions = vec![("deno".into(), "verified".into())];
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.preparation.phase = PreparationPhase::Ready;
+        assert_eq!(model.snapshot().verified_runtime_versions.len(), 1);
+        model.preparing = true;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.preparing = false;
+        model.preparation_held = true;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.preparation_held = false;
+        model.preparation_owner_lost = true;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.preparation_owner_lost = false;
+        model.stopping = true;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.stopping = false;
+        model.stopped = true;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        model.stopped = false;
+        model.preparation.phase = PreparationPhase::Failed;
+        assert!(model.snapshot().verified_runtime_versions.is_empty());
+        assert!(!model.snapshot().preparation_retry_allowed);
+        model.preparation_requested = false;
+        assert!(model.snapshot().preparation_retry_allowed);
+        model.preparation_held = true;
+        assert!(!model.snapshot().preparation_retry_allowed);
+        model.preparation_held = false;
+        model.preparation_owner_lost = true;
+        assert!(!model.snapshot().preparation_retry_allowed);
+        model.preparation_owner_lost = false;
+        model.stopping = true;
+        assert!(!model.snapshot().preparation_retry_allowed);
+        model.stopping = false;
+        let job = model.accept(accepted(root.path(), 1)?, None)?;
+        model.records.get_mut(&job).unwrap().view.slot_owned = true;
+        assert!(!model.snapshot().preparation_retry_allowed);
+        Ok(())
+    }
+    #[test]
+    fn r7_copy_preparation_diagnostic_preserves_state_and_redacts_payload() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        {
+            let mut model = lock(&backend.shared.model);
+            model.preparation_owner_lost = true;
+            model.stopping = true;
+            let mut failure = PreparationFailure::new(RuntimeComponent::Deno, PreparationStage::Probe, ErrorCategory::Probe);
+            failure.message = "https://secret.invalid C:\\secret".into();
+            failure.suggestion = "secret".into();
+            model.preparation.failure = Some(failure);
+            backend.shared.publish(&model);
+        }
+        let CommandReply::Diagnostic(text) = backend.apply(QueueCommand::CopyPreparationDiagnostic) else { panic!("missing diagnostic") };
+        assert!(text.contains("owner_lost=true held=false preparing=false stopping=true stopped=false"));
+        assert!(text.contains("Deno"));
+        assert!(!text.contains("secret"));
+        assert!(text.len() <= 4096);
+        Ok(())
+    }
+    #[test]
     fn r12_startup_shared_failure_manual_retry_resumes_same_fifo_jobs_and_preserves_history()
     -> Result<(), String> {
         use crate::download::{
@@ -393,8 +456,32 @@ mod tests {
     fn defaults(root: &std::path::Path) -> Settings {
         Settings {
             quality: Quality::Balanced,
-            output_dir: root.into(),
+            output_dir: root.into(), theme: Default::default(), language: Default::default(),
         }
+    }
+    #[test]
+    fn preferences_save_when_output_disappears_without_changing_frozen_job() -> Result<(), String> {
+        use super::super::settings::{LanguagePreference, ThemePreference};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let output = root.path().join("output");
+        fs::create_dir(&output).map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let saved = backend.save_settings(Settings { output_dir: output.clone(), ..defaults(root.path()) })?;
+        let job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
+        let frozen = backend.snapshot().jobs.iter().find(|row| row.job_id == job).unwrap().accepted.intent.clone();
+        fs::remove_dir(&output).map_err(|e| e.to_string())?;
+        let changed = Settings { theme: ThemePreference::Dark, language: LanguagePreference::Chinese, ..saved };
+        assert_eq!(backend.save_settings(changed.clone())?, changed);
+        assert_eq!(Settings::load(&backend.shared.settings_path, defaults(root.path()))?, changed);
+        let after = backend.snapshot();
+        let intent = &after.jobs.iter().find(|row| row.job_id == job).unwrap().accepted.intent;
+        assert_eq!(intent.quality, frozen.quality);
+        assert_eq!(intent.output_dir, frozen.output_dir);
+        let before = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
+        assert!(backend.save_settings(Settings { output_dir: root.path().join("missing"), ..changed.clone() }).is_err());
+        assert_eq!(fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?, before);
+        assert_eq!(backend.snapshot().settings, changed);
+        Ok(())
     }
     fn fake_backend(root: &std::path::Path) -> DownloadCoordinator {
         let model = Model::new(defaults(root));
@@ -608,12 +695,12 @@ mod tests {
         let backend = fake_backend(root.path());
         let a = backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: out_a,
+            output_dir: out_a, theme: Default::default(), language: Default::default(),
         })?;
         let job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
         let b = backend.save_settings(Settings {
             quality: Quality::Highest,
-            output_dir: out_b,
+            output_dir: out_b, theme: Default::default(), language: Default::default(),
         })?;
         let view = backend.snapshot();
         let accepted = &view
@@ -690,7 +777,7 @@ mod tests {
         }
         backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: root.path().into(),
+            output_dir: root.path().into(), theme: Default::default(), language: Default::default(),
         })?;
         let new = backend.retry(job)?;
         assert!(new > job);
@@ -1231,7 +1318,7 @@ mod tests {
         fs::create_dir(&destination).map_err(|e| e.to_string())?;
         let frozen = backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: destination.clone(),
+            output_dir: destination.clone(), theme: Default::default(), language: Default::default(),
         })?;
         let queued = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
         fs::remove_dir(&destination).map_err(|e| e.to_string())?;
@@ -1397,6 +1484,10 @@ pub struct QueueSnapshot {
     pub preparation_held: bool,
     /// The outer preparation owner unwound without verified process/file settlement facts.
     pub preparation_owner_lost: bool,
+    #[serde(default)]
+    pub verified_runtime_versions: Vec<(String, String)>,
+    #[serde(default)]
+    pub preparation_retry_allowed: bool,
     pub stopping: bool,
     pub stopped: bool,
     pub main_job: Option<u64>,
@@ -1447,6 +1538,7 @@ struct Model {
     preparation_requested: bool,
     preparation_held: bool,
     preparation_owner_lost: bool,
+    verified_runtime_versions: Vec<(String, String)>,
     stopping: bool,
     stopped: bool,
 }
@@ -1458,6 +1550,7 @@ impl Model {
         // Unexpected unwind provides no SettlementFacts or physical-resource proof.
         // Reserve unresolved accounting before any command can manufacture release.
         self.preparation_owner_lost = true;
+        self.verified_runtime_versions.clear();
         self.preparing = false;
         self.preparation_held = false;
         self.revision += 1;
@@ -1486,12 +1579,18 @@ impl Model {
             preparation_requested: true,
             preparation_held: false,
             preparation_owner_lost: false,
+            verified_runtime_versions: Vec::new(),
             stopping: false,
             stopped: false,
         }
     }
     fn active(&self) -> usize {
         self.records.values().filter(|r| r.view.slot_owned).count()
+    }
+    fn can_retry_preparation(&self) -> bool {
+        !self.stopping && !self.stopped && !self.preparing && !self.preparation_held
+            && !self.preparation_owner_lost && !self.preparation_requested
+            && self.preparation.phase == PreparationPhase::Failed && self.active() == 0
     }
     fn event(&mut self, job: u64, kind: &str) {
         let active_slots = self.active();
@@ -1520,6 +1619,12 @@ impl Model {
             preparation: self.preparation.clone(),
             preparation_held: self.preparation_held,
             preparation_owner_lost: self.preparation_owner_lost,
+            verified_runtime_versions: if self.preparation.phase == PreparationPhase::Ready
+                && !self.preparing && !self.preparation_held && !self.preparation_owner_lost
+                && !self.stopping && !self.stopped {
+                self.verified_runtime_versions.clone()
+            } else { Vec::new() },
+            preparation_retry_allowed: self.can_retry_preparation(),
             stopping: self.stopping,
             stopped: self.stopped,
             settings: self.settings.clone(),
@@ -1807,10 +1912,21 @@ impl DownloadCoordinator {
     }
     pub fn save_settings(&self, settings: Settings) -> Result<Settings, String> {
         let _ordered = lock(&self.shared.command_gate);
-        if lock(&self.shared.model).stopping {
-            return Err("E_STOPPING: Downloads are stopping".into());
-        }
-        let saved = settings.persist(&self.shared.settings_path)?;
+        let preferences_only = {
+            let model = lock(&self.shared.model);
+            if model.stopping {
+                return Err("E_STOPPING: Downloads are stopping".into());
+            }
+            settings.quality == model.settings.quality
+                && settings.output_dir == model.settings.output_dir
+                && (settings.theme != model.settings.theme
+                    || settings.language != model.settings.language)
+        };
+        let saved = if preferences_only {
+            settings.persist_preferences(&self.shared.settings_path)?
+        } else {
+            settings.persist(&self.shared.settings_path)?
+        };
         let mut model = lock(&self.shared.model);
         model.settings = saved.clone();
         model.revision += 1;
@@ -1914,7 +2030,15 @@ impl DownloadCoordinator {
         match command {
             QueueCommand::RetryPreparation => CommandReply::Applied(self.retry_preparation()),
             QueueCommand::CopyPreparationDiagnostic => {
-                CommandReply::Diagnostic(self.snapshot().preparation.diagnostic())
+                let snapshot = self.snapshot();
+                let text = format!(
+                    "Preparation state: owner_lost={} held={} preparing={} stopping={} stopped={}\n{}",
+                    snapshot.preparation_owner_lost, snapshot.preparation_held, snapshot.preparing,
+                    snapshot.stopping, snapshot.stopped, snapshot.preparation.diagnostic()
+                );
+                let mut end = 4096.min(text.len());
+                while !text.is_char_boundary(end) { end -= 1; }
+                CommandReply::Diagnostic(text[..end].to_owned())
             }
             QueueCommand::Submit { url } => self
                 .submit(url)
@@ -1943,13 +2067,7 @@ impl DownloadCoordinator {
     pub fn retry_preparation(&self) -> bool {
         let _ordered = lock(&self.shared.command_gate);
         let mut model = lock(&self.shared.model);
-        if model.stopping
-            || model.preparing
-            || model.preparation_held
-            || model.preparation_owner_lost
-            || model.preparation_requested
-            || model.preparation.phase != PreparationPhase::Failed
-        {
+        if !model.can_retry_preparation() {
             return false;
         }
         model.preparation_requested = true;
@@ -1969,6 +2087,7 @@ fn stop_shared(shared: &Shared) {
         return;
     }
     model.stopping = true;
+    model.verified_runtime_versions.clear();
     model.revision += 1;
     lock(&shared.preparation_control).cancel();
     let jobs: Vec<_> = model.records.keys().copied().collect();
@@ -2257,6 +2376,9 @@ fn dispatch(shared: Arc<Shared>) {
             model.revision += 1;
             match result {
                 Ok(Ok(lease)) => {
+                    if !model.stopping && !model.stopped && !model.preparation_owner_lost {
+                        model.verified_runtime_versions = lease.versions.clone();
+                    }
                     model.preparation.observe(
                         PreparationPhase::Ready,
                         None,
@@ -2277,6 +2399,7 @@ fn dispatch(shared: Arc<Shared>) {
                     }
                 }
                 Ok(Err(failure)) => {
+                    model.verified_runtime_versions.clear();
                     // Failed components stay discoverable without consuming media slots or
                     // manufacturing terminal media Jobs. An explicit preparation Retry resumes them.
                     if model.preparation.phase != PreparationPhase::Failed {
@@ -2334,6 +2457,7 @@ fn dispatch(shared: Arc<Shared>) {
                 && !model.preparation_owner_lost
                 && model.preparation_requested;
             if need {
+                model.verified_runtime_versions.clear();
                 *lock(&shared.preparation_control) = Control::default();
                 model.preparing = true;
                 model.preparation_requested = false;
@@ -2386,6 +2510,7 @@ fn dispatch(shared: Arc<Shared>) {
                         return;
                     }
                     model.preparation_held = true;
+                    model.verified_runtime_versions.clear();
                     model.revision += 1;
                     for record in model
                         .records

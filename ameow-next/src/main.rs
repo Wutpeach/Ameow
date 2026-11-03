@@ -5,6 +5,7 @@ mod download_ui;
 mod queue_presentation;
 mod queue_fixture;
 mod tray;
+mod tray_popup;
 mod indicator;
 mod magnetic_spring;
 mod model;
@@ -14,6 +15,9 @@ mod ring_glow;
 mod tokens;
 mod context_menu;
 mod surface_actions;
+mod settings_window;
+mod login_startup;
+mod ui_text;
 
 use gpui::{prelude::*, *};
 use model::{Geometry, Model, Stage};
@@ -61,7 +65,10 @@ impl AssetSource for Assets {
     }
 }
 struct Options {
+    instance: Option<login_startup::InstanceGuard>,
+    login_startup: bool,
     fixture: bool,
+    tray_fixture: bool,
     preview: bool,
     unknown_downloading: bool,
     queue_fixture: Option<std::path::PathBuf>,
@@ -109,6 +116,9 @@ impl Options {
         };
         Self {
             unknown_downloading,
+            tray_fixture: queue_fixture_enabled && args.iter().any(|arg| arg == "--tray-fixture"),
+            instance: None,
+            login_startup: args.iter().any(|s| s == "--login-startup"),
             preview,
             queue_fixture,
             fixture: preview || queue_fixture_enabled || unknown_downloading || args.iter().any(|arg| matches!(arg.as_str(), "--demo" | "--stage" | "--probe-period-ms")),
@@ -163,14 +173,22 @@ impl Options {
     }
 }
 struct Prototype {
+    instance: Option<login_startup::InstanceGuard>,
+    production_preferences: bool,
+    language: ui_text::Language,
+    system_preferences: ui_text::SystemPreferences,
+    last_system_preferences_ms: u64,
     surface_menu: context_menu::Menu,
     menu_save_generation: Option<u64>,
     _menu_activation: Subscription,
     visual_offset: [f32; 2],
     background_clicks: surface_actions::BackgroundClicks,
     downloads: Option<download_ui::DownloadUi>,
+    settings_window: Option<WindowHandle<settings_window::SettingsWindow>>,
     unknown_downloading: bool,
     tray: Option<tray::Tray>,
+    tray_popup: Option<WindowHandle<tray_popup::TrayPopup>>,
+    tray_actions: std::rc::Rc<std::cell::RefCell<Vec<tray_popup::Action>>>,
     close_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     _download_poll: Option<Task<()>>,
     clock: Instant,
@@ -232,7 +250,7 @@ impl Prototype {
         let downloads = if options.preview { Some(download_ui::DownloadUi::preview()) } else if let Some(path) = options.queue_fixture {
             Some(download_ui::DownloadUi::fixture(path))
         } else { (!options.fixture).then(download_ui::DownloadUi::start) };
-        let tray = if !options.fixture { tray::Tray::new().ok() } else { None };
+        let tray = if !options.fixture || options.tray_fixture { tray::Tray::new().ok() } else { None };
         let download_poll = (downloads.is_some() || options.unknown_downloading).then(|| cx.spawn_in(window, async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
@@ -241,13 +259,21 @@ impl Prototype {
         }));
         Self {
             surface_menu: context_menu::Menu::default(),
+            instance: options.instance,
+            production_preferences: !options.fixture,
+            language: ui_text::Language::Chinese,
+            system_preferences: ui_text::SystemPreferences::read(),
+            last_system_preferences_ms: 0,
             menu_save_generation: None,
             _menu_activation: menu_activation,
             visual_offset: [0., 0.],
             background_clicks: surface_actions::BackgroundClicks::default(),
             downloads,
+            settings_window: None,
             unknown_downloading: options.unknown_downloading,
             tray,
+            tray_popup: None,
+            tray_actions: Default::default(),
             close_requested,
             _download_poll: download_poll,
             clock: Instant::now(),
@@ -280,6 +306,20 @@ impl Prototype {
     }
     fn now(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
+    }
+    fn refresh_preferences(&mut self) {
+        if !self.production_preferences { return; }
+        let now = self.now();
+        // Polling also notices OS changes while all windows are hidden.
+        if now.saturating_sub(self.last_system_preferences_ms) >= 1000 {
+            self.system_preferences = ui_text::SystemPreferences::read();
+            self.last_system_preferences_ms = now;
+        }
+        if let Some(settings) = self.downloads.as_ref().and_then(|ui| ui.settings()) {
+            (self.night, self.language) = self.system_preferences.effective(settings.theme, settings.language);
+        }
+        if let Some(ui) = &mut self.downloads { ui.language = self.language; }
+        if let Some(tray) = &mut self.tray { tray.set_language(self.language); }
     }
     fn state(&mut self, stage: Stage, cx: &mut Context<Self>) {
         let now = self.now();
@@ -406,6 +446,10 @@ impl Prototype {
         }
     }
     fn advance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh_preferences();
+        if self.instance.as_ref().is_some_and(|instance| instance.take_restore_request().unwrap_or(false)) {
+            self.restore_downloads(window, cx);
+        }
         let now = self.now();
         if self.exit_after_ms.is_some_and(|at| now >= at) {
             if let Some(writer) = &mut self.measure {
@@ -1064,7 +1108,21 @@ fn main() {
         if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
         return;
     }
-    let options = Options::from_args();
+    let mut options = Options::from_args();
+    if !options.fixture {
+        match login_startup::InstanceGuard::acquire_with_restore(!options.login_startup) {
+            Ok(login_startup::InstanceAcquire::Primary(guard)) => options.instance = Some(guard),
+            Ok(login_startup::InstanceAcquire::Duplicate) => return,
+            Err(error) => {
+                // Fail closed rather than create a second queue/runtime owner.
+                let message = ui_text::SystemPreferences::read().language.message(&error);
+                let wide: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
+                unsafe { windows::Win32::UI::WindowsAndMessaging::MessageBoxW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::w!("Ameow"), windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR); }
+                return;
+            }
+        }
+    }
+    let login_startup = options.login_startup;
     Application::new()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
@@ -1100,6 +1158,6 @@ fn main() {
                 move |window, cx| cx.new(|cx| Prototype::new(options, window, cx)),
             )
             .expect("GPUI native window");
-            cx.activate(true);
+            if !login_startup { cx.activate(true); }
         });
 }

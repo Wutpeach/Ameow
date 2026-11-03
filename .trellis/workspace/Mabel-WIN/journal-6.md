@@ -417,3 +417,150 @@ Completed self-check checkpoint, bounded shared Report evidence repair and manag
 ### Next Steps
 
 - Stopped after P2-B stage-only. Production allowlist is empty; real release approval and retained platform/live gates remain open. Activation requires a separately authorized phase.
+
+
+## Session 313: Ameow #15 R8 阶段 D 工程完成
+<!-- trellis-session: v=2 fp=387fbd8a1373ba08 -->
+
+**Date**: 2026-11-02
+**Task**: Ameow #15 R8 阶段 D 工程完成
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+GPUI 自绘托盘、三窗联动与共享退出已实现；226 passed/0 failed/12既有忽略；最终3次原生运行exit0。保留R3-R7脏差异，不commit；Report回写GitHub #15后等待网页工程Review，Final后置。
+Topics: [.trellis/research/tra28-r8-stage-d-report.md](../../research/tra28-r8-stage-d-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 314: Ameow #15 R9 UI Polish 与 B9 修复完成
+<!-- trellis-session: v=2 fp=39862aad3fdf1614 -->
+
+**Date**: 2026-11-02
+**Task**: Ameow #15 R9 UI Polish 与 B9 修复完成
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+完成设置中心、GPUI 托盘 Polish 和 B9 可见反馈/焦点修复；229 passed、0 failed、12既有忽略，直接复用 Rust 开发版和 Runtime 完成原生验证。未commit，等待网页Review与用户针对性验收。
+Topics: [.trellis/research/tra28-r9-final-polish-report.md](../../research/tra28-r9-final-polish-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 315: R9 视觉反馈与 GitHub 暂停交接
+<!-- trellis-session: v=2 fp=b46f4b3367e75a09 -->
+
+**Date**: 2026-11-02
+**Task**: R9 视觉反馈与 GitHub 暂停交接
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+用户仍不满意设置与托盘布局排版，停止试改与重复完整 UI 点击测试；补充 Report 6572148096 和 Issue 交接已回读确认。全部差异未提交，后续先网页 Review 与视觉协调。
+Topics: [.trellis/research/tra28-r9-visual-refinement-handoff.md](../../research/tra28-r9-visual-refinement-handoff.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 316: Ameow #15 R10 设置中心视觉母版交付
+<!-- trellis-session: v=2 fp=7bab28c111287543 -->
+
+**Date**: 2026-11-02
+**Task**: Ameow #15 R10 设置中心视觉母版交付
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+完成共用双栏与组件诊断母版；139 passed，开发构建及定向原生验证完成，真实B9返回403；Report和Issue交接已回写，全部差异未提交，停止等待人工视觉验收。
+Topics: [.trellis/research/tra28-r10-settings-master-report.md](../../research/tra28-r10-settings-master-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 317: Ameow R10 常规下载关于样式统一
+<!-- trellis-session: v=2 fp=52e8f85f1bf4ce3b -->
+
+**Date**: 2026-11-02
+**Task**: Ameow R10 常规下载关于样式统一
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+用户授权将母版延伸到其余三页；139 passed与增量构建、集中原生矩阵/偏好保存/路径复制/选择取消核对完成。补充Report和交接已写回#15，全部差异未提交，停止待视觉验收。
+Topics: [.trellis/research/tra28-r10-settings-master-report.md](../../research/tra28-r10-settings-master-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 318: R10 设置中心人工视觉验收通过
+<!-- trellis-session: v=2 fp=2b62d6100f4be515 -->
+
+**Date**: 2026-11-02
+**Task**: R10 设置中心人工视觉验收通过
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+用户明确验收通过，设置中心四页视觉认可已记录GitHub与交接；不扩展为托盘或整体Final验收，全部产品差异未提交，保持停止。
+Topics: [.trellis/research/tra28-r10-settings-master-report.md](../../research/tra28-r10-settings-master-report.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 319: Ameow #15 R3–R10 阶段性保存
+<!-- trellis-session: v=2 fp=2b849128c1a943ca -->
+
+**Date**: 2026-11-03
+**Task**: Ameow #15 R3–R10 阶段性保存
+**Branch**: `next/tra26-r7-stage-b`
+
+### Summary
+
+用户授权保存R3–R10累积成果；核对R10人工视觉验收、产品与报告范围，复用最终测试和原生证据。本次快照不等于整体Final，托盘未最终验收，不push或启动T04。
+Topics: [.trellis/research/tra28-r3-r10-stage-checkpoint.md](../../research/tra28-r3-r10-stage-checkpoint.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
