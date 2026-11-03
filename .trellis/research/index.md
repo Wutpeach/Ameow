@@ -1,22 +1,10 @@
-# Research 导航 — Rust 工作区
+# Research 导航
 
-本索引用于定位历史证据，不授权任务，也不能证明当前行为。先从 [Spec 导航](../spec/index.md)进入；读取相关主题后，再按需查看原始 `legacy/` 证据，并核对源码、测试和当前获准的 Linear 交接。
+当前开发以 GitHub Issue 的最新有效要求及实际代码为准；历史报告不能授权新开发。
 
-追溯迁移后保留的旧任务路径时，按需查阅[历史引用映射](./migration-reference-map.md)。
+- [#18 正式 Rust 主线整理交接](issue18-rust-takeover.md)：目录、身份兼容、保全与本次验证。
+- [T04 下载引擎更新报告](t04-runtime-update-report.md)及[离线恢复验收补充](t04-offline-recovery-acceptance.md)：复用原验收，保留未覆盖项。
+- [设置中心 R10](tra28-r10-settings-master-report.md)、[R3–R10 检查点](tra28-r3-r10-stage-checkpoint.md)：原设置/托盘交付证据。
+- 其他保留的 `tra28-*.md` 是同一历史阶段的有界报告，不是新任务入口。
 
-## 当前开发交付
-
-- [Ameow #17 / T04 完整开发 Report](./t04-runtime-update-report.md)及[离线恢复与最终 UI 验收补充](./t04-offline-recovery-acceptance.md)：可信主动更新、官方签名缓存与回滚证据；最终恢复 UI 已获用户验收，未覆盖项继续保留。
-
-## 本工作区的历史主题
-
-- [便携运行时依赖存储](./06-09-portable-runtime-dependency-storage-evaluation/legacy/)：历史原始资料。
-- [Windows 悬浮窗口重叠](./06-09-windows-portable-floating-hover-desktop-icon-overlap/legacy/)：历史原始资料。
-- [扩展到桌面的启动桥接](./06-20-extension-desktop-launch-bridge-evaluation/legacy/)：历史原始资料。
-- [归档 Research](./archive/)：官方迁移按历史日期归档的主题，按需打开。
-
-## 另一工作区的证据
-
-`D:/Ameow` 的 Electron 工作区有另一份不同的 Research，其中 TRA-23、TRA-26、TRA-28 主题并未以相同直接主题路径出现在本工作区。需要这些历史记录时查阅对方的 `.trellis/research/index.md`；本索引不替代那份历史。历史标题中的“当前”“正在执行”等只反映当时，不授权恢复工作。
-
-最近 30 天只是发现优先级，更早资料全部保留。迁移保护副本单独用于恢复与审计；保留原报告，对无法唯一确定目标的旧引用不猜测。
+完整历史树、旧路径映射与原始相对链接可从 `7f8d3b36` 恢复；Electron 与扩展的独有成果见 [仓库恢复说明](../../docs/repository-handoff.md)。本机 `.local`、原始 EXE、媒体与运行时仍在旧工作树/原证据位置，不在新主线复制或公开上传。

@@ -1,9 +1,0 @@
-{
-  "pid": 8536,
-  "exe": "D:/Ameow-worktrees/tra26-r7-stage-b/ameow-next/target/debug/ameow-next.exe",
-  "exe_sha256": "50C265DB102874A57DD8B050F66CACB53CDA490394B54E72C952CFF3B4BB6571",
-  "source_sha256": "57138D69342493EA4E308A1A2CD9D49D66361003A32970C8D6EF21484A30B9E3",
-  "profile": "C:/Users/ADMINI~1/AppData/Local/Temp/ameow-settings-polish-0d4f4a24cdea47b8ac8a00d19d7d0ac4",
-  "started_at": "2026-11-03T18:08:36.7661582+08:00",
-  "verification": "cargo build --locked PASS; cargo test --locked --bin ameow-next settings_: 16 passed; scoped git diff --check PASS; awaiting native visual confirmation; no desktop input or capture."
-}

@@ -1,82 +1,37 @@
-<div align="center">
-  <p>
-    <img src="./docs/readme/banner.png" alt="Ameow Desktop Media Downloader banner" width="100%" />
-  </p>
-  <p><strong>Ameow is an always-on-top floating window for downloads and quick collection. Drop in files, paste a link, and send web content straight to your desktop.</strong></p>
-  <p>
-    <a href="./README.md">中文</a> |
-    <a href="./README.en.md">English</a> |
-    <a href="https://github.com/Wutpeach/Ameow/releases">Download Releases</a> |
-    <a href="https://wutpeach.github.io/Ameow/en/docs/getting-started/">Getting Started</a> |
-    <a href="https://wutpeach.github.io/Ameow/en/docs/browser-extension/">Browser Extension</a> |
-    <a href="https://wutpeach.github.io/Ameow/en/docs/faq/">FAQ</a> |
-    <a href="./release-notes/">Release Notes</a>
-  </p>
-  <p>
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/Wutpeach/Ameow?display_name=tag" />
-    <img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/Wutpeach/Ameow/release.yml?label=release" />
-    <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-111827" />
-  </p>
-</div>
+# Ameow
 
-Drop in files, paste a link, and your download or collection starts right away. Add the browser extension, and web video or page content can move straight to the desktop too. One window keeps everyday download tasks in one place.
+Ameow is a Rust / GPUI floating download application for Windows. This repository maintains the Rust development baseline; [#18](https://github.com/Wutpeach/Ameow/issues/18) records the main-branch takeover.
 
-## Highlights
+**The public download remains [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1). There is no public Rust installer yet.** Existing tags, releases and recoverable history remain available. The historical browser extension is not integrated with the Rust application.
 
-- **Floating drop zone** — drop files, folders, links, or Windows clipboard content straight into the window.
-- **Download queue** — watch progress live, cancel tasks, and run up to three web downloads at once.
-- **Browser handoff** — send video URLs, cookies, and download preferences from the extension straight to the desktop app. Login cookies stay local and are not uploaded by Ameow.
-- **Per-site login-state sync** — once enabled, Ameow syncs cookies for the matching site when you download instead of syncing every known site immediately.
-- **Settings that stay out of the way** — tune output folders, rename rules, shortcuts, startup behavior, and After Effects integration when you need it.
+[简体中文](README.md) · [Documentation](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Preservation and handoff](docs/repository-handoff.md)
 
-## Get Ameow
+## Build and run
 
-<p>
-  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Installer EXE" src="https://img.shields.io/badge/Windows-Installer_EXE-2563EB?logo=windows&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="Windows Portable ZIP" src="https://img.shields.io/badge/Windows-Portable_ZIP-0F6CBD?logo=windows&logoColor=white" /></a>
-  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img alt="macOS Apple Silicon DMG" src="https://img.shields.io/badge/macOS-Apple_Silicon_DMG-111827?logo=apple&logoColor=white" /></a>
-</p>
+Windows x64/MSVC is the current native target. Install Rust 1.93.0, Visual Studio C++ Build Tools and the Windows SDK. Node, Python and Electron are not application dependencies.
 
-For installation, first launch, and platform-specific help, see [Getting Started](https://wutpeach.github.io/Ameow/en/docs/getting-started/).
-
-## Guides
-
-- [Getting Started](https://wutpeach.github.io/Ameow/en/docs/getting-started/): go from install to your first download in a few minutes.
-- [Browser Extension](https://wutpeach.github.io/Ameow/en/docs/browser-extension/): send links, cookies, and preferences from the browser to the desktop app.
-- [Cookies and Login State](https://wutpeach.github.io/Ameow/en/docs/extension/cookies-and-login/): understand local storage, no upload, and per-site sync while downloading.
-- [FAQ](https://wutpeach.github.io/Ameow/en/docs/faq/): troubleshoot macOS launch prompts, failed downloads, and connection issues.
-
-## Development
-
-### Requirements
-
-- Node.js 20+
-- npm
-
-### Common Commands
-
-```bash
-npm install
-npm run dev
-npm run build
-npm run lint
-npm run type-check
-npm run test
+```powershell
+cargo build --locked
+./target/debug/ameow.exe
 ```
 
-### Repository Layout
+The accepted Rust baseline provides single-video YouTube/Bilibili input, a queue, settings and a tray. Download components are prepared and verified against the embedded manifest; yt-dlp updates require explicit discovery and selection. Refer to the original Issue evidence for verified behavior and remaining limitations; the Rust application does not claim every historical Electron feature.
 
-- `src/`: desktop React interface.
-- `electron/`: Electron main process, tray, and native window integration.
-- `browser-extension/`: browser extension source.
-- `site/`: Astro/Starlight docs site source.
-- `docs/`: engineering notes, reference docs, and repo-local assets.
-- `desktop-assets/`: app icons, packaging assets, and managed runtime manifests.
-- `distribution/`, `release-notes/`: release package collateral and versioned release notes.
-- `scripts/`, `locales/`: build, packaging, versioning, and localization source files.
+## Existing data and startup
 
-## Acknowledgements
+`%LOCALAPPDATA%\AmeowNext\stage-a` remains the settings, runtime selection, cache and history directory. Internal `AmeowNext` single-instance and startup identifiers are retained for compatibility. No user data is moved or erased, and Electron settings are not imported.
 
-Some of Ameow's core capabilities are built on top of excellent open-source projects. Special thanks to `yt-dlp`, `gallery-dl`, and `FFmpeg` for providing the foundation for web media extraction, resource downloading, and downstream media processing.
+The delivered executable is `Ameow.exe` (Cargo emits `ameow.exe`). Exit the old application normally before opening the renamed version. Recreate shortcuts and pinned taskbar entries. If login startup was enabled, enable it again in the new application's settings and verify its state; no new startup registration is made automatically. External shortcuts are not migrated. Actual sign-out/sign-in startup has not been tested in this takeover.
 
-We also appreciate the maintainers of the many other open-source projects used throughout this repository.
+## Documentation and distribution
+
+The site has its own Node >=22.19.0 dependencies:
+
+```powershell
+npm ci --prefix site
+npm --prefix site run build
+```
+
+The existing Pages address is retained. Most site content still describes Electron v0.3.1; full content updates belong to [#19](https://github.com/Wutpeach/Ameow/issues/19). Future page-selection research belongs to [#22](https://github.com/Wutpeach/Ameow/issues/22).
+
+Application code is [MIT](LICENSE); third-party materials retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). A successful build does not authorize redistribution. Private packaging needs a review bound to the current inputs; public Gate B remains blocked. No workflow automatically publishes installers.

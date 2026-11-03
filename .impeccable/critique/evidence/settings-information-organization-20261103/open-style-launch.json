@@ -1,8 +1,0 @@
-{
-  "pid": 88728,
-  "exe": "D:/Ameow-worktrees/tra26-r7-stage-b/ameow-next/target/debug/ameow-next.exe",
-  "exe_sha256": "62859D89AEAC44CFB4DE1E0EE645BA56C8624FBB4D15204263D4DD58D0A81E29",
-  "profile": "C:/Users/ADMINI~1/AppData/Local/Temp/ameow-settings-polish-0d4f4a24cdea47b8ac8a00d19d7d0ac4",
-  "change": "Open uses the same Standard button style as Change, short label Open, padding 12, height 32, radius 6",
-  "verification": "cargo build --locked PASS; scoped git diff --check PASS; native visual confirmation pending"
-}

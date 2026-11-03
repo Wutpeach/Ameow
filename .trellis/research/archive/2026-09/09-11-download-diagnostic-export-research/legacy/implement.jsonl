@@ -1,9 +1,0 @@
-{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Preserve incident privacy and independent Support Log/runtime logging boundaries; Download-only structured egress is the approved planning direction."}
-{"file":".trellis/spec/backend/electron-runtime-contracts/05-electron-renderer-command-controller-registry-contract.md","reason":"Keep existing controller registry, composition ownership and error propagation."}
-{"file":".trellis/spec/frontend/type-safety/07-electron-preload-bridge-contract-for-renderer-migration.md","reason":"Typed command and generic preload boundary; no Electron or Node imports in Renderer."}
-{"file":".trellis/spec/frontend/state-management.md","reason":"Single-owner UI facts, guarded async/timers, centerOutcome lock and compact/full authority."}
-{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Existing UI/i18n patterns, source locale ownership, no new rendering infrastructure."}
-{"file":".trellis/spec/frontend/docs-site.md","reason":"Update bilingual troubleshooting docs with product behavior and validate docs build."}
-{"file":".trellis/tasks/09-11-download-diagnostic-export-research/research/diagnostic-export-ownership.md","reason":"Baseline-qualified source flow evidence; recommendation is qualified by Lead review and approved product direction."}
-{"file":".trellis/tasks/09-11-download-diagnostic-export-research/research-review.md","reason":"Lead correction: session line filtering is insufficient; reuse incident source/projection."}
-{"file":".trellis/tasks/09-11-download-diagnostic-export-research/research/incident-export-planning-evidence.md","reason":"Exact controller/UI/lifecycle/copy/docs/test seams; no existing native save-dialog helper."}

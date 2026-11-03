@@ -1,61 +1,22 @@
-# Logs
-logs
+/target/
+/evidence/
+/site/dist/
+/site/.astro/
+node_modules/
+__pycache__/
+*.pyc
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-.venv
-dist
-dist-electron
-dist-scripts
-dist-release
-dist-ssr
-build
+*.pid
 *.local
 .env*
-cookiefile*
-gcm-diagnose.log
 *.key
 *.pem
 *.p12
 *.pfx
-*.crt
-*.cer
-
-# Editor directories and files
 .vscode/
-.idea
+.idea/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Private maintainer workflow and AI tooling
 .claude/
 .cursor/
-**/.claude/
-**/.cursor/
 .mcp.json
 CLAUDE.md
-
-# Desktop runtime assets (prepared locally / in CI)
-desktop-assets/binaries/*
-!desktop-assets/binaries/.official-python-runtimes.json
-!desktop-assets/binaries/ytdlp-baseline/
-!desktop-assets/binaries/ytdlp-baseline/**
-!desktop-assets/binaries/ytdlp-managed-releases.json
-
-# Python cache artifacts
-__pycache__/
-*.pyc
-
-# Test files
-test_video.mp4
-.ace-tool/
-codedb.snapshot

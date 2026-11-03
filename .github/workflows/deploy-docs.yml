@@ -6,6 +6,10 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/deploy-docs.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy-docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,14 +39,16 @@ jobs:
         run: npm ci --prefix site
 
       - name: Build docs site
-        run: npm run docs:build
+        run: npm --prefix site run build
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

@@ -1,12 +1,3 @@
 # Research
 
-Topic-level research notes.
-
-- Write `.trellis/research/<topic>.md` while investigating.
-- A topic may also be a directory: `.trellis/research/<topic>/` for research that
-  carries evidence files (captures, CSVs, manifests) next to its notes.
-  `mini-trellis migrate` folds each Trellis task into one of these.
-- Promote durable contracts into `.trellis/spec/` (short markdown).
-- Move finished or stale topics to `.trellis/research/archive/` with `git mv`. SessionStart does not list `archive/`.
-
-`README.md` is not a topic.
+从 [index.md](index.md) 进入。当前目录保留必要交接及原始报告；完整历史资料由 [#18 恢复说明](../../docs/repository-handoff.md) 定位。历史命令、路径和验收范围按当时语境保留，不当作当前授权或当前行为证明。

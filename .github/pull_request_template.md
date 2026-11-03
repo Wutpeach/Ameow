@@ -1,51 +1,14 @@
-## Summary
+## Change
 
-- What changed:
-- Why:
+Describe the user-visible problem and resulting behavior. Link the relevant Issue.
 
-## Impact Scope
+## Evidence
 
-This change affects platform behavior in the following way:
+List checks actually run and their results. UI changes need the affected Windows workflow and compact screenshots. Reuse applicable evidence and name unverified behavior.
 
-- [ ] macOS only
-- [ ] Windows only
-- [ ] Shared cross-platform logic
-
-Platform notes:
-
-- macOS:
-- Windows:
-- Shared logic reason:
-
-## Validation
-
-- [ ] `npm run type-check`
-- [ ] `npm run lint`
-- [ ] Relevant unit/integration tests
-- [ ] Manual verification completed
-
-Manual verification details:
-
-- macOS:
-- Windows:
-
-## Cross-Platform Checks
-
-For desktop/platform-sensitive changes, confirm the affected areas you verified:
-
-- [ ] Tray / menu bar icon
-- [ ] Main window icon mode / compact mode
-- [ ] Settings window placement
-- [ ] Browser Lab rendering (dev-only preview/export)
-- [ ] Runtime bootstrap / downloader setup
-- [ ] Shortcut / reveal behavior
+Rust: `cargo check --locked --all-targets`, relevant `cargo test --locked` targets.
+Docs: `npm ci --prefix site` and `npm --prefix site run build`.
 
 ## Risks
 
-- Known risks:
-- Follow-up work:
-
-## Screenshots Or Recordings
-
-- Before:
-- After:
+State compatibility, data/ownership and platform limits. Building does not authorize public release or clear license/product gates.

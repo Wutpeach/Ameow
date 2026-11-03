@@ -1,4 +1,0 @@
-# Keep reports; leave rejected scripts, fixture trees and runtime output local.
-*
-!.gitignore
-!*.md

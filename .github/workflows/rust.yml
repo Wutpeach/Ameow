@@ -1,0 +1,25 @@
+name: Rust Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ['rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+  pull_request:
+    paths: ['rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install locked toolchain
+        shell: pwsh
+        run: rustup toolchain install 1.93.0 --profile minimal
+      - name: Check application and development tools
+        run: cargo +1.93.0 check --locked --all-targets
+      - name: Run tests without external runtime fixtures
+        run: cargo +1.93.0 test --locked

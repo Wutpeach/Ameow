@@ -1,9 +1,0 @@
-{"file": ".agents/skills/finish-work/SKILL.md", "reason": "Finish work checklist"}
-{"file": ".agents/skills/check-backend/SKILL.md", "reason": "Backend check spec"}
-{"file": ".agents/skills/check-frontend/SKILL.md", "reason": "Frontend check spec"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review installer-time prewarm against cross-layer contract and fallback boundaries"}
-{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Verify managed runtime directory layout, checksum flow, and bootstrap idempotency remain correct"}
-{"file": "src/App.tsx", "reason": "Confirm first-launch fallback still only triggers when managed runtimes remain missing"}
-{"file": "docs/runtime-sidecars/publish-and-rollback.md", "reason": "Ensure Pinterest runtime prewarm stays consistent with manifest publish contract"}
-{"file": "src-tauri/tauri.conf.json", "reason": "Review packaged resources and installer-related config changes"}
-{"file": "src-tauri/src/lib.rs", "reason": "Review bootstrap entrypoints and runtime readiness semantics after installer integration"}

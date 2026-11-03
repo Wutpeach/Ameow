@@ -34,6 +34,14 @@ The Lead owns coordination, integration, validation, and the final report.
 - Orca is optional. Do not require a Trellis Task, Orca dispatch, or a fixed Research → Implement → Review sequence.
 - The Lead supplies the approved scope and relevant context, protects existing changes, integrates results, and verifies completion.
 
+## Current project
+
+Repository: `Wutpeach/Ameow`. Current product: Ameow, Rust / GPUI at the repository root; Windows x64/MSVC is the verified target. GitHub Issues carry current authorization; historical Linear records are reference only.
+
+Use the shared `development-workflow` Skill for repository development and GitHub collaboration. Read `.trellis/spec/index.md` first, then only relevant contracts. Read `.trellis/spec/legacy-path-compatibility.md` before legacy cleanup. Do not run `mini-trellis migrate` or relocate legacy `.trellis/tasks/`.
+
+Use the narrowest observable-behavior test. Bug fixes need a regression at the lowest useful layer. UI changes require running the affected native workflow; builds and unit tests alone are not UI proof. Reuse existing accepted evidence when the changed behavior is outside its scope. Do not overwrite accepted EXEs or historical evidence during validation.
+
 ## File Search
 
 For any file search, filename or path lookup, or content grep in the current git-indexed directory, use the `fff` MCP tools instead of the default search tools.
