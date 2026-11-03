@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-23T00:00:00+08:00",
+  "title": "Design System: Ameow",
+  "extensions": {
+    "colorMeta": {
+      "black-bg-primary": {
+        "role": "neutral",
+        "displayName": "Black Surface Primary",
+        "canonical": "#201E25",
+        "tonalRamp": ["#141217", "#201E25", "#2B2930", "#36343B", "#4B4951", "#6A6870", "#AAA9AF", "#EEEEEE"]
+      },
+      "black-bg-secondary": {
+        "role": "neutral",
+        "displayName": "Black Surface Secondary",
+        "canonical": "#323137",
+        "tonalRamp": ["#18171B", "#242329", "#323137", "#424048", "#5B5961", "#7B7981", "#B8B6BD", "#F1F0F4"]
+      },
+      "black-accent-solid": {
+        "role": "primary",
+        "displayName": "Soft Control Blue",
+        "canonical": "#3b82f6",
+        "tonalRamp": ["#0f2346", "#1d4f9a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#eff6ff"]
+      },
+      "black-warning-solid": {
+        "role": "secondary",
+        "displayName": "Runtime Amber",
+        "canonical": "#f59e0b",
+        "tonalRamp": ["#3b2305", "#783f07", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a", "#fffbeb"]
+      },
+      "black-danger-solid": {
+        "role": "secondary",
+        "displayName": "Compact Danger Red",
+        "canonical": "#ef4444",
+        "tonalRamp": ["#3f1010", "#7f1d1d", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fecaca", "#fef2f2"]
+      },
+      "white-bg-primary": {
+        "role": "neutral",
+        "displayName": "White Surface Primary",
+        "canonical": "#E3E3E3",
+        "tonalRamp": ["#333333", "#666666", "#9A9A9A", "#D8D8DA", "#E3E3E3", "#EFEFEF", "#F5F5F5", "#FDFDFD"]
+      },
+      "extension-success": {
+        "role": "tertiary",
+        "displayName": "Extension Success Green",
+        "canonical": "#34d399",
+        "tonalRamp": ["#052e1b", "#065f46", "#047857", "#059669", "#10b981", "#34d399", "#a7f3d0", "#ecfdf5"]
+      }
+    },
+    "typographyMeta": {
+      "window-title": {
+        "displayName": "Window Title",
+        "purpose": "Secondary-window titles only; never marketing-scale."
+      },
+      "control": {
+        "displayName": "Control Text",
+        "purpose": "Buttons, rows, dropdown options, and compact actions."
+      },
+      "compact-label": {
+        "displayName": "Compact Label",
+        "purpose": "10px uppercase structure labels for dense settings sections."
+      },
+      "micro-status": {
+        "displayName": "Micro Status",
+        "purpose": "Progress, runtime, queue, and footer status text."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dark-panel",
+        "value": "0 6px 16px -8px rgba(0,0,0,0.34), 0 2px 7px -4px rgba(0,0,0,0.22), 0 1px 3px -1px rgba(0,0,0,0.16)",
+        "purpose": "Default black-theme window and panel elevation."
+      },
+      {
+        "name": "dark-panel-compact",
+        "value": "0 7px 14px -7px rgba(0,0,0,0.32), 0 2px 6px -3px rgba(0,0,0,0.22), 0 1px 3px -2px rgba(0,0,0,0.18)",
+        "purpose": "Context menus and compact floating surfaces."
+      },
+      {
+        "name": "dark-panel-strong",
+        "value": "0 8px 20px -8px rgba(0,0,0,0.4), 0 3px 9px -4px rgba(0,0,0,0.26), 0 1px 4px -2px rgba(0,0,0,0.2)",
+        "purpose": "Dropdowns and temporary popovers."
+      }
+    ],
+    "motion": [
+      {
+        "name": "compact-ease",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default interaction easing for hover, focus, color, border, and box-shadow."
+      },
+      {
+        "name": "interaction-duration",
+        "value": "0.18s",
+        "purpose": "Dominant transition duration for compact controls."
+      },
+      {
+        "name": "window-spring",
+        "value": "spring stiffness 400, damping 30",
+        "purpose": "Main window size, radius, clip-path, and position transitions."
+      },
+      {
+        "name": "dropdown-presence",
+        "value": "0.16s opacity + y + scale",
+        "purpose": "Dropdown menu and lightweight popover entrance/exit."
+      }
+    ],
+    "breakpoints": [],
+    "implementation": {
+      "themeSource": "src/contexts/ThemeContext.tsx",
+      "surfaceFactories": "src/components/ui/shared-styles.ts",
+      "componentNamespace": "Neon",
+      "cssVariablePrefix": "--fs-",
+      "themes": ["black", "white"]
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compact primary action with blue vertical gradient and state glow.",
+      "html": "<button class=\"ds-btn-primary\">Open folder</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:8px 14px;border:1px solid var(--fs-accent-border,#60a5fa);border-radius:10px;background:linear-gradient(180deg,var(--fs-accent-text,#60a5fa) 0%,var(--fs-accent-solid,#3b82f6) 100%);color:var(--fs-knob-bg,#f7f7f7);font:600 13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 18px var(--fs-accent-glow,rgba(59,130,246,.38));transition:background .18s cubic-bezier(.22,1,.36,1),border-color .18s cubic-bezier(.22,1,.36,1),box-shadow .18s cubic-bezier(.22,1,.36,1),transform .18s cubic-bezier(.22,1,.36,1)}.ds-btn-primary:hover,.ds-btn-primary:focus-visible{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 1px var(--fs-accent-border,rgba(96,165,250,.42)),0 12px 22px var(--fs-accent-glow,rgba(59,130,246,.38));outline:none}.ds-btn-primary:active{transform:translateY(1px) scale(.985)}"
+    },
+    {
+      "name": "Field Surface",
+      "kind": "input",
+      "refersTo": "field-surface",
+      "description": "Default dense input or field-like control surface.",
+      "html": "<input class=\"ds-field\" placeholder=\"Output folder\" />",
+      "css": ".ds-field{box-sizing:border-box;width:100%;min-height:36px;padding:0 12px;border:1px solid var(--fs-field-border,#4B4951);border-radius:10px;background:linear-gradient(180deg,var(--fs-field-bg,#2B2A31) 0%,var(--fs-bg-secondary,#323137) 100%);color:var(--fs-text-primary,#EEEEEE);font:500 12px/1.35 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;box-shadow:inset 0 1px 0 var(--fs-field-inset,rgba(255,255,255,.05));transition:border-color .18s cubic-bezier(.22,1,.36,1),box-shadow .18s cubic-bezier(.22,1,.36,1),color .18s cubic-bezier(.22,1,.36,1)}.ds-field:hover{border-color:var(--fs-border-start,#4B4951);box-shadow:inset 0 0 0 1px var(--fs-border-start,#4B4951),inset 0 1px 0 var(--fs-field-inset,rgba(255,255,255,.05))}.ds-field:focus{outline:none;border-color:var(--fs-field-border-strong,rgba(96,165,250,.48));box-shadow:inset 0 0 0 1px var(--fs-field-border-strong,rgba(96,165,250,.48)),0 6px 16px -8px rgba(0,0,0,.34)}"
+    },
+    {
+      "name": "Window Shell",
+      "kind": "card",
+      "refersTo": "window-shell",
+      "description": "Core floating desktop surface.",
+      "html": "<section class=\"ds-window-shell\"><h2>Ameow</h2><p>Compact control surface</p></section>",
+      "css": ".ds-window-shell{box-sizing:border-box;width:220px;padding:16px 18px;border-radius:16px;background:linear-gradient(180deg,var(--fs-bg-gradient-start,#201E25) 0%,var(--fs-bg-gradient-end,#323137) 100%);color:var(--fs-text-primary,#EEEEEE);box-shadow:inset 0 0 0 1px var(--fs-border-start,#4B4951),inset 0 1px 0 var(--fs-field-inset,rgba(255,255,255,.05)),0 6px 16px -8px rgba(0,0,0,.34),0 2px 7px -4px rgba(0,0,0,.22),0 1px 3px -1px rgba(0,0,0,.16);font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-window-shell h2{margin:0 0 4px;font-size:15px;font-weight:700;line-height:1.25}.ds-window-shell p{margin:0;color:var(--fs-text-secondary,#AAAAAA);font-size:11px;line-height:1.35}"
+    },
+    {
+      "name": "Compact Label",
+      "kind": "custom",
+      "refersTo": "compact-label",
+      "description": "Structural section label for dense settings pages.",
+      "html": "<span class=\"ds-compact-label\">Appearance</span>",
+      "css": ".ds-compact-label{display:block;min-height:14px;color:var(--fs-text-secondary,#AAAAAA);font:600 10px/14px system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;letter-spacing:.08em;text-transform:uppercase}"
+    },
+    {
+      "name": "Toggle",
+      "kind": "button",
+      "refersTo": "toggle",
+      "description": "Binary switch with accent checked state.",
+      "html": "<button class=\"ds-toggle\" role=\"switch\" aria-checked=\"true\"><span></span></button>",
+      "css": ".ds-toggle{position:relative;display:inline-flex;align-items:center;justify-content:center;width:46px;height:26px;padding:0;border:1px solid var(--fs-accent-border,rgba(96,165,250,.42));border-radius:999px;background:var(--fs-accent-solid,#3b82f6);box-shadow:inset 0 0 0 1px var(--fs-accent-border,rgba(96,165,250,.42)),0 0 10px var(--fs-accent-glow,rgba(59,130,246,.38));cursor:pointer;transition:background-color .18s cubic-bezier(.22,1,.36,1),border-color .18s cubic-bezier(.22,1,.36,1),box-shadow .18s cubic-bezier(.22,1,.36,1)}.ds-toggle span{position:absolute;top:50%;left:3px;width:18px;height:18px;border-radius:50%;background:var(--fs-knob-bg,#f7f7f7);box-shadow:0 1px 2px rgba(0,0,0,.18);transform:translate(20px,-50%);transition:transform .18s cubic-bezier(.22,1,.36,1)}"
+    },
+    {
+      "name": "Hint",
+      "kind": "custom",
+      "refersTo": "hint",
+      "description": "Microcopy for inline help, danger, or accent information.",
+      "html": "<div class=\"ds-hint\">Ready for the next download.</div>",
+      "css": ".ds-hint{color:var(--fs-text-secondary,#AAAAAA);font:500 10px/1.35 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;opacity:.82}.ds-hint[data-tone=\"accent\"]{color:var(--fs-accent-text,#60a5fa);opacity:1}.ds-hint[data-tone=\"danger\"]{color:var(--fs-danger-text,#fca5a5);opacity:1}"
+    },
+    {
+      "name": "Progress Ring",
+      "kind": "custom",
+      "refersTo": "progress-ring",
+      "description": "Circular task progress indicator for foreground work or runtime dependency state.",
+      "html": "<div class=\"ds-progress-ring\"><svg viewBox=\"0 0 48 48\"><circle class=\"ds-track\" cx=\"24\" cy=\"24\" r=\"20\"></circle><circle class=\"ds-value\" cx=\"24\" cy=\"24\" r=\"20\"></circle></svg><span>72%</span></div>",
+      "css": ".ds-progress-ring{position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--fs-progress-text,#60a5fa);font:500 11px/1 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-progress-ring svg{position:absolute;inset:0;transform:rotate(-90deg);display:block}.ds-progress-ring circle{fill:none;stroke-width:4}.ds-progress-ring .ds-track{stroke:var(--fs-progress-bg-stroke,#3a3a3a)}.ds-progress-ring .ds-value{stroke:var(--fs-progress-fg-stroke,#3b82f6);stroke-linecap:round;stroke-dasharray:125.66;stroke-dashoffset:35.18;transition:stroke-dashoffset .3s ease}.ds-progress-ring span{position:relative;z-index:1;user-select:none}"
+    }
+  ],
+  "narrative": {
+    "northStar": "桌面边缘控制台",
+    "overview": "Ameow 的界面像一个贴在桌面边缘的微型控制台：紧凑、安静、立即响应。它服务的是轻量但高频的桌面收集工作流，用户可能正在浏览网页、整理文件或处理素材，Ameow 不能抢走主任务的注意力。\n\n视觉语言由紧凑浮窗、连续圆角、暗亮双主题渐层、内描边、低扩散阴影、软蓝状态光和短促动效组成。蓝色是状态和焦点，不是装饰。警告和错误必须清楚，但要保持在行内、角标、提示或小型状态面中，禁止变成大面积警示块。",
+    "keyCharacteristics": [
+      "Compact first: 小窗和 200x200 主面板内的信息必须两秒内可扫读。",
+      "Token led: 颜色从 ThemeColors 和 --fs-* CSS variables 来，不从组件局部硬编码来。",
+      "Surface consistent: 核心表面来自 getWindowShellStyle、getPanelShellStyle、getFieldSurfaceStyle 等共享工厂。",
+      "Stateful neon: glow 只表达 hover、focus、drag、progress、selected、runtime attention。",
+      "Minimal chrome: 控件默认安静，用户接近或聚焦时才显形。"
+    ],
+    "rules": [
+      {
+        "name": "The Blue-Is-State Rule",
+        "body": "蓝色只用于 active、focus、selected、progress、drag、primary action。禁止把蓝色铺成装饰背景。",
+        "section": "colors"
+      },
+      {
+        "name": "The No Local Color Rule",
+        "body": "新组件禁止直接写散落的 hex/rgba。先查 ThemeColors，再查 --fs-*，确实缺 token 才扩展 token。",
+        "section": "colors"
+      },
+      {
+        "name": "The Inset-First Rule",
+        "body": "控件深度优先用内描边、内高光和 tonal layer。外阴影只用于浮层、hover、active 和窗口外壳。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Glow-Is-Feedback Rule",
+        "body": "glow 是反馈，不是背景。edge glow、drag glow、accent glow 必须由用户接近、拖拽、聚焦或任务状态触发。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do 使用 ThemeColors 和 --fs-* 变量作为颜色来源。",
+      "Do 通过 shared-styles.ts 的 style factory 构造窗口壳、面板、字段、选项和 chrome buttons。",
+      "Do 保持 black/white 双主题的同构 token，新增状态时两个主题一起定义。",
+      "Do 使用 0.18s cubic-bezier(0.22, 1, 0.36, 1) 作为默认交互反馈。",
+      "Do 对窗口形态变化使用 spring，并尊重 useReducedMotion()。"
+    ],
+    "donts": [
+      "Don't 做大面积蓝色、紫色或 neon 背景。蓝色的稀缺性是状态语言的一部分。",
+      "Don't 使用 generic flat gray UI。Ameow 表面需要渐层、内高光、内描边或轻微阴影。",
+      "Don't 使用 loud warning blocks。错误可以强，但不能压过小窗任务。",
+      "Don't 在组件局部散写 hex/rgba，除非正在新增经过命名的 token。",
+      "Don't 新增无 Neon 前缀的产品 UI primitive。"
+    ]
+  }
+}

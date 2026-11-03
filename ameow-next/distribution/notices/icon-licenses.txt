@@ -1,4 +1,4 @@
-Lucide icons (x, check and copy), adapted to the Penpot 16px / 1.2px stroke.
+Lucide icons, adapted to the Penpot 16px / 1.2px stroke.
 Copyright (c) Lucide Contributors
 
 ISC License
@@ -53,3 +53,12 @@ Local SHA-256:
 x.svg 705B0FD2C9E10403E52A1B88FE776DAD557B0B9E8C2943C53A205FAD47B510A6
 check.svg 50A04D7736FA3B5830FC2B18CAED272C1EDC8D0E4F4E5363DC8E8AA4B5BA199A
 copy.svg 608111695F8F3BCCB99BA26282AB82F9219DCCE4B5E8424E237C2E785C5EF1CB
+
+Settings and navigation additions (2026-11-03)
+eye-off.svg, settings.svg, sliders-horizontal.svg, download.svg, blocks.svg,
+info.svg, circle-alert.svg, chevron-right.svg and chevron-down.svg are from
+Lucide 0.468.0:
+https://github.com/lucide-icons/lucide/tree/0.468.0/icons
+Stroke color is set to white for GPUI tinting and stroke width to 1.8 on the
+24px viewBox (1.2px at 16px). Geometry is retained. The ISC and Feather MIT
+notices above apply; this exact source tag is recorded for these additions.

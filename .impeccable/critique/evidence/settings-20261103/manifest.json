@@ -1,0 +1,148 @@
+{
+  "captured_on": "2026-11-03",
+  "platform": "Windows native Rust / GPUI",
+  "dpi": 96,
+  "scale": 1.0,
+  "client_size": [
+    564,
+    431
+  ],
+  "production_entry": true,
+  "fixture": false,
+  "profile": "isolated",
+  "launch_receipt": "launch.json",
+  "cleanup": "Owned PID 84760 exited after CloseMainWindow; no review process left running.",
+  "limitations": [
+    "User also moved mouse during the session; folder-picker exit/cancellation excluded from verified results.",
+    "No screen-reader, high-DPI, macOS, update activation or runtime recovery acceptance.",
+    "Observed component-source error in isolated profile; backend cause not diagnosed."
+  ],
+  "source_fingerprints": {
+    "ameow-next/src/settings_window.rs": "2a49ce48f141ab48233935ce5afddb3ab392da983427ab8b37a61ff3cbb4fe4e",
+    "ameow-next/src/settings_components.rs": "1c692daf4c382061b228f973835d80d552b3ea45a1d18f98831b12ecfc88876f",
+    "ameow-next/src/tokens.rs": "78c8e4a9d32a1516fffe8f352af2e91ecd094eeaaf3f8689773d29a32c95e1a5"
+  },
+  "screenshots": [
+    {
+      "file": "light-general.png",
+      "sha256": "1a9a1d9fbef59d5a9bfa7a5a59b8df5633ba0aadf1293368318108f867ee15cb"
+    },
+    {
+      "file": "light-download.png",
+      "sha256": "664fd118c3c30a3503f8eef23b4720ba5f523939d85bfd7700db52c283dc5e5d"
+    },
+    {
+      "file": "light-components-top.png",
+      "sha256": "fdef754490634dce0891cb41af7097c6f8da462a1f579b1a42eac8ffe3a16385"
+    },
+    {
+      "file": "light-components-bottom.png",
+      "sha256": "fc896ea459bde21b4f0fde9aa653f10e8baf52d590ee5e56043c42b4058c257b"
+    },
+    {
+      "file": "light-about.png",
+      "sha256": "de9ddb7d30769ade4a55247f39aadeef99674965e3d68c73494b813d5f4d0484"
+    },
+    {
+      "file": "light-theme-menu.png",
+      "sha256": "d715337d8f5b87d43b0e224619f1e43be86771cbe64cf995d2d275a1509da84e"
+    },
+    {
+      "file": "dark-general.png",
+      "sha256": "5cb7eb495d163f7710bd92659b6bf951a0a627e3c210a6d1475a48834b1b6dd7"
+    },
+    {
+      "file": "dark-download.png",
+      "sha256": "5ffe586846773394f8e057edc5b2f95ab494173b6f671a6f5ef3d1e93dcb3f1b"
+    },
+    {
+      "file": "dark-components-top.png",
+      "sha256": "07d47e6adcdf0164201e12db4a9593291f7f4c7dfd60e9b1c0d119df7e0740b0"
+    },
+    {
+      "file": "dark-components-bottom.png",
+      "sha256": "c4f276909245dbe360d789e040501c7d16681be4ca5edc3ff6431cbb22e19539"
+    },
+    {
+      "file": "dark-about.png",
+      "sha256": "9d95c29ce996e0a384bb43c25328bd266f03db3047a02300c2fb0e004e426272"
+    },
+    {
+      "file": "dark-components-check.png",
+      "sha256": "9e503a0b1ef8fa5691dbd02419fec2e6cf428468a5e5128acf7c7e926066673f"
+    },
+    {
+      "file": "dark-components-check-result.png",
+      "sha256": "ab9849ed95c46e251525033aecde183b14b1b670bb9f2b3d90a7231b8d392c2e"
+    },
+    {
+      "file": "dark-english-general.png",
+      "sha256": "6e1e38b612f0bf283ff0e7105a85f91448a0e78429fa6deb562f0485d2ff0e39"
+    },
+    {
+      "file": "dark-english-components-top.png",
+      "sha256": "c7e9534281f6d9ff04c42f3689d65cf840e6fb5c35fbf1a95a6292740edb777f"
+    },
+    {
+      "file": "dark-english-tray-menu.png",
+      "sha256": "cb81a9bdd8d528be05fff9eeea5c3ba125e0ad0c47c57ecc1015c846bb39da7c"
+    },
+    {
+      "file": "dark-english-download.png",
+      "sha256": "65eaa43019d3471e10ae00c83118a3c33943182c6b2b26d1d91ae514b75eab9a"
+    },
+    {
+      "file": "dark-english-path-copied.png",
+      "sha256": "b086eb103466e1005c7eb7a619e7a4cb82f6af1ecc8c3d92e0c4e09609cac7a2"
+    },
+    {
+      "file": "dark-english-picker-cancel.png",
+      "sha256": "0061639f806b48d59bbe185a15aa19546a6661c7f0104ba781761f85949e0e1e"
+    },
+    {
+      "file": "dark-chinese-keyboard-language.png",
+      "sha256": "b4427b0a7e9dd65c8354f6330ee92a688d33a43848739e059a35d5716e2d7376"
+    },
+    {
+      "file": "keyboard-components-focused-below-fold.png",
+      "sha256": "c1f9c4a9e9cda56d17e36825e2138e6f7512a981c8fa3fdb52313d8af1d43d1b"
+    },
+    {
+      "file": "keyboard-components-tab-1.png",
+      "sha256": "61b0de6f93c2458d5c537fb5a68c9d908637e23bc64876dbb152bcca5325c1c4"
+    },
+    {
+      "file": "keyboard-components-tab-2.png",
+      "sha256": "f0c05cc0f6d3c598c3d219ea100a38c68b9ea9eccbca80fca12e7a1b0ef837fc"
+    },
+    {
+      "file": "keyboard-components-tab-3.png",
+      "sha256": "5402c6d1210e997ac9d18d780dd8e47dfd768a3a56e1ee5e1d9ab33aedbb1482"
+    },
+    {
+      "file": "keyboard-components-tab-4.png",
+      "sha256": "724ca76938b2f239615b951bdaaa3a2c8e20fb86ccf96b3f0617e48c3e8899d2"
+    },
+    {
+      "file": "keyboard-components-tab-5.png",
+      "sha256": "724ca76938b2f239615b951bdaaa3a2c8e20fb86ccf96b3f0617e48c3e8899d2"
+    },
+    {
+      "file": "keyboard-components-tab-6.png",
+      "sha256": "cd4a9a7c77e2a65d84d4f38b4f03b65455219455a40ff5a10bb1dd5508d490cd"
+    }
+  ],
+  "contrast": {
+    "light_error_text": {
+      "fg": "#E3474C",
+      "bg": "#FFFFFF",
+      "ratio": 3.983433074086565
+    },
+    "dark_error_text": {
+      "fg": "#EE5C61",
+      "bg": "#232427",
+      "ratio": 4.684682241833179
+    },
+    "method": "Dominant solid red glyph pixels in native screenshots, matched to Rust tokens; standard relative luminance calculation, excluding antialias edges."
+  }
+}

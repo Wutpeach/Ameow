@@ -102,7 +102,6 @@ pub struct DownloadUi {
     hovered_action: Option<QueueActionHint>,
     action_focus: Vec<QueueActionFocus>,
     retry_pending: std::collections::HashSet<u64>,
-    pub feedback: Option<(String, u64)>,
     pub preparation_hovered: bool,
     preparation_retry_pending: bool,
     preparation_copied_at: Option<u64>,
@@ -271,7 +270,6 @@ impl DownloadUi {
             hovered_action: None,
             action_focus: Vec::new(),
             retry_pending: Default::default(),
-            feedback: None,
             preparation_hovered: false,
             preparation_retry_pending: false,
             preparation_copied_at: None,
@@ -287,7 +285,6 @@ impl DownloadUi {
     }
     pub fn send(&mut self, command: QueueCommand, now: u64) -> bool {
         if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
-            self.feedback = Some(("Fixture · 不受理真实下载或设置写入".into(), now));
             return false;
         }
         match self.commands.try_send(command) {
@@ -306,7 +303,6 @@ impl DownloadUi {
                     }
                     _ => {}
                 }
-                self.feedback = Some(("操作未受理，请稍后重试".into(), now));
                 false
             }
         }
@@ -377,7 +373,7 @@ impl DownloadUi {
     pub fn background_actions_available(&self) -> bool {
         !self.queue_open && !self.exit_open && !self.settings_pending
     }
-    fn complete_settings(&mut self,reply:CommandReply,now:u64) {
+    fn complete_settings(&mut self,reply:CommandReply) {
         if let CommandReply::SettingsSaved(settings)=&reply {self.acknowledged_settings=Some(settings.clone());}
         self.settings_pending=false;
         self.settings_status=match &reply {
@@ -385,7 +381,6 @@ impl DownloadUi {
             CommandReply::Error(error) => SettingsStatus::Failed(format!("保存失败，默认设置未更改。{error}")),
             _ => SettingsStatus::Failed("设置未保存，请重试".into()),
         };
-        self.feedback=Some((match reply {CommandReply::SettingsSaved(_)=>"默认设置已保存".into(),CommandReply::Error(error)=>error,_=>"设置未保存，请重新查看".into()},now));
     }
     fn request_quality(&mut self,quality:Quality,now:u64) -> bool {
         if self.settings_pending{return false;}
@@ -522,19 +517,6 @@ impl DownloadUi {
         self.action_focus.clear();
         true
     }
-    /// None means there is no Full feedback element, including fixture idle.
-    fn feedback_message(&self) -> Option<&str> {
-        self.feedback.as_ref().map(|(text, _)| text.as_str())
-            .filter(|text| !text.is_empty())
-            .or(self.startup_error.as_deref().filter(|text| !text.is_empty()))
-            .or_else(|| {
-                if self.snapshot.as_ref().is_some_and(|snapshot| snapshot.stopping) {
-                    Some("已关闭新任务受理，正在安全停止")
-                } else if self.snapshot.is_none() && !self.fixture {
-                    Some("正在读取下载设置…")
-                } else { None }
-            })
-    }
     pub fn badge(&self) -> Option<(usize, bool, bool)> {
         self.snapshot
             .as_ref()
@@ -549,16 +531,13 @@ impl DownloadUi {
             Ok(()) => {
                 if job == 0 {
                     self.preparation_copied_at = Some(now);
-                    self.feedback = Some(("已复制组件诊断".into(), now));
                 } else {
                     self.set_row_notice(job, "诊断已复制", now);
-                    self.feedback = Some((format!("已复制任务 {job} 的诊断"), now));
                 }
                 true
             }
-            Err(error) => {
+            Err(_) => {
                 if job != 0 { self.set_row_notice(job, "复制失败，请重试", now); }
-                self.feedback = Some((error, now));
                 false
             }
         }
@@ -572,11 +551,6 @@ impl DownloadUi {
         } else {
             self.set_row_notice(source, "重试未受理", now);
         }
-        self.feedback = Some((match reply {
-            CommandReply::Accepted(_) => "已加入下载队列".into(),
-            CommandReply::Error(error) => error.clone(),
-            _ => "任务状态已变化，请重新查看".into(),
-        }, now));
     }
     fn row_notice(&self, job: u64, now: u64) -> Option<&'static str> {
         self.row_notices.get(&job).filter(|(_, at)| now < at + 5000).map(|(text, _)| *text)
@@ -602,7 +576,6 @@ impl DownloadUi {
         } else {
             self.set_row_notice(job, text, now);
         }
-        self.feedback = Some((text.into(), now));
     }
 }
 fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_json::Value) {
@@ -859,16 +832,6 @@ fn preparation_fraction(preparation: &PreparationSnapshot) -> Option<f32> {
         .total_bytes
         .filter(|total| *total > 0 && preparation.downloaded_bytes <= *total)
         .map(|total| (preparation.downloaded_bytes as f64 / total as f64) as f32)
-}
-fn preparation_stage(stage: PreparationStage) -> &'static str {
-    match stage {
-        PreparationStage::Cache => "检查缓存",
-        PreparationStage::Acquire => "下载组件",
-        PreparationStage::Verify => "校验完整性",
-        PreparationStage::Extract => "解压组件",
-        PreparationStage::Probe => "检查版本",
-        PreparationStage::Publish => "准备就绪",
-    }
 }
 impl DownloadUi {
     fn sync_queue_rows(&mut self, now: u64) {
@@ -1133,21 +1096,64 @@ fn preparation_bytes(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
-fn preparation_failure_copy(category: ErrorCategory) -> (&'static str, &'static str) {
+fn preparation_failure_copy(category: ErrorCategory, http_status: Option<u16>, l: crate::ui_text::Language) -> &'static str {
     match category {
-        ErrorCategory::Timeout => ("连接超时", "检查连接后可重试，或复制诊断。"),
-        ErrorCategory::Connect => ("连接失败", "检查连接后可重试，或复制诊断。"),
-        ErrorCategory::ProxyRouting => ("系统路由不受支持", "检查现有系统路由，未尝试直连。"),
-        ErrorCategory::Http => ("服务器响应失败", "稍后可手动重试，或复制诊断。"),
-        ErrorCategory::Size => ("组件大小不符", "可手动重试，或复制诊断。"),
-        ErrorCategory::Hash => ("完整性校验失败", "可手动重试，或复制诊断。"),
-        ErrorCategory::Extract => ("解压失败", "可手动重试，或复制诊断。"),
-        ErrorCategory::Permission => ("存储权限不足", "检查组件目录权限后可重试。"),
-        ErrorCategory::Probe => ("组件检查失败", "可手动重试，或复制诊断。"),
-        ErrorCategory::Storage => ("存储失败", "检查可用空间和目录权限后可重试。"),
-        ErrorCategory::Cancelled => ("准备已停止", "组件尚未准备完成。"),
-        ErrorCategory::Unknown => ("原因尚未确认", "复制诊断以进一步检查，或手动重试。"),
+        ErrorCategory::Timeout => l.text("连接超时，请检查网络。", "The connection timed out. Check your network."),
+        ErrorCategory::Connect => l.text("无法连接，请检查网络。", "Cannot connect. Check your network."),
+        ErrorCategory::ProxyRouting => l.text("无法使用代理，请检查代理设置。", "Cannot use the proxy. Check your proxy settings."),
+        ErrorCategory::Http => match http_status {
+            Some(404) => l.text("未找到组件下载文件。", "The component download file was not found."),
+            Some(403) => l.text("下载请求被拒绝。", "The download request was refused."),
+            Some(429) => l.text("请求过于频繁，请稍后重试。", "Too many requests. Try again later."),
+            _ => l.text("暂时无法获取组件。", "The component is temporarily unavailable."),
+        },
+        ErrorCategory::Size | ErrorCategory::Hash => l.text("下载的组件文件未通过验证。", "The downloaded component file could not be verified."),
+        ErrorCategory::Extract => l.text("无法解压组件文件。", "The component file could not be extracted."),
+        ErrorCategory::Permission => l.text("无法访问组件文件夹，请检查权限。", "Cannot access the component folder. Check its permissions."),
+        ErrorCategory::Probe => l.text("组件暂时无法使用。", "The component cannot be used right now."),
+        ErrorCategory::Storage => l.text("无法保存组件，请检查空间和权限。", "Cannot save the component. Check disk space and permissions."),
+        ErrorCategory::Cancelled => l.text("需要时可重新准备。", "You can set it up again when needed."),
+        ErrorCategory::Unknown => l.text("暂时无法确认失败原因。", "The cause could not be determined."),
     }
+}
+
+fn preparation_popup_copy(snapshot: &QueueSnapshot, l: crate::ui_text::Language) -> (String, Option<&'static str>) {
+    if snapshot.preparation_owner_lost {
+        return (l.text("组件暂时不可用", "Components unavailable").into(),
+            Some(l.text("组件未能正常停止，暂时无法重试。", "The components did not stop correctly. Retry is unavailable.")));
+    }
+    if snapshot.preparation_held {
+        return (l.text("正在清理组件", "Cleaning up components").into(),
+            Some(l.text("清理完成前暂时无法重试。", "Wait for cleanup to finish before retrying.")));
+    }
+    let preparation = &snapshot.preparation;
+    if preparation.phase == PreparationPhase::Ready {
+        return (l.text("组件已就绪", "Components ready").into(), None);
+    }
+    let component = preparation.failure.as_ref().map(|f| f.component).or(preparation.component)
+        .filter(|c| *c != ameow_next::download::preparation::RuntimeComponent::Runtime)
+        .map_or(l.text("下载组件", "Download tools"), |c| c.label());
+    if preparation.phase == PreparationPhase::Failed {
+        let failure = preparation.failure.as_ref();
+        let category = failure.map_or(ErrorCategory::Unknown, |f| f.category);
+        let status = if category == ErrorCategory::Cancelled {
+            l.text("准备已停止", "setup stopped")
+        } else {
+            l.text("准备失败", "setup failed")
+        };
+        return (format!("{component} {status}"), Some(preparation_failure_copy(
+            category, failure.and_then(|f| f.http_status), l)));
+    }
+    let stage = match preparation.stage {
+        PreparationStage::Cache => l.text("准备中…", "preparing…"),
+        PreparationStage::Acquire => l.text("下载中…", "downloading…"),
+        PreparationStage::Verify => l.text("验证中…", "verifying…"),
+        PreparationStage::Extract => l.text("安装中…", "installing…"),
+        PreparationStage::Probe => l.text("检查中…", "checking…"),
+        PreparationStage::Publish => l.text("即将就绪…", "finishing setup…"),
+    };
+    (format!("{component} {stage}"), Some(l.text(
+        "准备期间仍可粘贴视频链接。", "You can still paste video links during setup.")))
 }
 use crate::{
     Prototype, indicator,
@@ -1158,7 +1164,15 @@ use crate::{
 use gpui::{prelude::*, *};
 #[derive(Clone, Copy)]
 enum MenuIcon { Empty, Back, Forward, Check, Quality, Hide, Settings, Exit }
-fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> impl IntoElement {
+fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> AnyElement {
+    let asset = match icon {
+        MenuIcon::Hide => Some("icons/eye-off.svg"),
+        MenuIcon::Settings => Some("icons/settings.svg"),
+        _ => None,
+    };
+    if let Some(asset) = asset {
+        return svg().path(asset).size(px(16.)).text_color(color).flex_none().into_any_element();
+    }
     canvas(|_, _, _| (), move |bounds, _, window, _| {
         let paths: &[&[(f32, f32)]] = match icon {
             MenuIcon::Empty => &[],
@@ -1166,9 +1180,8 @@ fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> impl IntoElement {
             MenuIcon::Forward => &[&[(6., 4.), (10., 8.), (6., 12.)]],
             MenuIcon::Check => &[&[(3., 8.), (6.5, 11.5), (13., 4.5)]],
             MenuIcon::Quality => &[&[(2.5, 4.), (13.5, 4.)], &[(2.5, 8.), (13.5, 8.)], &[(2.5, 12.), (13.5, 12.)], &[(6., 2.5), (6., 5.5)], &[(10., 6.5), (10., 9.5)], &[(5., 10.5), (5., 13.5)]],
-            MenuIcon::Hide => &[&[(8., 2.), (8., 10.)], &[(4.5, 6.5), (8., 10.), (11.5, 6.5)], &[(2.5, 9.), (2.5, 13.), (13.5, 13.), (13.5, 9.)]],
+            MenuIcon::Hide | MenuIcon::Settings => &[],
             MenuIcon::Exit => &[&[(6., 3.), (2.5, 3.), (2.5, 13.), (6., 13.)], &[(6., 8.), (13.5, 8.)], &[(10., 4.5), (13.5, 8.), (10., 11.5)]],
-            MenuIcon::Settings => &[&[(2.5, 5.), (13.5, 5.)], &[(2.5, 11.), (13.5, 11.)], &[(5., 2.5), (5., 7.5)], &[(10.5, 8.5), (10.5, 13.5)]],
         };
         for points in paths {
             let mut path = PathBuilder::stroke(px(1.2));
@@ -1178,7 +1191,7 @@ fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> impl IntoElement {
             }
             if let Ok(path) = path.build() { window.paint_path(path, color); }
         }
-    }).size(px(16.)).flex_none()
+    }).size(px(16.)).flex_none().into_any_element()
 }
 impl Prototype {
     pub(super) fn poll_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1238,21 +1251,15 @@ impl Prototype {
                         CommandReply::Applied(true) => "已请求重新准备组件",
                         _ => "组件状态已变化，请重新查看",
                     }.into(), !matches!(&reply, CommandReply::Applied(true))));
-                    ui.feedback = Some((match reply {
-                        CommandReply::Applied(true) => "已重新准备组件".into(),
-                        CommandReply::Error(error) => error,
-                        _ => "组件状态已变化，请重新查看".into(),
-                    }, now));
                 }
                 UiReply::StartupError(error) => {
-                    ui.startup_error = Some(error.clone());
-                    ui.feedback = Some((error, now));
+                    ui.startup_error = Some(error);
                 }
                 UiReply::Settings(reply) => {
                     if let Some(generation) = self.menu_save_generation.take() {
                         menu_saved = self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)), now);
                     }
-                    ui.complete_settings(reply,now);
+                    ui.complete_settings(reply);
                 }
                 UiReply::Diagnostic { job, text } => {
                     let result = self
@@ -1267,34 +1274,9 @@ impl Prototype {
                         self.copied_at = Some(now);
                     }
                 }
-                UiReply::Reply(reply) => match reply {
-                    CommandReply::Accepted(_) => {
-                        ui.feedback = Some(("已加入下载队列".into(), now));
-                    }
-                    CommandReply::SettingsSaved(_) => {
-                        ui.feedback = Some(("默认设置已保存".into(), now));
-                    }
-                    CommandReply::Error(error) => {
-                        ui.feedback = Some((
-                            if error.starts_with("E_DUPLICATE") {
-                                "该视频已在下载队列中".into()
-                            } else if error.starts_with("E_RUNTIME_OWNER_LOST") {
-                                "准备线程异常结束，清理未确认，暂不能下载".into()
-                            } else {
-                                error
-                            },
-                            now,
-                        ));
-                    }
-                    CommandReply::Applied(false) => {
-                        ui.feedback = Some(("任务状态已变化，请重新查看".into(), now));
-                    }
-                    _ => {}
-                },
+
+                UiReply::Reply(_reply) => {},
             }
-        }
-        if ui.feedback.as_ref().is_some_and(|(_, at)| now >= at + 5000) {
-            ui.feedback = None;
         }
         if self.model.fullness < 0.98 || self.model.locks.menu || self.model.locks.drag || self.model.locks.drop {
             ui.preparation_hovered = false;
@@ -1456,8 +1438,6 @@ impl Prototype {
                     },
                     now,
                 );
-            } else {
-                ui.feedback = Some(("请复制一个视频链接后粘贴".into(), now));
             }
         }
         cx.notify();
@@ -1640,9 +1620,8 @@ impl Prototype {
         rows.into_any_element()
     }
     fn hide_downloads(&mut self,cx:&mut Context<Self>) {
-        self.close_menu(cx);let now=self.now();
-        if self.tray.is_none(){if let Some(ui)=&mut self.downloads{ui.feedback=Some(("托盘不可用，请保持窗口打开".into(),now));}}
-        else if let Some(native)=&self.native {tray::Tray::hide(native.hwnd);if let Some(ui)=&mut self.downloads{ui.hidden=true;}}
+        self.close_menu(cx);
+        if self.tray.is_some() && let Some(native)=&self.native {tray::Tray::hide(native.hwnd);if let Some(ui)=&mut self.downloads{ui.hidden=true;}}
     }
     pub(super) fn open_output_directory(&mut self,cx:&mut Context<Self>) {
         let Some(path)=self.downloads.as_ref().and_then(|ui|ui.settings()).map(|s|s.output_dir) else{return;};
@@ -1650,12 +1629,12 @@ impl Prototype {
             let explorer=std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("explorer.exe");
             std::process::Command::new(explorer).arg(path).spawn().is_ok()
         });
-        cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{let now=this.now();if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));if !success{ui.feedback=Some(("无法打开下载目录，请稍后重试".into(),now));}}cx.notify();});}).detach();
+        cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));}cx.notify();});}).detach();
     }
     pub(super) fn drop_output_directory(&mut self,paths:&[PathBuf],cx:&mut Context<Self>) {
         let now=self.now();let Some(ui)=&mut self.downloads else{return;};
-        if ui.settings_pending {ui.feedback=Some(("正在保存默认设置，请稍后再试".into(),now));return;}
-        let Some(path)=crate::surface_actions::single_drop(paths) else{ui.feedback=Some(("请拖入一个可写文件夹".into(),now));return;};
+        if ui.settings_pending {return;}
+        let Some(path)=crate::surface_actions::single_drop(paths) else{return;};
         ui.request_output_directory(path,now);
         self.close_menu(cx);
     }
@@ -2033,24 +2012,7 @@ impl Prototype {
         let fraction = preparation_fraction(preparation);
         let now = self.now();
         let can_retry = ui.preparation_retry_available();
-        let component = preparation
-            .failure
-            .as_ref()
-            .map(|failure| failure.component)
-            .or(preparation.component)
-            .map_or("下载组件", |component| component.label());
-        let component = local_text(ui.language, component);
-        let headline = if snapshot.preparation_owner_lost {
-            "准备异常，清理未确认".into()
-        } else if snapshot.preparation_held {
-            "正在等待组件清理".into()
-        } else if failed {
-            format!("{component} {}", ui.language.text("准备失败", "setup failed"))
-        } else if ready {
-            "组件已就绪".into()
-        } else {
-            format!("{component} · {}", local_text(ui.language, preparation_stage(preparation.stage)))
-        };
+        let (headline, message) = preparation_popup_copy(snapshot, ui.language);
         let color = if failed {
             p.red
         } else if ready {
@@ -2078,9 +2040,9 @@ impl Prototype {
                     .font_weight(FontWeight::MEDIUM)
                     .text_size(px(10.))
                     .text_color(color)
-                    .child(local_text(ui.language, &headline)),
+                    .child(headline),
             );
-        if preparation.phase == PreparationPhase::Downloading {
+        if preparation.phase == PreparationPhase::Downloading && !failed {
             let bytes = preparation_bytes(preparation.downloaded_bytes);
             details = details.child(if let Some(fraction) = fraction {
                 format!(
@@ -2089,30 +2051,11 @@ impl Prototype {
                     (fraction * 100.).floor()
                 )
             } else {
-                format!("{bytes} · {}", ui.language.text("总量未知", "total unknown"))
+                format!("{} {bytes}", ui.language.text("已下载", "Downloaded"))
             });
         }
-        if let Some(failure) = &preparation.failure {
-            let (reason, suggestion) = preparation_failure_copy(failure.category);
-            let reason = local_text(ui.language, reason);
-            let suggestion = local_text(ui.language, suggestion);
-            details = details
-                .child(
-                    div().child(format!(
-                        "{} · {reason}{}",
-                        local_text(ui.language, preparation_stage(failure.stage)),
-                        failure
-                            .http_status
-                            .map_or(String::new(), |status| format!(" ({status})"))
-                    )),
-                )
-                .child(div().child(suggestion));
-        } else if snapshot.preparation_owner_lost {
-            details = details.child(ui.language.text("准备线程异常结束，清理未确认，暂不能继续。", "Setup stopped unexpectedly; cleanup is unconfirmed."));
-        } else if snapshot.preparation_held {
-            details = details.child(ui.language.text("资源尚未收束，可从退出面板查看清理状态。", "Resources are still held. See the exit panel."));
-        } else if !ready {
-            details = details.child(ui.language.text("后台准备中，仍可粘贴视频链接", "Setup runs in the background. You can paste a link."));
+        if let Some(message) = message {
+            details = details.child(div().child(message));
         }
         if failed {
             let copied = ui
@@ -2213,26 +2156,7 @@ impl Prototype {
             )
             .into_any_element()
     }
-    pub(super) fn download_feedback(&self, opacity: f32) -> Option<AnyElement> {
-        let ui = self.downloads.as_ref()?;
-        let message = local_text(ui.language, ui.feedback_message()?);
-        let p = Palette::new(self.night);
-        let g = self.model.geometry();
-        Some(div()
-            .id("download-feedback")
-            .absolute()
-            .left(px(g.gutter + if self.preparation_indicator_visible() { 42. } else { 10. }))
-            .top(px(g.gutter + 162.))
-            .w(px(if self.preparation_indicator_visible() { 148. } else { 180. }))
-            .max_h(px(30.))
-            .opacity(opacity)
-            .overflow_y_scroll()
-            .text_size(px(8.))
-            .line_height(px(12.))
-            .text_color(p.neutral)
-            .child(message)
-            .into_any_element())
-    }
+
 
 }
 fn cleanup_targets(snapshot: &QueueSnapshot) -> Vec<u64> {
@@ -2278,7 +2202,7 @@ mod tests {
         assert_eq!(requested.theme, ThemePreference::Dark);
         assert_eq!(requested.language, LanguagePreference::English);
         assert_eq!(ui.settings(), Some(acknowledged));
-        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 3);
+        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()));
         assert_eq!(ui.settings(), Some(requested));
         assert!(!ui.settings_pending);
     }
@@ -2292,11 +2216,11 @@ mod tests {
         let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
         assert_eq!(requested.tray_icon, TrayIconPreference::AmeowBlue);
         assert_eq!(ui.settings(), Some(old.clone()));
-        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 3);
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()));
         assert_eq!(ui.settings(), Some(old));
         assert!(ui.request_tray_icon(TrayIconPreference::Apricot, 4));
         let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
-        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 5);
+        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()));
         assert_eq!(ui.settings(), Some(requested));
     }
     #[test]
@@ -2313,7 +2237,7 @@ mod tests {
         let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
         let old = ui.settings().unwrap();
         let fresh = Settings { quality: Quality::Saver, ..old.clone() };
-        ui.complete_settings(CommandReply::SettingsSaved(fresh.clone()), 1);
+        ui.complete_settings(CommandReply::SettingsSaved(fresh.clone()));
         assert!(ui.request_output_directory(PathBuf::from("new-folder"), 2));
         assert_eq!(ui.settings_status, SettingsStatus::Saving);
         assert_eq!(ui.settings().unwrap(), fresh);
@@ -2321,14 +2245,14 @@ mod tests {
         assert!(!ui.request_output_directory(PathBuf::from("conflict"), 4));
         let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
         assert_eq!(requested.quality, Quality::Saver);
-        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 5);
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()));
         assert_eq!(ui.settings().unwrap(), fresh);
         assert!(matches!(ui.settings_status, SettingsStatus::Failed(_)));
         assert!(!ui.settings_pending);
         assert!(ui.request_output_directory(PathBuf::from("retry-folder"), 6));
         let QueueCommand::SaveSettings(mut requested) = receiver.try_recv().unwrap() else { panic!("settings command") };
         requested.output_dir = PathBuf::from("canonical-ack");
-        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 7);
+        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()));
         assert_eq!(ui.settings().unwrap(), requested);
         assert_eq!(ui.settings_status, SettingsStatus::Saved);
         drop(receiver);
@@ -2356,36 +2280,6 @@ mod tests {
         assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), Some(ExitAction::Quit));
     }
     #[test]
-    fn full_idle_has_no_feedback_but_real_loading_errors_stopping_and_receipts_remain() {
-        use super::*;
-        let (mut ui, _) = row_ui(JobPhase::Success, false);
-        assert_eq!(ui.feedback_message(), None);
-        ui.fixture = true;
-        assert_eq!(ui.feedback_message(), None);
-        ui.snapshot = None;
-        assert_eq!(ui.feedback_message(), None);
-        ui.fixture = false;
-        assert_eq!(ui.feedback_message(), Some("正在读取下载设置…"));
-        ui.startup_error = Some("E_STARTUP".into());
-        assert_eq!(ui.feedback_message(), Some("E_STARTUP"));
-        ui.feedback = Some(("目录设置未保存".into(), 100));
-        assert_eq!(ui.feedback_message(), Some("目录设置未保存"));
-        ui.feedback = Some((String::new(), 100));
-        assert_eq!(ui.feedback_message(), Some("E_STARTUP"));
-        ui.feedback = None;
-        ui.startup_error = None;
-        let mut snapshot = crate::queue_fixture::snapshot(Vec::new());
-        snapshot.stopping = true;
-        ui.snapshot = Some(Arc::new(snapshot));
-        assert_eq!(ui.feedback_message(), Some("已关闭新任务受理，正在安全停止"));
-        ui.feedback = Some(("默认设置已保存".into(), 200));
-        assert_eq!(ui.feedback_message(), Some("默认设置已保存"));
-        ui.feedback = None;
-        ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(Vec::new())));
-        assert_eq!(ui.feedback_message(), None);
-    }
-
-    #[test]
     fn background_directory_open_waits_for_settings_ack_and_recovers_on_failure() {
         use super::*;
         let (mut ui, _) = row_ui(JobPhase::Failure, false);
@@ -2394,12 +2288,12 @@ mod tests {
         let old = ui.settings().unwrap();
         ui.settings_pending = true;
         assert!(!ui.background_actions_available());
-        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 100);
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()));
         assert!(ui.background_actions_available());
         assert_eq!(ui.settings().unwrap(), old);
         ui.settings_pending = true;
         let newer = Settings { output_dir: PathBuf::from("acknowledged-folder"), ..old };
-        ui.complete_settings(CommandReply::SettingsSaved(newer.clone()), 200);
+        ui.complete_settings(CommandReply::SettingsSaved(newer.clone()));
         assert!(ui.background_actions_available());
         assert_eq!(ui.settings().unwrap(), newer);
         ui.exit_open = true;
@@ -2411,7 +2305,7 @@ mod tests {
         let (mut ui,receiver)=row_ui(JobPhase::Failure,false);
         let old=ui.snapshot.as_ref().unwrap().settings.clone();
         let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder"),theme:Default::default(),language:Default::default(), tray_icon:Default::default()};
-        ui.settings_pending=true;ui.complete_settings(CommandReply::SettingsSaved(newer.clone()),100);
+        ui.settings_pending=true;ui.complete_settings(CommandReply::SettingsSaved(newer.clone()));
         assert_eq!(ui.snapshot.as_ref().unwrap().settings,old);
         ui.request_quality(Quality::Saver,101);
         let QueueCommand::SaveSettings(requested)=receiver.try_recv().unwrap() else{panic!("expected settings action")};
@@ -3009,6 +2903,64 @@ mod tests {
         assert!(super::preparation_visible(&snapshot, 50_000));
         snapshot.stopping = true;
         assert!(!super::preparation_visible(&snapshot, 50_000));
+    }
+    #[test]
+    fn preparation_popup_uses_plain_causes_for_each_component_and_http_failure() {
+        use super::*;
+        use ameow_next::download::preparation::{PreparationFailure, RuntimeComponent};
+        use crate::ui_text::Language;
+        let mut snapshot = exit_snapshot();
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        snapshot.preparation.failure = Some(PreparationFailure {
+            component: RuntimeComponent::Ffmpeg, stage: PreparationStage::Acquire,
+            category: ErrorCategory::Http, http_status: Some(404),
+            message: "raw HTTP 404 backend detail".into(), suggestion: "raw suggestion".into(),
+        });
+        for (component, label) in [(RuntimeComponent::Ffmpeg, "FFmpeg"),
+            (RuntimeComponent::YtDlp, "yt-dlp"), (RuntimeComponent::Deno, "Deno")] {
+            snapshot.preparation.failure.as_mut().unwrap().component = component;
+            assert_eq!(preparation_popup_copy(&snapshot, Language::Chinese),
+                (format!("{label} 准备失败"), Some("未找到组件下载文件。")));
+        }
+        for language in [Language::Chinese, Language::English] {
+            for status in [None, Some(403), Some(404), Some(429), Some(500)] {
+                snapshot.preparation.failure.as_mut().unwrap().http_status = status;
+                let (_, message) = preparation_popup_copy(&snapshot, language);
+                let message = message.unwrap();
+                assert!(!message.contains("HTTP") && !message.contains("raw"));
+                assert!(!message.chars().any(|c| c.is_ascii_digit()));
+                assert_eq!(message == language.text("未找到组件下载文件。",
+                    "The component download file was not found."), status == Some(404));
+            }
+        }
+    }
+    #[test]
+    fn preparation_popup_prioritizes_cleanup_and_does_not_claim_ready_early() {
+        use super::*;
+        use crate::ui_text::Language;
+        let mut snapshot = exit_snapshot();
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        snapshot.preparation_held = true;
+        assert_eq!(preparation_popup_copy(&snapshot, Language::Chinese),
+            ("正在清理组件".into(), Some("清理完成前暂时无法重试。")));
+        snapshot.preparation_owner_lost = true;
+        assert_eq!(preparation_popup_copy(&snapshot, Language::Chinese),
+            ("组件暂时不可用".into(), Some("组件未能正常停止，暂时无法重试。")));
+        snapshot.preparation_held = false;
+        snapshot.preparation_owner_lost = false;
+        snapshot.preparation.phase = PreparationPhase::Verifying;
+        snapshot.preparation.stage = PreparationStage::Publish;
+        assert!(preparation_popup_copy(&snapshot, Language::Chinese).0.contains("即将就绪"));
+        snapshot.preparation.phase = PreparationPhase::Ready;
+        assert_eq!(preparation_popup_copy(&snapshot, Language::Chinese), ("组件已就绪".into(), None));
+        for language in [Language::Chinese, Language::English] {
+            for category in [ErrorCategory::Timeout, ErrorCategory::Connect, ErrorCategory::ProxyRouting,
+                ErrorCategory::Http, ErrorCategory::Size, ErrorCategory::Hash, ErrorCategory::Extract,
+                ErrorCategory::Permission, ErrorCategory::Probe, ErrorCategory::Storage,
+                ErrorCategory::Cancelled, ErrorCategory::Unknown] {
+                assert!(!preparation_failure_copy(category, None, language).is_empty());
+            }
+        }
     }
     #[test]
     fn component_percentage_requires_real_download_bytes_and_known_total() {

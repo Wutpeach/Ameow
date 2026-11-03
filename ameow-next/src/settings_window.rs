@@ -9,7 +9,12 @@ use crate::{
 use ameow_next::download::settings::{LanguagePreference, ThemePreference, TrayIconPreference};
 use gpui::{prelude::*, *};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::path::{Path, PathBuf};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 use windows::Win32::{
     Foundation::{HWND, POINT, RECT},
     Graphics::Gdi::{
@@ -22,6 +27,20 @@ use windows::Win32::{
 };
 #[path = "settings_components.rs"]
 mod components;
+
+fn error_text(p: Palette) -> Hsla {
+    if p.night { p.red } else { rgb(0xb8323c).into() }
+}
+
+fn focus_scroll_delta(viewport: Bounds<Pixels>, target: Bounds<Pixels>) -> Pixels {
+    if target.top() < viewport.top() {
+        viewport.top() - target.top()
+    } else if target.bottom() > viewport.bottom() {
+        viewport.bottom() - target.bottom()
+    } else {
+        px(0.)
+    }
+}
 
 fn settings_message(language: Language, message: &str) -> String {
     let pair = match message {
@@ -135,14 +154,19 @@ enum ButtonStyle {
     Quiet,
     Select,
     Icon,
+    Menu,
 }
 pub struct SettingsWindow {
     main: WeakEntity<Prototype>,
     projection: Projection,
     _observer: Subscription,
+    _component_menu_blur: Subscription,
     focus: FocusHandle,
+    component_menu_focus: FocusHandle,
     page: Page,
     scroll: ScrollHandle,
+    control_focus: RefCell<HashMap<&'static str, FocusHandle>>,
+    reveal_focus: Rc<Cell<bool>>,
     picker_pending: bool,
     open_pending: bool,
     notice: Option<(String, bool)>,
@@ -154,6 +178,7 @@ pub struct SettingsWindow {
     menu: Option<Page>,
     menu_index: usize,
     keyboard_focus: bool,
+    component_menu_open: bool,
     upstream_feedback: Option<(std::time::Instant, bool)>,
     title_language: Language,
     engine_confirmation: Option<Option<String>>,
@@ -176,15 +201,26 @@ impl SettingsWindow {
             cx.notify();
         });
         let focus = cx.focus_handle();
+        let component_menu_focus = cx.focus_handle();
+        let component_menu_blur = cx.on_focus_out(&component_menu_focus, window, |this, _, _, cx| {
+            if this.component_menu_open {
+                this.component_menu_open = false;
+                cx.notify();
+            }
+        });
         window.focus(&focus);
         let mut this = Self {
             title_language: projection.language,
             main: main.downgrade(),
             projection,
             _observer: observer,
+            _component_menu_blur: component_menu_blur,
             focus,
+            component_menu_focus,
             page: Page::General,
             scroll: ScrollHandle::new(),
+            control_focus: RefCell::new(HashMap::new()),
+            reveal_focus: Rc::new(Cell::new(false)),
             picker_pending: false,
             open_pending: false,
             notice: None,
@@ -196,6 +232,7 @@ impl SettingsWindow {
             menu: None,
             menu_index: 0,
             keyboard_focus: false,
+            component_menu_open: false,
             upstream_feedback: None,
             engine_confirmation: None,
         };
@@ -286,24 +323,22 @@ impl SettingsWindow {
     fn page_header(&self, title: &'static str, subtitle: &'static str) -> Div {
         let p = Palette::new(self.projection.night);
         div()
-            .pb(px(20.))
-            .border_b_1()
-            .border_color(p.border)
+            .pb(px(16.))
             .child(
                 div()
-                    .text_size(px(20.))
-                    .line_height(px(28.))
+                    .text_size(px(18.))
+                    .line_height(px(24.))
                     .font_weight(FontWeight::MEDIUM)
                     .child(title),
             )
-            .child(
+            .when(!subtitle.is_empty(), |s| s.child(
                 div()
                     .mt(px(4.))
                     .text_size(px(12.))
                     .line_height(px(20.))
                     .text_color(p.neutral)
                     .child(subtitle),
-            )
+            ))
     }
     fn general_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let l = self.projection.language;
@@ -328,23 +363,24 @@ impl SettingsWindow {
         };
         let on = matches!(self.startup, Some(Ok(StartupState::Enabled)));
         let switch_enabled = !self.startup_pending && self.startup.is_some();
-        let switch = div()
-            .id("startup-switch")
+        let switch = self.focusable_control("startup-switch", switch_enabled, cx)
             .w(px(40.))
-            .h(px(24.))
-            .rounded(px(12.))
-            .bg(if on { p.blue } else { p.control_border() })
-            .p(px(4.))
+            .h(px(32.))
+            .rounded(px(6.))
+            .border_1()
+            .border_color(transparent_black())
             .flex()
-            .when(on, |s| s.justify_end())
-            .child(div().size(px(16.)).rounded(px(8.)).bg(p.surface))
+            .items_center()
+            .justify_end()
+            .child(div().w(px(32.)).h(px(18.)).rounded(px(9.))
+                .bg(if on { p.blue } else { p.control_border() })
+                .p(px(3.)).flex().when(on, |s| s.justify_end())
+                .child(div().size(px(12.)).rounded(px(6.)).bg(p.surface)))
             .opacity(if switch_enabled { 1. } else { 0.45 })
             .when(switch_enabled, |s| {
-                s.focusable()
-                    .tab_index(0)
-                    .cursor_pointer()
+                s.cursor_pointer()
                     .when(self.keyboard_focus, |s| {
-                        s.focus(move |s| s.border_1().border_color(p.blue))
+                        s.focus(move |s| s.border_color(p.blue))
                     })
                     .on_click(
                         cx.listener(move |this, _, _, cx| this.refresh_startup(Some(!on), cx)),
@@ -358,14 +394,12 @@ impl SettingsWindow {
             });
         let row = |label: &'static str, control: AnyElement| {
             div()
-                .min_h(px(64.))
-                .border_b_1()
-                .border_color(p.border)
+                .min_h(px(56.))
                 .flex()
                 .items_center()
                 .justify_between()
                 .gap(px(12.))
-                .child(div().flex_none().text_size(px(14.)).child(label))
+                .child(div().flex_none().text_size(px(13.)).child(label))
                 .child(control)
         };
         let theme_index = match theme {
@@ -383,13 +417,42 @@ impl SettingsWindow {
             TrayIconPreference::AmeowBlue => 1,
             TrayIconPreference::Apricot => 2,
         };
+        let startup_status = match &self.startup {
+            Some(Ok(StartupState::Stale)) => Some((
+                l.text(
+                    "启动项指向旧位置，开启可修复。",
+                    "Startup entry points to an old location; turn on to repair.",
+                )
+                .to_owned(),
+                true,
+            )),
+            Some(Err(error)) => Some((
+                format!(
+                    "{}{}",
+                    l.text(
+                        "无法读取或更改启动项：",
+                        "Cannot read or change startup entry: "
+                    ),
+                    settings_message(l, error)
+                ),
+                true,
+            )),
+            _ if self.startup_pending => Some((
+                l.text("正在读取系统状态…", "Reading system status…").into(),
+                false,
+            )),
+            _ => None,
+        };
         let group = div()
             .flex()
             .flex_col()
-            .child(row(
+            .child(div().pb(px(12.)).child(row(
                 l.text("开机启动", "Launch at login"),
                 switch.into_any_element(),
-            ))
+            )).when_some(startup_status, |s, (text, danger)| {
+                s.child(div().pb(px(8.)).text_size(px(12.)).line_height(px(18.))
+                    .text_color(if danger { error_text(p) } else { p.neutral }).child(text))
+            }))
             .child(row(
                 l.text("主题", "Theme"),
                 self.select_menu(
@@ -448,38 +511,12 @@ impl SettingsWindow {
                 _ => None,
             }
         };
-        let startup_status = match &self.startup {
-            Some(Ok(StartupState::Stale)) => Some((
-                l.text(
-                    "启动项指向旧位置，开启可修复。",
-                    "Startup entry points to an old location; turn on to repair.",
-                )
-                .to_owned(),
-                true,
-            )),
-            Some(Err(error)) => Some((
-                format!(
-                    "{}{}",
-                    l.text(
-                        "无法读取或更改启动项：",
-                        "Cannot read or change startup entry: "
-                    ),
-                    settings_message(l, error)
-                ),
-                true,
-            )),
-            _ if self.startup_pending => Some((
-                l.text("正在读取系统状态…", "Reading system status…").into(),
-                false,
-            )),
-            _ => None,
-        };
         div()
             .flex()
             .flex_col()
             .child(self.page_header(
                 l.text("常规", "General"),
-                l.text("启动、主题、语言与托盘图标", "Startup, theme, language and tray icon"),
+                "",
             ))
             .child(group)
             .when_some(status, |s, (text, danger)| {
@@ -487,16 +524,7 @@ impl SettingsWindow {
                     div()
                         .mt(px(12.))
                         .text_size(px(12.))
-                        .text_color(if danger { p.red } else { p.neutral })
-                        .child(text),
-                )
-            })
-            .when_some(startup_status, |s, (text, danger)| {
-                s.child(
-                    div()
-                        .mt(px(12.))
-                        .text_size(px(12.))
-                        .text_color(if danger { p.red } else { p.neutral })
+                        .text_color(if danger { error_text(p) } else { p.neutral })
                         .child(text),
                 )
             })
@@ -537,8 +565,9 @@ impl SettingsWindow {
                 })
                 .w(px(144.))
                 .p(px(4.))
-                .rounded(px(8.))
+                .rounded(px(6.))
                 .bg(p.surface)
+                .occlude()
                 .border_1()
                 .border_color(p.border)
                 .flex()
@@ -551,12 +580,13 @@ impl SettingsWindow {
                 list = list.child(
                     div()
                         .id((id, index))
-                        .h(px(32.))
-                        .px(px(8.))
+                        .h(px(28.))
+                        .px(px(6.))
                         .rounded(px(4.))
                         .flex()
                         .items_center()
                         .justify_between()
+                        .gap(px(4.))
                         .bg(if self.menu_index == index {
                             p.badge
                         } else {
@@ -565,10 +595,21 @@ impl SettingsWindow {
                         .hover(move |s| s.bg(p.badge))
                         .cursor_pointer()
                         .text_size(px(13.))
-                        .child(option)
-                        .child(if selected == index { "✓" } else { "" })
+                        .whitespace_nowrap()
+                        .child(div().flex_1().min_w(px(0.)).child(option))
+                        .child(canvas(|_, _, _| (), move |bounds, _, window, _| {
+                            if selected != index { return; }
+                            let mut path = PathBuilder::stroke(px(1.2));
+                            path.move_to(bounds.origin + point(px(1.), px(4.)));
+                            path.line_to(bounds.origin + point(px(3.), px(6.)));
+                            path.line_to(bounds.origin + point(px(7.), px(2.)));
+                            if let Ok(path) = path.build() { window.paint_path(path, p.primary_text()); }
+                        }).size(px(8.)).flex_none())
                         .on_click(
-                            cx.listener(move |this, _, _, cx| this.select_option(menu, index, cx)),
+                            cx.listener(move |this, _, _, cx| {
+                                this.select_option(menu, index, cx);
+                                cx.stop_propagation();
+                            }),
                         ),
                 );
             }
@@ -729,10 +770,30 @@ impl SettingsWindow {
         })
         .detach();
     }
+    fn focusable_control(&self, id: &'static str, enabled: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+        let focus = self.control_focus.borrow_mut().entry(id)
+            .or_insert_with(|| cx.focus_handle().tab_index(0).tab_stop(true)).clone();
+        let tracked = focus.clone();
+        let scroll = self.scroll.clone();
+        let reveal = self.reveal_focus.clone();
+        div().on_children_prepainted(move |children, window, _| {
+            // Reveal only on keyboard traversal, so wheel scrolling never fights the focused control.
+            if !enabled || id == "close-settings" || !reveal.get() || !focus.is_focused(window) { return; }
+            if let Some(bounds) = children.into_iter().reduce(|a, b| a.union(&b)) {
+                let target = Bounds::new(bounds.origin - point(px(0.), px(8.)),
+                    size(bounds.size.width, bounds.size.height + px(16.)));
+                let delta = focus_scroll_delta(scroll.bounds(), target);
+                if delta != px(0.) {
+                    scroll.set_offset(scroll.offset() + point(px(0.), delta));
+                    window.refresh();
+                }
+            }
+        }).id(id).when(enabled, |s| s.track_focus(&tracked))
+    }
     fn button(
         &self,
         id: &'static str,
-        label: &'static str,
+        label: impl IntoElement,
         enabled: bool,
         style: ButtonStyle,
         cx: &mut Context<Self>,
@@ -741,15 +802,16 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night);
         let action = std::rc::Rc::new(action);
         let key_action = action.clone();
-        let quiet = matches!(style, ButtonStyle::Quiet | ButtonStyle::Icon);
-        div()
-            .id(id)
+        let quiet = matches!(style, ButtonStyle::Quiet | ButtonStyle::Icon | ButtonStyle::Menu);
+        self.focusable_control(id, enabled, cx)
             .flex_none()
-            .h(px(32.))
+            .h(px(if style == ButtonStyle::Select { 28. } else { 32. }))
             .px(px(if style == ButtonStyle::Quiet {
                 0.
             } else if quiet {
                 8.
+            } else if style == ButtonStyle::Select {
+                10.
             } else {
                 12.
             }))
@@ -757,9 +819,10 @@ impl SettingsWindow {
             .items_center()
             .justify_center()
             .when(style == ButtonStyle::Select, |s| {
-                s.w_full().justify_between()
+                s.w_full().justify_between().gap(px(8.))
             })
             .when(style == ButtonStyle::Icon, |s| s.w(px(32.)))
+            .when(style == ButtonStyle::Menu, |s| s.w_full().justify_start())
             .rounded(px(6.))
             .border_1()
             .border_color(if quiet {
@@ -798,9 +861,7 @@ impl SettingsWindow {
                 )
             })
             .when(enabled, |s| {
-                s.focusable()
-                    .tab_index(0)
-                    .cursor_pointer()
+                s.cursor_pointer()
                     .hover(move |s| s.bg(p.badge))
                     .when(self.keyboard_focus, |s| {
                         s.focus(move |s| s.border_color(p.blue))
@@ -818,13 +879,20 @@ impl SettingsWindow {
     fn nav(&self, page: Page, label: &'static str, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night);
         let selected = self.page == page;
+        let icon = match page {
+            Page::General => "icons/sliders-horizontal.svg",
+            Page::Download => "icons/download.svg",
+            Page::Components => "icons/blocks.svg",
+            Page::About => "icons/info.svg",
+        };
         div()
             .id(label)
             .h(px(36.))
-            .px(px(12.))
+            .px(px(8.))
             .rounded(px(6.))
             .flex()
             .items_center()
+            .gap(px(8.))
             .bg(if selected {
                 p.border
             } else {
@@ -845,10 +913,15 @@ impl SettingsWindow {
                 s.focus(move |s| s.border_color(p.blue))
             })
             .hover(move |s| s.bg(if selected { p.border } else { p.badge }))
+            .child(svg().path(icon).size(px(14.)).flex_none()
+                .text_color(if selected { p.primary_text() } else { p.neutral }))
+            .whitespace_nowrap()
             .child(label)
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     this.page = page;
+                    this.component_menu_open = false;
+                    this.menu = None;
                     this.scroll.set_offset(point(px(0.), px(0.)));
                     cx.notify();
                     cx.stop_propagation();
@@ -856,6 +929,8 @@ impl SettingsWindow {
             }))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.page = page;
+                this.component_menu_open = false;
+                this.menu = None;
                 this.scroll.set_offset(point(px(0.), px(0.)));
                 cx.notify();
             }))
@@ -926,25 +1001,23 @@ impl SettingsWindow {
             .flex_col()
             .child(self.page_header(
                 l.text("下载", "Download"),
-                l.text("默认下载文件夹", "Default download folder"),
+                "",
             ))
             .child(
                 div()
-                    .pb(px(20.))
-                    .border_b_1()
-                    .border_color(p.border)
+                    .pb(px(4.))
                     .flex()
                     .flex_col()
                     .child(
                         div()
-                            .min_h(px(64.))
+                            .min_h(px(56.))
                             .flex()
                             .items_center()
                             .gap(px(8.))
                             .child(
                                 div()
                                     .flex_1()
-                                    .text_size(px(14.))
+                                    .text_size(px(13.))
                                     .child(l.text("下载位置", "Download location")),
                             )
                             .child(self.button(
@@ -954,9 +1027,7 @@ impl SettingsWindow {
                                 } else {
                                     l.text("打开", "Open")
                                 },
-                                enabled && !self.open_pending,
-                                ButtonStyle::Standard,
-                                cx,
+                                enabled && !self.open_pending, ButtonStyle::Standard, cx,
                                 |this, _, cx| this.open_directory(cx),
                             ))
                             .child(self.button(
@@ -973,52 +1044,23 @@ impl SettingsWindow {
                             )),
                     )
                     .child(
-                        div()
-                            .w_full()
-                            .min_h(px(44.))
-                            .px(px(12.))
-                            .py(px(10.))
-                            .rounded(px(6.))
-                            .bg(p.badge.opacity(0.55))
-                            .border_1()
-                            .border_color(transparent_black())
-                            .flex()
-                            .items_center()
-                            .flex_none()
-                            .min_w(px(0.))
-                            .text_size(px(12.))
-                            .font(tokens::ui_font())
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .id("copy-folder")
-                            .cursor_pointer()
-                            .focusable()
-                            .tab_index(0)
-                            .hover(move |s| s.bg(p.badge))
-                            .when(self.keyboard_focus, |s| {
-                                s.focus(move |s| s.border_1().border_color(p.blue))
-                            })
-                            .tooltip({
-                                let full_path = path.clone();
-                                move |_, cx| {
-                                    cx.new(|_| ValueTooltip {
-                                        path: full_path.clone(),
-                                        night: p.night,
-                                    })
-                                    .into()
-                                }
-                            })
-                            .on_click(cx.listener(|this, _, window, cx| this.copy_path(window, cx)))
-                            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                                if event.keystroke.key == "enter" || event.keystroke.key == "space"
-                                {
-                                    this.copy_path(window, cx);
-                                    cx.stop_propagation();
-                                }
-                            }))
-                            // Preview is already bounded; GPUI's early zero-width measure
-                            // can cache a lone ellipsis when text_ellipsis is inherited here.
-                            .child(preview),
+                        div().w_full().min_h(px(44.)).pl(px(12.)).pr(px(6.)).py(px(6.))
+                            .rounded(px(6.)).bg(p.badge.opacity(0.55)).flex().items_center().gap(px(8.))
+                            .flex_none().min_w(px(0.))
+                            .child(div().id("download-path-preview").flex_1().min_w(px(0.))
+                                .text_size(px(12.)).font(tokens::ui_font())
+                                .overflow_hidden().whitespace_nowrap()
+                                .tooltip({
+                                    let full_path = path.clone();
+                                    move |_, cx| cx.new(|_| ValueTooltip { path: full_path.clone(), night: p.night }).into()
+                                })
+                                // Bound the preview before GPUI's early zero-width measure.
+                                .child(preview))
+                            .child(self.button(
+                                "copy-folder", svg().path("icons/copy.svg").size(px(12.)).text_color(p.neutral),
+                                self.projection.path.is_some(), ButtonStyle::Icon, cx,
+                                |this, window, cx| this.copy_path(window, cx),
+                            )),
                     ),
             )
             .when_some(status, |s, (text, danger)| {
@@ -1026,7 +1068,7 @@ impl SettingsWindow {
                     div()
                         .mt(px(12.))
                         .text_size(px(12.))
-                        .text_color(if danger { p.red } else { p.neutral })
+                        .text_color(if danger { error_text(p) } else { p.neutral })
                         .child(text),
                 )
             })
@@ -1039,7 +1081,7 @@ impl SettingsWindow {
                         div()
                             .mt(px(12.))
                             .text_size(px(12.))
-                            .text_color(p.red)
+                            .text_color(error_text(p))
                             .child(settings_message(l, error)),
                     )
                 },
@@ -1052,23 +1094,17 @@ impl SettingsWindow {
         div()
             .flex()
             .flex_col()
-            .child(self.page_header(l.text("关于", "About"), "Ameow"))
+            .child(self.page_header(l.text("关于", "About"), ""))
             .child(
                 div()
-                    .min_h(px(64.))
+                    .min_h(px(56.))
                     .flex()
                     .items_center()
                     .justify_between()
                     .gap(px(12.))
-                    .border_b_1()
-                    .border_color(p.border)
                     .child(l.text("版本", "Version"))
                     .child(
                         div()
-                            .px(px(8.))
-                            .py(px(2.))
-                            .rounded(px(4.))
-                            .bg(p.badge.opacity(0.55))
                             .text_size(px(12.))
                             .text_color(p.neutral)
                             .font(tokens::ui_font())
@@ -1077,13 +1113,11 @@ impl SettingsWindow {
             )
             .child(
                 div()
-                    .min_h(px(64.))
+                    .min_h(px(56.))
                     .flex()
                     .items_center()
                     .justify_between()
                     .gap(px(12.))
-                    .border_b_1()
-                    .border_color(p.border)
                     .child("GitHub")
                     .child(self.button(
                         "project-link",
@@ -1095,6 +1129,19 @@ impl SettingsWindow {
                     )),
             )
             .into_any_element()
+    }
+}
+struct HelpTooltip {
+    text: String,
+    night: bool,
+}
+impl Render for HelpTooltip {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let p = Palette::new(self.night);
+        div().max_w(px(280.)).p(px(8.)).rounded(px(6.)).bg(p.surface)
+            .border_1().border_color(p.border).text_color(p.primary_text())
+            .font(tokens::desktop_ui_font()).text_size(px(12.)).line_height(px(18.))
+            .child(self.text.clone())
     }
 }
 struct ValueTooltip {
@@ -1132,6 +1179,8 @@ impl Render for SettingsWindow {
         }
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
+        let reveal = self.reveal_focus.clone();
+        let scroll = self.scroll.clone();
         let content = if self.page == Page::General {
             self.general_page(cx)
         } else if self.page == Page::Download {
@@ -1141,14 +1190,15 @@ impl Render for SettingsWindow {
         } else {
             self.about_page(cx)
         };
-        div()
+        div().on_children_prepainted(move |_, _, _| reveal.set(false))
             .id("settings-root")
+            .relative()
             .size_full()
             .flex()
             .bg(p.surface)
             .text_color(p.primary_text())
             .font(tokens::desktop_ui_font())
-            .text_size(px(14.))
+            .text_size(px(13.))
             .line_height(px(20.))
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
                 if this.keyboard_focus {
@@ -1160,6 +1210,55 @@ impl Render for SettingsWindow {
                 if !this.keyboard_focus {
                     this.keyboard_focus = true;
                     cx.notify();
+                }
+                if this.component_menu_open {
+                    match event.keystroke.key.as_str() {
+                        "tab" => {
+                            let trigger = this.control_focus.borrow().get("component-details").cloned();
+                            let action = this.control_focus.borrow().get("check-yt-dlp-release").cloned();
+                            let backwards = event.keystroke.modifiers.shift;
+                            if !backwards && trigger.as_ref().is_some_and(|f| f.is_focused(window))
+                                && this.can_check_upstream() {
+                                if let Some(action) = &action { window.focus(action); }
+                            } else if backwards && action.as_ref().is_some_and(|f| f.is_focused(window)) {
+                                if let Some(trigger) = &trigger { window.focus(trigger); }
+                            } else {
+                                this.component_menu_open = false;
+                                if let Some(trigger) = &trigger { window.focus(trigger); }
+                                if backwards { window.focus_prev(); } else { window.focus_next(); }
+                                // The current frame still contains the closing menu's tab stop.
+                                if action.as_ref().is_some_and(|f| f.is_focused(window)) {
+                                    if backwards { window.focus_prev(); } else { window.focus_next(); }
+                                }
+                            }
+                            this.reveal_focus.set(true);
+                            cx.notify();
+                            cx.stop_propagation();
+                            return;
+                        }
+                        "escape" => {
+                            this.component_menu_open = false;
+                            if let Some(focus) = this.control_focus.borrow().get("component-details") {
+                                window.focus(focus);
+                            }
+                            cx.notify();
+                            cx.stop_propagation();
+                            return;
+                        }
+                        "up" | "down" if this.can_check_upstream() => {
+                            if let Some(focus) = this.control_focus.borrow().get("check-yt-dlp-release") {
+                                window.focus(focus);
+                            }
+                            cx.stop_propagation();
+                            return;
+                        }
+                        "enter" | "space" if this.component_menu_focus.is_focused(window) => {
+                            this.check_upstream(window, cx);
+                            cx.stop_propagation();
+                            return;
+                        }
+                        _ => {}
+                    }
                 }
                 if event.keystroke.key == "escape" && this.menu.is_some() {
                     this.menu = None;
@@ -1205,6 +1304,7 @@ impl Render for SettingsWindow {
                     window.remove_window();
                     cx.stop_propagation();
                 } else if event.keystroke.key == "tab" {
+                    this.reveal_focus.set(true);
                     if event.keystroke.modifiers.shift {
                         window.focus_prev();
                     } else {
@@ -1215,7 +1315,7 @@ impl Render for SettingsWindow {
             }))
             .child(
                 div()
-                    .w(px(128.))
+                    .w(px(144.))
                     .h_full()
                     .flex_none()
                     .p(px(12.))
@@ -1272,9 +1372,25 @@ impl Render for SettingsWindow {
                             .track_focus(&self.focus)
                             .overflow_y_scroll()
                             .track_scroll(&self.scroll)
+                            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                                if this.component_menu_open {
+                                    this.component_menu_open = false;
+                                    cx.notify();
+                                }
+                            }))
                             .child(content),
                     ),
             )
+            .child(div().absolute().right(px(6.)).top(px(36.)).bottom(px(12.)).w(px(3.))
+                .child(canvas(|_, _, _| (), move |bounds, _, window, _| {
+                    let maximum = scroll.max_offset().height;
+                    if maximum <= px(0.) { return; }
+                    let viewport = scroll.bounds().size.height;
+                    let thumb = (bounds.size.height * (viewport / (viewport + maximum))).max(px(24.)).min(bounds.size.height);
+                    let progress = (-scroll.offset().y / maximum).clamp(0., 1.);
+                    let origin = bounds.origin + point(px(0.), (bounds.size.height - thumb) * progress);
+                    window.paint_quad(fill(Bounds::new(origin, size(bounds.size.width, thumb)), p.neutral.opacity(0.4)));
+                }).size_full()))
     }
 }
 
@@ -1577,12 +1693,7 @@ impl Prototype {
                 self.settings_window = Some(handle);
                 show(handle, Some(a), cx);
             }
-            Err(_) => {
-                let now = self.now();
-                if let Some(ui) = &mut self.downloads {
-                    ui.feedback = Some(("无法打开设置窗口，请重试".into(), now));
-                }
-            }
+            Err(error) => eprintln!("Open settings window: {error}"),
         }
     }
 }
@@ -1593,6 +1704,15 @@ mod tests {
         Language, directory_health, display_path, normalize_selection, path_preview,
         settings_message, side_bounds,
     };
+    #[test]
+    fn keyboard_reveal_scrolls_only_enough_to_show_the_target() {
+        use gpui::{Bounds, point, px, size};
+        let viewport = Bounds::new(point(px(0.), px(28.)), size(px(400.), px(380.)));
+        for (top, expected) in [(40., 0.), (10., 18.), (400., -24.)] {
+            let target = Bounds::new(point(px(0.), px(top)), size(px(100.), px(32.)));
+            assert_eq!(super::focus_scroll_delta(viewport, target), px(expected));
+        }
+    }
     #[test]
     fn all_general_select_menus_receive_keyboard_navigation() {
         use super::{Page, general_select_menu};

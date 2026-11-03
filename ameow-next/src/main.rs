@@ -54,11 +54,23 @@ impl AssetSource for Assets {
             "icons/x.svg" => Some(Cow::Borrowed(include_bytes!("../assets/x.svg"))),
             "icons/copy.svg" => Some(Cow::Borrowed(include_bytes!("../assets/copy.svg"))),
             "icons/check.svg" => Some(Cow::Borrowed(include_bytes!("../assets/check.svg"))),
+            "icons/eye-off.svg" => Some(Cow::Borrowed(include_bytes!("../assets/eye-off.svg"))),
+            "icons/settings.svg" => Some(Cow::Borrowed(include_bytes!("../assets/settings.svg"))),
+            "icons/sliders-horizontal.svg" => Some(Cow::Borrowed(include_bytes!("../assets/sliders-horizontal.svg"))),
+            "icons/download.svg" => Some(Cow::Borrowed(include_bytes!("../assets/download.svg"))),
+            "icons/blocks.svg" => Some(Cow::Borrowed(include_bytes!("../assets/blocks.svg"))),
+            "icons/info.svg" => Some(Cow::Borrowed(include_bytes!("../assets/info.svg"))),
+            "icons/circle-alert.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-alert.svg"))),
+            "icons/chevron-right.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-right.svg"))),
+            "icons/chevron-down.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-down.svg"))),
             _ => ring_glow::load(path).map(Cow::Owned),
         })
     }
     fn list(&self, _: &str) -> anyhow::Result<Vec<SharedString>> {
-        Ok(["icons/x.svg", "icons/copy.svg", "icons/check.svg"]
+        Ok(["icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
+            "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",
+            "icons/blocks.svg", "icons/info.svg", "icons/circle-alert.svg",
+            "icons/chevron-right.svg", "icons/chevron-down.svg"]
             .into_iter()
             .map(Into::into)
             .chain(ring_glow::asset_paths())
@@ -323,7 +335,7 @@ impl Prototype {
         let icon = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.tray_icon).unwrap_or_default();
         if let Some(tray) = &mut self.tray {
             if let Err(error) = tray.set_preferences(self.language, icon, self.night) {
-                if let Some(ui) = &mut self.downloads { ui.feedback = Some((error, now)); }
+                eprintln!("Tray preferences: {error}");
             }
         }
     }
@@ -973,13 +985,9 @@ impl Render for Prototype {
             .child(surface)
             .when(!menu_open, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
-        let feedback = if self.downloads.is_some() && !self.model.locks.menu && !menu_open {
-            self.download_feedback(content_alpha)
-        } else { None };
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
             .when(self.downloads.as_ref().is_some_and(|ui|ui.queue_open),|s|s.child(self.queue_panel(window,cx)))
-            .when(self.downloads.as_ref().is_some_and(|ui|ui.exit_open),|s|s.child(self.exit_panel(cx)))
-            .children(feedback);
+            .when(self.downloads.as_ref().is_some_and(|ui|ui.exit_open),|s|s.child(self.exit_panel(cx)));
         let result = div()
             .id("ameow-root")
             .track_focus(&self.focus)

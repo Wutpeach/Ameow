@@ -1,0 +1,121 @@
+{
+  "platform": "Windows native Rust / GPUI",
+  "dpi": 96,
+  "scale": 1.0,
+  "launch_receipt": "launch.json",
+  "screenshot_builds": {
+    "final-light-general.png": "final_exe_sha256",
+    "final-dark-general.png": "final_exe_sha256",
+    "other_images": "exe_sha256"
+  },
+  "changes_between_builds": "Menu occlusion/click propagation fix and scroll-indicator minimum-height clamp.",
+  "screenshots": [
+    {
+      "file": "light-general.png",
+      "sha256": "fdf86f0b4e7b2ea17733f195c7532ba99f25d2c66391464ad8c70c158ff370b4"
+    },
+    {
+      "file": "light-download.png",
+      "sha256": "efbaedba57c912692db648776a8e254294f4cb1463cb4cf6189c18efc5fedd63"
+    },
+    {
+      "file": "light-components-top.png",
+      "sha256": "9745994dc999fb944065e72db9d59a2b448528a2de26e2fdbbd8fdbe409731bb"
+    },
+    {
+      "file": "light-about.png",
+      "sha256": "8d81e7fe7331c96a892ce9a2f7c51c3dbd1d74db1abdefb2e80e47c5fa606999"
+    },
+    {
+      "file": "light-check-pending.png",
+      "sha256": "6bddb328af92b022031ebe219786f24379298759b10cc2a3087868fbde60d9fa"
+    },
+    {
+      "file": "light-components-bottom.png",
+      "sha256": "74dc22dbb3d1fde0fe1475d355787b99c63fad473650e042488a91d5ead0ec2f"
+    },
+    {
+      "file": "dark-general.png",
+      "sha256": "d48d501a6e8a394da8992048f29e8f4046092000c65dcd5c822702161e758256"
+    },
+    {
+      "file": "dark-english-general.png",
+      "sha256": "198151e8189f2bd9dff476e63bb2fc6499dc8f86dc0415c7592c113f66cde2ea"
+    },
+    {
+      "file": "dark-english-download.png",
+      "sha256": "1ee42065c0265defacfedceb12714d8204a17a595782be6fade3b37bacd417a9"
+    },
+    {
+      "file": "dark-english-components-top.png",
+      "sha256": "d3d1977fe18905d76a56fb987ea489df259e003063809b849e1cec70e59afeb4"
+    },
+    {
+      "file": "dark-english-about.png",
+      "sha256": "e5e4b615ecac71e407ed153cd7cbee73feeec99923fee23ae197486fdeedf164"
+    },
+    {
+      "file": "dark-english-path-copied.png",
+      "sha256": "33e0e2d405485f00181fb4d07e2c93d2b8c7c685214bb45f66a1fae41983188d"
+    },
+    {
+      "file": "final-light-general.png",
+      "sha256": "e53128b41a4fc73353dd00271b73cd1f601af90e3715b95edf1227855bf440e4"
+    },
+    {
+      "file": "final-dark-general.png",
+      "sha256": "bb859e256eada1b3868c206fb93dd02547d7fac60e23ec51237c5ed5cb329c6a"
+    },
+    {
+      "file": "keyboard-tab-1.png",
+      "sha256": "0a32cb61521c0b15534d8efa286a6894e3e7d3cc0189703a1cfc3689ee5c2a4d"
+    },
+    {
+      "file": "keyboard-tab-2.png",
+      "sha256": "2747c371727a5585f184245e09c06ba915a6ebfa4a25136ab9f164e8f335a26f"
+    },
+    {
+      "file": "keyboard-tab-3.png",
+      "sha256": "969ca825e940b0029ce5f6ccdb4d7a78fc8724fe7fe6bce9e8a39892ec90687e"
+    },
+    {
+      "file": "keyboard-tab-4.png",
+      "sha256": "f10ffad5c124298a2a5ed53d845d1949b1435fb7906c18f511864ab4a1f7bd0d"
+    },
+    {
+      "file": "keyboard-tab-5.png",
+      "sha256": "234eafe6469a81b7880fb1362d42a364f0d6ee8b0e5289aa2d232ba99a8072bd"
+    }
+  ],
+  "error_text": {
+    "rgb": [
+      184,
+      50,
+      60
+    ],
+    "contrast_on_white": 5.899606970136551
+  },
+  "source_fingerprints": {
+    "ameow-next/src/settings_window.rs": "3e89ddbb436ce415bad475395d1593eebaef11c0316d8924c384ccca30bee40f",
+    "ameow-next/src/settings_components.rs": "52700ecbc4749cfc46311b034c75773659e35e6cdcac895faeb3a826fe610530"
+  },
+  "checks": {
+    "build": "PASS",
+    "settings_tests": "15 passed; 0 failed",
+    "diff_check": "PASS",
+    "native_views": "Light Chinese and dark English: General, Download, Components, About. Final build: light/dark Chinese General and pointer theme selection.",
+    "keyboard": "From scrolled component page, Tab reveals Copy diagnostics, then Retry setup and Check updates with visible focus. Direction keys and Enter change language.",
+    "copy_path": "English Copy hint and full-path copied feedback observed.",
+    "updates": "Read-only checking, cooldown and upstream-success states observed; no update/retry activation."
+  },
+  "limits": [
+    "High DPI, macOS and screen reader not tested.",
+    "Ready runtime and update activation not visually accepted."
+  ],
+  "running_preview": {
+    "pid": 26068,
+    "settings_window": 547557352,
+    "profile": "isolated temporary profile",
+    "auto_exit_ms": 1800000
+  }
+}

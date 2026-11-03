@@ -579,10 +579,6 @@ impl Prototype {
                     .detach();
             });
         } else if let Some(ui) = &mut self.downloads {
-            ui.feedback = Some((
-                "无法打开托盘窗口，请重试".into(),
-                self.clock.elapsed().as_millis() as u64,
-            ));
             ui.evidence(serde_json::json!({"type":"tray-popup-error"}));
         }
     }

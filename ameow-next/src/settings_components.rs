@@ -17,8 +17,8 @@ fn runtime_status(snapshot: Option<&QueueSnapshot>, l: Language) -> (&'static st
     if s.preparation_owner_lost {
         return (
             l.text(
-                "清理未确认，无法重试。",
-                "Cleanup unconfirmed; retry unavailable.",
+                "无法确认组件清理状态，暂时无法重试。",
+                "Component cleanup could not be confirmed. Retry is unavailable.",
             ),
             true,
         );
@@ -26,8 +26,8 @@ fn runtime_status(snapshot: Option<&QueueSnapshot>, l: Language) -> (&'static st
     if s.preparation_held {
         return (
             l.text(
-                "等待安全清理，暂无法重试。",
-                "Waiting for cleanup; retry unavailable.",
+                "正在清理组件，请稍候再重试。",
+                "Components are being cleaned up. Wait before retrying.",
             ),
             true,
         );
@@ -62,10 +62,10 @@ fn failure_text(category: ErrorCategory, l: Language) -> &'static str {
             "Cannot connect. Check the network.",
         ),
         ErrorCategory::ProxyRouting => l.text(
-            "代理路由不可用，请检查代理。",
-            "Proxy route unavailable. Check proxy settings.",
+            "无法使用代理，请检查代理设置。",
+            "Cannot use the proxy. Check proxy settings.",
         ),
-        ErrorCategory::Http => l.text("组件来源返回错误。", "Component source returned an error."),
+        ErrorCategory::Http => l.text("无法获取组件，请稍后重试。", "Cannot fetch components. Try again later."),
         ErrorCategory::Size | ErrorCategory::Hash | ErrorCategory::Probe => {
             l.text("组件验证失败。", "Component verification failed.")
         }
@@ -83,59 +83,21 @@ fn failure_text(category: ErrorCategory, l: Language) -> &'static str {
     }
 }
 fn upstream_error(error: &UpstreamError, l: Language) -> String {
-    match error {
-        UpstreamError::Route => l
-            .text(
-                "系统代理路由不可用，未切换备用路由。",
-                "The system proxy route is unavailable. No fallback route was used.",
-            )
-            .into(),
-        UpstreamError::Timeout => l
-            .text(
-                "查询超时，请稍后手动重试。",
-                "The check timed out. Try again manually later.",
-            )
-            .into(),
-        UpstreamError::Connect => l
-            .text(
-                "无法连接上游，请检查网络或代理。",
-                "Cannot connect to upstream. Check the network or proxy.",
-            )
-            .into(),
-        UpstreamError::Http(403 | 429) => format!(
-            "{} ({})",
-            l.text(
-                "上游拒绝请求或已限流，请稍后重试",
-                "Upstream refused or rate-limited the request. Try later"
-            ),
-            match error {
-                UpstreamError::Http(code) => *code,
-                _ => unreachable!(),
-            }
-        ),
-        UpstreamError::Http(code) => format!(
-            "{} HTTP {code}",
-            l.text("上游检查失败：", "Upstream check failed:")
-        ),
-        UpstreamError::InvalidResponse => l
-            .text(
-                "上游响应不是可确认的稳定版本，结果未知。",
-                "The response did not identify a valid stable release. The result is unknown.",
-            )
-            .into(),
-        UpstreamError::TooLarge => l
-            .text(
-                "上游响应超过安全大小限制，结果未知。",
-                "The response exceeded the safe size limit. The result is unknown.",
-            )
-            .into(),
-        UpstreamError::Network => l
-            .text(
-                "查询未完成，请检查网络后重试。",
-                "The check could not complete. Check the network and try again.",
-            )
-            .into(),
-    }
+    l.text(match error {
+        UpstreamError::Route => "无法使用系统代理，请检查代理设置后重试。",
+        UpstreamError::Timeout => "检查更新超时，请稍后重试。",
+        UpstreamError::Connect | UpstreamError::Network => "无法检查更新，请检查网络或代理后重试。",
+        UpstreamError::Http(403 | 429) => "更新服务暂时拒绝请求，请稍后重试。",
+        UpstreamError::Http(_) => "更新服务暂时不可用，请稍后重试。",
+        UpstreamError::InvalidResponse | UpstreamError::TooLarge => "无法确认最新版本，请稍后重试。",
+    }, match error {
+        UpstreamError::Route => "Cannot use the system proxy. Check proxy settings and try again.",
+        UpstreamError::Timeout => "The update check timed out. Try again later.",
+        UpstreamError::Connect | UpstreamError::Network => "Cannot check for updates. Check the network or proxy and try again.",
+        UpstreamError::Http(403 | 429) => "The update service refused or rate-limited the request. Try again later.",
+        UpstreamError::Http(_) => "The update service is unavailable. Try again later.",
+        UpstreamError::InvalidResponse | UpstreamError::TooLarge => "Cannot confirm the latest version. Try again later.",
+    }).into()
 }
 fn action_notice(message: &str, l: Language) -> String {
     let (zh, en) = match message {
@@ -161,16 +123,20 @@ fn action_notice(message: &str, l: Language) -> String {
     l.text(zh, en).into()
 }
 fn checked_time(at: u64, now: u64, l: Language) -> String {
-    let seconds = at / 1000;
-    format!(
-        "{} {:02}:{:02}:{:02} UTC · {} {}",
-        l.text("检查时间：", "Checked:"),
-        seconds / 3600 % 24,
-        seconds / 60 % 60,
-        seconds % 60,
-        now.saturating_sub(at) / 1000,
-        l.text("秒前", "seconds ago")
-    )
+    let seconds = now.saturating_sub(at) / 1000;
+    if seconds < 60 { return l.text("刚刚检查", "Checked just now").into(); }
+    if seconds < 3600 {
+        let minutes = seconds / 60;
+        return match l {
+            Language::Chinese => format!("上次检查：{minutes} 分钟前"),
+            Language::English => format!("Last checked: {minutes} {} ago", if minutes == 1 { "minute" } else { "minutes" }),
+        };
+    }
+    let hours = seconds / 3600;
+    match l {
+        Language::Chinese => format!("上次检查：{hours} 小时前"),
+        Language::English => format!("Last checked: {hours} {} ago", if hours == 1 { "hour" } else { "hours" }),
+    }
 }
 fn check_is_visible(pending: bool, feedback: Option<(std::time::Instant, bool)>) -> bool {
     pending
@@ -199,15 +165,15 @@ fn upgrade_version(upstream: &ameow_next::download::upstream::UpstreamSnapshot, 
 
 fn update_status(phase: RuntimeUpdatePhase, l: Language) -> &'static str {
     match phase {
-        RuntimeUpdatePhase::Idle => l.text("仅在确认升级后准备新版本。", "New versions are prepared only after confirmation."),
-        RuntimeUpdatePhase::Preparing => l.text("正在准备版本并检查本地缓存…", "Preparing the version and checking the local cache…"),
-        RuntimeUpdatePhase::Downloading => l.text("正在下载并准备候选版本…", "Downloading and preparing the candidate…"),
-        RuntimeUpdatePhase::Verifying => l.text("正在验证完整性和可执行版本…", "Verifying integrity and executable version…"),
-        RuntimeUpdatePhase::Waiting => l.text("等待安全切换；现有任务将继续，资源释放后自动切换。", "Waiting for a safe switch. Current tasks continue; activation follows resource release."),
-        RuntimeUpdatePhase::Activated => l.text("已安全切换并保存版本选择。", "Safely activated and saved the version selection."),
+        RuntimeUpdatePhase::Idle => l.text("升级前会请你确认。", "You will be asked to confirm before upgrading."),
+        RuntimeUpdatePhase::Preparing => l.text("正在准备更新…", "Preparing the update…"),
+        RuntimeUpdatePhase::Downloading => l.text("正在下载更新…", "Downloading the update…"),
+        RuntimeUpdatePhase::Verifying => l.text("正在验证更新…", "Verifying the update…"),
+        RuntimeUpdatePhase::Waiting => l.text("等待当前任务结束后应用更新。", "The update will be applied after current tasks finish."),
+        RuntimeUpdatePhase::Activated => l.text("更新已应用。", "Update applied."),
         RuntimeUpdatePhase::Failed => l.text("更新未完成，原有效版本和选择仍保留。请重试或复制诊断。", "Update incomplete. The previous version and selection are retained. Retry or copy diagnostics."),
-        RuntimeUpdatePhase::RolledBack => l.text("已恢复上次可信版本及选择。", "Restored the previous trusted version and selection."),
-        RuntimeUpdatePhase::RecoveryRequired => l.text("所选版本未通过可信验证。请复制诊断并重试组件准备，或恢复推荐版本。", "The selected version failed trust verification. Copy diagnostics and retry setup, or restore the recommended version."),
+        RuntimeUpdatePhase::RolledBack => l.text("已恢复上次可用的版本。", "Restored the previous working version."),
+        RuntimeUpdatePhase::RecoveryRequired => l.text("当前版本无法通过验证，请重试准备组件或恢复推荐版本。", "The current version could not be verified. Retry setup or restore the recommended version."),
     }
 }
 
@@ -262,35 +228,35 @@ impl SettingsWindow {
         let update = &snapshot.runtime_update;
         let available = self.projection.upstream_available && !snapshot.stopping && !snapshot.stopped && !self.projection.engine_command_pending && !update_busy(update.phase);
         let candidate = upgrade_version(&self.projection.upstream.snapshot(), verified_version(Some(snapshot), "yt-dlp"), ameow_next::download::progress::now_ms());
-        let mut panel = div().pb(px(16.)).flex().flex_col().gap(px(8.)).text_size(px(12.));
-        panel = panel.child(div().text_color(p.neutral).child(l.text("版本信息来源：PyPI · yt-dlp", "Version source: PyPI · yt-dlp")));
-        panel = panel.child(div().text_color(p.neutral).child(match update.policy {
-            RuntimeSelectionPolicy::FollowAmeow => l.text("版本策略：跟随 Ameow 推荐版本", "Selection: follow Ameow recommended baseline"),
-            RuntimeSelectionPolicy::UserSelected => l.text("版本策略：保留用户已验证版本", "Selection: retain the user-verified version"),
-        }));
-        if let Some(version) = &update.active_version {
-            panel = panel.child(div().text_color(p.primary_text()).child(format!("{} {version}", l.text("当前已验证版本：", "Current verified version:"))));
+        if update.phase == RuntimeUpdatePhase::Idle && update.error.is_none()
+            && !self.projection.engine_command_pending && self.projection.engine_notice != Some(false)
+            && self.engine_confirmation.is_none() && candidate.is_none()
+            && update.policy == RuntimeSelectionPolicy::FollowAmeow {
+            return div().into_any_element();
         }
+        let mut panel = div().pb(px(12.)).flex().flex_col().gap(px(4.)).text_size(px(12.));
         if update_busy(update.phase) && snapshot.preparation.downloaded_bytes > 0 {
             panel = panel.child(div().text_color(p.neutral).child(format!("{} {:.1} MB", l.text("已准备", "Prepared"), snapshot.preparation.downloaded_bytes as f64 / 1_000_000.)));
         }
-        panel = panel.child(div().text_color(if matches!(update.phase, RuntimeUpdatePhase::Failed | RuntimeUpdatePhase::RecoveryRequired) {p.red} else {p.neutral}).child(update_status(update.phase, l)));
-        if let Some(version) = &update.requested_version {
-            panel = panel.child(div().text_color(p.neutral).child(format!("{} {version}", l.text("请求版本：", "Requested version:"))));
+        if update.phase != RuntimeUpdatePhase::Idle {
+            panel = panel.child(div().text_color(if matches!(update.phase, RuntimeUpdatePhase::Failed | RuntimeUpdatePhase::RecoveryRequired) {error_text(p)} else {p.neutral}).child(update_status(update.phase, l)));
         }
-        if update.error.is_some() {
-            panel = panel.child(div().text_color(p.red).child(l.text("验证或保存未完成；可复制组件诊断查看原因。", "Verification or saving did not complete. Copy component diagnostics for details.")));
+        if let Some(version) = &update.requested_version && update_busy(update.phase) {
+            panel = panel.child(div().text_color(p.neutral).child(format!("{} {version}", l.text("目标版本：", "Target version:"))));
+        }
+        if update.error.is_some() && !matches!(update.phase, RuntimeUpdatePhase::Failed | RuntimeUpdatePhase::RecoveryRequired) {
+            panel = panel.child(div().text_color(error_text(p)).child(l.text("验证或保存未完成；可复制组件诊断查看原因。", "Verification or saving did not complete. Copy component diagnostics for details.")));
         }
         if self.projection.engine_command_pending {
-            panel = panel.child(l.text("正在提交版本操作…", "Submitting the version action…"));
+            panel = panel.child(l.text("正在处理…", "Processing…"));
         } else if self.projection.engine_notice == Some(false) {
-            panel = panel.child(div().text_color(p.red).child(l.text("操作未受理或状态已变化，请重新查看后重试。", "Action rejected or state changed. Review and try again.")));
+            panel = panel.child(div().text_color(error_text(p)).child(l.text("当前无法执行此操作，请稍后重试。", "This action is unavailable now. Try again shortly.")));
         }
         if let Some(selection) = &self.engine_confirmation {
             let title = selection.as_ref().map_or_else(|| l.text("确认恢复 Ameow 推荐版本？", "Restore the Ameow recommended version?").to_owned(), |v| format!("{} {v}？", l.text("确认升级到", "Upgrade to")));
             panel = panel.child(div().p(px(12.)).rounded(px(8.)).bg(p.badge).flex().flex_col().gap(px(8.))
                 .child(title)
-                .child(l.text("后台验证后安全切换；不会中断活动下载。已验证且缓存完好的版本可在离线重启时使用。", "Activation follows background verification without interrupting downloads. Verified versions with a healthy cache remain usable after an offline restart."))
+                .child(l.text("更新不会中断正在进行的下载。已验证的版本保存在本机，缓存完好时可离线使用。", "The update will not interrupt active downloads. Verified versions are saved locally and work offline while their cache remains intact."))
                 .child(div().flex().flex_wrap().gap(px(8.))
                     .child(self.button("confirm-engine-update", l.text("确认", "Confirm"), available, ButtonStyle::Standard, cx, |this, _, cx| this.confirm_engine_update(cx)))
                     .child(self.button("cancel-engine-update", l.text("取消", "Cancel"), true, ButtonStyle::Quiet, cx, |this, _, cx| { this.engine_confirmation = None; cx.notify(); }))));
@@ -306,19 +272,200 @@ impl SettingsWindow {
         }
         panel.into_any_element()
     }
-    pub(super) fn check_upstream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+
+    fn component_version_menu(&self, cx: &mut Context<Self>) -> AnyElement {
+        let l = self.projection.language;
+        let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
         let upstream = self.projection.upstream.snapshot();
+        let checking = check_is_visible(upstream.pending, self.upstream_feedback);
         let owner_available = self.projection.upstream_available
             && snapshot.is_some_and(|s| !s.stopping && !s.stopped);
-        if !check_enabled(
-            owner_available,
+        let fields = if let Some(snapshot) = snapshot {
+            let update = &snapshot.runtime_update;
+            let version_value = |id: &'static str, version: &str| div().id(id)
+                .font(tokens::ui_font()).text_color(p.primary_text())
+                .tooltip({
+                    let full_version = version.to_owned();
+                    move |_, cx| cx.new(|_| ValueTooltip {
+                        path: full_version.clone(), night: p.night,
+                    }).into()
+                })
+                .child(version_preview(version));
+            let current_version = verified_version(Some(snapshot), "yt-dlp");
+            let mut summary = div().flex().flex_wrap().items_center().gap(px(8.));
+            if let Some(version) = current_version {
+                summary = summary.child(version_value("component-detail-current-version", version)
+                    .text_size(px(13.)).font_weight(FontWeight::MEDIUM));
+            }
+            summary = summary.child(div().flex_none().px(px(6.)).py(px(2.))
+                .rounded(px(4.)).border_1().border_color(p.control_border())
+                .text_size(px(11.)).line_height(px(16.)).text_color(p.neutral)
+                .child(match update.policy {
+                    RuntimeSelectionPolicy::FollowAmeow => l.text("推荐版本", "Recommended"),
+                    RuntimeSelectionPolicy::UserSelected => l.text("自选版本", "User selected"),
+                }));
+            let mut fields = div().p(px(12.))
+                .text_size(px(12.)).line_height(px(18.)).flex().flex_col().gap(px(6.))
+                .child(summary)
+                .child(div().text_color(p.neutral).child(l.text("来源：PyPI", "Source: PyPI")));
+            if let Some(version) = &update.active_version && current_version != Some(version.as_str()) {
+                fields = fields.child(div().flex().flex_wrap().gap(px(6.))
+                    .child(div().text_color(p.neutral).child(l.text("保留版本：", "Retained version:")))
+                    .child(version_value("component-detail-retained-version", version)));
+            }
+            if let Some(version) = &update.requested_version {
+                fields = fields.child(div().flex().flex_wrap().gap(px(6.))
+                    .child(div().text_color(p.neutral).child(l.text("目标版本：", "Target version:")))
+                    .child(version_value("component-detail-target-version", version)));
+            }
+            fields
+        } else {
+            div().p(px(12.)).text_size(px(12.)).text_color(p.neutral)
+                .child(l.text("正在读取组件状态…", "Reading component status…"))
+        };
+        let mut menu = div().id("component-version-menu").w(px(272.)).max_h(px(320.))
+            .overflow_y_scroll().rounded(px(8.)).bg(p.surface)
+            .border_1().border_color(p.control_border())
+            .shadow(vec![BoxShadow { color: black().opacity(if p.night { 0.24 } else { 0.10 }),
+                offset: point(px(0.), px(4.)), blur_radius: px(12.), spread_radius: px(0.) }])
+            .occlude().flex().flex_col()
+            .on_click(|_, _, cx| cx.stop_propagation())
+            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                this.component_menu_open = false;
+                cx.notify();
+            }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+            .child(fields)
+            .child(div().border_t_1().border_color(p.border).p(px(4.))
+                .child(self.button("check-yt-dlp-release",
+                    if checking { l.text("检查中…", "Checking…") }
+                    else { l.text("检查更新", "Check updates") },
+                    self.can_check_upstream(), ButtonStyle::Menu, cx,
+                    |this, window, cx| this.check_upstream(window, cx))));
+        let feedback = if checking {
+            Some((
+                l.text(
+                    "正在检查更新…",
+                    "Checking for updates…",
+                )
+                .to_owned(),
+                false,
+            ))
+        } else if !self.projection.upstream_available && snapshot.is_some() {
+            Some((
+                l.text(
+                    "此模式下无法检查更新。",
+                    "Update checks unavailable in this mode.",
+                )
+                .to_owned(),
+                false,
+            ))
+        } else if !owner_available {
+            Some((
+                l.text("组件服务不可用。", "Component service unavailable.")
+                    .to_owned(),
+                true,
+            ))
+        } else if upstream.worker_running {
+            Some((
+                l.text(
+                    "检查已超时，仍在结束，请稍候。",
+                    "Check timed out; still finishing. Please wait.",
+                )
+                .to_owned(),
+                true,
+            ))
+        } else if upstream.cooldown_remaining_ms > 0 {
+            Some((
+                l.text("请稍候再检查。", "Wait briefly before checking again.")
+                    .to_owned(),
+                false,
+            ))
+        } else if self
+            .upstream_feedback
+            .is_some_and(|(_, accepted)| !accepted)
+        {
+            Some((
+                l.text(
+                    "检查未受理，请稍后重试。",
+                    "Check not accepted. Try again shortly.",
+                )
+                .to_owned(),
+                true,
+            ))
+        } else {
+            None
+        };
+        if feedback.is_some() || (!checking && upstream.result.is_some()) {
+            let mut result_panel = div()
+                .px(px(12.))
+                .pt(px(4.))
+                .pb(px(12.))
+                .text_size(px(12.))
+                .line_height(px(20.))
+                .flex()
+                .flex_col()
+                .gap(px(4.));
+            if let Some((message, danger)) = feedback {
+                result_panel = result_panel.child(
+                    div()
+                        .text_color(if danger { error_text(p) } else { p.neutral })
+                        .child(message),
+                );
+            }
+            if !checking {
+                if let Some(result) = &upstream.result {
+                    let message = match result {
+                        Ok(version) => format!(
+                            "{} {version}",
+                            l.text("最新稳定版本：", "Latest stable release:")
+                        ),
+                        Err(error) => upstream_error(error, l),
+                    };
+                    let mut message_row = div().id("upstream-result")
+                            .text_color(if result.is_err() {
+                                error_text(p)
+                            } else {
+                                p.primary_text()
+                            })
+                            .child(message);
+                    if let Err(error) = result {
+                        let detail = format!("{} {error:?}", l.text("检查详情：", "Check details:"));
+                        message_row = message_row.tooltip(move |_, cx| cx.new(|_| HelpTooltip { text: detail.clone(), night: p.night }).into());
+                    }
+                    result_panel = result_panel.child(message_row);
+                    if let Some(at) = upstream.checked_at_ms {
+                        result_panel = result_panel.child(
+                            div().text_size(px(11.)).text_color(p.neutral).child(
+                                checked_time(
+                                    at,
+                                    ameow_next::download::progress::now_ms(),
+                                    l,
+                                ),
+                            ),
+                        );
+                    }
+                }
+            }
+            menu = menu.child(result_panel);
+        }
+        menu.into_any_element()
+    }
+
+    pub(super) fn can_check_upstream(&self) -> bool {
+        let upstream = self.projection.upstream.snapshot();
+        check_enabled(
+            self.projection.upstream_available
+                && self.projection.queue.as_deref().is_some_and(|s| !s.stopping && !s.stopped),
             check_is_visible(upstream.pending, self.upstream_feedback),
             upstream.worker_running,
             upstream.cooldown_remaining_ms,
-        ) {
-            return;
-        }
+        )
+    }
+
+    pub(super) fn check_upstream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_check_upstream() { return; }
         let accepted = self
             .main
             .update(cx, |main, _| {
@@ -328,298 +475,144 @@ impl SettingsWindow {
             })
             .unwrap_or(false);
         self.upstream_feedback = Some((std::time::Instant::now(), accepted));
-        window.focus(&self.focus);
+        window.focus(if self.component_menu_open { &self.component_menu_focus } else { &self.focus });
         cx.notify();
     }
     pub(super) fn components_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let l = self.projection.language;
         let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
-        let upstream = self.projection.upstream.snapshot();
-        let checking = check_is_visible(upstream.pending, self.upstream_feedback);
-        let owner_available = self.projection.upstream_available
-            && snapshot.is_some_and(|s| !s.stopping && !s.stopped);
-        let enabled = check_enabled(
-            owner_available,
-            checking,
-            upstream.worker_running,
-            upstream.cooldown_remaining_ms,
-        );
         let mut content = div().flex().flex_col().child(self.page_header(
             l.text("组件与诊断", "Components & diagnostics"),
-            l.text(
-                "组件版本与运行状态",
-                "Component versions and runtime status",
-            ),
+            l.text("管理下载所需的组件", "Manage the components used for downloads"),
         ));
+        let needs_attention = snapshot.is_none()
+            || runtime_status(snapshot, l).1
+            || ["yt-dlp", "deno", "ffmpeg"].iter().any(|name| verified_version(snapshot, name).is_none());
+        if needs_attention {
+            content = content.child(self.component_diagnostics(cx));
+        }
         for (index, (name, label)) in [
-            ("yt-dlp", "yt-dlp"),
-            ("deno", "Deno"),
-            ("ffmpeg", "FFmpeg / ffprobe"),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let version =
-                verified_version(snapshot, name).unwrap_or(l.text("不可用", "Unavailable"));
-            let version_value = div()
-                .id(("component-version", index))
-                .flex_none()
-                .max_w(px(192.))
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .px(px(8.))
-                .py(px(2.))
-                .rounded(px(4.))
-                .bg(p.badge.opacity(0.55))
-                .text_size(px(12.))
-                .text_color(p.neutral)
-                .font(tokens::ui_font())
-                .tooltip({
-                    let full_version = version.to_owned();
-                    move |_, cx| {
-                        cx.new(|_| ValueTooltip {
-                            path: full_version.clone(),
-                            night: p.night,
-                        })
-                        .into()
-                    }
-                })
-                .child(version_preview(version));
-            let mut controls = div()
-                .flex()
-                .items_center()
-                .justify_end()
-                .gap(px(12.))
-                .min_w(px(0.))
-                .child(version_value);
-            if name == "yt-dlp" {
-                controls = controls.child(self.button(
-                    "check-yt-dlp-release",
-                    if checking {
-                        l.text("检查中…", "Checking…")
-                    } else {
-                        l.text("检查更新", "Check updates")
-                    },
-                    enabled,
-                    ButtonStyle::Standard,
-                    cx,
-                    |this, window, cx| this.check_upstream(window, cx),
-                ));
-            }
-            let row = div()
-                .min_h(px(64.))
-                .flex()
-                .items_center()
-                .justify_between()
-                .gap(px(12.))
-                .child(div().flex_none().text_size(px(14.)).child(label))
-                .child(controls);
-            let mut section = div()
-                .flex()
-                .flex_col()
-                .border_b_1()
-                .border_color(p.border)
-                .child(row);
-            if name == "yt-dlp" {
-                let feedback = if checking {
-                    Some((
-                        l.text(
-                            "正在检查上游稳定版本…",
-                            "Checking the upstream stable release…",
-                        )
-                        .to_owned(),
-                        false,
-                    ))
-                } else if !self.projection.upstream_available && snapshot.is_some() {
-                    Some((
-                        l.text(
-                            "此模式下无法检查更新。",
-                            "Update checks unavailable in this mode.",
-                        )
-                        .to_owned(),
-                        false,
-                    ))
-                } else if !owner_available {
-                    Some((
-                        l.text("组件服务不可用。", "Component service unavailable.")
-                            .to_owned(),
-                        true,
-                    ))
-                } else if upstream.worker_running {
-                    Some((
-                        l.text(
-                            "检查已超时，仍在结束，请稍候。",
-                            "Check timed out; still finishing. Please wait.",
-                        )
-                        .to_owned(),
-                        true,
-                    ))
-                } else if upstream.cooldown_remaining_ms > 0 {
-                    Some((
-                        l.text("请稍候再检查。", "Wait briefly before checking again.")
-                            .to_owned(),
-                        false,
-                    ))
-                } else if self
-                    .upstream_feedback
-                    .is_some_and(|(_, accepted)| !accepted)
-                {
-                    Some((
-                        l.text(
-                            "检查未受理，请稍后重试。",
-                            "Check not accepted. Try again shortly.",
-                        )
-                        .to_owned(),
-                        true,
-                    ))
-                } else {
-                    None
-                };
-                if feedback.is_some() || (!checking && upstream.result.is_some()) {
-                    let mut result_panel = div()
-                        .mb(px(16.))
-                        .p(px(12.))
-                        .rounded(px(8.))
-                        .bg(p.badge)
-                        .text_size(px(12.))
-                        .line_height(px(20.))
-                        .flex()
-                        .flex_col()
-                        .gap(px(4.));
-                    if let Some((message, danger)) = feedback {
-                        result_panel = result_panel.child(
-                            div()
-                                .text_color(if danger { p.red } else { p.neutral })
-                                .child(message),
-                        );
-                    }
-                    if !checking {
-                        if let Some(result) = &upstream.result {
-                            let message = match result {
-                                Ok(version) => format!(
-                                    "{} {version}",
-                                    l.text("上游稳定版本：", "Upstream stable release:")
-                                ),
-                                Err(error) => upstream_error(error, l),
-                            };
-                            result_panel = result_panel.child(
-                                div()
-                                    .text_color(if result.is_err() {
-                                        p.red
-                                    } else {
-                                        p.primary_text()
-                                    })
-                                    .child(message),
-                            );
-                            if let Some(at) = upstream.checked_at_ms {
-                                result_panel = result_panel.child(
-                                    div().text_size(px(11.)).text_color(p.neutral).child(
-                                        checked_time(
-                                            at,
-                                            ameow_next::download::progress::now_ms(),
-                                            l,
-                                        ),
-                                    ),
-                                );
-                            }
+            ("yt-dlp", "yt-dlp"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe"),
+        ].into_iter().enumerate() {
+            let version = verified_version(snapshot, name).unwrap_or(l.text("不可用", "Unavailable"));
+            let version_value = div().text_size(px(12.)).text_color(p.neutral)
+                .font(tokens::ui_font()).child(version_preview(version));
+            let control = if name == "yt-dlp" {
+                let was_open = self.component_menu_open;
+                let trigger = self.button("component-details",
+                    div().px(px(6.)).flex().items_center().gap(px(6.))
+                        .child(version_value)
+                        .child(svg().path("icons/chevron-down.svg").size(px(12.)).text_color(p.neutral)),
+                    true, ButtonStyle::Quiet, cx, move |this, window, cx| {
+                        this.component_menu_open = !was_open;
+                        if let Some(focus) = this.control_focus.borrow().get("component-details") {
+                            window.focus(focus);
                         }
-                    }
-                    section = section.child(result_panel);
+                        cx.notify();
+                    });
+                let mut anchor = div().relative().flex_none().track_focus(&self.component_menu_focus)
+                    .child(trigger);
+                if self.component_menu_open {
+                    anchor = anchor.child(div().absolute().right_0().top(px(36.))
+                        .child(deferred(anchored().anchor(Corner::TopRight)
+                            .child(self.component_version_menu(cx)))));
                 }
+                anchor.into_any_element()
+            } else {
+                div().id(("component-version", index)).flex_none()
+                    .tooltip({
+                        let full_version = version.to_owned();
+                        move |_, cx| cx.new(|_| ValueTooltip {
+                            path: full_version.clone(), night: p.night,
+                        }).into()
+                    }).child(version_value).into_any_element()
+            };
+            let mut section = div().flex().flex_col().border_b_1().border_color(p.border)
+                .child(div().min_h(px(56.)).flex().items_center().justify_between().gap(px(12.))
+                    .child(div().id(("component-name", index)).flex_none().text_size(px(13.))
+                        .tooltip(move |_, cx| cx.new(|_| HelpTooltip {
+                            text: match name {
+                                "yt-dlp" => l.text("用于获取视频和下载信息。", "Retrieves videos and download information."),
+                                "deno" => l.text("提供部分网站下载所需的脚本支持。", "Runs scripts needed to download from some websites."),
+                                _ => l.text("用于合并和处理音视频。", "Merges and processes audio and video."),
+                            }.into(), night: p.night,
+                        }).into()).child(label))
+                    .child(control));
+            if name == "yt-dlp" {
                 section = section.child(self.engine_update_panel(cx));
             }
             content = content.child(section);
         }
-        let mut actions = div()
-            .flex()
-            .flex_wrap()
-            .justify_end()
-            .gap(px(8.))
+        if !needs_attention {
+            content = content.child(self.component_diagnostics(cx));
+        }
+        content.into_any_element()
+    }
+
+    fn component_diagnostics(&self, cx: &mut Context<Self>) -> AnyElement {
+        let l = self.projection.language;
+        let p = Palette::new(self.projection.night);
+        let snapshot = self.projection.queue.as_deref();
+        let (status, danger) = if snapshot.is_none() && self.projection.error.is_some() {
+            (l.text("组件状态不可用", "Component status unavailable"), true)
+        } else {
+            runtime_status(snapshot, l)
+        };
+        let show_status = danger || ["yt-dlp", "deno", "ffmpeg"].iter()
+            .any(|name| verified_version(snapshot, name).is_none());
+        let mut actions = div().flex().flex_wrap().justify_end().gap(px(8.))
             .child(self.button(
-                "copy-component-diagnostic",
-                l.text("复制组件诊断", "Copy diagnostics"),
+                "copy-component-diagnostic", l.text("复制诊断", "Copy diagnostics"),
                 snapshot.is_some() && !self.projection.preparation_copy_pending,
-                ButtonStyle::Standard,
-                cx,
-                |this, _, cx| {
+                ButtonStyle::Quiet, cx, |this, _, cx| {
                     let _ = this.main.update(cx, |main, cx| {
                         let now = main.now();
-                        if let Some(ui) = &mut main.downloads {
-                            ui.copy_preparation_diagnostic(now);
-                        }
+                        if let Some(ui) = &mut main.downloads { ui.copy_preparation_diagnostic(now); }
                         cx.notify();
                     });
                 },
             ));
         if self.projection.preparation_retry_available {
             actions = actions.child(self.button(
-                "retry-component-preparation",
-                l.text("重试组件准备", "Retry setup"),
-                true,
-                ButtonStyle::Standard,
-                cx,
-                |this, _, cx| {
+                "retry-component-preparation", l.text("重试", "Retry"), true,
+                ButtonStyle::Standard, cx, |this, _, cx| {
                     let _ = this.main.update(cx, |main, cx| {
                         let now = main.now();
-                        if let Some(ui) = &mut main.downloads {
-                            ui.retry_preparation(now);
-                        }
+                        if let Some(ui) = &mut main.downloads { ui.retry_preparation(now); }
                         cx.notify();
                     });
                 },
             ));
         }
-        let mut diagnostic = div().pt(px(20.)).flex().flex_col().gap(px(8.)).child(
-            div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .gap(px(12.))
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .child(l.text("诊断", "Diagnostics")),
-                )
-                .child(actions),
-        );
-        let (status, danger) = if snapshot.is_none() && self.projection.error.is_some() {
-            (
-                l.text("组件状态不可用。", "Component status unavailable."),
-                true,
-            )
+        let mut diagnostic = if show_status {
+            let mut body = div().flex().flex_col().gap(px(6.))
+                .child(div().flex().items_center().gap(px(8.))
+                    .child(svg().path(if danger { "icons/circle-alert.svg" } else { "icons/info.svg" })
+                        .size(px(14.)).flex_none().text_color(if danger { error_text(p) } else { p.neutral }))
+                    .child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM)
+                        .text_color(p.primary_text()).child(status.trim_end_matches('。').trim_end_matches('.').to_owned())));
+            if let Some(failure) = snapshot.and_then(|s| s.preparation.failure.as_ref()) {
+                body = body.child(div().pl(px(22.)).text_size(px(12.)).line_height(px(18.))
+                    .text_color(p.neutral).child(failure_text(failure.category, l)));
+            }
+            div().mb(px(16.)).p(px(12.)).rounded(px(6.)).bg(p.badge.opacity(0.55))
+                .border_1().border_color(p.border).flex().flex_col().gap(px(10.))
+                .child(body).child(actions)
         } else {
-            runtime_status(snapshot, l)
+            div().pt(px(16.)).flex().flex_col().gap(px(8.))
+                .child(div().flex().items_center().justify_between().gap(px(12.))
+                    .child(div().text_size(px(13.)).child(l.text("诊断", "Diagnostics")))
+                    .child(actions))
         };
-        if ["yt-dlp", "deno", "ffmpeg"]
-            .iter()
-            .any(|name| verified_version(snapshot, name).is_none())
-        {
-            diagnostic = diagnostic.child(
-                div()
-                    .text_size(px(12.))
-                    .text_color(if danger { p.red } else { p.neutral })
-                    .child(status),
-            );
-        }
-        if let Some(failure) = snapshot.and_then(|s| s.preparation.failure.as_ref()) {
-            diagnostic = diagnostic.child(
-                div()
-                    .text_size(px(12.))
-                    .text_color(p.red)
-                    .child(failure_text(failure.category, l)),
-            );
-        }
         if let Some((message, danger)) = &self.projection.preparation_status {
-            diagnostic = diagnostic.child(
-                div()
-                    .text_size(px(12.))
-                    .text_color(if *danger { p.red } else { p.neutral })
-                    .child(action_notice(message, l)),
-            );
+            diagnostic = diagnostic.child(div().text_size(px(12.))
+                .text_color(if *danger { error_text(p) } else { p.neutral })
+                .child(action_notice(message, l)));
         }
-        content.child(diagnostic).into_any_element()
+        diagnostic.into_any_element()
     }
+
 }
 
 #[cfg(test)]
@@ -678,14 +671,14 @@ mod tests {
         assert!(
             runtime_status(Some(&snapshot), Language::English)
                 .0
-                .contains("Cleanup unconfirmed")
+                .contains("cleanup could not be confirmed")
         );
         snapshot.preparation_owner_lost = false;
         snapshot.preparation_held = true;
         assert!(
             runtime_status(Some(&snapshot), Language::English)
                 .0
-                .contains("Waiting for cleanup")
+                .contains("being cleaned up")
         );
         snapshot.preparation_held = false;
         snapshot.preparing = true;
@@ -734,6 +727,14 @@ mod tests {
         assert!(!check_enabled(true, false, false, 1));
     }
     #[test]
+    fn checked_age_handles_clock_skew_and_localized_units() {
+        assert_eq!(checked_time(2000, 1000, Language::Chinese), "刚刚检查");
+        assert_eq!(checked_time(0, 60_000, Language::English), "Last checked: 1 minute ago");
+        assert_eq!(checked_time(0, 120_000, Language::Chinese), "上次检查：2 分钟前");
+        assert_eq!(checked_time(0, 3_600_000, Language::English), "Last checked: 1 hour ago");
+        assert_eq!(checked_time(0, 7_200_000, Language::English), "Last checked: 2 hours ago");
+    }
+    #[test]
     fn diagnostic_copy_and_upstream_failures_use_safe_localized_text() {
         for language in [Language::Chinese, Language::English] {
             for error in [
@@ -752,7 +753,7 @@ mod tests {
         );
         assert!(
             checked_time(3661000, 3666000, Language::English)
-                .contains("01:01:01 UTC · 5 seconds ago")
+                .contains("Checked just now")
         );
     }
 }

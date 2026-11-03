@@ -1,275 +1,252 @@
 ---
-name: Ameow
-description: Compact desktop-edge control surfaces for collecting files, images, and web video.
+name: Ameow Next
+description: Native desktop-edge download controls built with Rust and GPUI.
 colors:
-  black-bg-primary: "#201E25"
-  black-bg-secondary: "#323137"
-  black-field-bg: "#2B2A31"
-  black-border: "#4B4951"
-  black-text-primary: "#EEEEEE"
-  black-text-secondary: "#AAAAAA"
-  black-accent-text: "#60a5fa"
-  black-accent-solid: "#3b82f6"
-  black-warning-solid: "#f59e0b"
-  black-warning-text: "#fbbf24"
-  black-danger-solid: "#ef4444"
-  black-danger-text: "#fca5a5"
-  white-bg-primary: "#E3E3E3"
-  white-bg-secondary: "#F5F5F5"
-  white-bg-gradient-end: "#EFEFEF"
-  white-field-bg: "#F7F7F8"
-  white-field-border: "#D8D8DA"
-  white-text-primary: "#333333"
-  white-text-secondary: "#666666"
-  white-accent-solid: "#2563eb"
-  white-warning-solid: "#ea580c"
-  white-danger-solid: "#ef4444"
-  extension-success: "#34d399"
+  night-surface: "#232427"
+  night-neutral: "#A5A8AD"
+  night-border: "#2E3033"
+  night-badge: "#2B2C2F"
+  night-blue: "#3D9AFF"
+  night-orange: "#F68F3C"
+  night-green: "#3CBB72"
+  night-red: "#EE5C61"
+  light-surface: "#FFFFFF"
+  light-neutral: "#62656B"
+  light-border: "#ECEDEF"
+  light-badge: "#F2F2F3"
+  light-blue: "#0285FF"
+  light-orange: "#EF720D"
+  light-green: "#199A4D"
+  light-red: "#E3474C"
 typography:
-  window-title:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "15px"
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: "0"
-  control:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+  floating-progress:
+    fontFamily: "JetBrains Mono, Microsoft YaHei UI, PingFang SC, monospace"
+    fontSize: "14px"
+    fontWeight: 500
+  floating-count:
+    fontFamily: "JetBrains Mono, Microsoft YaHei UI, PingFang SC, monospace"
     fontSize: "12px"
-    fontWeight: 600
-    lineHeight: 1.35
-    letterSpacing: "0"
-  compact-label:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "10px"
-    fontWeight: 600
-    lineHeight: "14px"
-    letterSpacing: "0.08em"
-  micro-status:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontWeight: 500
+  queue-title:
+    fontFamily: "JetBrains Mono, Microsoft YaHei UI, PingFang SC, monospace"
     fontSize: "10px"
     fontWeight: 500
-    lineHeight: 1.35
-    letterSpacing: "0"
+    lineHeight: "14px"
+  queue-status:
+    fontFamily: "JetBrains Mono, Microsoft YaHei UI, PingFang SC, monospace"
+    fontSize: "8px"
+    fontWeight: 400
+    lineHeight: "14px"
+  settings-title:
+    fontFamily: "Segoe UI, Helvetica Neue, Microsoft YaHei UI, PingFang SC, sans-serif"
+    fontSize: "18px"
+    fontWeight: 500
+    lineHeight: "24px"
+  settings-body:
+    fontFamily: "Segoe UI, Helvetica Neue, Microsoft YaHei UI, PingFang SC, sans-serif"
+    fontSize: "13px"
+    lineHeight: "20px"
+  settings-control:
+    fontFamily: "Segoe UI, Helvetica Neue, Microsoft YaHei UI, PingFang SC, sans-serif"
+    fontSize: "13px"
+  settings-hint:
+    fontFamily: "Segoe UI, Helvetica Neue, Microsoft YaHei UI, PingFang SC, sans-serif"
+    fontSize: "12px"
+    lineHeight: "20px"
 rounded:
-  window: "16px"
-  window-large: "18px"
-  context-menu: "8px"
-  card: "12px"
-  field: "10px"
-  pill: "999px"
+  floating-compact: "30px"
+  floating-full: "20px"
+  control: "6px"
+  panel: "8px"
+  toggle: "9px"
+  toggle-knob: "6px"
+  queue-action: "4px"
 spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  lg: "18px"
+  small: "4px"
+  medium: "8px"
+  row-gap: "12px"
+  settings-inset: "24px"
 components:
-  button-primary:
-    backgroundColor: "{colors.black-accent-solid}"
-    textColor: "{colors.white-field-bg}"
-    typography: "{typography.control}"
-    rounded: "{rounded.field}"
-    padding: "8px 14px"
-    height: "36px"
-  field-surface:
-    backgroundColor: "{colors.black-field-bg}"
-    textColor: "{colors.black-text-primary}"
-    typography: "{typography.control}"
-    rounded: "{rounded.field}"
+  settings-button-light:
+    backgroundColor: "{colors.light-surface}"
+    typography: "{typography.settings-control}"
+    rounded: "{rounded.control}"
+    padding: "0 12px"
+    height: "32px"
+  settings-button-night:
+    backgroundColor: "{colors.night-surface}"
+    typography: "{typography.settings-control}"
+    rounded: "{rounded.control}"
+    padding: "0 12px"
+    height: "32px"
+  settings-navigation-selected-light:
+    backgroundColor: "{colors.light-border}"
+    typography: "{typography.settings-control}"
+    rounded: "{rounded.control}"
     padding: "0 12px"
     height: "36px"
-  window-shell:
-    backgroundColor: "{colors.black-bg-primary}"
-    textColor: "{colors.black-text-primary}"
-    rounded: "{rounded.window}"
-  compact-label:
-    textColor: "{colors.black-text-secondary}"
-    typography: "{typography.compact-label}"
+  toggle-on-light:
+    backgroundColor: "{colors.light-blue}"
+    rounded: "{rounded.toggle}"
+    padding: "3px"
+    width: "32px"
+    height: "18px"
+  floating-surface-light:
+    backgroundColor: "{colors.light-surface}"
+    rounded: "{rounded.floating-full}"
+    size: "200px"
+  floating-surface-night:
+    backgroundColor: "{colors.night-surface}"
+    rounded: "{rounded.floating-full}"
+    size: "200px"
 ---
 
-# Design System: Ameow
+# Design System: Ameow Next
 
-## 1. Overview
+## Overview
 
 **Creative North Star: "桌面边缘控制台"**
 
-Ameow 的界面像一个贴在桌面边缘的微型控制台：紧凑、安静、立即响应。它服务的是轻量但高频的桌面收集工作流，用户可能正在浏览网页、整理文件或处理素材，Ameow 不能抢走主任务的注意力。
+保留既有比喻：Ameow 是贴在桌面边缘、随时可用的紧凑控制台。它让用户查看任务、处理队列和调整设置，同时继续手头的桌面工作。当前语言是安静的中性实色表面、明确的状态色、细边界和受控的短动效。
 
-视觉语言由紧凑浮窗、连续圆角、暗亮双主题渐层、内描边、低扩散阴影、软蓝状态光和短促动效组成。蓝色是状态和焦点，不是装饰。警告和错误必须清楚，但要保持在行内、角标、提示或小型状态面中，禁止变成大面积警示块。
-
-Ameow 是 product register。熟悉感是优点，奇怪的控件不是个性。新增界面必须先匹配现有 `ThemeColors` token、`Neon*` primitives 和 `shared-styles.ts` style factory，再考虑局部扩展。
+本文件于 2026-11-03 从当前 Rust / GPUI 源码增量提取，适用于 `ameow-next/`。根目录 Electron 与网站不属于此规范的实现对象。旧版文档保存在 `.impeccable/archive/electron-2026-05-23/`。这是已实现规则的记录，不是重新设计或新的产品验收。
 
 **Key Characteristics:**
 
-- Compact first: 小窗和 200x200 主面板内的信息必须两秒内可扫读。
-- Token led: 颜色从 `ThemeColors` 和 `--fs-*` CSS variables 来，不从组件局部硬编码来。
-- Surface consistent: 核心表面来自 `getWindowShellStyle`、`getPanelShellStyle`、`getFieldSurfaceStyle` 等共享工厂。
-- Stateful neon: glow 只表达 hover、focus、drag、progress、selected、runtime attention。
-- Minimal chrome: 控件默认安静，用户接近或聚焦时才显形。
+- 主浮窗承载紧凑状态；偏好和详细诊断进入独立设置窗口。
+- 颜色以 `tokens::Palette` 为来源，状态语义贯穿进度环、标签和队列。
+- 主浮窗使用等宽拉丁字体，设置与托盘以系统 UI 字体为主。
+- 实色填充、轻边界和现有阴影形成层次，不恢复 Electron 渐层配方。
+- 界面投影真实队列状态；动效和标签不能制造成功、完成率或可用操作。
 
-## 2. Colors
+**Evidence boundary:** 已核对 `tokens.rs`、`model.rs`、`main.rs`、`indicator.rs`、`download_ui.rs`、`settings_window.rs` 和 `settings_components.rs`。本次未重新运行原生视觉验收；源码存在不等于各主题、DPI、语言和交互状态均已验收。
 
-Ameow 使用 restrained 策略：主题中性表面占主导，蓝色、琥珀、红色只承担状态语义。
+## Colors
 
 ### Primary
 
-- **Soft Control Blue** (`black-accent-text`, `black-accent-solid`, `white-accent-solid`): 主操作、选中态、焦点边框、进度环、拖拽/边缘 glow。黑色主题使用更亮的 `#60a5fa` 文本蓝和 `#3b82f6` 实心蓝；白色主题使用更稳的 `#2563eb`。
+下载蓝对应 `Palette.blue`：下载进度、交互焦点和启用开关等明确语义。浅深主题分别使用前置 token 中的 `light-blue` 与 `night-blue`。不要沿用 Electron 的旧蓝色值。
 
 ### Secondary
 
-- **Runtime Amber** (`black-warning-solid`, `black-warning-text`, `white-warning-solid`): 运行时依赖、转码、需要人工注意但不是失败的状态。
-- **Compact Danger Red** (`black-danger-solid`, `black-danger-text`, `white-danger-solid`): 取消、失败、危险 hover 和错误提示。
+转码橙对应 `Palette.orange`；失败红对应 `Palette.red`。错误与等待应清楚可辨，同时保留具体状态文字。
 
 ### Tertiary
 
-- **Extension Success Green** (`extension-success`): 浏览器扩展复制成功等网页注入场景。桌面主应用当前不把绿色作为强成功语义，`successIcon` 在主应用内保持 muted gray。
+完成绿对应 `Palette.green`，`Palette.semantic(Stage::Success)` 明确返回绿色。旧规范“桌面成功态保持灰色”不再适用于 Next。
 
 ### Neutral
 
-- **Black Surface Stack** (`black-bg-primary`, `black-bg-secondary`, `black-field-bg`): 黑色主题的窗口壳、二级表面和字段表面。不是纯黑，带紫灰色温。
-- **White Surface Stack** (`white-bg-primary`, `white-bg-secondary`, `white-field-bg`): 白色主题的窗口壳、二级表面和字段表面。不是纯白，保留轻微灰阶和顶部高光。
-- **Compact Text Stack** (`*-text-primary`, `*-text-secondary`): 主文本必须高对比，辅助文本用于路径、hint、micro status，不承担主要动作。
-- **Border Stack** (`black-border`, `white-field-border`, `accentBorder`, `fieldBorderStrong`): 默认边界安静，active/focus 才进入 accent border。
+`surface` 是主表面与设置背景，`neutral` 是状态和辅助内容，`border` 是分隔与边界，`badge` 是标签和局部容器底色。主文字、禁用文字及控件边框由 `primary_text()`、`disabled_text()`、`control_border()` 派生，不用旧 `ThemeColors` 值替代。
 
-### Named Rules
+**The State-Color Rule.** 下载、转码、完成、失败分别使用实现中的蓝、橙、绿、红。Idle、Resolving、Cancelled 的环采用中性语义，不能将所有状态涂成蓝色。
 
-**The Blue-Is-State Rule.** 蓝色只用于 active、focus、selected、progress、drag、primary action。禁止把蓝色铺成装饰背景。
+**The Native-Token Rule.** 新的 Next 表面先复用 Rust Palette 和现有 GPUI 样式。本文的 YAML 是提取快照，修改实现后同步更新；不要反过来把快照当作另一套运行时 token。
 
-**The Theme-Name Rule.** 代码和文档中的主题名是 `black` / `white`。可以解释为 dark/light，但不要新增另一套命名。
+## Typography
 
-**The No Local Color Rule.** 新组件禁止直接写散落的 hex/rgba。先查 `ThemeColors`，再查 `--fs-*`，确实缺 token 才扩展 token。
+**Display Font:** none
 
-## 3. Typography
+**Body Font:** 主浮窗为 JetBrains Mono；中文按平台回退到 Microsoft YaHei UI 或 PingFang SC。设置和托盘默认使用 `desktop_ui_font()`，即 Windows 上的 Segoe UI、其他分支的 Helvetica Neue，并配置中文回退。
 
-**Display Font:** none  
-**Body Font:** system UI stack (`system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`)  
-**Label/Mono Font:** no separate mono style in product UI
-
-**Character:** Ameow 的字体系统是操作型，不是品牌型。字号小、权重清楚、行高紧，靠层级和截断保持可扫读。
+**Label/Mono Font:** `ui_font()` 与捆绑的 JetBrains Mono 用于主浮窗及部分路径、版本、诊断内容。设置不是所有文字都强制改为同一字体。
 
 ### Hierarchy
 
-- **Window Title** (700, 15px, 1.25): 设置页、UI Lab、二级窗口标题。不要放大成 marketing heading。
-- **Panel Title / Strong Row Text** (600-700, 12-14px, 1.25-1.35): 设置行主标签、队列 badge、状态标题。
-- **Control** (500-600, 12-13px, 1.35): 按钮、字段按钮、菜单项、dropdown option。
-- **Body / Hint** (400-500, 10-11px, 1.35-1.4): 辅助说明、路径、状态解释。长文本必须截断或限制行数。
-- **Compact Label** (600, 10px, 14px, 0.08em uppercase): section label 和结构标签。它是结构，不是强调。
-- **Micro Status** (500, 8-10px, 1.2-1.35): 主窗口进度、runtime footer、极小状态文本。
+- 主进度、计数、队列标题与微型状态使用前置 `floating-*` 和 `queue-*` 角色。
+- 设置标题、正文、按钮与说明使用 `settings-*` 角色。当前设置页标题是 Medium，而非旧文档的 700 字重。
+- 主浮窗标签、路径和队列标题保留现有截断及浏览行为；短状态与操作提示不能挤占进度轨道。
 
-### Named Rules
+前置 fontFamily 列表是可移植描述；原生实际选择由 `ui_font()` 和 `desktop_ui_font()` 的平台分支决定，不是浏览器 CSS 的执行结果。
 
-**The Two-Second Read Rule.** 小窗里的文字必须两秒内能扫完。用短标签、截断路径、两行 clamp，不用段落解释功能。
+## Layout
 
-**The Product Font Rule.** 不引入 display font，不用装饰字体，不让按钮、label、data 使用非系统字体。
+主表面的两个端点来自 `Geometry::at()`：Compact 可见面 60×60，外部留白每侧 10，原生窗口 80×80；Full 可见面 200×200，外部留白每侧 14，原生窗口 228×228。不要把可见面与含阴影留白的窗口边界混为一谈。
 
-## 4. Elevation
+主状态槽为 96×99；主进度环画布为 50×50。浮窗内队列和菜单保持现有空间关系。队列行高 56，内容宽 180；第二行固定为 122 进度轨道 + 4 间隔 + 54 右齐状态。悬停或键盘焦点说明复用状态区域，进度继续更新。
 
-Ameow 通过渐层表面、内描边、内高光和低扩散阴影建立深度。默认表面不靠厚重 drop shadow；浮层、dropdown、二级窗口和 active 状态才提高阴影强度。
+设置采用侧边导航与可滚动内容区；内容区左右留白引用 `settings-inset`，行间距与局部留白复用现有实现。页面标题、说明和控件不能套入主浮窗的微型文字尺度。
+
+设置细节优化沿用既有视觉方向：简单设置行最小高度 56，常规与关于页通过间距组织内容；组件分组保留必要分隔，异常诊断优先于版本详情。键盘切换焦点时将目标带入可视区，溢出内容提供滚动位置提示。浅色设置错误正文使用局部 `#B8323C`，不替换 Palette 的图形状态红。
+
+常规、下载与关于页省略重复副标题；启动项反馈直接位于开关所在行下方，与其他偏好留出 12 间距。下载位置行右侧集中“打开”和“更改”操作，两者均复用标准按钮，间距 8，高度 32、左右留白 12、圆角 6；路径与复制图标直接显示；关于页版本号使用普通右对齐数据文本。
+
+这些是原生逻辑像素几何，不是网页断点。DPI 缩放、实际窗口边界和文字裁剪需要在原生窗口核对，不虚构手机响应式布局或网页路由。
+
+## Elevation & Depth
+
+Next 以实色面、细边界和局部 tonal layer 组织层次。主浮窗保留现有原生阴影；不继承 Electron 三层 CSS 阴影、默认渐层或 `superellipse(1.5)` 实现要求。
 
 ### Shadow Vocabulary
 
-- **Panel Shadow** (`panelShadow`): 默认窗口和卡片阴影。黑色主题是低扩散三层阴影，白色主题透明度更轻。
-- **Compact Shadow** (`panelShadowCompact`): context menu、紧凑浮层和主窗口小型状态的阴影。
-- **Strong Shadow** (`panelShadowStrong`): dropdown menu、强浮层、需要盖过内容的临时面板。
-- **Shadow Backdrop Layer** (`getShadowBackdropStyle`): 在窗口内容外创建透明 absolute 层承载阴影，避免 `overflow: hidden` 裁剪。
-- **Inset Highlight** (`fieldInset`): 所有 field/panel 表面顶部的微弱高光，通常为 `inset 0 1px 0 ...`。
+- 主浮窗：`main.rs` 的 `paint_shadows` 配方随几何插值。Compact 到 Full 的 blur 为 3→5，纵向 offset 为 1→2，spread 为 0；夜间 alpha 为 0.1728→0.24，浅色为 0.0612→0.085。几何与阴影各自遵循现有运动路径。
+- 进度环光晕：`RING_GLOW_OPACITY` 为 0.3，blur 通常为 4，Failure 为 10。它属于进度状态反馈，不能因为不保留外壳 hover glow 而一并删除。
+- 主状态动作 hover：取消／诊断动作保留代码中的红色局部反馈及阴影；这不是整个窗口的 glow 规则。
 
-### Named Rules
+不要把历史反馈中的 glow 要求推广到所有表面，也不要为了“统一”而新增 Full 或 Badge 外壳光晕。该文档只记录已存在的状态反馈。
 
-**The Inset-First Rule.** 控件深度优先用内描边、内高光和 tonal layer。外阴影只用于浮层、hover、active 和窗口外壳。
+## Shapes
 
-**The Glow-Is-Feedback Rule.** glow 是反馈，不是背景。edge glow、drag glow、accent glow 必须由用户接近、拖拽、聚焦或任务状态触发。
+Compact 主表面为圆形端点，Full 为圆角方形端点；半径引用 `floating-compact` 与 `floating-full`。GPUI 的圆角填充与边框合并绘制，以保留当前边缘覆盖和抗锯齿行为。
 
-**The Continuous Corner Rule.** 核心桌面表面使用 `superellipse(1.5)` 和 Electron corner smoothing。不要把新核心表面降级成普通硬圆角。
+设置控件和导航使用 `control`，局部面板使用 `panel`。开关、滑块与队列动作分别使用前置同名角色；不要把旧版统一 10px 字段或 16px 窗口圆角套回 Next。
 
-## 5. Components
+## Components
 
-所有产品级 UI primitive 使用 `Neon` 前缀。新增组件优先组合现有 primitive；需要表面样式时先调用 `shared-styles.ts` 工厂函数。
+### Floating Surface and Progress
 
-### Window Shell
+主面保持静态表面、细描边与现有阴影。进度环、百分比、状态 pill、任务计数和动作由真实任务投影决定。状态 pill 按阶段使用 `Palette.pill()`；主进度环不是旧版 48px CSS SVG 组件。
 
-- **Shape:** 连续圆角，默认窗口 16px，UI Lab 可到 18px，context menu 是 8px。
-- **Background:** `bgGradientStart` 到 `bgGradientEnd` 的纵向渐层。
-- **Border:** 内描边，不做厚重外边框。
-- **Shadow:** 二级窗口优先配合 `getShadowBackdropStyle`，避免阴影被裁切。
-- **Drag Regions:** header 可使用 `WINDOW_DRAG_REGION_STYLE`；交互控件必须使用 no-drag 区域。
+Full 底部不显示全局临时提示文字；目录保存、加入队列、复制结果等不额外占用主浮窗底部。相关队列行、设置页、组件弹窗与退出确认保留各自反馈，不新增替代 toast。
 
-### Field Surfaces
+主状态保留 220ms 进度插值；终态保留时长按现有策略执行。窗口采用当前 Converged 运动实现，不能用旧 Electron 的 spring 参数替换。Reduced motion 分支保留，不能用装饰动画遮住信息。
 
-- **Shape:** 10px 连续圆角。
-- **Default:** 约 36px 高，`0 12px` padding，字段背景从 `fieldBg` 到 `bgSecondary`。
-- **Highlighted:** hover/focus 使用 `borderStart`、`fieldInset` 和文字提亮。
-- **Active:** selected/open/recording 使用 accent border、accent surface 或 accent glow。
-- **Implementation:** 使用 `getFieldSurfaceStyle`，不要组件内复制 surface 配方。
+### Settings Buttons and Fields
 
-### Buttons
+现有设置按钮默认 32 高、左右 12 留白、细边框、系统字体；Quiet、Icon、Select 是实现中的变体。默认填充来自 surface，文字来自 `primary_text()`。Hover 使用 badge，键盘焦点边框使用 blue，禁用文字与行为按实现处理。不要将其重新解释成默认蓝色渐层主按钮。
 
-- **Primary:** 蓝色纵向渐层，10px 圆角，12-14px / 600，默认高度 32/36/40px。
-- **Hover / Focus:** 上浮约 -1px，增加 accent glow 和 inset highlight。
-- **Pressed:** 下压约 1px 并轻微 scale 到 0.985。
-- **Outline / Ghost:** 默认安静，hover/focus 后进入 field surface 语言。
-
-### Icon Buttons
-
-- **Size:** 主窗口 mini controls 可用 16px，默认 chrome 18px，二级窗口关闭按钮常用 20px。
-- **Default:** transparent、muted icon，无边框。
-- **Hover / Focus:** field hover bg、inset border、muted hover text。
-- **Danger:** 只在关闭、取消等语义上使用 danger surface/text。
+Select 变体高 28、左右留白 10、宽 144，字号保持 13；常规动作按钮继续高 32。下拉菜单圆角 6、外侧留白 4，选项高 28、左右留白 6；选中标记使用 8×8 的原生路径。
 
 ### Toggles
 
-- **Shape:** 46x26 pill，18px knob。
-- **Checked:** accent solid background、accent border、accent glow。
-- **Unchecked:** field background、field border、inset highlight。
+32×18 轨道、12×12 滑块、轨道内边距 3；外层透明点击区域保留 40×32，键盘焦点边框绘于外层。选中使用 blue，未选中使用 `control_border()`，滑块使用 surface。禁用态同时影响透明度与可交互性，不能仅改变外观。
 
-### Dropdowns
+### Navigation and Menus
 
-- **Trigger:** `NeonFieldButton` 和 field surface 语言。
-- **Menu:** 10px panel shell，strong shadow，max height 152px。
-- **Motion:** AnimatePresence，0.16s，opacity + y + scale。
+设置导航项高 36，选中使用 border 底色，未选中为透明；hover 和键盘焦点保持各自语义。选择器和主浮窗内菜单沿用现有方向键、Enter/Space、Escape 与焦点行为。拖动区域须与可聚焦交互区域分开。
 
-### Sections And Hints
+设置侧栏宽 144，导航内左右留白 8；文字左侧为 14px Lucide 图标、间距 8。主浮窗右键菜单的隐藏与设置分别使用 Lucide eye-off、settings，16px 呈现；SVG 与原有线条使用相近的 1.2px 描边。
 
-- **Section:** `NeonSection` 使用 10px uppercase label，label 到内容约 9px，section bottom rhythm 18px。
-- **Hint:** `NeonHint` 用 10-11px，tone 包含 default/accent/danger。提示是行内辅助，不是独立警示卡。
+### Queue Rows
 
-### Status Badges
+行内动作采用现有 24×24 图标槽和 2 间隔，第二行遵守固定轨道布局。状态和可用操作由 snapshot、阶段及 pending 状态决定；悬停说明优先于键盘焦点说明，离开后恢复实时状态。不要为文案长度改变轨道宽度。
 
-- **Plugin Status Pill:** 10px / 600，999px pill，active 使用 accent surface，muted 使用 field surface。
-- **Site Login Badge:** 13px 连续圆角，42px 左右高度，左侧状态点表达 ready/danger/muted。
-- **Queue Badge:** 主窗口角标使用 field gradient、blur、inset border 和紧凑数字权重。
-- **Runtime Indicator:** 24px 圆形指示器，琥珀色用于 runtime attention，必须支持 reduced motion。
+### Component Status and Recovery
 
-### Progress And Glow
+设置中的组件状态、版本、检查、更新、恢复、确认与诊断使用当前行和局部面板。待处理操作保持禁用及明确反馈；清理未确认时不能显示虚假的可重试状态。失败或恢复提示按实际语义使用 red 或 neutral，不能只依赖颜色解释问题。
 
-- **Progress Ring:** 24px runtime ring 或 48px foreground ring，stroke 使用 progress token，indeterminate 使用 spin。
-- **Edge Glow:** 鼠标靠近主窗口边缘时出现 radial-gradient 边缘光，mask 到边框区域。
-- **Drag Glow:** 文件拖拽悬停时出现 linear/radial accent glow，表示 drop affordance。
+面向用户的文案优先使用通俗状态、原因及必要下一步；HTTP 状态码、内部阶段与工程细节保留在诊断信息，不常驻界面正文。主浮窗的组件准备弹窗保留“组件名＋状态”标题和一条简短原因／提示，删除复述操作按钮的通用建议；不同网络、文件、权限、存储及取消原因仍准确区分。等待清理或停止异常的限制优先于旧失败原因，准备完成前不提前显示就绪。
 
-### Browser Extension Surfaces
+日常页面直接呈现当前组件版本或不可用状态；yt-dlp 右侧的版本值与下拉箭头共同组成点击入口。版本来源、选择方式、检查更新及检查结果与时间放入右对齐的原生浮层，内容与操作之间使用一条细分割线；组件用途及更新检查错误类别可悬停查看。更新进度、准备失败原因、恢复操作与更新确认继续直接显示；空闲时不常驻更新内部流程说明。
 
-- **Injected Panel:** 使用 Ameow surface tokens，12px panel radius，10px screenshot card radius，必要时可使用 blur。
-- **Overlay Buttons:** 36px circular controls，hover 使用 site accent，danger hover 使用 danger token。
-- **Success:** `#34d399` 只用于网页注入复制成功等局部确认，不代表桌面主应用的全局成功色。
+异常标题、原因与恢复操作组合为单个中性状态区，错误图标保留语义色；底部操作右对齐，次级“复制诊断”在前、“重试”在最右侧。版本浮层宽 272、最大高度 320、圆角 8，使用 surface、细边界与有纵向偏移的柔和阴影；内容以已验证版本号和中性描边的“推荐版本／自选版本”badge 为主、来源为次，不使用固定标签列。无已验证版本时仅显示选择策略，不暗示组件已可用；保留版本与目标版本有真实值时另行显示。支持 Enter/Space 打开、Tab/方向键进入操作、Escape 关闭并返回入口；点击外部、焦点移出、滚动主内容或切换页面时关闭。下载路径的完整值提示只绑定文字区域，右侧独立复制图标按钮保留 32×32 点击区与键盘焦点。
 
-## 6. Do's and Don'ts
+sidecar 的 HTML/CSS 仅是上述原生组件在设计面板中的示意翻译，必须标明这一点，不能当成 GPUI 实际渲染证据。
+
+## Do's and Don'ts
 
 ### Do:
 
-- **Do** 使用 `ThemeColors` 和 `--fs-*` 变量作为颜色来源。
-- **Do** 通过 `shared-styles.ts` 的 style factory 构造窗口壳、面板、字段、选项和 chrome buttons。
-- **Do** 保持 black/white 双主题的同构 token，新增状态时两个主题一起定义。
-- **Do** 使用 `0.18s cubic-bezier(0.22, 1, 0.36, 1)` 作为默认交互反馈。
-- **Do** 对窗口形态变化使用 spring，并尊重 `useReducedMotion()`。
-- **Do** 把警告、错误和运行时依赖状态做成紧凑 inline / badge / indicator。
-- **Do** 让滚动条、dropdown、popover 也继承 Ameow 的 accent 和 surface 语言。
+- **Do** 从当前 Rust Palette、字体函数、Geometry 和具体组件中取值。
+- **Do** 分别核对浅深主题、中英文、DPI、键盘焦点和 reduced motion。
+- **Do** 保持主浮窗、队列与设置的字号和密度职责区别。
+- **Do** 保留真实状态、固定队列轨道、现有环光晕和原生边缘行为。
+- **Do** 将表面使用场景与验证清单放入各自 surface brief。
 
 ### Don't:
 
-- **Don't** 做大面积蓝色、紫色或 neon 背景。蓝色的稀缺性是状态语言的一部分。
-- **Don't** 使用 generic flat gray UI。Ameow 表面需要渐层、内高光、内描边或轻微阴影。
-- **Don't** 使用 loud warning blocks。错误可以强，但不能压过小窗任务。
-- **Don't** 在组件局部散写 hex/rgba，除非正在新增经过命名的 token。
-- **Don't** 新增无 `Neon` 前缀的产品 UI primitive。
-- **Don't** 引入装饰性 glassmorphism。浏览器注入面板可以谨慎 blur，桌面主 UI 不把 blur 当默认容器语言。
-- **Don't** 使用 side-stripe borders、gradient text、hero metrics、营销页卡片网格或重复 icon-card grids。
-- **Don't** 用页面级编排动画。产品加载进任务，不加载进表演。
+- **Don't** 把 Electron 的 ThemeColors、Neon 前缀、CSS variables、渐层或圆角工厂当成 Next 的要求。
+- **Don't** 用系统字体覆盖主浮窗的 JetBrains Mono，或用灰色覆盖完成绿。
+- **Don't** 为追求截图一致而改变任务真值、阶段、可用操作或持久化边界。
+- **Don't** 将 sidecar 预览、源码检查或 Web detector 结果宣称为原生视觉验收。
+- **Don't** 在文档维护中增加新视觉方向、动画、产品能力或未经验证的平台承诺。

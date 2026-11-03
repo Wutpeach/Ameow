@@ -1,0 +1,38 @@
+{
+  "launch": {
+    "pid": 60848,
+    "exe_sha256": "8B314E1616B5030BCF97763A43018E2359B1CAC911B18938CD8B2E5D33872AF6",
+    "profile": "C:/Users/ADMINI~1/AppData/Local/Temp/ameow-settings-polish-0d4f4a24cdea47b8ac8a00d19d7d0ac4",
+    "exe": "D:\\Ameow-worktrees\\tra26-r7-stage-b\\ameow-next\\target\\debug\\ameow-next.exe"
+  },
+  "screenshots": [
+    {
+      "file": "dark-english-general.png",
+      "sha256": "e8d36ac89763c239875680f54427d82dbae42f6f0db97ba9f90cb5e3efe27c92"
+    },
+    {
+      "file": "dark-english-tray-menu.png",
+      "sha256": "03ee9537c4ed1253f05a39dc57beca459486a69ed8f3031f34f3cac07e0c6e94"
+    },
+    {
+      "file": "dark-switch-focus.png",
+      "sha256": "6d7433dfacc1e308fc21633c7a7cf5fede7f7783badd1932631d88be6e908145"
+    },
+    {
+      "file": "light-general.png",
+      "sha256": "87e0ed70453311c0d816d3604743621df4695efd9818311ee16863839710fde6"
+    },
+    {
+      "file": "light-theme-menu.png",
+      "sha256": "1913d8187da9ea1685ea0605f8ef55498c76ba71856ab4705c07327c3373bf1f"
+    }
+  ],
+  "tests": {
+    "settings_": "15 passed; 0 failed"
+  },
+  "limitations": [
+    "Windows 96 DPI",
+    "Enabled startup geometry checked in source only; no OS login change",
+    "Native captures require visible unobscured window"
+  ]
+}

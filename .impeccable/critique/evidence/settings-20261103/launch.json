@@ -1,0 +1,10 @@
+{
+  "mode": "native production application with isolated profile; no submitted downloads",
+  "created": "2026-11-03T15:56:27.4922693+08:00",
+  "exe_sha256": "1FA23C1958292B057985BC453C593D7F6BD437FAFE3E1B85087C6772B8B7D529",
+  "exe": "D:\\Ameow-worktrees\\tra26-r7-stage-b\\ameow-next\\target\\debug\\ameow-next.exe",
+  "pid": 84760,
+  "head": "dadceee0079de173b6864c796047ce703a18494e",
+  "profile": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\ameow-critique-e915621035064770ace69afc6c62e1cc",
+  "evidence": "D:\\Ameow-worktrees\\tra26-r7-stage-b\\.impeccable\\critique\\evidence\\settings-20261103"
+}
