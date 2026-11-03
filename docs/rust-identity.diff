@@ -1,0 +1,82 @@
+--- ameow-next/src/main.rs
++++ src/main.rs
+@@ -32,7 +32,7 @@
+ };
+ use tokens::Palette;
+ 
+-const DIAGNOSTIC: &str = "Ameow Next · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
++const DIAGNOSTIC: &str = "Ameow · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
+ #[derive(Clone, Copy, Default)]
+ enum Magnetic {
+     #[default]
+@@ -1155,7 +1155,7 @@
+                         size(px(80.), px(80.)),
+                     ))),
+                     titlebar: Some(TitlebarOptions {
+-                        title: Some("Ameow Next".into()),
++                        title: Some("Ameow".into()),
+                         appears_transparent: false,
+                         ..Default::default()
+                     }),
+--- ameow-next/src/login_startup.rs
++++ src/login_startup.rs
+@@ -18,6 +18,7 @@
+ const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+ const APPROVAL_KEY: &str =
+     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
++// Preserve existing startup registration and single-instance coordination.
+ const VALUE: &str = "AmeowNext";
+ const MUTEX: &str = r"Local\AmeowNext.SingleInstance";
+ const RESTORE_EVENT: &str = r"Local\AmeowNext.Restore";
+--- ameow-next/src/download/runtime.rs
++++ src/download/runtime.rs
+@@ -327,6 +327,7 @@
+         Ok(PathBuf::from(
+             std::env::var("LOCALAPPDATA").map_err(|e| format!("Managed local data path: {e}"))?,
+         )
++        // Preserve the existing user settings and runtime cache location.
+         .join("AmeowNext/stage-a"))
+     }
+     pub fn prepare(
+--- ameow-next/src/download_bridge.rs
++++ src/download_bridge.rs
+@@ -107,7 +107,7 @@
+             .size_full()
+             .bg(rgb(0x171b21))
+             .text_color(rgb(0xe8edf3))
+-            .child("Ameow Next · Stage A live download probe")
++            .child("Ameow · Stage A live download probe")
+             .child(format!("Foreground ticks: {}", self.ticks))
+             .child(format!(
+                 "Job {} / attempt {} / revision {}",
+@@ -199,7 +199,7 @@
+                     size(px(720.), px(380.)),
+                 ))),
+                 titlebar: Some(TitlebarOptions {
+-                    title: Some("Ameow Next Stage A".into()),
++                    title: Some("Ameow Stage A".into()),
+                     ..Default::default()
+                 }),
+                 ..Default::default()
+--- ameow-next/src/download/diagnostics.rs
++++ src/download/diagnostics.rs
+@@ -219,7 +219,7 @@
+         "unknown"
+     };
+     let mut text = format!(
+-        "Ameow Next {}\nPlatform: windows-x64\nJob: {job}\nSite: {site}\n",
++        "Ameow {}\nPlatform: windows-x64\nJob: {job}\nSite: {site}\n",
+         env!("CARGO_PKG_VERSION")
+     );
+     for (component, version) in versions.iter().take(8) {
+--- ameow-next/src/download/preparation.rs
++++ src/download/preparation.rs
+@@ -238,7 +238,7 @@
+     }
+     pub fn diagnostic(&self) -> String {
+         let mut text = format!(
+-            "Ameow Next {}\nPlatform: windows-x64\nPreparation attempt: {}\n",
++            "Ameow {}\nPlatform: windows-x64\nPreparation attempt: {}\n",
+             env!("CARGO_PKG_VERSION"),
+             self.attempt
+         );

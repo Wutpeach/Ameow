@@ -1,9 +1,0 @@
-{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
-{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer contract for installer -> Rust runtime -> first-launch fallback data flow"}
-{"file": ".trellis/spec/backend/sidecar-runtime-contracts.md", "reason": "Managed runtime install layout, checksum, bootstrap, and runtime resolution contracts"}
-{"file": "src-tauri/src/lib.rs", "reason": "Current managed runtime bootstrap order, install paths, and first-run fallback behavior"}
-{"file": "src-tauri/tauri.conf.json", "reason": "Current packaged resources and Windows bundle boundaries"}
-{"file": "docs/runtime-sidecars/publish-and-rollback.md", "reason": "Pinterest runtime manifest delivery contract and rollback considerations"}
-{"file": "src/App.tsx", "reason": "Current frontend-triggered runtime bootstrap after main window becomes visible"}

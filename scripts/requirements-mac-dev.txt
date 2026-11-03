@@ -1,5 +1,0 @@
-yt-dlp
-fastapi
-uvicorn
-requests
-janus

@@ -5,19 +5,19 @@ description: Troubleshoot Ameow issues by matching the message, task state, or d
 
 When you hit an error, keep the full message. Some parts of Ameow show user-readable error text, while logs or bug reports may include internal error codes. The code helps narrow the direction, but it should be read together with the task state, site, link, and output folder.
 
-When a download fails, Ameow shows a stable error message (for example `Download failed (E_EXECUTION_FAILED)`) with an error classification. Raw `yt-dlp`, `gallery-dl`, or `ffmpeg` output is not shown directly in the interface; to find the specific cause, use the copy icon in the center prompt to send the diagnostics to the developer, or see the common original-message notes below.
+When a download fails, Ameow shows a stable error message (for example `Download failed (E_EXECUTION_FAILED)`) with an error classification. Raw `yt-dlp`, `gallery-dl`, or `ffmpeg` output is not shown directly in the interface; use the current-failure report actions in the main window to send the diagnostics to the developer, or see the common original-message notes below.
 
 Fast rule: **start with the text you can see, use the error code as supporting evidence, then keep the full message when reporting the issue.**
 
-## Copy Diagnostics From The Center Prompt
+## Copy Or Save The Current Failure Report
 
-When a download or transcode fails, Ameow's main window now shows a short plain-language reason first, such as expired login state, network trouble, unavailable save location, or video processing failure. If a copy icon appears next to that message, click it to copy diagnostics for that specific failure.
+When a download fails, Ameow's main window keeps one **Current failure** action strip with **Copy report**, **Save report**, and **Dismiss**. Copy and Save produce the same report for that failure; Save opens the system file picker. A transcode terminal can still show its existing copy action.
 
-The copied content is a readable, sectioned diagnostic report (format version v2) scoped to **this one failure only**. It includes the Ameow version, platform, task trace id, a safe link summary (origin only), internal error code, error classification, diagnostic category, and an ordered attempt summary (engine, cycle, outcome, fallback, auth recovery, and retries are all preserved). Only for Transcode or legacy failures without a structured attempt record does the report attach one bounded, sanitized line of raw process evidence, explicitly labeled as evidence — never as the error classification. The report does **not** include the session runtime-log excerpt or any other task's content.
+The report is a readable, sectioned diagnostic report (format version v2) scoped to **this one failure only**. It includes the Ameow version, platform, task trace id, a safe link summary (origin only), internal error code, error classification, diagnostic category, and an ordered attempt summary (engine, cycle, outcome, fallback, auth recovery, and retries are all preserved). A Download report without typed attempt facts stays sparse; it does not attach raw legacy engine text. Only Transcode failures without a structured attempt record can attach one bounded, sanitized line of raw process evidence, explicitly labeled as evidence — never as the error classification. The report does **not** include the session runtime-log excerpt or any other task's content.
 
 For privacy, the full link, local paths, cookies, tokens, proxy endpoints, and unredacted downloader output never appear in the diagnostics; a short privacy note is included at the end. Paste the whole readable report to the developer when reporting a problem — it is usually more useful than a screenshot of the short message alone.
 
-The **Export diagnostic log** button in Settings remains available for full environment and settings snapshots. The center-prompt copy icon is the faster path for sending one failed task to the developer.
+The current-failure action survives the five-second outcome message and collapse/re-expand, but it is cleared when you dismiss it, start an accepted new download, receive a later failed download, or restart Ameow. It keeps no history. The **Export support log** button in Settings is separate: it exports environment, settings, and runtime-session support data, not one selected failure.
 
 ## Start With The Text You See
 
@@ -125,7 +125,7 @@ This is usually not an error-code problem. Open the current output folder from A
 
 Include as much of this as possible:
 
-1. If the center prompt has a copy icon, paste the whole copied diagnostic report first.
+1. If the main window has Current failure actions, copy or save that report first.
 2. The full error message or a screenshot with the error code.
 3. Ameow version and operating system.
 4. Site type, such as YouTube, Bilibili, X / Twitter, Douyin, or Xiaohongshu.

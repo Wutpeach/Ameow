@@ -1,0 +1,1017 @@
+{
+  "package": "Ameow Brand Assets",
+  "issue": "TRA-29",
+  "source": "Penpot - 新建文件 1 / Page 1",
+  "source_file_id": "c6f51e89-5d00-81ce-8008-de9f6b9b1789",
+  "source_page_id": "c6f51e89-5d00-81ce-8008-de9f6b9b178a",
+  "variants": {
+    "A": {
+      "board_id": "aefa92c0-4ed4-8012-8008-df36282f8d2f",
+      "role": "Default Windows app icon; Light tray follow-appearance"
+    },
+    "B": {
+      "board_id": "aefa92c0-4ed4-8012-8008-df362987eb70",
+      "role": "Night tray follow-appearance"
+    },
+    "C": {
+      "board_id": "aefa92c0-4ed4-8012-8008-df362acef7ee",
+      "role": "User-selectable Ameow Blue tray icon"
+    },
+    "D2": {
+      "board_id": "aefa92c0-4ed4-8012-8008-df362c0c914b",
+      "role": "User-selectable Apricot tray icon"
+    }
+  },
+  "export_method": "Direct vector rendering from Penpot SVG/vector masters at each target size. Penpot Board.export was used for all sizes except 48px, where Penpot's fractional board bounds yielded 49px on some colorways; those four 48px PNGs were rendered at an exact 48x48 viewport from the same exported SVG using Chromium/Edge. No 1024px bitmap downsampling was used.",
+  "main_png_sizes": [
+    1024,
+    512,
+    256
+  ],
+  "tray_png_sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ],
+  "ico_file": "application/ameow.ico",
+  "ico_sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    96,
+    128,
+    256
+  ],
+  "user_adjustments_preserved": {
+    "B": "Nose-bridge radial gradient end offset 0.83",
+    "D2": "Nose-bridge radial gradient endpoint 0.9626546152729497 / 0.40714023264232396"
+  },
+  "validation": {
+    "png_checks": [
+      {
+        "path": "variants/A/ameow-A-1024.png",
+        "size": [
+          1024,
+          1024
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          1024,
+          1024
+        ]
+      },
+      {
+        "path": "variants/A/ameow-A-512.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          512,
+          512
+        ]
+      },
+      {
+        "path": "variants/A/ameow-A-256.png",
+        "size": [
+          256,
+          256
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          256,
+          256
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/16.png",
+        "size": [
+          16,
+          16
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          16,
+          16
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/20.png",
+        "size": [
+          20,
+          20
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          20,
+          20
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/24.png",
+        "size": [
+          24,
+          24
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          24,
+          24
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/32.png",
+        "size": [
+          32,
+          32
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          32,
+          32
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/40.png",
+        "size": [
+          40,
+          40
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          40,
+          40
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/48.png",
+        "size": [
+          48,
+          48
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          48,
+          48
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/light/64.png",
+        "size": [
+          64,
+          64
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          64,
+          64
+        ]
+      },
+      {
+        "path": "variants/B/ameow-B-1024.png",
+        "size": [
+          1024,
+          1024
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          1024,
+          1024
+        ]
+      },
+      {
+        "path": "variants/B/ameow-B-512.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          512,
+          512
+        ]
+      },
+      {
+        "path": "variants/B/ameow-B-256.png",
+        "size": [
+          256,
+          256
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          256,
+          256
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/16.png",
+        "size": [
+          16,
+          16
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          16,
+          16
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/20.png",
+        "size": [
+          20,
+          20
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          20,
+          20
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/24.png",
+        "size": [
+          24,
+          24
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          24,
+          24
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/32.png",
+        "size": [
+          32,
+          32
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          32,
+          32
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/40.png",
+        "size": [
+          40,
+          40
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          40,
+          40
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/48.png",
+        "size": [
+          48,
+          48
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          48,
+          48
+        ]
+      },
+      {
+        "path": "tray/follow-appearance/night/64.png",
+        "size": [
+          64,
+          64
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          64,
+          64
+        ]
+      },
+      {
+        "path": "variants/C/ameow-C-1024.png",
+        "size": [
+          1024,
+          1024
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          1024,
+          1024
+        ]
+      },
+      {
+        "path": "variants/C/ameow-C-512.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          512,
+          512
+        ]
+      },
+      {
+        "path": "variants/C/ameow-C-256.png",
+        "size": [
+          256,
+          256
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          256,
+          256
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/16.png",
+        "size": [
+          16,
+          16
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          16,
+          16
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/20.png",
+        "size": [
+          20,
+          20
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          20,
+          20
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/24.png",
+        "size": [
+          24,
+          24
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          24,
+          24
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/32.png",
+        "size": [
+          32,
+          32
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          32,
+          32
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/40.png",
+        "size": [
+          40,
+          40
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          40,
+          40
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/48.png",
+        "size": [
+          48,
+          48
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          48,
+          48
+        ]
+      },
+      {
+        "path": "tray/ameow-blue/64.png",
+        "size": [
+          64,
+          64
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          64,
+          64
+        ]
+      },
+      {
+        "path": "variants/D2/ameow-D2-1024.png",
+        "size": [
+          1024,
+          1024
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          1024,
+          1024
+        ]
+      },
+      {
+        "path": "variants/D2/ameow-D2-512.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          512,
+          512
+        ]
+      },
+      {
+        "path": "variants/D2/ameow-D2-256.png",
+        "size": [
+          256,
+          256
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "center_alpha": 255,
+        "alpha_bbox": [
+          0,
+          0,
+          256,
+          256
+        ]
+      },
+      {
+        "path": "tray/apricot/16.png",
+        "size": [
+          16,
+          16
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          16,
+          16
+        ]
+      },
+      {
+        "path": "tray/apricot/20.png",
+        "size": [
+          20,
+          20
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          20,
+          20
+        ]
+      },
+      {
+        "path": "tray/apricot/24.png",
+        "size": [
+          24,
+          24
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          24,
+          24
+        ]
+      },
+      {
+        "path": "tray/apricot/32.png",
+        "size": [
+          32,
+          32
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          32,
+          32
+        ]
+      },
+      {
+        "path": "tray/apricot/40.png",
+        "size": [
+          40,
+          40
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          40,
+          40
+        ]
+      },
+      {
+        "path": "tray/apricot/48.png",
+        "size": [
+          48,
+          48
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          48,
+          48
+        ]
+      },
+      {
+        "path": "tray/apricot/64.png",
+        "size": [
+          64,
+          64
+        ],
+        "mode": "RGBA",
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "alpha_bbox": [
+          0,
+          0,
+          64,
+          64
+        ]
+      }
+    ],
+    "ico_frames": [
+      {
+        "size": 16,
+        "corner_alpha": [
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 20,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 24,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 32,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 40,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 48,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 64,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 96,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 128,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "size": 256,
+        "corner_alpha": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "svg_files": {
+      "source/svg/ameow-A.svg": {
+        "bytes": 31367,
+        "sha256": "eec25ed6473f497e837416b2aaa6028de78fffc2b53fe0fb730cd48e3c666bc2"
+      },
+      "source/svg/ameow-B.svg": {
+        "bytes": 31574,
+        "sha256": "227b8ae88b16274945d4e74be375699f7e8e4da10ec9a94211050ef2768a247f"
+      },
+      "source/svg/ameow-C.svg": {
+        "bytes": 31520,
+        "sha256": "41d6c0619c1f33b9ed9ffdf0663e3612de87d6f7b41435c716a597bb6d0d9f18"
+      },
+      "source/svg/ameow-D2.svg": {
+        "bytes": 31699,
+        "sha256": "e1aec57de3bc71b523f0922192291b78cbff3443871312c0b0197fc9b5cc7288"
+      }
+    },
+    "corner_alpha_threshold": 2,
+    "windows_native_loader": {
+      "api": "LoadImageW (IMAGE_ICON | LR_LOADFROMFILE)",
+      "sizes_loaded": [
+        16,
+        20,
+        24,
+        32,
+        40,
+        48,
+        64,
+        96,
+        128,
+        256
+      ],
+      "result": "success"
+    },
+    "application_png_copies_match_A": {
+      "1024": true,
+      "512": true,
+      "256": true
+    }
+  },
+  "ico_frame_pngs": [
+    "application/ico-frames/16.png",
+    "application/ico-frames/20.png",
+    "application/ico-frames/24.png",
+    "application/ico-frames/32.png",
+    "application/ico-frames/40.png",
+    "application/ico-frames/48.png",
+    "application/ico-frames/64.png",
+    "application/ico-frames/96.png",
+    "application/ico-frames/128.png",
+    "application/ico-frames/256.png"
+  ]
+}

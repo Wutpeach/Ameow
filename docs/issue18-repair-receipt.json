@@ -1,0 +1,96 @@
+{
+  "repairCommit": "fd009274045a3e5e21278fc5b861353ab9669ee6",
+  "rootCause": {
+    "autocrlfTrueBefore": {
+      "bytes": 1614,
+      "crlf": 19,
+      "signatureTests": {
+        "passed": 1,
+        "failed": 1
+      },
+      "trustTests": {
+        "passed": 4,
+        "failed": 2
+      }
+    },
+    "freshAutocrlfTrueAfter": {
+      "bytes": 1595,
+      "crlf": 0,
+      "matchesBlob": true,
+      "sha256": "0d7ec4303a02bcbe66154d478852cdf2e07688d39dc4597316e4424ac4e74356"
+    },
+    "localAfter": {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    "productionVerifierUnchanged": true,
+    "fixtureBlobsUnchanged": true,
+    "mutatedCrlfRejected": true
+  },
+  "native": {
+    "pid": 99224,
+    "themesAcknowledged": [
+      "dark",
+      "light"
+    ],
+    "isolatedSettingsTheme": "light",
+    "realSettingsUnchanged": true,
+    "realStartupUnchanged": true,
+    "noActiveDownloadsAtExit": true,
+    "commandsAndReplies": [
+      {
+        "type": "command",
+        "command": "save-settings",
+        "quality": "Balanced",
+        "theme": "dark",
+        "language": "chinese",
+        "tray_icon": "follow_appearance",
+        "elapsed_ms": 36446
+      },
+      {
+        "type": "reply",
+        "reply": "settings-saved",
+        "quality": "Balanced",
+        "theme": "dark",
+        "language": "chinese",
+        "tray_icon": "follow_appearance",
+        "elapsed_ms": 36500
+      },
+      {
+        "type": "command",
+        "command": "save-settings",
+        "quality": "Balanced",
+        "theme": "light",
+        "language": "chinese",
+        "tray_icon": "follow_appearance",
+        "elapsed_ms": 119782
+      },
+      {
+        "type": "reply",
+        "reply": "settings-saved",
+        "quality": "Balanced",
+        "theme": "light",
+        "language": "chinese",
+        "tray_icon": "follow_appearance",
+        "elapsed_ms": 119837
+      }
+    ]
+  },
+  "exit": {
+    "pid": 99224,
+    "exitCode": 0,
+    "termination": "awaited process return after native UI action"
+  },
+  "reusedExe": {
+    "builtCommit": "41150f7c311a6c1ac8be31e69a328d6c83c0f95c",
+    "sha256": "C44C757C17D7296413961A2FA27F798542395C318FAA00EB8CAC12DA9A517850",
+    "reason": "Repair changes checkout attributes, CI paths and cfg(test) assertions only; production code/assets unchanged."
+  },
+  "ci": "See final #18 repair report for exact GitHub run/head/results.",
+  "limits": [
+    "Main-surface menu and complete settings-window clicks not reaccepted; prior #15 interaction evidence reused.",
+    "No sign-in startup, non-admin Portable or broad media matrix rerun.",
+    "No main merge, old branch/worktree deletion or package publication."
+  ]
+}

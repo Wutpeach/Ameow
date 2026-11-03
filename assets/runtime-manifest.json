@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "platform": "windows-x86_64",
+  "components": [
+    {
+      "name": "yt-dlp", "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
+      "bytes": 17840399, "sha256": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A",
+      "license": "GPL-3.0-or-later (official bundled executable); repository Unlicense; bundled EJS 0.8.0 Unlicense with ISC/MIT third-party notices",
+      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.08.19",
+      "files": [{"archive_path": null, "name": "yt-dlp.exe", "sha256": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A", "probe": "--version", "version_contains": "2026.08.19"}]
+    },
+    {
+      "name": "deno", "version": "2.9.7",
+      "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+      "bytes": 42630221, "sha256": "A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238",
+      "license": "MIT", "source": "https://github.com/denoland/deno/tree/v2.9.7",
+      "files": [{"archive_path": "deno.exe", "name": "deno.exe", "sha256": "E020F3E232BD16E33768DEE528E5983349C962952051CED0A5D58AD42F5D9B33", "probe": "--version", "version_contains": "deno 2.9.7"}]
+    },
+    {
+      "name": "ffmpeg", "version": "N-127264-gf5d4fd186c-20261009",
+      "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/autobuild-2026-10-09-19-22/ffmpeg-N-127264-gf5d4fd186c-win64-gpl.zip",
+      "bytes": 200238705, "sha256": "13CC318A840C22F204CBFEF0C6DC6465DA3DB83FF7F87E467A61E2100A9B06DE",
+      "license": "GPL-3.0-or-later; official GPL build enables GPL/version3 without libfdk-aac",
+      "source": "https://github.com/FFmpeg/FFmpeg/tree/f5d4fd186c; recipe https://github.com/yt-dlp/FFmpeg-Builds/tree/autobuild-2026-10-09-19-22",
+      "files": [
+        {"archive_path": "ffmpeg-N-127264-gf5d4fd186c-win64-gpl/bin/ffmpeg.exe", "name": "ffmpeg.exe", "sha256": "C97F1EE4E3003A725F78CA7E22FC756AFB8A45D2C572F80DD3BB808D7FEA300A", "probe": "-version", "version_contains": "N-127264-gf5d4fd186c-20261009"},
+        {"archive_path": "ffmpeg-N-127264-gf5d4fd186c-win64-gpl/bin/ffprobe.exe", "name": "ffprobe.exe", "sha256": "C7E5E22570350BFD73C7AFEDE09F3F1527E5D00E5F5B5F1EC17B56488F06622E", "probe": "-version", "version_contains": "N-127264-gf5d4fd186c-20261009"}
+      ]
+    }
+  ]
+}

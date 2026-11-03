@@ -3,6 +3,10 @@ title: Developer Guide
 description: Ameow developer documentation — how to set up a development environment, find key entry points, and run basic validation.
 ---
 
+> **Version scope:** The content below describes the publicly released Electron v0.3.1. Rust / GPUI is the source development baseline but has no public installer yet; the old extension is not compatible with it. Full documentation updates are tracked in [#19](https://github.com/Wutpeach/Ameow/issues/19).
+
+Current Rust development: run `cargo build --locked` and `cargo test --locked` at the repository root; on Windows launch `target/debug/ameow.exe`. Build this site with `npm ci --prefix site` and `npm --prefix site run build` (Node >=22.19.0). Root npm/Electron commands below apply only to the historical version.
+
 Ameow's developer documentation is for contributors who want to develop or maintain the project. It explains **how to develop, debug, and verify** — it does not carry architecture authority.
 
 ## What's Covered

@@ -3,6 +3,10 @@ title: Local Development
 description: Ameow's dev server startup chain, preflight process, development ports, and renderer URL override.
 ---
 
+> **Version scope:** The content below describes the publicly released Electron v0.3.1. Rust / GPUI is the source development baseline but has no public installer yet; the old extension is not compatible with it. Full documentation updates are tracked in [#19](https://github.com/Wutpeach/Ameow/issues/19).
+
+Current Rust development: run `cargo build --locked` and `cargo test --locked` at the repository root; on Windows launch `target/debug/ameow.exe`. Build this site with `npm ci --prefix site` and `npm --prefix site run build` (Node >=22.19.0). Root npm/Electron commands below apply only to the historical version.
+
 ## Quick Start
 
 ```bash
