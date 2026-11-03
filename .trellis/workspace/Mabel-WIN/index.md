@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 327
+- **Total Sessions**: 328
 - **Last Active**: 2026-11-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~30 | Active |
+| `journal-1.md` | ~53 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 328 | 2026-11-04 | #18 Windows 签名夹具换行 Repair 与正常退出验证 | `fd009274` | `takeover/rust-official-18` |
 | 327 | 2026-11-04 | #18 Rust 正式主线候选与恢复证据 | `41150f7c` | `takeover/rust-official-18` |
 <!-- @@@/auto:session-history -->
 

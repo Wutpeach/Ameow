@@ -2,6 +2,16 @@
 
 授权：[GitHub #18](https://github.com/Wutpeach/Ameow/issues/18)。已完成独立候选整理，供网页 GPT 集中验收；不合并 main、不公开发布、不删除历史分支/工作树。完整结构与恢复限制见 [仓库交接](../../docs/repository-handoff.md)，机器收据见 [validation-receipt.json](../../docs/validation-receipt.json)。
 
+## 2026-11-04 验收 Repair
+
+修复提交 `fd009274045a3e5e21278fc5b861353ab9669ee6`。Windows CI 初次 `cargo test --locked` 的 3 个失败已定位为签名夹具检出换行转换：原 blob 1595 bytes / 19 LF，`core.autocrlf=true` 检出变成 1614 bytes / 19 CRLF；在独立检出复现同名 3 个签名失败。新增 `.gitattributes` 的签名夹具 `-text`，并补充 CRLF 改写必须验签失败的断言。生产验签、信任/缓存逻辑、官方签名和 key 未改；没有跳过测试或降低安全边界。Rust CI 路径同时覆盖 `.gitattributes`。
+
+全新 `core.autocrlf=true` 检出在修复后保留 1595 bytes，SHA256 `0d7ec4303a02bcbe66154d478852cdf2e07688d39dc4597316e4424ac4e74356` 与 blob 相同，按相同 Git 配置检查工作区干净；签名 2 + 信任 6 项定向 release 测试全部通过。已有检出仅切换 commit/restore 可能沿用旧工作区字节，不能据此代替新的 Windows 检出验证。最终 GitHub CI 的精确 head/run/result 以 #18 Repair 回写为准。
+
+复用产品输入未变的已构建 EXE（哈希同原报告），新生产进程 PID 99224 使用独立测试设置，经原生 `T` 按键深色/浅色往返，两次 `save-settings` / `settings-saved` 与落盘值匹配；实际画面见 [紧凑证据](../../docs/evidence/issue18-repair-native.png)。真实用户设置和 Run/StartupApproved 核对未变，退出时无进行中任务。前台 `Alt+F4` 的窗口消失后置条件稳定满足，父进程等到候选正常返回 **exit 0**，没有强杀。原先保留的 PID 60672 也已通过相同正常关闭操作退出。
+
+本节补齐设置偏好保存与空闲正常退出，取代下文早期这两项 NOT VERIFIED；主表面菜单和完整设置窗口点击本轮仍未重新验收，复用 #15 原范围。本机日志以 `repair-` 前缀保存，结构化结果见 [Repair 收据](../../docs/issue18-repair-receipt.json)。其余构建、Pages、保全与历史产品验收复用，未重新跑媒体矩阵，未 merge/main 清理或发行。
+
 ## 提交与改动
 
 实现提交 `41150f7c311a6c1ac8be31e69a328d6c83c0f95c`，父提交为已接受的 Rust `7f8d3b36`。分支 `takeover/rust-official-18`，候选工作树 `D:/Ameow-worktrees/rust-official-18`，干净验证检出 `D:/Ameow-worktrees/rust-official-18-verify`。后续仅有交接资料提交，不改变已构建产品输入。

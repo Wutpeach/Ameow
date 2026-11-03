@@ -28,3 +28,26 @@ Topics: [.trellis/research/issue18-rust-takeover.md](../../research/issue18-rust
 ### Status
 
 [OK] **Completed**
+
+
+## Session 328: #18 Windows 签名夹具换行 Repair 与正常退出验证
+<!-- trellis-session: v=2 fp=b82237665a45264c -->
+
+**Date**: 2026-11-04
+**Task**: #18 Windows 签名夹具换行 Repair 与正常退出验证
+**Branch**: `takeover/rust-official-18`
+
+### Summary
+
+复现 autocrlf=true 把官方签名夹具从1595变为1614字节并导致3个验签测试失败；最小 -text 属性和CRLF篡改拒绝断言已推送。全新同配置检出8项签名信任测试通过。候选原生主题保存往返有实际确认，Alt+F4正常退出码0，原设置及启动注册不变。最终GitHub CI结果回写#18后停止待验收。
+Topics: [.trellis/research/issue18-rust-takeover.md](../../research/issue18-rust-takeover.md)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fd009274` | fix: preserve signed fixture bytes on Windows checkout (#18) |
+
+### Status
+
+[OK] **Completed**
