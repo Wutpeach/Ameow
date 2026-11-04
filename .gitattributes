@@ -1,3 +1,8 @@
 .trellis/workspace/*/journal-*.md merge=union
 # Signed release fixtures must retain their exact upstream bytes on checkout.
 assets/test/yt-dlp-2026.10.26-SHA2-256SUMS* -text
+# Keep the bilingual documentation entry points consistent on Windows checkout.
+/README.md text eol=lf
+/README.en.md text eol=lf
+/site/src/content/docs/docs/index.mdx text eol=lf
+/site/src/content/docs/en/docs/index.mdx text eol=lf

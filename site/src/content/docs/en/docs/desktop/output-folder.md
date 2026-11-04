@@ -7,7 +7,7 @@ In download settings, view, open, change, or copy the output folder. Choose an e
 
 ![Output folder in download settings](/Ameow/images/docs/rust-settings-en-download.png)
 
-This reuses accepted historical #15 evidence with the path redacted, not a new capture. A task retains its folder at submission; changes affect new tasks. If the original folder is unavailable the task may fail rather than silently switch folders. See [missing files](../../troubleshooting/missing-files/).
+The personal path in the image is hidden. A task retains its folder at submission; changes affect new tasks. If the original folder is unavailable the task may fail rather than silently switch folders. See [missing files](../../troubleshooting/missing-files/).
 
 ## Change and find
 

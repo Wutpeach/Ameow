@@ -4,7 +4,7 @@ These are real Windows Rust / GPUI captures reused from existing acceptance evid
 
 | Asset | Provenance and use / 来源与用途 | Processing / 处理 |
 | --- | --- | --- |
-| rust-compact-themes.png | #18 repair, final evidence commit 5a76c480; Compact light/dark theme persistence only / 仅 Compact 明暗主题 | Byte-for-byte copy of docs/evidence/issue18-repair-native.png |
+| rust-compact-themes.png | #18 repair, final evidence commit 5a76c480; Compact light/dark theme persistence only / 仅 Compact 明暗主题 | Byte-for-byte copy of docs/evidence/issue18-repair-native.png; withdrawn from user pages in #19 Repair because its small size and captured purple pointer obscure the product / 因尺寸小且带紫色指针，已从用户页面撤下 |
 | rust-settings-zh-general.png, rust-settings-en-general.png | #15 accepted four-page settings; archived tra28-r10-pages.local light-*-general.png / 常规页，不代表本轮重新验收 | Crop [8,1,572,432] to window, no control changes / 只裁窗口外背景 |
 | rust-settings-zh-download.png, rust-settings-en-download.png | Same #15 acceptance, light-*-download.png / 下载目录设置 | Same crop; solid rectangle [146,172,540,216] covers personal path / 实色遮盖个人路径，未替换为虚构目录 |
 
@@ -13,6 +13,8 @@ Source evidence: [#15](https://github.com/Wutpeach/Ameow/issues/15), [settings r
 #17/T04 process captures with hover tooltips were inspected but are not included. No old Electron SVG mock is presented as a Rust screenshot. No Full/queue screenshot is claimed from the Compact image. Future captures must identify their source revision and real state, redact private data, and preserve a reviewable crop.
 
 Local source and output hashes are retained in the #19 evidence receipt. Published output SHA-256:
+
+#19 display repair uses the existing 564×431 Chinese/English General settings captures on the matching homepages, at their natural aspect ratio. They are clear native Rust UI with no pointer; no new native capture or UI acceptance run was needed. User-facing pages describe the controls naturally; provenance and hashes remain here. The withdrawn Compact asset and its original acceptance evidence are preserved for traceability. / 首页改用相应语言的常规设置实图，保持原比例；无需补拍或重新验收原生界面。
 - rust-settings-zh-general.png: dcc804cba6c013f917bdfa79af2484e94e9b9e9ad0488f930f9699be2241958b
 - rust-settings-zh-download.png: d0ead781246a09f8651b48d4c2bb8c077e1edb7b4f9180bc6362b5e19a103512
 - rust-settings-en-general.png: 02547b43165b38fb86a97bf0b7f523ab7509ae97be266ec476d7338fa987e7c8

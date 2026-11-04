@@ -7,7 +7,7 @@ description: 常用设置
 
 ![常规设置](/Ameow/images/docs/rust-settings-zh-general.png)
 
-复用 #15 已接受的历史截图，并非本次新截图。[输出目录](../output-folder/)展示下载设置；[下载组件](../../advanced/download-dependencies/)说明版本选择。
+在常规页面调整主题、语言和开机启动选项。[输出目录](../output-folder/)展示下载设置；[下载组件](../../advanced/download-dependencies/)说明版本选择。
 
 更名或移动 EXE 后先退出旧版，再启动新版并重建快捷方式或任务栏固定项。曾启用开机启动时在新版设置中重新开启并核对；实际重新登录启动未验证。当前没有应用自动更新、全局快捷键编辑器、手动代理或 AE 兼容设置。
 

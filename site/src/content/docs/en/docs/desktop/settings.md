@@ -7,7 +7,7 @@ Settings include General, Download, Components management, and About. General of
 
 ![General settings](/Ameow/images/docs/rust-settings-en-general.png)
 
-This reuses accepted historical #15 evidence, not a new capture. [Output folder](../output-folder/) shows download settings; [download components](../../advanced/download-dependencies/) explains version selection.
+Adjust theme, language and startup preferences on the General page. [Output folder](../output-folder/) shows download settings; [download components](../../advanced/download-dependencies/) explains version selection.
 
 After renaming or moving the EXE, exit the old version, start the new one, and recreate shortcuts or taskbar pins. If startup was enabled, re-enable it in the new settings and check it; actual startup after signing in again is unverified. Current Rust has no app auto-updater, global hotkey editor, manual proxy, or AE compatibility setting.
 

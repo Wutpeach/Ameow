@@ -7,7 +7,7 @@ description: 输出目录
 
 ![下载设置的输出目录](/Ameow/images/docs/rust-settings-zh-download.png)
 
-复用 #15 已接受的历史截图，路径已遮盖，并非本次新截图。任务固定提交时的目录；后续更改只影响新任务。原目录不可用时任务可能失败，不会悄悄切换目录。见[找不到文件](../../troubleshooting/missing-files/)。
+图中的个人路径已遮盖。任务固定提交时的目录；后续更改只影响新任务。原目录不可用时任务可能失败，不会悄悄切换目录。见[找不到文件](../../troubleshooting/missing-files/)。
 
 ## 更改与查找
 
