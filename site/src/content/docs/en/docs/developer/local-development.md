@@ -1,87 +1,17 @@
 ---
-title: Local Development
-description: Ameow's dev server startup chain, preflight process, development ports, and renderer URL override.
+title: Local development
+description: Run the Rust application from source on Windows x64.
 ---
 
-> **Version scope:** The content below describes the publicly released Electron v0.3.1. Rust / GPUI is the source development baseline but has no public installer yet; the old extension is not compatible with it. Full documentation updates are tracked in [#19](https://github.com/Wutpeach/Ameow/issues/19).
+Install Rust 1.93.0, Visual Studio C++ Build Tools, and the Windows SDK on Windows x64. `rust-toolchain.toml` pins the Rust toolchain. The application itself does not depend on Node, Python, or Electron.
 
-Current Rust development: run `cargo build --locked` and `cargo test --locked` at the repository root; on Windows launch `target/debug/ameow.exe`. Build this site with `npm ci --prefix site` and `npm --prefix site run build` (Node >=22.19.0). Root npm/Electron commands below apply only to the historical version.
+From the repository root:
 
-## Quick Start
-
-```bash
-npm install        # Install root dependencies
-npm run dev        # Start the full development environment
+```powershell
+cargo build --locked
+./target/debug/ameow.exe
 ```
 
-`npm run dev` is equivalent to `npm run electron:dev`. Both run a preflight via the `predev` / `preelectron:dev` hooks.
+Paste a public single-video YouTube or Bilibili link into the application. The old browser extension does not connect to Rust. Settings, runtime selection, cache, and history are kept in `%LOCALAPPDATA%\AmeowNext\stage-a`; do not clear existing data for development.
 
-## Dev Server Startup Chain
-
-`npm run dev` executes the following sequence (`scripts/run-electron-dev.mjs`):
-
-1. **Preflight** (`scripts/dev-preflight.mjs`): checks if locales are stale (runs `locales:sync` only if needed), ensures the bundled Python runtime is cached.
-2. **Vite renderer and TypeScript compile**: starts the Vite dev server at `127.0.0.1:1420` (`strictPort` — fails if the port is taken) and the initial `tsc -p tsconfig.electron.json` compile concurrently; the script then waits for the compile, its output files, and Vite HTTP readiness.
-3. **Electron launch**: after both prerequisites are ready, injects `AMEOW_ELECTRON_DEV_SERVER_URL=http://127.0.0.1:1420` and starts the Electron main process to load the renderer.
-4. **tsc watch**: enters watch mode; on successful TypeScript rebuild, Electron automatically restarts.
-
-If you change Electron code (`electron/` directory) but don't see effects, the tsc watch is likely still rebuilding — wait for the rebuild success message in the console, and Electron will restart automatically.
-
-## Renderer-Only Development
-
-If you only need to debug the frontend (React renderer) without the Electron main process:
-
-```bash
-npm run dev:renderer    # Starts Vite only, port 1420
-```
-
-## Development Ports
-
-| Port | Purpose | Source |
-| --- | --- | --- |
-| 1420 | Vite renderer dev server (strictPort, 127.0.0.1 only) | `vite.config.ts` |
-| 39527 | Extension↔desktop loopback WebSocket (architecture contract, not a dev config) | `electron/main.mts` |
-
-Port 39527 is the loopback WebSocket port for browser extension↔desktop communication. It is created by the Electron main process at startup — it's not something you configure manually. If troubleshooting "extension can't connect to desktop," check whether this port is occupied. Architecture details: [Electron Runtime Foundation](https://github.com/Wutpeach/Ameow/blob/main/docs/electron-runtime-foundation.md).
-
-## Renderer URL Override
-
-When starting an unpackaged Electron main process from the repository, use `AMEOW_FRONTEND_URL` to override the renderer URL it loads:
-
-```bash
-npm run electron:build
-AMEOW_FRONTEND_URL=http://localhost:3000 npm exec -- electron .
-```
-
-In PowerShell, run the build command first, then `$env:AMEOW_FRONTEND_URL = "http://localhost:3000"` and `npm exec -- electron .`. Packaged apps always load `dist/index.html` and ignore this variable.
-
-An unpackaged Electron process resolves the renderer URL in this priority (`electron/windowRouting.mts`):
-
-1. `AMEOW_FRONTEND_URL` (explicit override)
-2. `AMEOW_ELECTRON_DEV_SERVER_URL` (dev server injection)
-3. `http://127.0.0.1:1420` (default dev server)
-
-## Preflight
-
-Preflight runs automatically before each `npm run dev` and does two things:
-
-1. **Locales sync**: checks timestamps of `locales/` source files vs. extension resources — runs `locales:sync` only if stale.
-2. **Python runtime cache**: ensures the bundled Python runtime is downloaded and cached. Skipped if already cached.
-
-Force Python runtime re-verification:
-
-```bash
-AMEOW_FORCE_DEV_PREFLIGHT=1 npm run dev
-```
-
-This is the only way to force the preflight within the full dev flow. `--force` is detected in `dev-preflight.mjs` via `process.argv`, but `npm run dev -- --force` passes `--force` to `run-electron-dev.mjs` (which does not read it), not to the preflight hook — so it does **not** work through `npm run dev -- --force`. To run the preflight standalone with force:
-
-```bash
-node ./scripts/dev-preflight.mjs --force
-```
-
-## Browser Presentation Lab (dev:lab)
-
-`npm run dev:lab` starts a standalone development browser page (entry `lab.html`, source in `src/lab/`) via `vite.lab.config.ts`. It is a pure browser environment: no Electron bridge, no downloader runtime — used to preview and debug shared presentation components and assets without launching the desktop app.
-
-This Lab is still under active development; its tooling and scenarios change frequently, so building long-term workflows around it is not recommended. The historical UI Lab (DEV-only route `/ui-lab`) and its scenario-injection mechanism were removed from main (`30e0e5459`).
+`src/` contains application code, `tests/` integration tests, `assets/` embedded assets and the runtime manifest, and `distribution/` packaging material. The independent `site/` uses Node; see [site development](../docs-and-locales/). Native macOS and Linux operation is unverified.

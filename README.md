@@ -32,6 +32,6 @@ npm ci --prefix site
 npm --prefix site run build
 ```
 
-Pages 地址保持不变，文档正文仍主要描述 Electron v0.3.1；完整内容更新由 [#19](https://github.com/Wutpeach/Ameow/issues/19) 处理，网页选择问题由 [#22](https://github.com/Wutpeach/Ameow/issues/22) 研究。
+Pages 地址保持不变，文档以当前 Rust 源码为准，并明确区分尚未公开发行的 Rust 版与历史 Electron v0.3.1。文档维护由 [#19](https://github.com/Wutpeach/Ameow/issues/19) 跟踪，网页选择问题由 [#22](https://github.com/Wutpeach/Ameow/issues/22) 研究。
 
 应用自有代码采用 [MIT](LICENSE)。第三方代码、字体、图标及运行时适用各自许可，见 [发行材料](distribution/packaging.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。构建不等于发行许可通过；私有包需要匹配当前输入的审核，公开发行 Gate B 继续阻断。本仓库没有自动发布安装包的工作流。
