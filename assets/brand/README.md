@@ -15,3 +15,8 @@ taskbar monitor's small-icon metric, preferring the larger frame on ties. Window
 the icon rasterization; the UI thread caches owned handles by resource and size until
 shutdown. Windows may scale them for nonstandard DPI beyond the provided sizes.
 Follow Appearance maps Light to A and Night to B; Blue and Apricot remain fixed.
+
+The documentation site reuses A: `site/public/ameow.ico` is a byte-for-byte copy
+of this application ICO; `site/public/ameow-logo.png` is its unchanged 256px PNG
+frame, extracted without rescaling. Refresh both copies when the approved application
+icon changes. The favicon uses a new URL to avoid reusing the legacy SVG cache.
