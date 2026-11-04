@@ -98,6 +98,7 @@ fn settings_message(language: Language, message: &str) -> String {
 
 #[derive(Clone)]
 struct Projection {
+    preview: bool,
     path: Option<PathBuf>,
     pending: bool,
     status: SettingsStatus,
@@ -110,6 +111,7 @@ struct Projection {
     preparation_copy_pending: bool,
     preparation_status: Option<(String, bool)>,
     upstream: ameow_next::download::upstream::UpstreamChecker,
+    preview_upstream: Option<ameow_next::download::upstream::UpstreamSnapshot>,
     upstream_available: bool,
     engine_command_pending: bool,
     engine_notice: Option<bool>,
@@ -118,6 +120,7 @@ impl Projection {
     fn from_main(main: &Prototype) -> Self {
         let ui = main.downloads.as_ref();
         Self {
+            preview: main.preview.is_some(),
             path: ui.and_then(|ui| ui.settings()).map(|s| s.output_dir),
             pending: ui.is_some_and(|ui| ui.settings_pending),
             status: ui.map_or(SettingsStatus::Idle, |ui| ui.settings_status.clone()),
@@ -132,10 +135,14 @@ impl Projection {
             preparation_copy_pending: ui.is_some_and(|ui| ui.preparation_copy_pending),
             preparation_status: ui.and_then(|ui| ui.preparation_status_at(main.now())),
             upstream: ui.map(|ui| ui.upstream.clone()).unwrap_or_default(),
+            preview_upstream: None,
             upstream_available: ui.is_some_and(|ui| ui.upstream_check_available()),
             engine_command_pending: ui.is_some_and(|ui| ui.engine_command_pending),
             engine_notice: ui.and_then(|ui| ui.engine_notice),
         }
+    }
+    fn upstream_snapshot(&self) -> ameow_next::download::upstream::UpstreamSnapshot {
+        self.preview_upstream.clone().unwrap_or_else(|| self.upstream.snapshot())
     }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -192,6 +199,7 @@ impl SettingsWindow {
     ) -> Self {
         crate::brand_icons::set_window(hwnd(window));
         let observer = cx.observe(&main, |this, main, cx| {
+            if this.projection.preview { return; }
             let next = Projection::from_main(main.read(cx));
             if next.path != this.projection.path || next.status != this.projection.status {
                 this.notice = None;
@@ -247,6 +255,7 @@ impl SettingsWindow {
                 ticks += 1;
                 if this
                     .update(cx, |this, cx| {
+                        if this.projection.preview { return; }
                         if ticks % 10 == 0 {
                             this.refresh_startup(None, cx);
                         }
@@ -269,6 +278,7 @@ impl SettingsWindow {
         this
     }
     fn refresh_startup(&mut self, change: Option<bool>, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
         if self.startup_pending {
             return;
         }
@@ -296,6 +306,7 @@ impl SettingsWindow {
         language: LanguagePreference,
         cx: &mut Context<Self>,
     ) {
+        if self.projection.preview { return; }
         if self.projection.pending || self.picker_pending || self.projection.preferences.is_none() {
             return;
         }
@@ -619,6 +630,7 @@ impl SettingsWindow {
     }
     fn select_option(&mut self, menu: Page, index: usize, cx: &mut Context<Self>) {
         self.menu = None;
+        if self.projection.preview { cx.notify(); return; }
         if let Some((theme, language, tray_icon)) = self.projection.preferences {
             if menu == Page::General {
                 let next = [
@@ -659,6 +671,7 @@ impl SettingsWindow {
         cx.notify();
     }
     fn refresh_health(&mut self, force: bool, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
         let Some(path) = self.projection.path.clone() else {
             return;
         };
@@ -684,6 +697,7 @@ impl SettingsWindow {
         .detach();
     }
     fn choose(&mut self, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
         if self.picker_pending || self.projection.pending || self.projection.path.is_none() {
             return;
         }
@@ -739,6 +753,7 @@ impl SettingsWindow {
         .detach();
     }
     fn open_directory(&mut self, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
         if self.projection.pending || self.open_pending || self.picker_pending {
             return;
         }
@@ -937,6 +952,7 @@ impl SettingsWindow {
             .into_any_element()
     }
     fn copy_path(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
         if let Some(path) = &self.projection.path {
             self.notice = Some(
                 match crate::tray::copy_text(hwnd(window), &display_path(&path.to_string_lossy())) {
@@ -1125,7 +1141,7 @@ impl SettingsWindow {
                         true,
                         ButtonStyle::Quiet,
                         cx,
-                        |_, _, cx| cx.open_url("https://github.com/Wutpeach/Ameow"),
+                        |this, _, cx| { if !this.projection.preview { cx.open_url("https://github.com/Wutpeach/Ameow"); } },
                     )),
             )
             .into_any_element()
@@ -1632,6 +1648,88 @@ fn show(handle: WindowHandle<SettingsWindow>, first: Option<Anchor>, cx: &mut Ap
     });
 }
 impl Prototype {
+    pub(super) fn apply_preview_settings_scene(&mut self, scene: &crate::preview::Scene, cx: &mut Context<Self>) {
+        self.open_or_focus_settings(cx);
+        let mut projection = Projection::from_main(self);
+        projection.preview = true;
+        projection.path = Some(PathBuf::from(r"C:\Users\Ameow\Downloads"));
+        projection.preferences = Some(Default::default());
+        projection.error = None;
+        projection.pending = false;
+        projection.status = SettingsStatus::Idle;
+        projection.upstream_available = true;
+        let mut upstream = ameow_next::download::upstream::UpstreamSnapshot::default();
+        if let Some(snapshot) = projection.queue.as_mut() {
+            use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
+            let snapshot = std::sync::Arc::make_mut(snapshot);
+            snapshot.preparation.phase = PreparationPhase::Ready;
+            snapshot.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into()), ("deno".into(), "2.5.0".into()), ("ffmpeg".into(), "8.0".into())];
+            match scene.state.as_str() {
+                "missing" => { snapshot.preparation.phase = PreparationPhase::Idle; snapshot.verified_runtime_versions.clear(); },
+                "preparing" => { snapshot.preparing = true; snapshot.preparation.phase = PreparationPhase::Preparing; },
+                "owner-lost" => snapshot.preparation_owner_lost = true,
+                "updating" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Downloading,
+                "update-waiting" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Waiting,
+                "update-failed" => snapshot.runtime_update.phase = RuntimeUpdatePhase::Failed,
+                "restored" => snapshot.runtime_update.phase = RuntimeUpdatePhase::RolledBack,
+                "recovery-required" => snapshot.runtime_update.phase = RuntimeUpdatePhase::RecoveryRequired,
+                _ => {},
+            }
+        }
+        match scene.state.as_str() {
+            "checking" => upstream.pending = true,
+            "check-failed" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Err(ameow_next::download::upstream::UpstreamError::Network)); },
+            "update-available" | "update-confirm" => { upstream.checked_at_ms = Some(ameow_next::download::progress::now_ms()); upstream.result = Some(Ok("2026.11.01".into())); },
+            _ => {},
+        }
+        projection.preview_upstream = Some(upstream);
+        if let Some(handle) = self.settings_window {
+            let _ = handle.update(cx, |view, _, cx| {
+                view.projection = projection;
+                view.startup = Some(Ok(StartupState::Disabled));
+                view.startup_pending = false;
+                view.menu = match scene.state.as_str() {
+                    "theme-menu" => Some(Page::General),
+                    "language-menu" => Some(Page::Download),
+                    "tray-menu" => Some(Page::Components),
+                    _ => None,
+                };
+                view.menu_index = 0;
+                view.health = Some(Ok(()));
+                view.notice = None;
+                view.engine_confirmation = None;
+                view.component_menu_open = matches!(scene.state.as_str(), "checking" | "check-failed");
+                view.page = match scene.surface.as_str() {
+                    "components" | "diagnostics" => Page::Components,
+                    _ if matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
+                    _ => Page::Download,
+                };
+                match (scene.surface.as_str(), scene.state.as_str()) {
+                    ("settings", "startup-enabled") => view.startup = Some(Ok(StartupState::Enabled)),
+                    ("settings", "startup-unavailable") => view.startup = Some(Err("无法读取 Windows 启动应用的批准状态".into())),
+                    ("settings", "startup-pending") => { view.startup = None; view.startup_pending = true; },
+                    ("settings", "saving") => { view.projection.pending = true; view.projection.status = SettingsStatus::Saving; },
+                    ("settings", "saved") => view.projection.status = SettingsStatus::Saved,
+                    ("settings", "save-failed") => view.projection.status = SettingsStatus::Failed("保存未受理，请稍后重试".into()),
+                    ("settings", "unavailable") => { view.projection.path = None; view.projection.error = Some("下载设置尚未就绪，请稍后重试".into()); },
+                    ("settings", "path-unavailable") => view.health = Some(Err("当前目录已不存在或不是文件夹，请重新选择。".into())),
+                    ("settings", "path-denied") => view.health = Some(Err("当前目录无法访问，请检查权限或重新选择。".into())),
+                    ("settings", "path-copied") => view.notice = Some(("完整路径已复制".into(), false)),
+                    ("settings", "path-copy-failed") => view.notice = Some(("无法复制路径，请重试".into(), true)),
+                    ("settings", "open-failed") => view.notice = Some(("无法打开文件夹，请检查目录后重试".into(), true)),
+                    ("settings", "picker-cancelled") => view.notice = Some(("未选择文件夹，目录未更改".into(), false)),
+                    ("diagnostics", "copying") => { view.projection.preparation_copy_pending = true; view.projection.preparation_status = Some(("正在复制组件诊断".into(), false)); },
+                    ("diagnostics", "copied") => view.projection.preparation_status = Some(("已复制组件诊断".into(), false)),
+                    ("diagnostics", "copy-failed") => view.projection.preparation_status = Some(("无法复制组件诊断，请重试".into(), true)),
+                    ("diagnostics", "unavailable") => { view.projection.queue = None; view.projection.error = Some("unavailable".into()); },
+                    ("components", "update-confirm") => view.engine_confirmation = Some(Some("2026.11.01".into())),
+                    _ => {},
+                }
+                view.scroll.set_offset(point(px(0.), px(0.)));
+                cx.notify();
+            });
+        }
+    }
     pub(super) fn open_or_focus_settings(&mut self, cx: &mut Context<Self>) {
         if let Some(handle) = self.settings_window {
             if handle.update(cx, |_, _, _| ()).is_ok() {

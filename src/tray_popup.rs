@@ -12,7 +12,7 @@ use windows::Win32::{
     Foundation::{HWND, POINT, RECT},
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
     UI::WindowsAndMessaging::{
-        GetCursorPos, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
+        GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
         SetWindowPos,
     },
 };
@@ -29,6 +29,7 @@ pub enum Action {
 }
 #[derive(Clone)]
 struct Projection {
+    preview: bool,
     language: Language,
     night: bool,
     reduced: bool,
@@ -45,20 +46,29 @@ struct Summary {
 }
 impl Projection {
     fn from_main(main: &Prototype) -> Self {
+        let preview = main.preview.as_ref().map(|session| session.scene());
+        let mut snapshot = main.downloads.as_ref().and_then(|ui| ui.snapshot.as_deref()).cloned();
+        if let (Some(scene), Some(snapshot)) = (preview, snapshot.as_mut()) { preview_snapshot(snapshot, &scene.state); }
         Self {
+            preview: preview.is_some(),
             language: main.language,
             night: main.night,
             reduced: main.model.reduced,
             summary: summary(
-                main.downloads
-                    .as_ref()
-                    .and_then(|ui| ui.snapshot.as_deref()),
-                main.downloads
-                    .as_ref()
-                    .is_some_and(|ui| ui.startup_error.is_some()),
+                if preview.is_some_and(|scene| scene.state == "startup-failed") { None } else { snapshot.as_ref() },
+                preview.is_some_and(|scene| scene.state == "startup-failed") || main.downloads.as_ref().is_some_and(|ui| ui.startup_error.is_some()),
                 main.language,
             ),
         }
+    }
+}
+
+fn preview_snapshot(snapshot: &mut QueueSnapshot, state: &str) {
+    match state {
+        "preparing" => { snapshot.preparing = true; snapshot.preparation.phase = PreparationPhase::Preparing; },
+        "cleanup-unknown" => snapshot.preparation_owner_lost = true,
+        "stopping" => snapshot.stopping = true,
+        _ => {},
     }
 }
 
@@ -235,7 +245,9 @@ impl TrayPopup {
             cx.notify();
         });
         let activation_actions = actions.clone();
+        let preview = projection.preview;
         let activation = cx.observe_window_activation(window, move |_, window, _| {
+            if preview { return; }
             if !window.is_window_active() {
                 let mut cursor = POINT::default();
                 let on_icon = unsafe { GetCursorPos(&mut cursor).is_ok() }
@@ -262,6 +274,7 @@ impl TrayPopup {
         }
     }
     fn trigger(&mut self, index: usize, window: &mut Window) {
+        if self.projection.preview { return; }
         let action = match index {
             0 if self.projection.summary.clickable => Action::Status,
             1 => Action::Open,
@@ -476,6 +489,10 @@ impl Render for TrayPopup {
     }
 }
 impl Prototype {
+    pub(super) fn apply_preview_tray_scene(&mut self, _scene: &crate::preview::Scene, cx: &mut Context<Self>) {
+        self.close_tray_popup(cx);
+        self.toggle_tray_popup(cx);
+    }
     pub(super) fn close_tray_popup(&mut self, cx: &mut Context<Self>) {
         if let Some(handle) = self.tray_popup.take() {
             if handle
@@ -500,7 +517,10 @@ impl Prototype {
                 return;
             }
         }
-        let Some(anchor) = self.tray.as_ref().map(|tray| tray.popup_anchor()) else {
+        let anchor = if self.preview.is_some() {
+            let (width, height) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+            crate::tray::PopupAnchor { icon: RECT { left: width - 50, top: height - 50, right: width - 20, bottom: height - 20 }, work: RECT { left: 0, top: 0, right: width, bottom: height }, dpi: 96, edge: crate::tray::TaskbarEdge::Bottom }
+        } else if let Some(anchor) = self.tray.as_ref().map(|tray| tray.popup_anchor()) { anchor } else {
             return;
         };
         let scale = (anchor.dpi as f32 / 96.).max(0.01);
@@ -589,6 +609,15 @@ mod tests {
     use super::*;
     use crate::queue_fixture::{job, snapshot};
     use core::prelude::v1::test;
+
+    #[test]
+    fn preview_states_reach_the_real_summary() {
+        for (state, expected) in [("preparing", "Preparing"), ("cleanup-unknown", "Cleanup unknown"), ("stopping", "Stopping safely")] {
+            let mut s = snapshot(vec![]);
+            preview_snapshot(&mut s, state);
+            assert_eq!(summary(Some(&s), false, Language::English).text, expected);
+        }
+    }
 
     #[test]
     fn summary_reports_unknown_idle_preparation_and_cleanup() {

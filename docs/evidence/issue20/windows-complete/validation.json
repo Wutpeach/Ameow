@@ -1,0 +1,483 @@
+{
+  "exe_sha256": "53b590c2e8581d2f659eb14a5aea3f57a24926305935bb86971e76106cdb6e2c",
+  "scenes": 84,
+  "screenshots": 87,
+  "checks": [
+    {
+      "name": "compact.idle acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.resolving acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.downloading acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.unknown acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.audio acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.merging acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.success acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.failure acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.cancelled acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "compact.badge acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.idle acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.downloading acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.success acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.failure acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.cancelled acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.resolving acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.unknown acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.audio acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.merging acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "full.badge acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.empty acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.queued acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.resolving acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.downloading acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.unknown acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.audio acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.merging acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.validating acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.publishing acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.success acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.failure acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.concurrent acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.mixed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.long-title acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.held acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.retry-pending acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.retry-refused acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.copied acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue.copy-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.general acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.download acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.saving acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.saved acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.save-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.unavailable acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.path-unavailable acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.path-denied acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.path-copied acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.path-copy-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.open-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.picker-cancelled acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.theme-menu acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.language-menu acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.tray-menu acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.startup-enabled acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.startup-unavailable acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "settings.startup-pending acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.ready acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.missing acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.preparing acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.checking acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.check-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.update-available acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.update-confirm acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.updating acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.update-waiting acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.update-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.restored acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.recovery-required acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "components.owner-lost acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostics.ready acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostics.copying acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostics.copied acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostics.copy-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostics.unavailable acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.idle acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.downloading acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.mixed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.preparing acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.cleanup-unknown acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.startup-failed acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray.stopping acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "menu.root acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "overlay.exit-confirm acknowledged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "unknown scene explicitly rejected",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "diagnostic copied feedback held beyond 2 seconds",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "queue success row held beyond 500 milliseconds",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "tray remains visible while terminal control owns focus",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "owned control quit exits cleanly",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "other preview process survives owned quit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "real local appdata content unchanged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "system clipboard sequence unchanged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "terminal help, number, name, unknown and q",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "launcher explicit error -Scene",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "launcher explicit error -Exe",
+      "passed": true,
+      "detail": null
+    }
+  ],
+  "limits": "Synthetic fixtures; one Windows desktop/DPI. No network or OS side effect success claims."
+}

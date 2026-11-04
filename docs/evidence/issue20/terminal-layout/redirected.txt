@@ -1,0 +1,157 @@
+已切换：queue.mixed（PID 89020）
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：33  queue.mixed
+已连接 · PID 89020
+
+场景 25–36 / 84 · 第 3/7 页
+  25  queue.unknown                    未知进度
+  26  queue.audio                      音频阶段
+  27  queue.merging                    媒体合并
+  28  queue.validating                 校验媒体
+  29  queue.publishing                 保存文件
+  30  queue.success                    保持成功行
+  31  queue.failure                    失败行及三个操作
+  32  queue.concurrent                 三并发与排队
+> 33  queue.mixed                      下载、排队和失败
+  34  queue.long-title                 长标题及窄标题区域
+  35  queue.held                       清理未确认
+  36  queue.retry-pending              重试处理中
+
+n
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：33  queue.mixed
+已连接 · PID 89020
+
+场景 37–48 / 84 · 第 4/7 页
+  37  queue.retry-refused              重试未受理反馈
+  38  queue.copied                     诊断已复制反馈
+  39  queue.copy-failed                诊断复制失败反馈
+  40  settings.general                 常规页面与主要选项
+  41  settings.download                下载页面与主要选项
+  42  settings.saving                  保存中及禁用控件
+  43  settings.saved                   保存后已确认的设置
+  44  settings.save-failed             保存失败
+  45  settings.unavailable             设置尚未就绪
+  46  settings.path-unavailable        目录不存在
+  47  settings.path-denied             目录无法访问
+  48  settings.path-copied             完整路径已复制反馈
+
+p
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：33  queue.mixed
+已连接 · PID 89020
+
+场景 25–36 / 84 · 第 3/7 页
+  25  queue.unknown                    未知进度
+  26  queue.audio                      音频阶段
+  27  queue.merging                    媒体合并
+  28  queue.validating                 校验媒体
+  29  queue.publishing                 保存文件
+  30  queue.success                    保持成功行
+  31  queue.failure                    失败行及三个操作
+  32  queue.concurrent                 三并发与排队
+> 33  queue.mixed                      下载、排队和失败
+  34  queue.long-title                 长标题及窄标题区域
+  35  queue.held                       清理未确认
+  36  queue.retry-pending              重试处理中
+
+1
+已切换：compact.idle（PID 89020）
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：1  compact.idle
+已切换 · 空闲
+
+场景 1–12 / 84 · 第 1/7 页
+>  1  compact.idle                     空闲
+   2  compact.resolving                解析视频
+   3  compact.downloading              已知进度下载
+   4  compact.unknown                  未知进度下载
+   5  compact.audio                    音频下载阶段
+   6  compact.merging                  合并媒体
+   7  compact.success                  下载成功
+   8  compact.failure                  下载失败及失败 Badge
+   9  compact.cancelled                已取消
+  10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+  11  full.idle                        Full 空闲
+  12  full.downloading                 Full 已知进度
+
+diagnostics.copy-failed
+已切换：diagnostics.copy-failed（PID 89020）
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：74  diagnostics.copy-failed
+已切换 · 诊断复制失败反馈
+
+场景 73–84 / 84 · 第 7/7 页
+  73  diagnostics.copied               诊断复制成功反馈
+> 74  diagnostics.copy-failed          诊断复制失败反馈
+  75  diagnostics.unavailable          诊断不可用
+  76  tray.idle                        托盘弹窗空闲
+  77  tray.downloading                 托盘弹窗下载中
+  78  tray.mixed                       托盘下载、排队和失败
+  79  tray.preparing                   托盘准备组件
+  80  tray.cleanup-unknown             托盘清理未确认
+  81  tray.startup-failed              托盘启动失败
+  82  tray.stopping                    托盘正在停止
+  83  menu.root                        Full 右键菜单
+  84  overlay.exit-confirm             正在下载时退出确认
+
+bad-name
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：74  diagnostics.copy-failed
+未知场景：bad-name。输入 help 查看帮助。
+
+场景 73–84 / 84 · 第 7/7 页
+  73  diagnostics.copied               诊断复制成功反馈
+> 74  diagnostics.copy-failed          诊断复制失败反馈
+  75  diagnostics.unavailable          诊断不可用
+  76  tray.idle                        托盘弹窗空闲
+  77  tray.downloading                 托盘弹窗下载中
+  78  tray.mixed                       托盘下载、排队和失败
+  79  tray.preparing                   托盘准备组件
+  80  tray.cleanup-unknown             托盘清理未确认
+  81  tray.startup-failed              托盘启动失败
+  82  tray.stopping                    托盘正在停止
+  83  menu.root                        Full 右键菜单
+  84  overlay.exit-confirm             正在下载时退出确认
+
+help
+Ameow · 隔离场景预览
+编号 / 名称切换 · n 下一页 · p 上一页
+help 查看帮助 · q 退出
+
+当前：74  diagnostics.copy-failed
+任意编号 / 完整名称均可直达；-List 可输出全部场景。
+
+场景 73–84 / 84 · 第 7/7 页
+  73  diagnostics.copied               诊断复制成功反馈
+> 74  diagnostics.copy-failed          诊断复制失败反馈
+  75  diagnostics.unavailable          诊断不可用
+  76  tray.idle                        托盘弹窗空闲
+  77  tray.downloading                 托盘弹窗下载中
+  78  tray.mixed                       托盘下载、排队和失败
+  79  tray.preparing                   托盘准备组件
+  80  tray.cleanup-unknown             托盘清理未确认
+  81  tray.startup-failed              托盘启动失败
+  82  tray.stopping                    托盘正在停止
+  83  menu.root                        Full 右键菜单
+  84  overlay.exit-confirm             正在下载时退出确认
+
+q

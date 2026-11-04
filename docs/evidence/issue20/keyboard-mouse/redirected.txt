@@ -1,0 +1,152 @@
+已切换：queue.mixed（PID 87320）
+Ameow · 界面分类
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.mixed
+已连接 · PID 87320
+
+1–9 / 9 · 第 1/1 页
+>  1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+3
+Ameow · 界面分类 / 下载队列
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.mixed
+请选择状态；切换后可继续输入本界面的状态编号。
+
+13–19 / 19 · 第 2/2 页
+> 13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+  19  queue.copy-failed                诊断复制失败反馈
+
+n
+Ameow · 界面分类 / 下载队列
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.mixed
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–12 / 19 · 第 1/2 页
+   1  queue.empty                      空队列
+   2  queue.queued                     单任务等待
+   3  queue.resolving                  单任务解析
+   4  queue.downloading                已知进度与速度
+   5  queue.unknown                    未知进度
+   6  queue.audio                      音频阶段
+   7  queue.merging                    媒体合并
+   8  queue.validating                 校验媒体
+   9  queue.publishing                 保存文件
+  10  queue.success                    保持成功行
+  11  queue.failure                    失败行及三个操作
+  12  queue.concurrent                 三并发与排队
+
+p
+Ameow · 界面分类 / 下载队列
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.mixed
+请选择状态；切换后可继续输入本界面的状态编号。
+
+13–19 / 19 · 第 2/2 页
+> 13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+  19  queue.copy-failed                诊断复制失败反馈
+
+19
+已切换：queue.copy-failed（PID 87320）
+Ameow · 界面分类 / 下载队列
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.copy-failed
+已切换 · 诊断复制失败反馈
+
+13–19 / 19 · 第 2/2 页
+  13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+> 19  queue.copy-failed                诊断复制失败反馈
+
+b
+Ameow · 界面分类
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：queue.copy-failed
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+>  1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+diagnostics.copied
+已切换：diagnostics.copied（PID 87320）
+Ameow · 界面分类 / 诊断
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：diagnostics.copied
+已切换 · 诊断复制成功反馈
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+>  3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+help
+Ameow · 界面分类 / 诊断
+编号 / 名称选择 · n / p 翻页
+b 返回分类 · help 帮助 · q 退出
+Esc 返回 · q 退出
+
+当前预览：diagnostics.copied
+编号选择当前目录；完整场景名直达；b 返回分类。
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+>  3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+q

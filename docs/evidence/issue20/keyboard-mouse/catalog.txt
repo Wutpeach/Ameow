@@ -1,0 +1,85 @@
+Ameow 隔离预览 · 完整目录（可用 -Scene 加完整名称直达）
+ 1  compact.idle                     空闲
+ 2  compact.resolving                解析视频
+ 3  compact.downloading              已知进度下载
+ 4  compact.unknown                  未知进度下载
+ 5  compact.audio                    音频下载阶段
+ 6  compact.merging                  合并媒体
+ 7  compact.success                  下载成功
+ 8  compact.failure                  下载失败及失败 Badge
+ 9  compact.cancelled                已取消
+10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+11  full.idle                        Full 空闲
+12  full.downloading                 Full 已知进度
+13  full.success                     Full 成功反馈
+14  full.failure                     Full 失败反馈
+15  full.cancelled                   Full 取消反馈
+16  full.resolving                   Full 解析中
+17  full.unknown                     Full 未知进度
+18  full.audio                       Full 音频阶段
+19  full.merging                     Full 合并阶段
+20  full.badge                       Full 多任务和失败 Badge
+21  queue.empty                      空队列
+22  queue.queued                     单任务等待
+23  queue.resolving                  单任务解析
+24  queue.downloading                已知进度与速度
+25  queue.unknown                    未知进度
+26  queue.audio                      音频阶段
+27  queue.merging                    媒体合并
+28  queue.validating                 校验媒体
+29  queue.publishing                 保存文件
+30  queue.success                    保持成功行
+31  queue.failure                    失败行及三个操作
+32  queue.concurrent                 三并发与排队
+33  queue.mixed                      下载、排队和失败
+34  queue.long-title                 长标题及窄标题区域
+35  queue.held                       清理未确认
+36  queue.retry-pending              重试处理中
+37  queue.retry-refused              重试未受理反馈
+38  queue.copied                     诊断已复制反馈
+39  queue.copy-failed                诊断复制失败反馈
+40  settings.general                 常规页面与主要选项
+41  settings.download                下载页面与主要选项
+42  settings.saving                  保存中及禁用控件
+43  settings.saved                   保存后已确认的设置
+44  settings.save-failed             保存失败
+45  settings.unavailable             设置尚未就绪
+46  settings.path-unavailable        目录不存在
+47  settings.path-denied             目录无法访问
+48  settings.path-copied             完整路径已复制反馈
+49  settings.path-copy-failed        路径复制失败反馈
+50  settings.open-failed             打开目录失败
+51  settings.picker-cancelled        未选择文件夹
+52  settings.theme-menu              常规：主题选项
+53  settings.language-menu           常规：语言选项
+54  settings.tray-menu               常规：托盘图标选项
+55  settings.startup-enabled         开机启动已启用
+56  settings.startup-unavailable     开机启动状态不可用
+57  settings.startup-pending         开机启动读取中
+58  components.ready                 组件版本与就绪
+59  components.missing               组件尚未准备
+60  components.preparing             组件准备中
+61  components.checking              检查更新中
+62  components.check-failed          检查更新失败
+63  components.update-available      可更新版本
+64  components.update-confirm        更新确认层
+65  components.updating              组件更新中
+66  components.update-waiting        等待当前任务结束
+67  components.update-failed         更新失败
+68  components.restored              已恢复推荐版本
+69  components.recovery-required     需要恢复组件
+70  components.owner-lost            组件清理未确认
+71  diagnostics.ready                诊断可复制
+72  diagnostics.copying              诊断复制中
+73  diagnostics.copied               诊断复制成功反馈
+74  diagnostics.copy-failed          诊断复制失败反馈
+75  diagnostics.unavailable          诊断不可用
+76  tray.idle                        托盘弹窗空闲
+77  tray.downloading                 托盘弹窗下载中
+78  tray.mixed                       托盘下载、排队和失败
+79  tray.preparing                   托盘准备组件
+80  tray.cleanup-unknown             托盘清理未确认
+81  tray.startup-failed              托盘启动失败
+82  tray.stopping                    托盘正在停止
+83  menu.root                        Full 右键菜单
+84  overlay.exit-confirm             正在下载时退出确认

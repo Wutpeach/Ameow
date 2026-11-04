@@ -1,0 +1,965 @@
+已切换：queue.mixed（PID 94136）
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.mixed
+已连接 · PID 94136
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+1
+Ameow · 界面分类 / 折叠主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.mixed
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–10 / 10 · 第 1/1 页
+   1  compact.idle                     空闲
+   2  compact.resolving                解析视频
+   3  compact.downloading              已知进度下载
+   4  compact.unknown                  未知进度下载
+   5  compact.audio                    音频下载阶段
+   6  compact.merging                  合并媒体
+   7  compact.success                  下载成功
+   8  compact.failure                  下载失败及失败 Badge
+   9  compact.cancelled                已取消
+  10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+
+1
+已切换：compact.idle（PID 94136）
+Ameow · 界面分类 / 折叠主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：compact.idle
+已切换 · 空闲
+
+1–10 / 10 · 第 1/1 页
+>  1  compact.idle                     空闲
+   2  compact.resolving                解析视频
+   3  compact.downloading              已知进度下载
+   4  compact.unknown                  未知进度下载
+   5  compact.audio                    音频下载阶段
+   6  compact.merging                  合并媒体
+   7  compact.success                  下载成功
+   8  compact.failure                  下载失败及失败 Badge
+   9  compact.cancelled                已取消
+  10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+
+10
+已切换：compact.badge（PID 94136）
+Ameow · 界面分类 / 折叠主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：compact.badge
+已切换 · 多任务与失败数据（Compact 隐藏 Badge）
+
+1–10 / 10 · 第 1/1 页
+   1  compact.idle                     空闲
+   2  compact.resolving                解析视频
+   3  compact.downloading              已知进度下载
+   4  compact.unknown                  未知进度下载
+   5  compact.audio                    音频下载阶段
+   6  compact.merging                  合并媒体
+   7  compact.success                  下载成功
+   8  compact.failure                  下载失败及失败 Badge
+   9  compact.cancelled                已取消
+> 10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+
+999
+Ameow · 界面分类 / 折叠主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：compact.badge
+编号超出范围，请输入 1–10。
+
+1–10 / 10 · 第 1/1 页
+   1  compact.idle                     空闲
+   2  compact.resolving                解析视频
+   3  compact.downloading              已知进度下载
+   4  compact.unknown                  未知进度下载
+   5  compact.audio                    音频下载阶段
+   6  compact.merging                  合并媒体
+   7  compact.success                  下载成功
+   8  compact.failure                  下载失败及失败 Badge
+   9  compact.cancelled                已取消
+> 10  compact.badge                    多任务与失败数据（Compact 隐藏 Badge）
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：compact.badge
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+2
+Ameow · 界面分类 / 展开主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：compact.badge
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–10 / 10 · 第 1/1 页
+   1  full.idle                        Full 空闲
+   2  full.downloading                 Full 已知进度
+   3  full.success                     Full 成功反馈
+   4  full.failure                     Full 失败反馈
+   5  full.cancelled                   Full 取消反馈
+   6  full.resolving                   Full 解析中
+   7  full.unknown                     Full 未知进度
+   8  full.audio                       Full 音频阶段
+   9  full.merging                     Full 合并阶段
+  10  full.badge                       Full 多任务和失败 Badge
+
+1
+已切换：full.idle（PID 94136）
+Ameow · 界面分类 / 展开主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：full.idle
+已切换 · Full 空闲
+
+1–10 / 10 · 第 1/1 页
+>  1  full.idle                        Full 空闲
+   2  full.downloading                 Full 已知进度
+   3  full.success                     Full 成功反馈
+   4  full.failure                     Full 失败反馈
+   5  full.cancelled                   Full 取消反馈
+   6  full.resolving                   Full 解析中
+   7  full.unknown                     Full 未知进度
+   8  full.audio                       Full 音频阶段
+   9  full.merging                     Full 合并阶段
+  10  full.badge                       Full 多任务和失败 Badge
+
+10
+已切换：full.badge（PID 94136）
+Ameow · 界面分类 / 展开主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：full.badge
+已切换 · Full 多任务和失败 Badge
+
+1–10 / 10 · 第 1/1 页
+   1  full.idle                        Full 空闲
+   2  full.downloading                 Full 已知进度
+   3  full.success                     Full 成功反馈
+   4  full.failure                     Full 失败反馈
+   5  full.cancelled                   Full 取消反馈
+   6  full.resolving                   Full 解析中
+   7  full.unknown                     Full 未知进度
+   8  full.audio                       Full 音频阶段
+   9  full.merging                     Full 合并阶段
+> 10  full.badge                       Full 多任务和失败 Badge
+
+999
+Ameow · 界面分类 / 展开主界面
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：full.badge
+编号超出范围，请输入 1–10。
+
+1–10 / 10 · 第 1/1 页
+   1  full.idle                        Full 空闲
+   2  full.downloading                 Full 已知进度
+   3  full.success                     Full 成功反馈
+   4  full.failure                     Full 失败反馈
+   5  full.cancelled                   Full 取消反馈
+   6  full.resolving                   Full 解析中
+   7  full.unknown                     Full 未知进度
+   8  full.audio                       Full 音频阶段
+   9  full.merging                     Full 合并阶段
+> 10  full.badge                       Full 多任务和失败 Badge
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：full.badge
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+3
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：full.badge
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–12 / 19 · 第 1/2 页
+   1  queue.empty                      空队列
+   2  queue.queued                     单任务等待
+   3  queue.resolving                  单任务解析
+   4  queue.downloading                已知进度与速度
+   5  queue.unknown                    未知进度
+   6  queue.audio                      音频阶段
+   7  queue.merging                    媒体合并
+   8  queue.validating                 校验媒体
+   9  queue.publishing                 保存文件
+  10  queue.success                    保持成功行
+  11  queue.failure                    失败行及三个操作
+  12  queue.concurrent                 三并发与排队
+
+1
+已切换：queue.empty（PID 94136）
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.empty
+已切换 · 空队列
+
+1–12 / 19 · 第 1/2 页
+>  1  queue.empty                      空队列
+   2  queue.queued                     单任务等待
+   3  queue.resolving                  单任务解析
+   4  queue.downloading                已知进度与速度
+   5  queue.unknown                    未知进度
+   6  queue.audio                      音频阶段
+   7  queue.merging                    媒体合并
+   8  queue.validating                 校验媒体
+   9  queue.publishing                 保存文件
+  10  queue.success                    保持成功行
+  11  queue.failure                    失败行及三个操作
+  12  queue.concurrent                 三并发与排队
+
+19
+已切换：queue.copy-failed（PID 94136）
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+已切换 · 诊断复制失败反馈
+
+13–19 / 19 · 第 2/2 页
+  13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+> 19  queue.copy-failed                诊断复制失败反馈
+
+999
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+编号超出范围，请输入 1–19。
+
+13–19 / 19 · 第 2/2 页
+  13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+> 19  queue.copy-failed                诊断复制失败反馈
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+4
+Ameow · 界面分类 / 设置
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–12 / 18 · 第 1/2 页
+   1  settings.general                 常规页面与主要选项
+   2  settings.download                下载页面与主要选项
+   3  settings.saving                  保存中及禁用控件
+   4  settings.saved                   保存后已确认的设置
+   5  settings.save-failed             保存失败
+   6  settings.unavailable             设置尚未就绪
+   7  settings.path-unavailable        目录不存在
+   8  settings.path-denied             目录无法访问
+   9  settings.path-copied             完整路径已复制反馈
+  10  settings.path-copy-failed        路径复制失败反馈
+  11  settings.open-failed             打开目录失败
+  12  settings.picker-cancelled        未选择文件夹
+
+1
+已切换：settings.general（PID 94136）
+Ameow · 界面分类 / 设置
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：settings.general
+已切换 · 常规页面与主要选项
+
+1–12 / 18 · 第 1/2 页
+>  1  settings.general                 常规页面与主要选项
+   2  settings.download                下载页面与主要选项
+   3  settings.saving                  保存中及禁用控件
+   4  settings.saved                   保存后已确认的设置
+   5  settings.save-failed             保存失败
+   6  settings.unavailable             设置尚未就绪
+   7  settings.path-unavailable        目录不存在
+   8  settings.path-denied             目录无法访问
+   9  settings.path-copied             完整路径已复制反馈
+  10  settings.path-copy-failed        路径复制失败反馈
+  11  settings.open-failed             打开目录失败
+  12  settings.picker-cancelled        未选择文件夹
+
+18
+已切换：settings.startup-pending（PID 94136）
+Ameow · 界面分类 / 设置
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：settings.startup-pending
+已切换 · 开机启动读取中
+
+13–18 / 18 · 第 2/2 页
+  13  settings.theme-menu              常规：主题选项
+  14  settings.language-menu           常规：语言选项
+  15  settings.tray-menu               常规：托盘图标选项
+  16  settings.startup-enabled         开机启动已启用
+  17  settings.startup-unavailable     开机启动状态不可用
+> 18  settings.startup-pending         开机启动读取中
+
+999
+Ameow · 界面分类 / 设置
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：settings.startup-pending
+编号超出范围，请输入 1–18。
+
+13–18 / 18 · 第 2/2 页
+  13  settings.theme-menu              常规：主题选项
+  14  settings.language-menu           常规：语言选项
+  15  settings.tray-menu               常规：托盘图标选项
+  16  settings.startup-enabled         开机启动已启用
+  17  settings.startup-unavailable     开机启动状态不可用
+> 18  settings.startup-pending         开机启动读取中
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：settings.startup-pending
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+5
+Ameow · 界面分类 / 组件管理
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：settings.startup-pending
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–12 / 13 · 第 1/2 页
+   1  components.ready                 组件版本与就绪
+   2  components.missing               组件尚未准备
+   3  components.preparing             组件准备中
+   4  components.checking              检查更新中
+   5  components.check-failed          检查更新失败
+   6  components.update-available      可更新版本
+   7  components.update-confirm        更新确认层
+   8  components.updating              组件更新中
+   9  components.update-waiting        等待当前任务结束
+  10  components.update-failed         更新失败
+  11  components.restored              已恢复推荐版本
+  12  components.recovery-required     需要恢复组件
+
+1
+已切换：components.ready（PID 94136）
+Ameow · 界面分类 / 组件管理
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：components.ready
+已切换 · 组件版本与就绪
+
+1–12 / 13 · 第 1/2 页
+>  1  components.ready                 组件版本与就绪
+   2  components.missing               组件尚未准备
+   3  components.preparing             组件准备中
+   4  components.checking              检查更新中
+   5  components.check-failed          检查更新失败
+   6  components.update-available      可更新版本
+   7  components.update-confirm        更新确认层
+   8  components.updating              组件更新中
+   9  components.update-waiting        等待当前任务结束
+  10  components.update-failed         更新失败
+  11  components.restored              已恢复推荐版本
+  12  components.recovery-required     需要恢复组件
+
+13
+已切换：components.owner-lost（PID 94136）
+Ameow · 界面分类 / 组件管理
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：components.owner-lost
+已切换 · 组件清理未确认
+
+13–13 / 13 · 第 2/2 页
+> 13  components.owner-lost            组件清理未确认
+
+999
+Ameow · 界面分类 / 组件管理
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：components.owner-lost
+编号超出范围，请输入 1–13。
+
+13–13 / 13 · 第 2/2 页
+> 13  components.owner-lost            组件清理未确认
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：components.owner-lost
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+6
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：components.owner-lost
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+   3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+1
+已切换：diagnostics.ready（PID 94136）
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.ready
+已切换 · 诊断可复制
+
+1–5 / 5 · 第 1/1 页
+>  1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+   3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+5
+已切换：diagnostics.unavailable（PID 94136）
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.unavailable
+已切换 · 诊断不可用
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+   3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+>  5  diagnostics.unavailable          诊断不可用
+
+999
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.unavailable
+编号超出范围，请输入 1–5。
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+   3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+>  5  diagnostics.unavailable          诊断不可用
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.unavailable
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+7
+Ameow · 界面分类 / 托盘弹窗
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.unavailable
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–7 / 7 · 第 1/1 页
+   1  tray.idle                        托盘弹窗空闲
+   2  tray.downloading                 托盘弹窗下载中
+   3  tray.mixed                       托盘下载、排队和失败
+   4  tray.preparing                   托盘准备组件
+   5  tray.cleanup-unknown             托盘清理未确认
+   6  tray.startup-failed              托盘启动失败
+   7  tray.stopping                    托盘正在停止
+
+1
+已切换：tray.idle（PID 94136）
+Ameow · 界面分类 / 托盘弹窗
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：tray.idle
+已切换 · 托盘弹窗空闲
+
+1–7 / 7 · 第 1/1 页
+>  1  tray.idle                        托盘弹窗空闲
+   2  tray.downloading                 托盘弹窗下载中
+   3  tray.mixed                       托盘下载、排队和失败
+   4  tray.preparing                   托盘准备组件
+   5  tray.cleanup-unknown             托盘清理未确认
+   6  tray.startup-failed              托盘启动失败
+   7  tray.stopping                    托盘正在停止
+
+7
+已切换：tray.stopping（PID 94136）
+Ameow · 界面分类 / 托盘弹窗
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：tray.stopping
+已切换 · 托盘正在停止
+
+1–7 / 7 · 第 1/1 页
+   1  tray.idle                        托盘弹窗空闲
+   2  tray.downloading                 托盘弹窗下载中
+   3  tray.mixed                       托盘下载、排队和失败
+   4  tray.preparing                   托盘准备组件
+   5  tray.cleanup-unknown             托盘清理未确认
+   6  tray.startup-failed              托盘启动失败
+>  7  tray.stopping                    托盘正在停止
+
+999
+Ameow · 界面分类 / 托盘弹窗
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：tray.stopping
+编号超出范围，请输入 1–7。
+
+1–7 / 7 · 第 1/1 页
+   1  tray.idle                        托盘弹窗空闲
+   2  tray.downloading                 托盘弹窗下载中
+   3  tray.mixed                       托盘下载、排队和失败
+   4  tray.preparing                   托盘准备组件
+   5  tray.cleanup-unknown             托盘清理未确认
+   6  tray.startup-failed              托盘启动失败
+>  7  tray.stopping                    托盘正在停止
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：tray.stopping
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+8
+Ameow · 界面分类 / 右键菜单
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：tray.stopping
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–1 / 1 · 第 1/1 页
+   1  menu.root                        Full 右键菜单
+
+1
+已切换：menu.root（PID 94136）
+Ameow · 界面分类 / 右键菜单
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：menu.root
+已切换 · Full 右键菜单
+
+1–1 / 1 · 第 1/1 页
+>  1  menu.root                        Full 右键菜单
+
+1
+已切换：menu.root（PID 94136）
+Ameow · 界面分类 / 右键菜单
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：menu.root
+已切换 · Full 右键菜单
+
+1–1 / 1 · 第 1/1 页
+>  1  menu.root                        Full 右键菜单
+
+999
+Ameow · 界面分类 / 右键菜单
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：menu.root
+编号超出范围，请输入 1–1。
+
+1–1 / 1 · 第 1/1 页
+>  1  menu.root                        Full 右键菜单
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：menu.root
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+9
+Ameow · 界面分类 / 退出确认
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：menu.root
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–1 / 1 · 第 1/1 页
+   1  overlay.exit-confirm             正在下载时退出确认
+
+1
+已切换：overlay.exit-confirm（PID 94136）
+Ameow · 界面分类 / 退出确认
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：overlay.exit-confirm
+已切换 · 正在下载时退出确认
+
+1–1 / 1 · 第 1/1 页
+>  1  overlay.exit-confirm             正在下载时退出确认
+
+1
+已切换：overlay.exit-confirm（PID 94136）
+Ameow · 界面分类 / 退出确认
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：overlay.exit-confirm
+已切换 · 正在下载时退出确认
+
+1–1 / 1 · 第 1/1 页
+>  1  overlay.exit-confirm             正在下载时退出确认
+
+999
+Ameow · 界面分类 / 退出确认
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：overlay.exit-confirm
+编号超出范围，请输入 1–1。
+
+1–1 / 1 · 第 1/1 页
+>  1  overlay.exit-confirm             正在下载时退出确认
+
+b
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：overlay.exit-confirm
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+3
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：overlay.exit-confirm
+请选择状态；切换后可继续输入本界面的状态编号。
+
+1–12 / 19 · 第 1/2 页
+   1  queue.empty                      空队列
+   2  queue.queued                     单任务等待
+   3  queue.resolving                  单任务解析
+   4  queue.downloading                已知进度与速度
+   5  queue.unknown                    未知进度
+   6  queue.audio                      音频阶段
+   7  queue.merging                    媒体合并
+   8  queue.validating                 校验媒体
+   9  queue.publishing                 保存文件
+  10  queue.success                    保持成功行
+  11  queue.failure                    失败行及三个操作
+  12  queue.concurrent                 三并发与排队
+
+19
+已切换：queue.copy-failed（PID 94136）
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+已切换 · 诊断复制失败反馈
+
+13–19 / 19 · 第 2/2 页
+  13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+> 19  queue.copy-failed                诊断复制失败反馈
+
+n
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+已切换 · 诊断复制失败反馈
+
+1–12 / 19 · 第 1/2 页
+   1  queue.empty                      空队列
+   2  queue.queued                     单任务等待
+   3  queue.resolving                  单任务解析
+   4  queue.downloading                已知进度与速度
+   5  queue.unknown                    未知进度
+   6  queue.audio                      音频阶段
+   7  queue.merging                    媒体合并
+   8  queue.validating                 校验媒体
+   9  queue.publishing                 保存文件
+  10  queue.success                    保持成功行
+  11  queue.failure                    失败行及三个操作
+  12  queue.concurrent                 三并发与排队
+
+p
+Ameow · 界面分类 / 下载队列
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+已切换 · 诊断复制失败反馈
+
+13–19 / 19 · 第 2/2 页
+  13  queue.mixed                      下载、排队和失败
+  14  queue.long-title                 长标题及窄标题区域
+  15  queue.held                       清理未确认
+  16  queue.retry-pending              重试处理中
+  17  queue.retry-refused              重试未受理反馈
+  18  queue.copied                     诊断已复制反馈
+> 19  queue.copy-failed                诊断复制失败反馈
+
+0
+Ameow · 界面分类
+输入界面编号进入，再选择状态
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：queue.copy-failed
+请选择界面分类，当前预览保持不变。
+
+1–9 / 9 · 第 1/1 页
+   1  折叠主界面 · 10 个状态
+   2  展开主界面 · 10 个状态
+   3  下载队列 · 19 个状态
+   4  设置 · 18 个状态
+   5  组件管理 · 13 个状态
+   6  诊断 · 5 个状态
+   7  托盘弹窗 · 7 个状态
+   8  右键菜单 · 1 个状态
+   9  退出确认 · 1 个状态
+
+diagnostics.copy-failed
+已切换：diagnostics.copy-failed（PID 94136）
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.copy-failed
+已切换 · 诊断复制失败反馈
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+   3  diagnostics.copied               诊断复制成功反馈
+>  4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+3
+已切换：diagnostics.copied（PID 94136）
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.copied
+已切换 · 诊断复制成功反馈
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+>  3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+bad-name
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.copied
+未知场景：bad-name。输入 help 查看帮助。
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+>  3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+help
+Ameow · 界面分类 / 诊断
+输入状态编号切换 · b 返回分类
+n / p 翻页 · help 帮助 · q 退出
+
+当前预览：diagnostics.copied
+编号选择当前目录；完整场景名直达；b 返回分类。
+
+1–5 / 5 · 第 1/1 页
+   1  diagnostics.ready                诊断可复制
+   2  diagnostics.copying              诊断复制中
+>  3  diagnostics.copied               诊断复制成功反馈
+   4  diagnostics.copy-failed          诊断复制失败反馈
+   5  diagnostics.unavailable          诊断不可用
+
+q

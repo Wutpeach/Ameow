@@ -95,6 +95,7 @@ pub struct DownloadUi {
     presentation: crate::queue_presentation::Presentation,
     queue_scroll: gpui::ScrollHandle,
     fixture: bool,
+    named_preview: Option<crate::preview::Scene>,
     preview_scenes: Option<SyncSender<&'static str>>,
     row_notices: std::collections::HashMap<u64, (&'static str, u64)>,
     queue_visible_ids: Vec<u64>,
@@ -219,11 +220,55 @@ impl DownloadUi {
     pub fn fixture(path: PathBuf) -> Self {
         Self::fixture_transport(Some(path), false)
     }
-    pub fn preview() -> Self {
-        let mut ui = Self::fixture_transport(None, true);
-        ui.queue_open = true;
+    pub fn controlled_preview() -> Self {
+        let (commands, _) = mpsc::sync_channel(1);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = Self::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.fixture = true;
         ui
     }
+    pub fn set_preview_scene(&mut self, scene: &crate::preview::Scene) {
+        self.named_preview = Some(scene.clone());
+        self.snapshot = Some(Arc::new(crate::preview::snapshot(scene)));
+        self.presentation = Default::default();
+        self.selected_presentation = None;
+        self.selected_job = None;
+        self.queue_open = scene.surface == "queue";
+        self.exit_open = scene.name == "overlay.exit-confirm";
+        self.exit_when_stopped = false;
+        self.startup_error = None;
+        self.settings_status = SettingsStatus::Idle;
+        self.settings_pending = false;
+        self.row_notices.clear();
+        self.retry_pending.clear();
+        self.preparation_status = None;
+        self.preparation_copy_pending = false;
+        self.engine_notice = None;
+        self.engine_command_pending = false;
+        self.queue_scroll.set_offset(point(px(0.), px(0.)));
+        self.queue_visible_ids.clear();
+        self.title_browse = None;
+        self.action_focus.clear();
+    }
+    pub fn hold_preview_feedback(&mut self, scene: &crate::preview::Scene, now: u64) {
+        if let Some(s) = &mut self.snapshot {
+            for job in &mut Arc::make_mut(s).jobs {
+                if let Some(p) = &mut job.transfer_progress { p.observed_at_ms = ameow_next::download::progress::now_ms(); }
+            }
+        }
+        if scene.surface == "queue" {
+            match scene.state.as_str() {
+                "copied" => self.set_row_notice(5, "诊断已复制", now),
+                "copy-failed" => self.set_row_notice(5, "复制失败，请重试", now),
+                "retry-refused" => self.set_row_notice(5, "重试未受理", now),
+                "retry-pending" => { self.retry_pending.insert(5); }
+                _ => {}
+            }
+        }
+    }
+    fn presentation_time(&self, now: u64) -> u64 { if self.named_preview.is_some() { 0 } else { now } }
+    fn row_visible(&self, job: &JobSnapshot, now: u64) -> bool { self.presentation.visible(job, self.presentation_time(now)) }
     fn fixture_transport(path: Option<PathBuf>, preview: bool) -> Self {
         let (commands, receiver) = mpsc::sync_channel(64);
         let (evidence, evidence_receiver) = mpsc::sync_channel(64);
@@ -263,6 +308,7 @@ impl DownloadUi {
             presentation: Default::default(),
             queue_scroll: gpui::ScrollHandle::new(),
             fixture: false,
+            named_preview: None,
             preview_scenes: None,
             row_notices: Default::default(),
             queue_visible_ids: Vec::new(),
@@ -284,6 +330,7 @@ impl DownloadUi {
         let _ = self.evidence.try_send(value);
     }
     pub fn send(&mut self, command: QueueCommand, now: u64) -> bool {
+        if self.named_preview.is_some() { return false; }
         if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
             return false;
         }
@@ -434,10 +481,10 @@ impl DownloadUi {
         };
         let chosen = self
             .presentation
-            .update(&snapshot, self.queue_open, now)
+            .update(&snapshot, self.queue_open, if self.named_preview.is_some() { 0 } else { now })
             .and_then(|id| snapshot.jobs.iter().find(|job| job.job_id == id))
             .cloned()
-            .or_else(|| self.preview_scenes.as_ref().and_then(|_| {
+            .or_else(|| (self.preview_scenes.is_some() || self.named_preview.is_some()).then_some(()).and_then(|_| {
                 (snapshot.jobs.len() == 1 && snapshot.jobs[0].phase.terminal()).then(|| snapshot.jobs[0].clone())
             }));
         self.sync_queue_rows(now);
@@ -836,7 +883,7 @@ fn preparation_fraction(preparation: &PreparationSnapshot) -> Option<f32> {
 impl DownloadUi {
     fn sync_queue_rows(&mut self, now: u64) {
         let next: Vec<_> = self.snapshot.as_ref().into_iter().flat_map(|s| &s.jobs)
-            .filter(|job| self.presentation.visible(job, now)).map(|job| job.job_id).collect();
+            .filter(|job| self.row_visible(job, now)).map(|job| job.job_id).collect();
         let offset = self.queue_scroll.offset();
         let y = anchored_queue_offset(&self.queue_visible_ids, &next, f32::from(offset.y));
         self.queue_scroll.set_offset(point(offset.x, px(y)));
@@ -1020,7 +1067,7 @@ impl DownloadUi {
     fn row_action_allowed(&self, id: u64, icon: QueueIcon, now: u64) -> bool {
         let Some(snapshot) = &self.snapshot else { return false; };
         let Some(job) = snapshot.jobs.iter().find(|j| j.job_id == id) else { return false; };
-        if !self.queue_open || !self.presentation.visible(job, now) { return false; }
+        if !self.queue_open || !self.row_visible(job, now) { return false; }
         match icon {
             QueueIcon::Retry | QueueIcon::Copy | QueueIcon::Clear =>
                 job.phase == JobPhase::Failure && !self.retry_pending.contains(&id),
@@ -1195,6 +1242,7 @@ fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> AnyElement {
 }
 impl Prototype {
     pub(super) fn poll_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.poll_preview(cx);
         let now = self.now();
         // A removed/disabled action can release the last focused handle. Restore the existing
         // root only in that case, so queue return and scene changes keep keyboard navigation live.
@@ -1301,7 +1349,7 @@ impl Prototype {
                 "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge(),
                 "menu_page":self.surface_menu.name(),"menu_selected":self.surface_menu.selected,
                 "menu_pending":ui.settings_pending,"menu_hint":self.surface_menu.hint.is_some(),"visual_offset":self.visual_offset,
-                "visible_rows":ui.snapshot.as_ref().map(|s| s.jobs.iter().filter(|j| ui.presentation.visible(j, now)).map(|j| j.job_id).collect::<Vec<_>>()),
+                "visible_rows":ui.snapshot.as_ref().map(|s| s.jobs.iter().filter(|j| ui.row_visible(j, now)).map(|j| j.job_id).collect::<Vec<_>>()),
                 "queue_scroll":[f32::from(ui.queue_scroll.offset().x), f32::from(ui.queue_scroll.offset().y)],
                 "preparation_visible":ui.snapshot.as_ref().is_some_and(|s| preparation_visible(s, ameow_next::download::progress::now_ms())),
                 "preparation_hovered":ui.preparation_hovered}));
@@ -1371,6 +1419,7 @@ impl Prototype {
         cx.notify();
     }
     pub(super) fn stop_and_exit(&mut self, cx: &mut Context<Self>) {
+        if self.preview.is_some() { cx.quit(); return; }
         let now = self.now();
         self.surface_menu.close(now);self.background_clicks.reset();
         if let Some(ui) = &mut self.downloads {
@@ -1428,6 +1477,7 @@ impl Prototype {
         }
     }
     pub(super) fn paste_download(&mut self, cx: &mut Context<Self>) {
+        if self.preview.is_some() { return; }
         let now = self.now();
         let text = cx.read_from_clipboard().and_then(|item| item.text());
         if let Some(ui) = &mut self.downloads {
@@ -1624,6 +1674,7 @@ impl Prototype {
         if self.tray.is_some() && let Some(native)=&self.native {tray::Tray::hide(native.hwnd);if let Some(ui)=&mut self.downloads{ui.hidden=true;}}
     }
     pub(super) fn open_output_directory(&mut self,cx:&mut Context<Self>) {
+        if self.preview.is_some() { return; }
         let Some(path)=self.downloads.as_ref().and_then(|ui|ui.settings()).map(|s|s.output_dir) else{return;};
         let task=cx.background_executor().spawn(async move {
             let explorer=std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("explorer.exe");
@@ -1632,6 +1683,7 @@ impl Prototype {
         cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));}cx.notify();});}).detach();
     }
     pub(super) fn drop_output_directory(&mut self,paths:&[PathBuf],cx:&mut Context<Self>) {
+        if self.preview.is_some() { return; }
         let now=self.now();let Some(ui)=&mut self.downloads else{return;};
         if ui.settings_pending {return;}
         let Some(path)=crate::surface_actions::single_drop(paths) else{return;};
@@ -1750,7 +1802,7 @@ impl Prototype {
         let rows: Vec<_> = snapshot
             .into_iter()
             .flat_map(|s| &s.jobs)
-            .filter(|job| ui.presentation.visible(job, now))
+            .filter(|job| ui.row_visible(job, now))
             .map(|job| {
                 let id = job.job_id;
                 let failure = job.phase == JobPhase::Failure;
@@ -1865,7 +1917,7 @@ impl Prototype {
                             div()
                                 .pt(px(20.))
                                 .text_size(px(10.))
-                                .child(if ui.fixture { ui.language.text("Fixture · 0–9 切换预览", "Fixture · 0–9 preview") } else { ui.language.text("队列为空，Ctrl+V 粘贴视频链接", "Empty · Ctrl+V to paste a link") }),
+                                .child(if ui.fixture { ui.language.text("Fixture · 终端切换场景", "Fixture · terminal scenes") } else { ui.language.text("队列为空，Ctrl+V 粘贴视频链接", "Empty · Ctrl+V to paste a link") }),
                         )
                     })
                     .children(rows),
@@ -2184,6 +2236,22 @@ fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: boo
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn named_preview_holds_success_and_feedback_without_changing_production_deadlines() {
+        use super::*;
+        let mut ui = DownloadUi::controlled_preview();
+        let mut model = crate::model::Model::new(0, true);
+        let mut indicator = indicator::Indicator::default();
+        ui.set_preview_scene(&crate::preview::find("queue.success").unwrap());
+        ui.present(&mut model, &mut indicator, 100);
+        ui.present(&mut model, &mut indicator, 60_000);
+        assert!(ui.row_visible(&ui.snapshot.as_ref().unwrap().jobs[0], 60_000));
+        let scene = crate::preview::find("queue.copy-failed").unwrap();
+        ui.set_preview_scene(&scene); ui.hold_preview_feedback(&scene, 60_000);
+        assert_eq!(ui.row_notice(5, 60_001), Some("复制失败，请重试"));
+        ui.set_preview_scene(&crate::preview::find("queue.downloading").unwrap());
+        assert!(ui.row_notices.is_empty()); assert!(ui.retry_pending.is_empty());
+    }
     #[test]
     fn preferences_use_latest_ack_and_wait_for_save_reply() {
         use super::*;

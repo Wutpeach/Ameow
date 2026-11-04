@@ -1,0 +1,758 @@
+{
+  "scenes": 84,
+  "coverage": {
+    "compact": 10,
+    "full": 10,
+    "queue": 19,
+    "settings": 18,
+    "components": 13,
+    "diagnostics": 5,
+    "tray": 7,
+    "menu": 1,
+    "overlay": 1
+  },
+  "full_run": "53b590c2e8581d2f659eb14a5aea3f57a24926305935bb86971e76106cdb6e2c",
+  "final_exe": "a691c0e61cb3c0a71f7192c78d9889a7c12f3fd45536589e1fe2b5cfd2976cee",
+  "files": [
+    {
+      "file": "windows-complete/compact.audio.json",
+      "sha256": "d6f0b1f3e6729ae8575affaa8773cde44170946edf25bf6a80a9f1cc583789d2"
+    },
+    {
+      "file": "windows-complete/compact.audio.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.badge.json",
+      "sha256": "77827205057d167e45902f51bd865003ad492aeed2450de7e39a25c0fba4b166"
+    },
+    {
+      "file": "windows-complete/compact.badge.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.cancelled.json",
+      "sha256": "31e4961d57630796cd11219c60c5314fd1f380ebcf1ea4f3f5e2bcfead04f0c8"
+    },
+    {
+      "file": "windows-complete/compact.cancelled.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.downloading.json",
+      "sha256": "39ddd13a1ae877047ac74e1a222371b12f09a8f0d770df2831ff3e9165e63566"
+    },
+    {
+      "file": "windows-complete/compact.downloading.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.failure.json",
+      "sha256": "2c7aa7a4714b1144568ca72ee9988d505f40d54c8f46323a2af507e7594a8fd4"
+    },
+    {
+      "file": "windows-complete/compact.failure.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.idle.json",
+      "sha256": "644bcaf5d65344bcedfa37dc38cfff37a8e7744735c1c1f2a00253f54936d604"
+    },
+    {
+      "file": "windows-complete/compact.idle.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.merging.json",
+      "sha256": "1bd249938c1d3f4e4c3a47900e303dc7487b8df6867cf135ffafd9f7e4b2fa7b"
+    },
+    {
+      "file": "windows-complete/compact.merging.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.resolving.json",
+      "sha256": "a9862613e20deb3466a1e5de9395051dd26e9460777a6d88f9b216c76973c58f"
+    },
+    {
+      "file": "windows-complete/compact.resolving.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.success.json",
+      "sha256": "08f88265343d2ad34da0eae34eb35a69fa19f116e0ee6bb6db25dff6df452f91"
+    },
+    {
+      "file": "windows-complete/compact.success.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/compact.unknown.json",
+      "sha256": "42c01455a8a2bbecad6c49f568db79729a13224d348c2945cd286dc4b0ee9719"
+    },
+    {
+      "file": "windows-complete/compact.unknown.png",
+      "sha256": "7faa74aea91dfe159df0f19a1de3ae874059c7650182e7179be0294e42a415b7"
+    },
+    {
+      "file": "windows-complete/components.check-failed.json",
+      "sha256": "7a44d239ef7e15c2d41b33e98a814ca687660aed434b28854fbe24344843a72a"
+    },
+    {
+      "file": "windows-complete/components.check-failed.png",
+      "sha256": "533aed3705f36d9e0642a45d6870893e16da2518a5c111e5ad33c3b5f1756bed"
+    },
+    {
+      "file": "windows-complete/components.checking.json",
+      "sha256": "5170be1fe7c33bee35d335a7f951f46b8aae7bb3a76a30e5291413b1caf058cd"
+    },
+    {
+      "file": "windows-complete/components.checking.png",
+      "sha256": "a63cc7b863503150a96cd49e7019ad52ac3473d6aaba15b4631945052e3a0938"
+    },
+    {
+      "file": "windows-complete/components.missing.json",
+      "sha256": "c5783ee9d60197b1ee682595596eb09ed4294c0fe87e026c5118d556e386f9cd"
+    },
+    {
+      "file": "windows-complete/components.missing.png",
+      "sha256": "c587fb50da8c175270513cb138c3f58490b2ae051e916a1fe4e98690d308923c"
+    },
+    {
+      "file": "windows-complete/components.owner-lost.json",
+      "sha256": "53b81ae24669fd20ad880a6a4d90e87bba23d01a585ea0ea804c52e26d0a0426"
+    },
+    {
+      "file": "windows-complete/components.owner-lost.png",
+      "sha256": "e7d5a3802d68f83e5882d8875321334b825eddf618daed3e1aa7a99b19550d15"
+    },
+    {
+      "file": "windows-complete/components.preparing.json",
+      "sha256": "0bc27520e76f1763135ec46bfa416603bf68b3a090028d87834d4bc2ee76487a"
+    },
+    {
+      "file": "windows-complete/components.preparing.png",
+      "sha256": "3cad86d155c2bb0801cde7ce439e4c2f7a47755f36f58c2db891e7c1b4437c77"
+    },
+    {
+      "file": "windows-complete/components.ready.json",
+      "sha256": "f363166cbc2406ef15209b80429fda246189d411060299f6e77367437b029456"
+    },
+    {
+      "file": "windows-complete/components.ready.png",
+      "sha256": "91a90862b93ec3b2b20baa2f70eabdd7ddefc9cc001934f424334801ce370e38"
+    },
+    {
+      "file": "windows-complete/components.recovery-required.json",
+      "sha256": "801a1959ad9f67513f66c93c88e01d7ecec10ba2fc166d1d4b1dcfe06e2db4d5"
+    },
+    {
+      "file": "windows-complete/components.recovery-required.png",
+      "sha256": "0e9900d6abf7dc4fdb51b2ca1d9190363b4f362eebb42ed27b1e732e190e13b7"
+    },
+    {
+      "file": "windows-complete/components.restored.json",
+      "sha256": "ae4e1c70236061cec641212cb342190158dda5de8560da178d951b1e2d3e3b57"
+    },
+    {
+      "file": "windows-complete/components.restored.png",
+      "sha256": "870d8e6bba1db3d0e7cbcf83b713c98d0f7dae855cf2fd3838af2e2a2f1c3957"
+    },
+    {
+      "file": "windows-complete/components.update-available.json",
+      "sha256": "525a91c4ed53f0f41ba05b1a2f7e10fc1b489885b8008a093b7e44a9eee51adb"
+    },
+    {
+      "file": "windows-complete/components.update-available.png",
+      "sha256": "a90a784f2f9b3ae2d6816a246260ada9d9e56f89a14b9407d638ed70285a4ab8"
+    },
+    {
+      "file": "windows-complete/components.update-confirm.json",
+      "sha256": "5d4e1ab28fa332570d07206b946293d181d14e2d2642f8ccd5948a175f50749c"
+    },
+    {
+      "file": "windows-complete/components.update-confirm.png",
+      "sha256": "50ca2e548e8639c1096c6e5cf6c24851971900d749f2f34b1972cc705df2ab17"
+    },
+    {
+      "file": "windows-complete/components.update-failed.json",
+      "sha256": "94217f566c27b84c465bbb2642ece79d864664fa92a4d784b52c8e57122fe845"
+    },
+    {
+      "file": "windows-complete/components.update-failed.png",
+      "sha256": "94e84449eac6bca9ee67f9c8de6f07e0b40f2376f6c1f02769858a4144557013"
+    },
+    {
+      "file": "windows-complete/components.update-waiting.json",
+      "sha256": "120027a89ea69d349bf33e79d4df22491fc1d7cc04b27f974ba457e84c300add"
+    },
+    {
+      "file": "windows-complete/components.update-waiting.png",
+      "sha256": "2c63eca5b8a2464700e0bc2aeee4968a7ecdb446719e08bc3f2ec4cb39fc63d4"
+    },
+    {
+      "file": "windows-complete/components.updating.json",
+      "sha256": "e80ccdc0fab190a08c106f0c1b9393c6bc54609755bc2df285142abc107ea932"
+    },
+    {
+      "file": "windows-complete/components.updating.png",
+      "sha256": "d09a3c9115ff9a16fa3d1cd7b71098e036bf1bd8399353c8db067d1e157329b0"
+    },
+    {
+      "file": "windows-complete/diagnostics.copied.json",
+      "sha256": "54313b5c366a849e75a50d446fabb68e8cab878a040acf0967480f41a3eddbf4"
+    },
+    {
+      "file": "windows-complete/diagnostics.copied.png",
+      "sha256": "cec8d4e14061797b6e5e17d0d301996d7f89ce769e7678c16e08950b189d1828"
+    },
+    {
+      "file": "windows-complete/diagnostics.copy-failed.json",
+      "sha256": "be895c7029f24ed649019e63bc4e5372a8173b7c96ec02880316ba02a2b2e403"
+    },
+    {
+      "file": "windows-complete/diagnostics.copy-failed.png",
+      "sha256": "ea00509f09c113d0af19ed81eaf8f56c8f11fd9e97e56cb4dd874aec91ccfc50"
+    },
+    {
+      "file": "windows-complete/diagnostics.copying.json",
+      "sha256": "d78b7f23e23a8d7419bf21e4094f627d4ef111a76e16630c05b10f911a4b2634"
+    },
+    {
+      "file": "windows-complete/diagnostics.copying.png",
+      "sha256": "8464e4cee2501fd2af31997407a2df7bb051ff573365da2360a28550a3a4e85a"
+    },
+    {
+      "file": "windows-complete/diagnostics.ready.json",
+      "sha256": "defdac80d5566bd3ed2e8dbf0ce8afd735c03506db5c1ea5f72e7c2a48fb9174"
+    },
+    {
+      "file": "windows-complete/diagnostics.ready.png",
+      "sha256": "91a90862b93ec3b2b20baa2f70eabdd7ddefc9cc001934f424334801ce370e38"
+    },
+    {
+      "file": "windows-complete/diagnostics.unavailable.json",
+      "sha256": "976966ff03e9062f232518da877177d1327587c14a42b99e3392ffeecb6a953a"
+    },
+    {
+      "file": "windows-complete/diagnostics.unavailable.png",
+      "sha256": "c453ceafd3f58a0e07df49882cddfab8cd85c770aa7134f945f39930ff71d7c7"
+    },
+    {
+      "file": "windows-complete/final-receipt.json",
+      "sha256": "3f6cba6095c56aa53b993ed42bd36dfff578cf03c7b28176b017cc8a1baa7cf2"
+    },
+    {
+      "file": "windows-complete/full.audio.json",
+      "sha256": "90ae491cc1408ee5e298bf60ff240f1fa3ef36871b7ce2e4c80869830e874f45"
+    },
+    {
+      "file": "windows-complete/full.audio.png",
+      "sha256": "d3811f5adf9f86322e387ecb69773503e00edc6d089bbcbfd56f6ebf8ae42dda"
+    },
+    {
+      "file": "windows-complete/full.badge.json",
+      "sha256": "c4f435be2ce953586f9e8c4d11aaba70aeeb31682e381c0b7c9e951e6f980d31"
+    },
+    {
+      "file": "windows-complete/full.badge.png",
+      "sha256": "023eef6be3552f85ed63f37421dfcccc3206e393b72a4056728eed5a2efb125a"
+    },
+    {
+      "file": "windows-complete/full.cancelled.json",
+      "sha256": "d31f095e3d55b6297ba66ccea642d85744b2d8fa19046353297ff4ce17934877"
+    },
+    {
+      "file": "windows-complete/full.cancelled.png",
+      "sha256": "945754e999060ffbe4024b3ffa538c35e43e706a418d1eb9bfa1bffa56a7feb4"
+    },
+    {
+      "file": "windows-complete/full.downloading.json",
+      "sha256": "1801515969d556626027c1b220fbe10c65ac921c72cf7cb8801c3db6410ad25e"
+    },
+    {
+      "file": "windows-complete/full.downloading.png",
+      "sha256": "640c43337921c181de71f3b6b62caee06351462c4b185acdefdafa17d75643fa"
+    },
+    {
+      "file": "windows-complete/full.failure.json",
+      "sha256": "69f1387d02a1a721e1a033c05e47ca22be00466eafd398c010a1bf1ed01e069f"
+    },
+    {
+      "file": "windows-complete/full.failure.png",
+      "sha256": "35f163b05d24825736a296ef154f71051ddd6845d027cf53927f267cb904bf3b"
+    },
+    {
+      "file": "windows-complete/full.idle.json",
+      "sha256": "f8d710d6bd265f78044359ef04f919265cd0419cc74bac81d214ebf87dd9fb51"
+    },
+    {
+      "file": "windows-complete/full.idle.png",
+      "sha256": "c4c02a54c3bd45f2ac544a1874edf84baa65125257a7cf242a9f2565033b6b2f"
+    },
+    {
+      "file": "windows-complete/full.merging.json",
+      "sha256": "8db2534b2002f8122fe13fffb4e022418ae3ccd4f77dd89c6ac7cf65ecd5498d"
+    },
+    {
+      "file": "windows-complete/full.merging.png",
+      "sha256": "ab8beffdd11b86e0edc512c3f7280e529f2a9fd3fb0d65529badd18587c6b33b"
+    },
+    {
+      "file": "windows-complete/full.resolving.json",
+      "sha256": "18cf30e57cc5c1c94cc47282444a7d51f33946d245a3220dc5cb074e53478dc9"
+    },
+    {
+      "file": "windows-complete/full.resolving.png",
+      "sha256": "9610f6384aa3a600d1f241219d2b1d270f4a48b6031c6ee2fda1501ff58911e2"
+    },
+    {
+      "file": "windows-complete/full.success.json",
+      "sha256": "884cebf34cbb4b978d4cacb6ad1022773e10ce7c3023c6dc8dd9099db69184d9"
+    },
+    {
+      "file": "windows-complete/full.success.png",
+      "sha256": "ceb1a652552b15a8ff67dcf833ce596133fb72c79e24e20ffdcd2f1994d7f6f3"
+    },
+    {
+      "file": "windows-complete/full.unknown.json",
+      "sha256": "36f4f651d0ea2bfbe3064dc89ec9cb040907795b8af2d697543957a593e9c206"
+    },
+    {
+      "file": "windows-complete/full.unknown.png",
+      "sha256": "5e2fd1f7a05c924d5833f5860229566fa0c05961deaf8795fd0691fda9284775"
+    },
+    {
+      "file": "windows-complete/hold-diagnostics-copied.json",
+      "sha256": "69caeef6e3798da2c8efd1cd1ad7c61d1bf52488f7cc96b90d6384121d2ec4dc"
+    },
+    {
+      "file": "windows-complete/hold-diagnostics-copied.png",
+      "sha256": "6e2fb723dbbdaebe95631622b5f1aaf8995d762e599c5df73b568f3d0b8a5199"
+    },
+    {
+      "file": "windows-complete/hold-queue-success.json",
+      "sha256": "3d3aa1296a67ef82ab689678e1660fa4e3c88aab4cbad904c8782f5f9260109b"
+    },
+    {
+      "file": "windows-complete/hold-queue-success.png",
+      "sha256": "8c959d622720b911a63088e3f0e00a4c34a7b5a4e88bf0606842c28d329c61a7"
+    },
+    {
+      "file": "windows-complete/hold-tray-mixed.json",
+      "sha256": "7bca517a7797e1963f114e871edf374b6cade3b70f650bd32ea772747ab51d52"
+    },
+    {
+      "file": "windows-complete/hold-tray-mixed.png",
+      "sha256": "bada9c9bd461051ef2b39b2e520e3388bae7f89d03db974571e2dd7102555247"
+    },
+    {
+      "file": "windows-complete/menu.root.json",
+      "sha256": "54d60ad94851042b5e5a70cd801102b99105baacf53405c82291f294719ee81e"
+    },
+    {
+      "file": "windows-complete/menu.root.png",
+      "sha256": "72f7fc87b7bcf7235b2dc729f5e0efc59bc625655c185e22c992e52993a851a5"
+    },
+    {
+      "file": "windows-complete/overlay.exit-confirm.json",
+      "sha256": "7fa2b499226481425ff1dd6a76386436752d3b4af89c3c9264f68e30db5e05b6"
+    },
+    {
+      "file": "windows-complete/overlay.exit-confirm.png",
+      "sha256": "e4d3a407f9533e377fd3708ee422703f9e65df89e87fd0259e660581fdd7753a"
+    },
+    {
+      "file": "windows-complete/queue.audio.json",
+      "sha256": "40e221952ce3a8ab2fd67f81f1fbc593f039241813fc6359d7b4e0152f11fb6f"
+    },
+    {
+      "file": "windows-complete/queue.audio.png",
+      "sha256": "20c49569413ca5482fdd091550e9c1ef8fac958d492aca0756da9bdb4e8c6832"
+    },
+    {
+      "file": "windows-complete/queue.concurrent.json",
+      "sha256": "43c3e145d0aef7d5b941b5f379ad2979461bb4bb02f748c34680f762379868d2"
+    },
+    {
+      "file": "windows-complete/queue.concurrent.png",
+      "sha256": "ed7e972d33cfbd8fccf97d6bc14b1784b7c96a47426aab203dee687fc44fe566"
+    },
+    {
+      "file": "windows-complete/queue.copied.json",
+      "sha256": "822e1e51bc99084d2546144cd2510e159abee65b55011d8fe393e76ab69034e9"
+    },
+    {
+      "file": "windows-complete/queue.copied.png",
+      "sha256": "1dee808dda3f652d0c93a98165637b3da41501873f15e710a6c469f16cc6d332"
+    },
+    {
+      "file": "windows-complete/queue.copy-failed.json",
+      "sha256": "50f35bf03d0bc5efdf7f610edea91191e4fa499bd9f74db61b529803846483e2"
+    },
+    {
+      "file": "windows-complete/queue.copy-failed.png",
+      "sha256": "dc2d9417aa3368a8dd834bc3abdd683a36c871ef11fcdaefb2072e59eae6ac45"
+    },
+    {
+      "file": "windows-complete/queue.downloading.json",
+      "sha256": "7ca0ecaf30e38a2d692ef61d59cf68a97f3a5ca878b7bd3ac1809b72f6c4ebb0"
+    },
+    {
+      "file": "windows-complete/queue.downloading.png",
+      "sha256": "6d6802479d05b7f398992ee27e8e989416e526ce7ce409777eeb4abf065687c8"
+    },
+    {
+      "file": "windows-complete/queue.empty.json",
+      "sha256": "66ef74012c0c489c071e0ddeb3d9b4a276504dbec0d31b9431b8e2bf4aa13902"
+    },
+    {
+      "file": "windows-complete/queue.empty.png",
+      "sha256": "ef41365765fbf2a73b6e65bbbf765d23c999c5162286597334cccd3847fbd6fa"
+    },
+    {
+      "file": "windows-complete/queue.failure.json",
+      "sha256": "755ec1e3098e87fc3ab5fddc7106969f7d1bf0686c1507094f2f6278c23af84f"
+    },
+    {
+      "file": "windows-complete/queue.failure.png",
+      "sha256": "554b066f26862a05ae7688c6b7b9f43751c0c0aedea9b7448e52cc96bbb87d03"
+    },
+    {
+      "file": "windows-complete/queue.held.json",
+      "sha256": "51208f3e1290142b2dcfeaf74d4813b5ef52cdc0c419760aaba1a73a6e0ba080"
+    },
+    {
+      "file": "windows-complete/queue.held.png",
+      "sha256": "487bd2e32ca13099e6486cfa18b1cbcaae5121e8db8978e5554333dee8bd3191"
+    },
+    {
+      "file": "windows-complete/queue.long-title.json",
+      "sha256": "735b0f2d653ba6a369699c434111a893baaa013e51680e49ba876e6c92f20233"
+    },
+    {
+      "file": "windows-complete/queue.long-title.png",
+      "sha256": "6d6802479d05b7f398992ee27e8e989416e526ce7ce409777eeb4abf065687c8"
+    },
+    {
+      "file": "windows-complete/queue.merging.json",
+      "sha256": "cc1711b797d2b9403dbfea1f45610f9b31721b80761864b308fe2263263d1f82"
+    },
+    {
+      "file": "windows-complete/queue.merging.png",
+      "sha256": "e6be546e93e732a0bf3b2021cfd7ff1566156140c0fb98103c7ecbaea9990c42"
+    },
+    {
+      "file": "windows-complete/queue.mixed.json",
+      "sha256": "51ae450b05ed72f0ba786b649143246d93a238458a225cd219800ece2247be1b"
+    },
+    {
+      "file": "windows-complete/queue.mixed.png",
+      "sha256": "ed7e972d33cfbd8fccf97d6bc14b1784b7c96a47426aab203dee687fc44fe566"
+    },
+    {
+      "file": "windows-complete/queue.publishing.json",
+      "sha256": "6ec05919517546f2ad12ca593c0aba4eea91583cdd7daf3d737f10da6145a332"
+    },
+    {
+      "file": "windows-complete/queue.publishing.png",
+      "sha256": "ad9dfb4642ccd97bd5c5e91d3fbc984357a40efebc2b165e7073ec2b568bb372"
+    },
+    {
+      "file": "windows-complete/queue.queued.json",
+      "sha256": "4be404864c73144c3ca5c874fad5f2309e8597da51c02333e0837736afb92b34"
+    },
+    {
+      "file": "windows-complete/queue.queued.png",
+      "sha256": "d45c1b97af368ed6553e9b74f047dd5f10a64100bca07911eb481b7449588e5e"
+    },
+    {
+      "file": "windows-complete/queue.resolving.json",
+      "sha256": "e35837cdf9b2407188f6513e534b1d509b03ab7d83d287f0b802e84ba2288ce4"
+    },
+    {
+      "file": "windows-complete/queue.resolving.png",
+      "sha256": "2b1cefcba074bcafd15e0950f6154e602be713709a684ab8d2a4c73858dbae63"
+    },
+    {
+      "file": "windows-complete/queue.retry-pending.json",
+      "sha256": "b1481dd2ca310c09c0adec64c73d6d970e8b59fc3eaea55f5521fd47067d5d2f"
+    },
+    {
+      "file": "windows-complete/queue.retry-pending.png",
+      "sha256": "10a0c702cc058c944e2978b0a4217bcd8c3972d6b80ed2aea39df6d2c483f780"
+    },
+    {
+      "file": "windows-complete/queue.retry-refused.json",
+      "sha256": "85f75b3f7f97658142feafcf063caf30002fac8e1301d7b84ab066ae9e95c1f5"
+    },
+    {
+      "file": "windows-complete/queue.retry-refused.png",
+      "sha256": "78fcc740e38c693e7c0349bd61f0bb719c423839c08b191f536b91ea5241ff74"
+    },
+    {
+      "file": "windows-complete/queue.success.json",
+      "sha256": "425cbc4432c470d96caaa2a9a2958b60f7531a865d1ed1980005dfb80d3e2162"
+    },
+    {
+      "file": "windows-complete/queue.success.png",
+      "sha256": "066e753d054db3fee9202106db0b02cf3150e3d0a067a7845b96c148404e3bbd"
+    },
+    {
+      "file": "windows-complete/queue.unknown.json",
+      "sha256": "1e7286d3e3561d28c56c72fd5ca88e9629282c6938d7cdb01594075b71ba6add"
+    },
+    {
+      "file": "windows-complete/queue.unknown.png",
+      "sha256": "6a14655f2934fed7c73570f20f5105a7ec2995527248d36676b578e1bc9bc2c5"
+    },
+    {
+      "file": "windows-complete/queue.validating.json",
+      "sha256": "4246310c1a670c099ecca27050b8e177a03eb8d149012ef73c7a1b23eb91dd3d"
+    },
+    {
+      "file": "windows-complete/queue.validating.png",
+      "sha256": "22576310d889997cc0ce3a9f665f592b0e084713790bfcea3095419e8b35cd5e"
+    },
+    {
+      "file": "windows-complete/settings.download.json",
+      "sha256": "3f34fbdde6e688059fee3a3813d1507431fe52bcafec6daa4be7cfe9ae733984"
+    },
+    {
+      "file": "windows-complete/settings.download.png",
+      "sha256": "ecccb8e3b55fa3e855a97915f23a6933ce462bc6d2a3b4ffb2096c345d6d72fa"
+    },
+    {
+      "file": "windows-complete/settings.general.json",
+      "sha256": "fb4172b5e5e0983ea59294da020c3f164307dd06117655ed37b8b3a58c4776dd"
+    },
+    {
+      "file": "windows-complete/settings.general.png",
+      "sha256": "4be05c6aef1fe3cca9fd7358d5e404b3107e0b0e1dfde1a48fd43da6a2fe2cc7"
+    },
+    {
+      "file": "windows-complete/settings.language-menu.json",
+      "sha256": "d591a3f3231c3be92e239a91c1f457c2a0d2c4d3babd61b2b9ca0b21e60a986e"
+    },
+    {
+      "file": "windows-complete/settings.language-menu.png",
+      "sha256": "2d33b97c52f6628fae74da72c53993626e48d3454a4a79f0f0a538174df89f7b"
+    },
+    {
+      "file": "windows-complete/settings.open-failed.json",
+      "sha256": "329c678435ae005b6518be91ed32d2db6f209aa79185e9c40a9c9bc81d08c4c8"
+    },
+    {
+      "file": "windows-complete/settings.open-failed.png",
+      "sha256": "e42c7b986958fdbb134fec37a1b93ff21a79d81e50f37f0a077a02d52dca2038"
+    },
+    {
+      "file": "windows-complete/settings.path-copied.json",
+      "sha256": "1014c212ff2a2011db1d29bfea89fad7b7b14c4495d3cc0c04175eb1a18c334c"
+    },
+    {
+      "file": "windows-complete/settings.path-copied.png",
+      "sha256": "4dae573fdc101a82814c55c6d84cda85d432e09b36bb6cd07a33957da20d5b59"
+    },
+    {
+      "file": "windows-complete/settings.path-copy-failed.json",
+      "sha256": "730e0e809ef13ea1e97ec07e2cef055415a8e1e9155da2052780ae982af0f2d8"
+    },
+    {
+      "file": "windows-complete/settings.path-copy-failed.png",
+      "sha256": "ffe80ddb8d788962060eb9988618c785afa03bf5fbb86635a5c98f6a7f54d9b3"
+    },
+    {
+      "file": "windows-complete/settings.path-denied.json",
+      "sha256": "12f163b56d0da6b21dca2281c03b80a13f0565c5fdbeae4a4ef5b3a148d15ba7"
+    },
+    {
+      "file": "windows-complete/settings.path-denied.png",
+      "sha256": "463442ca2bedb6f2ebe8deb1efab5dc4ce5c7f43c357362233cede2af87bbd9a"
+    },
+    {
+      "file": "windows-complete/settings.path-unavailable.json",
+      "sha256": "f5ff74a2cef271465709efcb7cad991b7f1a80bf2a732e08c2b5c0eccc84e5b9"
+    },
+    {
+      "file": "windows-complete/settings.path-unavailable.png",
+      "sha256": "112b6ac1fb028a2155e0803fbd6bb5cf4a18ddfb7afbd1d34f3fc2156aafc794"
+    },
+    {
+      "file": "windows-complete/settings.picker-cancelled.json",
+      "sha256": "854a948d048490a59784ae44d56a23a680826d67f84d8f7090941f947025dd31"
+    },
+    {
+      "file": "windows-complete/settings.picker-cancelled.png",
+      "sha256": "26b200ce13bb6947b53900d509efa59e6bc69382fbb31022420a6e5dff64a018"
+    },
+    {
+      "file": "windows-complete/settings.save-failed.json",
+      "sha256": "278ed3bdf56cf2dd448abeaaaada66ea6bf0642235ffae969b636c43e0c85687"
+    },
+    {
+      "file": "windows-complete/settings.save-failed.png",
+      "sha256": "253720da8134e3c9f427c8d98976386b3ebfb2feb01b9b57f5353e64296166f8"
+    },
+    {
+      "file": "windows-complete/settings.saved.json",
+      "sha256": "217568d19a2810fa8f8703fec28954804b15b16ad0e1a288652021cfd953b2ab"
+    },
+    {
+      "file": "windows-complete/settings.saved.png",
+      "sha256": "5057c05b04f4906d073e2bbc8636d32fae00159cccb7e7fbb666784a92e57209"
+    },
+    {
+      "file": "windows-complete/settings.saving.json",
+      "sha256": "0311857bd620258780419aadaf8f9856a0c057fc5b5a3e374e61bb02828de834"
+    },
+    {
+      "file": "windows-complete/settings.saving.png",
+      "sha256": "493e433ea0301deb973569583b0910cf47eb16fa9cb5ab221453db443c811cb4"
+    },
+    {
+      "file": "windows-complete/settings.startup-enabled.json",
+      "sha256": "a91ef4cb3f0418f56ab7e56178b25136e4bc392cbfb1f2245e8e34c4aa13e9a3"
+    },
+    {
+      "file": "windows-complete/settings.startup-enabled.png",
+      "sha256": "c97a52ecc72cc410d34dd8eb2ac6a9fa2682a3b4901069ef353c48754cd637a4"
+    },
+    {
+      "file": "windows-complete/settings.startup-pending.json",
+      "sha256": "32c99d13884a475dba979aeed98b853b2b4aeb35de9c4a09c62ff878b812e187"
+    },
+    {
+      "file": "windows-complete/settings.startup-pending.png",
+      "sha256": "07685cb7bc12ecb23cd04e059d46202280d579fa93670e2ea25c88c030ff195b"
+    },
+    {
+      "file": "windows-complete/settings.startup-unavailable.json",
+      "sha256": "34fb1630122c69bae3d757af8abc45cd5bce22e890749d3c7b6bf8e260a2b6d6"
+    },
+    {
+      "file": "windows-complete/settings.startup-unavailable.png",
+      "sha256": "80e638b960cf5b261e92eb9c08f9e64b4a768c47ebe9f07989c5c487aa900285"
+    },
+    {
+      "file": "windows-complete/settings.theme-menu.json",
+      "sha256": "935b223b5d55c946d1cea76f53f0070f61f645e59f85ff7cdce8844812fe0583"
+    },
+    {
+      "file": "windows-complete/settings.theme-menu.png",
+      "sha256": "4fe47034f328b50cad69901eed3054ccfe0abc7252e785d6d6df70e4bcf07b2f"
+    },
+    {
+      "file": "windows-complete/settings.tray-menu.json",
+      "sha256": "e2eaa5eb67021fdfd6855c1dc4f777f8bd0149a462163daa73077b6c77b2183b"
+    },
+    {
+      "file": "windows-complete/settings.tray-menu.png",
+      "sha256": "0d06413cba8cbe5b05769ac285d0caf7ae2e6fdd2281bd0e39369f92c92066c6"
+    },
+    {
+      "file": "windows-complete/settings.unavailable.json",
+      "sha256": "7acce9cd41f3acb46bf9a83dc00fa45f110f5eec1cf653777fc247603013f157"
+    },
+    {
+      "file": "windows-complete/settings.unavailable.png",
+      "sha256": "71c7d24fcdd37d903ccf6d73cb9d2c06450fff789d3cf5663dc23f6898603ceb"
+    },
+    {
+      "file": "windows-complete/terminal-menu.txt",
+      "sha256": "7881d9f6c183eb44a211c85c926f196cfe0ae6f12316dba5f689aafb96803839"
+    },
+    {
+      "file": "windows-complete/tray.cleanup-unknown.json",
+      "sha256": "21949a4aeab0b3f4d8f2dd451904b7db5ef69639f131f7a6e266b5fe29a60412"
+    },
+    {
+      "file": "windows-complete/tray.cleanup-unknown.png",
+      "sha256": "7f905945c360f766b84a278c07ab839944154c024986a0aac32ddc179c571ebf"
+    },
+    {
+      "file": "windows-complete/tray.downloading.json",
+      "sha256": "61a7b7899b5f3d8607af952686e8794e287a27b4efc5f2e0e4a4af64ada63f53"
+    },
+    {
+      "file": "windows-complete/tray.downloading.png",
+      "sha256": "7db729dcb76a4a6b2ec550851e00f0bc8a1a552bfd4efc8b3345bea70a6cf964"
+    },
+    {
+      "file": "windows-complete/tray.idle.json",
+      "sha256": "d6903e95f35d0d895026571add0a549eecb76956f943fd75225724c1a650ca4d"
+    },
+    {
+      "file": "windows-complete/tray.idle.png",
+      "sha256": "c35ebdc98af902db78e5e368d7f73222ac6aca31a76c7de6dcbd573c6754185f"
+    },
+    {
+      "file": "windows-complete/tray.mixed.json",
+      "sha256": "9023483375fd7356e750a513a923ba43adfd3cae838356aeaebd87ce18c46819"
+    },
+    {
+      "file": "windows-complete/tray.mixed.png",
+      "sha256": "216e3c594e8e3bc577edd62ccd5023a56ddf23fca48cf5c140e84c56eb4e39f0"
+    },
+    {
+      "file": "windows-complete/tray.preparing.json",
+      "sha256": "1a8ddcd39a4ea3ab33bd6c7a5f8385ed4d549bf97a796e81edf3c9875d986fe2"
+    },
+    {
+      "file": "windows-complete/tray.preparing.png",
+      "sha256": "704e918f16d8f1071368a609ec4f36347ca8c2947741046378fd1cf2b6e43b8e"
+    },
+    {
+      "file": "windows-complete/tray.startup-failed.json",
+      "sha256": "2eb27114d58da30439030e5373bd3f4f5ba0b01bb22a948ebae204759658c784"
+    },
+    {
+      "file": "windows-complete/tray.startup-failed.png",
+      "sha256": "8e0466d44ea869ed67991d846ce456a5e345ada82cd62829aae965ecd9d882da"
+    },
+    {
+      "file": "windows-complete/tray.stopping.json",
+      "sha256": "fc84adee651708228aa4993f38feea27347ca29940d18d7c0b946dd548ed54c0"
+    },
+    {
+      "file": "windows-complete/tray.stopping.png",
+      "sha256": "f6fdb47ddb94c1ec7d08546fa025239f6d7073473e609efba79fab1a00c14469"
+    },
+    {
+      "file": "windows-complete/validation.json",
+      "sha256": "db24d668f104a5c203d0b746f62bcbe6bc607983b8a645fbe9b7632e86dfb3f7"
+    },
+    {
+      "file": "final-smoke/diagnostics.copy-failed.json",
+      "sha256": "829df7619bc2e59216ee7aff99b21152fdf9371b00efe1402e9ee601eb6a9892"
+    },
+    {
+      "file": "final-smoke/diagnostics.copy-failed.png",
+      "sha256": "f041e0ceaa4e818bc2c25d0bd6020d1debf30077c64ec6bcef8920ab6e4640ae"
+    },
+    {
+      "file": "final-smoke/menu.root.json",
+      "sha256": "d894c0aaef2a32fa5aec4d21553d73afbe351673d175384ddfa6bfa2f4f6c20f"
+    },
+    {
+      "file": "final-smoke/menu.root.png",
+      "sha256": "009b4f9fb4891974d9050164bc6eb3c8694d2ac4a202db74d8d7af7b238f19b8"
+    },
+    {
+      "file": "final-smoke/tray.mixed.json",
+      "sha256": "ef845650e8447696ce85b9de9093c7e5579dab7deb11cc00eae1f8859878c35b"
+    },
+    {
+      "file": "final-smoke/tray.mixed.png",
+      "sha256": "afb2bcede766bdec0870df8021c11548899ce0b7b0f67466731d84682524212f"
+    },
+    {
+      "file": "final-proof/diagnostics.copy-failed.json",
+      "sha256": "eb6ae5e1f1289302bed29c7f759ee8538f3b7dba1cadced3822a90412d4c27fc"
+    },
+    {
+      "file": "final-proof/diagnostics.copy-failed.png",
+      "sha256": "73dad7c6d990fbaf7d7e56116cb0d490dfef95c6b52786fda5c4169da77a296d"
+    }
+  ]
+}

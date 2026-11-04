@@ -1,0 +1,532 @@
+{
+  "scene": "compact.unknown",
+  "pid": 104476,
+  "hwnd": 16318986,
+  "title": "Ameow",
+  "bounds": [
+    504,
+    304,
+    584,
+    384
+  ],
+  "dpi": 96,
+  "exe": "D:\\Ameow\\target\\debug\\ameow.exe",
+  "exe_sha256": "53b590c2e8581d2f659eb14a5aea3f57a24926305935bb86971e76106cdb6e2c",
+  "source_head": "cf49e60e1912f92b08e3fe65177626b7dc02d87f",
+  "source_dirty": true,
+  "captured_at": "2026-11-04T18:15:11+0800",
+  "receipt": {
+    "step": 4,
+    "scene": "compact.unknown",
+    "pid": 104476,
+    "error": null,
+    "catalog": [
+      {
+        "name": "compact.idle",
+        "surface": "compact",
+        "state": "idle",
+        "description": "空闲"
+      },
+      {
+        "name": "compact.resolving",
+        "surface": "compact",
+        "state": "resolving",
+        "description": "解析视频"
+      },
+      {
+        "name": "compact.downloading",
+        "surface": "compact",
+        "state": "downloading",
+        "description": "已知进度下载"
+      },
+      {
+        "name": "compact.unknown",
+        "surface": "compact",
+        "state": "unknown",
+        "description": "未知进度下载"
+      },
+      {
+        "name": "compact.audio",
+        "surface": "compact",
+        "state": "audio",
+        "description": "音频下载阶段"
+      },
+      {
+        "name": "compact.merging",
+        "surface": "compact",
+        "state": "merging",
+        "description": "合并媒体"
+      },
+      {
+        "name": "compact.success",
+        "surface": "compact",
+        "state": "success",
+        "description": "下载成功"
+      },
+      {
+        "name": "compact.failure",
+        "surface": "compact",
+        "state": "failure",
+        "description": "下载失败及失败 Badge"
+      },
+      {
+        "name": "compact.cancelled",
+        "surface": "compact",
+        "state": "cancelled",
+        "description": "已取消"
+      },
+      {
+        "name": "compact.badge",
+        "surface": "compact",
+        "state": "badge",
+        "description": "多任务与失败数据（Compact 隐藏 Badge）"
+      },
+      {
+        "name": "full.idle",
+        "surface": "full",
+        "state": "idle",
+        "description": "Full 空闲"
+      },
+      {
+        "name": "full.downloading",
+        "surface": "full",
+        "state": "downloading",
+        "description": "Full 已知进度"
+      },
+      {
+        "name": "full.success",
+        "surface": "full",
+        "state": "success",
+        "description": "Full 成功反馈"
+      },
+      {
+        "name": "full.failure",
+        "surface": "full",
+        "state": "failure",
+        "description": "Full 失败反馈"
+      },
+      {
+        "name": "full.cancelled",
+        "surface": "full",
+        "state": "cancelled",
+        "description": "Full 取消反馈"
+      },
+      {
+        "name": "full.resolving",
+        "surface": "full",
+        "state": "resolving",
+        "description": "Full 解析中"
+      },
+      {
+        "name": "full.unknown",
+        "surface": "full",
+        "state": "unknown",
+        "description": "Full 未知进度"
+      },
+      {
+        "name": "full.audio",
+        "surface": "full",
+        "state": "audio",
+        "description": "Full 音频阶段"
+      },
+      {
+        "name": "full.merging",
+        "surface": "full",
+        "state": "merging",
+        "description": "Full 合并阶段"
+      },
+      {
+        "name": "full.badge",
+        "surface": "full",
+        "state": "badge",
+        "description": "Full 多任务和失败 Badge"
+      },
+      {
+        "name": "queue.empty",
+        "surface": "queue",
+        "state": "empty",
+        "description": "空队列"
+      },
+      {
+        "name": "queue.queued",
+        "surface": "queue",
+        "state": "queued",
+        "description": "单任务等待"
+      },
+      {
+        "name": "queue.resolving",
+        "surface": "queue",
+        "state": "resolving",
+        "description": "单任务解析"
+      },
+      {
+        "name": "queue.downloading",
+        "surface": "queue",
+        "state": "downloading",
+        "description": "已知进度与速度"
+      },
+      {
+        "name": "queue.unknown",
+        "surface": "queue",
+        "state": "unknown",
+        "description": "未知进度"
+      },
+      {
+        "name": "queue.audio",
+        "surface": "queue",
+        "state": "audio",
+        "description": "音频阶段"
+      },
+      {
+        "name": "queue.merging",
+        "surface": "queue",
+        "state": "merging",
+        "description": "媒体合并"
+      },
+      {
+        "name": "queue.validating",
+        "surface": "queue",
+        "state": "validating",
+        "description": "校验媒体"
+      },
+      {
+        "name": "queue.publishing",
+        "surface": "queue",
+        "state": "publishing",
+        "description": "保存文件"
+      },
+      {
+        "name": "queue.success",
+        "surface": "queue",
+        "state": "success",
+        "description": "保持成功行"
+      },
+      {
+        "name": "queue.failure",
+        "surface": "queue",
+        "state": "failure",
+        "description": "失败行及三个操作"
+      },
+      {
+        "name": "queue.concurrent",
+        "surface": "queue",
+        "state": "concurrent",
+        "description": "三并发与排队"
+      },
+      {
+        "name": "queue.mixed",
+        "surface": "queue",
+        "state": "mixed",
+        "description": "下载、排队和失败"
+      },
+      {
+        "name": "queue.long-title",
+        "surface": "queue",
+        "state": "long-title",
+        "description": "长标题及窄标题区域"
+      },
+      {
+        "name": "queue.held",
+        "surface": "queue",
+        "state": "held",
+        "description": "清理未确认"
+      },
+      {
+        "name": "queue.retry-pending",
+        "surface": "queue",
+        "state": "retry-pending",
+        "description": "重试处理中"
+      },
+      {
+        "name": "queue.retry-refused",
+        "surface": "queue",
+        "state": "retry-refused",
+        "description": "重试未受理反馈"
+      },
+      {
+        "name": "queue.copied",
+        "surface": "queue",
+        "state": "copied",
+        "description": "诊断已复制反馈"
+      },
+      {
+        "name": "queue.copy-failed",
+        "surface": "queue",
+        "state": "copy-failed",
+        "description": "诊断复制失败反馈"
+      },
+      {
+        "name": "settings.general",
+        "surface": "settings",
+        "state": "general",
+        "description": "常规页面与主要选项"
+      },
+      {
+        "name": "settings.download",
+        "surface": "settings",
+        "state": "download",
+        "description": "下载页面与主要选项"
+      },
+      {
+        "name": "settings.saving",
+        "surface": "settings",
+        "state": "saving",
+        "description": "保存中及禁用控件"
+      },
+      {
+        "name": "settings.saved",
+        "surface": "settings",
+        "state": "saved",
+        "description": "保存后已确认的设置"
+      },
+      {
+        "name": "settings.save-failed",
+        "surface": "settings",
+        "state": "save-failed",
+        "description": "保存失败"
+      },
+      {
+        "name": "settings.unavailable",
+        "surface": "settings",
+        "state": "unavailable",
+        "description": "设置尚未就绪"
+      },
+      {
+        "name": "settings.path-unavailable",
+        "surface": "settings",
+        "state": "path-unavailable",
+        "description": "目录不存在"
+      },
+      {
+        "name": "settings.path-denied",
+        "surface": "settings",
+        "state": "path-denied",
+        "description": "目录无法访问"
+      },
+      {
+        "name": "settings.path-copied",
+        "surface": "settings",
+        "state": "path-copied",
+        "description": "完整路径已复制反馈"
+      },
+      {
+        "name": "settings.path-copy-failed",
+        "surface": "settings",
+        "state": "path-copy-failed",
+        "description": "路径复制失败反馈"
+      },
+      {
+        "name": "settings.open-failed",
+        "surface": "settings",
+        "state": "open-failed",
+        "description": "打开目录失败"
+      },
+      {
+        "name": "settings.picker-cancelled",
+        "surface": "settings",
+        "state": "picker-cancelled",
+        "description": "未选择文件夹"
+      },
+      {
+        "name": "settings.theme-menu",
+        "surface": "settings",
+        "state": "theme-menu",
+        "description": "常规：主题选项"
+      },
+      {
+        "name": "settings.language-menu",
+        "surface": "settings",
+        "state": "language-menu",
+        "description": "常规：语言选项"
+      },
+      {
+        "name": "settings.tray-menu",
+        "surface": "settings",
+        "state": "tray-menu",
+        "description": "常规：托盘图标选项"
+      },
+      {
+        "name": "settings.startup-enabled",
+        "surface": "settings",
+        "state": "startup-enabled",
+        "description": "开机启动已启用"
+      },
+      {
+        "name": "settings.startup-unavailable",
+        "surface": "settings",
+        "state": "startup-unavailable",
+        "description": "开机启动状态不可用"
+      },
+      {
+        "name": "settings.startup-pending",
+        "surface": "settings",
+        "state": "startup-pending",
+        "description": "开机启动读取中"
+      },
+      {
+        "name": "components.ready",
+        "surface": "components",
+        "state": "ready",
+        "description": "组件版本与就绪"
+      },
+      {
+        "name": "components.missing",
+        "surface": "components",
+        "state": "missing",
+        "description": "组件尚未准备"
+      },
+      {
+        "name": "components.preparing",
+        "surface": "components",
+        "state": "preparing",
+        "description": "组件准备中"
+      },
+      {
+        "name": "components.checking",
+        "surface": "components",
+        "state": "checking",
+        "description": "检查更新中"
+      },
+      {
+        "name": "components.check-failed",
+        "surface": "components",
+        "state": "check-failed",
+        "description": "检查更新失败"
+      },
+      {
+        "name": "components.update-available",
+        "surface": "components",
+        "state": "update-available",
+        "description": "可更新版本"
+      },
+      {
+        "name": "components.update-confirm",
+        "surface": "components",
+        "state": "update-confirm",
+        "description": "更新确认层"
+      },
+      {
+        "name": "components.updating",
+        "surface": "components",
+        "state": "updating",
+        "description": "组件更新中"
+      },
+      {
+        "name": "components.update-waiting",
+        "surface": "components",
+        "state": "update-waiting",
+        "description": "等待当前任务结束"
+      },
+      {
+        "name": "components.update-failed",
+        "surface": "components",
+        "state": "update-failed",
+        "description": "更新失败"
+      },
+      {
+        "name": "components.restored",
+        "surface": "components",
+        "state": "restored",
+        "description": "已恢复推荐版本"
+      },
+      {
+        "name": "components.recovery-required",
+        "surface": "components",
+        "state": "recovery-required",
+        "description": "需要恢复组件"
+      },
+      {
+        "name": "components.owner-lost",
+        "surface": "components",
+        "state": "owner-lost",
+        "description": "组件清理未确认"
+      },
+      {
+        "name": "diagnostics.ready",
+        "surface": "diagnostics",
+        "state": "ready",
+        "description": "诊断可复制"
+      },
+      {
+        "name": "diagnostics.copying",
+        "surface": "diagnostics",
+        "state": "copying",
+        "description": "诊断复制中"
+      },
+      {
+        "name": "diagnostics.copied",
+        "surface": "diagnostics",
+        "state": "copied",
+        "description": "诊断复制成功反馈"
+      },
+      {
+        "name": "diagnostics.copy-failed",
+        "surface": "diagnostics",
+        "state": "copy-failed",
+        "description": "诊断复制失败反馈"
+      },
+      {
+        "name": "diagnostics.unavailable",
+        "surface": "diagnostics",
+        "state": "unavailable",
+        "description": "诊断不可用"
+      },
+      {
+        "name": "tray.idle",
+        "surface": "tray",
+        "state": "idle",
+        "description": "托盘弹窗空闲"
+      },
+      {
+        "name": "tray.downloading",
+        "surface": "tray",
+        "state": "downloading",
+        "description": "托盘弹窗下载中"
+      },
+      {
+        "name": "tray.mixed",
+        "surface": "tray",
+        "state": "mixed",
+        "description": "托盘下载、排队和失败"
+      },
+      {
+        "name": "tray.preparing",
+        "surface": "tray",
+        "state": "preparing",
+        "description": "托盘准备组件"
+      },
+      {
+        "name": "tray.cleanup-unknown",
+        "surface": "tray",
+        "state": "cleanup-unknown",
+        "description": "托盘清理未确认"
+      },
+      {
+        "name": "tray.startup-failed",
+        "surface": "tray",
+        "state": "startup-failed",
+        "description": "托盘启动失败"
+      },
+      {
+        "name": "tray.stopping",
+        "surface": "tray",
+        "state": "stopping",
+        "description": "托盘正在停止"
+      },
+      {
+        "name": "menu.root",
+        "surface": "menu",
+        "state": "root",
+        "description": "Full 右键菜单"
+      },
+      {
+        "name": "overlay.exit-confirm",
+        "surface": "overlay",
+        "state": "exit-confirm",
+        "description": "正在下载时退出确认"
+      }
+    ],
+    "version": "0.1.0"
+  },
+  "limits": "真实 Windows GPUI 窗口；模拟呈现状态，不证明网络、持久化、剪贴板或系统托盘行为。BitBlt 需窗口未被遮挡。"
+}

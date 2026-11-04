@@ -4,6 +4,7 @@ mod download_bridge;
 mod download_ui;
 mod queue_presentation;
 mod queue_fixture;
+mod preview;
 mod tray;
 mod tray_popup;
 mod indicator;
@@ -83,6 +84,7 @@ struct Options {
     fixture: bool,
     tray_fixture: bool,
     preview: bool,
+    preview_session: Option<preview::Session>,
     unknown_downloading: bool,
     queue_fixture: Option<std::path::PathBuf>,
     night: bool,
@@ -133,6 +135,8 @@ impl Options {
             instance: None,
             login_startup: args.iter().any(|s| s == "--login-startup"),
             preview,
+            preview_session: preview.then(|| preview::Session::new(value("--preview-control").map(std::path::PathBuf::from),
+                value("--preview-scene").map_or("queue.mixed", String::as_str)).expect("validated preview scene")),
             queue_fixture,
             fixture: preview || queue_fixture_enabled || unknown_downloading || args.iter().any(|arg| matches!(arg.as_str(), "--demo" | "--stage" | "--probe-period-ms")),
             night: args.iter().any(|s| s == "--night"),
@@ -188,6 +192,7 @@ impl Options {
 struct Prototype {
     instance: Option<login_startup::InstanceGuard>,
     production_preferences: bool,
+    preview: Option<preview::Session>,
     language: ui_text::Language,
     system_preferences: ui_text::SystemPreferences,
     last_system_preferences_ms: u64,
@@ -236,7 +241,7 @@ impl Prototype {
         let focus = cx.focus_handle();
         window.focus(&focus);
         let menu_activation = cx.observe_window_activation(window, |this, window, cx| {
-            if !window.is_window_active() && this.surface_menu.is_open() {
+            if this.preview.is_none() && !window.is_window_active() && this.surface_menu.is_open() {
                 this.close_menu(cx);
             }
         });
@@ -260,10 +265,10 @@ impl Prototype {
                 false
             });
         }
-        let downloads = if options.preview { Some(download_ui::DownloadUi::preview()) } else if let Some(path) = options.queue_fixture {
+        let downloads = if options.preview { Some(download_ui::DownloadUi::controlled_preview()) } else if let Some(path) = options.queue_fixture {
             Some(download_ui::DownloadUi::fixture(path))
         } else { (!options.fixture).then(download_ui::DownloadUi::start) };
-        let tray = if !options.fixture || options.tray_fixture { tray::Tray::new().ok() } else { None };
+        let tray = if !options.fixture || (options.tray_fixture && !options.preview) { tray::Tray::new().ok() } else { None };
         let download_poll = (downloads.is_some() || options.unknown_downloading).then(|| cx.spawn_in(window, async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
@@ -274,6 +279,7 @@ impl Prototype {
             surface_menu: context_menu::Menu::default(),
             instance: options.instance,
             production_preferences: !options.fixture,
+            preview: options.preview_session,
             language: ui_text::Language::Chinese,
             system_preferences: ui_text::SystemPreferences::read(),
             last_system_preferences_ms: 0,
@@ -533,6 +539,15 @@ impl Prototype {
                 .pointer(self.native.as_ref().is_some_and(Native::inside), now);
         }
         self.model.tick(now);
+        if let Some(preview) = &self.preview {
+            self.model.set_target(preview.scene().surface != "compact", now);
+            match preview.scene().state.as_str() {
+                "success" => self.model.stage = Stage::Success,
+                "failure" => self.model.stage = Stage::Failure,
+                "cancelled" => self.model.stage = Stage::Cancelled,
+                _ => {}
+            }
+        }
         if self.clamped_target != self.model.target_full {
             self.clamped_target = self.model.target_full;
             self.clamp_anchor(
@@ -997,7 +1012,7 @@ impl Render for Prototype {
             .font(tokens::ui_font())
             .on_hover(cx.listener(|this, inside: &bool, _, cx| {
                 if !*inside {this.background_clicks.reset();}
-                if this.probe_period_ms.is_none() {
+                if this.probe_period_ms.is_none() && this.preview.is_none() {
                     this.model.pointer(*inside, this.now());
                 }
                 cx.notify();
@@ -1121,6 +1136,21 @@ fn main() {
     {
         if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
         return;
+    }
+    if let Some(at) = args.iter().position(|a| a == "--preview-catalog-out") {
+        let Some(path) = args.get(at + 1) else { std::process::exit(2); };
+        if std::fs::write(path, preview::CATALOG).is_err() { std::process::exit(2); }
+        return;
+    }
+    if let Some(at) = args.iter().position(|a| a == "--preview-scene") {
+        if !args.iter().any(|a| a == "--preview") || args.get(at + 1).is_none_or(|name| preview::find(name).is_err()) {
+            eprintln!("无效的预览场景；需要 --preview 和有效的 --preview-scene 名称");
+            std::process::exit(2);
+        }
+    }
+    if args.iter().any(|a| a == "--preview-control") && !args.iter().any(|a| a == "--preview") {
+        eprintln!("--preview-control 需要同时指定 --preview");
+        std::process::exit(2);
     }
     let mut options = Options::from_args();
     if !options.fixture {

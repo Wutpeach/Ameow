@@ -42,6 +42,8 @@ Use the shared `development-workflow` Skill for repository development and GitHu
 
 Use the narrowest observable-behavior test. Bug fixes need a regression at the lowest useful layer. UI changes require running the affected native workflow; builds and unit tests alone are not UI proof. Reuse existing accepted evidence when the changed behavior is outside its scope. Do not overwrite accepted EXEs or historical evidence during validation.
 
+When adding, changing, or removing a user-visible UI state, assess and update the corresponding preview scenes as needed. Unrelated development does not require running the full scene catalog, and ordinary scene maintenance does not need a separate Issue.
+
 ## File Search
 
 For any file search, filename or path lookup, or content grep in the current git-indexed directory, use the `fff` MCP tools instead of the default search tools.

@@ -204,9 +204,10 @@ fn version_preview(version: &str) -> String {
 impl SettingsWindow {
     fn confirm_engine_update(&mut self, cx: &mut Context<Self>) {
         let Some(selection) = self.engine_confirmation.take() else { return; };
+        if self.projection.preview { cx.notify(); return; }
         // Recheck the current query and verified version after the confirmation was opened.
         if let Some(version) = &selection {
-            let upstream = self.projection.upstream.snapshot();
+            let upstream = self.projection.upstream_snapshot();
             if upgrade_version(&upstream, verified_version(self.projection.queue.as_deref(), "yt-dlp"), ameow_next::download::progress::now_ms()).as_ref() != Some(version) {
                 self.projection.engine_notice = Some(false);
                 cx.notify();
@@ -227,7 +228,7 @@ impl SettingsWindow {
         let Some(snapshot) = self.projection.queue.as_deref() else { return div().into_any_element(); };
         let update = &snapshot.runtime_update;
         let available = self.projection.upstream_available && !snapshot.stopping && !snapshot.stopped && !self.projection.engine_command_pending && !update_busy(update.phase);
-        let candidate = upgrade_version(&self.projection.upstream.snapshot(), verified_version(Some(snapshot), "yt-dlp"), ameow_next::download::progress::now_ms());
+        let candidate = upgrade_version(&self.projection.upstream_snapshot(), verified_version(Some(snapshot), "yt-dlp"), ameow_next::download::progress::now_ms());
         if update.phase == RuntimeUpdatePhase::Idle && update.error.is_none()
             && !self.projection.engine_command_pending && self.projection.engine_notice != Some(false)
             && self.engine_confirmation.is_none() && candidate.is_none()
@@ -277,7 +278,7 @@ impl SettingsWindow {
         let l = self.projection.language;
         let p = Palette::new(self.projection.night);
         let snapshot = self.projection.queue.as_deref();
-        let upstream = self.projection.upstream.snapshot();
+        let upstream = self.projection.upstream_snapshot();
         let checking = check_is_visible(upstream.pending, self.upstream_feedback);
         let owner_available = self.projection.upstream_available
             && snapshot.is_some_and(|s| !s.stopping && !s.stopped);
@@ -454,7 +455,7 @@ impl SettingsWindow {
     }
 
     pub(super) fn can_check_upstream(&self) -> bool {
-        let upstream = self.projection.upstream.snapshot();
+        let upstream = self.projection.upstream_snapshot();
         check_enabled(
             self.projection.upstream_available
                 && self.projection.queue.as_deref().is_some_and(|s| !s.stopping && !s.stopped),
@@ -465,7 +466,7 @@ impl SettingsWindow {
     }
 
     pub(super) fn check_upstream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.can_check_upstream() { return; }
+        if self.projection.preview || !self.can_check_upstream() { return; }
         let accepted = self
             .main
             .update(cx, |main, _| {
@@ -566,6 +567,7 @@ impl SettingsWindow {
                 "copy-component-diagnostic", l.text("复制诊断", "Copy diagnostics"),
                 snapshot.is_some() && !self.projection.preparation_copy_pending,
                 ButtonStyle::Quiet, cx, |this, _, cx| {
+                    if this.projection.preview { return; }
                     let _ = this.main.update(cx, |main, cx| {
                         let now = main.now();
                         if let Some(ui) = &mut main.downloads { ui.copy_preparation_diagnostic(now); }
@@ -577,6 +579,7 @@ impl SettingsWindow {
             actions = actions.child(self.button(
                 "retry-component-preparation", l.text("重试", "Retry"), true,
                 ButtonStyle::Standard, cx, |this, _, cx| {
+                    if this.projection.preview { return; }
                     let _ = this.main.update(cx, |main, cx| {
                         let now = main.now();
                         if let Some(ui) = &mut main.downloads { ui.retry_preparation(now); }
