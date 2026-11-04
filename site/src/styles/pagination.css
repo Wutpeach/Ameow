@@ -1,0 +1,13 @@
+@media (max-width: 40rem) {
+  .pagination-links {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .pagination-links a {
+    max-width: 100%;
+    min-height: 2rem;
+    height: auto;
+    white-space: normal;
+  }
+}
