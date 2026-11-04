@@ -1,56 +1,27 @@
 ---
-title: Start Here
-description: Ameow is a desktop floating window for downloading and collecting. Drop files, paste links, or send web content straight to your desktop.
+title: "Ameow · Rust guide"
+description: "Windows floating downloads: public single videos, queue and trusted components."
 ---
 
-> **Version scope:** The content below describes the publicly released Electron v0.3.1. Rust / GPUI is the source development baseline but has no public installer yet; the old extension is not compatible with it. Full documentation updates are tracked in [#19](https://github.com/Wutpeach/Ameow/issues/19).
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-import { CardGrid, Card, Aside } from '@astrojs/starlight/components';
+Current Rust / GPUI source downloads public single videos from YouTube and Bilibili on Windows x64. There is no public Rust installer; the public release remains [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1).
 
-Ameow is a desktop floating window for downloading and collecting. You hand files, folders, or web links to the floating window, and Ameow saves the results to the current output folder. With the browser extension, web videos and resources can also be sent straight to the desktop.
+![Ameow General settings: startup, theme and language](/Ameow/images/docs/rust-settings-en-general.png)
 
-The core model is one line: **give content to Ameow → Ameow processes the task → results land in the current output folder.**
-
-## Common Entry Points
+Choose your theme, interface language and startup preference in General settings.
 
 <CardGrid>
-	<Card title="First Install" icon="download" href="./downloads/">
-		Pick the right release package, install the desktop app, and confirm the floating window appears.
-	</Card>
-	<Card title="Quick Start" icon="rocket" href="./getting-started/">
-		Run through install → drop a file → paste a link in a few minutes.
-	</Card>
-	<Card title="Collect Local Files" icon="folder" href="./desktop/files-and-folders/">
-		Drag files from your desktop or file manager into Ameow, or paste from the clipboard.
-	</Card>
+<LinkCard title="Downloads and source" href="./downloads/" description="Learn about releases and source." />
+<LinkCard title="Get started" href="./getting-started/" description="Run the app and submit a link." />
+<LinkCard title="Links and queue" href="./desktop/links-and-queue/" description="Understand download scope." />
+<LinkCard title="Troubleshooting" href="./troubleshooting/" description="Check task status." />
 </CardGrid>
 
-## Downloading & Troubleshooting
+## Start here
 
-<CardGrid>
-	<Card title="Download Web Video" icon="play" href="./desktop/links-and-queue/">
-		Paste a public link, or send from the page through the browser extension.
-	</Card>
-	<Card title="Download Login-Required Content" icon="lock" href="./extension/cookies-and-login/">
-		Some sites need login state or cookies; the browser extension handles this.
-	</Card>
-	<Card title="Missing Files / Download Failed" icon="wrench" href="./troubleshooting/">
-		Open the current output folder from Ameow, or troubleshoot by symptom.
-	</Card>
-</CardGrid>
+1. Read [downloads](./downloads/) for the public Electron release and unreleased Rust source.
+2. Run source on the verified Windows x64 target, open settings, and choose a destination.
+3. Paste a supported public single-video link, wait for the queue to show completion, and open the result.
 
-## How Do the Desktop App and Browser Extension Relate?
-
-The desktop app works on its own. You only need the floating window to drop files, paste links, and download public content.
-
-The browser extension is an optional enhancement for these scenarios:
-
-- A web page plays in the browser, but pasting the link into Ameow fails.
-- Content needs login state, cookies, or membership access.
-- You want to pick video, audio, or image resources directly from the current page.
-
-The extension must connect to a running desktop app to send tasks. If you don't need the extension, don't install it yet.
-
-<Aside type="tip" title="Not sure where to start?">
-	Read [Quick Start](./getting-started/) first to confirm the app works in a few minutes. Then explore other pages as needed.
-</Aside>
+Current Rust does not connect to the old browser extension or provide session import or local file collection. Webpage selection is future research. See [download components](./advanced/download-dependencies/) and the [FAQ](./faq/).

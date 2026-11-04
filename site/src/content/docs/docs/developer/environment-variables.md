@@ -1,32 +1,10 @@
 ---
 title: 环境变量
-description: Ameow 中影响开发与诊断行为的真实环境变量，以及它们与消息标记常量的区别。
+description: 当前 Rust 数据路径和测试专用输入。
 ---
 
-Ameow 使用 `AMEOW_` 前缀的环境变量来控制开发行为和诊断模式。以下变量通过 `process.env` 读取；其中大部分只能通过环境变量启用，`AMEOW_FORCE_DEV_PREFLIGHT` 也可在直接运行预检脚本时通过 `--force` 参数触发（见[本地开发环境](../local-development/)）。
+Rust 应用使用 Windows 的 `LOCALAPPDATA` 定位 `%LOCALAPPDATA%\AmeowNext\stage-a`，以保留现有设置、缓存和历史。该目录不是旧 Electron 配置，应用不会自动导入后者。
 
-## 环境变量
+部分忽略的真实运行时测试使用 `AMEOW_RUNTIME_TEST_ROOT` 指向已按生产流程准备的缓存；具体要求见测试源码。它是测试输入，不是普通用户的配置选项。其他测试工具可能有各自的输入，请阅读对应源码和说明后再运行。
 
-| 变量 | 用途 | 来源文件 |
-| --- | --- | --- |
-| `AMEOW_ELECTRON_DEV_SERVER_URL` | dev server URL 注入 Electron | `scripts/run-electron-dev.mjs` |
-| `AMEOW_FRONTEND_URL` | 覆盖未打包 Electron 进程加载的渲染层 URL（打包应用忽略） | `electron/windowRouting.mts` |
-| `AMEOW_FORCE_DEV_PREFLIGHT` | 强制预检重新验证 Python runtime（`1`/`true`/`yes`/`on`） | `scripts/dev-preflight.mjs` |
-| `AMEOW_STARTUP_DIAGNOSTICS` | 在已打包的 Windows 应用中开启启动诊断捕获（窗口截图+像素透明度分析） | `electron/windowVisibility.mts` |
-| `AMEOW_FORCE_OPAQUE_WINDOW` | 在已打包的 Windows 应用中强制不透明窗口（实验性，诊断透明窗口问题） | `electron/windowVisibility.mts` |
-| `AMEOW_DOCS_SCREENSHOT_TARGET` | 文档截图：目标截图 ID | `electron/main.mts` |
-| `AMEOW_DOCS_SCREENSHOT_OUTPUT` | 文档截图：输出路径 | `electron/main.mts` |
-| `AMEOW_DOCS_SCREENSHOT_DEVICE_SCALE_FACTOR` | 文档截图：设备像素比 | `electron/main.mts` |
-| `AMEOW_DOCS_SCREENSHOT_USER_DATA` | 文档截图：用户数据路径 | `electron/main.mts` |
-
-`AMEOW_DOCS_SCREENSHOT_*` 四个变量是 Electron 主进程在启动时直接读取的内部环境协议：调用方设置 target / output / DPR / userData 后即可请求一次截图。当前 main 没有截图编排脚本；它们不是面向维护者的公共配置项。详见维护者 runbook。
-
-## 消息标记常量不是环境变量
-
-仓库中还有大量 `AMEOW_` 前缀的字符串，例如：
-
-- `AMEOW_PINTEREST_DRAG`
-- `AMEOW_WEIBO_VIDEO_VARIANTS`
-- `AMEOW_XIAOHONGSHU_NOTE_LINKS`
-
-这些是页面与进程之间的消息标记常量，用于内容脚本与 background script 通信，**不是**环境变量。它们不会从 `process.env` 读取，设置它们不会产生任何效果。
+旧 Electron 的开发服务器、截图及扩展变量不适用于当前 Rust 应用；历史实现可查看 [v0.3.1 源码](https://github.com/Wutpeach/Ameow/tree/v0.3.1)。

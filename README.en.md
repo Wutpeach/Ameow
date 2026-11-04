@@ -32,6 +32,6 @@ npm ci --prefix site
 npm --prefix site run build
 ```
 
-The existing Pages address is retained. Most site content still describes Electron v0.3.1; full content updates belong to [#19](https://github.com/Wutpeach/Ameow/issues/19). Future page-selection research belongs to [#22](https://github.com/Wutpeach/Ameow/issues/22).
+The existing Pages address is retained. The site documents current Rust source and distinguishes it from the historical Electron v0.3.1 public release. [#19](https://github.com/Wutpeach/Ameow/issues/19) tracks documentation maintenance. Future page-selection research belongs to [#22](https://github.com/Wutpeach/Ameow/issues/22).
 
 Application code is [MIT](LICENSE); third-party materials retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). A successful build does not authorize redistribution. Private packaging needs a review bound to the current inputs; public Gate B remains blocked. No workflow automatically publishes installers.

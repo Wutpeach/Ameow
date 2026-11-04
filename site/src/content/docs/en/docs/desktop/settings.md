@@ -1,85 +1,21 @@
 ---
-title: Common Settings
-description: Adjust Ameow's output folder, shortcuts, launch-at-startup behavior, rename rules, download quality, and AE compatibility options.
+title: Settings
+description: Settings
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+Settings include General, Download, Components management, and About. General offers startup, theme, and language; Download lets you view, open, change, or copy the output folder.
 
-The settings page is where you tune Ameow for your workflow. You do not need to change everything up front. A good pattern is to finish one file drop and one download first, then adjust settings based on real use.
+![General settings](/Ameow/images/docs/rust-settings-en-general.png)
 
-The first settings worth checking are simple: the output folder is correct, the shortcut fits your habit, and download quality stays on a steady default. Leave the rest until a concrete need appears.
+Adjust theme, language and startup preferences on the General page. [Output folder](../output-folder/) shows download settings; [download components](../../advanced/download-dependencies/) explains version selection.
 
-[Screenshot: settings page sections for output folder, shortcut, quality, and AE compatibility]
+After renaming or moving the EXE, exit the old version, start the new one, and recreate shortcuts or taskbar pins. If startup was enabled, re-enable it in the new settings and check it; actual startup after signing in again is unverified. Current Rust has no app auto-updater, global hotkey editor, manual proxy, or AE compatibility setting.
 
-## Output folder
+## Available settings
 
-The output folder decides where copied files and downloaded media are saved. You can confirm the current path in settings, or switch it quickly by dropping a folder onto the floating window.
+- **General:** choose System, Light, or Dark theme; System, Chinese, or English language; tray icon and startup options.
+- **Download:** view, open, change, or copy the output folder. Choose quality in the download interface; see [quality and formats](../../advanced/quality-and-formats/).
+- **Components management:** inspect component status, query trusted versions, and confirm a selection; see [download components](../../advanced/download-dependencies/).
+- **About:** view application information.
 
-Suggestions:
-
-- project-based work: use a dedicated output folder per project;
-- temporary collection: keep the default `Desktop/Ameow_Received`;
-- missing files: open the current output folder from settings or the floating window first.
-
-## Global shortcut
-
-The global shortcut is useful when you move often between the browser, file manager, and editing tools.
-
-After setting it, test it once:
-
-1. switch to another app;
-2. press the shortcut;
-3. confirm Ameow appears where you expect it.
-
-If it conflicts with another tool, choose a less common key combination.
-
-## Launch at startup
-
-If you want Ameow ready as a desktop collection point all the time, enable launch at startup. If you only download or organize media occasionally, keeping it off is fine.
-
-## App updates
-
-Ameow checks for app updates shortly after startup and continues checking periodically in the background while it is running. When a new version is available, the floating window and settings page show an update entry point.
-
-Background checks only notify you. They do not automatically download, install, quit, or restart the app. You can still check manually from the settings page.
-
-If you enable prerelease updates, both automatic and manual checks prefer beta / RC releases. Turn it off to return to the stable update channel.
-
-## Rename rules
-
-Rename rules help keep saved files organized. They are useful when you sort by project, date, source site, or media type.
-
-After changing them, test with one small link first so you confirm the result before using them on a larger batch.
-
-## Download quality preference
-
-This setting controls whether Ameow favors quality, file size, or stability for web downloads.
-
-- Highest quality: larger files, more conversion risk.
-- Balanced: usually best for everyday use.
-- Data saver: lighter files when bandwidth or storage matters.
-
-If a site keeps failing on the highest setting, test the same link with Balanced first.
-
-## AE-compatible formats
-
-If you often move downloaded video into After Effects, pay attention to AE compatibility. The goal is to reduce cases where the download succeeds but the editing tool cannot use the result comfortably.
-
-Suggested approach:
-
-- reference-only media: Balanced is often enough;
-- media headed into editing: favor compatibility;
-- archive-quality media: accept larger files and longer processing time.
-
-## Network proxy
-
-The network proxy setting is located under "System & Support → Network Proxy." It controls which network path Ameow uses when downloading content.
-
-Two modes:
-
-- System proxy: follows the operating system's proxy settings. Most users can leave this on.
-- Manual proxy: set a custom proxy address and port. Use this when your proxy tool does not capture the system proxy, or when you want Ameow to use a separate network path.
-
-<Aside type="caution" title="When do you need manual proxy?">
-	If YouTube plays in your browser but Ameow fails to download, it is usually because the browser uses a proxy that Ameow does not reach. Switch to manual proxy and enter your proxy address. See [Download Failures](../troubleshooting/download-failures/) for more.
-</Aside>
+Settings, runtime selection, and cache are kept in Windows at `%LOCALAPPDATA%\AmeowNext\stage-a`. The current application does not import old Electron configuration. Keep this directory to retain existing Rust data; do not clear it for routine troubleshooting.

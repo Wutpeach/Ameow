@@ -3,6 +3,14 @@ title: Release Notes
 description: In-site release history for Ameow stable releases and prerelease builds.
 ---
 
+## Current Rust source checkpoint
+
+The current development baseline is the repository-root Rust / GPUI application, verified on Windows x64 / MSVC. There is no public Rust installer. This is a source checkpoint, not a release. See the [README](https://github.com/Wutpeach/Ameow/blob/main/README.en.md).
+
+## Historical release history
+
+All release notes below describe historical Ameow / FlowSelect releases, not current Rust features. The public release remains [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1).
+
 This page tracks user-visible Ameow / FlowSelect changes across stable releases and prerelease builds. Stable releases are the right reference for most users. Prerelease notes are mainly for understanding what a test build was validating.
 
 ## Stable Releases
