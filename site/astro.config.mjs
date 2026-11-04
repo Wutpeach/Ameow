@@ -13,7 +13,7 @@ export default defineConfig({
 			customCss: ['./src/styles/pagination.css'],
 			title: 'Ameow',
 			description: 'Ameow Rust / GPUI · Windows floating video downloader · Rust 源码与使用指南。',
-			favicon: '/favicon.svg',
+			favicon: '/ameow.ico',
 			locales: {
 				root: {
 					label: '简体中文',
@@ -25,7 +25,7 @@ export default defineConfig({
 				},
 			},
 			logo: {
-				src: './public/logo-mark.svg',
+				src: './public/ameow-logo.png',
 				alt: 'Ameow',
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/Wutpeach/Ameow' }],
