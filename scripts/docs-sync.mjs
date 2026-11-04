@@ -8,6 +8,7 @@ export const repository = "Wutpeach/Ameow";
 const shaPattern = /^[a-f0-9]{40}$/;
 const scheduleId = "2f51bb54-18c9-4824-a306-9796d77943c7";
 function requireValue(condition, message) { if (!condition) throw new Error(message); }
+const needsPages = files => files.some(p => p.startsWith("site/") || p === ".github/workflows/deploy-docs.yml");
 function atomic(file, value) {
   const temp = file + ".tmp-" + process.pid;
   writeFileSync(temp, value, { flag: "wx" });
@@ -54,20 +55,28 @@ export function synchronize(root, command, input, api) {
         ["README.md", "README.en.md", "scripts/docs-sync.mjs", "scripts/docs-sync.test.mjs"].includes(p)),
       "Changes exceed documentation scope or are empty");
       let prs = api.find(head); // Always discover before create, including after a lost receipt.
-      requireValue(prs.length <= 1, "Ambiguous PRs for the same documentation branch");
-      let pr = prs[0];
-      requireValue(!pr || pr.state === "OPEN", "Existing PR is closed; inspect it instead of creating a duplicate");
+      const open = prs.filter(pr => pr.state === "OPEN");
+      requireValue(open.length <= 1, "Ambiguous open PRs for the same documentation branch");
+      let pr = open[0];
       if (previous?.number) requireValue(pr?.number === previous.number, "Pending PR identity changed");
-      state.pending = { topic: input.topic, head, through, headSha: branch.sha, phase: "publishing", number: pr?.number ?? null };
+      if (!pr && prs.length) {
+        // A pending creation is a recovery operation, never permission to start another round.
+        const recoveringRound = previous?.headSha === branch.sha && Array.isArray(previous.historicalPrNumbers)
+          && prs.every(pr => previous.historicalPrNumbers.includes(pr.number));
+        requireValue(recoveringRound || (!previous && input.newRound === true && prs.every(pr => pr.headRefOid !== branch.sha)),
+          "Previous PR is closed or merged; complete recovery and explicitly request a new round with a new HEAD");
+      }
+      state.pending = { topic: input.topic, head, through, headSha: branch.sha, phase: "publishing", number: pr?.number ?? null,
+        historicalPrNumbers: previous?.historicalPrNumbers ?? prs.filter(pr => pr.state !== "OPEN").map(pr => pr.number) };
       save(); // Intent is durable before external writes; failure never advances the cursor.
       if (!pr) {
         try { api.create(head, input.title, input.body); }
         catch (error) {
-          prs = api.find(head);
-          if (prs.length !== 1 || prs[0].state !== "OPEN") throw error;
+          prs = api.find(head).filter(pr => pr.state === "OPEN");
+          if (prs.length !== 1) throw error;
         }
-        prs = api.find(head);
-        requireValue(prs.length === 1 && prs[0].state === "OPEN", "Cannot confirm created PR");
+        prs = api.find(head).filter(pr => pr.state === "OPEN");
+        requireValue(prs.length === 1, "Cannot confirm created PR");
         pr = prs[0];
       }
       requireValue(pr.headRefOid === branch.sha && pr.baseRefName === "main", "PR head/base does not match the published branch");
@@ -79,20 +88,30 @@ export function synchronize(root, command, input, api) {
     requireValue(command === "complete", "Unknown command");
     requireValue(typeof input.reason === "string" && input.reason.length > 0 && Array.isArray(input.evidence) && input.evidence.length > 0, "Completion needs a reason and evidence");
     const pending = state.pending;
+    let completed = null;
     if (pending) {
       requireValue(pending.number, "Recover the publishing operation before completion");
       const pr = api.pr(pending.number);
       requireValue(pr.state === "MERGED" && pr.headRefOid === pending.headSha, "Pending PR has not merged at its recorded HEAD");
       requireValue(shaPattern.test(pr.mergeCommit?.oid ?? "") && api.isAncestor(pr.mergeCommit.oid, through), "Pending merge is outside the reviewed range");
+      requireValue(Array.isArray(pr.files) && pr.files.length > 0, "Cannot determine merged PR files");
       state.pending = { ...pending, phase: "merged", mergeSha: pr.mergeCommit.oid };
       save();
-      requireValue(api.deployed(pr.mergeCommit.oid), "Merged Pages deployment is not successful yet");
+      let deployment = { required: false, state: "not_required", reason: "No site or Pages workflow changes" };
+      if (needsPages(pr.files)) {
+        deployment = api.deployed(pr.mergeCommit.oid, through);
+        requireValue(deployment?.state === "success" && shaPattern.test(deployment.sha ?? "")
+          && deployment.id && deployment.url && api.isAncestor(pr.mergeCommit.oid, deployment.sha)
+          && api.isAncestor(deployment.sha, through), "Merged Pages deployment is not successful yet");
+        deployment = { ...deployment, required: true };
+      }
+      completed = { ...state.pending, phase: deployment.required ? "deployed" : "merged_no_pages_required", deployment };
     }
     const last = state.reviews.at(-1);
     if (last?.reviewedThroughSha !== through) state.reviews.push({
       checkedAtUtc: new Date().toISOString(), previousReviewedSha: cursor, reviewedThroughSha: through,
-      result: pending ? "documentation_merged_and_deployed" : "no_documentation_update",
-      reason: input.reason, evidence: input.evidence, pullRequest: pending ?? null,
+      result: completed ? (completed.deployment.required ? "documentation_merged_and_deployed" : "documentation_merged_no_pages_required") : "no_documentation_update",
+      reason: input.reason, evidence: input.evidence, pullRequest: completed,
     });
     delete state.pending;
     delete state.lastFailure;
@@ -106,11 +125,12 @@ function run(program, args, cwd) {
   return execFileSync(program, args, { cwd, encoding: "utf8", windowsHide: true, timeout: 60000,
     stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0" } }).trim();
 }
-export function github(root) {
-  const gh = args => run("gh", args, root);
+export function github(root, invoke = run) {
+  const gh = args => invoke("gh", args, root);
   const json = args => JSON.parse(gh(args));
-  const git = args => run("git", args, root);
-  return {
+  const paged = endpoint => json(["api", "--paginate", "--slurp", endpoint]).flat();
+  const git = args => invoke("git", args, root);
+  const api = {
     main: () => json(["api", `repos/${repository}/commits/main`]).sha,
     isAncestor: (a, b) => { try { git(["merge-base", "--is-ancestor", a, b]); return true; } catch { return false; } },
     branch: head => {
@@ -120,15 +140,30 @@ export function github(root) {
       requireValue(comparison.files?.length < 300, "Comparison may be truncated");
       return { sha, files: comparison.files.flatMap(f => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]) };
     },
-    find: head => json(["pr", "list", "--repo", repository, "--head", head, "--base", "main", "--state", "all", "--limit", "100",
-      "--json", "number,url,state,headRefOid,baseRefName"]),
+    find: head => paged(`repos/${repository}/pulls?state=all&head=${encodeURIComponent("Wutpeach:" + head)}&base=main&per_page=100`)
+      .map(pr => ({ number: pr.number, url: pr.html_url, state: pr.state === "open" ? "OPEN" : pr.merged_at ? "MERGED" : "CLOSED",
+        headRefOid: pr.head.sha, baseRefName: pr.base.ref })),
     create: (head, title, body) => gh(["pr", "create", "--repo", repository, "--base", "main", "--head", head, "--title", title, "--body", body]),
-    pr: number => json(["pr", "view", String(number), "--repo", repository, "--json", "state,headRefOid,mergeCommit"]),
-    deployed: sha => {
-      const deployments = json(["api", `repos/${repository}/deployments?sha=${sha}&environment=github-pages&per_page=100`]);
-      return deployments.some(d => json(["api", `repos/${repository}/deployments/${d.id}/statuses?per_page=1`])[0]?.state === "success");
+    pr: number => {
+      const pr = json(["api", `repos/${repository}/pulls/${number}`]);
+      const files = paged(`repos/${repository}/pulls/${number}/files?per_page=100`);
+      requireValue(files.length === pr.changed_files, "PR file list is incomplete");
+      return { state: pr.merged ? "MERGED" : pr.state.toUpperCase(), headRefOid: pr.head.sha, mergeCommit: { oid: pr.merge_commit_sha },
+        files: files.flatMap(f => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]) };
+    },
+    deployed: (mergeSha, through) => {
+      const deployments = paged(`repos/${repository}/deployments?environment=github-pages&per_page=100`);
+      for (const d of deployments) {
+        if (d.ref !== "main" || !shaPattern.test(d.sha)
+          || !api.isAncestor(mergeSha, d.sha) || !api.isAncestor(d.sha, through)) continue;
+        const status = json(["api", `repos/${repository}/deployments/${d.id}/statuses?per_page=1`])[0];
+        if (status?.state === "success") return { id: d.id, sha: d.sha, state: status.state, url: d.statuses_url,
+          environmentUrl: status.environment_url ?? null, statusUrl: status.url };
+      }
+      return null;
     },
   };
+  return api;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
