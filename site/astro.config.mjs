@@ -10,6 +10,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			plugins: [starlightThemeBlack({})],
+			customCss: ['./src/styles/pagination.css'],
 			title: 'Ameow',
 			description: 'Ameow Rust / GPUI · Windows floating video downloader · Rust 源码与使用指南。',
 			favicon: '/favicon.svg',
