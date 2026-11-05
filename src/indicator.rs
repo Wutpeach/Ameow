@@ -86,7 +86,7 @@ impl Indicator {
                 .ring(m.previous)
                 .blend(color.opacity(((elapsed - PROGRESS_MS) as f32 / 110.).clamp(0., 1.)));
         }
-        if !m.reduced && m.stage == Stage::Failure {
+        if !m.reduced && matches!(m.stage, Stage::Failure | Stage::Partial) {
             color = p
                 .ring(m.previous)
                 .blend(color.opacity((elapsed.saturating_sub(70) as f32 / 110.).clamp(0., 1.)));
@@ -102,7 +102,7 @@ impl Indicator {
             Stage::Success if !m.reduced => {
                 (1. - elapsed as f32 / PROGRESS_MS as f32).clamp(0., 1.)
             }
-            Stage::Failure
+            Stage::Failure | Stage::Partial
                 if !m.reduced && matches!(m.previous, Stage::Downloading | Stage::Transcoding) =>
             {
                 (1. - elapsed.saturating_sub(70) as f32 / 120.).clamp(0., 1.)
@@ -264,7 +264,7 @@ fn draw_symbol(
 ) {
     let points: Vec<[f32; 2]> = match stage {
         Stage::Success => vec![[17., 25.], [22.5, 30.5], [33., 20.]],
-        Stage::Failure => vec![[19., 19.], [31., 31.]],
+        Stage::Failure | Stage::Partial => vec![[19., 19.], [31., 31.]],
         Stage::Cancelled => vec![[18., 25.], [32., 25.]],
         _ => return,
     };
@@ -298,7 +298,7 @@ fn draw_symbol(
             stroke(window, &out, 2.8, color);
         }
     };
-    if stage == Stage::Failure {
+    if matches!(stage, Stage::Failure | Stage::Partial) {
         draw(window, &points, (fraction * 2.).min(1.));
         draw(
             window,

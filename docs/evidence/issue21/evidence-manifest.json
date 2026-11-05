@@ -1,0 +1,227 @@
+[
+  {
+    "path": "docs/evidence/issue21/cancelled.json",
+    "bytes": 8268,
+    "sha256": "5BE21C6A3450910A52614513E750B29B6634F2E51679D5E846CB96031FFADA6E"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/bluesky-dump.json",
+    "bytes": 8561,
+    "sha256": "0F5D7E7590053370E34B64B275180E30ADBFD131D86F14D313D68CF9DC0F5B5A"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/imgur-after.jsonl",
+    "bytes": 958,
+    "sha256": "D5713F4AF54B047D9DB6B17227349A5930970B8A8BF303A059EEA4BC99D32B96"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/imgur-sample.json",
+    "bytes": 2697,
+    "sha256": "54E8E54804826C9E9136C41AB2FDD1ED1D64DD9C44482CAD83FC1F49A331DD39"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/trial-after.jsonl",
+    "bytes": 4343,
+    "sha256": "1AD5FBB912C33DDF05F0297BD81EB52016E31B6C5CE6C3097A3C535B75D2344C"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/trial-single.jsonl",
+    "bytes": 3018,
+    "sha256": "F7AEE06E5990D42EDF52D7A4D58C8EAE6E0E7AC17DADFB8001127785529E66D2"
+  },
+  {
+    "path": "docs/evidence/issue21/cli-records/trial-skip.jsonl",
+    "bytes": 4343,
+    "sha256": "1AD5FBB912C33DDF05F0297BD81EB52016E31B6C5CE6C3097A3C535B75D2344C"
+  },
+  {
+    "path": "docs/evidence/issue21/coexistence.json",
+    "bytes": 25793,
+    "sha256": "9CA40023FCDD9EFFC2BD4FF797098D3930FA8E332DF5957E9A9E7927A5F22CCC"
+  },
+  {
+    "path": "docs/evidence/issue21/delivery-audit.json",
+    "bytes": 2635,
+    "sha256": "8918E6E25C95C95A27D688F498BE881D6648E584A074ADBEDEBF238155168A22"
+  },
+  {
+    "path": "docs/evidence/issue21/gallery-acquisition.json",
+    "bytes": 19612,
+    "sha256": "B46A66CEFA055A3ACB41930320F538A9778A58352E2C4F3CA32EC9DD0F1009C5"
+  },
+  {
+    "path": "docs/evidence/issue21/imgur.json",
+    "bytes": 13070,
+    "sha256": "4AD612A7F002996AD884D8ECA82157AC259358D8FE6B43D5160F25062117A1CD"
+  },
+  {
+    "path": "docs/evidence/issue21/native-retry.json",
+    "bytes": 1305,
+    "sha256": "EC892A4393A04362D34F8E1481FBD6F2DAF344534F6F6708460C064CD1176F2B"
+  },
+  {
+    "path": "docs/evidence/issue21/output-manifest.json",
+    "bytes": 1830,
+    "sha256": "42FB552AA962594A9583F0F2C941F28767A5AF05226515EE03BD45453D925A0B"
+  },
+  {
+    "path": "docs/evidence/issue21/partial.json",
+    "bytes": 7950,
+    "sha256": "5858AE0BF1B752E019098DBA32CDDAD8C1D393268A0E3930C6DF6177CF1DBCAA"
+  },
+  {
+    "path": "docs/evidence/issue21/README.md",
+    "bytes": 11001,
+    "sha256": "9A1427C0630E8318F89FA50715C96FE23CCFE297F5512C24BF7583BD17647E1B"
+  },
+  {
+    "path": "docs/evidence/issue21/results.json",
+    "bytes": 1253,
+    "sha256": "AFBF7444FAA90932072E721A5D4CC37E952902270548822C4C6DD493325EE266"
+  },
+  {
+    "path": "docs/evidence/issue21/retried.json",
+    "bytes": 11459,
+    "sha256": "CD8DBDEED5E2A7A1F237A7E8ADE5C6EA5AD725AA72FF3C42EA48C5235A366041"
+  },
+  {
+    "path": "docs/evidence/issue21/source-manifest.json",
+    "bytes": 5808,
+    "sha256": "0899620A1DC77B531999D57711AFBD5D029C029CC6665E989C7DDA721987C7D3"
+  },
+  {
+    "path": "docs/evidence/issue21/stopped.json",
+    "bytes": 25584,
+    "sha256": "C92F30923A7E6DB9630F271C4BE4D009BBECFB5CB96AB51BC9E460EA0D7AFBA8"
+  },
+  {
+    "path": "docs/evidence/issue21/tests-final.txt",
+    "bytes": 32857,
+    "sha256": "ED620D3E6B6336DA9AA03C358BB3BB7EB62E7E28DB9E2C60EB9BF13C28DF3887"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/compact.partial.json",
+    "bytes": 15807,
+    "sha256": "DE7875782F5EE3126814AB8D0D173A07B90C97EED9357E7E47F35AA1876FC809"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/compact.partial.png",
+    "bytes": 1612,
+    "sha256": "7C5035189DB6DFDB86D9AAAFE7FC47E433C377D977F177305F2C2F0CFA6A4D7C"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/components.ready.crop.png",
+    "bytes": 14985,
+    "sha256": "2E11EA2263BA401B4B36C88ADEBC60B9028FB67479E5BE30A050F4B0B588BC13"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/components.ready.json",
+    "bytes": 15820,
+    "sha256": "13B311ACB642F7A5E1BC757E804538604AC525ACFE876D00C9C5BEA1CBE9767A"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/components.ready.png",
+    "bytes": 17509,
+    "sha256": "4F68BC895D4AF9BBF942688AFCE1801FBEF5E14B63805CA4607B14EF46659A64"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/full.partial-countfix.json",
+    "bytes": 15800,
+    "sha256": "402582750BF0C33B67E9CFDD6D70B1EC5CADF9257FFC7B72C0767B5832C679E6"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/full.partial-countfix.png",
+    "bytes": 7362,
+    "sha256": "B23DFE206D74BD5F5C99B7E1C6ACB23B443EB7032E2A93024A13B45AC65C1D0E"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/full.partial.json",
+    "bytes": 15800,
+    "sha256": "025389A85752EBA847B876C3003F3D4C104CC8540799C873B244213564454B68"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/full.partial.png",
+    "bytes": 7362,
+    "sha256": "B23DFE206D74BD5F5C99B7E1C6ACB23B443EB7032E2A93024A13B45AC65C1D0E"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/partial-after-click.png",
+    "bytes": 8224,
+    "sha256": "AEE2EDF9CBCA7A38EEEACE47B6796FEB6F5F3656CC4F05FA19A705B9B42C1794"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/partial-before-click.png",
+    "bytes": 8793,
+    "sha256": "6B46110F857AE578C1D08C5F6F2EAE2B62D5F53D50ABFA4B7C4F898F585F181A"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.gallery-unknown.json",
+    "bytes": 15819,
+    "sha256": "F44BA3A4659873EC412FE5180B7892A6C225F9D594E9B317696EA3063CEE394F"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.gallery-unknown.png",
+    "bytes": 6456,
+    "sha256": "7CC1D5DF5AAB9323D4FB370E49E71D2C46A843F68E92EE29DA9C66AD92DE70FE"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.gallery.json",
+    "bytes": 15802,
+    "sha256": "89E35E5CAC4C770A0350ACAF41BB047F56133F6BAD246E1E376E827B530A27B9"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.gallery.png",
+    "bytes": 6206,
+    "sha256": "5009B50110AD32CD9AB3046B8DE853D88A2A93A77B990A4473147F783F154C2C"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-countfix.json",
+    "bytes": 15802,
+    "sha256": "8051A7FE566202B245F4C057401C88E6B62D4938549B254F88FA8C7E72DA8BD1"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-countfix.png",
+    "bytes": 5875,
+    "sha256": "69459881EF795ACD2BA98E8CCF80BC3E8099D25DEACF0E2746F6A814DBC24929"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-final.json",
+    "bytes": 15802,
+    "sha256": "F0BFD6F5D4BE23AFBF750C1A0468F65E83D7726BCC82743EFA18561ABE52B130"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-final.png",
+    "bytes": 5875,
+    "sha256": "69459881EF795ACD2BA98E8CCF80BC3E8099D25DEACF0E2746F6A814DBC24929"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-retry-pending.json",
+    "bytes": 15833,
+    "sha256": "F54D0CB39B3CD68D3A943B69CA71EE9B2EB15F7B14C2EB13450717D7524B4C6A"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-retry-pending.png",
+    "bytes": 6054,
+    "sha256": "FDDA3007A13022374D280A2CEA3A24DF2732C622D5D59707B733665B0361ADD6"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-unknown.json",
+    "bytes": 15818,
+    "sha256": "7A5E12FD17A87CD535DAA51E9C41AF8503B8150A2B17411C3EA3A11C9DF093F9"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial-unknown.png",
+    "bytes": 5782,
+    "sha256": "AAC1410AE4943E8DB01AE8199AD8F8DB888F955F96C019503080344CF975FCFB"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial.json",
+    "bytes": 15803,
+    "sha256": "61828F35D147F0DC6F440DFD80E9AB1F448C6184D93A8907CAF149592875D8BC"
+  },
+  {
+    "path": "docs/evidence/issue21/windows/queue.partial.png",
+    "bytes": 5919,
+    "sha256": "0BECD82781F88745609BB6CD970C6D4F41F97CE75534BF20E1C3231C9E76597C"
+  }
+]

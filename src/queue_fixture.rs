@@ -58,6 +58,8 @@ pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>)
             ..Default::default()
         }),
         delivered: None,
+        collection: None,
+        gallery_progress: None,
         slot_owned: !terminal && ticket.is_some(),
         resources_released: terminal,
         start_order: ticket,
@@ -65,11 +67,26 @@ pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>)
         events: Vec::new(),
     }
 }
+pub fn partial(total: Option<usize>) -> JobSnapshot {
+    use ameow_next::download::{contract::{CollectionFile, CollectionState, MediaKind, VerifiedFacts}, output::VerifiedMedia};
+    let mut j = job(5, JobPhase::Partial, Some(5), None);
+    j.collection = Some(CollectionState {
+        directory: None,
+        files: (0..4).map(|_| CollectionFile {
+            relative_path: PathBuf::new(),
+            delivered: VerifiedMedia { path: PathBuf::new(), bytes: 1, sha256: String::new(),
+                kind: MediaKind::Data, facts: VerifiedFacts::default(), identity_guard: None },
+        }).collect(),
+        total,
+        expected_paths: Vec::new(),
+    });
+    j
+}
 pub fn snapshot(jobs: Vec<JobSnapshot>) -> QueueSnapshot {
     QueueSnapshot {
         revision: 1,
         unfinished: jobs.iter().filter(|j| !j.phase.terminal()).count(),
-        failures: jobs.iter().filter(|j| j.phase == JobPhase::Failure).count(),
+        failures: jobs.iter().filter(|j| matches!(j.phase, JobPhase::Failure | JobPhase::Partial)).count(),
         active_slots: jobs.iter().filter(|j| j.slot_owned).count(),
         main_job: jobs
             .iter()
@@ -196,6 +213,7 @@ pub fn start(
                         s.jobs.extend([job(5, JobPhase::Failure, Some(5), None), job(6, JobPhase::Failure, Some(6), None), job(7, JobPhase::Queued, None, None)]);
                     }
                     "failure" => s = snapshot(vec![job(5, JobPhase::Failure, Some(5), None)]),
+                    "partial" => s = snapshot(vec![partial(Some(5))]),
                     "finish-c" => {
                         set_phase(&mut s, 3, JobPhase::Success);
                         if let Some(d) = s.jobs.iter_mut().find(|j| j.job_id == 4) { *d = job(4, JobPhase::Downloading, Some(4), Some(0.19)); }
@@ -217,7 +235,11 @@ pub fn start(
                     if let Some(log) = &mut log { let _ = writeln!(log, "{summary}"); }
                     let event = match command {
                         QueueCommand::Retry(source) => {
-                            let reply = if retry_accept && s.jobs.iter().any(|j| j.job_id == source && j.phase == JobPhase::Failure) {
+                            let reply = if retry_accept && s.jobs.iter().any(|j| j.job_id == source && j.phase == JobPhase::Partial) {
+                                set_phase(&mut s, source, JobPhase::Queued);
+                                if let Some(j) = s.jobs.iter_mut().find(|j| j.job_id == source) { j.attempt += 1; }
+                                CommandReply::Accepted(source)
+                            } else if retry_accept && s.jobs.iter().any(|j| j.job_id == source && j.phase == JobPhase::Failure) {
                                 let id = s.jobs.iter().map(|j| j.job_id).max().unwrap_or(0) + 1;
                                 s.jobs.push(job(id, JobPhase::Queued, None, None)); CommandReply::Accepted(id)
                             } else { CommandReply::Error("E_FIXTURE_REFUSED: 重试未受理".into()) };
@@ -248,7 +270,7 @@ pub fn start(
             for j in &mut s.jobs { if let Some(p) = &mut j.transfer_progress { p.observed_at_ms = now_ms(); } }
             s.revision += 1;
             s.unfinished = s.jobs.iter().filter(|j| !j.phase.terminal()).count();
-            s.failures = s.jobs.iter().filter(|j| j.phase == JobPhase::Failure).count();
+            s.failures = s.jobs.iter().filter(|j| matches!(j.phase, JobPhase::Failure | JobPhase::Partial)).count();
             s.active_slots = s.jobs.iter().filter(|j| j.slot_owned).count();
             s.main_job = s.jobs.iter().filter(|j| j.slot_owned).min_by_key(|j| j.start_order).map(|j| j.job_id);
             *latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(s.clone()));

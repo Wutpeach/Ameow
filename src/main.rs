@@ -358,7 +358,7 @@ impl Prototype {
             self.copy_download(cx);
             return;
         }
-        if self.model.stage == Stage::Failure {
+        if matches!(self.model.stage, Stage::Failure | Stage::Partial) {
             cx.write_to_clipboard(ClipboardItem::new_string(DIAGNOSTIC.into()));
             self.copied_at = Some(self.now());
             cx.notify();
@@ -868,7 +868,7 @@ impl Render for Prototype {
             .child(indicator::ring(frame))
             .child(indicator::center(frame))
             .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() })
-            .when(stage.active() || stage == Stage::Failure, |s| {
+            .when(stage.active() || matches!(stage, Stage::Failure | Stage::Partial), |s| {
                 s.child(
                     div()
                         .id("state-action")
@@ -895,7 +895,7 @@ impl Render for Prototype {
                         })
                         .child(
                             svg()
-                                .path(if stage == Stage::Failure {
+                                .path(if matches!(stage, Stage::Failure | Stage::Partial) {
                                     if copied {
                                         "icons/check.svg"
                                     } else {
@@ -904,7 +904,7 @@ impl Render for Prototype {
                                 } else {
                                     "icons/x.svg"
                                 })
-                                .size(px(if stage == Stage::Failure { 10. } else { 16. }))
+                                .size(px(if matches!(stage, Stage::Failure | Stage::Partial) { 10. } else { 16. }))
                                 .text_color(p.neutral)
                                 .group_hover("state-action", move |s| s.text_color(gpui::white())),
                         )
@@ -913,7 +913,7 @@ impl Render for Prototype {
                             cx.listener(|this, _, _, cx| {this.background_clicks.reset();cx.stop_propagation();}),
                         )
                         .on_click(cx.listener(move |this, _, _, cx| {
-                            if stage == Stage::Failure {
+                            if matches!(stage, Stage::Failure | Stage::Partial) {
                                 this.copy(cx);
                             } else if this.downloads.is_some() {
                                 this.cancel_main(cx);

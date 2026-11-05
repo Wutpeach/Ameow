@@ -339,6 +339,7 @@ fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> 
         "deno.exe",
         "ffmpeg.exe",
         "ffprobe.exe",
+        "gallery-dl.exe",
         "complete.json",
     ] {
         fs::copy(

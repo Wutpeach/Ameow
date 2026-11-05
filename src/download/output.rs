@@ -190,17 +190,7 @@ impl DestinationStage {
         if !self.owned || !self.validated {
             return Err("Destination stage is not owned and verified".into());
         }
-        let safe: String = base
-            .chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .take(100)
-            .collect();
+        let safe = safe_filename(base);
         if safe.is_empty() {
             return Err("Final filename identity empty".into());
         }
@@ -229,6 +219,32 @@ impl DestinationStage {
         }
         Err("Destination collision bound exceeded".into())
     }
+}
+pub fn safe_filename(name: &str) -> String {
+    let name: String = name.chars().map(|c| {
+        if c.is_control() || "<>:\"/\\|?*".contains(c) { '_' } else { c }
+    }).take(80).collect();
+    let name = name.trim().trim_end_matches(['.', ' ']);
+    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    if name.is_empty() { "media".into() }
+    else if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit()) {
+        format!("_{name}")
+    } else { name.into() }
+}
+pub fn collection_directory(destination: &Path, title: &str) -> Result<PathBuf, String> {
+    let name = safe_filename(title);
+    for collision in 0..10000 {
+        let suffix = if collision == 0 { String::new() } else { format!(" ({collision})") };
+        let path = destination.join(format!("{name}{suffix}"));
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("E_STORAGE: Collection directory: {e}")),
+        }
+    }
+    Err("E_STORAGE: Collection directory collision bound exceeded".into())
 }
 fn rename_owned(file: &fs::File, destination: &Path) -> Result<(), std::io::Error> {
     // FileName is NUL-terminated; FileNameLength excludes that terminator. Include it in the

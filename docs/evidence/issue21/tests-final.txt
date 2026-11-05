@@ -1,0 +1,342 @@
+   Compiling ameow v0.1.0 (D:\Ameow)
+    Finished `test` profile [unoptimized] target(s) in 7.36s
+     Running unittests src\lib.rs (target\debug\deps\ameow_next-c47fd856943d7ae9.exe)
+
+running 119 tests
+test download::adapters::automatic::tests::fallback_requires_independent_exact_coverage_recoverable_failure_and_one_attempt ... ok
+test download::adapters::gallery_dl::tests::machine_records_require_complete_matching_identity_and_verified_skip ... ok
+test download::adapters::gallery_dl::tests::resume_rejects_changed_full_collection_even_with_equal_count ... ok
+test download::adapters::gallery_dl::tests::accepted_boundaries_exclude_feeds_and_distinguish_album ... ok
+test download::adapters::gallery_dl::tests::pinned_bluesky_jpeg_dump_matches_native_after_filename ... ok
+test download::adapters::gallery_dl::tests::metadata_rejects_errors_wrong_identity_and_missing_media ... ok
+test download::adapters::yt_dlp::progress::tests::estimate_is_explicit_fresh_and_bounded_and_contradiction_stays_unknown ... ok
+test download::adapters::yt_dlp::progress::tests::finished_average_unknown_fragment_total_and_partial_stream_never_prove_whole_job ... ok
+test download::adapters::yt_dlp::progress::tests::pinned_native_selected_record_evidence ... ignored, requires task-owned pinned native-records.py evidence; no public site claim
+test download::adapters::yt_dlp::progress::tests::incomplete_selected_identity_never_promotes_audio_to_primary ... ok
+test download::adapters::yt_dlp::progress::tests::progress_bounds_recover_after_oversize_and_invalid_numeric_records ... ok
+test download::adapters::yt_dlp::progress::tests::primary_video_has_progress_before_audio_and_never_claims_delivery ... ok
+test download::adapters::yt_dlp::progress::tests::split_gap_privacy_and_invalid_scalars_cannot_create_a_plausible_sample ... ok
+test download::adapters::yt_dlp::protocol_regressions::metadata_regressions_exit_zero_overflow_invalid_and_nonzero_remain_distinct ... ok
+test download::adapters::yt_dlp::selection::tests::actual_native_combined_separate_and_nested_downloads_project_same_facts ... ok
+test download::adapters::yt_dlp::identity::tests::youtube_id_containing_part_like_text_is_preserved_through_canonical_transfer ... ok
+test download::adapters::yt_dlp::protocol_regressions::closed_final_record_bounds_and_no_progress_are_independent_of_optional_stdout ... ok
+test download::adapters::yt_dlp::selection_record_tests::only_one_complete_bounded_native_selection_can_attest_progress_or_final_result ... ok
+test download::collection_tests::cancel_keeps_completed_files_and_releases_resources ... ok
+test download::collection_tests::collection_names_and_collisions_preserve_existing_files ... ok
+test download::collection_tests::real_gallery_cancel_releases_managed_processes ... ignored, Real Windows gallery cancellation; requires AMEOW_GALLERY_TEST_ROOT
+test download::collection_tests::real_gallery_component_acquisition ... ignored, Acquires the official pinned gallery-dl component into a fresh task-owned cache
+test download::collection_tests::real_gallery_pipeline_and_partial_retry ... ignored, Real Windows gallery/video downloads; requires AMEOW_GALLERY_TEST_ROOT, writes task-owned evidence
+test download::collection_tests::real_imgur_single_image_delivery ... ignored, Real public Imgur image through the managed Windows coordinator
+test download::diagnostics::resolve_regressions::truncated_and_invalid_metadata_have_distinct_safe_diagnostics ... ok
+test download::network::tests::public_video_routes_allow_unrelated_static_bypass ... ok
+test download::collection_tests::changed_saved_file_is_not_trusted_or_overwritten_by_retry ... ok
+test download::network::tests::relevant_bypass_and_unrepresentable_engine_routes_remain_rejected ... ok
+test download::network::tests::windows_suffix_prefix_wildcards_match_without_ignoring_invalid_patterns ... ok
+test download::network::tests::r12_acquisition_stream_has_real_bytes_and_distinct_size_timeout_cancel_errors ... ok
+test download::collection_tests::partial_retry_keeps_job_directory_and_verified_files_without_overwrite ... ok
+test download::adapters::yt_dlp::protocol_regressions::metadata_regressions_large_complete_identity_selection_and_bounded_archive ... ok
+test download::neutral_tests::neutral_data_adapter_delivers_through_real_lifecycle_without_video_tools ... ok
+test download::neutral_tests::neutral_cancel_waits_for_execution_owner_then_releases_slot_once ... ok
+test download::neutral_tests::neutral_foreign_artifact_path_is_rejected_and_existing_data_is_preserved ... ok
+test download::ownership_tests::coordinator_owner_unwind_retains_real_runtime_until_explicit_cleanup ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test download::ownership_tests::coordinator_retains_real_runtime_and_workspace_while_process_held ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test download::ownership_tests::destination_cleanup_failure_retains_stage_runtime_workspace_and_requires_retry ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test download::ownership_tests::observation_messages_are_closed_phase_templates_not_metadata_or_private_logs ... ok
+test download::neutral_tests::neutral_result_cannot_change_admitted_identity_or_publish_success ... ok
+test download::ownership_tests::progress_publication_rejects_other_identity_phase_cancel_and_terminal ... ok
+test download::ownership_tests::snapshot_remains_readable_during_publication_authority_checkpoint ... ok
+test download::preparation::tests::r12_diagnostics_reassemble_closed_fields_and_preserve_failure_across_retry ... ok
+test download::ownership_tests::cancel_and_publication_arbitrate_without_removing_delivery ... ok
+test download::neutral_tests::neutral_final_failure_stays_terminal_and_manual_retry_is_new_frozen_job ... ok
+test download::process_supervisor::capture_regressions::transfer_progress_stdout_overflow_is_optional_after_actual_settlement ... ok
+test download::process_supervisor::fault_tests::cancel_during_suspended_launch_never_runs_user_code ... ok
+test download::process_supervisor::fault_tests::actual_reader_panic_is_joined_and_never_returns_false_success ... ok
+test download::process_supervisor::capture_regressions::requested_bounded_eight_mib_capture_accepts_seven_mib_and_still_drains_overflow ... ok
+test download::process_supervisor::fault_tests::native_marker_cannot_run_before_membership_and_resume ... ok
+test download::process_supervisor::fault_tests::outer_owner_thread_panic_retains_resources_for_new_driver ... ok
+test download::process_supervisor::fault_tests::owner_operation_panic_retains_handles_and_cleanup_driver_recovers ... ok
+test download::queue::tests::aliases_admit_only_one_transfer_and_ambiguous_parts_never_get_identity ... ok
+test download::queue::tests::cancelling_pending_job_does_not_cancel_shared_preparation_until_stop ... ok
+test download::process_supervisor::fault_tests::precreate_failure_with_unknown_job_zero_holds_without_false_terminal ... ok
+test download::queue::tests::conservative_failure_classification_and_copy_privacy_ignore_attacker_controlled_fields ... ok
+test download::queue::tests::corrupt_saved_defaults_are_reported_instead_of_acknowledging_an_unsaved_fallback ... ok
+test download::queue::tests::engine_observations_keep_one_job_and_slot_until_actual_owner_join ... ok
+test download::queue::tests::exact_private_video_error_is_access_denied_but_debug_url_status_cannot_trigger_retry ... ok
+test download::process_supervisor::fault_tests::persistent_query_retains_tree_and_requires_recovery_plus_explicit_retry ... ok
+test download::queue::tests::fifo_three_slots_keeps_held_until_joined_and_refills_in_order ... ok
+test download::process_supervisor::fault_tests::persistent_terminate_failure_retains_live_child_and_grandchild_until_recovery ... ok
+test download::queue::tests::manual_retry_creates_new_job_with_original_values_identity_and_double_click_dedup ... ok
+test download::queue::tests::native_held_three_slots_stop_retains_exact_partials_until_cleanup_and_join ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test download::queue::tests::native_queued_destination_disappearance_fails_without_substituting_new_defaults ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test download::queue::tests::candidate_waits_for_owned_slot_before_committing ... ok
+test download::queue::tests::opaque_http_failure_copy_does_not_invent_headers_or_application_recovery ... ok
+test download::queue::tests::failed_pinned_restart_can_retry_without_replacing_selection ... ok
+test download::queue::tests::preparation_cleanup_zero_refuses_stale_held_without_a_live_recipient ... ok
+test download::queue::tests::preferences_save_when_output_disappears_without_changing_frozen_job ... ok
+test download::queue::tests::preparation_unwind_clears_retry_recipient_before_dispatch_can_join ... ok
+test download::queue::tests::progress_projection_rejects_stale_identity_and_clears_manual_retry_cancel_stop_terminal ... ok
+test download::queue::tests::malformed_selection_blocks_startup_instead_of_using_baseline ... ok
+test download::queue::tests::preparation_started_panic_refuses_phantom_cleanup_and_stop ... ok
+test download::queue::tests::r7_copy_preparation_diagnostic_preserves_state_and_redacts_payload ... ok
+test download::queue::tests::r8_diagnostic_has_no_application_attempt_budget_or_retry_delay ... ok
+test download::queue::tests::r7_preparation_projection_and_retry_gate ... ok
+test download::queue::tests::r8_engine_final_failure_is_terminal_and_never_restarts_the_job ... ok
+test download::queue::tests::runtime_activation_requires_all_owners_settled ... ok
+test download::queue::tests::restart_revalidates_user_selection_before_activation ... ok
+test download::queue::tests::saved_defaults_are_atomic_frozen_and_failed_save_keeps_previous_acknowledged_values ... ok
+test download::queue::tests::stopping_during_candidate_preparation_does_not_commit ... ok
+test download::queue::tests::unknown_short_link_retry_cannot_silently_choose_a_new_object_and_parts_are_not_guessed ... ok
+test download::queue::tests::selection_commit_failure_keeps_previous_policy_and_lease ... ok
+test download::release_signature::tests::authentic_release_and_tampering ... ok
+test download::release_signature::tests::unsupported_signature_fields_fail_closed ... ok
+test download::runtime::requirement_tests::candidate_catalog_has_distinct_cache_identity_from_embedded_catalog ... ok
+test download::runtime::requirement_tests::candidate_probe_requires_exact_version ... ok
+test download::queue::tests::update_progress_tracks_cache_download_and_probe_for_recommended_runtime ... ok
+test download::queue::tests::r12_startup_shared_failure_manual_retry_resumes_same_fifo_jobs_and_preserves_history ... ok
+test download::runtime::requirement_tests::full_catalog_keeps_exact_marker_and_subset_contains_only_declared_tools ... ok
+test download::runtime::requirement_tests::candidate_resume_missing_dependency_fails_without_acquisition_or_download_status ... ok
+test download::runtime::requirement_tests::catalog_extension_reuses_hash_verified_components_before_acquisition ... ok
+test download::runtime::requirement_tests::trusted_extensions_preserve_base_isolation_and_owned_directories ... ok
+test download::runtime_update::tests::candidate_errors_keep_safe_attribution_without_leaking_input ... ok
+test download::runtime_update::tests::policy_uses_snake_case_and_accepts_legacy_records ... ok
+test download::runtime_update::tests::selection_is_atomic_and_rejects_invalid_intent ... ok
+test download::runtime_update::tests::uncommitted_transaction_and_candidate_do_not_change_selection ... ok
+test download::runtime_update_trust::tests::bounded_asset_reads_hash_actual_bytes_and_rejects_oversize ... ok
+test download::runtime_update_trust::tests::cached_artifact_requires_official_hash_and_retains_read_only_guard ... ok
+test download::runtime_update_trust::tests::forged_unsigned_local_proof_cannot_supply_a_digest ... ok
+test download::runtime_update_trust::tests::legacy_bootstrap_fetches_only_signed_metadata_and_does_not_publish_before_probes ... ok
+test download::runtime_update_trust::tests::offline_proof_is_reauthenticated_without_fetching_and_tampering_fails_closed ... ok
+test download::runtime_update_trust::tests::trusted_hosts_and_checksum_are_strict ... ok
+test download::queue::tests::native_shared_preparation_held_retry_waits_for_settlement_and_outer_join ... ok
+test download::runtime::requirement_tests::r12_verified_cache_works_with_failing_acquisition_and_keeps_native_leases ... ok
+test download::settings::tests::old_settings_default_preferences_and_new_preferences_round_trip ... ok
+test download::settings::tests::acknowledged_canonical_directory_can_be_saved_again_for_quality_change ... ok
+test download::upstream::tests::body_read_timeout_is_classified_without_exposing_details ... ok
+test download::upstream::tests::cloned_checker_coalesces_requests_retains_result_and_recovers ... ok
+test download::upstream::tests::deadline_shows_timeout_until_worker_finishes_and_discards_late_result ... ok
+test download::settings::tests::directory_validation_keeps_acknowledged_defaults_and_removes_probe ... ok
+test download::runtime::requirement_tests::r12_corrupt_cache_is_preserved_and_recovered_into_a_verified_immutable_sibling ... ok
+test download::upstream::tests::pypi_identity_latest_and_non_yanked_files_are_required ... ok
+test download::upstream::tests::stable_versions_are_normalized_and_compared_numerically ... ok
+test download::verification::image::tests::html_and_partial_headers_are_not_images ... ok
+test download::upstream::tests::http_failures_and_redirect_are_typed_without_following ... ok
+test download::settings::tests::tray_icon_preferences_round_trip ... ok
+test download::upstream::tests::local_http_success_and_connection_refusal ... ok
+
+test result: ok. 109 passed; 0 failed; 10 ignored; 0 measured; 0 filtered out; finished in 5.29s
+
+     Running unittests src\main.rs (target\debug\deps\ameow-e8ad3f14bcace004.exe)
+
+running 159 tests
+test brand_icons::tests::theme_and_fixed_choices_resolve_independently ... ok
+test context_menu::tests::all_menu_hit_rows_fit_above_the_hint_without_overlap ... ok
+test brand_icons::tests::tray_uses_exact_delivered_sizes_and_bounded_nearest_fallback ... ok
+test context_menu::tests::escape_has_one_owner_and_back_preserves_the_open_session ... ok
+test context_menu::tests::navigation_uses_four_primary_rows_and_three_quality_rows ... ok
+test context_menu::tests::menu_lock_does_not_pause_terminal_expiry_and_release_uses_current_stage_and_pointer ... ok
+test context_menu::tests::quality_waits_for_ack_failure_stays_and_stale_success_cannot_close_a_new_menu ... ok
+test context_menu::tests::transitions_only_move_content_reverse_direction_and_respect_reduced_motion ... ok
+test download_ui::tests::background_directory_open_waits_for_settings_ack_and_recovers_on_failure ... ok
+test download_ui::tests::command_notice_preserves_live_second_line_and_restores_unbrowsed_title_at_deadline ... ok
+test download_ui::tests::component_percentage_requires_real_download_bytes_and_known_total ... ok
+test download_ui::tests::compact_progress_status_keeps_integer_percent_and_only_live_video_rate ... ok
+test download_ui::tests::component_status_is_transient_on_success_and_persistent_on_failure ... ok
+test download_ui::tests::concise_queue_safety_status_preserves_preparation_failure_and_uncertain_cleanup ... ok
+test download_ui::tests::directory_save_waits_for_ack_preserves_fresh_quality_and_recovers_after_rejection ... ok
+test download_ui::tests::direct_retry_blocks_duplicates_and_retires_only_after_accept_even_when_queue_closed ... ok
+test download_ui::tests::early_close_quits_after_startup_failure_without_a_second_request ... ok
+test download_ui::tests::copy_acknowledges_real_result_and_clear_only_changes_session_presentation ... ok
+test download_ui::tests::early_close_requires_confirmation_for_work_and_uncertain_owners ... ok
+test download_ui::tests::early_close_waits_for_idle_startup_then_requires_safe_stop ... ok
+test download_ui::tests::first_line_gives_title_only_actual_action_space_and_second_line_keeps_a_track ... ok
+test download_ui::tests::enabled_action_labels_follow_hover_and_focus_without_sending_commands ... ok
+test download_ui::tests::failure_status_is_friendly_and_notices_keep_diagnostic_authority ... ok
+test download_ui::tests::fixture_refuses_real_submit_and_persistence_before_transport ... ok
+test download_ui::tests::gallery_progress_uses_counts_instead_of_a_percentage ... ok
+test download_ui::tests::held_and_owner_lost_rows_keep_cleanup_and_cancel_permissions ... ok
+test download_ui::tests::localized_queue_copy_keeps_unknown_text_and_formats_speed ... ok
+test download_ui::tests::hover_takes_precedence_over_focus_and_leaving_restores_current_progress ... ok
+test download_ui::tests::main_menu_exit_enters_the_shared_idle_and_inflight_settlement_reducer ... ok
+test download_ui::tests::next_quality_save_keeps_acknowledged_folder_before_snapshot_catches_up ... ok
+test download_ui::tests::operational_badge_uses_total_with_failure_exception ... ok
+test download_ui::tests::partial_rows_show_verified_counts_and_failure_actions ... ok
+test download_ui::tests::preferences_use_latest_ack_and_wait_for_save_reply ... ok
+test download_ui::tests::named_preview_holds_success_and_feedback_without_changing_production_deadlines ... ok
+test download_ui::tests::preparation_popup_prioritizes_cleanup_and_does_not_claim_ready_early ... ok
+test download_ui::tests::preparation_popup_uses_plain_causes_for_each_component_and_http_failure ... ok
+test download_ui::tests::primary_estimate_correction_tweens_to_new_fact_and_audio_hides_numeric_progress ... ok
+test download_ui::tests::r7_component_actions_share_gating_and_wait_for_clipboard_completion ... ok
+test download_ui::tests::production_ring_projection_preserves_known_progress_across_unknown_and_processing ... ok
+test download_ui::tests::refused_command_transport_keeps_failure_visible_and_actions_retryable ... ok
+test download_ui::tests::rejected_row_commands_show_feedback_without_retiring_failure ... ok
+test download_ui::tests::retiring_rows_preserves_visible_anchor_and_partial_row_offset ... ok
+test download_ui::tests::retry_results_and_shared_cleanup_refusal_are_visible_on_current_rows ... ok
+test download_ui::tests::shared_owner_loss_preserves_independent_live_attempt_cleanup ... ok
+test download_ui::tests::title_browse_is_overflow_only_delayed_slow_bounded_and_has_no_idle_loop ... ok
+test download_ui::tests::stale_or_disabled_action_intents_never_leak_to_replaced_or_reopened_rows ... ok
+test download_ui::tests::title_browse_retires_on_motion_preference_scroll_close_removal_and_content_replacement ... ok
+test download_ui::tests::title_browse_retires_when_action_width_phase_or_attempt_changes ... ok
+test download_ui::tests::transfer_label_uses_live_measurement_and_never_finished_or_stale_speed ... ok
+test download_ui::tests::tray_icon_waits_for_ack_and_preserves_previous_value_on_failure ... ok
+test download_ui::tests::waiting_job_label_distinguishes_component_failure_retry_and_owner_loss ... ok
+test edge_hover::tests::approved_mag_range_scales_the_whole_profile_without_changing_proximity ... ok
+test edge_hover::tests::idle_time_does_not_jump_new_magnetic_target ... ok
+test edge_hover::tests::centre_returns_follow_to_rest ... ok
+test edge_hover::tests::offset_has_no_overshoot_and_rest_input_has_no_feedback ... ok
+test download_ui::tests::owner_lost_exit_has_honest_copy_and_only_independent_attempt_retry ... ok
+test edge_hover::tests::locks_fade_morph_off_and_reduced_clear_all_old_motion ... ok
+test edge_hover::tests::shared_proximity_is_continuous_bounded_and_quiet ... ok
+test indicator::tests::reduced_numeric_progress_matches_immediate_arc_without_tween ... ok
+test edge_hover::tests::projection_follows_all_edges_and_round_corners_continuously ... ok
+test login_startup::tests::duplicate_signals_primary ... ok
+test magnetic_spring::tests::actual_cap_removes_outward_velocity_and_retargets_from_visible_state ... ok
+test login_startup::tests::command_and_classification ... ok
+test magnetic_spring::tests::analytic_response_is_independent_of_callback_cadence_and_dropped_frames ... ok
+test magnetic_spring::tests::fade_and_spring_output_are_cadence_independent_given_same_travel_sample ... ok
+test magnetic_spring::tests::late_fade_has_zero_endpoint_derivatives_and_correct_product_velocity ... ok
+test magnetic_spring::tests::moving_reversal_matches_independent_velocity_dependent_reference ... ok
+test magnetic_spring::tests::leave_and_all_locks_aim_at_zero_then_sleep_without_residual ... ok
+test magnetic_spring::tests::real_repair_b_expand_settle_rest_keeps_same_spring_and_time_owner ... ok
+test magnetic_spring::tests::retarget_evaluates_outgoing_response_and_preserves_position_velocity ... ok
+test magnetic_spring::tests::nested_target_is_continuous_near_centre_edges_corners_and_gutter ... ok
+test magnetic_spring::tests::reversal_reduced_and_off_clear_hidden_and_visible_motion_at_every_fade_stage ... ok
+test magnetic_spring::tests::tagged_motion_reference_checkpoints_and_analytical_derivative_match ... ok
+test magnetic_spring::tests::suppression_clears_segments_and_new_input_never_catches_up_idle_time ... ok
+test magnetic_spring::tests::unchanged_axis_keeps_original_duration_when_other_axis_retargets ... ok
+test model::tests::blue_closes_and_holds_before_orange_with_trace ... ok
+test model::tests::chosen_default_starts_at_event_time_after_idle_and_leave_grace ... ok
+test model::tests::compact_and_full_reachability_use_actual_native_size ... ok
+test model::tests::explicit_historical_baseline_matches_frozen_r1_integration ... ok
+test model::tests::explicit_compact_survives_menu_dismiss_and_job_updates_until_real_reentry ... ok
+test model::tests::failure_freezes_before_outline_and_reduced_motion_is_static ... ok
+test model::tests::geometry_shares_one_invariant_anchor ... ok
+test login_startup::tests::isolated_registry_round_trip ... ok
+test model::tests::input_time_precedes_render_and_deadline_time_excludes_leave_grace ... ok
+test model::tests::invalid_initial_progress_never_poison_geometry ... ok
+test model::tests::leave_during_expansion_reverses_immediately_without_position_jump ... ok
+test model::tests::leave_has_grace_and_reentry_reverses_without_waiting ... ok
+test model::tests::locks_and_new_tasks_cancel_old_collapse_and_terminal_deadlines ... ok
+test model::tests::progress_chase_keeps_continuity_when_target_updates_mid_tween ... ok
+test model::tests::progress_is_monotonic_bounded_and_rejects_bad_updates ... ok
+test model::tests::reduced_toggle_after_due_leave_uses_compact_owner_without_replay ... ok
+test model::tests::replacement_task_owns_phase_handoff_and_trace ... ok
+test model::tests::retention_expiry_with_pointer_inside_waits_for_real_leave ... ok
+test model::tests::retention_outside_keeps_lock_then_uses_leave_grace ... ok
+test model::tests::settled_drop_lock_keeps_waking_until_native_drag_exit_is_observed ... ok
+test model::tests::task_and_lock_targets_take_ownership_at_their_input_time ... ok
+test model::tests::settled_views_sleep_but_retention_and_leave_keep_exact_wakeups ... ok
+test model::tests::transcode_updates_preserve_blue_hold_deadline_and_latest_progress ... ok
+test model::tests::unknown_downloading_keeps_rotating_after_initial_wake_window ... ok
+test preview::tests::catalog_is_unique_and_snapshots_never_carry_real_download_targets ... ok
+test preview::tests::preview_transport_refuses_real_commands ... ok
+test preview::tests::requests_switch_reject_and_quit_without_touching_another_session ... ok
+test brand_icons::tests::native_cache_keeps_requested_sizes_for_the_same_resource ... ok
+test queue_fixture::tests::preview_scenes_are_isolated_and_keep_real_action_identities ... ok
+test native::tests::initial_show_is_topmost_without_focus_and_runtime_preserves_overlay_order ... ok
+test queue_presentation::tests::closed_success_and_settled_cancel_never_replay_on_open ... ok
+test queue_presentation::tests::foreground_failure_and_cancel_expire_without_replaying_retained_terminals ... ok
+test queue_presentation::tests::foreground_success_holds_once_then_reads_fresh_remaining_job_progress ... ok
+test queue_presentation::tests::newest_actually_started_ignores_waiting_and_keeps_backend_oldest_projection ... ok
+test queue_presentation::tests::partial_is_retained_and_same_job_retry_does_not_dismiss_it ... ok
+test queue_presentation::tests::retry_refusal_preserves_failure_and_accepted_retry_or_clear_only_retires_visible_row ... ok
+test queue_presentation::tests::visible_success_retires_at_500ms_independent_of_foreground_1500ms ... ok
+test repair_motion::tests::a_arrives_and_settles_inside_legal_native_endpoints ... ok
+test repair_motion::tests::b_bounds_are_limited_and_disclosed ... ok
+test repair_motion::tests::chosen_expand_matches_repair_a_soft_exactly_and_collapse_changes_only_residual ... ok
+test repair_motion::tests::chosen_reduced_motion_clears_expand_and_collapse_settle_without_replay ... ok
+test repair_motion::tests::chosen_settle_reversal_retires_pulse_without_position_or_velocity_reset ... ok
+test repair_motion::tests::compact_settle_is_positive_and_smaller ... ok
+test repair_motion::tests::late_handover_does_not_reintegrate_an_already_sampled_interval ... ok
+test repair_motion::tests::late_landing_and_repeated_reversals_do_not_hide_outward_boundary_velocity ... ok
+test repair_motion::tests::reduced_motion_cancels_mid_settle_and_does_not_replay ... ok
+test repair_motion::tests::reversal_surface_shadow_and_anchor_remain_inside_a_gutter ... ok
+test repair_motion::tests::travel_landing_and_settle_reversals_preserve_position_and_velocity ... ok
+test repair_motion::tests::uncapped_long_frame_changes_travel_but_not_final_endpoint ... ok
+test settings_window::components::tests::admitted_fast_check_has_visible_feedback_without_hiding_refusal ... ok
+test settings_window::components::tests::checked_age_handles_clock_skew_and_localized_units ... ok
+test settings_window::components::tests::cleanup_uncertainty_and_unverified_identity_override_ready ... ok
+test settings_window::components::tests::diagnostic_copy_and_upstream_failures_use_safe_localized_text ... ok
+test settings_window::components::tests::preparing_blocks_duplicate_actions_and_does_not_claim_a_download ... ok
+test settings_window::components::tests::upgrade_requires_fresh_success_and_newer_verified_version ... ok
+test settings_window::components::tests::version_preview_keeps_identity_ends_without_splitting_unicode ... ok
+test settings_window::components::tests::version_requires_ready_and_uninterrupted_owner ... ok
+test settings_window::tests::all_general_select_menus_receive_keyboard_navigation ... ok
+test settings_window::tests::display_paths_only_unwrap_absolute_drive_and_complete_unc ... ok
+test settings_window::tests::keyboard_reveal_scrolls_only_enough_to_show_the_target ... ok
+test settings_window::tests::path_preview_preserves_short_paths_and_bounds_long_unicode ... ok
+test settings_window::tests::picker_empty_multiple_and_unavailable_paths_do_not_claim_a_saved_directory ... ok
+test settings_window::tests::placement_uses_right_then_left_and_clamps_to_work_area_at_each_scale ... ok
+test settings_window::tests::settings_notices_follow_effective_language ... ok
+test surface_actions::tests::control_first_compact_locks_and_drag_cannot_open ... ok
+test surface_actions::tests::only_one_filesystem_candidate_is_admitted_to_validation ... ok
+test surface_actions::tests::only_two_completed_eligible_background_clicks_open ... ok
+test surface_actions::tests::save_pending_between_clicks_or_before_release_retires_the_pair ... ok
+test surface_actions::tests::second_press_move_away_and_back_cannot_open ... ok
+test tokens::tests::downloading_retains_original_theme_blue ... ok
+test tokens::tests::native_mixed_labels_use_platform_chinese_and_bundled_latin ... ignored, requires the Windows native text system; run with --ignored --test-threads=1
+test tray::tests::fallback_icon_has_usable_hit_area_even_for_tiny_metrics ... ok
+test tray::tests::overflow_icon_is_not_covered_when_there_is_room ... ok
+test tray::tests::oversized_popup_is_clamped_to_work_origin ... ok
+test tray::tests::tray_placement_obeys_work_area_and_dpi_on_each_edge ... ok
+test tray_popup::tests::preview_states_reach_the_real_summary ... ok
+test tray_popup::tests::queued_count_remains_visible_during_cleanup ... ok
+test tray_popup::tests::simultaneous_download_and_failure_preserves_both_counts ... ok
+test tray_popup::tests::summary_reports_unknown_idle_preparation_and_cleanup ... ok
+test ui_text::tests::display_errors_are_localized_but_unknown_content_is_preserved ... ok
+test ui_text::tests::explicit_choices_ignore_system_and_system_choices_follow_new_readings ... ok
+test preview::tests::atomic_control_replacement_survives_concurrent_polling_on_windows ... ok
+test queue_fixture::tests::preview_switch_publishes_immediately_after_prior_scene_revisions ... ok
+test queue_fixture::tests::polish_and_safety_controls_publish_no_network_rows_without_rewinding_revision ... ok
+
+test result: ok. 158 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.73s
+
+     Running tests\download_contracts.rs (target\debug\deps\download_contracts-e51a873af42adefd.exe)
+
+running 12 tests
+test genuine_cache_corruption_is_rejected_without_executing_tampered_runtime ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test genuine_runtime_reuse_verifies_pins_and_lease ... ignored, Requires genuine production-prepared cache, supplied via AMEOW_RUNTIME_TEST_ROOT
+test bilibili_part_and_playlist_ambiguity_fail_before_download ... ok
+test native_selected_facts_require_video_audio_and_frozen_quality ... ok
+test native_sources_reject_local_files_and_credentials_without_metadata_replay ... ok
+test pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan ... ignored, Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT
+test hash_lease_rejects_corruption_and_prevents_live_mutation ... ok
+test public_url_acceptance_fixes_one_identity_and_destination ... ok
+test static_proxy_result_is_explicit_and_ambiguous_routes_are_rejected ... ok
+test failed_job_has_one_terminal_releases_ownership_and_rejects_stale_cancel ... ok
+test delivery_never_replaces_existing_files_and_cleans_only_owned_partial ... ok
+test publication_preserves_exact_filename_and_no_clobber_across_utf16_lengths ... ok
+
+test result: ok. 9 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests\ejs_packaged_provider.rs (target\debug\deps\ejs_packaged_provider-06004d2f7cfface7.exe)
+
+running 3 tests
+test packaged_provider_success_failure_recovery ... ignored, requires hash-pinned local yt-dlp/Deno/player assets; test-only plugin
+test tampered_identity_rejected_before_launch ... ignored, requires task-owned pinned assets; mutates copies only, never executes them
+test native_sha256_known_answers ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\neutral_download_boundary.rs (target\debug\deps\neutral_download_boundary-d9c46fb9787eb2da.exe)
+
+running 2 tests
+test shared_services_do_not_branch_on_private_tool_or_wire_names ... ok
+test core_has_no_private_downloader_protocol_or_selection_dependency ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\windows_process_supervisor.rs (target\debug\deps\windows_process_supervisor-7c29a6c1531fe262.exe)
+
+running 9 tests
+test explicit_environment_and_argv_preserve_unicode_quotes_and_trailing_slashes ... ok
+test callback_panic_after_flood_is_known_failure_after_real_joins ... ok
+test blocked_consumer_cannot_block_draining_and_must_join_before_return ... ok
+test missing_executable_is_failed_only_after_job_zero_and_consumer_join ... ok
+test flood_is_fully_drained_and_capture_capped_when_observer_ignores_output ... ok
+test strict_handle_list_excludes_other_inheritable_parent_handles ... ok
+test cancellation_waits_for_root_child_grandchild_and_readers ... ok
+test timeout_requests_termination_and_reports_error_with_all_barriers ... ok
+test root_first_and_closed_stdio_wait_for_descendant_job_zero ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s
+

@@ -1,0 +1,67 @@
+{
+  "directory": "D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\runtime\\runtime-5930CD0818814D9E277A9E016DE920E2C66B5AA8FA11214D47577B27AD0D71BF",
+  "files": [
+    {
+      "name": "yt-dlp.exe",
+      "bytes": 17840399,
+      "sha256": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A",
+      "matches_pin": true
+    },
+    {
+      "name": "deno.exe",
+      "bytes": 97462048,
+      "sha256": "E020F3E232BD16E33768DEE528E5983349C962952051CED0A5D58AD42F5D9B33",
+      "matches_pin": true
+    },
+    {
+      "name": "ffmpeg.exe",
+      "bytes": 105423872,
+      "sha256": "3256173F3F8BFFD7DF12227C68ADF68025EDB1832273A9530688A7BB1ED8EDEC",
+      "matches_pin": true
+    },
+    {
+      "name": "ffprobe.exe",
+      "bytes": 105221120,
+      "sha256": "F0D36ECBBDD3BCFAC3EFA078C96C7271C2E68B3810595552AC3B7F17E9A65C52",
+      "matches_pin": true
+    },
+    {
+      "name": "gallery-dl.exe",
+      "bytes": 22627366,
+      "sha256": "4DDA3F14EFBC8A8E616AF1FC7E1E88D795995326B47692453E620117254DEC18",
+      "matches_pin": true
+    }
+  ],
+  "probes": [
+    {
+      "file": "yt-dlp.exe",
+      "exit_code": 0,
+      "stdout": "2026.08.19\n",
+      "stderr": ""
+    },
+    {
+      "file": "deno.exe",
+      "exit_code": 0,
+      "stdout": "deno 2.9.7 (stable, release, x86_64-pc-windows-msvc)\nv8 15.0.245.2-rusty\ntypescript 6.0.3\n",
+      "stderr": ""
+    },
+    {
+      "file": "ffmpeg.exe",
+      "exit_code": 0,
+      "stdout": "ffmpeg version 9.0.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with gcc 16.2.0 (Rev3, Built by MSYS2 project)\nconfiguration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-openal --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband\nlibavutil      61.  1.102 / 61.  1.102\nlibavcodec     63.  1.102 / 63.  1.102\nlibavformat    63.  1.102 / 63.  1.102\nlibavdevice    63.  1.102 / 63.  1.102\nlibavfilter    12.  1.102 / 12.  1.102\nlibswscale     10.  1.102 / 10.  1.102\nlibswresample   7.  1.102 /  7.  1.102\n\nExiting with exit code 0\n",
+      "stderr": ""
+    },
+    {
+      "file": "ffprobe.exe",
+      "exit_code": 0,
+      "stdout": "ffprobe version 9.0.2-essentials_build-www.gyan.dev Copyright (c) 2007-2026 the FFmpeg developers\nbuilt with gcc 16.2.0 (Rev3, Built by MSYS2 project)\nconfiguration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-openal --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband\nlibavutil      61.  1.102 / 61.  1.102\nlibavcodec     63.  1.102 / 63.  1.102\nlibavformat    63.  1.102 / 63.  1.102\nlibavdevice    63.  1.102 / 63.  1.102\nlibavfilter    12.  1.102 / 12.  1.102\nlibswscale     10.  1.102 / 10.  1.102\nlibswresample   7.  1.102 /  7.  1.102\n",
+      "stderr": ""
+    },
+    {
+      "file": "gallery-dl.exe",
+      "exit_code": 0,
+      "stdout": "1.32.19\n",
+      "stderr": ""
+    }
+  ]
+}

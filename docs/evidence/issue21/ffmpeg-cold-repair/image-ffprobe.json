@@ -1,0 +1,60 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "png",
+      "codec_long_name": "PNG (Portable Network Graphics) image",
+      "codec_type": "video",
+      "codec_tag_string": "[0][0][0][0]",
+      "codec_tag": "0x0000",
+      "width": 64,
+      "height": 32,
+      "coded_width": 64,
+      "coded_height": 32,
+      "has_b_frames": 0,
+      "pix_fmt": "pal8",
+      "level": -99,
+      "color_range": "pc",
+      "color_space": "gbr",
+      "r_frame_rate": "25/1",
+      "avg_frame_rate": "25/1",
+      "time_base": "1/25",
+      "start_pts": 0,
+      "start_time": "0.000000",
+      "duration_ts": 1,
+      "duration": "0.040000",
+      "disposition": {
+        "default": 0,
+        "dub": 0,
+        "original": 0,
+        "comment": 0,
+        "lyrics": 0,
+        "karaoke": 0,
+        "forced": 0,
+        "hearing_impaired": 0,
+        "visual_impaired": 0,
+        "clean_effects": 0,
+        "attached_pic": 0,
+        "timed_thumbnails": 0,
+        "non_diegetic": 0,
+        "captions": 0,
+        "descriptions": 0,
+        "metadata": 0,
+        "dependent": 0,
+        "still_image": 0,
+        "multilayer": 0
+      }
+    }
+  ],
+  "format": {
+    "filename": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output\\21yMxCS.png",
+    "nb_streams": 1,
+    "nb_programs": 0,
+    "nb_stream_groups": 0,
+    "format_name": "image2",
+    "format_long_name": "image2 sequence",
+    "start_time": "0.000000",
+    "duration": "0.040000",
+    "probe_score": 52
+  }
+}

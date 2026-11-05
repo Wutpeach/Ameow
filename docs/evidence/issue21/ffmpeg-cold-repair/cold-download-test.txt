@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized] target(s) in 0.77s
+     Running unittests src\lib.rs (target\debug\deps\ameow_next-c47fd856943d7ae9.exe)
+
+running 1 test
+
+thread 'download::collection_tests::real_cold_runtime_image_and_video_delivery' (107080) panicked at src\download\collection_tests.rs:458:26:
+called `Result::unwrap()` on an `Err` value: PreparationFailure { component: Ffmpeg, stage: Acquire, category: Unknown, message: "FFmpeg: download failed (unknown)", suggestion: "Copy preparation diagnostics; retry preparation manually", http_status: None }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test download::collection_tests::real_cold_runtime_image_and_video_delivery ... FAILED
+
+failures:
+
+failures:
+    download::collection_tests::real_cold_runtime_image_and_video_delivery
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 119 filtered out; finished in 27.13s
+
+error: test failed, to rerun pass `--lib`

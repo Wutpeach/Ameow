@@ -15,6 +15,28 @@ pub struct IdentityAttestation {
 #[derive(Clone, Debug)]
 pub struct ExecutionRequest {
     pub accepted: Accepted,
+    pub resume: Option<CollectionState>,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CollectionState {
+    pub directory: Option<PathBuf>,
+    pub files: Vec<CollectionFile>,
+    pub total: Option<usize>,
+    #[serde(default)]
+    pub expected_paths: Vec<PathBuf>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CollectionFile {
+    pub relative_path: PathBuf,
+    pub delivered: super::output::VerifiedMedia,
+}
+#[derive(Clone, Debug)]
+pub struct ProducedBatch {
+    pub artifacts: Vec<ProducedArtifact>,
+    pub failure: Option<Failure>,
+    pub total: Option<usize>,
+    pub collection: bool,
+    pub expected_paths: Vec<PathBuf>,
 }
 #[derive(Clone, Debug)]
 pub enum AdapterEvent {
@@ -22,6 +44,7 @@ pub enum AdapterEvent {
     Transferring,
     Finalizing,
     Progress(TransferProgress),
+    Files { completed: usize, total: Option<usize> },
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MediaKind {

@@ -39,12 +39,13 @@ pub enum JobPhase {
     Publishing,
     Held,
     Success,
+    Partial,
     Failure,
     Cancelled,
 }
 impl JobPhase {
     pub fn terminal(&self) -> bool {
-        matches!(self, Self::Success | Self::Failure | Self::Cancelled)
+        matches!(self, Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -74,6 +75,10 @@ pub struct JobSnapshot {
     pub failure: Option<Failure>,
     pub transfer_progress: Option<super::progress::TransferProgress>,
     pub delivered: Option<DeliveredFile>,
+    #[serde(default)]
+    pub collection: Option<super::contract::CollectionState>,
+    #[serde(default)]
+    pub gallery_progress: Option<(usize, Option<usize>)>,
     pub slot_owned: bool,
     pub resources_released: bool,
     pub start_order: Option<u64>,
@@ -1900,7 +1905,7 @@ impl Model {
             revision: self.revision,
             runtime_update: self.runtime_update.clone(),
             unfinished: jobs.iter().filter(|r| !r.phase.terminal()).count(),
-            failures: jobs.iter().filter(|r| r.phase == JobPhase::Failure).count(),
+            failures: jobs.iter().filter(|r| matches!(r.phase, JobPhase::Failure | JobPhase::Partial)).count(),
             active_slots: self.active(),
             preparing: self.preparing,
             preparation: self.preparation.clone(),
@@ -1971,7 +1976,7 @@ impl Model {
                     },
                     accepted,
                     identity: None,
-                    title: "Waiting for video identity".into(),
+                    title: "Waiting for media identity".into(),
                     message: if self.preparation.phase == PreparationPhase::Failed {
                         self.preparation.failure.as_ref().map_or_else(
                             || "Components failed; waiting for manual preparation Retry".into(),
@@ -1985,6 +1990,8 @@ impl Model {
                     failure: None,
                     transfer_progress: None,
                     delivered: None,
+                    collection: None,
+                    gallery_progress: None,
                     slot_owned: false,
                     resources_released: true,
                     start_order: None,
@@ -2023,7 +2030,6 @@ impl Model {
             if record.view.phase.terminal()
                 || record.cancelled
                 || record.view.slot_owned
-                || record.view.attempt != 0
             {
                 continue;
             }
@@ -2052,6 +2058,8 @@ impl Model {
         record.view.transfer_progress = None;
         record.view.resources_released = true;
         record.running = None;
+        record.view.collection = snapshot.collection.clone();
+        record.view.gallery_progress = None;
         record.view.delivered = snapshot.delivered.as_ref().map(|media| DeliveredFile {
             path: media.path.clone(),
             bytes: media.bytes,
@@ -2082,7 +2090,7 @@ impl Model {
         if failure.code == "E_DUPLICATE" {
             self.terminal(job, JobPhase::Cancelled);
         } else {
-            self.terminal(job, JobPhase::Failure);
+            self.terminal(job, if snapshot.phase == Phase::Partial { JobPhase::Partial } else { JobPhase::Failure });
         }
     }
 }
@@ -2256,8 +2264,22 @@ impl DownloadCoordinator {
             .records
             .get(&failed_job)
             .ok_or("E_RETRY: Unknown Job")?;
-        if old.view.phase != JobPhase::Failure {
-            return Err("E_RETRY: Only final Failure creates a new Job".into());
+        if !matches!(old.view.phase, JobPhase::Failure | JobPhase::Partial) {
+            return Err("E_RETRY: Only failed or partially completed downloads can retry".into());
+        }
+        if matches!(old.view.accepted.object, super::request::Object::Gallery { .. }) {
+            if model.stopping || model.preparation_owner_lost {
+                return Err("E_RETRY: Downloads are stopping or components unavailable".into());
+            }
+            let record = model.records.get_mut(&failed_job).ok_or("E_RETRY: Unknown Job")?;
+            record.view.phase = JobPhase::Queued;
+            record.view.failure = None;
+            record.view.terminal_count = 0;
+            record.cancelled = false;
+            model.ready.push_back(failed_job);
+            model.event(failed_job, "collection-retry-queued");
+            self.shared.publish(&model);
+            return Ok(failed_job);
         }
         if matches!(
             old.view.accepted.object,
@@ -2304,8 +2326,8 @@ impl DownloadCoordinator {
     pub fn diagnostic(&self, job: u64) -> Result<String, String> {
         let model = lock(&self.shared.model);
         let record = model.records.get(&job).ok_or("E_DIAGNOSTIC: Unknown Job")?;
-        if record.view.phase != JobPhase::Failure {
-            return Err("E_DIAGNOSTIC: Only final Failure has copy diagnostics".into());
+        if !matches!(record.view.phase, JobPhase::Failure | JobPhase::Partial) {
+            return Err("E_DIAGNOSTIC: Only failed or partially completed downloads have diagnostics".into());
         }
         Ok(diagnostics::copy_with_versions(
             job,
@@ -2547,6 +2569,8 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
         return;
     }
     running.seen_revision = snapshot.revision;
+    record.view.gallery_progress = snapshot.gallery_progress;
+    record.view.collection = snapshot.collection.clone();
     record.view.transfer_progress =
         if snapshot.phase == Phase::Downloading && !record.cancelled && !model.stopping {
             snapshot.transfer_progress.clone()
@@ -3101,6 +3125,7 @@ fn dispatch(shared: Arc<Shared>) {
                     PreparedAttempt {
                         lease: lease.clone(),
                         admit,
+                        resume: record.view.collection.clone(),
                     },
                 ) {
                     Ok(owner) => {

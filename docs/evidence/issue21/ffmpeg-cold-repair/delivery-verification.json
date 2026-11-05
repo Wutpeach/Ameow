@@ -1,0 +1,39 @@
+[
+  {
+    "kind": "image",
+    "phase": "Success",
+    "path": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output\\21yMxCS.png",
+    "bytes": 182,
+    "sha256": "EB359CD8F02A7D6762F9863798297FF6A22569C5C87A9D38C55BDB3A3E26003F",
+    "streams": [
+      {
+        "type": "video",
+        "codec": "png",
+        "height": 32
+      }
+    ],
+    "full_decode_exit": 0,
+    "resources_released": true
+  },
+  {
+    "kind": "video",
+    "phase": "Success",
+    "path": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output\\jNQXAC9IVRw.mkv",
+    "bytes": 683446,
+    "sha256": "80FAEA7D24D019E58FFA839BB23C7EB76C0A9E6E5F7E1256ACBC21BCEA9DCCF4",
+    "streams": [
+      {
+        "type": "video",
+        "codec": "h264",
+        "height": 240
+      },
+      {
+        "type": "audio",
+        "codec": "opus",
+        "height": null
+      }
+    ],
+    "full_decode_exit": 0,
+    "resources_released": true
+  }
+]

@@ -1,0 +1,4 @@
+# Preserve captured evidence bytes and recorded hashes across checkouts.
+* -text whitespace=trailing-space,space-before-tab,cr-at-eol
+# Upstream text and captured tool output keep their original whitespace.
+*.txt -whitespace

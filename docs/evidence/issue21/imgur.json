@@ -1,0 +1,484 @@
+{
+  "revision": 29,
+  "runtime_update": {
+    "phase": "Idle",
+    "policy": "follow_ameow",
+    "requested_version": null,
+    "active_version": "2026.08.19",
+    "error": null
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "revision": 17,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://imgur.com/21yMxCS",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Imgur",
+            "id": "image:21yMxCS"
+          }
+        }
+      },
+      "identity": {
+        "id": "image:21yMxCS",
+        "title": "Test",
+        "site": "Imgur",
+        "part": null
+      },
+      "title": "Test",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": null,
+        "files": [
+          {
+            "relative_path": "gallery-media\\21yMxCS.png",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\21yMxCS.png",
+              "bytes": 182,
+              "sha256": "EB359CD8F02A7D6762F9863798297FF6A22569C5C87A9D38C55BDB3A3E26003F",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 1,
+        "expected_paths": [
+          "gallery-media\\21yMxCS.png"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 1,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793811184088,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793811207937,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811210117,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811210123,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(92440), total_processes: 3, root_first_observed: true, stdout_bytes: 2697, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811212756,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(26696), total_processes: 3, root_first_observed: true, stdout_bytes: 88, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811212857,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(69248), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811212981,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793811212981,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 1
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "quality": "Saver",
+    "output_dir": "D:\\Ameow\\target\\issue21-validation\\output",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  "unfinished": 0,
+  "failures": 0,
+  "active_slots": 0,
+  "preparing": false,
+  "preparation": {
+    "phase": "Ready",
+    "attempt": 4,
+    "component": null,
+    "stage": "Publish",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793811207895,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810181588,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810186706,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810192506,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810193818,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810198316,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810199548,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810631720,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810636787,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810638557,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810639939,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810643875,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 2,
+        "timestamp_ms": 1793810645172,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810958560,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810958563,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810960592,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810960830,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810960867,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810963608,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 42630221,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810964105,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810966161,
+        "phase": "Downloading",
+        "component": "Ffmpeg",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 200238705
+      },
+      {
+        "attempt": 3,
+        "timestamp_ms": 1793810966789,
+        "phase": "Failed",
+        "component": "Ffmpeg",
+        "stage": "Acquire",
+        "category": "Http",
+        "http_status": 404,
+        "downloaded_bytes": 0,
+        "total_bytes": 200238705
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811184098,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811189365,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811193234,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811194470,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811199744,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811201336,
+        "phase": "Verifying",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 4,
+        "timestamp_ms": 1793811207895,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  "preparation_held": false,
+  "preparation_owner_lost": false,
+  "verified_runtime_versions": [
+    [
+      "yt-dlp",
+      "2026.08.19"
+    ],
+    [
+      "deno",
+      "2.9.7"
+    ],
+    [
+      "ffmpeg",
+      "N-127264-gf5d4fd186c-20261009"
+    ],
+    [
+      "gallery-dl",
+      "1.32.19"
+    ]
+  ],
+  "preparation_retry_allowed": false,
+  "stopping": false,
+  "stopped": false,
+  "main_job": null
+}

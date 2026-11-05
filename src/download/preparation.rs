@@ -8,6 +8,7 @@ use std::{
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RuntimeComponent {
     YtDlp,
+    GalleryDl,
     Deno,
     Ffmpeg,
     Runtime,
@@ -16,6 +17,7 @@ impl RuntimeComponent {
     pub fn label(self) -> &'static str {
         match self {
             Self::YtDlp => "yt-dlp",
+            Self::GalleryDl => "gallery-dl",
             Self::Deno => "Deno",
             Self::Ffmpeg => "FFmpeg",
             Self::Runtime => "Runtime",
@@ -24,6 +26,7 @@ impl RuntimeComponent {
     pub(crate) fn from_name(name: &str) -> Self {
         match name {
             "yt-dlp" => Self::YtDlp,
+            "gallery-dl" => Self::GalleryDl,
             "deno" => Self::Deno,
             "ffmpeg" => Self::Ffmpeg,
             _ => Self::Runtime,

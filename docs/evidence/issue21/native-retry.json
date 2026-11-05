@@ -1,0 +1,68 @@
+[
+  {
+    "type": "fixture-control",
+    "elapsed_ms": 0,
+    "step": 1,
+    "event": "partial",
+    "retry_accept": true,
+    "command_accept": true
+  },
+  {
+    "type": "command",
+    "command": "retry",
+    "job": 5
+  },
+  {
+    "type": "retry-reply",
+    "source": 5,
+    "accepted": true,
+    "elapsed_ms": 84280
+  },
+  {
+    "type": "command",
+    "command": "stop"
+  },
+  {
+    "type": "presentation",
+    "selected_job": null,
+    "stage": "Idle",
+    "upstream": {
+      "pending": false,
+      "worker_running": false,
+      "checked_at_ms": null,
+      "result": null
+    },
+    "selected_attempt": null,
+    "primary_fraction": null,
+    "tween_fraction": 0.0,
+    "displayed_percent": null,
+    "observed_at_ms": 1793810550473,
+    "fullness": 0.7498811483383179,
+    "queue_open": true,
+    "exit_open": false,
+    "hidden": false,
+    "badge": [
+      1,
+      true,
+      false
+    ],
+    "menu_page": "closed",
+    "menu_selected": 0,
+    "menu_pending": false,
+    "menu_hint": false,
+    "visual_offset": [
+      0.0,
+      0.0
+    ],
+    "visible_rows": [
+      5
+    ],
+    "queue_scroll": [
+      0.0,
+      0.0
+    ],
+    "preparation_visible": false,
+    "preparation_hovered": false,
+    "elapsed_ms": 60525
+  }
+]

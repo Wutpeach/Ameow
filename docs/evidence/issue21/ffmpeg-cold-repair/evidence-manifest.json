@@ -1,0 +1,127 @@
+[
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/acquisition.json",
+    "bytes": 146331,
+    "sha256": "E074224FCC96DB8BF05A10F33C74C41A498249C17B20F075D6F34B0F872611AF"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/asset-provenance.json",
+    "bytes": 1672,
+    "sha256": "BFBA00864AA4B41CC6850034BB1DD430CF547B9A6F71E6EC19192B42C2C023A5"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/build.txt",
+    "bytes": 61,
+    "sha256": "8EDCE07372DA2ED7F6F0F6F5FE5AF46A1F35307C737AFE53D8F8E8C229FC8DD5"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/cold-download-retest.txt",
+    "bytes": 505,
+    "sha256": "02AEF2BE2641A21A5A76876458A22C26C2F3EDDDBD5880FA91BA0C0AF0CB7B74"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/cold-download-test.txt",
+    "bytes": 989,
+    "sha256": "3142BB67C218E6E1CA8339B3CE465CC75206BA7247D31E01E4B84075923C4EE0"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/delivery-verification.json",
+    "bytes": 995,
+    "sha256": "DA7B94EF77834BAB375CE8D8F12A980B2462A3EE567571B4B34791B571FE52C6"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/first-attempt-acquisition.json",
+    "bytes": 23627,
+    "sha256": "CDFCFBA2ABA209F67064F97E4E4C67C595CF5D93F2751F1324C9379C5CDBF698"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/hash-regression.txt",
+    "bytes": 390,
+    "sha256": "496C9F81CBE970DFD1D437B9723DAD7C9E295D2A8D0F613AEC3B50C1C478C80E"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/image-ffprobe.json",
+    "bytes": 1569,
+    "sha256": "695C319798AD1FDCE11638CF608EC4480EF2DDBD0F9D8A0530B1C1943E5A4F6F"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/image.json",
+    "bytes": 6984,
+    "sha256": "D935C2C7296AE3C99E7273EDAAA2ECDF4FC03E77AEE6FF3E39E2AC4BD8F3BDF0"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/installed-runtime.json",
+    "bytes": 4753,
+    "sha256": "B751467CE0516BBF3A413E26B43860EE424D2C8CFF71CA0214233510C1BCD307"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/LICENSE",
+    "bytes": 35147,
+    "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/manifest-before.json",
+    "bytes": 3414,
+    "sha256": "76D99A944F03BD3957995F7D9FF868B4A97442DD6037D467F623A8AB0282CF17"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/old-url-check.json",
+    "bytes": 221,
+    "sha256": "2ED07C5CD9F6E69F621BB0965247F21A989727E5B26E22FA9046BBA480B0F362"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/publisher.sha256",
+    "bytes": 64,
+    "sha256": "71B8C2C11C8CC1D8353BBD5F0B1FEFC940E0B7F3DB7CE6A8280D184B523F0EEA"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/README.md",
+    "bytes": 7551,
+    "sha256": "B70BBB1408967EAC0AD7FFCC212432A8595532CF74B5BD458A3A12D212EC29ED"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/README.txt",
+    "bytes": 41577,
+    "sha256": "0342DE6BB39DD421CBEC2C00D89AD274B640D75AD3F2CAB09FFD647CE2D8F949"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/repair-scope.json",
+    "bytes": 1065,
+    "sha256": "932758EE932E41D3454F550394A823ED10308BD35CEC2CC6A32DE22F27CB3044"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/runtime-regressions-final.txt",
+    "bytes": 1262,
+    "sha256": "70A8100BA17C9835D3E3247BA8EF31C05C3B1331CB4030DB9FE41B17A2610D35"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/runtime-regressions.txt",
+    "bytes": 750,
+    "sha256": "77BB9B5C2491ACFDFA5C5C351C1A5992CA5FAF4B9CA9EA76874F7005C9FEF298"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/source-after.json",
+    "bytes": 6247,
+    "sha256": "6CD4C6C0FCDC53AF5ADAB2E36908F497B68952F41307027C70D55F4DA6BF3D94"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/source-before.json",
+    "bytes": 4458,
+    "sha256": "48F4F43446D8B781CC8E3EAA9D92AF1503E1DEAEDCAC9C6CAB70DC6B728A9EEA"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/stopped.json",
+    "bytes": 10394,
+    "sha256": "A31B5852984F4A559BDB32535107BD79B3B5A8E0363CA0186C3F3AC02C62E38D"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/video-ffprobe.json",
+    "bytes": 3536,
+    "sha256": "C459CD0BDF5FEC45275C02F4D4D0822DBA53A26711D20000BA52369C2DE58E92"
+  },
+  {
+    "path": "docs/evidence/issue21/ffmpeg-cold-repair/video.json",
+    "bytes": 10609,
+    "sha256": "F9C96D5C9DFBCBE0E5B9EA23A1F3D18C6ED9B2C439EF413968C27DB60A9A22A0"
+  }
+]

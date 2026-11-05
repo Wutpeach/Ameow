@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-11-05T11:36:15.849570+08:00",
+  "ffmpeg_download_page": "https://ffmpeg.org/download.html",
+  "provider": "GyanD/codexffmpeg (linked Windows builder on FFmpeg download page)",
+  "tag": "9.0.2",
+  "release": "https://github.com/GyanD/codexffmpeg/releases/tag/9.0.2",
+  "source": "https://github.com/FFmpeg/FFmpeg/commit/946fcce07b",
+  "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
+  "http_status": 200,
+  "bytes": 114768076,
+  "sha256": "60F467265B1E312373DBCD92200C2618A74850F98D3D078E94296BB3FA2047BA",
+  "github_asset_id": 574302090,
+  "github_asset_digest": "sha256:60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+  "publisher_checksum_url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip.sha256",
+  "signature_verified": false,
+  "files": [
+    {
+      "archive_path": "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe",
+      "bytes": 105423872,
+      "sha256": "3256173F3F8BFFD7DF12227C68ADF68025EDB1832273A9530688A7BB1ED8EDEC"
+    },
+    {
+      "archive_path": "ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe",
+      "bytes": 105221120,
+      "sha256": "F0D36ECBBDD3BCFAC3EFA078C96C7271C2E68B3810595552AC3B7F17E9A65C52"
+    },
+    {
+      "archive_path": "ffmpeg-9.0.2-essentials_build/LICENSE",
+      "bytes": 35147,
+      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
+    },
+    {
+      "archive_path": "ffmpeg-9.0.2-essentials_build/README.txt",
+      "bytes": 41577,
+      "sha256": "0342DE6BB39DD421CBEC2C00D89AD274B640D75AD3F2CAB09FFD647CE2D8F949"
+    }
+  ]
+}

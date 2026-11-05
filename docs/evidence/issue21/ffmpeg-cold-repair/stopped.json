@@ -1,0 +1,320 @@
+{
+  "revision": 51,
+  "runtime_update": {
+    "phase": "Idle",
+    "policy": "follow_ameow",
+    "requested_version": null,
+    "active_version": "2026.08.19",
+    "error": null
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "revision": 16,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://imgur.com/21yMxCS",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Imgur",
+            "id": "image:21yMxCS"
+          }
+        }
+      },
+      "identity": {
+        "id": "image:21yMxCS",
+        "title": "Test",
+        "site": "Imgur",
+        "part": null
+      },
+      "title": "Test",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": null,
+        "files": [
+          {
+            "relative_path": "gallery-media\\21yMxCS.png",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output\\21yMxCS.png",
+              "bytes": 182,
+              "sha256": "EB359CD8F02A7D6762F9863798297FF6A22569C5C87A9D38C55BDB3A3E26003F",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 1,
+        "expected_paths": [
+          "gallery-media\\21yMxCS.png"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 1,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793850389832,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793850407743,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850410094,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850410103,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(85508), total_processes: 3, root_first_observed: true, stdout_bytes: 2697, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850412563,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(86888), total_processes: 3, root_first_observed: true, stdout_bytes: 111, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850412690,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(79268), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850412773,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793850412773,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 1
+        }
+      ]
+    },
+    {
+      "job_id": 2,
+      "revision": 21,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://youtu.be/jNQXAC9IVRw",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output"
+        },
+        "object": {
+          "Youtube": "jNQXAC9IVRw"
+        }
+      },
+      "identity": {
+        "id": "jNQXAC9IVRw",
+        "title": "Me at the zoo",
+        "site": "Youtube",
+        "part": null
+      },
+      "title": "Me at the zoo",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": {
+        "path": "\\\\?\\D:\\Ameow\\target\\issue21-ffmpeg-repair-20261105\\cold-run-2\\output\\jNQXAC9IVRw.mkv",
+        "bytes": 683446,
+        "sha256": "80FAEA7D24D019E58FFA839BB23C7EB76C0A9E6E5F7E1256ACBC21BCEA9DCCF4"
+      },
+      "collection": null,
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 2,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793850412778,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793850412794,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850416464,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850416468,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(65588), total_processes: 9, root_first_observed: true, stdout_bytes: 93859, stderr_bytes: 2822, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850420806,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(96756), total_processes: 10, root_first_observed: true, stdout_bytes: 2812, stderr_bytes: 6648, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850420952,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(56984), total_processes: 2, root_first_observed: true, stdout_bytes: 4341, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850421161,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793850421161,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 2
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "quality": "Saver",
+    "output_dir": "D:/Ameow/target/issue21-ffmpeg-repair-20261105/cold-run-2\\output",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  "unfinished": 0,
+  "failures": 0,
+  "active_slots": 0,
+  "preparing": false,
+  "preparation": {
+    "phase": "Ready",
+    "attempt": 1,
+    "component": null,
+    "stage": "Publish",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793850407690,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850389832,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850397237,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850399481,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850401723,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850406243,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793850407690,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  "preparation_held": false,
+  "preparation_owner_lost": false,
+  "verified_runtime_versions": [],
+  "preparation_retry_allowed": false,
+  "stopping": true,
+  "stopped": true,
+  "main_job": null
+}

@@ -1,0 +1,656 @@
+{
+  "revision": 106,
+  "runtime_update": {
+    "phase": "Idle",
+    "policy": "follow_ameow",
+    "requested_version": null,
+    "active_version": "2026.08.19",
+    "error": null
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "revision": 38,
+      "attempt": 2,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://bsky.app/profile/mollieoreilly.bsky.social/post/3mz5die727k22",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Bluesky",
+            "id": "mollieoreilly.bsky.social/3mz5die727k22"
+          }
+        }
+      },
+      "identity": {
+        "id": "mollieoreilly.bsky.social/3mz5die727k22",
+        "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+        "site": "Bluesky",
+        "part": null
+      },
+      "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C",
+        "files": [
+          {
+            "relative_path": "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+              "bytes": 1692800,
+              "sha256": "6E31DD14E00CDE6461D553D7F224CCD8EAD2703E5A23FBF2D8E08EA456EAFC7D",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          },
+          {
+            "relative_path": "gallery-media\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+              "bytes": 34472,
+              "sha256": "D411290894CC0A736CA79360826321426A0803059D6EEDBBD43C7C813083AF6D",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 2,
+        "expected_paths": [
+          "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+          "gallery-media\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 2,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793810181588,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793810199594,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810203235,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(73104), total_processes: 3, root_first_observed: true, stdout_bytes: 9175, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810203237,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208214,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(48200), total_processes: 3, root_first_observed: true, stdout_bytes: 280, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208419,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(104792), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208787,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208787,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208796,
+          "attempt": 1,
+          "kind": "collection-retry-queued",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208807,
+          "attempt": 2,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810211158,
+          "attempt": 2,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810211167,
+          "attempt": 2,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(77432), total_processes: 3, root_first_observed: true, stdout_bytes: 9175, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810214889,
+          "attempt": 2,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(90656), total_processes: 3, root_first_observed: true, stdout_bytes: 282, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810215032,
+          "attempt": 2,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(2584), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810215113,
+          "attempt": 2,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(42512), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810215256,
+          "attempt": 2,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 2
+        },
+        {
+          "timestamp_ms": 1793810215256,
+          "attempt": 2,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 2
+        }
+      ]
+    },
+    {
+      "job_id": 2,
+      "revision": 14,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://bsky.app/profile/bsky.app/post/3mzhhvhjfwk22",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Bluesky",
+            "id": "bsky.app/3mzhhvhjfwk22"
+          }
+        }
+      },
+      "identity": {
+        "id": "bsky.app/3mzhhvhjfwk22",
+        "title": "We're seeing 200% of our usual data traffic—and climbing! Thanks to all of you for making this a night to remember",
+        "site": "Bluesky",
+        "part": null
+      },
+      "title": "We're seeing 200% of our usual data traffic—and climbing! Thanks to all of you for making this a night to remember",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": null,
+        "files": [
+          {
+            "relative_path": "gallery-media\\bafkreiczrhhklt4wsquxzgudjxd7w4rch4tcbb7fkedhg56h3bfvsla2v4.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\bafkreiczrhhklt4wsquxzgudjxd7w4rch4tcbb7fkedhg56h3bfvsla2v4.jpg",
+              "bytes": 324306,
+              "sha256": "5989CEA5CF9694297C9A834DC7FB72223F262087E551067377C7D84B592C1AAF",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 1,
+        "expected_paths": [
+          "gallery-media\\bafkreiczrhhklt4wsquxzgudjxd7w4rch4tcbb7fkedhg56h3bfvsla2v4.jpg"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 3,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793810215259,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793810215276,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810218392,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 3,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810218395,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(100308), total_processes: 3, root_first_observed: true, stdout_bytes: 8561, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 3,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810222816,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(86996), total_processes: 3, root_first_observed: true, stdout_bytes: 140, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 3,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810222918,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(33876), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 3,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810223163,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 2,
+          "start_order": 3
+        },
+        {
+          "timestamp_ms": 1793810223163,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 2,
+          "start_order": 3
+        }
+      ]
+    },
+    {
+      "job_id": 3,
+      "revision": 19,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://bsky.app/profile/mollieoreilly.bsky.social/post/3mz5die727k22",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Bluesky",
+            "id": "mollieoreilly.bsky.social/3mz5die727k22"
+          }
+        }
+      },
+      "identity": {
+        "id": "mollieoreilly.bsky.social/3mz5die727k22",
+        "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+        "site": "Bluesky",
+        "part": null
+      },
+      "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C (1)",
+        "files": [
+          {
+            "relative_path": "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C (1)\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+              "bytes": 1692800,
+              "sha256": "6E31DD14E00CDE6461D553D7F224CCD8EAD2703E5A23FBF2D8E08EA456EAFC7D",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          },
+          {
+            "relative_path": "gallery-media\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C (1)\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+              "bytes": 34472,
+              "sha256": "D411290894CC0A736CA79360826321426A0803059D6EEDBBD43C7C813083AF6D",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 2,
+        "expected_paths": [
+          "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+          "gallery-media\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 4,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793810215259,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793810215277,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 2,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810218318,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 3,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810218334,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(103128), total_processes: 3, root_first_observed: true, stdout_bytes: 9175, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 3,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810224569,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(71000), total_processes: 3, root_first_observed: true, stdout_bytes: 280, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810224731,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(34808), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810225038,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(104292), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810225282,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 4
+        },
+        {
+          "timestamp_ms": 1793810225282,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 4
+        }
+      ]
+    },
+    {
+      "job_id": 4,
+      "revision": 21,
+      "attempt": 1,
+      "phase": "Success",
+      "accepted": {
+        "intent": {
+          "url": "https://youtu.be/jNQXAC9IVRw",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Youtube": "jNQXAC9IVRw"
+        }
+      },
+      "identity": {
+        "id": "jNQXAC9IVRw",
+        "title": "Me at the zoo",
+        "site": "Youtube",
+        "part": null
+      },
+      "title": "Me at the zoo",
+      "message": "Verified media safely delivered",
+      "failure": null,
+      "transfer_progress": null,
+      "delivered": {
+        "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\jNQXAC9IVRw.mkv",
+        "bytes": 683361,
+        "sha256": "25C63858629D3AEE810F47F9D0DA5870EC1B67AE2C31DC177FF6C1E43737B9B1"
+      },
+      "collection": null,
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 5,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793810215260,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793810215277,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 3,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810219293,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(56520), total_processes: 9, root_first_observed: true, stdout_bytes: 93439, stderr_bytes: 2750, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 3,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810219295,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 3,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810224100,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(106356), total_processes: 10, root_first_observed: true, stdout_bytes: 2905, stderr_bytes: 6474, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 2,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810224202,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(63824), total_processes: 2, root_first_observed: false, stdout_bytes: 4196, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 2,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810224467,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 1,
+          "start_order": 5
+        },
+        {
+          "timestamp_ms": 1793810224467,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 1,
+          "start_order": 5
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "quality": "Saver",
+    "output_dir": "D:\\Ameow\\target\\issue21-validation\\output",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  "unfinished": 0,
+  "failures": 0,
+  "active_slots": 0,
+  "preparing": false,
+  "preparation": {
+    "phase": "Ready",
+    "attempt": 1,
+    "component": null,
+    "stage": "Publish",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793810199548,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810181588,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810186706,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810192506,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810193818,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810198316,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810199548,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  "preparation_held": false,
+  "preparation_owner_lost": false,
+  "verified_runtime_versions": [],
+  "preparation_retry_allowed": false,
+  "stopping": true,
+  "stopped": true,
+  "main_job": null
+}

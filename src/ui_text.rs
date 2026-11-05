@@ -58,11 +58,14 @@ impl Language {
                 "Cannot read Windows startup approval. Check Windows Settings > Startup apps.",
             )),
             "Only public HTTP(S) video URLs without credentials are supported"
+            | "Only public HTTP(S) media URLs without credentials are supported"
             | "Missing site host"
             | "Invalid site path"
             | "Playlist/series URLs do not identify one media object" => {
-                Some(("请使用公开的单个视频链接。", message))
+                Some(("请使用公开的单个媒体或作品链接。", message))
             }
+            "Use a supported single video, Imgur image/album, or Bluesky image post URL" => Some((
+                "请使用 YouTube/Bilibili 单视频、Imgur 图片/相册或 Bluesky 单帖图片链接。", message)),
             _ => None,
         };
         if let Some((zh, en)) = direct {

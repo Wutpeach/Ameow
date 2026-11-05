@@ -1,0 +1,76 @@
+{
+  "partial": [
+    {
+      "job": 1,
+      "attempt": 1,
+      "phase": "Partial",
+      "saved": 1,
+      "total": 2,
+      "released": true
+    }
+  ],
+  "retried": [
+    {
+      "job": 1,
+      "attempt": 2,
+      "phase": "Success",
+      "saved": 2,
+      "total": 2,
+      "released": true
+    }
+  ],
+  "coexistence": [
+    {
+      "job": 1,
+      "attempt": 2,
+      "phase": "Success",
+      "saved": 2,
+      "total": 2,
+      "released": true
+    },
+    {
+      "job": 2,
+      "attempt": 1,
+      "phase": "Success",
+      "saved": 1,
+      "total": 1,
+      "released": true
+    },
+    {
+      "job": 3,
+      "attempt": 1,
+      "phase": "Success",
+      "saved": 2,
+      "total": 2,
+      "released": true
+    },
+    {
+      "job": 4,
+      "attempt": 1,
+      "phase": "Success",
+      "saved": 0,
+      "total": null,
+      "released": true
+    }
+  ],
+  "cancelled": [
+    {
+      "job": 1,
+      "attempt": 1,
+      "phase": "Cancelled",
+      "saved": 0,
+      "total": 2,
+      "released": true
+    }
+  ],
+  "imgur": [
+    {
+      "job": 1,
+      "attempt": 1,
+      "phase": "Success",
+      "saved": 1,
+      "total": 1,
+      "released": true
+    }
+  ]
+}

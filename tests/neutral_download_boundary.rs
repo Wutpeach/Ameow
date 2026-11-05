@@ -111,5 +111,5 @@ fn shared_services_do_not_branch_on_private_tool_or_wire_names() {
         );
     }
     let composition = fs::read_to_string(root.join("src/download/composition.rs")).unwrap();
-    assert!(composition.contains("YtDlpAdapter"));
+    assert!(composition.contains("AutomaticAdapter"));
 }

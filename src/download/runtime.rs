@@ -527,7 +527,7 @@ impl RuntimeManager {
             if self
                 .candidate
                 .as_ref()
-                .is_some_and(|candidate| component.name != candidate.component)
+                .is_none_or(|candidate| component.name != candidate.component)
             {
                 let mut reused = false;
                 for entry in fs::read_dir(&self.root)
@@ -1063,6 +1063,21 @@ mod requirement_tests {
                 .prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {})
                 .is_ok()
         );
+    }
+    #[test]
+    fn catalog_extension_reuses_hash_verified_components_before_acquisition() {
+        let root = tempfile::tempdir().unwrap();
+        let (catalog, requirements, executable) = fixture_catalog(root.path());
+        let previous = root.path().join("runtime-previous-catalog");
+        fs::create_dir(&previous).unwrap();
+        fs::copy(executable, previous.join("ffprobe.exe")).unwrap();
+        let manager = RuntimeManager::new(root.path().into());
+        *manager.test_catalog.lock().unwrap() = Some(catalog);
+        *manager.test_acquirer.lock().unwrap() = Some(Arc::new(|_, _| panic!("unchanged verified components must be reused")));
+        let lease = manager.prepare_observed(&requirements, &Control::default(), Arc::new(|_| {}), |_| {}).unwrap();
+        assert_ne!(lease.directory, previous);
+        assert!(lease.file("ffprobe.exe").unwrap().is_file());
+        assert!(previous.join("ffprobe.exe").is_file());
     }
     #[test]
     fn r12_corrupt_cache_is_preserved_and_recovered_into_a_verified_immutable_sibling() {

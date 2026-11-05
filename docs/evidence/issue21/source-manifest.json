@@ -1,0 +1,178 @@
+{
+  "generated_at": "2026-11-05T01:04:33.121572+08:00",
+  "branch": "main",
+  "head": "0493a23beb4e2f46845496a80791168d2968e60e",
+  "committed": false,
+  "executable": {
+    "path": "target/debug/ameow.exe",
+    "bytes": 38865920,
+    "sha256": "C4191085B0C476F250DD067F20E743B0B39D268E42333FB2EF9752A5B1DE11CE"
+  },
+  "files": [
+    {
+      "path": "assets/runtime-manifest.json",
+      "bytes": 3414,
+      "sha256": "76D99A944F03BD3957995F7D9FF868B4A97442DD6037D467F623A8AB0282CF17"
+    },
+    {
+      "path": "assets/runtime-notices.md",
+      "bytes": 2521,
+      "sha256": "DE3106F3189DBBC78C7DAE7187CDF5E2BA35D248CA9B5C16FC295E4B97C3C70E"
+    },
+    {
+      "path": "distribution/notices/runtime-acquisition.md",
+      "bytes": 3610,
+      "sha256": "BA59693E63281E3086861BAF18C0C92265E89AB9ECECB4532A8AAEFBD0BDD601"
+    },
+    {
+      "path": "scripts/preview-scenes.json",
+      "bytes": 10505,
+      "sha256": "0D4B5ED3A1A7E2FD06FAECEB307DF168FAFE7C20C618A492CA5B7DCCC7C68AE3"
+    },
+    {
+      "path": "src/download/adapter.rs",
+      "bytes": 3737,
+      "sha256": "B16CAA1285C64260B7BA0E524B8FF9857B4F84C73222D25B975DD3B77A34632C"
+    },
+    {
+      "path": "src/download/adapters/automatic.rs",
+      "bytes": 4511,
+      "sha256": "25CDC7E98B91CBBB92F2F70FEC7E754FDE124DA676863404EEBF01CBCBCB65D7"
+    },
+    {
+      "path": "src/download/adapters/gallery_dl/mod.rs",
+      "bytes": 26475,
+      "sha256": "F746979FDF12DB4C2E6C6AB9A120F00852C1E7BF82E9D7B9EC1A147F16EA8612"
+    },
+    {
+      "path": "src/download/adapters/mod.rs",
+      "bytes": 55,
+      "sha256": "DE993E454C9B4ED1603560FE824BD7F6A5F5914F8D28F19729E8111156CC7946"
+    },
+    {
+      "path": "src/download/adapters/yt_dlp/identity.rs",
+      "bytes": 6315,
+      "sha256": "88224F71FD44A0DBE0428D34B24C182D8D9752036575C57893D86EB2E27C14C0"
+    },
+    {
+      "path": "src/download/collection_tests.rs",
+      "bytes": 15436,
+      "sha256": "8CD4EC5713B605AEB86294465DE86D86FDF347E31E583A66DB2707D9119D424A"
+    },
+    {
+      "path": "src/download/composition.rs",
+      "bytes": 1617,
+      "sha256": "70156F7E3342974182F2D5C1471A94B76F0BB8B8A273AAF47770B979ECABAB19"
+    },
+    {
+      "path": "src/download/contract.rs",
+      "bytes": 2323,
+      "sha256": "930AF0506B968974ABE047EAB540FF7855DD1232FF07D9103D558EF89C977082"
+    },
+    {
+      "path": "src/download/mod.rs",
+      "bytes": 49412,
+      "sha256": "47DBE2803E4461951068712DFAA1254F435C7D777DDF7352BED124DA7010AE74"
+    },
+    {
+      "path": "src/download/output.rs",
+      "bytes": 10541,
+      "sha256": "4D7395151B2CD474D62D80E155411E6FEF6A13195135370FE1D79393608A8974"
+    },
+    {
+      "path": "src/download/preparation.rs",
+      "bytes": 10955,
+      "sha256": "CA9E6CE12968CD3C393E54DC0D3472D9A83531D356A5C17F2C31B1B81AD32D00"
+    },
+    {
+      "path": "src/download/queue.rs",
+      "bytes": 142589,
+      "sha256": "5135ACDE3F70E866C2024370FF58306CAAAB25E2F0E6DDFA783EFC4317A0562B"
+    },
+    {
+      "path": "src/download/request.rs",
+      "bytes": 7929,
+      "sha256": "624B05C64CD0622F3D0683A6626D5F0FB1A13C581E769E3D59E997E5174B5625"
+    },
+    {
+      "path": "src/download/runtime.rs",
+      "bytes": 46963,
+      "sha256": "D46D5ACA440D24F5257D994E4951C108447D12B39D465E419B4338F792D48919"
+    },
+    {
+      "path": "src/download/verification/image.rs",
+      "bytes": 2783,
+      "sha256": "21CD10F383781F7DD32367EA25A84469D8040B2A62FC6096BE57BAEEC924FDAD"
+    },
+    {
+      "path": "src/download/verification/mod.rs",
+      "bytes": 2363,
+      "sha256": "DB0E32842AF4D415FA7410C6855DB7CC91AA753397987DAF8323312990A3CBF9"
+    },
+    {
+      "path": "src/download_ui.rs",
+      "bytes": 170069,
+      "sha256": "B76B5A203F6A831344D3318188EE076DB0AD5C8FCA50D7A168004D6DFE4EC958"
+    },
+    {
+      "path": "src/indicator.rs",
+      "bytes": 14471,
+      "sha256": "F66234784D0568FE20867F8FC49C5B0A35F495483B144B408DBD27A870137D27"
+    },
+    {
+      "path": "src/main.rs",
+      "bytes": 55357,
+      "sha256": "6DC1E846DD38A028D46CAC99E6792F6019EB01F935DB14D0BCB4DDAE49793055"
+    },
+    {
+      "path": "src/model.rs",
+      "bytes": 32782,
+      "sha256": "043654353E4F1EBF2428F3B0C9FB691AA783AA41BDC90CC91FF9464DCF5F99F6"
+    },
+    {
+      "path": "src/preview.rs",
+      "bytes": 11046,
+      "sha256": "F692761D9BC6098E60DE8B9FF10E4401063FBD8A38CD2ABE55ED9454E3B8A5B1"
+    },
+    {
+      "path": "src/queue_fixture.rs",
+      "bytes": 24015,
+      "sha256": "0695C0239C4119C5C5EF55D9A82C565132868151C1997A41FD67684162A1F951"
+    },
+    {
+      "path": "src/queue_presentation.rs",
+      "bytes": 9481,
+      "sha256": "62CBC0C2ABCC84A3C46AFCA4B5BC45C0000CD4E8B0EE291E0647125FCE705942"
+    },
+    {
+      "path": "src/settings_components.rs",
+      "bytes": 39696,
+      "sha256": "72C5B559E85C9F2ABF654A68A21FB6AF1217A9D0F6E251E649BC2641C2A6F5BD"
+    },
+    {
+      "path": "src/settings_window.rs",
+      "bytes": 79214,
+      "sha256": "AA1D02B479FDA5EB4E00CF73E1614F19F4BC55EEB4243D964016A64424EA580C"
+    },
+    {
+      "path": "src/tokens.rs",
+      "bytes": 8507,
+      "sha256": "02C706434EB90F05F73BA8210D98411C331AE514CDA3A67A8B4DC940CE0DC53B"
+    },
+    {
+      "path": "src/ui_text.rs",
+      "bytes": 9985,
+      "sha256": "AD600994DE3FF9E97BAA3E0055708F2699F01297FF21B6A445D9BE78C20B208F"
+    },
+    {
+      "path": "tests/download_contracts.rs",
+      "bytes": 18318,
+      "sha256": "6E2BD7D73ABF27B159FF6057D44EB09CC213198C7FFF38843EF20172333311D1"
+    },
+    {
+      "path": "tests/neutral_download_boundary.rs",
+      "bytes": 3725,
+      "sha256": "8B50F8B15230521F05D5D3789813C4A2771F0E95837AA1F7B71380AB40A56410"
+    }
+  ]
+}

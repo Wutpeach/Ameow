@@ -194,7 +194,8 @@ impl DownloadUi {
                             "job":job.job_id, "revision":job.revision, "attempt":job.attempt, "phase":job.phase, "accepted_quality":job.accepted.intent.quality,
                             "slot_owned":job.slot_owned, "resources_released":job.resources_released,
                             "start_order":job.start_order, "terminal_count":job.terminal_count, "events":job.events,
-                            "transfer_progress":job.transfer_progress
+                            "transfer_progress":job.transfer_progress,"gallery_progress":job.gallery_progress,
+                            "saved_files":job.collection.as_ref().map(|c| c.files.len()),"total_files":job.collection.as_ref().and_then(|c| c.total)
                         })).collect();
                         let _ = writeln!(file, "{}", serde_json::json!({"type":"queue","elapsed_ms":started.elapsed().as_millis(),
                             "revision":snapshot.revision,"unfinished":snapshot.unfinished,"failures":snapshot.failures,
@@ -262,7 +263,7 @@ impl DownloadUi {
                 "copied" => self.set_row_notice(5, "诊断已复制", now),
                 "copy-failed" => self.set_row_notice(5, "复制失败，请重试", now),
                 "retry-refused" => self.set_row_notice(5, "重试未受理", now),
-                "retry-pending" => { self.retry_pending.insert(5); }
+                "retry-pending" | "partial-retry-pending" => { self.retry_pending.insert(5); }
                 _ => {}
             }
         }
@@ -496,6 +497,7 @@ impl DownloadUi {
                 | JobPhase::Held => Stage::Downloading,
                 JobPhase::Success => Stage::Success,
                 JobPhase::Failure => Stage::Failure,
+                JobPhase::Partial => Stage::Partial,
                 JobPhase::Cancelled => Stage::Cancelled,
                 _ => Stage::Resolving,
             };
@@ -515,7 +517,7 @@ impl DownloadUi {
                 self.selected_job = Some(job.job_id);
             }
             self.selected_presentation = Some(presentation);
-            let fraction = if job.phase == JobPhase::Downloading {
+            let fraction = if job.phase == JobPhase::Downloading && job.gallery_progress.is_none() {
                 presentation_fraction(
                     job.transfer_progress.as_ref(),
                     ameow_next::download::progress::now_ms(),
@@ -604,7 +606,10 @@ impl DownloadUi {
     }
     fn row_title(&self, job: &JobSnapshot, now: u64) -> String {
         self.row_notice(job.job_id, now).map(|text| local_text(self.language, text)).unwrap_or_else(||
-            if job.title.is_empty() { format!("{} {}", self.language.text("任务", "Job"), job.job_id) } else { job.title.clone() })
+            {
+                let title = if job.title.is_empty() { format!("{} {}", self.language.text("任务", "Job"), job.job_id) } else { job.title.clone() };
+                if job.phase == JobPhase::Partial { format!("{} · {title}", self.language.text("部分完成", "Partial")) } else { title }
+            })
     }
     fn set_row_notice(&mut self, job: u64, text: &'static str, now: u64) {
         if self.title_browse.as_ref().is_some_and(|browse| browse.job == job) {
@@ -694,6 +699,7 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "清理待确认" => "Cleanup?",
         "下载完成" => "Done",
         "下载失败" => "Failed",
+        "部分完成" => "Partial",
         "已取消" => "Cancelled",
         "准备异常，清理未确认" => "Setup: cleanup unconfirmed",
         "正在等待组件清理" => "Waiting for cleanup",
@@ -775,6 +781,8 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "正在保存默认设置，请稍后再试" => "Saving settings. Try again shortly.",
         "请拖入一个可写文件夹" => "Drop a writable folder",
         _ => {
+            if let Some(count) = text.strip_prefix("已保存 ") { return format!("Saved {count}"); }
+            if let Some(count) = text.strip_prefix("已下载 ") { return format!("Downloaded {}", count.trim_end_matches('个')); }
             if let Some(rate) = text.strip_prefix("下载 ") { return format!("Downloading {rate}"); }
             if let Some(rate) = text.strip_prefix("估算 ") { return format!("Est. {rate}"); }
             if let Some(job) = text.strip_prefix("已复制任务 ").and_then(|s| s.strip_suffix(" 的诊断")) { return format!("Copied diagnostic for job {job}"); }
@@ -804,6 +812,7 @@ pub fn phase_label(job: &JobSnapshot) -> String {
         JobPhase::Held => "清理待确认".into(),
         JobPhase::Success => "下载完成".into(),
         JobPhase::Failure => "下载失败".into(),
+        JobPhase::Partial => "部分完成".into(),
         JobPhase::Cancelled => "已取消".into(),
     }
 }
@@ -976,7 +985,7 @@ struct QueueActionFocus {
 }
 fn queue_row_icons(job: &JobSnapshot, preparation_held: bool) -> &'static [QueueIcon] {
     match job.phase {
-        JobPhase::Failure => &[QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear],
+        JobPhase::Failure | JobPhase::Partial => &[QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear],
         JobPhase::Success | JobPhase::Cancelled => &[],
         JobPhase::Held if job.slot_owned || preparation_held => &[QueueIcon::Cancel, QueueIcon::Cleanup],
         _ => &[QueueIcon::Cancel],
@@ -984,6 +993,7 @@ fn queue_row_icons(job: &JobSnapshot, preparation_held: bool) -> &'static [Queue
 }
 fn queue_progress_label(job: &JobSnapshot, fraction: Option<f32>, now: u64) -> String {
     if job.phase != JobPhase::Downloading { return phase_label(job); }
+    if let Some((count, total)) = job.gallery_progress { return gallery_progress_label(count, total); }
     let label = transfer_label(job.transfer_progress.as_ref(), now);
     let Some(fraction) = fraction else { return label; };
     let percent = format!("{}{}%",
@@ -993,6 +1003,12 @@ fn queue_progress_label(job: &JobSnapshot, fraction: Option<f32>, now: u64) -> S
     match label.split_once(' ') {
         Some(("下载" | "估算", rate)) if rate.ends_with("/s") => format!("{percent} {rate}"),
         _ => percent,
+    }
+}
+fn gallery_progress_label(count: usize, total: Option<usize>) -> String {
+    match total {
+        Some(total) => format!("已下载 {count}/{total}"),
+        None => format!("已下载 {count}个"),
     }
 }
 fn queue_row_status(job: &JobSnapshot, snapshot: &QueueSnapshot, fraction: Option<f32>, now: u64) -> String {
@@ -1006,6 +1022,14 @@ fn queue_row_status(job: &JobSnapshot, snapshot: &QueueSnapshot, fraction: Optio
             "组件准备失败".into()
         } else {
             phase_label(job)
+        }
+    } else if job.phase == JobPhase::Partial {
+        match &job.collection {
+            Some(collection) => match collection.total {
+                Some(total) => format!("已保存 {}/{total}", collection.files.len()),
+                None => format!("已保存 {}", collection.files.len()),
+            },
+            None => "部分完成".into(),
         }
     } else if job.phase == JobPhase::Failure {
         "下载失败".into()
@@ -1070,7 +1094,7 @@ impl DownloadUi {
         if !self.queue_open || !self.row_visible(job, now) { return false; }
         match icon {
             QueueIcon::Retry | QueueIcon::Copy | QueueIcon::Clear =>
-                job.phase == JobPhase::Failure && !self.retry_pending.contains(&id),
+                matches!(job.phase, JobPhase::Failure | JobPhase::Partial) && !self.retry_pending.contains(&id),
             QueueIcon::Cancel => !job.phase.terminal() && (!snapshot.preparation_owner_lost || job.slot_owned),
             QueueIcon::Cleanup => job.phase == JobPhase::Held &&
                 (job.slot_owned || snapshot.preparation_held && !snapshot.preparation_owner_lost),
@@ -1529,7 +1553,10 @@ impl Prototype {
                 .selected_job
                 .and_then(|id| snapshot.jobs.iter().find(|job| job.job_id == id))
             {
-                return Some(local_text(ui.language, &if job.phase == JobPhase::Downloading {
+                return Some(local_text(ui.language, &if job.phase == JobPhase::Downloading && job.gallery_progress.is_some() {
+                    let (count, total) = job.gallery_progress.unwrap();
+                    gallery_progress_label(count, total)
+                } else if job.phase == JobPhase::Downloading {
                     transfer_label(
                         job.transfer_progress.as_ref(),
                         ameow_next::download::progress::now_ms(),
@@ -1805,13 +1832,13 @@ impl Prototype {
             .filter(|job| ui.row_visible(job, now))
             .map(|job| {
                 let id = job.job_id;
-                let failure = job.phase == JobPhase::Failure;
+                let failure = matches!(job.phase, JobPhase::Failure | JobPhase::Partial);
                 let success = job.phase == JobPhase::Success;
                 let held = job.phase == JobPhase::Held && (job.slot_owned || preparation_held);
                 let preparation_wait = snapshot.and_then(|s| preparation_wait_label(&job.phase, s));
                 let fraction = if success {
                     Some(1.)
-                } else if job.phase == JobPhase::Downloading {
+                } else if job.phase == JobPhase::Downloading && job.gallery_progress.is_none() {
                     presentation_fraction(job.transfer_progress.as_ref(), transfer_now)
                 } else {
                     None
@@ -2236,6 +2263,31 @@ fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: boo
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn partial_rows_show_verified_counts_and_failure_actions() {
+        use super::*;
+        use crate::ui_text::Language;
+        for (total, expected) in [(Some(5), "已保存 4/5"), (None, "已保存 4")] {
+            let job = crate::queue_fixture::partial(total);
+            let snapshot = crate::queue_fixture::snapshot(vec![job.clone()]);
+            assert_eq!(phase_label(&job), "部分完成");
+            assert_eq!(queue_row_status(&job, &snapshot, None, 0), expected);
+            assert_eq!(queue_row_icons(&job, false), &[QueueIcon::Retry, QueueIcon::Copy, QueueIcon::Clear]);
+            assert!(local_text(Language::English, expected).starts_with("Saved 4"));
+        }
+        assert_eq!(local_text(Language::English, "部分完成"), "Partial");
+    }
+    #[test]
+    fn gallery_progress_uses_counts_instead_of_a_percentage() {
+        use super::*;
+        use crate::ui_text::Language;
+        let mut job = crate::queue_fixture::job(1, JobPhase::Downloading, Some(1), Some(0.6));
+        for (total, expected) in [(Some(5), "已下载 4/5"), (None, "已下载 4个")] {
+            job.gallery_progress = Some((4, total));
+            assert_eq!(queue_progress_label(&job, Some(0.6), 0), expected);
+            assert!(local_text(Language::English, expected).starts_with("Downloaded 4"));
+        }
+    }
     #[test]
     fn named_preview_holds_success_and_feedback_without_changing_production_deadlines() {
         use super::*;
@@ -2985,7 +3037,7 @@ mod tests {
             message: "raw HTTP 404 backend detail".into(), suggestion: "raw suggestion".into(),
         });
         for (component, label) in [(RuntimeComponent::Ffmpeg, "FFmpeg"),
-            (RuntimeComponent::YtDlp, "yt-dlp"), (RuntimeComponent::Deno, "Deno")] {
+            (RuntimeComponent::YtDlp, "yt-dlp"), (RuntimeComponent::GalleryDl, "gallery-dl"), (RuntimeComponent::Deno, "Deno")] {
             snapshot.preparation.failure.as_mut().unwrap().component = component;
             assert_eq!(preparation_popup_copy(&snapshot, Language::Chinese),
                 (format!("{label} 准备失败"), Some("未找到组件下载文件。")));
@@ -3225,6 +3277,8 @@ mod tests {
             failure: None,
             transfer_progress: None,
             delivered: None,
+            collection: None,
+            gallery_progress: None,
             slot_owned: true,
             resources_released: false,
             start_order: Some(1),

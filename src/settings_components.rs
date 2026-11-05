@@ -489,12 +489,12 @@ impl SettingsWindow {
         ));
         let needs_attention = snapshot.is_none()
             || runtime_status(snapshot, l).1
-            || ["yt-dlp", "deno", "ffmpeg"].iter().any(|name| verified_version(snapshot, name).is_none());
+            || ["yt-dlp", "gallery-dl", "deno", "ffmpeg"].iter().any(|name| verified_version(snapshot, name).is_none());
         if needs_attention {
             content = content.child(self.component_diagnostics(cx));
         }
         for (index, (name, label)) in [
-            ("yt-dlp", "yt-dlp"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe"),
+            ("yt-dlp", "yt-dlp"), ("gallery-dl", "gallery-dl"), ("deno", "Deno"), ("ffmpeg", "FFmpeg / ffprobe"),
         ].into_iter().enumerate() {
             let version = verified_version(snapshot, name).unwrap_or(l.text("不可用", "Unavailable"));
             let version_value = div().text_size(px(12.)).text_color(p.neutral)
@@ -535,6 +535,7 @@ impl SettingsWindow {
                         .tooltip(move |_, cx| cx.new(|_| HelpTooltip {
                             text: match name {
                                 "yt-dlp" => l.text("用于获取视频和下载信息。", "Retrieves videos and download information."),
+                                "gallery-dl" => l.text("用于下载图片集。", "Downloads image galleries."),
                                 "deno" => l.text("提供部分网站下载所需的脚本支持。", "Runs scripts needed to download from some websites."),
                                 _ => l.text("用于合并和处理音视频。", "Merges and processes audio and video."),
                             }.into(), night: p.night,
@@ -560,7 +561,7 @@ impl SettingsWindow {
         } else {
             runtime_status(snapshot, l)
         };
-        let show_status = danger || ["yt-dlp", "deno", "ffmpeg"].iter()
+        let show_status = danger || ["yt-dlp", "gallery-dl", "deno", "ffmpeg"].iter()
             .any(|name| verified_version(snapshot, name).is_none());
         let mut actions = div().flex().flex_wrap().justify_end().gap(px(8.))
             .child(self.button(

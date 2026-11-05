@@ -1,0 +1,248 @@
+{
+  "revision": 30,
+  "runtime_update": {
+    "phase": "Idle",
+    "policy": "follow_ameow",
+    "requested_version": null,
+    "active_version": "2026.08.19",
+    "error": null
+  },
+  "jobs": [
+    {
+      "job_id": 1,
+      "revision": 18,
+      "attempt": 1,
+      "phase": "Partial",
+      "accepted": {
+        "intent": {
+          "url": "https://bsky.app/profile/mollieoreilly.bsky.social/post/3mz5die727k22",
+          "quality": "Saver",
+          "output_dir": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output"
+        },
+        "object": {
+          "Gallery": {
+            "site": "Bluesky",
+            "id": "mollieoreilly.bsky.social/3mz5die727k22"
+          }
+        }
+      },
+      "identity": {
+        "id": "mollieoreilly.bsky.social/3mz5die727k22",
+        "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+        "site": "Bluesky",
+        "part": null
+      },
+      "title": "I love weird nine-year-old Halloween, because what do you mean you want to be \"Comedian\" by Maurizio Cattelan??",
+      "message": "E_UNKNOWN: The download failed without a verified recoverable cause",
+      "failure": {
+        "code": "E_UNKNOWN",
+        "stage": "transfer",
+        "reason": "The download failed without a verified recoverable cause",
+        "suggestion": "Check the original page and copy the safe diagnostics"
+      },
+      "transfer_progress": null,
+      "delivered": null,
+      "collection": {
+        "directory": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C",
+        "files": [
+          {
+            "relative_path": "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+            "delivered": {
+              "path": "\\\\?\\D:\\Ameow\\target\\issue21-validation\\output\\I love weird nine-year-old Halloween, because what do you mean you want to be _C\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+              "bytes": 1692800,
+              "sha256": "6E31DD14E00CDE6461D553D7F224CCD8EAD2703E5A23FBF2D8E08EA456EAFC7D",
+              "kind": "Data",
+              "facts": {
+                "video_height": null,
+                "video_codec": null,
+                "audio_present": false,
+                "duration_seconds": null
+              }
+            }
+          }
+        ],
+        "total": 2,
+        "expected_paths": [
+          "gallery-media\\bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+          "gallery-media\\bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg"
+        ]
+      },
+      "gallery_progress": null,
+      "slot_owned": false,
+      "resources_released": true,
+      "start_order": 1,
+      "terminal_count": 1,
+      "events": [
+        {
+          "timestamp_ms": 1793810181588,
+          "attempt": 0,
+          "kind": "accepted",
+          "active_slots": 0,
+          "start_order": null
+        },
+        {
+          "timestamp_ms": 1793810199594,
+          "attempt": 1,
+          "kind": "slot-start",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810203235,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(73104), total_processes: 3, root_first_observed: true, stdout_bytes: 9175, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810203237,
+          "attempt": 1,
+          "kind": "identity-admitted",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208214,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(48200), total_processes: 3, root_first_observed: true, stdout_bytes: 280, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208419,
+          "attempt": 1,
+          "kind": "process-settled: SettlementFacts { root_waited: true, job_active_zero: true, stdout_reader_joined: true, stderr_reader_joined: true, callback_consumer_joined: true, root_pid: Some(104792), total_processes: 2, root_first_observed: true, stdout_bytes: 0, stderr_bytes: 0, stdout_truncated: false, stderr_truncated: false, membership_verified_before_resume: true }",
+          "active_slots": 1,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208787,
+          "attempt": 1,
+          "kind": "attempt-joined-slot-release",
+          "active_slots": 0,
+          "start_order": 1
+        },
+        {
+          "timestamp_ms": 1793810208787,
+          "attempt": 1,
+          "kind": "logical-terminal",
+          "active_slots": 0,
+          "start_order": 1
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "quality": "Saver",
+    "output_dir": "D:\\Ameow\\target\\issue21-validation\\output",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  "unfinished": 0,
+  "failures": 1,
+  "active_slots": 0,
+  "preparing": false,
+  "preparation": {
+    "phase": "Ready",
+    "attempt": 1,
+    "component": null,
+    "stage": "Publish",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793810199548,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810181588,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810186706,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810192506,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810193818,
+        "phase": "Verifying",
+        "component": "Ffmpeg",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810198316,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 1,
+        "timestamp_ms": 1793810199548,
+        "phase": "Ready",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  "preparation_held": false,
+  "preparation_owner_lost": false,
+  "verified_runtime_versions": [
+    [
+      "yt-dlp",
+      "2026.08.19"
+    ],
+    [
+      "deno",
+      "2.9.7"
+    ],
+    [
+      "ffmpeg",
+      "N-127264-gf5d4fd186c-20261009"
+    ],
+    [
+      "gallery-dl",
+      "1.32.19"
+    ]
+  ],
+  "preparation_retry_allowed": false,
+  "stopping": false,
+  "stopped": false,
+  "main_job": null
+}

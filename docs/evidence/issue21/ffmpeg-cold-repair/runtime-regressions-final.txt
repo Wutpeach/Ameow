@@ -1,0 +1,16 @@
+   Compiling ameow v0.1.0 (D:\Ameow)
+    Finished `test` profile [unoptimized] target(s) in 3.80s
+     Running unittests src\lib.rs (target\debug\deps\ameow_next-c47fd856943d7ae9.exe)
+
+running 8 tests
+test download::runtime::requirement_tests::candidate_probe_requires_exact_version ... ok
+test download::runtime::requirement_tests::candidate_catalog_has_distinct_cache_identity_from_embedded_catalog ... ok
+test download::runtime::requirement_tests::full_catalog_keeps_exact_marker_and_subset_contains_only_declared_tools ... ok
+test download::runtime::requirement_tests::candidate_resume_missing_dependency_fails_without_acquisition_or_download_status ... ok
+test download::runtime::requirement_tests::trusted_extensions_preserve_base_isolation_and_owned_directories ... ok
+test download::runtime::requirement_tests::catalog_extension_reuses_hash_verified_components_before_acquisition ... ok
+test download::runtime::requirement_tests::r12_verified_cache_works_with_failing_acquisition_and_keeps_native_leases ... ok
+test download::runtime::requirement_tests::r12_corrupt_cache_is_preserved_and_recovered_into_a_verified_immutable_sibling ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 112 filtered out; finished in 0.70s
+

@@ -1,0 +1,965 @@
+[
+  {
+    "phase": "Preparing",
+    "attempt": 0,
+    "component": null,
+    "stage": "Cache",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793850255750,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850255753,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850256504,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Acquire",
+    "downloaded_bytes": 1831282,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850256707,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Acquire",
+    "downloaded_bytes": 16561946,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850256907,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Acquire",
+    "downloaded_bytes": 17840399,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850257283,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Verify",
+    "downloaded_bytes": 17840399,
+    "total_bytes": 17840399,
+    "updated_at_ms": 1793850257284,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "YtDlp",
+    "stage": "Extract",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793850257479,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850257592,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850258537,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 6256370,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850258737,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 22772174,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850258939,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 42497036,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850259139,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Acquire",
+    "downloaded_bytes": 42630221,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850259606,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Verify",
+    "downloaded_bytes": 42630221,
+    "total_bytes": 42630221,
+    "updated_at_ms": 1793850259607,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850259607,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 42630221,
+        "total_bytes": 42630221
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "Deno",
+    "stage": "Extract",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793850260545,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850259607,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 42630221,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850260545,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "Ffmpeg",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 114768076,
+    "updated_at_ms": 1793850263155,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255750,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850255753,
+        "phase": "Downloading",
+        "component": "YtDlp",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257284,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 17840399,
+        "total_bytes": 17840399
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257479,
+        "phase": "Verifying",
+        "component": "YtDlp",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850257592,
+        "phase": "Downloading",
+        "component": "Deno",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850259607,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 42630221,
+        "total_bytes": 42630221
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850260545,
+        "phase": "Verifying",
+        "component": "Deno",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793850263155,
+        "phase": "Downloading",
+        "component": "Ffmpeg",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 114768076
+      }
+    ]
+  }
+]

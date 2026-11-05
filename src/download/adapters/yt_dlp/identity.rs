@@ -53,6 +53,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
                         None => selected.is_none(),
                     }
             }
+            Object::Gallery { .. } => false,
         };
         if !matches {
             return Err(format!(
@@ -106,6 +107,7 @@ pub fn canonical_url(accepted: &Accepted, identity: &Identity) -> String {
             Object::Bilibili { part: None, .. } | Object::BilibiliShort { part: None, .. } => format!("https://www.bilibili.com/video/{}/", identity.id),
             _ => format!("https://www.bilibili.com/video/{}/?p={}", identity.id, identity.part.unwrap_or(1)),
         },
+        Site::Imgur | Site::Bluesky => String::new(),
     }
 }
 

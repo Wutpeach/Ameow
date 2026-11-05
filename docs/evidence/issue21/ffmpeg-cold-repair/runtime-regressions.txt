@@ -1,0 +1,19 @@
+   Compiling ameow v0.1.0 (D:\Ameow)
+error[E0609]: no field `facts` on type `&DeliveredFile`
+   --> src\download\collection_tests.rs:520:23
+    |
+520 |     assert!(delivered.facts.video_height.is_some());
+    |                       ^^^^^ unknown field
+    |
+    = note: available fields are: `path`, `bytes`, `sha256`
+
+error[E0609]: no field `facts` on type `&DeliveredFile`
+   --> src\download\collection_tests.rs:521:23
+    |
+521 |     assert!(delivered.facts.audio_present);
+    |                       ^^^^^ unknown field
+    |
+    = note: available fields are: `path`, `bytes`, `sha256`
+
+For more information about this error, try `rustc --explain E0609`.
+error: could not compile `ameow` (lib test) due to 2 previous errors

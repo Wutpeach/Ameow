@@ -1,0 +1,10 @@
+   Compiling ameow v0.1.0 (D:\Ameow)
+    Finished `test` profile [unoptimized] target(s) in 3.93s
+     Running unittests src\lib.rs (target\debug\deps\ameow_next-c47fd856943d7ae9.exe)
+
+running 1 test
+test download::collection_tests::real_cold_runtime_image_and_video_delivery has been running for over 60 seconds
+test download::collection_tests::real_cold_runtime_image_and_video_delivery ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 119 filtered out; finished in 90.44s
+

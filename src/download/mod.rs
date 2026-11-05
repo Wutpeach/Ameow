@@ -20,6 +20,8 @@ mod release_signature;
 pub mod settings;
 #[cfg(test)]
 mod neutral_tests;
+#[cfg(test)]
+mod collection_tests;
 // Existing supervisor regression fixtures keep their original bytes; never a production path.
 #[cfg(test)]
 use adapters::yt_dlp::{parse_final_record, validate_engine_outcome};
@@ -54,12 +56,13 @@ pub enum Phase {
     Publishing,
     Held,
     Success,
+    Partial,
     Failure,
     Cancelled,
 }
 impl Phase {
     pub fn terminal(&self) -> bool {
-        matches!(self, Self::Success | Self::Failure | Self::Cancelled)
+        matches!(self, Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -72,6 +75,10 @@ pub struct Snapshot {
     pub identity: Option<Identity>,
     pub message: String,
     pub delivered: Option<output::VerifiedMedia>,
+    #[serde(default)]
+    pub collection: Option<contract::CollectionState>,
+    #[serde(default)]
+    pub gallery_progress: Option<(usize, Option<usize>)>,
     pub terminal_count: u32,
     pub workspace: Option<PathBuf>,
     pub runtime_digest: Option<String>,
@@ -93,6 +100,8 @@ impl Default for Snapshot {
             identity: None,
             message: String::new(),
             delivered: None,
+            collection: None,
+            gallery_progress: None,
             terminal_count: 0,
             workspace: None,
             runtime_digest: None,
@@ -223,6 +232,7 @@ impl Coordinator {
             attempt,
             revision: 1,
             phase: Phase::Accepted,
+            collection: prepared.resume.clone(),
             accepted: Some(accepted.clone()),
             resources_released: false,
             ..Default::default()
@@ -251,7 +261,7 @@ impl Coordinator {
         if state.snapshot.job_id != job
             || state.snapshot.phase.terminal()
             || state.snapshot.phase == Phase::Idle
-            || state.snapshot.delivered.is_some()
+            || (state.snapshot.delivered.is_some() && state.snapshot.collection.is_none())
         {
             return false;
         }
@@ -274,6 +284,7 @@ impl Coordinator {
 struct PreparedAttempt {
     lease: Arc<RuntimeLease>,
     admit: IdentityAdmission,
+    resume: Option<contract::CollectionState>,
 }
 fn update(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, _message: String) {
     let mut state = lock(state);
@@ -508,6 +519,15 @@ fn execute(
                 }
             }
             AdapterEvent::Progress(sample) => publish_progress(&event_state, job, attempt, sample),
+            AdapterEvent::Files { completed, total } => {
+                let mut state = lock(&event_state);
+                if state.snapshot.job_id == job && state.snapshot.attempt == attempt
+                    && !state.snapshot.phase.terminal() && !state.control.is_cancelled() {
+                    state.snapshot.gallery_progress = Some((completed, total));
+                    state.snapshot.revision += 1;
+                    state.publish();
+                }
+            }
         });
         let context = ExecutionContext {
             workspace: working,
@@ -518,11 +538,24 @@ fn execute(
             admission: admit,
             events,
         };
-        let artifact = services
+        let mut resume = prepared.as_ref().and_then(|p| p.resume.clone());
+        if let Some(saved) = &mut resume {
+            saved.files.retain(|entry| {
+                output::verify_data(&entry.delivered.path, &accepted.intent.output_dir)
+                    .is_ok_and(|file| file.bytes == entry.delivered.bytes && file.sha256 == entry.delivered.sha256)
+            });
+        }
+        {
+            let mut state = lock(&state);
+            state.snapshot.collection = resume.clone();
+            state.publish();
+        }
+        let batch = services
             .adapter
-            .execute(
+            .execute_batch(
                 &ExecutionRequest {
                     accepted: accepted.clone(),
+                    resume,
                 },
                 &context,
             )
@@ -531,6 +564,18 @@ fn execute(
                 adapter_failure = Some(failure);
                 message
             })?;
+        if batch.collection {
+            let failure = batch.failure.clone();
+            deliver_collection(&state, &services, &context, &accepted, job, attempt, batch, &mut destination_stage)?;
+            if let Some(failure) = failure {
+                let message = format!("{}: {}", failure.code, failure.reason);
+                adapter_failure = Some(failure);
+                return Err(message);
+            }
+            if control.is_cancelled() { return Err("Cancelled after settled collection transfer".into()); }
+            return Ok(());
+        }
+        let artifact = batch.artifacts.into_iter().next().ok_or("Missing produced artifact")?;
         if artifact.kind != services.adapter.kind()
             || lock(&state)
                 .snapshot
@@ -593,6 +638,8 @@ fn execute(
         Ok(Err(error)) => (
             if control.is_cancelled() {
                 Phase::Cancelled
+            } else if lock(&state).snapshot.collection.as_ref().is_some_and(|c| !c.files.is_empty()) {
+                Phase::Partial
             } else {
                 Phase::Failure
             },
@@ -618,7 +665,7 @@ fn execute(
             )
         }
     };
-    let failure = if phase == Phase::Failure {
+    let failure = if matches!(phase, Phase::Failure | Phase::Partial) {
         Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::local(&error_phase)))
     } else if phase == Phase::Cancelled {
         Some(diagnostics::cancelled())
@@ -696,6 +743,81 @@ fn execute(
             |failure| format!("{}: {}", failure.code, failure.reason),
         ),
     );
+}
+fn deliver_collection(
+    state: &Arc<Mutex<State>>,
+    services: &DownloadServices,
+    context: &ExecutionContext<'_>,
+    accepted: &Accepted,
+    job: u64,
+    attempt: u64,
+    batch: contract::ProducedBatch,
+    destination_stage: &mut Option<output::DestinationStage>,
+) -> Result<(), String> {
+    let identity = lock(state).snapshot.identity.clone().ok_or("Collection identity missing")?;
+    if batch.artifacts.iter().any(|a| a.identity.canonical_key() != identity.canonical_key()) {
+        return Err("Collection artifact identity differs from admitted post".into());
+    }
+    let mut saved = lock(state).snapshot.collection.clone().unwrap_or_default();
+    saved.total = batch.total;
+    saved.expected_paths = batch.expected_paths;
+    if saved.directory.is_none() && (batch.total != Some(1) || batch.artifacts.len() > 1) {
+        saved.directory = Some(output::collection_directory(&accepted.intent.output_dir, &identity.title)?);
+    }
+    let destination = saved.directory.as_deref().unwrap_or(&accepted.intent.output_dir);
+    runtime::safe_dir(destination)?;
+    if !destination.canonicalize().map_err(|e| e.to_string())?
+        .starts_with(&accepted.intent.output_dir) {
+        return Err("E_STORAGE: Collection directory escaped accepted destination".into());
+    }
+    {
+        let mut state = lock(state);
+        state.snapshot.collection = Some(saved.clone());
+        state.publish();
+    }
+    let mut invalid = None;
+    let verification_started = std::time::Instant::now();
+    for artifact in batch.artifacts {
+        // Best-effort salvage is bounded; cancellation must not decode an entire large album.
+        if context.cancelled() && verification_started.elapsed() >= Duration::from_secs(2) { break; }
+        update(state, job, attempt, Phase::Validating, String::new());
+        let media = match services.verifiers.verify(
+            &artifact, context.workspace, context.lease, context.control, context.observer.clone(),
+        ) {
+            Ok(media) => media,
+            Err(error) => { invalid = Some(error); continue; }
+        };
+        if saved.files.iter().any(|f| f.relative_path == artifact.relative_path
+            && f.delivered.sha256 == media.sha256) { continue; }
+        update(state, job, attempt, Phase::Publishing, String::new());
+        let destination = saved.directory.as_deref().unwrap_or(&accepted.intent.output_dir);
+        *destination_stage = Some(output::DestinationStage::create(&media, destination, job)?);
+        let staged = destination_stage.as_mut().ok_or("Collection stage missing")?;
+        {
+            let mut state = lock(state);
+            state.snapshot.destination_stage = Some(staged.path.clone());
+            state.publish();
+        }
+        staged.fill(&media)?;
+        let base = artifact.relative_path.file_stem().and_then(|s| s.to_str()).ok_or("Missing collection filename")?;
+        // Completed collection files survive cancellation; no transfer is running at this point.
+        let mut delivered = media;
+        delivered.path = staged.publish(destination, base)?;
+        delivered.identity_guard = None;
+        saved.files.retain(|f| f.relative_path != artifact.relative_path);
+        saved.files.push(contract::CollectionFile { relative_path: artifact.relative_path, delivered });
+        let mut state = lock(state);
+        state.snapshot.collection = Some(saved.clone());
+        state.snapshot.destination_stage = None;
+        state.snapshot.revision += 1;
+        state.publish();
+    }
+    if let Some(error) = invalid { return Err(error); }
+    if saved.files.is_empty() { return Err("No verified collection files were delivered".into()); }
+    if batch.failure.is_none() && batch.total.is_some_and(|n| n != saved.files.len()) {
+        return Err("Collection completion count differs from verified saved files".into());
+    }
+    Ok(())
 }
 fn commit_delivery(
     state: &Arc<Mutex<State>>,

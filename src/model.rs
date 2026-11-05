@@ -12,6 +12,7 @@ pub enum Stage {
     Transcoding,
     Success,
     Failure,
+    Partial,
     Cancelled,
 }
 impl Stage {
@@ -22,10 +23,10 @@ impl Stage {
         )
     }
     pub fn terminal(self) -> bool {
-        matches!(self, Self::Success | Self::Failure | Self::Cancelled)
+        matches!(self, Self::Success | Self::Failure | Self::Partial | Self::Cancelled)
     }
     pub fn retention(self) -> u64 {
-        if self == Self::Failure { 5000 } else { 1500 }
+        if matches!(self, Self::Failure | Self::Partial) { 5000 } else { 1500 }
     }
     pub fn name(self) -> &'static str {
         match self {
@@ -35,6 +36,7 @@ impl Stage {
             Self::Transcoding => "转码中 · 0:24",
             Self::Success => "下载完成",
             Self::Failure => "下载失败",
+            Self::Partial => "部分完成",
             Self::Cancelled => "已取消",
         }
     }
@@ -439,7 +441,7 @@ impl Model {
                     self.progress.sample(now)
                 },
             ),
-            Stage::Failure => (
+            Stage::Failure | Stage::Partial => (
                 0.,
                 if self.reduced {
                     1.

@@ -2,7 +2,7 @@
 use super::{
     Coordinator,
     adapter::DownloadServices,
-    adapters::yt_dlp::YtDlpAdapter,
+    adapters::automatic::AutomaticAdapter,
     queue::DownloadCoordinator,
     runtime::{RuntimeManager, TrustedRuntimeRequirements},
     settings::Settings,
@@ -17,6 +17,7 @@ pub fn requirements() -> TrustedRuntimeRequirements {
                 "yt-dlp.exe",
                 &["--ignore-config", "--no-plugin-dirs", "--version"],
             ),
+            ("gallery-dl.exe", &["--ignore-config", "--version"]),
             ("deno.exe", &["--version"]),
             ("ffmpeg.exe", &["-version"]),
             ("ffprobe.exe", &["-version"]),
@@ -32,8 +33,8 @@ pub fn requirements() -> TrustedRuntimeRequirements {
 pub fn services(root: PathBuf) -> DownloadServices {
     DownloadServices {
         runtime: Arc::new(RuntimeManager::new(root)),
-        adapter: Arc::new(YtDlpAdapter::new(requirements())),
-        verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
+        adapter: Arc::new(AutomaticAdapter::new(requirements())),
+        verifiers: Arc::new(VerifierRegistry::video_and_images("ffprobe.exe")),
     }
 }
 pub fn coordinator(root: PathBuf) -> Coordinator {

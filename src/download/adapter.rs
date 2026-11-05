@@ -1,6 +1,6 @@
 //! Execution port. Uses the existing owner, supervisor and immutable runtime lease.
 use super::{
-    contract::{AdapterEvent, AdapterResult, ExecutionRequest, IdentityAttestation, MediaKind},
+    contract::{AdapterEvent, AdapterResult, ExecutionRequest, IdentityAttestation, MediaKind, ProducedBatch},
     diagnostics::{Failure, FailureCode},
     process_supervisor::{self, Control, ProcessObservation, ProcessOutcome, ProcessSpec},
     runtime::{RuntimeLease, RuntimeManager, TrustedRuntimeRequirements},
@@ -14,6 +14,11 @@ pub trait DownloaderAdapter: Send + Sync {
     fn kind(&self) -> MediaKind;
     fn requirements(&self) -> &TrustedRuntimeRequirements;
     fn execute(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> AdapterResult;
+    fn execute_batch(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> Result<ProducedBatch, Failure> {
+        self.execute(request, context).map(|artifact| ProducedBatch {
+            artifacts: vec![artifact], failure: None, total: Some(1), collection: false, expected_paths: Vec::new(),
+        })
+    }
     fn evidence_files(&self) -> &[(&str, u64)];
 }
 #[derive(Clone)]

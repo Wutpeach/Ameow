@@ -56,6 +56,11 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
     let mut s = match scene.state.as_str() {
         "resolving" => snapshot(vec![job(1, JobPhase::Resolving, Some(1), None)]),
         "downloading" | "long-title" => snapshot(vec![job(1, JobPhase::Downloading, Some(1), Some(0.46))]),
+        "gallery" | "gallery-unknown" => {
+            let mut j = job(1, JobPhase::Downloading, Some(1), None);
+            j.gallery_progress = Some((4, (scene.state == "gallery").then_some(5)));
+            snapshot(vec![j])
+        }
         "unknown" | "audio" | "merging" => {
             let mut j = job(1, JobPhase::Downloading, Some(1), None);
             let p = j.transfer_progress.as_mut().unwrap();
@@ -64,6 +69,8 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
             snapshot(vec![j])
         }
         "success" => snapshot(vec![job(1, JobPhase::Success, Some(1), None)]),
+        "partial" | "partial-retry-pending" => snapshot(vec![crate::queue_fixture::partial(Some(5))]),
+        "partial-unknown" => snapshot(vec![crate::queue_fixture::partial(None)]),
         "failure" | "copy-failed" | "copied" | "retry-pending" | "retry-refused" => snapshot(vec![job(5, JobPhase::Failure, Some(5), None)]),
         "cancelled" => snapshot(vec![job(1, JobPhase::Cancelled, Some(1), None)]),
         "queued" => snapshot(vec![job(1, JobPhase::Queued, None, None)]),
@@ -80,7 +87,7 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
         s = snapshot(Vec::new());
     }
     s.unfinished = s.jobs.iter().filter(|j| !j.phase.terminal()).count();
-    s.failures = s.jobs.iter().filter(|j| j.phase == JobPhase::Failure).count();
+    s.failures = s.jobs.iter().filter(|j| matches!(j.phase, JobPhase::Failure | JobPhase::Partial)).count();
     s
 }
 
@@ -131,7 +138,11 @@ mod tests {
             assert!(names.insert(scene.name.clone())); assert!(!scene.description.is_empty());
             assert_eq!(find(&scene.name).unwrap().state, scene.state);
             let s = snapshot(&scene);
+            if scene.state.starts_with("partial") { assert_eq!(s.failures, 1); }
             assert!(s.jobs.iter().all(|j| j.accepted.intent.url.is_empty() && j.accepted.intent.output_dir.as_os_str().is_empty()));
+            assert!(s.jobs.iter().filter_map(|j| j.collection.as_ref()).all(|collection|
+                collection.directory.is_none() && collection.files.iter().all(|file|
+                    file.relative_path.as_os_str().is_empty() && file.delivered.path.as_os_str().is_empty())));
         }
         assert!(find("does-not-exist").is_err());
     }

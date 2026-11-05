@@ -1,0 +1,815 @@
+[
+  {
+    "phase": "Preparing",
+    "attempt": 0,
+    "component": null,
+    "stage": "Cache",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793811218980,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811218983,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 0,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811219891,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 32768,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811220120,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 81760,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811220355,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 130744,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811220586,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 262144,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811220812,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 507352,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811221043,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 948208,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811221296,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 2058512,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811221498,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 3234128,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811221700,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 5618016,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811221920,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 9536904,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811222176,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 13079912,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811222419,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 16525120,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811222667,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 19954000,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811222928,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Downloading",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Acquire",
+    "downloaded_bytes": 22627366,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811223571,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Verify",
+    "downloaded_bytes": 22627366,
+    "total_bytes": 22627366,
+    "updated_at_ms": 1793811223572,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223572,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 22627366,
+        "total_bytes": 22627366
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Extract",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793811223817,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223572,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 22627366,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223817,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": "GalleryDl",
+    "stage": "Probe",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793811223827,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223572,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 22627366,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223817,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223827,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  },
+  {
+    "phase": "Verifying",
+    "attempt": 0,
+    "component": null,
+    "stage": "Publish",
+    "downloaded_bytes": 0,
+    "total_bytes": null,
+    "updated_at_ms": 1793811225202,
+    "failure": null,
+    "history": [
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218980,
+        "phase": "Preparing",
+        "component": null,
+        "stage": "Cache",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811218983,
+        "phase": "Downloading",
+        "component": "GalleryDl",
+        "stage": "Acquire",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223572,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Verify",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 22627366,
+        "total_bytes": 22627366
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223817,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Extract",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811223827,
+        "phase": "Verifying",
+        "component": "GalleryDl",
+        "stage": "Probe",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      },
+      {
+        "attempt": 0,
+        "timestamp_ms": 1793811225202,
+        "phase": "Verifying",
+        "component": null,
+        "stage": "Publish",
+        "category": null,
+        "http_status": null,
+        "downloaded_bytes": 0,
+        "total_bytes": null
+      }
+    ]
+  }
+]

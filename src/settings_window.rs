@@ -1663,7 +1663,7 @@ impl Prototype {
             use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
             let snapshot = std::sync::Arc::make_mut(snapshot);
             snapshot.preparation.phase = PreparationPhase::Ready;
-            snapshot.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into()), ("deno".into(), "2.5.0".into()), ("ffmpeg".into(), "8.0".into())];
+            snapshot.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into()), ("gallery-dl".into(), "1.32.19".into()), ("deno".into(), "2.5.0".into()), ("ffmpeg".into(), "8.0".into())];
             match scene.state.as_str() {
                 "missing" => { snapshot.preparation.phase = PreparationPhase::Idle; snapshot.verified_runtime_versions.clear(); },
                 "preparing" => { snapshot.preparing = true; snapshot.preparation.phase = PreparationPhase::Preparing; },

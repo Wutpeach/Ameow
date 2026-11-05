@@ -28,6 +28,7 @@ pub enum Object {
     Youtube(String),
     Bilibili { id: String, part: Option<u64> },
     BilibiliShort { code: String, part: Option<u64> },
+    Gallery { site: Site, id: String },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Accepted {
@@ -38,6 +39,8 @@ pub struct Accepted {
 pub enum Site {
     Youtube,
     Bilibili,
+    Imgur,
+    Bluesky,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -55,7 +58,7 @@ impl Accepted {
             || !u.username().is_empty()
             || u.password().is_some()
         {
-            return Err("Only public HTTP(S) video URLs without credentials are supported".into());
+            return Err("Only public HTTP(S) media URLs without credentials are supported".into());
         }
         let host = u.host_str().ok_or("Missing site host")?;
         let segments: Vec<_> = u
@@ -101,7 +104,17 @@ impl Accepted {
                 Object::Bilibili{id:id.to_owned(),part}
             },
             "b23.tv" | "www.b23.tv" if segments.len() == 1 && !segments[0].is_empty() && segments[0].len() <= 64 && segments[0].bytes().all(|b| b.is_ascii_alphanumeric()) => Object::BilibiliShort { code: segments[0].into(), part },
-            _ => return Err("Unsupported or ambiguous site URL; canonical YouTube/Bilibili single video required".into()),
+            "imgur.com" | "www.imgur.com" if query.is_empty() => {
+                let (kind, id) = match segments.as_slice() { [id] => ("image", *id), ["a", id] => ("album", *id), _ => return Err("Imgur URL must identify one image or album".into()) };
+                if !matches!(id.len(), 5 | 7) || !id.bytes().all(|b| b.is_ascii_alphanumeric()) || (kind == "image" && matches!(id, "gallery" | "search" | "about")) { return Err("Invalid Imgur ID".into()); }
+                Object::Gallery { site: Site::Imgur, id: format!("{kind}:{id}") }
+            },
+            "bsky.app" if query.is_empty() => {
+                let ["profile", handle, "post", id] = segments.as_slice() else { return Err("Bluesky URL must identify one post".into()); };
+                if handle.is_empty() || handle.len() > 253 || !handle.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':')) || id.is_empty() || id.len() > 32 || !id.bytes().all(|b| b.is_ascii_alphanumeric()) { return Err("Invalid Bluesky post identity".into()); }
+                Object::Gallery { site: Site::Bluesky, id: format!("{handle}/{id}") }
+            },
+            _ => return Err("Use a supported single video, Imgur image/album, or Bluesky image post URL".into()),
         };
         if let Object::Youtube(id) = &object
             && (id.len() != 11
@@ -137,12 +150,16 @@ impl Object {
                 "b23:{code}:{}",
                 part.map_or_else(|| "single".into(), |p| p.to_string())
             ),
+            Self::Gallery { site, id } => format!("gallery:{}:{id}", match site { Site::Imgur => "imgur", Site::Bluesky => "bluesky", _ => "invalid" }),
         }
     }
     pub fn site(&self) -> &'static str {
         match self {
             Self::Youtube(_) => "youtube",
-            _ => "bilibili",
+            Self::Bilibili { .. } | Self::BilibiliShort { .. } => "bilibili",
+            Self::Gallery { site: Site::Imgur, .. } => "imgur",
+            Self::Gallery { site: Site::Bluesky, .. } => "bluesky",
+            Self::Gallery { .. } => "invalid",
         }
     }
 }
@@ -151,6 +168,8 @@ impl Identity {
         match self.site {
             Site::Youtube => format!("youtube:{}", self.id),
             Site::Bilibili => format!("bilibili:{}:{}", self.id, self.part.unwrap_or(1)),
+            Site::Imgur => format!("gallery:imgur:{}", self.id),
+            Site::Bluesky => format!("gallery:bluesky:{}", self.id),
         }
     }
 }

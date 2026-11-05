@@ -34,6 +34,21 @@ mod tests {
         assert_eq!(s.jobs[3].start_order, None);
     }
     #[test]
+    fn partial_is_retained_and_same_job_retry_does_not_dismiss_it() {
+        let mut policy = Presentation::default();
+        let mut s = snapshot(vec![job(5, JobPhase::Downloading, Some(5), None)]);
+        assert_eq!(policy.update(&s, false, 0), Some(5));
+        s.jobs[0] = crate::queue_fixture::partial(Some(5));
+        assert_eq!(policy.update(&s, false, 100), Some(5));
+        assert_eq!(policy.update(&s, false, 5099), Some(5));
+        assert_eq!(policy.failures(&s), 1);
+        policy.retry_reply(5, &CommandReply::Accepted(5));
+        assert!(policy.visible(&s.jobs[0], 100));
+        assert_eq!(policy.failures(&s), 1);
+        s.jobs[0] = job(5, JobPhase::Downloading, Some(5), None);
+        assert!(policy.visible(&s.jobs[0], 5100));
+    }
+    #[test]
     fn foreground_success_holds_once_then_reads_fresh_remaining_job_progress() {
         let mut policy = Presentation::default();
         let mut s = running();
@@ -151,7 +166,7 @@ impl Presentation {
         {
             if !was_terminal {
                 self.terminal_until = Some(
-                    now + if job.phase == JobPhase::Failure {
+                    now + if matches!(job.phase, JobPhase::Failure | JobPhase::Partial) {
                         5000
                     } else {
                         1500
@@ -187,7 +202,7 @@ impl Presentation {
                 .flatten()
                 .is_some_and(|until| now < until),
             JobPhase::Cancelled => false,
-            JobPhase::Failure => !self.dismissed.contains(&job.job_id),
+            JobPhase::Failure | JobPhase::Partial => !self.dismissed.contains(&job.job_id),
             _ => true,
         }
     }
@@ -195,14 +210,14 @@ impl Presentation {
         snapshot
             .jobs
             .iter()
-            .filter(|job| job.phase == JobPhase::Failure && !self.dismissed.contains(&job.job_id))
+            .filter(|job| matches!(job.phase, JobPhase::Failure | JobPhase::Partial) && !self.dismissed.contains(&job.job_id))
             .count()
     }
     pub fn clear(&mut self, job: u64) {
         self.dismissed.insert(job);
     }
     pub fn retry_reply(&mut self, source: u64, reply: &CommandReply) {
-        if matches!(reply, CommandReply::Accepted(_)) {
+        if matches!(reply, CommandReply::Accepted(id) if *id != source) {
             self.clear(source);
         }
     }

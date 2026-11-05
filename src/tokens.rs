@@ -30,7 +30,7 @@ pub fn desktop_ui_font() -> Font {
 // Penpot's ring duplicates use 30% opacity and Gaussian blur 4px (failure: 10px).
 pub const RING_GLOW_OPACITY: f32 = 0.3;
 pub fn ring_glow_blur(stage: Stage) -> u8 {
-    if stage == Stage::Failure { 10 } else { 4 }
+    if matches!(stage, Stage::Failure | Stage::Partial) { 10 } else { 4 }
 }
 #[derive(Clone, Copy)]
 pub struct Palette {
@@ -88,7 +88,7 @@ impl Palette {
             Stage::Downloading => self.blue,
             Stage::Transcoding => self.orange,
             Stage::Success => self.green,
-            Stage::Failure => self.red,
+            Stage::Failure | Stage::Partial => self.red,
             _ => self.neutral,
         }
     }
@@ -105,7 +105,7 @@ impl Palette {
                 Stage::Downloading => self.blue.opacity(0.16),
                 Stage::Transcoding => self.orange.opacity(0.14),
                 Stage::Success => self.green.opacity(0.14),
-                Stage::Failure => self.red.opacity(0.14),
+                Stage::Failure | Stage::Partial => self.red.opacity(0.14),
                 _ => self.badge,
             }
         } else {
@@ -113,7 +113,7 @@ impl Palette {
                 Stage::Downloading => rgb(0xe9f3ff).into(),
                 Stage::Transcoding => rgb(0xfdf1e5).into(),
                 Stage::Success => rgb(0xe8f5ed).into(),
-                Stage::Failure => rgb(0xfcecec).into(),
+                Stage::Failure | Stage::Partial => rgb(0xfcecec).into(),
                 _ => self.badge,
             }
         }

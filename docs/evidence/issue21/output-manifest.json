@@ -1,0 +1,37 @@
+[
+  {
+    "path": "target/issue21-validation/output/21yMxCS.png",
+    "bytes": 182,
+    "sha256": "EB359CD8F02A7D6762F9863798297FF6A22569C5C87A9D38C55BDB3A3E26003F"
+  },
+  {
+    "path": "target/issue21-validation/output/bafkreiczrhhklt4wsquxzgudjxd7w4rch4tcbb7fkedhg56h3bfvsla2v4.jpg",
+    "bytes": 324306,
+    "sha256": "5989CEA5CF9694297C9A834DC7FB72223F262087E551067377C7D84B592C1AAF"
+  },
+  {
+    "path": "target/issue21-validation/output/I love weird nine-year-old Halloween, because what do you mean you want to be _C/bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+    "bytes": 1692800,
+    "sha256": "6E31DD14E00CDE6461D553D7F224CCD8EAD2703E5A23FBF2D8E08EA456EAFC7D"
+  },
+  {
+    "path": "target/issue21-validation/output/I love weird nine-year-old Halloween, because what do you mean you want to be _C/bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+    "bytes": 34472,
+    "sha256": "D411290894CC0A736CA79360826321426A0803059D6EEDBBD43C7C813083AF6D"
+  },
+  {
+    "path": "target/issue21-validation/output/I love weird nine-year-old Halloween, because what do you mean you want to be _C (1)/bafkreidoghorjyam3zsgdvkt27zcjtgy5ljhaps2ep57fwhar2sfn2x4pu.jpg",
+    "bytes": 1692800,
+    "sha256": "6E31DD14E00CDE6461D553D7F224CCD8EAD2703E5A23FBF2D8E08EA456EAFC7D"
+  },
+  {
+    "path": "target/issue21-validation/output/I love weird nine-year-old Halloween, because what do you mean you want to be _C (1)/bafkreiguceuqrfgmbjzwzj4tmcbggikcnieagbm5n3w3xvb4psatba5pnu.jpg",
+    "bytes": 34472,
+    "sha256": "D411290894CC0A736CA79360826321426A0803059D6EEDBBD43C7C813083AF6D"
+  },
+  {
+    "path": "target/issue21-validation/output/jNQXAC9IVRw.mkv",
+    "bytes": 683361,
+    "sha256": "25C63858629D3AEE810F47F9D0DA5870EC1B67AE2C31DC177FF6C1E43737B9B1"
+  }
+]
