@@ -427,14 +427,7 @@ pub(crate) fn validate_engine_outcome(
         return Err(format!(
             "{label} engine exit {}: {}",
             outcome.exit_code,
-            String::from_utf8_lossy(&outcome.stderr)
-                .chars()
-                .rev()
-                .take(3000)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect::<String>()
+            diagnostics::engine_stderr(&outcome.stderr, outcome.facts.stderr_truncated)
         ));
     }
     // Transfer progress is optional. Its stdout prefix cannot decide success: the bounded

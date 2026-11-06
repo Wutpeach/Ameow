@@ -91,12 +91,63 @@ impl DownloaderAdapter for GalleryDlAdapter {
     }
 }
 fn classify_gallery_error(phase: &Phase, error: &str) -> Failure {
+    if let Some(stage) = native_proxy_error(error)
+        && matches!((phase, stage), (Phase::Resolving, "resolve") | (Phase::Downloading, "transfer"))
+    {
+        return crate::download::diagnostics::known("E_NETWORK_TEMPORARY", stage);
+    }
     let failure = super::yt_dlp::diagnostics::classify(phase, error);
     if failure.code == "E_UNSUPPORTED_URL" {
         crate::download::diagnostics::known("E_ENGINE_FAILED", &failure.stage)
     } else {
         failure
     }
+}
+fn native_proxy_error(error: &str) -> Option<&'static str> {
+    if error.len() > 4096 {
+        return None;
+    }
+    let (envelope, stderr) = error.split_once(": ")?;
+    let (stage, exit) = if let Some(exit) = envelope.strip_prefix("resolve engine exit ") {
+        ("resolve", exit)
+    } else {
+        ("transfer", envelope.strip_prefix("transfer engine exit ")?)
+    };
+    if exit.parse::<u32>().ok()? == 0 {
+        return None;
+    }
+    let line = stderr.trim_end_matches(['\r', '\n']);
+    if line.chars().any(char::is_control) {
+        return None;
+    }
+    let (extractor, message) = line.strip_prefix('[')?.split_once("][error] ")?;
+    if extractor.is_empty() || extractor.len() > 64
+        || !extractor.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    {
+        return None;
+    }
+    // Accept only the pinned native HttpError/ProxyError line, never arbitrary log text.
+    let message = message.strip_prefix("HttpError:")?.trim_start();
+    let details = message.strip_prefix("ProxyError: ")?;
+    // These are the two retained requests ProxyError shapes. Do not infer a target HTTP status.
+    if details.strip_prefix("502 ").is_some_and(|reason| !reason.trim().is_empty())
+        || (details.starts_with("(<HTTPSConnection(host='")
+            && details.contains(" timed out. (connect timeout=") && details.ends_with("')"))
+    {
+        Some(stage)
+    } else {
+        None
+    }
+}
+fn metadata_error(rows: &Value) -> Option<String> {
+    let error = rows.as_array()?.iter().find(|row| row[0].as_i64() == Some(-1))?;
+    let message = error[1]["message"].as_str().unwrap_or("gallery extraction failed");
+    if error[1]["error"].as_str() == Some("HttpError")
+        && message.trim_start().starts_with("ProxyError:")
+    {
+        return Some(format!("resolve engine exit 1: [gallery-dl][error] HttpError: {message}"));
+    }
+    Some(format!("resolve engine exit 1: ERROR: {message}"))
 }
 fn native_unsupported_url(
     outcome: &crate::download::process_supervisor::ProcessOutcome,
@@ -553,16 +604,8 @@ fn run(
     }
     let rows: Value = serde_json::from_slice(&result.stdout)
         .map_err(|_| "E_METADATA_INVALID_JSON: invalid gallery metadata")?;
-    if let Some(error) = rows
-        .as_array()
-        .and_then(|rows| rows.iter().find(|row| row[0].as_i64() == Some(-1)))
-    {
-        return Err(format!(
-            "resolve engine exit 1: ERROR: {}",
-            error[1]["message"]
-                .as_str()
-                .unwrap_or("gallery extraction failed")
-        ));
+    if let Some(error) = metadata_error(&rows) {
+        return Err(error);
     }
     let (identity, expected) =
         preflight(request, &result.stdout).map_err(|e| format!("E_IDENTITY: {e}"))?;
@@ -819,20 +862,15 @@ fn engine_error(
     label: &str,
     outcome: &crate::download::process_supervisor::ProcessOutcome,
 ) -> String {
-    let stderr = String::from_utf8_lossy(&outcome.stderr);
-    format!(
-        "{label} engine exit {}: {}",
-        outcome.exit_code,
-        stderr
-            .chars()
-            .rev()
-            .take(3000)
-            .collect::<String>()
-            .chars()
-            .rev()
-            .collect::<String>()
-    )
+    let stderr = super::yt_dlp::diagnostics::engine_stderr(
+        &outcome.stderr, outcome.facts.stderr_truncated,
+    );
+    format!("{label} engine exit {}: {stderr}", outcome.exit_code)
 }
+
+#[cfg(test)]
+#[path = "diagnostics_tests.rs"]
+mod diagnostic_regressions;
 
 #[cfg(test)]
 mod tests {

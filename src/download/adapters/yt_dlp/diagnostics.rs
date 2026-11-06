@@ -2,6 +2,70 @@ use crate::download::{
     Phase,
     diagnostics::{Failure, known},
 };
+pub(crate) fn engine_stderr(stderr: &[u8], truncated: bool) -> String {
+    if truncated {
+        return "[truncated stderr]".into();
+    }
+    let text = String::from_utf8_lossy(stderr);
+    let start = text
+        .char_indices()
+        .rev()
+        .nth(2999)
+        .map_or(0, |(index, _)| index);
+    if start == 0 || text.as_bytes()[start - 1] == b'\n' {
+        return text[start..].into();
+    }
+    // Keep complete source lines only: a cut in arbitrary content must not invent an error prefix.
+    text[start..].find('\n').map_or_else(
+        || "[truncated stderr]".into(),
+        |newline| text[start + newline + 1..].into(),
+    )
+}
+
+fn proxy_failure(cause: &str) -> bool {
+    if cause.len() > 3000 || cause.chars().any(char::is_control) {
+        return false;
+    }
+    let Some(mut message) = cause.strip_prefix("error:").map(str::trim_start) else {
+        return false;
+    };
+    let Some(rest) = message.strip_prefix('[') else {
+        return false;
+    };
+    let Some((extractor, rest)) = rest.split_once("] ") else {
+        return false;
+    };
+    let Some((object, rest)) = rest.split_once(": ") else {
+        return false;
+    };
+    let native_key = |key: &str, bound| {
+        !key.is_empty()
+            && key.len() <= bound
+            && key
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+    };
+    if !native_key(extractor, 64) || !native_key(object, 256) {
+        return false;
+    }
+    message = rest;
+    let Some(details) = message
+        .strip_prefix("unable to download api page: ")
+        .or_else(|| message.strip_prefix("unable to download webpage: "))
+    else {
+        return false;
+    };
+    let Some((connection, exception)) = details.split_once(" (caused by proxyerror(") else {
+        return false;
+    };
+    connection.starts_with("('unable to connect to proxy', ")
+        && connection.ends_with(')')
+        && exception
+            .split("; please report this issue on")
+            .next()
+            .is_some_and(|exception| exception.trim_end().ends_with("))"))
+}
+
 pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     let stage = match phase {
         Phase::Accepted => "admission",
@@ -39,6 +103,23 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     } else {
         lower.clone()
     };
+    let failed_engine = lower
+        .split_once(": ")
+        .and_then(|(envelope, _)| {
+            envelope
+                .strip_prefix("resolve engine exit ")
+                .or_else(|| envelope.strip_prefix("transfer engine exit "))?
+                .parse::<u32>()
+                .ok()
+        })
+        .is_some_and(|exit| exit != 0);
+    if failed_engine
+        && evidence.len() <= 4096
+        && matches!(phase, Phase::Resolving | Phase::Downloading)
+        && proxy_failure(&cause)
+    {
+        return known("E_NETWORK_TEMPORARY", stage);
+    }
     // Status evidence is anchored to actual engine error wording, not arbitrary numbers.
     let code = if evidence.starts_with("E_OBJECT_UNSUPPORTED:") {
         "E_OBJECT_UNSUPPORTED"
@@ -47,10 +128,14 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     } else if evidence.starts_with("E_NETWORK_TEMPORARY:") {
         "E_NETWORK_TEMPORARY"
     } else if engine
-        && cause.strip_prefix("error: unsupported url: ").is_some_and(|input| {
-            !input.chars().any(char::is_whitespace)
-                && url::Url::parse(input).is_ok_and(|url| matches!(url.scheme(), "https" | "http") && url.host_str().is_some())
-        })
+        && cause
+            .strip_prefix("error: unsupported url: ")
+            .is_some_and(|input| {
+                !input.chars().any(char::is_whitespace)
+                    && url::Url::parse(input).is_ok_and(|url| {
+                        matches!(url.scheme(), "https" | "http") && url.host_str().is_some()
+                    })
+            })
     {
         "E_UNSUPPORTED_URL"
     } else if evidence.starts_with("E_METADATA_TOO_LARGE:") {
@@ -117,3 +202,7 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     // like one. The current native engine has no verified response-header side channel.
     known(code, stage)
 }
+
+#[cfg(test)]
+#[path = "diagnostics_tests.rs"]
+mod tests;

@@ -1,0 +1,9 @@
+[
+  [
+    -1,
+    {
+      "error": "HttpError",
+      "message": " ProxyError: (<HTTPSConnection(host='proxy.invalid', port=PORT) at 0xADDRESS>, 'Connection to proxy.invalid timed out. (connect timeout=2)')"
+    }
+  ]
+]
