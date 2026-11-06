@@ -66,6 +66,9 @@ impl Language {
             }
             "Use a supported single video, Imgur image/album, or Bluesky image post URL" => Some((
                 "请使用 YouTube/Bilibili 单视频、Imgur 图片/相册或 Bluesky 单帖图片链接。", message)),
+            "Invalid known site URL" => Some(("请复制该作品的完整详情链接。", "Copy the full work-detail link.")),
+            "Non-public host" => Some(("请使用公开网页链接，本机和内网地址不可用。", "Use a public link. Local-network addresses are unavailable.")),
+            "URL is too long" => Some(("链接过长，请复制作品的直接详情链接。", "This link is too long. Copy the direct work-detail link.")),
             _ => None,
         };
         if let Some((zh, en)) = direct {
@@ -78,6 +81,22 @@ impl Language {
         let code = message.split(':').next().unwrap_or(message);
         if code.starts_with("E_") {
             let pair = match code {
+                "E_FALLBACK_FAILED" => Some((
+                    "两个下载组件都未能完成此链接，请查看诊断中的两次尝试。",
+                    "Neither downloader completed this link. Check diagnostics for both attempts.",
+                )),
+                "E_OBJECT_UNSUPPORTED" => Some((
+                    "暂不支持此链接的内容范围，请使用单个作品的详情链接。",
+                    "This content scope is not supported yet. Use a single-work detail link.",
+                )),
+                "E_URL_UNSAFE" => Some((
+                    "请使用不含账号密码的公开网页链接，本机和内网地址不可用。",
+                    "Use a public link without credentials. Local-network addresses are unavailable.",
+                )),
+                "E_UNSUPPORTED_URL" => Some((
+                    "下载组件暂不能提取此链接，请检查作品详情链接。",
+                    "The downloader cannot extract this link. Check the work-detail link.",
+                )),
                 "E_SETTINGS_READ" => Some((
                     "无法读取已保存设置，请检查设置文件与权限。",
                     "Cannot read saved settings. Check the settings file and permissions.",

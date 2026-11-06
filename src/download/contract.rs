@@ -41,6 +41,7 @@ pub struct ProducedBatch {
 #[derive(Clone, Debug)]
 pub enum AdapterEvent {
     Resolving,
+    Fallback,
     Transferring,
     Finalizing,
     Progress(TransferProgress),

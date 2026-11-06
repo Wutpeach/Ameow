@@ -14,11 +14,13 @@ use crate::download::{
     network,
     process_supervisor::{self, ProcessObservation},
     runtime::TrustedRuntimeRequirements,
+    request::{Accepted, Object},
 };
 use serde_json::Value;
 use std::{
     fs::{self, File},
     io::Read,
+    net::ToSocketAddrs,
     os::windows::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -67,9 +69,11 @@ impl DownloaderAdapter for YtDlpAdapter {
                 return Err("Cancelled before extraction".into());
             }
             context.emit(AdapterEvent::Resolving);
+            check_generic_destination(accepted)?;
             let route = network::engine_route(&accepted.intent.url)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
+            generic_args(&mut args, accepted, true);
             args.extend([
                 "--dump-single-json".into(),
                 "--skip-download".into(),
@@ -78,6 +82,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             ]);
             let bytes = invoke(context, args, None, "resolve")?;
             let metadata = parse_metadata(&bytes)?;
+            check_generic_object(accepted, &metadata)?;
             let proof =
                 identity::proof(accepted, &metadata).map_err(|e| format!("E_IDENTITY: {e}"))?;
             selection::expectation(&metadata, accepted.intent.quality)?;
@@ -98,6 +103,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             phase = Phase::Downloading;
             context.emit(AdapterEvent::Transferring);
+            check_generic_destination(accepted)?;
             for name in ["final-object.txt", "selection.txt"] {
                 fs::OpenOptions::new()
                     .write(true)
@@ -106,6 +112,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                     .map_err(|e| e.to_string())?;
             }
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
+            generic_args(&mut args, accepted, false);
             args.extend([
                 "--no-simulate".into(),
                 "--merge-output-format".into(),
@@ -177,6 +184,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 .map_err(|_| "Final object escaped owned workspace")?
                 .to_path_buf();
             let actual = read_metadata_file(&working.join("media.info.json"))?;
+            check_generic_object(accepted, &actual)?;
             let actual_proof =
                 identity::proof(accepted, &actual).map_err(|e| format!("E_IDENTITY: {e}"))?;
             if actual_proof.identity.canonical_key() != proof.identity.canonical_key() {
@@ -220,6 +228,43 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
         })
     }
+}
+fn generic_args(args: &mut Vec<String>, accepted: &Accepted, resolving: bool) {
+    if !matches!(accepted.object, Object::Generic { .. }) { return; }
+    // Expose collections instead of letting --no-playlist silently select one item.
+    args.retain(|arg| arg != "--no-playlist");
+    args.extend(["--yes-playlist".into(), "--playlist-end".into(), "2".into()]);
+    if resolving { args.push("--flat-playlist".into()); }
+}
+fn check_generic_object(accepted: &Accepted, value: &Value) -> Result<(), String> {
+    if matches!(accepted.object, Object::Generic { .. })
+        && (value.get("entries").is_some()
+            || value.get("_type").is_some_and(|kind| kind.as_str() != Some("video"))
+            || ["playlist_id", "playlist_count", "playlist_index", "n_entries"].iter()
+                .any(|key| value.get(*key).is_some_and(|v| !v.is_null())))
+    {
+        return Err("E_OBJECT_UNSUPPORTED: a complete single object could not be established".into());
+    }
+    Ok(())
+}
+pub(super) fn check_generic_destination(accepted: &Accepted) -> Result<(), String> {
+    let Object::Generic { url } = &accepted.object else { return Ok(()); };
+    let url = crate::download::request::validate_public_url(url)
+        .map_err(|_| "E_URL_UNSAFE: destination is not a public HTTP(S) URL")?;
+    let addresses = match url.host().ok_or("E_URL_UNSAFE: missing host")? {
+        url::Host::Ipv4(ip) => vec![ip.into()],
+        url::Host::Ipv6(ip) => vec![ip.into()],
+        url::Host::Domain(host) => (host, url.port_or_known_default().ok_or("E_URL_UNSAFE: missing port")?)
+            .to_socket_addrs().map_err(|_| "E_NETWORK_TEMPORARY: destination lookup failed")?
+            .map(|address| address.ip()).collect(),
+    };
+    check_public_addresses(&addresses)
+}
+fn check_public_addresses(addresses: &[std::net::IpAddr]) -> Result<(), String> {
+    if addresses.is_empty() || addresses.iter().any(|ip| !crate::download::request::is_public_ip(*ip)) {
+        return Err("E_URL_UNSAFE: destination resolved to a non-public address".into());
+    }
+    Ok(())
 }
 fn engine_args(
     context: &ExecutionContext<'_>,
@@ -567,5 +612,56 @@ mod selection_record_tests {
         }
         fs::write(&record, vec![b'x'; METADATA_LIMIT + 1]).unwrap();
         assert!(read_selection(&record).is_err());
+    }
+}
+
+#[cfg(test)]
+mod generic_tests {
+    use super::*;
+    use crate::download::request::{DownloadIntent, Quality};
+    use serde_json::json;
+    fn accepted(url: &str) -> Accepted {
+        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+    }
+    #[test]
+    fn generic_exposes_bounded_collections_and_rejects_even_one_or_empty_entry() {
+        let a = accepted("https://example.com/work");
+        let mut args = vec!["--no-playlist".into(), "--ignore-config".into()];
+        generic_args(&mut args, &a, true);
+        assert!(!args.iter().any(|arg| arg == "--no-playlist"));
+        assert!(args.windows(3).any(|w| w == ["--yes-playlist", "--playlist-end", "2"]));
+        assert!(args.iter().any(|arg| arg == "--flat-playlist"));
+        for v in [json!({"entries":[]}), json!({"entries":[{"id":"one"}]}), json!({"_type":"url"}), json!({"_type":null}), json!({"playlist_index":1})] {
+            let error = check_generic_object(&a, &v).unwrap_err();
+            assert_eq!(diagnostics::classify(&Phase::Resolving, &error).code, "E_OBJECT_UNSUPPORTED");
+        }
+        assert!(check_generic_object(&a, &json!({"_type":"video","playlist_id":null})).is_ok());
+        assert!(identity::attest(&a, &json!({})).is_err());
+        let known = accepted("https://youtu.be/jNQXAC9IVRw");
+        let mut known_args = vec!["--no-playlist".into()];
+        generic_args(&mut known_args, &known, true);
+        assert_eq!(known_args, ["--no-playlist"]);
+    }
+    #[test]
+    fn generic_destination_rejects_empty_private_and_mixed_dns_answers() {
+        for addresses in [vec![], vec!["127.0.0.1"], vec!["8.8.8.8", "192.168.1.1"], vec!["::1"], vec!["2001:db8::1"]] {
+            let ips: Vec<_> = addresses.iter().map(|a| a.parse().unwrap()).collect();
+            assert!(check_public_addresses(&ips).is_err());
+        }
+        assert!(check_public_addresses(&["8.8.8.8".parse().unwrap(), "2606:4700:4700::1111".parse().unwrap()]).is_ok());
+        assert!(check_generic_destination(&accepted("https://[2606:4700:4700::1111]/work")).is_ok());
+    }
+    #[test]
+    fn unsupported_engine_error_cannot_be_spoofed_by_verbose_argv() {
+        for evidence in [
+            "resolve engine exit 1: ERROR: HTTP Error 429: Too Many Requests (unsupported URL: https://example.com/)",
+            "resolve engine exit 1: ERROR: download failed at https://example.com/?unsupported URL: injected",
+            "resolve engine exit 1: ERROR: Unsupported URL: https://example.com/\nERROR: other error",
+            "resolve engine exit 1: ERROR: Unsupported URL: not-a-url",
+        ] {
+            assert_ne!(diagnostics::classify(&Phase::Resolving, evidence).code, "E_UNSUPPORTED_URL");
+        }
+        assert_eq!(diagnostics::classify(&Phase::Resolving, "resolve engine exit 1: ERROR: Unsupported URL: https://example.com/").code, "E_UNSUPPORTED_URL");
+        assert_eq!(diagnostics::classify(&Phase::Resolving, "resolve engine exit 1: [debug] URL unsupported url: fake\nERROR: other error").code, "E_ENGINE_FAILED");
     }
 }

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::net::IpAddr;
+use sha2::{Digest, Sha256};
 use url::Url;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -29,6 +31,7 @@ pub enum Object {
     Bilibili { id: String, part: Option<u64> },
     BilibiliShort { code: String, part: Option<u64> },
     Gallery { site: Site, id: String },
+    Generic { url: String },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Accepted {
@@ -41,6 +44,51 @@ pub enum Site {
     Bilibili,
     Imgur,
     Bluesky,
+    Generic,
+}
+
+pub(crate) fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            let [a, b, c, _] = ip.octets();
+            !(a == 0 || a == 10 || a == 127 || a >= 224
+                || (a == 100 && (64..=127).contains(&b))
+                || (a == 169 && b == 254) || (a == 172 && (16..=31).contains(&b))
+                || (a == 192 && (b == 168 || b == 0 || (b == 88 && c == 99)))
+                || (a == 198 && (b == 18 || b == 19 || (b == 51 && c == 100)))
+                || (a == 203 && b == 0 && c == 113))
+        }
+        IpAddr::V6(ip) => {
+            if let Some(v4) = ip.to_ipv4_mapped() { return is_public_ip(v4.into()); }
+            let s = ip.segments();
+            (s[0] & 0xe000) == 0x2000
+                && !(s[0] == 0x2001 && (s[1] < 0x0200 || s[1] == 0x0db8))
+                && !(s[0] == 0x2002)
+                && !(s[0] == 0x3fff && (s[1] & 0xf000) == 0)
+        }
+    }
+}
+
+pub(crate) fn validate_public_url(input: &str) -> Result<Url, String> {
+    if input.len() > 8192 { return Err("URL is too long".into()); }
+    let mut url = Url::parse(input).map_err(|e| format!("Request URL: {e}"))?;
+    if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() || url.password().is_some() {
+        return Err("Only public HTTP(S) media URLs without credentials are supported".into());
+    }
+    match url.host().ok_or("Missing site host")? {
+        url::Host::Ipv4(ip) if !is_public_ip(ip.into()) => return Err("Non-public host".into()),
+        url::Host::Ipv6(ip) if !is_public_ip(ip.into()) => return Err("Non-public host".into()),
+        url::Host::Domain(host) => {
+            let host = host.trim_end_matches('.');
+            if !host.contains('.') || ["localhost", "local", "internal", "lan", "home"].iter().any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}"))) {
+                return Err("Non-public host".into());
+            }
+        }
+        _ => {}
+    }
+    url.set_fragment(None);
+    if url.as_str().len() > 8192 { return Err("URL is too long".into()); }
+    Ok(url)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -53,21 +101,16 @@ pub struct Identity {
 
 impl Accepted {
     pub fn new(mut intent: DownloadIntent) -> Result<Self, String> {
-        let u = Url::parse(&intent.url).map_err(|e| format!("Request URL: {e}"))?;
-        if !matches!(u.scheme(), "http" | "https")
-            || !u.username().is_empty()
-            || u.password().is_some()
-        {
-            return Err("Only public HTTP(S) media URLs without credentials are supported".into());
-        }
-        let host = u.host_str().ok_or("Missing site host")?;
+        let u = validate_public_url(&intent.url)?;
+        let host = u.host_str().ok_or("Missing site host")?.trim_end_matches('.');
         let segments: Vec<_> = u
             .path_segments()
             .ok_or("Invalid site path")?
             .filter(|s| !s.is_empty())
             .collect();
         let query: Vec<_> = u.query_pairs().collect();
-        if query.iter().any(|(key, _)| {
+        let known_video = matches!(host, "youtu.be" | "www.youtube.com" | "youtube.com" | "m.youtube.com" | "www.bilibili.com" | "bilibili.com" | "m.bilibili.com" | "b23.tv" | "www.b23.tv");
+        if known_video && query.iter().any(|(key, _)| {
             matches!(
                 key.as_ref(),
                 "list" | "playlist" | "season_id" | "series_id"
@@ -75,7 +118,7 @@ impl Accepted {
         }) {
             return Err("Playlist/series URLs do not identify one media object".into());
         }
-        let parts: Vec<_> = query.iter().filter(|(key, _)| key == "p").collect();
+        let parts: Vec<_> = query.iter().filter(|(key, _)| key == "p" && matches!(host, "b23.tv" | "www.b23.tv")).collect();
         if parts.len() > 1 {
             return Err("Ambiguous Bilibili part".into());
         }
@@ -114,7 +157,8 @@ impl Accepted {
                 if handle.is_empty() || handle.len() > 253 || !handle.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':')) || id.is_empty() || id.len() > 32 || !id.bytes().all(|b| b.is_ascii_alphanumeric()) { return Err("Invalid Bluesky post identity".into()); }
                 Object::Gallery { site: Site::Bluesky, id: format!("{handle}/{id}") }
             },
-            _ => return Err("Use a supported single video, Imgur image/album, or Bluesky image post URL".into()),
+            "youtu.be" | "b23.tv" | "www.b23.tv" | "imgur.com" | "www.imgur.com" | "bsky.app" => return Err("Invalid known site URL".into()),
+            _ => Object::Generic { url: u.to_string() },
         };
         if let Object::Youtube(id) = &object
             && (id.len() != 11
@@ -151,6 +195,7 @@ impl Object {
                 part.map_or_else(|| "single".into(), |p| p.to_string())
             ),
             Self::Gallery { site, id } => format!("gallery:{}:{id}", match site { Site::Imgur => "imgur", Site::Bluesky => "bluesky", _ => "invalid" }),
+            Self::Generic { url } => format!("generic-url:{:x}", Sha256::digest(url.as_bytes())),
         }
     }
     pub fn site(&self) -> &'static str {
@@ -160,6 +205,7 @@ impl Object {
             Self::Gallery { site: Site::Imgur, .. } => "imgur",
             Self::Gallery { site: Site::Bluesky, .. } => "bluesky",
             Self::Gallery { .. } => "invalid",
+            Self::Generic { .. } => "generic",
         }
     }
 }
@@ -170,6 +216,35 @@ impl Identity {
             Site::Bilibili => format!("bilibili:{}:{}", self.id, self.part.unwrap_or(1)),
             Site::Imgur => format!("gallery:imgur:{}", self.id),
             Site::Bluesky => format!("gallery:bluesky:{}", self.id),
+            Site::Generic => format!("generic:{}", self.id),
         }
+    }
+}
+
+#[cfg(test)]
+mod generic_tests {
+    use super::*;
+    fn accept(url: &str) -> Result<Accepted, String> {
+        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() })
+    }
+    #[test]
+    fn public_url_boundary_and_normalization() {
+        for url in ["http://localhost/a", "http://x.local/a", "http://x.internal/a", "http://x.lan/a", "http://x.home/a", "http://intranet/a", "http://127.0.0.1/a", "http://10.1.2.3/a", "http://169.254.1.1/a", "http://[::1]/a", "http://[::ffff:192.168.1.1]/a", "https://user@example.com/a", "file://example.com/a"] {
+            assert!(validate_public_url(url).is_err(), "{url}");
+        }
+        assert!(validate_public_url(&format!("https://example.com/{}", "x".repeat(8192))).is_err());
+        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
+        assert!(is_public_ip("2606:4700:4700::1111".parse().unwrap()));
+        assert!(!is_public_ip("2001:db8::1".parse().unwrap()));
+        let accepted = accept("HTTPS://Example.COM:443/a?p=bad&list=x#secret").unwrap();
+        assert_eq!(accepted.object, Object::Generic { url: "https://example.com/a?p=bad&list=x".into() });
+        assert!(accepted.object.provisional_key().starts_with("generic-url:"));
+        assert!(!accepted.object.provisional_key().contains("example"));
+    }
+    #[test]
+    fn known_sites_do_not_fall_through() {
+        for url in ["https://youtu.be/", "https://b23.tv/invalid/path", "https://youtube.com/playlist", "https://bilibili.com/invalid", "https://imgur.com/a/abcde?x=1", "https://bsky.app/?x=1"] { assert!(accept(url).is_err(), "{url}"); }
+        assert!(accept("https://youtu.be/abcdefghijk?p=not-a-number").is_ok());
+        assert!(accept("https://b23.tv/abc?p=not-a-number").is_err());
     }
 }

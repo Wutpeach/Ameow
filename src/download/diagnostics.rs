@@ -19,6 +19,10 @@ pub enum FailureCode {
     Cancelled,
     Media,
     Unknown,
+    UnsupportedObject,
+    UnsafeUrl,
+    UnsupportedUrl,
+    FallbackFailed,
 }
 impl Failure {
     pub fn new(code: FailureCode, stage: &str) -> Self {
@@ -32,6 +36,10 @@ impl Failure {
                 FailureCode::Cancelled => "E_CANCELLED",
                 FailureCode::Media => "E_MEDIA",
                 FailureCode::Unknown => "E_UNKNOWN",
+                FailureCode::UnsupportedObject => "E_OBJECT_UNSUPPORTED",
+                FailureCode::UnsafeUrl => "E_URL_UNSAFE",
+                FailureCode::UnsupportedUrl => "E_UNSUPPORTED_URL",
+                FailureCode::FallbackFailed => "E_FALLBACK_FAILED",
             },
             stage,
         )
@@ -48,6 +56,22 @@ impl Failure {
 }
 pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let (reason, suggestion) = match code {
+        "E_OBJECT_UNSUPPORTED" => (
+            "This link did not resolve to one verifiable media object",
+            "Use a public single-work link; collections are not supported here yet",
+        ),
+        "E_URL_UNSAFE" => (
+            "This destination is not an allowed public HTTP(S) target",
+            "Use a public link without credentials or local-network addresses",
+        ),
+        "E_UNSUPPORTED_URL" => (
+            "The selected downloader could not extract this link",
+            "Check the public work link and the safe attempt diagnostics",
+        ),
+        "E_FALLBACK_FAILED" => (
+            "Neither downloader completed a verified delivery",
+            "Check the public work link and review both safe attempt diagnostics",
+        ),
         "E_MEDIA" => (
             "The delivered media failed verification",
             "Copy the safe diagnostics before retrying",
@@ -120,6 +144,10 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let code = if matches!(
         code,
         "E_MEDIA"
+            | "E_OBJECT_UNSUPPORTED"
+            | "E_URL_UNSAFE"
+            | "E_UNSUPPORTED_URL"
+            | "E_FALLBACK_FAILED"
             | "E_RATE_LIMIT"
             | "E_NETWORK_TEMPORARY"
             | "E_ACCESS_DENIED"
@@ -143,6 +171,8 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let stage = if matches!(
         stage,
         "runtime" | "resolve" | "transfer" | "verify" | "publish" | "cleanup" | "admission"
+            | "primary-resolve" | "fallback-resolve" | "fallback-transfer"
+            | "fallback-admission" | "fallback-verify" | "fallback-publish" | "fallback-unknown"
     ) {
         stage
     } else {
@@ -229,6 +259,8 @@ pub fn copy_with_versions(
     }
     for (index, failure) in failures.iter().take(6).enumerate() {
         let safe = known(&failure.code, &failure.stage);
+        if safe.stage == "primary-resolve" { text.push_str("Downloader: yt-dlp\n"); }
+        else if safe.stage.starts_with("fallback-") { text.push_str("Downloader: gallery-dl\n"); }
         text.push_str(&format!(
             "Failure {}: {} [{}]\n{}\nSuggestion: {}\n",
             index + 1,

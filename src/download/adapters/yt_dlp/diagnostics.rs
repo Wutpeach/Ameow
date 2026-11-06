@@ -40,7 +40,20 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
         lower.clone()
     };
     // Status evidence is anchored to actual engine error wording, not arbitrary numbers.
-    let code = if evidence.starts_with("E_METADATA_TOO_LARGE:") {
+    let code = if evidence.starts_with("E_OBJECT_UNSUPPORTED:") {
+        "E_OBJECT_UNSUPPORTED"
+    } else if evidence.starts_with("E_URL_UNSAFE:") {
+        "E_URL_UNSAFE"
+    } else if evidence.starts_with("E_NETWORK_TEMPORARY:") {
+        "E_NETWORK_TEMPORARY"
+    } else if engine
+        && cause.strip_prefix("error: unsupported url: ").is_some_and(|input| {
+            !input.chars().any(char::is_whitespace)
+                && url::Url::parse(input).is_ok_and(|url| matches!(url.scheme(), "https" | "http") && url.host_str().is_some())
+        })
+    {
+        "E_UNSUPPORTED_URL"
+    } else if evidence.starts_with("E_METADATA_TOO_LARGE:") {
         "E_METADATA_TOO_LARGE"
     } else if evidence.starts_with("E_METADATA_INVALID_JSON:") {
         "E_METADATA_INVALID_JSON"

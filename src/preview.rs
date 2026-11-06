@@ -72,6 +72,21 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
         "partial" | "partial-retry-pending" => snapshot(vec![crate::queue_fixture::partial(Some(5))]),
         "partial-unknown" => snapshot(vec![crate::queue_fixture::partial(None)]),
         "failure" | "copy-failed" | "copied" | "retry-pending" | "retry-refused" => snapshot(vec![job(5, JobPhase::Failure, Some(5), None)]),
+        "fallback" => {
+            let mut j = job(1, JobPhase::Resolving, Some(1), None);
+            j.title = "正在获取作品".into();
+            j.message = "Trying alternate downloader".into();
+            snapshot(vec![j])
+        }
+        "unsupported-object" => {
+            let mut j = job(5, JobPhase::Failure, Some(5), None);
+            j.title = "此链接暂不支持完整提取".into();
+            let failure = ameow_next::download::diagnostics::Failure::new(
+                ameow_next::download::diagnostics::FailureCode::UnsupportedObject, "resolve");
+            j.message = format!("{}: {}", failure.code, failure.reason);
+            j.failure = Some(failure);
+            snapshot(vec![j])
+        }
         "cancelled" => snapshot(vec![job(1, JobPhase::Cancelled, Some(1), None)]),
         "queued" => snapshot(vec![job(1, JobPhase::Queued, None, None)]),
         "validating" => snapshot(vec![job(1, JobPhase::Validating, Some(1), None)]),

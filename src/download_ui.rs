@@ -699,6 +699,9 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "清理待确认" => "Cleanup?",
         "下载完成" => "Done",
         "下载失败" => "Failed",
+        "暂不支持" => "Unsupported",
+        "链接不可用" => "Invalid link",
+        "尝试备用组件" => "Trying alternate",
         "部分完成" => "Partial",
         "已取消" => "Cancelled",
         "准备异常，清理未确认" => "Setup: cleanup unconfirmed",
@@ -796,7 +799,7 @@ pub fn phase_label(job: &JobSnapshot) -> String {
     match job.phase {
         JobPhase::Queued => "等待下载".into(),
         JobPhase::Preparing => "准备下载组件".into(),
-        JobPhase::Resolving => "解析视频".into(),
+        JobPhase::Resolving => if job.message == "Trying alternate downloader" { "尝试备用组件" } else { "解析视频" }.into(),
         JobPhase::Downloading => if job
             .transfer_progress
             .as_ref()
@@ -811,7 +814,11 @@ pub fn phase_label(job: &JobSnapshot) -> String {
         JobPhase::Publishing => "保存文件".into(),
         JobPhase::Held => "清理待确认".into(),
         JobPhase::Success => "下载完成".into(),
-        JobPhase::Failure => "下载失败".into(),
+        JobPhase::Failure => match job.failure.as_ref().map(|f| f.code.as_str()) {
+            Some("E_OBJECT_UNSUPPORTED" | "E_UNSUPPORTED_URL") => "暂不支持".into(),
+            Some("E_URL_UNSAFE") => "链接不可用".into(),
+            _ => "下载失败".into(),
+        },
         JobPhase::Partial => "部分完成".into(),
         JobPhase::Cancelled => "已取消".into(),
     }
@@ -1032,7 +1039,7 @@ fn queue_row_status(job: &JobSnapshot, snapshot: &QueueSnapshot, fraction: Optio
             None => "部分完成".into(),
         }
     } else if job.phase == JobPhase::Failure {
-        "下载失败".into()
+        phase_label(job)
     } else {
         queue_progress_label(job, fraction, now)
     }

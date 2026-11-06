@@ -88,6 +88,8 @@ pub struct Snapshot {
     pub destination_stage: Option<PathBuf>,
     pub failure: Option<diagnostics::Failure>,
     pub transfer_progress: Option<progress::TransferProgress>,
+    #[serde(default)]
+    pub fallback: bool,
 }
 impl Default for Snapshot {
     fn default() -> Self {
@@ -111,6 +113,7 @@ impl Default for Snapshot {
             destination_stage: None,
             failure: None,
             transfer_progress: None,
+            fallback: false,
         }
     }
 }
@@ -506,6 +509,16 @@ fn execute(
         let event_state = state.clone();
         let events = Arc::new(move |event| match event {
             AdapterEvent::Resolving => update(&event_state, job, attempt, Phase::Resolving, String::new()),
+            AdapterEvent::Fallback => {
+                let mut state = lock(&event_state);
+                if state.snapshot.job_id == job && state.snapshot.attempt == attempt
+                    && !state.snapshot.phase.terminal() && !state.control.is_cancelled() {
+                    state.snapshot.fallback = true;
+                    state.snapshot.transfer_progress = None;
+                    state.snapshot.revision += 1;
+                    state.publish();
+                }
+            }
             AdapterEvent::Transferring => update(&event_state, job, attempt, Phase::Downloading, String::new()),
             AdapterEvent::Finalizing => {
                 let mut state = lock(&event_state);

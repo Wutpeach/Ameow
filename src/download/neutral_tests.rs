@@ -38,14 +38,13 @@ impl DownloaderAdapter for DataAdapter {
         &[]
     }
     fn execute(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> AdapterResult {
-        let Object::Youtube(id) = &request.accepted.object else {
-            return Err(Failure::new(FailureCode::Identity, "admission"));
-        };
-        let identity = Identity {
-            id: id.clone(),
-            site: Site::Youtube,
-            part: None,
-            title: "Synthetic data fixture".into(),
+        let identity = match &request.accepted.object {
+            Object::Youtube(id) => Identity { id: id.clone(), site: Site::Youtube, part: None, title: "Synthetic data fixture".into() },
+            Object::Generic { url } => super::adapters::yt_dlp::identity::attest(
+                &request.accepted,
+                &serde_json::json!({"id":"fixture","extractor_key":"Fixture","title":"Synthetic data fixture","webpage_url":url}),
+            ).map_err(|_| Failure::new(FailureCode::Identity, "admission"))?,
+            _ => return Err(Failure::new(FailureCode::Identity, "admission")),
         };
         context.emit(AdapterEvent::Resolving);
         context.admit(&IdentityAttestation {
@@ -226,4 +225,72 @@ fn neutral_result_cannot_change_admitted_identity_or_publish_success() -> Result
     assert!(view.jobs[0].delivered.is_none());
     assert_eq!(view.jobs[0].terminal_count, 1);
     stop(&queue)
+}
+
+#[test]
+fn generic_queue_dedup_cancel_and_no_clobber_reuse_neutral_lifecycle() -> Result<(), String> {
+    // Data fixture checks queue/publisher behavior only; native Video proof is separate.
+    let (_root, queue, mode) = setup(3)?;
+    let url = "https://example.com/work";
+    let job = queue.submit(url.into())?;
+    wait(&queue, |v| v.jobs[0].phase == JobPhase::Downloading)?;
+    assert!(queue.submit(format!("{url}#same")).is_err());
+    assert_eq!(queue.snapshot().jobs.len(), 1);
+    assert!(queue.cancel(job));
+    let cancelled = wait(&queue, |v| v.jobs[0].phase == JobPhase::Cancelled)?;
+    assert!(cancelled.jobs[0].resources_released);
+    assert_eq!(cancelled.jobs[0].terminal_count, 1);
+    assert_eq!(cancelled.active_slots, 0);
+    mode.store(0, Ordering::Release);
+    queue.submit(url.into())?;
+    let first = wait(&queue, |v| v.jobs.len() == 2 && v.jobs[1].phase == JobPhase::Success)?;
+    let saved = first.jobs[1].delivered.clone().unwrap();
+    queue.submit(url.into())?;
+    let second = wait(&queue, |v| v.jobs.len() == 3 && v.jobs[2].phase == JobPhase::Success)?;
+    assert_ne!(saved.path, second.jobs[2].delivered.as_ref().unwrap().path);
+    assert_eq!(super::runtime::hash(&fs::read(&saved.path).map_err(|e| e.to_string())?[..])?, saved.sha256);
+    mode.store(4, Ordering::Release);
+    queue.submit(url.into())?;
+    let failed = wait(&queue, |v| v.jobs.len() == 4 && v.jobs[3].phase.terminal())?;
+    assert_eq!(failed.jobs[3].phase, JobPhase::Failure);
+    assert!(failed.jobs[3].delivered.is_none());
+    stop(&queue)
+}
+
+#[test]
+#[ignore = "Real generic extraction cancellation; requires task-owned AMEOW_GENERIC_CANCEL_ROOT with the verified runtime cache"]
+fn generic_native_cancel_settles_owned_extractor_without_delivery() -> Result<(), String> {
+    let root = PathBuf::from(std::env::var("AMEOW_GENERIC_CANCEL_ROOT").map_err(|e| e.to_string())?);
+    fs::create_dir_all(root.join("output")).map_err(|e| e.to_string())?;
+    let queue = super::composition::download_coordinator(
+        root.join("runtime"), root.join("settings.json"),
+        Settings { quality: Quality::Saver, output_dir: root.join("output"), theme: Default::default(), language: Default::default(), tray_icon: Default::default() },
+    )?;
+    let job = queue.submit("https://www.pinterest.com/pin/664281013778109217/".into())?;
+    let deadline = Instant::now() + Duration::from_secs(45);
+    loop {
+        let view = queue.snapshot();
+        if view.jobs[0].phase == JobPhase::Resolving { break; }
+        if view.jobs[0].phase.terminal() || Instant::now() > deadline {
+            queue.stop();
+            return Err(format!("Native extraction did not start: {view:?}"));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+    // Let the owned native extractor start; this sample is cancelled before media transfer.
+    thread::sleep(Duration::from_millis(750));
+    assert!(queue.cancel(job));
+    let view = wait(&queue, |v| v.jobs[0].phase.terminal())?;
+    fs::write(root.join("cancelled.json"), serde_json::to_vec_pretty(&view).unwrap()).map_err(|e| e.to_string())?;
+    assert_eq!(view.jobs[0].phase, JobPhase::Cancelled);
+    assert!(view.jobs[0].resources_released);
+    assert_eq!(view.jobs[0].terminal_count, 1);
+    assert_eq!(view.active_slots, 0);
+    assert!(view.jobs[0].delivered.is_none());
+    assert!(view.jobs[0].events.iter().any(|e| e.kind.contains("process-settled:") && e.kind.contains("root_pid: Some(")));
+    assert_eq!(fs::read_dir(root.join("output")).map_err(|e| e.to_string())?.count(), 0);
+    queue.stop();
+    let stopped = wait(&queue, |v| v.stopped)?;
+    fs::write(root.join("stopped.json"), serde_json::to_vec_pretty(&stopped).unwrap()).map_err(|e| e.to_string())?;
+    Ok(())
 }

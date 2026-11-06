@@ -828,6 +828,35 @@ mod tests {
         assert!(!text.contains("retry delay"));
     }
     #[test]
+    fn fallback_failure_keeps_one_job_one_terminal_and_two_safe_attempt_diagnostics() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut model = Model::new(defaults(root.path()));
+        let accepted = Accepted::new(DownloadIntent { url: "https://example.com/private?token=SECRET".into(), quality: Quality::Saver, output_dir: root.path().into() })?;
+        let job = model.accept(accepted, None)?;
+        assert_eq!(model.launch(), Some(job));
+        let mut failure = diagnostics::known("E_ENGINE_FAILED", "resolve");
+        failure.reason = "Cookie: SECRET".into();
+        model.settled(job, Snapshot { phase: Phase::Failure, fallback: true, failure: Some(failure), ..Default::default() });
+        let view = model.snapshot();
+        assert_eq!(view.jobs.len(), 1);
+        assert_eq!(view.jobs[0].phase, JobPhase::Failure);
+        assert_eq!(view.jobs[0].terminal_count, 1);
+        assert_eq!(view.jobs[0].attempt, 1);
+        assert_eq!(view.active_slots, 0);
+        assert_eq!(view.jobs[0].failure.as_ref().unwrap().code, "E_FALLBACK_FAILED");
+        let diagnostic = diagnostics::copy_text(job, "generic", &model.records[&job].history);
+        assert!(diagnostic.contains("Downloader: yt-dlp"));
+        assert!(diagnostic.contains("Downloader: gallery-dl"));
+        assert!(diagnostic.contains("E_UNSUPPORTED_URL [primary-resolve]"));
+        assert!(diagnostic.contains("E_ENGINE_FAILED [fallback-resolve]"));
+        assert!(!diagnostic.contains("SECRET"));
+        assert!(!diagnostic.contains("example.com"));
+        assert!(!view.jobs[0].message.contains("SECRET"));
+        model.settled(job, success());
+        assert_eq!(model.snapshot().jobs[0].terminal_count, 1);
+        Ok(())
+    }
+    #[test]
     fn fifo_three_slots_keeps_held_until_joined_and_refills_in_order() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let mut model = Model::new(defaults(root.path()));
@@ -1121,10 +1150,16 @@ mod tests {
             "https://youtube.com/watch?v=jNQXAC9IVRw&list=PLabc",
             "https://b23.tv/AbCd12?p=1&p=2",
             "https://b23.tv/AbCd12?p=0",
-            "https://evil.example/BV17x411w7KC",
         ] {
             assert!(backend.submit(url.into()).is_err());
         }
+        let generic = Accepted::new(DownloadIntent {
+            url: "https://other.example/BV17x411w7KC".into(),
+            quality: Quality::Saver,
+            output_dir: root.path().into(),
+        })?;
+        assert!(matches!(generic.object, crate::download::request::Object::Generic { .. }));
+        assert!(generic.identity(&metadata).is_err()); // a copied BV path is not a generic identity proof
         Ok(())
     }
     #[test]
@@ -2058,6 +2093,9 @@ impl Model {
         record.view.transfer_progress = None;
         record.view.resources_released = true;
         record.running = None;
+        if snapshot.fallback {
+            record.history.push(diagnostics::known("E_UNSUPPORTED_URL", "primary-resolve"));
+        }
         record.view.collection = snapshot.collection.clone();
         record.view.gallery_progress = None;
         record.view.delivered = snapshot.delivered.as_ref().map(|media| DeliveredFile {
@@ -2084,9 +2122,15 @@ impl Model {
         let failure = snapshot
             .failure
             .unwrap_or_else(|| Failure::new(FailureCode::Unknown, "unknown"));
-        record.history.push(failure.clone());
-        record.view.failure = Some(failure.clone());
-        record.view.message = format!("{}: {}", failure.code, failure.reason);
+        let attempt_failure = if snapshot.fallback {
+            diagnostics::known(&failure.code, &format!("fallback-{}", failure.stage))
+        } else { failure.clone() };
+        record.history.push(attempt_failure);
+        let display_failure = if snapshot.fallback {
+            Failure::new(FailureCode::FallbackFailed, &failure.stage)
+        } else { failure.clone() };
+        record.view.message = format!("{}: {}", display_failure.code, display_failure.reason);
+        record.view.failure = Some(display_failure);
         if failure.code == "E_DUPLICATE" {
             self.terminal(job, JobPhase::Cancelled);
         } else {
@@ -2594,13 +2638,15 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
             Phase::Held => JobPhase::Held,
             _ => JobPhase::Resolving,
         };
-        record.view.message = match snapshot.phase {
+        record.view.message = if snapshot.fallback && snapshot.phase == Phase::Resolving {
+            "Trying alternate downloader"
+        } else { match snapshot.phase {
             Phase::Held => "Ownership retained; retry cleanup to continue",
             Phase::Downloading => "Downloading or merging selected video/audio",
             Phase::Validating => "Verifying delivered media",
             Phase::Publishing => "Saving verified media without overwrite",
             _ => "Resolving one accepted video",
-        }
+        } }
         .into();
     }
     if let Some(identity) = &snapshot.identity {
@@ -2611,6 +2657,9 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
     model.revision += 1;
     for facts in settlements {
         model.event(job, &format!("process-settled: {facts}"));
+    }
+    if snapshot.fallback && !model.records[&job].view.events.iter().any(|e| e.kind == "fallback-start") {
+        model.event(job, "fallback-start");
     }
 }
 fn persist_preparation(shared: &Shared, history: &[super::preparation::PreparationEvent]) {
