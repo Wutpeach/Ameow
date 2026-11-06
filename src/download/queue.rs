@@ -64,6 +64,8 @@ pub struct JobEvent {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JobSnapshot {
+    #[serde(default)]
+    pub engine: Option<super::contract::Downloader>,
     pub job_id: u64,
     pub revision: u64,
     pub attempt: u32,
@@ -857,6 +859,143 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn corrupt_cache_is_preserved_and_success_relearns_without_settings_changes() -> Result<(), String> {
+        use super::super::contract::Downloader::GalleryDl;
+        let root = tempfile::tempdir().unwrap();
+        let backend = fake_backend(root.path());
+        backend.save_settings(defaults(root.path()))?;
+        let settings_before = fs::read(&backend.shared.settings_path).unwrap();
+        let path = super::super::preferences::path(&backend.shared.settings_path);
+        let original = b"future version or damaged preferences";
+        fs::write(&path, original).unwrap();
+        lock(&backend.shared.model).restore_preferences(&path);
+        assert!(!lock(&backend.shared.model).downloader_preferences_unreadable);
+        assert_eq!(fs::read(path.with_extension("invalid")).unwrap(), original);
+        let job = backend.submit("https://example.com/work".into())?;
+        {
+            let mut model = lock(&backend.shared.model); model.launch();
+            let snapshot = learning_snapshot(&model, job, root.path(), GalleryDl);
+            model.learn_success(job, &snapshot, &path); model.settled(job, snapshot); backend.shared.publish(&model);
+        }
+        assert_eq!(backend.snapshot().jobs[0].phase, JobPhase::Success);
+        assert!(lock(&backend.shared.model).downloader_preferences_error.is_none());
+        assert_eq!(super::super::preferences::Preferences::load(&path)?.preferred(&backend.snapshot().jobs[0].accepted), GalleryDl);
+        assert_eq!(fs::read(&backend.shared.settings_path).unwrap(), settings_before);
+        assert_eq!(fs::read(path.with_extension("invalid")).unwrap(), original);
+        Ok(())
+    }
+    #[test]
+    fn preservation_failure_keeps_download_success_then_recovers_on_later_success() -> Result<(), String> {
+        use super::super::contract::Downloader::{YtDlp, GalleryDl};
+        use std::os::windows::fs::OpenOptionsExt;
+        let root = tempfile::tempdir().unwrap(); let backend = fake_backend(root.path());
+        let path = super::super::preferences::path(&backend.shared.settings_path);
+        fs::write(&path, b"damaged cache").unwrap();
+        let guard = fs::OpenOptions::new().read(true).share_mode(1).open(&path).unwrap();
+        lock(&backend.shared.model).restore_preferences(&path);
+        assert!(lock(&backend.shared.model).downloader_preferences_unreadable);
+        let first = backend.submit("https://example.com/first".into())?;
+        let frozen = backend.submit("https://example.com/queued".into())?;
+        {
+            let mut model = lock(&backend.shared.model); assert_eq!(model.launch(), Some(first));
+            let snapshot = learning_snapshot(&model, first, root.path(), GalleryDl);
+            model.learn_success(first, &snapshot, &path); model.settled(first, snapshot); backend.shared.publish(&model);
+            assert!(model.downloader_preferences_unreadable);
+        }
+        assert_eq!(backend.snapshot().jobs[0].phase, JobPhase::Success);
+        assert_eq!(fs::read(&path).unwrap(), b"damaged cache");
+        drop(guard);
+        {
+            let mut model = lock(&backend.shared.model); assert_eq!(model.launch(), Some(frozen));
+            assert_eq!(model.records[&frozen].view.accepted.preferred_engine, YtDlp);
+            let snapshot = learning_snapshot(&model, frozen, root.path(), GalleryDl);
+            model.learn_success(frozen, &snapshot, &path); model.settled(frozen, snapshot); backend.shared.publish(&model);
+            assert!(!model.downloader_preferences_unreadable);
+            assert!(model.downloader_preferences_error.is_none());
+        }
+        assert_eq!(fs::read(path.with_extension("invalid")).unwrap(), b"damaged cache");
+        let next = backend.submit("https://example.com/future".into())?;
+        assert_eq!(backend.snapshot().jobs.iter().find(|j| j.job_id == next).unwrap().accepted.preferred_engine, GalleryDl);
+        Ok(())
+    }
+    fn learning_snapshot(model: &Model, job: u64, root: &std::path::Path, engine: super::super::contract::Downloader) -> Snapshot {
+        let path = root.join("delivered.bin"); fs::write(&path, b"verified fixture").unwrap();
+        Snapshot { job_id: job, attempt: u64::from(model.records[&job].view.attempt), engine: Some(engine),
+            identity: Some(Identity { id: "fixture".into(), title:"Fixture".into(), site:super::super::request::Site::Generic, part:None }),
+            delivered: Some(super::super::output::verify_data(&path,root).unwrap()), ..success() }
+    }
+    #[test]
+    fn learned_order_is_frozen_and_only_verified_success_can_replace_it() -> Result<(), String> {
+        use super::super::contract::Downloader::{YtDlp, GalleryDl};
+        let root=tempfile::tempdir().unwrap(); let backend=fake_backend(root.path());
+        let first=backend.submit("https://example.com/first?token=private".into())?;
+        let queued=backend.submit("https://example.com/queued".into())?;
+        let path=super::super::preferences::path(&backend.shared.settings_path);
+        {
+            let mut model=lock(&backend.shared.model); assert_eq!(model.launch(),Some(first));
+            let snapshot=learning_snapshot(&model,first,root.path(),GalleryDl);
+            model.learn_success(first,&snapshot,&path); model.settled(first,snapshot); backend.shared.publish(&model);
+            assert_eq!(model.records[&queued].view.accepted.preferred_engine,YtDlp);
+        }
+        let next=backend.submit("https://example.com/next".into())?;
+        let known=backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
+        assert_eq!(backend.snapshot().jobs.iter().find(|j|j.job_id==next).unwrap().accepted.preferred_engine,GalleryDl);
+        assert_eq!(backend.snapshot().jobs.iter().find(|j|j.job_id==known).unwrap().accepted.preferred_engine,YtDlp);
+        {
+            let mut model=lock(&backend.shared.model); assert_eq!(model.launch(),Some(queued));
+            let snapshot=learning_snapshot(&model,queued,root.path(),YtDlp);
+            model.learn_success(queued,&snapshot,&path); model.settled(queued,snapshot); backend.shared.publish(&model);
+        }
+        assert_eq!(super::super::preferences::Preferences::load(&path)?.preferred(&backend.snapshot().jobs[0].accepted),YtDlp);
+        assert_eq!(backend.snapshot().jobs.iter().find(|j|j.job_id==next).unwrap().accepted.preferred_engine,GalleryDl);
+        let future=backend.submit("https://example.com/future".into())?;
+        assert_eq!(backend.snapshot().jobs.iter().find(|j|j.job_id==future).unwrap().accepted.preferred_engine,YtDlp);
+        let json=fs::read_to_string(path).unwrap(); assert!(!json.contains("token") && !json.contains("private"));
+        Ok(())
+    }
+    #[test]
+    fn partial_cancel_failure_incomplete_unsettled_and_wrong_attempt_never_learn() {
+        use super::super::contract::Downloader::GalleryDl;
+        for case in 0..10 {
+            let root=tempfile::tempdir().unwrap(); let backend=fake_backend(root.path());
+            let url=if case==9 {"https://youtu.be/jNQXAC9IVRw"} else {"https://example.com/work"};
+            let job=backend.submit(url.into()).unwrap(); let mut model=lock(&backend.shared.model); model.launch();
+            let mut snapshot=learning_snapshot(&model,job,root.path(),GalleryDl);
+            match case {
+                0=>snapshot.phase=Phase::Partial, 1=>snapshot.phase=Phase::Failure, 2=>snapshot.phase=Phase::Cancelled,
+                3=>snapshot.resources_released=false, 4=>snapshot.engine=None, 5=>snapshot.identity=None,
+                6=>snapshot.delivered=None, 7=>snapshot.attempt+=1, 8=>model.records.get_mut(&job).unwrap().cancelled=true, _=>{}
+            }
+            let path=super::super::preferences::path(&backend.shared.settings_path);
+            model.learn_success(job,&snapshot,&path);
+            assert_eq!(model.downloader_preferences.preferred(&model.records[&job].view.accepted),super::super::contract::Downloader::YtDlp,"case {case}"); assert!(!path.exists(),"case {case}");
+        }
+    }
+    #[test]
+    fn preference_write_failure_preserves_settings_order_and_success() -> Result<(), String> {
+        use super::super::contract::Downloader::GalleryDl;
+        use std::os::windows::fs::OpenOptionsExt;
+        let root=tempfile::tempdir().unwrap(); let backend=fake_backend(root.path());
+        backend.save_settings(defaults(root.path()))?;
+        let settings_before=fs::read(&backend.shared.settings_path).unwrap();
+        let path=super::super::preferences::path(&backend.shared.settings_path);
+        super::super::preferences::Preferences::default().persist(&path)?;
+        let before=fs::read(&path).unwrap();
+        let guard=fs::OpenOptions::new().read(true).share_mode(1).open(&path).unwrap();
+        let job=backend.submit("https://example.com/work".into())?;
+        {
+            let mut model=lock(&backend.shared.model); model.launch();
+            let snapshot=learning_snapshot(&model,job,root.path(),GalleryDl);
+            model.learn_success(job,&snapshot,&path); model.settled(job,snapshot); backend.shared.publish(&model);
+        }
+        let state=backend.snapshot(); assert_eq!(state.jobs[0].phase,JobPhase::Success);
+        assert_eq!(state.jobs[0].terminal_count,1);
+        assert_eq!(lock(&backend.shared.model).downloader_preferences.preferred(&state.jobs[0].accepted),super::super::contract::Downloader::YtDlp);
+        assert!(lock(&backend.shared.model).downloader_preferences_error.is_some());
+        assert_eq!(fs::read(path).unwrap(),before); assert_eq!(fs::read(&backend.shared.settings_path).unwrap(),settings_before); drop(guard);
+        Ok(())
+    }
+    #[test]
     fn fifo_three_slots_keeps_held_until_joined_and_refills_in_order() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let mut model = Model::new(defaults(root.path()));
@@ -1177,6 +1316,7 @@ mod tests {
             assert!(!safe.contains("SECRET"));
         }
         let attack = Failure {
+            downloader: None,
             code: "E_UNKNOWN\nCookie: SECRET".into(),
             stage: "transfer https://cdn/signed?x=SECRET".into(),
             reason: "C:\\Users\\secret\\private".into(),
@@ -1838,6 +1978,9 @@ struct Record {
     cancelled: bool,
 }
 struct Model {
+    downloader_preferences_unreadable: bool,
+    downloader_preferences: super::preferences::Preferences,
+    downloader_preferences_error: Option<String>,
     records: BTreeMap<u64, Record>,
     runtime_update: super::runtime_update::RuntimeUpdateSnapshot,
     update_request: Option<super::runtime_update::Selection>,
@@ -1857,6 +2000,31 @@ struct Model {
     stopped: bool,
 }
 impl Model {
+    fn restore_preferences(&mut self, path: &std::path::Path) {
+        (self.downloader_preferences, self.downloader_preferences_error, self.downloader_preferences_unreadable) = super::preferences::Preferences::restore(path);
+    }
+    fn learn_success(&mut self, job: u64, snapshot: &Snapshot, path: &std::path::Path) {
+        let Some(record) = self.records.get(&job) else { return; };
+        let complete = snapshot.delivered.as_ref().is_some_and(|m| m.bytes > 0)
+            || snapshot.collection.as_ref().is_some_and(|c| !c.files.is_empty() && c.total == Some(c.files.len()) && c.expected_paths.len() == c.files.len());
+        if record.view.phase.terminal() || record.cancelled || self.stopping
+            || snapshot.job_id != job || snapshot.attempt != u64::from(record.view.attempt)
+            || snapshot.phase != Phase::Success || !snapshot.resources_released
+            || snapshot.identity.is_none() || !complete { return; }
+        let Some(engine) = snapshot.engine else { return; };
+        let accepted = record.view.accepted.clone();
+        // Retry recovery only after verified success, without changing the frozen job.
+        if self.downloader_preferences_unreadable {
+            self.restore_preferences(path);
+            if self.downloader_preferences_unreadable { return; }
+        }
+        let mut next = self.downloader_preferences.clone();
+        if !next.remember(&accepted, engine) { return; }
+        match next.persist(path) {
+            Ok(()) => { self.downloader_preferences = next; self.downloader_preferences_error = None; },
+            Err(error) => self.downloader_preferences_error = Some(error),
+        }
+    }
     fn mark_preparation_owner_lost(&mut self) {
         if self.preparation_owner_lost {
             return;
@@ -1882,6 +2050,9 @@ impl Model {
     }
     fn new(settings: Settings) -> Self {
         Self {
+            downloader_preferences: Default::default(),
+            downloader_preferences_unreadable: false,
+            downloader_preferences_error: None,
             records: BTreeMap::new(),
             runtime_update: Default::default(),
             update_request: None,
@@ -2001,6 +2172,7 @@ impl Model {
             job,
             Record {
                 view: JobSnapshot {
+                    engine: None,
                     job_id: job,
                     revision: 0,
                     attempt: 0,
@@ -2093,8 +2265,11 @@ impl Model {
         record.view.transfer_progress = None;
         record.view.resources_released = true;
         record.running = None;
+        record.view.engine = snapshot.engine;
         if snapshot.fallback {
-            record.history.push(diagnostics::known("E_UNSUPPORTED_URL", "primary-resolve"));
+            let mut primary = diagnostics::known("E_UNSUPPORTED_URL", "primary-resolve");
+            primary.downloader = Some(record.view.accepted.preferred_engine);
+            record.history.push(primary);
         }
         record.view.collection = snapshot.collection.clone();
         record.view.gallery_progress = None;
@@ -2122,9 +2297,10 @@ impl Model {
         let failure = snapshot
             .failure
             .unwrap_or_else(|| Failure::new(FailureCode::Unknown, "unknown"));
-        let attempt_failure = if snapshot.fallback {
+        let mut attempt_failure = if snapshot.fallback {
             diagnostics::known(&failure.code, &format!("fallback-{}", failure.stage))
         } else { failure.clone() };
+        attempt_failure.downloader = snapshot.engine;
         record.history.push(attempt_failure);
         let display_failure = if snapshot.fallback {
             Failure::new(FailureCode::FallbackFailed, &failure.stage)
@@ -2204,7 +2380,8 @@ impl DownloadCoordinator {
         defaults: Settings,
     ) -> Result<Self, String> {
         let settings = Settings::load(&settings_path, defaults)?;
-        let model = Model::new(settings);
+        let mut model = Model::new(settings);
+        model.restore_preferences(&super::preferences::path(&settings_path));
         let published = Mutex::new(Arc::new(model.snapshot()));
         let shared = Arc::new(Shared {
             model: Mutex::new(model),
@@ -2238,13 +2415,14 @@ impl DownloadCoordinator {
     pub fn submit(&self, url: String) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
         let settings = lock(&self.shared.model).settings.clone();
-        let accepted = Accepted::new(DownloadIntent {
+        let mut accepted = Accepted::new(DownloadIntent {
             url,
             quality: settings.quality,
             output_dir: settings.output_dir,
         })
         .map_err(|_| "E_INPUT: Use a public single-video URL and existing destination")?;
         let mut model = lock(&self.shared.model);
+        accepted.preferred_engine = model.downloader_preferences.preferred(&accepted);
         let job = model.accept(accepted, None)?;
         self.shared.publish(&model);
         Ok(job)
@@ -2613,6 +2791,8 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
         return;
     }
     running.seen_revision = snapshot.revision;
+    let engine_changed = snapshot.engine.is_some() && record.view.engine != snapshot.engine;
+    record.view.engine = snapshot.engine;
     record.view.gallery_progress = snapshot.gallery_progress;
     record.view.collection = snapshot.collection.clone();
     record.view.transfer_progress =
@@ -2661,6 +2841,7 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
     if snapshot.fallback && !model.records[&job].view.events.iter().any(|e| e.kind == "fallback-start") {
         model.event(job, "fallback-start");
     }
+    if engine_changed { model.event(job, &format!("engine-start: {}", snapshot.engine.unwrap().label())); }
 }
 fn persist_preparation(shared: &Shared, history: &[super::preparation::PreparationEvent]) {
     // A separate safe history leaves the historical raw R11 evidence untouched.
@@ -2799,6 +2980,7 @@ fn dispatch(shared: Arc<Shared>) {
             let joined = attempt.owner.join();
             let mut model = lock(&shared.model);
             if joined.is_ok() {
+                model.learn_success(job, &snapshot, &super::preferences::path(&shared.settings_path));
                 model.settled(job, snapshot);
             } else {
                 // Unexpected unwind outside the ownership boundary cannot prove release.
@@ -3052,6 +3234,7 @@ fn dispatch(shared: Arc<Shared>) {
                         observe_preparation(&worker, event);
                     }
                     result.map_err(|error| Failure {
+                        downloader: None,
                         code: "E_RUNTIME".into(),
                         stage: "runtime".into(),
                         reason: error.message,

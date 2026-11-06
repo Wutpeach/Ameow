@@ -7,6 +7,22 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Downloader {
+    #[default]
+    YtDlp,
+    GalleryDl,
+}
+impl Downloader {
+    pub fn other(self) -> Self {
+        match self { Self::YtDlp => Self::GalleryDl, Self::GalleryDl => Self::YtDlp }
+    }
+    pub fn label(self) -> &'static str {
+        match self { Self::YtDlp => "yt-dlp", Self::GalleryDl => "gallery-dl" }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IdentityAttestation {
     pub identity: Identity,
@@ -41,6 +57,7 @@ pub struct ProducedBatch {
 #[derive(Clone, Debug)]
 pub enum AdapterEvent {
     Resolving,
+    Engine(Downloader),
     Fallback,
     Transferring,
     Finalizing,

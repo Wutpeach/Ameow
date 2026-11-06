@@ -72,7 +72,8 @@ impl DownloaderAdapter for GalleryDlAdapter {
             return Err(Failure::new(FailureCode::Runtime, "runtime"));
         }
         let mut phase = Phase::Resolving;
-        run(request, context, &mut phase).map_err(|e| {
+        let mut native_unsupported = false;
+        run(request, context, &mut phase, &mut native_unsupported).map_err(|e| {
             let _ = fs::write(
                 context.workspace().join("adapter-error.log"),
                 e.chars().take(65536).collect::<String>(),
@@ -81,11 +82,36 @@ impl DownloaderAdapter for GalleryDlAdapter {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else if e.starts_with("E_RUNTIME:") {
                 Failure::new(FailureCode::Runtime, "runtime")
+            } else if native_unsupported {
+                Failure::new(FailureCode::UnsupportedUrl, "resolve")
             } else {
-                super::yt_dlp::diagnostics::classify(&phase, &e)
+                classify_gallery_error(&phase, &e)
             }
         })
     }
+}
+fn classify_gallery_error(phase: &Phase, error: &str) -> Failure {
+    let failure = super::yt_dlp::diagnostics::classify(phase, error);
+    if failure.code == "E_UNSUPPORTED_URL" {
+        crate::download::diagnostics::known("E_ENGINE_FAILED", &failure.stage)
+    } else {
+        failure
+    }
+}
+fn native_unsupported_url(
+    outcome: &crate::download::process_supervisor::ProcessOutcome,
+    url: &str,
+) -> bool {
+    if outcome.exit_code != 64
+        || outcome.facts.stdout_truncated
+        || outcome.facts.stderr_truncated
+        || !outcome.stdout.is_empty()
+    {
+        return false;
+    }
+    let line = format!("[gallery-dl][error] Unsupported URL '{url}'");
+    outcome.stderr == format!("{line}\r\n").as_bytes()
+        || outcome.stderr == format!("{line}\n").as_bytes()
 }
 fn common(
     _context: &ExecutionContext<'_>,
@@ -214,7 +240,11 @@ fn generic_extension(meta: &Value) -> Result<String, String> {
 fn generic_name(meta: &Value) -> Result<PathBuf, String> {
     let extension = generic_extension(meta)?;
     // Preserve the native filename spelling; jpg/jpeg remain equivalent in identity checks.
-    let extension = if meta["extension"].as_str() == Some("jpeg") { "jpeg" } else { &extension };
+    let extension = if meta["extension"].as_str() == Some("jpeg") {
+        "jpeg"
+    } else {
+        &extension
+    };
     Ok(PathBuf::from(format!(
         "{}.{}",
         generic_key(meta, "ameow_capture")?,
@@ -334,7 +364,10 @@ fn generic_record_name(
     }
     let media: Value = serde_json::from_slice(line).map_err(|_| "Invalid generic record")?;
     let name = generic_name(&media)?;
-    let original = expected.values().next().filter(|_| expected.len() == 1)
+    let original = expected
+        .values()
+        .next()
+        .filter(|_| expected.len() == 1)
         .ok_or("Unexpected generic record")?;
     if [
         "category",
@@ -490,6 +523,7 @@ fn run(
     request: &ExecutionRequest,
     context: &ExecutionContext<'_>,
     phase: &mut Phase,
+    native_unsupported: &mut bool,
 ) -> Result<ProducedBatch, String> {
     let generic = matches!(request.accepted.object, Object::Generic { .. });
     if generic {
@@ -507,6 +541,8 @@ fn run(
     ]);
     let result = invoke(context, args, "resolve", None)?;
     if result.exit_code != 0 {
+        *native_unsupported =
+            generic && native_unsupported_url(&result, &request.accepted.intent.url);
         return Err(engine_error("resolve", &result));
     }
     if generic && (result.facts.stderr_truncated || !result.stderr.is_empty()) {
@@ -715,7 +751,7 @@ fn run(
     let failure = if context.cancelled() {
         Some(Failure::new(FailureCode::Cancelled, "cleanup"))
     } else if result.exit_code != 0 {
-        Some(super::yt_dlp::diagnostics::classify(
+        Some(classify_gallery_error(
             &Phase::Downloading,
             &engine_error("transfer", &result),
         ))
@@ -734,7 +770,10 @@ fn run(
         artifacts.clear();
     }
     if generic && failure.is_none() {
-        expected_paths = artifacts.iter().map(|artifact| artifact.relative_path.clone()).collect();
+        expected_paths = artifacts
+            .iter()
+            .map(|artifact| artifact.relative_path.clone())
+            .collect();
     }
     context.emit(AdapterEvent::Finalizing);
     Ok(ProducedBatch {
@@ -799,6 +838,44 @@ fn engine_error(
 mod tests {
     use super::*;
     use crate::download::request::{Accepted, DownloadIntent, Quality};
+    #[test]
+    fn only_exact_native_gallery_unsupported_output_allows_fallback() {
+        use crate::download::process_supervisor::{ProcessOutcome, SettlementFacts};
+        let url = "https://example.com/";
+        let mut outcome = ProcessOutcome {
+            exit_code: 64,
+            stdout: vec![],
+            stderr: format!("[gallery-dl][error] Unsupported URL '{url}'\r\n").into_bytes(),
+            facts: SettlementFacts::default(),
+        };
+        assert!(native_unsupported_url(&outcome, url));
+        assert!(!native_unsupported_url(
+            &outcome,
+            "https://example.com/other"
+        ));
+        outcome.exit_code = 1;
+        assert!(!native_unsupported_url(&outcome, url));
+        outcome.exit_code = 64;
+        outcome.stdout.push(b' ');
+        assert!(!native_unsupported_url(&outcome, url));
+        outcome.stdout.clear();
+        outcome.facts.stderr_truncated = true;
+        assert!(!native_unsupported_url(&outcome, url));
+        outcome.facts.stderr_truncated = false;
+        outcome.facts.stdout_truncated = true;
+        assert!(!native_unsupported_url(&outcome, url));
+        outcome.facts.stdout_truncated = false;
+        outcome.stderr.extend_from_slice(b"extra\n");
+        assert!(!native_unsupported_url(&outcome, url));
+        assert_eq!(
+            classify_gallery_error(
+                &Phase::Resolving,
+                "resolve engine exit 1: ERROR: Unsupported URL: https://example.com/"
+            )
+            .code,
+            "E_ENGINE_FAILED"
+        );
+    }
     fn request(url: &str) -> ExecutionRequest {
         let output = std::env::temp_dir();
         ExecutionRequest {
@@ -865,7 +942,10 @@ mod tests {
         };
         assert!(generic_record_name(&line(&after), false, &files).is_ok());
         after["extension"] = json!("jpg");
-        assert_eq!(generic_record_name(&line(&after), false, &files).unwrap(), PathBuf::from("qHhw7lpG.jpg"));
+        assert_eq!(
+            generic_record_name(&line(&after), false, &files).unwrap(),
+            PathBuf::from("qHhw7lpG.jpg")
+        );
         after["extension"] = json!("mp4");
         assert!(generic_record_name(&line(&after), false, &files).is_err());
         after["extension"] = json!("");
@@ -909,7 +989,10 @@ mod tests {
         after["extension"] = json!("jpg");
         assert!(generic_record_name(&line(&after), false, &files).is_ok());
         after["extension"] = json!("jpeg");
-        assert_eq!(generic_record_name(&line(&after), false, &files).unwrap(), PathBuf::from("qHhw7lpG.jpeg"));
+        assert_eq!(
+            generic_record_name(&line(&after), false, &files).unwrap(),
+            PathBuf::from("qHhw7lpG.jpeg")
+        );
         for (key, value) in [
             ("type", json!("video")),
             ("mime_type", json!("image/png")),

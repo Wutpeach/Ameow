@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Failure {
+    #[serde(default)]
+    pub downloader: Option<super::contract::Downloader>,
     pub code: String,
     pub stage: String,
     pub reason: String,
@@ -179,6 +181,7 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
         "unknown"
     };
     Failure {
+        downloader: None,
         code: code.into(),
         stage: stage.into(),
         reason: reason.into(),
@@ -259,7 +262,8 @@ pub fn copy_with_versions(
     }
     for (index, failure) in failures.iter().take(6).enumerate() {
         let safe = known(&failure.code, &failure.stage);
-        if safe.stage == "primary-resolve" { text.push_str("Downloader: yt-dlp\n"); }
+        if let Some(engine) = failure.downloader { text.push_str(&format!("Downloader: {}\n", engine.label())); }
+        else if safe.stage == "primary-resolve" { text.push_str("Downloader: yt-dlp\n"); }
         else if safe.stage.starts_with("fallback-") { text.push_str("Downloader: gallery-dl\n"); }
         text.push_str(&format!(
             "Failure {}: {} [{}]\n{}\nSuggestion: {}\n",

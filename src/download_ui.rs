@@ -192,6 +192,7 @@ impl DownloadUi {
                         // Local review evidence intentionally excludes media URLs and private directories.
                         let jobs: Vec<_> = snapshot.jobs.iter().map(|job| serde_json::json!({
                             "job":job.job_id, "revision":job.revision, "attempt":job.attempt, "phase":job.phase, "accepted_quality":job.accepted.intent.quality,
+                            "preferred_engine":if matches!(&job.accepted.object, ameow_next::download::request::Object::Generic { .. }) { Some(job.accepted.preferred_engine) } else { None }, "engine":job.engine,
                             "slot_owned":job.slot_owned, "resources_released":job.resources_released,
                             "start_order":job.start_order, "terminal_count":job.terminal_count, "events":job.events,
                             "transfer_progress":job.transfer_progress,"gallery_progress":job.gallery_progress,
@@ -3279,6 +3280,7 @@ mod tests {
             })
             .unwrap(),
             identity: None,
+            engine: None,
             title: String::new(),
             message: String::new(),
             failure: None,

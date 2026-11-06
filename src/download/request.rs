@@ -35,6 +35,8 @@ pub enum Object {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Accepted {
+    #[serde(default)]
+    pub preferred_engine: super::contract::Downloader,
     pub intent: DownloadIntent,
     pub object: Object,
 }
@@ -175,7 +177,7 @@ impl Accepted {
         if !intent.output_dir.is_dir() {
             return Err("Output destination must be an existing directory".into());
         }
-        Ok(Self { intent, object })
+        Ok(Self { intent, object, preferred_engine: Default::default() })
     }
 }
 

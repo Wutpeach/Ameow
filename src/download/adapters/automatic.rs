@@ -1,7 +1,7 @@
 use super::{gallery_dl::GalleryDlAdapter, yt_dlp::YtDlpAdapter};
 use crate::download::{
     adapter::{DownloaderAdapter, ExecutionContext},
-    contract::{AdapterEvent, AdapterResult, ExecutionRequest, MediaKind, ProducedBatch},
+    contract::{AdapterEvent, AdapterResult, Downloader, ExecutionRequest, MediaKind, ProducedBatch},
     diagnostics::{Failure, FailureCode},
     process_supervisor::ProcessObservation,
     request::Object,
@@ -36,6 +36,7 @@ fn fallback_allowed(failure: &Failure, admitted: bool, settled: bool, cancelled:
 fn generic_batch(
     request: &ExecutionRequest, context: &ExecutionContext<'_>,
     primary: &dyn DownloaderAdapter, secondary: &dyn DownloaderAdapter,
+    preferred: Downloader,
 ) -> Result<ProducedBatch, Failure> {
     if request.resume.is_some() { return Err(Failure::new(FailureCode::Identity, "admission")); }
     let directory = context.workspace().join("primary");
@@ -63,6 +64,7 @@ fn generic_batch(
         }),
         events: context.events.clone(),
     };
+    context.emit(AdapterEvent::Engine(preferred));
     let result = primary.execute_batch(request, &first);
     preserve_primary(&directory, context.workspace(), primary.evidence_files())
         .map_err(|_| Failure::new(FailureCode::Storage, "resolve"))?;
@@ -77,6 +79,7 @@ fn generic_batch(
             context.emit(AdapterEvent::Fallback);
             if context.cancelled() { return Err(Failure::new(FailureCode::Cancelled, "cleanup")); }
             // Only the second engine may produce results now; it cannot read primary records.
+            context.emit(AdapterEvent::Engine(preferred.other()));
             secondary.execute_batch(request, context)
         }
         Err(failure) => Err(failure),
@@ -122,8 +125,14 @@ impl DownloaderAdapter for AutomaticAdapter {
         context: &ExecutionContext<'_>,
     ) -> Result<ProducedBatch, Failure> {
         if matches!(request.accepted.object, Object::Generic { .. }) {
-            generic_batch(request, context, &self.video, &self.gallery)
+            let preferred = request.accepted.preferred_engine;
+            let (primary, secondary): (&dyn DownloaderAdapter, &dyn DownloaderAdapter) = match preferred {
+                Downloader::YtDlp => (&self.video, &self.gallery),
+                Downloader::GalleryDl => (&self.gallery, &self.video),
+            };
+            generic_batch(request, context, primary, secondary, preferred)
         } else {
+            context.emit(AdapterEvent::Engine(if matches!(request.accepted.object, Object::Gallery { .. }) { Downloader::GalleryDl } else { Downloader::YtDlp }));
             self.select(request).execute_batch(request, context)
         }
     }
@@ -145,6 +154,12 @@ const EVIDENCE: &[(&str, u64)] = &[
     ("primary-transfer-settlement.txt", 65536),
     ("primary-final-object.txt", 4096),
     ("primary-adapter-error.log", 65536),
+    ("primary-gallery-after.jsonl", 8 * 1024 * 1024),
+    ("primary-gallery-skip.jsonl", 8 * 1024 * 1024),
+    ("primary-resolve-command.json", 65536),
+    ("primary-transfer-command.json", 65536),
+    ("primary-resolve-settlement.log", 65536),
+    ("primary-transfer-settlement.log", 65536),
     ("resolved.json", 32 * 1024 * 1024),
     ("media.info.json", 32 * 1024 * 1024),
     ("selection.txt", 32 * 1024 * 1024),
@@ -196,9 +211,9 @@ mod tests {
         }
     }
     fn run_fixture(first: u8, second: u8, refuse_admission: bool) -> (bool, usize, Vec<String>, tempfile::TempDir) {
-        run_fixture_with_cancel(first, second, refuse_admission, false)
+        run_fixture_with_cancel(first, second, refuse_admission, false, Downloader::YtDlp)
     }
-    fn run_fixture_with_cancel(first: u8, second: u8, refuse_admission: bool, cancel_on_fallback: bool) -> (bool, usize, Vec<String>, tempfile::TempDir) {
+    fn run_fixture_with_cancel(first: u8, second: u8, refuse_admission: bool, cancel_on_fallback: bool, preferred: Downloader) -> (bool, usize, Vec<String>, tempfile::TempDir) {
         let root = tempfile::tempdir().unwrap();
         let work = root.path().join("work"); fs::create_dir(&work).unwrap();
         let control = Control::default();
@@ -211,7 +226,7 @@ mod tests {
         let context = ExecutionContext { workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
         let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
         let primary = Fixture::new(first); let secondary = Fixture::new(second);
-        let result = generic_batch(&request, &context, &primary, &secondary);
+        let result = generic_batch(&request, &context, &primary, &secondary, preferred);
         assert_eq!(primary.calls.load(Ordering::Acquire), 1);
         if first==3 || first==4 {
             let batch = result.as_ref().unwrap();
@@ -224,25 +239,27 @@ mod tests {
     #[test]
     fn fallback_is_single_sequential_and_preserves_separate_engine_records() {
         let (ok, calls, events, root) = run_fixture(0, 0, false);
-        assert!(!ok); assert_eq!(calls, 1); assert_eq!(events, ["Fallback"]);
+        assert!(!ok); assert_eq!(calls, 1); assert_eq!(events, ["Engine(YtDlp)", "Fallback", "Engine(GalleryDl)"]);
         assert_eq!(fs::read_to_string(root.path().join("work/primary-resolve-stdout.log")).unwrap(), "engine 0");
         assert!(root.path().join("work/primary/resolve-stdout.log").is_file());
         assert!(root.path().join("work/resolve-stdout.log").is_file());
         let (ok, calls, events, _) = run_fixture(0, 3, false);
-        assert!(ok); assert_eq!(calls, 1); assert_eq!(events, ["Fallback"]);
+        assert!(ok); assert_eq!(calls, 1); assert_eq!(events, ["Engine(YtDlp)", "Fallback", "Engine(GalleryDl)"]);
+        let (ok, calls, events, _) = run_fixture_with_cancel(0, 3, false, false, Downloader::GalleryDl);
+        assert!(ok); assert_eq!(calls, 1); assert_eq!(events, ["Engine(GalleryDl)", "Fallback", "Engine(YtDlp)"]);
     }
     #[test]
     fn cancellation_at_switch_does_not_start_secondary() {
-        let (ok, calls, events, _) = run_fixture_with_cancel(0, 3, false, true);
+        let (ok, calls, events, _) = run_fixture_with_cancel(0, 3, false, true, Downloader::YtDlp);
         assert!(!ok);
         assert_eq!(calls, 0);
-        assert_eq!(events, ["Fallback"]);
+        assert_eq!(events, ["Engine(YtDlp)", "Fallback"]);
     }
     #[test]
     fn success_partial_admission_unsettled_and_cancelled_results_never_switch() {
         for mode in [1,2,3,4,5] {
             let (_, calls, events, _) = run_fixture(mode, 0, false);
-            assert_eq!(calls, 0, "mode {mode}"); assert!(events.is_empty());
+            assert_eq!(calls, 0, "mode {mode}"); assert_eq!(events, ["Engine(YtDlp)"]);
         }
         assert_eq!(run_fixture(1,0,true).1, 0);
     }

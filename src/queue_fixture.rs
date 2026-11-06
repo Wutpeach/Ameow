@@ -40,8 +40,10 @@ pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>)
                 output_dir: PathBuf::new(),
             },
             object: Object::Youtube(format!("{id:011}")),
+            preferred_engine: Default::default(),
         },
         identity: None,
+        engine: None,
         title: format!(
             "{} · 完整视频标题：海边的傍晚与城市散步，原声记录",
             char::from(b'A' + (id.saturating_sub(1) % 26) as u8)

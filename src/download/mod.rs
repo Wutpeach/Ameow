@@ -18,6 +18,7 @@ pub mod runtime_update;
 mod runtime_update_trust;
 mod release_signature;
 pub mod settings;
+pub mod preferences;
 #[cfg(test)]
 mod neutral_tests;
 #[cfg(test)]
@@ -90,6 +91,8 @@ pub struct Snapshot {
     pub transfer_progress: Option<progress::TransferProgress>,
     #[serde(default)]
     pub fallback: bool,
+    #[serde(default)]
+    pub engine: Option<contract::Downloader>,
 }
 impl Default for Snapshot {
     fn default() -> Self {
@@ -114,6 +117,7 @@ impl Default for Snapshot {
             failure: None,
             transfer_progress: None,
             fallback: false,
+            engine: None,
         }
     }
 }
@@ -508,6 +512,14 @@ fn execute(
         });
         let event_state = state.clone();
         let events = Arc::new(move |event| match event {
+            AdapterEvent::Engine(engine) => {
+                let mut state = lock(&event_state);
+                if state.snapshot.job_id == job && state.snapshot.attempt == attempt
+                    && !state.snapshot.phase.terminal() && !state.control.is_cancelled() {
+                    state.snapshot.engine = Some(engine);
+                    state.publish();
+                }
+            }
             AdapterEvent::Resolving => update(&event_state, job, attempt, Phase::Resolving, String::new()),
             AdapterEvent::Fallback => {
                 let mut state = lock(&event_state);
