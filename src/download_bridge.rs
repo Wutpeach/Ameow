@@ -191,7 +191,7 @@ pub fn run() -> Result<(), String> {
         .transpose()
         .map_err(|e| e.to_string())?;
     let coordinator = Arc::new(ameow_next::download::composition::coordinator(runtime));
-    Application::new().run(move |cx: &mut App| {
+    gpui_platform::application().run(move |cx: &mut App| {
         let result = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::new(

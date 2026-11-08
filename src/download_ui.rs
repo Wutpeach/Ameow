@@ -1278,7 +1278,7 @@ impl Prototype {
         let now = self.now();
         // A removed/disabled action can release the last focused handle. Restore the existing
         // root only in that case, so queue return and scene changes keep keyboard navigation live.
-        if window.focused(cx).is_none() { window.focus(&self.focus); }
+        if window.focused(cx).is_none() { window.focus(&self.focus, cx); }
         if self
             .close_requested
             .swap(false, std::sync::atomic::Ordering::AcqRel)
@@ -1405,7 +1405,7 @@ impl Prototype {
         // would replay the hidden startup placement and synthesize global Alt.
         #[cfg(not(target_os = "windows"))]
         window.activate_window();
-        window.focus(&self.focus);
+        window.focus(&self.focus, cx);
         self.model.pointer(true, self.now());
         cx.notify();
     }
@@ -1441,7 +1441,7 @@ impl Prototype {
                 }
                 // WM_CLOSE may be programmatic: never use GPUI's Windows activation
                 // path here, which synthesizes global Alt input before taking foreground.
-                window.focus(&self.focus);
+                window.focus(&self.focus, cx);
                 self.model.pointer(true, now);
                 self.model.locks.menu = true;
                 self.model.locks_changed(now);
@@ -1630,7 +1630,7 @@ impl Prototype {
             .child(div().id("surface-menu-header-drag").h_full().flex_1().flex().items_center()
                 .text_size(px(12.)).text_color(p.neutral).child(if quality_page { language.text("画质", "Quality") } else { "" })
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
-                    this.background_clicks.reset(); window.focus(&this.focus);
+                    this.background_clicks.reset(); window.focus(&this.focus, cx);
                     this.drag = Some((crate::native::Native::cursor(), this.anchor));
                     this.model.locks.drag = true; this.model.locks_changed(this.now());
                     cx.stop_propagation(); cx.notify();
@@ -1943,7 +1943,7 @@ impl Prototype {
                     .h(px(140.))
                     .overflow_y_scroll()
                     .track_scroll(&ui.queue_scroll)
-                    .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                    .on_scroll(cx.listener(|this, _, _, cx| {
                         if let Some(ui) = &mut this.downloads { ui.title_browse = None; }
                         cx.notify();
                     }))

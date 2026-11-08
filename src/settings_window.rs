@@ -216,7 +216,7 @@ impl SettingsWindow {
                 cx.notify();
             }
         });
-        window.focus(&focus);
+        window.focus(&focus, cx);
         let mut this = Self {
             title_language: projection.language,
             main: main.downgrade(),
@@ -396,12 +396,6 @@ impl SettingsWindow {
                     .on_click(
                         cx.listener(move |this, _, _, cx| this.refresh_startup(Some(!on), cx)),
                     )
-                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
-                        if event.keystroke.key == "enter" || event.keystroke.key == "space" {
-                            this.refresh_startup(Some(!on), cx);
-                            cx.stop_propagation();
-                        }
-                    }))
             });
         let row = |label: &'static str, control: AnyElement| {
             div()
@@ -816,7 +810,6 @@ impl SettingsWindow {
     ) -> AnyElement {
         let p = Palette::new(self.projection.night);
         let action = std::rc::Rc::new(action);
-        let key_action = action.clone();
         let quiet = matches!(style, ButtonStyle::Quiet | ButtonStyle::Icon | ButtonStyle::Menu);
         self.focusable_control(id, enabled, cx)
             .flex_none()
@@ -881,12 +874,6 @@ impl SettingsWindow {
                     .when(self.keyboard_focus, |s| {
                         s.focus(move |s| s.border_color(p.blue))
                     })
-                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
-                        if event.keystroke.key == "enter" || event.keystroke.key == "space" {
-                            key_action(this, window, cx);
-                            cx.stop_propagation();
-                        }
-                    }))
                     .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             })
             .into_any_element()
@@ -932,16 +919,6 @@ impl SettingsWindow {
                 .text_color(if selected { p.primary_text() } else { p.neutral }))
             .whitespace_nowrap()
             .child(label)
-            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
-                if event.keystroke.key == "enter" || event.keystroke.key == "space" {
-                    this.page = page;
-                    this.component_menu_open = false;
-                    this.menu = None;
-                    this.scroll.set_offset(point(px(0.), px(0.)));
-                    cx.notify();
-                    cx.stop_propagation();
-                }
-            }))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.page = page;
                 this.component_menu_open = false;
@@ -1235,16 +1212,16 @@ impl Render for SettingsWindow {
                             let backwards = event.keystroke.modifiers.shift;
                             if !backwards && trigger.as_ref().is_some_and(|f| f.is_focused(window))
                                 && this.can_check_upstream() {
-                                if let Some(action) = &action { window.focus(action); }
+                                if let Some(action) = &action { window.focus(action, cx); }
                             } else if backwards && action.as_ref().is_some_and(|f| f.is_focused(window)) {
-                                if let Some(trigger) = &trigger { window.focus(trigger); }
+                                if let Some(trigger) = &trigger { window.focus(trigger, cx); }
                             } else {
                                 this.component_menu_open = false;
-                                if let Some(trigger) = &trigger { window.focus(trigger); }
-                                if backwards { window.focus_prev(); } else { window.focus_next(); }
+                                if let Some(trigger) = &trigger { window.focus(trigger, cx); }
+                                if backwards { window.focus_prev(cx); } else { window.focus_next(cx); }
                                 // The current frame still contains the closing menu's tab stop.
                                 if action.as_ref().is_some_and(|f| f.is_focused(window)) {
-                                    if backwards { window.focus_prev(); } else { window.focus_next(); }
+                                    if backwards { window.focus_prev(cx); } else { window.focus_next(cx); }
                                 }
                             }
                             this.reveal_focus.set(true);
@@ -1255,7 +1232,7 @@ impl Render for SettingsWindow {
                         "escape" => {
                             this.component_menu_open = false;
                             if let Some(focus) = this.control_focus.borrow().get("component-details") {
-                                window.focus(focus);
+                                window.focus(focus, cx);
                             }
                             cx.notify();
                             cx.stop_propagation();
@@ -1263,7 +1240,7 @@ impl Render for SettingsWindow {
                         }
                         "up" | "down" if this.can_check_upstream() => {
                             if let Some(focus) = this.control_focus.borrow().get("check-yt-dlp-release") {
-                                window.focus(focus);
+                                window.focus(focus, cx);
                             }
                             cx.stop_propagation();
                             return;
@@ -1322,9 +1299,9 @@ impl Render for SettingsWindow {
                 } else if event.keystroke.key == "tab" {
                     this.reveal_focus.set(true);
                     if event.keystroke.modifiers.shift {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     } else {
-                        window.focus_next();
+                        window.focus_next(cx);
                     }
                     cx.stop_propagation();
                 }
@@ -1388,7 +1365,7 @@ impl Render for SettingsWindow {
                             .track_focus(&self.focus)
                             .overflow_y_scroll()
                             .track_scroll(&self.scroll)
-                            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                            .on_scroll(cx.listener(|this, _, _, cx| {
                                 if this.component_menu_open {
                                     this.component_menu_open = false;
                                     cx.notify();
@@ -1399,7 +1376,7 @@ impl Render for SettingsWindow {
             )
             .child(div().absolute().right(px(6.)).top(px(36.)).bottom(px(12.)).w(px(3.))
                 .child(canvas(|_, _, _| (), move |bounds, _, window, _| {
-                    let maximum = scroll.max_offset().height;
+                    let maximum = scroll.max_offset().y;
                     if maximum <= px(0.) { return; }
                     let viewport = scroll.bounds().size.height;
                     let thumb = (bounds.size.height * (viewport / (viewport + maximum))).max(px(24.)).min(bounds.size.height);
@@ -1599,7 +1576,7 @@ fn anchor(main: HWND) -> Anchor {
 fn show(handle: WindowHandle<SettingsWindow>, first: Option<Anchor>, cx: &mut App) {
     cx.defer(move |cx| {
         let Ok(target) = handle.update(cx, |view, window, cx| {
-            window.focus(&view.focus);
+            window.focus(&view.focus, cx);
             view.refresh_health(true, cx);
             hwnd(window)
         }) else {

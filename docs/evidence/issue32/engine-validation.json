@@ -1,0 +1,395 @@
+{
+  "base": "4d57d3a70889b739cada6efc2040a1f91b6ef67e",
+  "toolchain": "1.98.1-x86_64-pc-windows-msvc",
+  "packages": [
+    {
+      "name": "gpui-base",
+      "version": "0.9.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-apple",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-collections",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-derive-refineable",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-http-client",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-ios",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-linux",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-macos",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-macros",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-platform",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-refineable",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-scheduler",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-shared-string",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-sum-tree",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-util",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-web",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-wgpu",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-windows",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-ztracing",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "gpui-pre-ztracing-macro",
+      "version": "0.3.11",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+  ],
+  "native": {
+    "debug": {
+      "exe": "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+      "exe_sha256": "d6a8ca245420afd37069730925ef6f1236346d0de670fbbd649fd8789eb405e4",
+      "source_head": "4d57d3a70889b739cada6efc2040a1f91b6ef67e",
+      "checks": [
+        {
+          "name": "first show leaves foreground unchanged",
+          "passed": true,
+          "observed": {
+            "before": 201636,
+            "after": 201636,
+            "main": 24253232
+          }
+        },
+        {
+          "name": "floating HWND retains popup and natural TOPMOST",
+          "passed": true,
+          "observed": {
+            "style": 2483027968,
+            "exstyle": 2097288
+          }
+        },
+        {
+          "name": "Compact to Full changes native bounds",
+          "passed": true,
+          "observed": {
+            "compact": [
+              504,
+              304,
+              584,
+              384
+            ],
+            "full": [
+              500,
+              300,
+              728,
+              528
+            ]
+          }
+        },
+        {
+          "name": "Full to Compact restores native size",
+          "passed": true,
+          "observed": [
+            504,
+            304,
+            584,
+            384
+          ]
+        },
+        {
+          "name": "settings titlebar supports real mouse drag",
+          "passed": true,
+          "observed": {
+            "before": [
+              600,
+              304,
+              1180,
+              744
+            ],
+            "after": [
+              680,
+              344,
+              1260,
+              784
+            ]
+          }
+        },
+        {
+          "name": "Escape dismisses select without closing settings",
+          "passed": true,
+          "observed": {
+            "Ameow · 设置": 85725198,
+            "Ameow": 24253232
+          }
+        },
+        {
+          "name": "one Enter visibly opens theme options",
+          "passed": true,
+          "observed": {
+            "changed_menu_pixels": 4998
+          }
+        },
+        {
+          "name": "one Space visibly opens theme options",
+          "passed": true,
+          "observed": {
+            "changed_menu_pixels": 4998
+          }
+        },
+        {
+          "name": "Escape closes settings after popup dismissal",
+          "passed": true,
+          "observed": {
+            "Ameow": 24253232
+          }
+        },
+        {
+          "name": "closing settings keeps main alive",
+          "passed": true,
+          "observed": {
+            "Ameow": 24253232
+          }
+        },
+        {
+          "name": "tray popup Escape closes only owned popup",
+          "passed": true,
+          "observed": {
+            "Ameow": 24253232
+          }
+        },
+        {
+          "name": "preview quit settles process cleanly",
+          "passed": true,
+          "observed": 0
+        }
+      ],
+      "limits": "Preview fixtures; one actual desktop DPI. No network, persisted settings, system tray or update/restart claim.",
+      "pid": 8684,
+      "command": [
+        "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+        "--preview",
+        "--preview-scene",
+        "compact.idle",
+        "--preview-control",
+        "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\ameow-kit-native-72uw570b\\control.json",
+        "--reduced",
+        "--hover",
+        "off",
+        "--measure",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\engine-debug-final\\frames.jsonl",
+        "--exit-after-ms",
+        "60000"
+      ],
+      "dpi": 96
+    },
+    "release": {
+      "exe": "D:\\Ameow-gpui-kit\\target\\release\\ameow.exe",
+      "exe_sha256": "be0356d0317209b6d5c85453198affaf0b5c1e9e66cf81270091a877ee7c1713",
+      "source_head": "4d57d3a70889b739cada6efc2040a1f91b6ef67e",
+      "checks": [
+        {
+          "name": "first show leaves foreground unchanged",
+          "passed": true,
+          "observed": {
+            "before": 201636,
+            "after": 201636,
+            "main": 2299674
+          }
+        },
+        {
+          "name": "floating HWND retains popup and natural TOPMOST",
+          "passed": true,
+          "observed": {
+            "style": 2483027968,
+            "exstyle": 2097288
+          }
+        },
+        {
+          "name": "Compact to Full changes native bounds",
+          "passed": true,
+          "observed": {
+            "compact": [
+              504,
+              304,
+              584,
+              384
+            ],
+            "full": [
+              500,
+              300,
+              728,
+              528
+            ]
+          }
+        },
+        {
+          "name": "Full to Compact restores native size",
+          "passed": true,
+          "observed": [
+            504,
+            304,
+            584,
+            384
+          ]
+        },
+        {
+          "name": "settings titlebar supports real mouse drag",
+          "passed": true,
+          "observed": {
+            "before": [
+              600,
+              304,
+              1180,
+              744
+            ],
+            "after": [
+              680,
+              344,
+              1260,
+              784
+            ]
+          }
+        },
+        {
+          "name": "Escape dismisses select without closing settings",
+          "passed": true,
+          "observed": {
+            "Ameow · 设置": 24187138,
+            "Ameow": 2299674
+          }
+        },
+        {
+          "name": "one Enter visibly opens theme options",
+          "passed": true,
+          "observed": {
+            "changed_menu_pixels": 4998
+          }
+        },
+        {
+          "name": "one Space visibly opens theme options",
+          "passed": true,
+          "observed": {
+            "changed_menu_pixels": 4998
+          }
+        },
+        {
+          "name": "Escape closes settings after popup dismissal",
+          "passed": true,
+          "observed": {
+            "Ameow": 2299674
+          }
+        },
+        {
+          "name": "closing settings keeps main alive",
+          "passed": true,
+          "observed": {
+            "Ameow": 2299674
+          }
+        },
+        {
+          "name": "tray popup Escape closes only owned popup",
+          "passed": true,
+          "observed": {
+            "Ameow": 2299674
+          }
+        },
+        {
+          "name": "preview quit settles process cleanly",
+          "passed": true,
+          "observed": 0
+        }
+      ],
+      "limits": "Preview fixtures; one actual desktop DPI. No network, persisted settings, system tray or update/restart claim.",
+      "pid": 9036,
+      "command": [
+        "D:\\Ameow-gpui-kit\\target\\release\\ameow.exe",
+        "--preview",
+        "--preview-scene",
+        "compact.idle",
+        "--preview-control",
+        "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\ameow-kit-native-7132w8vc\\control.json",
+        "--reduced",
+        "--hover",
+        "off",
+        "--measure",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\engine-release-final\\frames.jsonl",
+        "--exit-after-ms",
+        "60000"
+      ],
+      "dpi": 96
+    }
+  },
+  "automated_tests": {
+    "passed": 323,
+    "ignored": 18
+  },
+  "native_font_test": "PASS",
+  "limits": [
+    "one 96 DPI desktop",
+    "No system tray, persisted settings, live downloads or updater regression yet",
+    "No GPU presentation or multi-monitor measurement"
+  ]
+}

@@ -239,7 +239,7 @@ struct Prototype {
 impl Prototype {
     fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
-        window.focus(&focus);
+        window.focus(&focus, cx);
         let menu_activation = cx.observe_window_activation(window, |this, window, cx| {
             if this.preview.is_none() && !window.is_window_active() && this.surface_menu.is_open() {
                 this.close_menu(cx);
@@ -829,7 +829,7 @@ impl Render for Prototype {
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
                     if this.surface_menu.is_open() { cx.stop_propagation(); return; }
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     if this.model.locks.menu {
                         this.close_menu(cx);
                         return;
@@ -850,7 +850,7 @@ impl Render for Prototype {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|this, _, window, cx| {
-                    window.focus(&this.focus);
+                    window.focus(&this.focus, cx);
                     if this.downloads.is_some() {this.show_context_menu(cx);} else {
                         this.model.locks.menu = !this.model.locks.menu;
                         this.model.locks_changed(this.now());cx.notify();
@@ -886,7 +886,7 @@ impl Render for Prototype {
                         .hover(move |s| {
                             s.bg(p.red)
                                 .text_color(gpui::white())
-                                .shadow(vec![BoxShadow {
+                                .shadow(vec![BoxShadow { inset: false,
                                     color: p.red.opacity(0.3),
                                     offset: point(px(0.), px(2.4)),
                                     blur_radius: px(4.8),
@@ -969,10 +969,10 @@ impl Render for Prototype {
                     ),
                     size(px(shadow_surface), px(shadow_surface)),
                 );
-                window.paint_shadows(
+                window.paint_drop_shadows(
                     bounds,
                     Corners::all(px(g.radius)),
-                    &[BoxShadow {
+                    &[BoxShadow { inset: false,
                         color: gpui::black().opacity(shadow_alpha),
                         offset: point(px(0.), px(shadow_offset)),
                         blur_radius: px(shadow_blur),
@@ -1026,8 +1026,8 @@ impl Render for Prototype {
                 } else if event.keystroke.key == "tab"
                     && this.downloads.as_ref().is_some_and(|ui| ui.queue_open)
                 {
-                    if event.keystroke.modifiers.shift { window.focus_prev(); }
-                    else { window.focus_next(); }
+                    if event.keystroke.modifiers.shift { window.focus_prev(cx); }
+                    else { window.focus_next(cx); }
                     cx.stop_propagation();
                     cx.notify();
                 } else if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
@@ -1167,7 +1167,7 @@ fn main() {
         }
     }
     let login_startup = options.login_startup;
-    Application::new()
+    gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
             cx.text_system()

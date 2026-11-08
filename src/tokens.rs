@@ -145,7 +145,7 @@ mod tests {
                 div()
             }
         }
-        Application::new().run(|cx| {
+        gpui_platform::application().run(|cx| {
             cx.text_system()
                 .add_fonts(LATIN_FONT_BYTES.into_iter().map(Cow::Borrowed).collect())
                 .unwrap();

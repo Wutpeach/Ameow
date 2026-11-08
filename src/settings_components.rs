@@ -328,7 +328,7 @@ impl SettingsWindow {
         let mut menu = div().id("component-version-menu").w(px(272.)).max_h(px(320.))
             .overflow_y_scroll().rounded(px(8.)).bg(p.surface)
             .border_1().border_color(p.control_border())
-            .shadow(vec![BoxShadow { color: black().opacity(if p.night { 0.24 } else { 0.10 }),
+            .shadow(vec![BoxShadow { inset: false, color: black().opacity(if p.night { 0.24 } else { 0.10 }),
                 offset: point(px(0.), px(4.)), blur_radius: px(12.), spread_radius: px(0.) }])
             .occlude().flex().flex_col()
             .on_click(|_, _, cx| cx.stop_propagation())
@@ -336,7 +336,7 @@ impl SettingsWindow {
                 this.component_menu_open = false;
                 cx.notify();
             }))
-            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+            .on_scroll(|_, _, cx| cx.stop_propagation())
             .child(fields)
             .child(div().border_t_1().border_color(p.border).p(px(4.))
                 .child(self.button("check-yt-dlp-release",
@@ -476,7 +476,7 @@ impl SettingsWindow {
             })
             .unwrap_or(false);
         self.upstream_feedback = Some((std::time::Instant::now(), accepted));
-        window.focus(if self.component_menu_open { &self.component_menu_focus } else { &self.focus });
+        window.focus(if self.component_menu_open { &self.component_menu_focus } else { &self.focus }, cx);
         cx.notify();
     }
     pub(super) fn components_page(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -508,7 +508,7 @@ impl SettingsWindow {
                     true, ButtonStyle::Quiet, cx, move |this, window, cx| {
                         this.component_menu_open = !was_open;
                         if let Some(focus) = this.control_focus.borrow().get("component-details") {
-                            window.focus(focus);
+                            window.focus(focus, cx);
                         }
                         cx.notify();
                     });
@@ -516,7 +516,7 @@ impl SettingsWindow {
                     .child(trigger);
                 if self.component_menu_open {
                     anchor = anchor.child(div().absolute().right_0().top(px(36.))
-                        .child(deferred(anchored().anchor(Corner::TopRight)
+                        .child(deferred(anchored().anchor(gpui::Anchor::TopRight)
                             .child(self.component_version_menu(cx)))));
                 }
                 anchor.into_any_element()

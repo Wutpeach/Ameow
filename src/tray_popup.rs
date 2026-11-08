@@ -262,7 +262,7 @@ impl TrayPopup {
             }
         });
         let focus = cx.focus_handle();
-        window.focus(&focus);
+        window.focus(&focus, cx);
         Self {
             projection,
             actions,
@@ -349,7 +349,7 @@ impl Render for TrayPopup {
             .rounded(px(12.))
             .border_1()
             .border_color(p.border.opacity(0.65))
-            .shadow(vec![BoxShadow {
+            .shadow(vec![BoxShadow { inset: false,
                 color: gpui::black().opacity(if p.night { 0.20 } else { 0.10 }),
                 offset: point(px(0.), px(1.)),
                 blur_radius: px(8.),
@@ -561,8 +561,8 @@ impl Prototype {
             }
             self.tray_popup = Some(handle);
             cx.defer(move |cx| {
-                let Ok(hwnd) = handle.update(cx, |view, window, _| {
-                    window.focus(&view.focus);
+                let Ok(hwnd) = handle.update(cx, |view, window, cx| {
+                    window.focus(&view.focus, cx);
                     let RawWindowHandle::Win32(raw) = HasWindowHandle::window_handle(window)
                         .expect("tray popup HWND")
                         .as_raw()
