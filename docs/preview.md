@@ -1,49 +1,78 @@
-# Ameow 原生场景预览
+# Ameow Gallery 与原生场景预览
 
-在 Windows 仓库根目录编译一次开发程序，然后启动终端预览：
+在 Windows 仓库根目录增量编译当前开发程序，然后打开原生 Gallery：
 
-```powershell
-cargo build --bin ameow
-./scripts/preview.ps1
-```
+    cargo build --locked --bin ameow
+    ./target/debug/ameow.exe --gallery
 
-也可将 `scripts/start-preview.bat` 复制到桌面双击启动；它会在 Windows Terminal 中打开同一个预览菜单。退出菜单后保留 PowerShell 窗口，便于查看报错，关闭窗口即可。脚本固定指向 `D:\Ameow`；仓库搬家后修改 BAT 中的 `AMEOW_ROOT`。
+左侧按界面分类，中间选择状态，右侧切换浅色/深色、截取当前真实窗口。
+所有按钮支持 Tab、Shift+Tab、Enter、Space；Gallery 的 Root 负责焦点遍历，
+产品设置窗口继续保留原有焦点链。场景通过独立 Preview EXE 呈现，截图后可在
+Gallery 内查看结果；预览窗口本身可用于定向交互检查。关闭 Gallery 只结束它
+拥有的预览和截图进程。
 
-终端先显示界面分类：折叠主界面、展开主界面、下载队列、设置、组件管理、诊断、托盘弹窗、右键菜单、退出确认。鼠标悬停高亮，单击即可进入分类或切换状态；也可用 ↑ / ↓ 选择、Enter 确认。切换后留在当前分类，可继续选择其他状态。顶部有可单击的“返回”“退出”按钮；分类首页的“返回”不可用。Esc 或 b 返回分类，q 或 Ctrl+C 退出，h 查看帮助。进入或返回分类只浏览目录，当前预览保持不变。双击按首次单击处理，不会连续进入两层目录。
+**真实窗口验证会占用桌面。局部修改只检查受影响场景，复用已有开发 EXE 与证据。**
+“全部截图”会连续切换整个目录和双主题，当前 94 场景约 188 张图，约需 3–5 分钟；
+只在桌面空闲且确有里程碑验证需要时使用，不在每次修改后自动执行。
+指定 --gallery-output <目录> 可选择本轮截图根目录；默认使用仓库 evidence/
+下带时间戳的新目录。截图依赖现有 Python/Pillow；普通原生场景浏览不需要 Python。
 
-顶部保留操作提示、当前预览和最近结果；较长目录按窗口大小分页。← / →、PageUp / PageDown 或鼠标滚轮直接翻页；Home / End 定位首尾状态。正常交互终端没有数字输入框，刷新当前画面，退出后恢复原终端画面和输入设置。
+## 定向检查和批量 CLI
 
-重定向输入或输出时保留普通文本命令：分类/状态编号或完整名称加回车选择，n / p 翻页，b 返回，help 帮助，q 退出。命名直达使用下面的 -Scene 参数；-List 输出完整平铺目录，其编号仅用于目录索引。
+gallery.py 从指定 EXE 导出它实际编译的目录，不读取一份可能比 EXE 更新的源码目录：
 
-切换复用同一个进程；每次启动脚本都有自己的临时目录和进程，退出只关闭本轮实例。
+    python scripts/gallery.py --list
+    python scripts/gallery.py --scene diagnostics.copy-failed
+    python scripts/gallery.py --scene settings.theme-menu --theme dark --capture evidence/theme-dark.png
+    python scripts/gallery.py --exe target/release/ameow.exe --scene tray.mixed
 
-Agent 可直接打开场景，或捕获真实窗口 PNG 后自动退出：
+不带 --capture 的命名直达会保持窗口，直到关闭窗口或 Ctrl+C；截图模式完成后自动
+退出。每次打开都有独立临时目录、PID、单调 step、scene/night ACK。截图保存 PNG 和
+同名 JSON，已有任一文件时拒绝覆盖。ACK 只确认状态已接受；截图默认 reduced motion，
+另等待显式 settle 间隔。Windows 合成画面暂时为空时仅做两秒内有时限的重试，持续空白
+会失败，不把空白资产记为通过。这不是 GPU 呈现完成栅栏或动画帧节奏验收。
 
-```powershell
-./scripts/preview.ps1 -Scene diagnostics.copy-failed
-./scripts/preview.ps1 -Scene components.recovery-required -Capture target/recovery.png
-./scripts/preview.ps1 -List
-./scripts/preview.ps1 -Exe target/debug/ameow.exe -Scene tray.mixed
-```
+需要整个目录的总览时，在可占用桌面的时间集中运行一次：
 
-不带 -Capture 的命名直达会保持窗口，直到窗口关闭或 Ctrl+C；带 -Capture 时写 PNG 与同名 JSON，并自动结束本轮进程。PNG 路径必须是新路径，防止覆盖已有证据。截图复用 scripts/repair_a_runtime.py 的 Windows BitBlt 区域截图，需要 Python 和 Pillow、可见且未被遮挡的桌面窗口。
+    python scripts/gallery.py --all --theme both --settle 0.8 --output evidence/gallery-final
 
-底层仍可运行 ameow.exe --preview，默认显示 queue.mixed；--preview-scene 接受同一份目录中的名称。--preview-control 是脚本使用的本轮控制文件，不需要向 GUI 发送数字键。原有生产键盘交互保持原逻辑；旧队列控制 Fixture 保留给历史定向验证。
+输出目录必须不存在。index.html 直接链接原尺寸图片，各界面/主题另有最多八图的分组
+Contact Sheet；manifest.json 持续记录已完成资产，只有全部完成才写 complete: true。
+发生错误或取消时保留已完成资产和 complete: false，不把部分批次称为完整通过。
+浏览器总览只读本地图片，不重画产品 UI，也不运行任何反馈/标注服务。
 
-## 场景与维护
+截图沿用 preview_capture.py / repair_a_runtime.py 的原生 HWND + BitBlt 链，保留 PID、
+scene、theme、step、HWND、边界、实际 DPI、EXE SHA-256、时间和回执。源码 HEAD 是
+截图时的 checkout HEAD，EXE 的身份以 SHA-256 为准，不能把当前源码 HEAD 当作编译时
+提交。新 Gallery 截图会临时将本轮目标呈现到中性背景上方，之后恢复原 TOPMOST 标志；
+JSON 明确标注此行为，所以它不能证明自然置顶。自然置顶/不抢焦点用专门原生检查。
 
-scripts/preview-scenes.json 是名称、分组和说明的唯一目录，编译进程序；终端读取当前 EXE 导出的目录，因此旧程序不会静默显示源码新增的场景。目录更新后重新编译即可，无需同步一份终端菜单。
+## 目录和维护
 
-首批共 84 个场景，逐项截图与覆盖清单见 [#20 验证记录](evidence/issue20/README.md)。覆盖 Compact、Full、队列、常规与下载设置、组件、诊断、托盘弹窗、Full 菜单和退出确认。组件更新、诊断复制、设置保存等难触发状态直接注入现有呈现字段，不另画演示 UI。瞬时反馈保持到切换场景；队列真实生产时限仍由原有策略决定。
+scripts/preview-scenes.json 是名称、分类和说明的唯一目录，编译进程序。
+当前基线有 94 场景/9 类：Compact 11、Full 12、队列 26、设置 18、组件管理 13、
+诊断 5、托盘 7、菜单 1、退出确认 1；以指定 EXE 导出的实际目录为准。
+新增场景后重新编译即可，不维护另一份 Gallery 场景表。
 
-添加场景时，在目录填写稳定名称、surface、state、说明，并在现有的局部注入位置映射真实状态：src/preview.rs 负责队列/主界面，settings_window.rs 负责设置与组件，tray_popup.rs 负责托盘摘要。新增前核对产品确有该状态；不要只添加名称却让未知 state 落回空闲。同步更新最低必要的行为测试，并实际打开受影响原生窗口。
+src/preview.rs 负责队列/主界面，settings_window.rs 负责设置和组件，
+tray_popup.rs 负责托盘摘要。复用真实渲染与局部状态注入；不要再画一套 Demo。
+切换时清除上一场景的环/进度连续性，防止空状态残留旧 Job。
+主题切换同时改变预览呈现和合成设置值；预览不把主题写入用户设置。
 
-## 隔离和证据限制
+## 隔离和验证边界
 
-预览不创建生产协调器、运行时、设置存储或系统托盘图标，不取得生产单实例锁，也不响应真实实例的恢复请求。命令边界拒绝真实下载、重试、组件更新和设置持久化；目录选择、启动项、Explorer、剪贴板和外链入口在预览中不执行。设置与托盘使用真实 GPUI 组件，版本、目录、异常和成功反馈均为合成值；按钮允许观察现有交互外观，预览不模拟完整业务流程。
+预览不创建生产协调器、运行时、设置存储或系统托盘，不取得生产单实例锁；不执行真实
+下载、重试、组件更新、持久化、启动项、Explorer、剪贴板或外链操作。
+目录、版本和错误反馈是合成值，采用真实产品布局和 Kit Base 控件绘制。
+Compact 本来隐藏状态详情和 Badge，多个折叠场景外观相同是产品行为。
 
-Compact 的当前生产渲染隐藏状态详情和 Badge，所以不同底层状态可能呈现相同折叠圆形。对应 Full 场景展示环、进度、文案和 Badge；这不是预览漏画。保存成功也沿用产品现状，只展示确认后的值，不新增成功提示。
+Gallery 不替代实际设置 ACK/持久化、系统通知区域、更新/重启、拖动、焦点/自然置顶、
+下载/OLE drop/native picker 或其他 DPI/跨屏验收。单屏 96 DPI 的证据不升级为全 DPI PASS。
 
-本轮没有做主题、语言、DPI 和任务数量的全排列；没有逐项模拟所有组件下载/验证阶段、HTTP 错误类型、检查冷却/超时、任意连续交互流程或所有 native picker 失败。它们复用已覆盖的呈现分支，或属于真实系统操作验收；后续 UI 开发按需局部补充。托盘弹窗使用主屏合成定位，不代表 Windows 通知区域或混合 DPI 的行为已验收。
+scripts/test_gallery.py 定向验证双实例隔离、错误回执、空场景重置、截图身份、防覆盖、
+总览链接和退出清理；scripts/test_gpui_migration.py 验证引擎/控件的原生键鼠窗口行为。
+两者都会打开真实窗口，只在受影响行为需要复验且桌面可用时执行。
 
-截图 JSON 保存场景、PID/HWND、窗口标题/边界/DPI、EXE SHA-256、源码 HEAD 与 dirty 标识、时间和控制回执。回执确认应用已接受场景；截图另等待渲染完成并定位本轮 PID 的目标窗口。它能证明真实 GPUI 绘制了模拟状态，不能证明真实下载、组件更新、设置持久化、系统剪贴板或托盘行为成功。
+旧 preview.ps1 / preview-menu.ps1 / preview-console.cs / start-preview.bat 目前保留，
+等待 Gallery 的完整职责对照和界面验收后统一移除。不要提前删除原生截图与定向验证能力。
+旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录](evidence/issue20/README.md) 回溯。

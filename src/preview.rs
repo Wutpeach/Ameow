@@ -12,14 +12,14 @@ pub fn find(name: &str) -> Result<Scene, String> {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Request { step: u64, scene: Option<String>, #[serde(default)] quit: bool }
+struct Request { step: u64, scene: Option<String>, night: Option<bool>, #[serde(default)] quit: bool }
 pub enum Change { Scene(Scene), Quit }
 pub struct Session {
-    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool,
+    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool, night: Option<bool>,
 }
 impl Session {
     pub fn new(control: Option<PathBuf>, name: &str) -> Result<Self, String> {
-        Ok(Self { control, scene: find(name)?, step: None, initial: true })
+        Ok(Self { control, scene: find(name)?, step: None, initial: true, night: None })
     }
     pub fn scene(&self) -> &Scene { &self.scene }
     pub fn poll(&mut self) -> Option<Change> {
@@ -38,14 +38,14 @@ impl Session {
         self.step = Some(request.step);
         if request.quit { return Some(Change::Quit); }
         match request.scene.as_deref().map(find) {
-            Some(Ok(scene)) => { self.scene = scene.clone(); Some(Change::Scene(scene)) }
+            Some(Ok(scene)) => { self.scene = scene.clone(); self.night = request.night; Some(Change::Scene(scene)) }
             Some(Err(error)) => { self.ack(Some(&error)); None }
             None => { self.ack(Some("预览请求缺少 scene")); None }
         }
     }
     pub fn ack(&self, error: Option<&str>) {
         if let Some(path) = &self.control {
-            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
+            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"night":self.night,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
             if let Err(error) = fs::write(path.with_extension("ack.json"), value.to_string()) { eprintln!("无法写入预览回执：{error}"); }
         }
     }
@@ -113,10 +113,27 @@ impl crate::Prototype {
         match change {
             Some(Change::Quit) => { if let Some(p) = &self.preview { p.ack(None); } cx.quit(); return; }
             Some(Change::Scene(scene)) => {
+                // A fresh scene has no presentation continuity with the last job.
+                // set_preview_scene clears selected_job, so an empty next snapshot
+                // cannot otherwise retire the previous scene's painted indicator.
+                let now = self.now();
+                self.model.state(crate::model::Stage::Idle, 0., now);
+                self.model.previous = crate::model::Stage::Idle;
+                self.model.previous_progress = 0.;
+                self.model.progress = crate::model::Progress::new(0., now);
+                self.indicator = Default::default();
+                if let Some(night) = self.preview.as_ref().and_then(|p| p.night) { self.night = night; }
                 if let Some(handle) = self.settings_window.take() { let _ = handle.update(cx, |_, w, _| w.remove_window()); }
                 self.close_tray_popup(cx);
                 self.surface_menu.close(self.now());
-                if let Some(ui) = &mut self.downloads { ui.set_preview_scene(&scene); }
+                if let Some(ui) = &mut self.downloads {
+                    ui.set_preview_scene(&scene);
+                    if let Some(snapshot) = &mut ui.snapshot {
+                        std::sync::Arc::make_mut(snapshot).settings.theme = if self.night {
+                            ameow_next::download::settings::ThemePreference::Dark
+                        } else { ameow_next::download::settings::ThemePreference::Light };
+                    }
+                }
                 self.model.locks.menu = scene.surface != "compact";
                 if scene.surface == "compact" { self.model.request_compact(self.now()); }
                 else { self.model.set_target(true, self.now()); }
@@ -165,10 +182,12 @@ mod tests {
     fn requests_switch_reject_and_quit_without_touching_another_session() {
         let root = tempfile::tempdir().unwrap(); let path = root.path().join("control.json");
         let mut p = Session::new(Some(path.clone()), "queue.mixed").unwrap(); p.poll();
-        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed"}"#).unwrap();
+        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed","night":true}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Scene(_)))); p.ack(None);
+        assert_eq!(p.night, Some(true));
         fs::write(&path, r#"{"step":2,"scene":"unknown"}"#).unwrap();
         assert!(p.poll().is_none()); assert_eq!(p.scene().name, "diagnostics.copy-failed");
+        assert_eq!(p.night, Some(true));
         let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
         assert!(ack["error"].as_str().unwrap().contains("unknown"));
         assert!(p.poll().is_none());

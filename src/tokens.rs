@@ -13,6 +13,12 @@ pub const CHINESE_FONT: &str = if cfg!(target_os = "macos") {
 } else {
     "Microsoft YaHei UI"
 };
+pub const DESKTOP_FONT: &str = if cfg!(target_os = "windows") { "Segoe UI" } else { "Helvetica Neue" };
+pub const CONTROL_HEIGHT: f32 = 32.;
+pub const SELECT_HEIGHT: f32 = 28.;
+pub const CONTROL_RADIUS: f32 = 6.;
+pub const CONTROL_FONT_SIZE: f32 = 13.;
+pub const CONTROL_LINE_HEIGHT: f32 = 20.;
 
 pub fn ui_font() -> Font {
     let mut font = font(LATIN_FONT);
@@ -22,9 +28,76 @@ pub fn ui_font() -> Font {
 
 // Settings and tray use native UI text; the floating surface retains its measured font.
 pub fn desktop_ui_font() -> Font {
-    let mut font = font(if cfg!(target_os = "windows") { "Segoe UI" } else { "Helvetica Neue" });
+    let mut font = font(DESKTOP_FONT);
     font.fallbacks = Some(FontFallbacks::from_fonts(vec![CHINESE_FONT.into()]));
     font
+}
+
+/// Project the measured Ameow palette into Kit; component defaults are not a
+/// second visual authority. The caller supplies the acknowledged effective theme.
+pub fn kit_tokens(night: bool) -> gpui_base::SemanticThemeTokens {
+    use gpui::px;
+    let p = Palette::new(night);
+    let mut t = gpui_base::SemanticThemeTokens::default();
+    let c = &mut t.colors;
+    c.background = p.surface;
+    c.foreground = p.primary_text();
+    c.surface = p.surface;
+    c.surface_foreground = p.primary_text();
+    c.primary = p.blue;
+    c.primary_foreground = gpui::white();
+    c.secondary = p.badge;
+    c.secondary_foreground = p.primary_text();
+    c.muted = p.badge;
+    c.muted_foreground = p.neutral;
+    c.accent = p.badge;
+    c.accent_foreground = p.primary_text();
+    c.destructive = p.red;
+    c.destructive_foreground = gpui::white();
+    c.border = p.border;
+    c.input = p.control_border();
+    c.ring = p.blue;
+    c.selection = p.blue.opacity(0.2);
+    t.radius.none = px(0.);
+    t.radius.sm = px(4.);
+    t.radius.md = px(CONTROL_RADIUS);
+    t.radius.lg = px(12.);
+    t.radius.xl = px(16.);
+    t.radius.full = px(9999.);
+    t.spacing.xxs = px(2.);
+    t.spacing.xs = px(4.);
+    t.spacing.sm = px(8.);
+    t.spacing.md = px(12.);
+    t.spacing.lg = px(16.);
+    t.spacing.xl = px(24.);
+    t.spacing.xxl = px(32.);
+    t.typography.sans = DESKTOP_FONT.into();
+    t.typography.mono = LATIN_FONT.into();
+    for (style, size, line) in [
+        (&mut t.typography.xs, 12., 18.),
+        (&mut t.typography.sm, CONTROL_FONT_SIZE, CONTROL_LINE_HEIGHT),
+        (&mut t.typography.md, CONTROL_FONT_SIZE, CONTROL_LINE_HEIGHT),
+        (&mut t.typography.lg, 18., 24.),
+        (&mut t.typography.xl, 20., 28.),
+        (&mut t.typography.mono_md, 13., 20.),
+    ] {
+        style.size = px(size); style.line_height = px(line);
+        style.weight = gpui::FontWeight::NORMAL;
+    }
+    // Base adds no elevation; the existing surface/menu painters own shadows.
+    t.shadow = Default::default();
+    t
+}
+
+pub fn sync_kit_theme(night: bool, cx: &mut gpui::App) {
+    use gpui_base::{Theme, ThemeAppearance};
+    let appearance = if night { ThemeAppearance::Dark } else { ThemeAppearance::Light };
+    if cx.try_global::<Theme>().is_some_and(|t| t.appearance == appearance
+        && t.tokens.colors.primary == Palette::new(night).blue
+        && t.tokens.typography.sans.as_ref() == DESKTOP_FONT) { return; }
+    let theme = Theme::global_mut(cx);
+    theme.appearance = appearance;
+    theme.tokens = kit_tokens(night);
 }
 
 // Penpot's ring duplicates use 30% opacity and Gaussian blur 4px (failure: 10px).
@@ -122,6 +195,23 @@ impl Palette {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn kit_theme_preserves_measured_roles_and_control_geometry() {
+        for night in [false, true] {
+            let t = kit_tokens(night);
+            let p = Palette::new(night);
+            assert_eq!(t.colors.surface, p.surface);
+            assert_eq!(t.colors.ring, p.blue);
+            assert_eq!(t.colors.destructive, p.red);
+            assert_ne!(t.colors.foreground, t.colors.surface);
+            assert_eq!(t.typography.sans.as_ref(), DESKTOP_FONT);
+            assert_eq!(t.typography.mono.as_ref(), LATIN_FONT);
+            assert_eq!(t.typography.sm.size, gpui::px(13.));
+            assert_eq!(t.radius.md, gpui::px(6.));
+            assert!(t.shadow.md.is_empty());
+        }
+        assert_ne!(kit_tokens(false).colors.surface, kit_tokens(true).colors.surface);
+    }
     #[test]
     fn downloading_retains_original_theme_blue() {
         let light = Palette::new(false);

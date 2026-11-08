@@ -779,13 +779,13 @@ impl SettingsWindow {
         })
         .detach();
     }
-    fn focusable_control(&self, id: &'static str, enabled: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn control_container(&self, id: &'static str, enabled: bool, cx: &mut Context<Self>) -> (Div, FocusHandle) {
         let focus = self.control_focus.borrow_mut().entry(id)
             .or_insert_with(|| cx.focus_handle().tab_index(0).tab_stop(true)).clone();
         let tracked = focus.clone();
         let scroll = self.scroll.clone();
         let reveal = self.reveal_focus.clone();
-        div().on_children_prepainted(move |children, window, _| {
+        let container = div().on_children_prepainted(move |children, window, _| {
             // Reveal only on keyboard traversal, so wheel scrolling never fights the focused control.
             if !enabled || id == "close-settings" || !reveal.get() || !focus.is_focused(window) { return; }
             if let Some(bounds) = children.into_iter().reduce(|a, b| a.union(&b)) {
@@ -797,7 +797,12 @@ impl SettingsWindow {
                     window.refresh();
                 }
             }
-        }).id(id).when(enabled, |s| s.track_focus(&tracked))
+        });
+        (container, tracked)
+    }
+    fn focusable_control(&self, id: &'static str, enabled: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+        let (container, focus) = self.control_container(id, enabled, cx);
+        container.id(id).when(enabled, |s| s.track_focus(&focus))
     }
     fn button(
         &self,
@@ -809,11 +814,13 @@ impl SettingsWindow {
         action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
     ) -> AnyElement {
         let p = Palette::new(self.projection.night);
-        let action = std::rc::Rc::new(action);
         let quiet = matches!(style, ButtonStyle::Quiet | ButtonStyle::Icon | ButtonStyle::Menu);
-        self.focusable_control(id, enabled, cx)
+        let (container, focus) = self.control_container(id, enabled, cx);
+        let button = gpui_base::Button::new(id)
+            .track_focus(&focus)
+            .disabled(!enabled)
             .flex_none()
-            .h(px(if style == ButtonStyle::Select { 28. } else { 32. }))
+            .h(px(if style == ButtonStyle::Select { tokens::SELECT_HEIGHT } else { tokens::CONTROL_HEIGHT }))
             .px(px(if style == ButtonStyle::Quiet {
                 0.
             } else if quiet {
@@ -831,7 +838,7 @@ impl SettingsWindow {
             })
             .when(style == ButtonStyle::Icon, |s| s.w(px(32.)))
             .when(style == ButtonStyle::Menu, |s| s.w_full().justify_start())
-            .rounded(px(6.))
+            .rounded(px(tokens::CONTROL_RADIUS))
             .border_1()
             .border_color(if quiet {
                 transparent_black()
@@ -848,7 +855,8 @@ impl SettingsWindow {
             } else {
                 p.disabled_text()
             })
-            .text_size(px(13.))
+            .text_size(px(tokens::CONTROL_FONT_SIZE))
+            .line_height(px(tokens::CONTROL_LINE_HEIGHT))
             .child(label)
             .when(style == ButtonStyle::Select, |s| {
                 s.child(
@@ -875,8 +883,8 @@ impl SettingsWindow {
                         s.focus(move |s| s.border_color(p.blue))
                     })
                     .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
-            })
-            .into_any_element()
+            });
+        container.flex_none().child(button).into_any_element()
     }
     fn nav(&self, page: Page, label: &'static str, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.projection.night);
@@ -1630,7 +1638,8 @@ impl Prototype {
         let mut projection = Projection::from_main(self);
         projection.preview = true;
         projection.path = Some(PathBuf::from(r"C:\Users\Ameow\Downloads"));
-        projection.preferences = Some(Default::default());
+        projection.preferences = Some((if self.night { ThemePreference::Dark } else { ThemePreference::Light },
+            LanguagePreference::System, TrayIconPreference::FollowAppearance));
         projection.error = None;
         projection.pending = false;
         projection.status = SettingsStatus::Idle;

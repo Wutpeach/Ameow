@@ -1,0 +1,199 @@
+{
+  "status": "development checkpoint; final desktop validation pending",
+  "native_gallery_regression": [
+    {
+      "name": "two previews have distinct PIDs and control paths",
+      "passed": true
+    },
+    {
+      "name": "empty scene retires previous painted job",
+      "passed": true
+    },
+    {
+      "name": "switching one preview does not change another receipt",
+      "passed": true
+    },
+    {
+      "name": "capture preserves matching PID scene theme DPI and EXE identity",
+      "passed": true
+    },
+    {
+      "name": "capture refuses to overwrite accepted evidence",
+      "passed": true
+    },
+    {
+      "name": "invalid scene returns error without changing selected scene",
+      "passed": true
+    },
+    {
+      "name": "closing one session leaves the other alive",
+      "passed": true
+    },
+    {
+      "name": "context exit settles the second preview",
+      "passed": true
+    },
+    {
+      "name": "overview links actual captures",
+      "passed": true
+    }
+  ],
+  "product_base_controls": {
+    "exe": "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+    "exe_sha256": "b0f26d71cf84049aae4b2de8118c8d75805c9fba3dcaf7a2bc0a3f93b4e79b43",
+    "source_head": "3d657b749d85a871cf31752aa1c7e21d8963e1e6",
+    "checks": [
+      {
+        "name": "first show leaves foreground unchanged",
+        "passed": true,
+        "observed": {
+          "before": 201636,
+          "after": 201636,
+          "main": 4784830
+        }
+      },
+      {
+        "name": "floating HWND retains popup and natural TOPMOST",
+        "passed": true,
+        "observed": {
+          "style": 2483027968,
+          "exstyle": 2097288
+        }
+      },
+      {
+        "name": "Compact to Full changes native bounds",
+        "passed": true,
+        "observed": {
+          "compact": [
+            504,
+            304,
+            584,
+            384
+          ],
+          "full": [
+            500,
+            300,
+            728,
+            528
+          ]
+        }
+      },
+      {
+        "name": "Full to Compact restores native size",
+        "passed": true,
+        "observed": [
+          504,
+          304,
+          584,
+          384
+        ]
+      },
+      {
+        "name": "settings titlebar supports real mouse drag",
+        "passed": true,
+        "observed": {
+          "before": [
+            600,
+            304,
+            1180,
+            744
+          ],
+          "after": [
+            680,
+            344,
+            1260,
+            784
+          ]
+        }
+      },
+      {
+        "name": "Escape dismisses select without closing settings",
+        "passed": true,
+        "observed": {
+          "Ameow · 设置": 33953850,
+          "Ameow": 4784830
+        }
+      },
+      {
+        "name": "one Enter visibly opens theme options",
+        "passed": true,
+        "observed": {
+          "changed_menu_pixels": 4998
+        }
+      },
+      {
+        "name": "one Space visibly opens theme options",
+        "passed": true,
+        "observed": {
+          "changed_menu_pixels": 4998
+        }
+      },
+      {
+        "name": "Escape closes settings after popup dismissal",
+        "passed": true,
+        "observed": {
+          "Ameow": 4784830
+        }
+      },
+      {
+        "name": "closing settings keeps main alive",
+        "passed": true,
+        "observed": {
+          "Ameow": 4784830
+        }
+      },
+      {
+        "name": "tray popup Escape closes only owned popup",
+        "passed": true,
+        "observed": {
+          "Ameow": 4784830
+        }
+      },
+      {
+        "name": "preview quit settles process cleanly",
+        "passed": true,
+        "observed": 0
+      }
+    ],
+    "limits": "Preview fixtures; one actual desktop DPI. No network, persisted settings, system tray or update/restart claim.",
+    "pid": 18940,
+    "command": [
+      "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+      "--preview",
+      "--preview-scene",
+      "compact.idle",
+      "--preview-control",
+      "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\ameow-kit-native-tjoljp8y\\control.json",
+      "--reduced",
+      "--hover",
+      "off",
+      "--measure",
+      "D:\\Ameow-gpui-kit\\evidence\\issue32\\base-native-debug\\frames.jsonl",
+      "--exit-after-ms",
+      "60000"
+    ],
+    "dpi": 96
+  },
+  "automated_tests": {
+    "passed": 324,
+    "ignored": 18
+  },
+  "non_desktop_tool_tests": {
+    "passed": 4
+  },
+  "interrupted_matrix": {
+    "complete": false,
+    "captures": 116,
+    "reason": "Stopped on user feedback about continuous desktop interruption"
+  },
+  "native_not_verified": [
+    "latest Gallery group/theme/capture-all button interaction",
+    "batch cancellation through Gallery close",
+    "complete 94 x 2 screenshot matrix",
+    "production settings persistence/ACK",
+    "system tray and updater joint regression",
+    "DPI other than the observed 96 DPI desktop",
+    "animation pacing"
+  ],
+  "old_preview_scripts": "preserved until replacement coverage and native acceptance"
+}

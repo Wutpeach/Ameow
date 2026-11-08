@@ -5,6 +5,7 @@ mod download_ui;
 mod queue_presentation;
 mod queue_fixture;
 mod preview;
+mod gallery;
 mod tray;
 mod tray_popup;
 mod indicator;
@@ -653,6 +654,7 @@ impl Render for Prototype {
         let dt_actual_ms = timestamp_us.saturating_sub(self.last_frame_us) as f64 / 1000.;
         self.last_frame_us = timestamp_us;
         self.advance(window, cx);
+        tokens::sync_kit_theme(self.night, cx);
         let cpu_advance_us = render_start.elapsed().as_micros();
         let now = self.now();
         let g = self.model.geometry();
@@ -1131,6 +1133,10 @@ impl Render for Prototype {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|a| a == "--gallery") {
+        if let Err(error) = gallery::run() { eprintln!("Gallery 无法启动：{error}"); std::process::exit(1); }
+        return;
+    }
     if !args.iter().any(|argument| argument == "--preview")
         && args.iter().any(|argument| argument == "--download-test-bridge")
     {
@@ -1170,6 +1176,7 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
+            gpui_base::init(cx);
             cx.text_system()
                 .add_fonts(
                     tokens::LATIN_FONT_BYTES
