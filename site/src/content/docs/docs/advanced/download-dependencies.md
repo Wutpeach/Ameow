@@ -14,6 +14,7 @@ description: 下载组件
 | 组件 | 用途 |
 | --- | --- |
 | yt-dlp | 解析支持的视频并下载媒体。 |
+| gallery-dl | 解析并下载支持的图片和图集媒体。 |
 | Deno | 为下载器需要的 JavaScript 处理提供运行环境。 |
 | FFmpeg | 处理或合并媒体。 |
 | ffprobe | 检查输出媒体。 |

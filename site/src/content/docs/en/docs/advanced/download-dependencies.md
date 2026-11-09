@@ -14,6 +14,7 @@ Offline recovery requires a healthy cache with signed proof; older caches withou
 | Component | Purpose |
 | --- | --- |
 | yt-dlp | Resolves supported videos and downloads media. |
+| gallery-dl | Resolves and downloads supported images and gallery media. |
 | Deno | Provides the JavaScript runtime needed by the downloader. |
 | FFmpeg | Processes or merges media. |
 | ffprobe | Inspects output media. |
