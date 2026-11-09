@@ -11,6 +11,10 @@ fn main() {
         #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
         let install = Install::production(root)?;
         let args: Vec<_> = std::env::args().skip(1).collect();
+        if args.first().is_some_and(|arg| arg == "--register-installed-version") {
+            if args.len() != 2 { return Err("E_APP_UPDATE_INSTALL_ARGUMENTS".into()); }
+            return install.register_installed_version(&args[1]);
+        }
         let timeout = if cfg!(all(feature = "app-update-fixture", debug_assertions)) {
             8
         } else {

@@ -14,4 +14,4 @@ A moved folder, changed permissions, or insufficient space may cause failure; ch
 3. Inspect the submission-time folder in your file manager; confirm it exists and your account can access it.
 4. Read any failure message and check free space. To use another folder, change it in settings and submit a new task.
 
-Do not clear `%LOCALAPPDATA%\AmeowNext\stage-a` to look for files; it holds settings and runtime data.
+Do not clear `%LOCALAPPDATA%\Ameow` to look for files; it holds settings and runtime data.

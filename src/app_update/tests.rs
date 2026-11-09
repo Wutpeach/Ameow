@@ -284,6 +284,58 @@ fn identity_uses_new_data_root_without_inspecting_the_old_tree() {
         expected
     );
 }
+
+fn installed_files(install: &Install, version: &str, sequence: u64) {
+    let (_, _, envelope) = fixture(version, sequence, &[("Ameow.exe", b"installed fixture")]);
+    let dir = install.root.join("versions").join(version);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("Ameow.exe"), b"installed fixture").unwrap();
+    fs::write(dir.join("manifest.json"), envelope).unwrap();
+}
+
+#[test]
+fn installer_reinstall_preserves_state_and_upgrade_uses_pending_trial() {
+    let root = tempfile::tempdir().unwrap();
+    let install = Install::fixture(root.path().into()).unwrap();
+    installed_files(&install, "0.1.0", 1);
+    install.register_installed_version("0.1.0").unwrap();
+    let mut state = install.state().unwrap();
+    state.current = state.pending.take();
+    state.last_error = Some("preserve diagnostic".into());
+    install.save(&state).unwrap();
+    let before = fs::read(root.path().join("state.json")).unwrap();
+    install.register_installed_version("0.1.0").unwrap();
+    assert_eq!(fs::read(root.path().join("state.json")).unwrap(), before);
+    installed_files(&install, "0.1.1", 2);
+    install.register_installed_version("0.1.1").unwrap();
+    let state = install.state().unwrap();
+    assert_eq!(state.current.unwrap().version, "0.1.0");
+    assert_eq!(state.pending.unwrap().version, "0.1.1");
+    assert!(state.trial.is_none());
+    assert_eq!(state.last_error.as_deref(), Some("preserve diagnostic"));
+    assert!(root.path().join("versions/0.1.0/Ameow.exe").is_file());
+}
+
+#[test]
+fn installer_rejects_tampering_running_launcher_and_downgrade_without_resetting_state() {
+    let root = tempfile::tempdir().unwrap();
+    let install = Install::fixture(root.path().into()).unwrap();
+    installed_files(&install, "0.1.1", 2);
+    install.register_installed_version("0.1.1").unwrap();
+    let mut state = install.state().unwrap();
+    state.current = state.pending.take();
+    install.save(&state).unwrap();
+    let before = fs::read(root.path().join("state.json")).unwrap();
+    installed_files(&install, "0.1.0", 1);
+    assert!(install.register_installed_version("0.1.0").unwrap_err().contains("DOWNGRADE"));
+    installed_files(&install, "0.1.2", 3);
+    fs::write(root.path().join("versions/0.1.2/Ameow.exe"), b"tampered").unwrap();
+    assert!(install.register_installed_version("0.1.2").unwrap_err().contains("HASH"));
+    let running = store::exclusive(&root.path().join("running.lock")).unwrap();
+    assert!(install.register_installed_version("0.1.1").unwrap_err().contains("LOCK"));
+    drop(running);
+    assert_eq!(fs::read(root.path().join("state.json")).unwrap(), before);
+}
 #[cfg(windows)]
 #[test]
 fn native_state_lock_excludes_writers() {

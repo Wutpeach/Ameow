@@ -1,5 +1,7 @@
 # Windows x64 private validation packaging
 
+For the current shared Launcher-based installer/portable delivery entry and manual release handoff, see [Windows delivery (C5)](windows-delivery.md). The private single-EXE protocol below remains distinct and restricted to owner-only validation.
+
 For #33's Launcher-based controlled release preparation, see [Stage C1](../docs/application-update-stage-c1.md). The existing entry can use -BuildOnly -ReleasePreparation to build/audit the application, Launcher and offline tool together. This produces an unsigned controlled update plan and reports; the distinct first-extraction portable ZIP requires owner-side signature verification. It does not replace the historical private review below, enable a public package, generate a production key or upload binaries.
 
 This entry preserves the TRA-23 private validation protocol. A private ZIP requires an actual review bound to the current build inputs; #18 uses BuildOnly and does not renew an older review. Every private package carries `PRIVATE LOCAL VALIDATION — NOT FOR DISTRIBUTION`. Do not share or upload it. Public Gate B remains blocked and public release is not authorized; a successful private build never clears it. Product and clean ordinary-user acceptance remain separate.

@@ -171,6 +171,36 @@ impl Install {
         }
         Ok(guard)
     }
+    /// An installer adds immutable files; the existing Launcher still owns trial/Ready/rollback.
+    pub fn register_installed_version(&self, version: &str) -> Result<(), String> {
+        let _running = exclusive(&self.root.join("running.lock"))?;
+        #[cfg(windows)]
+        let _instance = match crate::login_startup::InstanceGuard::acquire_with_restore(false)? {
+            crate::login_startup::InstanceAcquire::Duplicate => return Err("E_APP_UPDATE_INSTALL_RUNNING".into()),
+            crate::login_startup::InstanceAcquire::Primary(guard) => guard,
+        };
+        let _lock = self.lock()?;
+        let envelope: SignedManifest = read_json(&self.release_dir(version)?.join("manifest.json"))?;
+        let bytes = serde_json::to_vec(&envelope).map_err(|e| e.to_string())?;
+        let (_, manifest) = self.trust.verify(&bytes, Some(now()))?;
+        let release = Release {
+            version: version.into(),
+            sequence: manifest.sequence,
+            manifest_hash: hash(envelope.payload.as_bytes()),
+        };
+        let _exe = self.verify_release(&release)?;
+        let state = self.load()?;
+        if state.trial.is_some() { return Err("E_APP_UPDATE_TRIAL_BUSY".into()); }
+        if [&state.current, &state.pending].into_iter().flatten().any(|r| {
+            r.version == release.version && r.sequence == release.sequence && r.manifest_hash == release.manifest_hash
+        }) {
+            return Ok(());
+        }
+        self.authorize(&bytes)?;
+        let mut state = self.load()?;
+        state.pending = Some(release);
+        self.save(&state)
+    }
     fn authorize(&self, envelope: &[u8]) -> Result<(SignedManifest, Manifest), String> {
         let (signed, manifest) = self.trust.verify(envelope, Some(now()))?;
         let mut state = self.load()?;

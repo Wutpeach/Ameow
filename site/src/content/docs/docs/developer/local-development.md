@@ -12,6 +12,6 @@ cargo build --locked
 ./target/debug/ameow.exe
 ```
 
-当前可粘贴 YouTube 或 Bilibili 公开单个视频链接；旧浏览器扩展不接入 Rust。应用使用 `%LOCALAPPDATA%\AmeowNext\stage-a` 保存设置、运行时选择、缓存和历史；不要为了开发清空现有数据。
+当前可粘贴 YouTube 或 Bilibili 公开单个视频链接；旧浏览器扩展不接入 Rust。应用使用 `%LOCALAPPDATA%\Ameow` 保存设置、运行时选择、缓存和历史；不要为了开发清空现有数据。
 
 `src/` 是应用源码，`tests/` 是集成测试，`assets/` 保存嵌入资源及运行时清单，`distribution/` 保存打包材料。文档站 `site/` 独立使用 Node，参见[站点开发](../docs-and-locales/)。macOS 和 Linux 原生运行未验证。

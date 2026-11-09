@@ -12,9 +12,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         time::{SystemTime, UNIX_EPOCH},
     };
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 5 {
-        return Err("release_fixture <accepted-fixture-app> <accepted-fixture-launcher> <fixture-version> <new-absolute-output>".into());
+    if !(5..=6).contains(&args.len()) {
+        return Err("release_fixture <accepted-fixture-app> <accepted-fixture-launcher> <fixture-version> <new-absolute-output> [sequence=1]".into());
     }
+    let sequence = args.get(5).map_or(Ok(1), |value| value.parse::<u64>())?;
     let root = PathBuf::from(&args[4]);
     if !root.is_absolute() {
         return Err("absolute output required".into());
@@ -79,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signed = root.join("signed");
     release::prepare(&input, &prepared)?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    release::sign_fixture(&prepared, &signed, 1, now, now + 86400)?;
+    release::sign_fixture(&prepared, &signed, sequence, now, now + 86400)?;
     release::verify_signed(&signed, &root.join("fixture-public-roots.json"))?;
     let install = root.join("install");
     fs::create_dir(&install)?;

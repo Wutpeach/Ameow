@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   pull_request:
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:
@@ -39,6 +39,16 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/test_release_preparation.ps1 -ReleaseTool (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/ameow-release.exe') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-boundaries')
+      - name: Compile and verify controlled installer and portable fixtures
+        shell: pwsh
+        run: |
+          cargo +1.93.0 build --locked --offline --features app-update-fixture --bin ameow-launcher --bin ameow-release --example release_fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fixture = Join-Path $env:RUNNER_TEMP 'ameow-c5-fixture'
+          $version = (Get-Content (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/release-build.json') -Raw | ConvertFrom-Json).version
+          ./target/debug/examples/release_fixture.exe (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/Ameow.exe') ./target/debug/ameow-launcher.exe $version $fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test_windows_delivery.ps1 -SignedDirectory (Join-Path $fixture 'signed') -ReleaseTool (Resolve-Path ./target/debug/ameow-release.exe) -TrustedPublicRoots (Join-Path $fixture 'fixture-public-roots.json') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c5-checks')
       # No executable/ZIP uploads, secrets, signing, draft, tag creation or release job.
       - name: Retain public build evidence only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -51,5 +61,7 @@ jobs:
             ${{ runner.temp }}/ameow-c1-build/material-audit.json
             ${{ runner.temp }}/ameow-c1-build/prepared/unsigned-plan.json
             ${{ runner.temp }}/ameow-c1-boundaries/result.json
+            ${{ runner.temp }}/ameow-c5-checks/result.json
+            ${{ runner.temp }}/ameow-c5-checks/valid/delivery.json
           if-no-files-found: error
           retention-days: 14

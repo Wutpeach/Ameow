@@ -9,7 +9,7 @@ description: Ameow 稳定版与预发布版本的站内版本记录。
 
 ## 历史发行记录
 
-以下所有版本记录均为历史 Ameow / FlowSelect 发行，不描述当前 Rust 的功能。当前公开发行仍为 [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1)。
+以下所有版本记录均为历史 Ameow / FlowSelect 发行，不描述当前 Rust 的功能。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且停止支持，仅保留历史记录；Rust 尚未正式公开发行。
 
 这里整理 Ameow / FlowSelect 历史版本的用户可见变化。稳定版适合普通用户参考；预发布记录主要用于了解测试版本验证过哪些打包、平台和下载链路问题。
 
