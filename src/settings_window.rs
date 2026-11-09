@@ -27,6 +27,8 @@ use windows::Win32::{
 };
 #[path = "settings_components.rs"]
 mod components;
+#[path = "settings_notices.rs"]
+mod notices;
 
 fn error_text(p: Palette) -> Hsla {
     if p.night { p.red } else { rgb(0xb8323c).into() }
@@ -191,6 +193,10 @@ pub struct SettingsWindow {
     upstream_feedback: Option<(std::time::Instant, bool)>,
     title_language: Language,
     engine_confirmation: Option<Option<String>>,
+    notices_open: bool,
+    notices_focus: FocusHandle,
+    notices_scroll: ListState,
+    notices_copied: Option<bool>,
 }
 impl SettingsWindow {
     fn new(
@@ -245,6 +251,10 @@ impl SettingsWindow {
             component_menu_open: false,
             upstream_feedback: None,
             engine_confirmation: None,
+            notices_open: false,
+            notices_focus: cx.focus_handle().tab_index(0).tab_stop(true),
+            notices_scroll: ListState::new(ameow_next::third_party_notices::TEXT.lines().count(), ListAlignment::Top, px(100.)),
+            notices_copied: None,
         };
         this.refresh_health(true, cx);
         this.refresh_startup(None, cx);
@@ -937,6 +947,7 @@ impl SettingsWindow {
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     this.page = page;
+                    this.notices_open = false;
                     this.component_menu_open = false;
                     this.menu = None;
                     this.scroll.set_offset(point(px(0.), px(0.)));
@@ -946,6 +957,7 @@ impl SettingsWindow {
             }))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.page = page;
+                this.notices_open = false;
                 this.component_menu_open = false;
                 this.menu = None;
                 this.scroll.set_offset(point(px(0.), px(0.)));
@@ -1107,6 +1119,7 @@ impl SettingsWindow {
             .into_any_element()
     }
     fn about_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        if self.notices_open { return self.notices_page(cx); }
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
         div()
@@ -1146,6 +1159,8 @@ impl SettingsWindow {
                         |this, _, cx| { if !this.projection.preview { cx.open_url("https://github.com/Wutpeach/Ameow"); } },
                     )),
             )
+            .child(div().flex().child(self.button("third-party-licenses", l.text("第三方许可", "Third-party licenses"),
+                true, ButtonStyle::Quiet, cx, |this, window, cx| this.open_notices(window, cx))))
             .child(self.app_update_section(cx))
             .into_any_element()
     }
@@ -1401,6 +1416,10 @@ impl Render for SettingsWindow {
                     this.keyboard_focus = true;
                     cx.notify();
                 }
+                if this.notices_key(&event.keystroke.key, window, cx) {
+                    cx.stop_propagation();
+                    return;
+                }
                 if this.component_menu_open {
                     match event.keystroke.key.as_str() {
                         "tab" => {
@@ -1560,7 +1579,8 @@ impl Render for SettingsWindow {
                             .pt(px(8.))
                             .pb(px(24.))
                             .track_focus(&self.focus)
-                            .overflow_y_scroll()
+                            .when(!self.notices_open, |s| s.overflow_y_scroll())
+                            .when(self.notices_open, |s| s.overflow_hidden())
                             .track_scroll(&self.scroll)
                             .on_scroll_wheel(cx.listener(|this, _, _, cx| {
                                 if this.component_menu_open {
@@ -1827,6 +1847,7 @@ impl Prototype {
         if let Some(handle) = self.settings_window {
             let _ = handle.update(cx, |view, _, cx| {
                 view.page = Page::About;
+                view.notices_open = false;
                 view.scroll.set_offset(point(px(0.), px(0.)));
                 cx.notify();
             });
@@ -1882,9 +1903,10 @@ impl Prototype {
                 view.health = Some(Ok(()));
                 view.notice = None;
                 view.engine_confirmation = None;
+                view.notices_open = scene.state == "third-party-licenses";
                 view.component_menu_open = matches!(scene.state.as_str(), "checking" | "check-failed");
                 view.page = match scene.surface.as_str() {
-                    _ if scene.state.starts_with("app-") => Page::About,
+                    _ if scene.state.starts_with("app-") || matches!(scene.state.as_str(), "about" | "third-party-licenses") => Page::About,
                     "components" | "diagnostics" => Page::Components,
                     _ if matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
                     _ => Page::Download,

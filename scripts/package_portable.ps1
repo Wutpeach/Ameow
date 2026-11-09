@@ -53,7 +53,7 @@ function File-Record([string]$RelativePath) {
 }
 
 function Source-Inventory {
-    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
+    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
     # Own license and the reviewed requirements are mandatory package inputs, even if ignored.
     if (-not $BuildOnly) { $paths += @('LICENSE', $requirementsPath) }
     return @($paths | Sort-Object -Unique | ForEach-Object { File-Record $_ })
@@ -114,7 +114,7 @@ function Reviewed-Notices($Review, $Inputs, [string]$Head) {
     foreach ($notice in $notices) {
         # Only reviewed text notices are eligible. No arbitrary repo, task, runtime or user files.
         $ownLicense = $notice.source -ceq 'LICENSE' -and $notice.destination -ceq 'LICENSE'
-        if ((-not $ownLicense -and ($notice.source -cnotmatch '^(distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -or
+        if ((-not $ownLicense -and ($notice.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -or
             $notice.destination -cnotmatch '^licenses/[A-Za-z0-9_./-]+\.(txt|md|json)$')) -or
             $notice.source -match '(^|/)\.\.?(/|$)' -or
             $notice.destination -match '(^|/)\.\.?(/|$)' -or
@@ -242,7 +242,7 @@ try {
             $destinations=@{}
             foreach ($material in @($requirements.materials) + @([pscustomobject]@{source=$requirementsPath;destination='licenses/license-inputs.json';sha256=(File-Record $requirementsPath).sha256})) {
                 $own=$material.source -ceq 'LICENSE' -and $material.destination -ceq 'LICENSE'
-                if ((-not $own -and ($material.source -cnotmatch '^(distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -and $material.source -cne $requirementsPath)) -or
+                if ((-not $own -and ($material.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -and $material.source -cne $requirementsPath)) -or
                     (-not $own -and $material.destination -cnotmatch '^licenses/[A-Za-z0-9_./-]+\.(txt|md|json)$') -or
                     $material.source -match '(^|/)\.\.?(/|$)' -or $material.destination -match '(^|/)\.\.?(/|$)' -or $destinations.ContainsKey($material.destination)) { throw 'Invalid controlled material allowlist.' }
                 $actual=File-Record $material.source

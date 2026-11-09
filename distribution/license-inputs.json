@@ -3,6 +3,13 @@
   "scope": "private-owner-validation",
   "materials": [
     {
+      "kind": "embedded third-party notice source",
+      "obligation": "Preserve the versioned source and checked local full texts; engineering delivery does not clear public Gate B.",
+      "source": "THIRD_PARTY_NOTICES.md",
+      "destination": "licenses/THIRD_PARTY_NOTICES.md",
+      "sha256": "BCC54FBDB82FEDF1349E5984B0836A3246E4026DEBB501E51B153F836CD728AB"
+    },
+    {
       "kind": "Ameow-owned code",
       "obligation": "Preserve exact MIT copyright and permission; third-party terms remain separate.",
       "source": "LICENSE",
@@ -21,7 +28,7 @@
       "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
       "source": "distribution/notices/icon-licenses.txt",
       "destination": "licenses/icon-licenses.txt",
-      "sha256": "130456514CB87A94A968A20CAD07CF107AF32009B09E40AE04494AD0240E9FAB"
+      "sha256": "A85FF4FFF2338F62FEE4E107D987A76D8E4FDDC8164BCA290799034405BED123"
     },
     {
       "kind": "Rust material/provenance",
@@ -70,7 +77,7 @@
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "5221159F873BCDE59FC5E0C47BA08C5A6D4AB32C3242DB04BA780294862C9FB2"
+      "sha256": "C6BB2A47AAC413FB4FFEAE22444DF1C91202070062DA076395EA05CEE59315AE"
     },
     {
       "kind": "on-demand GPL context",
@@ -84,7 +91,7 @@
       "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
       "source": "distribution/notices/msvc-build-context.md",
       "destination": "licenses/msvc-build-context.md",
-      "sha256": "D34AF1EAC0836BA70A1F590E3AD930BB8F60D82B211657E142CB248ECE47CA02"
+      "sha256": "74D2F18FC90A4F24F95E268CD41AADDED8A75728EDE375FC7500C2FF96ECDB80"
     }
   ],
   "publicGateB": {

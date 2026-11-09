@@ -49,6 +49,8 @@
   {"name": "queue.copied", "surface": "queue", "state": "copied", "description": "诊断已复制反馈"},
   {"name": "queue.copy-failed", "surface": "queue", "state": "copy-failed", "description": "诊断复制失败反馈"},
   {"name": "settings.general", "surface": "settings", "state": "general", "description": "常规页面与主要选项"},
+  {"name": "settings.about", "surface": "settings", "state": "about", "description": "关于页面与第三方许可入口"},
+  {"name": "settings.third-party-licenses", "surface": "settings", "state": "third-party-licenses", "description": "当前 EXE 内嵌的可滚动许可声明"},
   {"name": "settings.download", "surface": "settings", "state": "download", "description": "下载页面与主要选项"},
   {"name": "settings.saving", "surface": "settings", "state": "saving", "description": "保存中及禁用控件"},
   {"name": "settings.saved", "surface": "settings", "state": "saved", "description": "保存后已确认的设置"},

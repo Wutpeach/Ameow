@@ -6,3 +6,11 @@ assets/test/yt-dlp-2026.10.26-SHA2-256SUMS* -text
 /README.en.md text eol=lf
 /site/src/content/docs/docs/index.mdx text eol=lf
 /site/src/content/docs/en/docs/index.mdx text eol=lf
+# These license bodies/inventories are checked by exact SHA-256. Preserve their bytes.
+/LICENSE -text
+/assets/fonts/OFL.txt -text
+/assets/runtime-GPL-3.0.txt -text
+/assets/LICENSE -text
+/distribution/license-inputs.json -text
+/distribution/notices/** -text
+/THIRD_PARTY_NOTICES.md -text
