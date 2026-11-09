@@ -23,6 +23,8 @@ windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Secu
 gpui = { package = "gpui-pre", version = "=0.3.11", default-features = false, features = ["windows-manifest"] }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", default-features = false }
 gpui-base = "=0.9.0"
+gpui-component = { version = "=0.9.0", default-features = false }
+gpui-kit-assets = "=0.9.0"
 raw-window-handle = "0.6"
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_LibraryLoader", "Win32_System_Com"] }
 

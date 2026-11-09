@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 1.25s
+     Running unittests src\main.rs (target\debug\deps\ameow-d829757201684fd8.exe)
+
+running 1 test
+test download_ui::tests::settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 161 filtered out; finished in 0.32s
+

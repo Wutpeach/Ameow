@@ -325,7 +325,7 @@ pub fn run() -> anyhow::Result<()> {
     let output = args.iter().position(|a| a == "--gallery-output").and_then(|i| args.get(i+1)).map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(SOURCE).join(format!("evidence/gallery-{stamp}")));
     gpui_platform::application().with_assets(crate::Assets).run(move |cx| {
-        gpui_base::init(cx);
+        gpui_component::init(cx);
         cx.text_system().add_fonts(tokens::LATIN_FONT_BYTES.into_iter().map(std::borrow::Cow::Borrowed).collect()).expect("Gallery fonts");
         cx.open_window(WindowOptions {
             titlebar: Some(TitlebarOptions { title: Some("Ameow Gallery".into()), ..Default::default() }),

@@ -1,7 +1,7 @@
 //! Explicitly invoked native acceptance host; absent from the product EXE.
 use super::{Assets, Options, Prototype, download_ui, tokens};
 use gpui::{AppContext, Bounds, TitlebarOptions, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, point, px, size};
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, io::Write, time::{Duration, Instant}};
 
 #[test]
 #[ignore = "uses the desktop; requires explicit user agreement and a fresh task-owned directory"]
@@ -17,7 +17,7 @@ fn settings_and_tray() {
     options.exit_after_ms = Some(420_000);
     let completion_root = root.clone();
     gpui_platform::application().with_assets(Assets).run(move |cx| {
-        gpui_base::init(cx);
+        gpui_component::init(cx);
         cx.text_system().add_fonts(tokens::LATIN_FONT_BYTES.into_iter().map(Cow::Borrowed).collect()).unwrap();
         let handle = cx.open_window(WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::new(point(px(504.),px(304.)),size(px(80.),px(80.))))),
@@ -34,6 +34,9 @@ fn settings_and_tray() {
         })).unwrap();
         cx.spawn(async move |cx| {
             let mut opened = false;
+            let started = Instant::now();
+            let mut previous = String::new();
+            let mut history = std::fs::File::create(root.join("states.jsonl")).unwrap();
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
                 let stop = handle.update(cx, |view, _, cx| {
@@ -41,7 +44,12 @@ fn settings_and_tray() {
                         view.open_or_focus_settings(cx); opened = true;
                     }
                     let ui = view.downloads.as_ref().unwrap();
+                    let controls = view.settings_window.and_then(|handle| handle.update(cx, |root, window, cx| {
+                        root.view().clone().downcast::<super::settings_window::SettingsWindow>()
+                            .ok().map(|view| view.read(cx).acceptance_snapshot(window, cx))
+                    }).ok()).flatten();
                     let state = serde_json::json!({
+                        "controls": controls,
                         "settings":ui.settings(), "pending":ui.settings_pending,
                         "status":format!("{:?}",ui.settings_status),
                         "night":view.night, "language":format!("{:?}",view.language),
@@ -49,6 +57,12 @@ fn settings_and_tray() {
                         "hidden":ui.hidden, "queue_open":ui.queue_open,
                         "stopped":ui.snapshot.as_ref().is_some_and(|s|s.stopped),
                     });
+                    let serialized = state.to_string();
+                    if serialized != previous {
+                        writeln!(history, "{}", serde_json::json!({"ms":started.elapsed().as_millis(),"state":state})).unwrap();
+                        history.flush().unwrap();
+                        previous = serialized;
+                    }
                     let _ = std::fs::write(root.join("state.tmp"),state.to_string());
                     let _ = std::fs::rename(root.join("state.tmp"),root.join("state.json"));
                     if root.join("quit").exists() { cx.quit(); return true; }

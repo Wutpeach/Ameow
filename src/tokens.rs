@@ -15,7 +15,6 @@ pub const CHINESE_FONT: &str = if cfg!(target_os = "macos") {
 };
 pub const DESKTOP_FONT: &str = if cfg!(target_os = "windows") { "Segoe UI" } else { "Helvetica Neue" };
 pub const CONTROL_HEIGHT: f32 = 32.;
-pub const SELECT_HEIGHT: f32 = 28.;
 pub const CONTROL_RADIUS: f32 = 6.;
 pub const CONTROL_FONT_SIZE: f32 = 13.;
 pub const CONTROL_LINE_HEIGHT: f32 = 20.;
@@ -33,8 +32,7 @@ pub fn desktop_ui_font() -> Font {
     font
 }
 
-/// Project the measured Ameow palette into Kit; component defaults are not a
-/// second visual authority. The caller supplies the acknowledged effective theme.
+/// Keep the existing Base controls and floating surface on their accepted tokens.
 pub fn kit_tokens(night: bool) -> gpui_base::SemanticThemeTokens {
     use gpui::px;
     let p = Palette::new(night);
@@ -91,6 +89,21 @@ pub fn kit_tokens(night: bool) -> gpui_base::SemanticThemeTokens {
 
 pub fn sync_kit_theme(night: bool, cx: &mut gpui::App) {
     use gpui_base::{Theme, ThemeAppearance};
+    use gpui_component::{Theme as ComponentTheme, ThemeMode};
+    let p = Palette::new(night);
+    let mode = if night { ThemeMode::Dark } else { ThemeMode::Light };
+    let component_synced = cx.try_global::<ComponentTheme>().is_some_and(|t|
+        t.mode == mode && t.colors.primary == p.blue && t.colors.background == p.surface
+        && t.font_family.as_ref() == DESKTOP_FONT);
+    if !component_synced {
+        // Changing mode reloads the palette. Apply Ameow colors only after that load.
+        ComponentTheme::change(mode, None, cx);
+        ComponentTheme::update(cx, |theme| {
+            map_component_colors(&mut theme.colors, night);
+            theme.font_family = DESKTOP_FONT.into();
+            theme.mono_font_family = LATIN_FONT.into();
+        });
+    }
     let appearance = if night { ThemeAppearance::Dark } else { ThemeAppearance::Light };
     if cx.try_global::<Theme>().is_some_and(|t| t.appearance == appearance
         && t.tokens.colors.primary == Palette::new(night).blue
@@ -98,6 +111,37 @@ pub fn sync_kit_theme(night: bool, cx: &mut gpui::App) {
     let theme = Theme::global_mut(cx);
     theme.appearance = appearance;
     theme.tokens = kit_tokens(night);
+}
+
+/// Component owns control geometry, focus rings, elevation and motion; Ameow owns colors.
+fn map_component_colors(c: &mut gpui_component::ThemeColor, night: bool) {
+    let p = Palette::new(night);
+    c.background = p.surface;
+    c.foreground = p.primary_text();
+    c.border = p.border;
+    c.input = p.control_border();
+    c.ring = p.blue;
+    c.primary = p.blue;
+    c.primary_hover = p.blue.opacity(0.9);
+    c.primary_active = p.blue.opacity(0.8);
+    c.primary_foreground = gpui::white();
+    c.secondary = p.badge;
+    c.secondary_foreground = p.primary_text();
+    c.accent = p.badge;
+    c.accent_foreground = p.primary_text();
+    c.muted = p.badge;
+    c.muted_foreground = p.neutral;
+    c.button = p.surface;
+    c.button_hover = p.badge;
+    c.button_active = p.border;
+    c.button_foreground = p.primary_text();
+    c.popover = p.surface;
+    c.popover_foreground = p.primary_text();
+    c.list = p.surface;
+    c.list_hover = p.badge;
+    c.list_active = p.badge;
+    c.list_active_border = p.blue;
+    c.selection = p.blue.opacity(0.2);
 }
 
 // Penpot's ring duplicates use 30% opacity and Gaussian blur 4px (failure: 10px).

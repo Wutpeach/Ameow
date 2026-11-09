@@ -67,18 +67,27 @@ impl AssetSource for Assets {
             "icons/circle-alert.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-alert.svg"))),
             "icons/chevron-right.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-right.svg"))),
             "icons/chevron-down.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-down.svg"))),
-            _ => ring_glow::load(path).map(Cow::Owned),
+            // Preserve Ameow's existing aliases; other component icons use the official bundle.
+            _ => match ring_glow::load(path) {
+                Some(bytes) => Some(Cow::Owned(bytes)),
+                None => return gpui_kit_assets::Assets.load(path),
+            },
         })
     }
-    fn list(&self, _: &str) -> anyhow::Result<Vec<SharedString>> {
-        Ok(["icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
+    fn list(&self, prefix: &str) -> anyhow::Result<Vec<SharedString>> {
+        let mut paths: Vec<SharedString> = ["icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
             "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",
             "icons/blocks.svg", "icons/info.svg", "icons/circle-alert.svg",
             "icons/chevron-right.svg", "icons/chevron-down.svg"]
             .into_iter()
             .map(Into::into)
             .chain(ring_glow::asset_paths())
-            .collect())
+            .filter(|path: &SharedString| path.starts_with(prefix))
+            .collect();
+        paths.extend(gpui_kit_assets::Assets.list(prefix)?);
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }
 struct Options {
@@ -205,7 +214,7 @@ struct Prototype {
     visual_offset: [f32; 2],
     background_clicks: surface_actions::BackgroundClicks,
     downloads: Option<download_ui::DownloadUi>,
-    settings_window: Option<WindowHandle<settings_window::SettingsWindow>>,
+    settings_window: Option<WindowHandle<gpui_component::Root>>,
     unknown_downloading: bool,
     tray: Option<tray::Tray>,
     tray_popup: Option<WindowHandle<tray_popup::TrayPopup>>,
@@ -657,6 +666,7 @@ impl Render for Prototype {
         self.last_frame_us = timestamp_us;
         self.advance(window, cx);
         tokens::sync_kit_theme(self.night, cx);
+        if cx.reduce_motion() != self.model.reduced { cx.set_reduce_motion(self.model.reduced); }
         let cpu_advance_us = render_start.elapsed().as_micros();
         let now = self.now();
         let g = self.model.geometry();
@@ -1178,7 +1188,7 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
-            gpui_base::init(cx);
+            gpui_component::init(cx);
             cx.text_system()
                 .add_fonts(
                     tokens::LATIN_FONT_BYTES

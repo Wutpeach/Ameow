@@ -1,0 +1,39 @@
+   Compiling ameow v0.1.0 (D:\Ameow-gpui-kit)
+    Finished `test` profile [unoptimized] target(s) in 6.09s
+     Running unittests src\main.rs (target\debug\deps\ameow-d829757201684fd8.exe)
+
+running 18 tests
+test download_ui::native_settings_transport::isolated_transport_saves_through_real_owner_and_refuses_download_actions ... ok
+test download_ui::tests::background_directory_open_waits_for_settings_ack_and_recovers_on_failure ... ok
+test download_ui::tests::settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure ... FAILED
+test native_acceptance::settings_and_tray ... ignored, uses the desktop; requires explicit user agreement and a fresh task-owned directory
+test settings_window::components::tests::admitted_fast_check_has_visible_feedback_without_hiding_refusal ... ok
+test settings_window::components::tests::checked_age_handles_clock_skew_and_localized_units ... ok
+test settings_window::components::tests::cleanup_uncertainty_and_unverified_identity_override_ready ... ok
+test settings_window::components::tests::diagnostic_copy_and_upstream_failures_use_safe_localized_text ... ok
+test settings_window::components::tests::preparing_blocks_duplicate_actions_and_does_not_claim_a_download ... ok
+test settings_window::components::tests::upgrade_requires_fresh_success_and_newer_verified_version ... ok
+test settings_window::components::tests::version_preview_keeps_identity_ends_without_splitting_unicode ... ok
+test settings_window::components::tests::version_requires_ready_and_uninterrupted_owner ... ok
+test settings_window::tests::display_paths_only_unwrap_absolute_drive_and_complete_unc ... ok
+test settings_window::tests::keyboard_reveal_scrolls_only_enough_to_show_the_target ... ok
+test settings_window::tests::path_preview_preserves_short_paths_and_bounds_long_unicode ... ok
+test settings_window::tests::picker_empty_multiple_and_unavailable_paths_do_not_claim_a_saved_directory ... ok
+test settings_window::tests::placement_uses_right_then_left_and_clamps_to_work_area_at_each_scale ... ok
+test settings_window::tests::settings_notices_follow_effective_language ... ok
+
+failures:
+
+---- download_ui::tests::settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure stdout ----
+
+thread 'download_ui::tests::settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure' (17952) panicked at src\download_ui.rs:2399:17:
+idle coordinator must stop
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    download_ui::tests::settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure
+
+test result: FAILED. 16 passed; 1 failed; 1 ignored; 0 measured; 144 filtered out; finished in 3.20s
+
+error: test failed, to rerun pass `--bin ameow`

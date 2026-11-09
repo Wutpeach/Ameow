@@ -1,0 +1,2 @@
+   Compiling ameow v0.1.0 (D:\Ameow-gpui-kit)
+    Finished `dev` profile [unoptimized] target(s) in 6.73s

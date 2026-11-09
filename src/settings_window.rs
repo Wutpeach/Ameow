@@ -8,6 +8,10 @@ use crate::{
 };
 use ameow_next::download::settings::{LanguagePreference, ThemePreference, TrayIconPreference};
 use gpui::{prelude::*, *};
+use gpui_component::{
+    IndexPath, Root,
+    select::{Select, SelectEvent, SelectItem, SelectState, SearchableVec},
+};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
     cell::{Cell, RefCell},
@@ -157,14 +161,57 @@ enum Page {
     Components,
     About,
 }
-fn general_select_menu(menu: Option<Page>) -> Option<Page> {
-    menu.filter(|menu| matches!(menu, Page::General | Page::Download | Page::Components))
+#[derive(Clone, Copy)]
+enum PreferenceKind { Theme, Language, TrayIcon }
+impl PreferenceKind {
+    const ALL: [Self; 3] = [Self::Theme, Self::Language, Self::TrayIcon];
+    fn id(self) -> &'static str {
+        match self { Self::Theme => "theme-menu", Self::Language => "language-menu", Self::TrayIcon => "tray-icon-menu" }
+    }
+    fn labels(self, l: Language) -> [&'static str; 3] {
+        match self {
+            Self::Theme => [l.text("跟随系统", "System"), l.text("浅色", "Light"), l.text("深色", "Dark")],
+            Self::Language => [l.text("跟随系统", "System"), "简体中文", "English"],
+            Self::TrayIcon => [l.text("跟随外观", "Follow appearance"), "Ameow Blue", "Apricot"],
+        }
+    }
+    fn selected(self, projection: &Projection) -> Option<usize> {
+        let (theme, language, icon) = projection.preferences?;
+        Some(match self {
+            Self::Theme => match theme { ThemePreference::System => 0, ThemePreference::Light => 1, ThemePreference::Dark => 2 },
+            Self::Language => match language { LanguagePreference::System => 0, LanguagePreference::Chinese => 1, LanguagePreference::English => 2 },
+            Self::TrayIcon => match icon { TrayIconPreference::FollowAppearance => 0, TrayIconPreference::AmeowBlue => 1, TrayIconPreference::Apricot => 2 },
+        })
+    }
+    fn items(self, language: Language) -> SearchableVec<PreferenceChoice> {
+        SearchableVec::new(self.labels(language).into_iter().enumerate()
+            .map(|(value, label)| PreferenceChoice { value, label }).collect::<Vec<_>>())
+    }
+}
+#[derive(Clone)]
+struct PreferenceChoice { value: usize, label: &'static str }
+impl SelectItem for PreferenceChoice {
+    type Value = usize;
+    fn title(&self) -> SharedString { self.label.into() }
+    fn value(&self) -> &usize { &self.value }
+}
+struct PreferenceSelect {
+    kind: PreferenceKind,
+    state: Entity<SelectState<SearchableVec<PreferenceChoice>>>,
+    trigger: FocusHandle,
+    language: Language,
+}
+impl PreferenceSelect {
+    fn is_open(&self, cx: &App) -> bool {
+        // Pinned Component 0.9.0 exposes its list focus while open, trigger while closed.
+        // Keep this local to the Select: global deferred state includes other windows.
+        self.state.read(cx).focus_handle(cx) != self.trigger
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ButtonStyle {
     Standard,
     Quiet,
-    Select,
     Icon,
     Menu,
 }
@@ -187,8 +234,9 @@ pub struct SettingsWindow {
     health: Option<Result<(), String>>,
     startup: Option<Result<StartupState, String>>,
     startup_pending: bool,
-    menu: Option<Page>,
-    menu_index: usize,
+    selects: Vec<PreferenceSelect>,
+    _select_subscriptions: Vec<Subscription>,
+    preview_select: Option<PreferenceKind>,
     keyboard_focus: bool,
     component_menu_open: bool,
     upstream_feedback: Option<(std::time::Instant, bool)>,
@@ -196,6 +244,18 @@ pub struct SettingsWindow {
     engine_confirmation: Option<Option<String>>,
 }
 impl SettingsWindow {
+    #[cfg(test)]
+    pub(super) fn acceptance_snapshot(&self, window: &Window, cx: &App) -> serde_json::Value {
+        serde_json::json!({
+            "selects": self.selects.iter().map(|s| serde_json::json!({
+                "id": s.kind.id(), "value": s.state.read(cx).selected_value(),
+                "ack": s.kind.selected(&self.projection), "open": s.is_open(cx),
+                "focused": s.state.read(cx).focus_handle(cx).is_focused(window),
+            })).collect::<Vec<_>>(),
+            "disabled": self.projection.preferences.is_none() || self.projection.pending || self.picker_pending,
+            "status": format!("{:?}", self.projection.status),
+        })
+    }
     fn new(
         main: Entity<Prototype>,
         projection: Projection,
@@ -222,6 +282,17 @@ impl SettingsWindow {
             }
         });
         window.focus(&focus, cx);
+        let mut select_subscriptions = Vec::new();
+        let selects = PreferenceKind::ALL.into_iter().map(|kind| {
+            let state = cx.new(|cx| SelectState::new(kind.items(projection.language),
+                kind.selected(&projection).map(IndexPath::new), window, cx));
+            let trigger = state.read(cx).focus_handle(cx);
+            select_subscriptions.push(cx.subscribe_in(&state, window, move |this, _, event, _, cx| {
+                let SelectEvent::Confirm(Some(index)) = event else { return; };
+                this.select_option(kind, *index, cx);
+            }));
+            PreferenceSelect { kind, state, trigger, language: projection.language }
+        }).collect();
         let mut this = Self {
             title_language: projection.language,
             main: main.downgrade(),
@@ -242,8 +313,9 @@ impl SettingsWindow {
             health: None,
             startup: None,
             startup_pending: false,
-            menu: None,
-            menu_index: 0,
+            selects,
+            _select_subscriptions: select_subscriptions,
+            preview_select: None,
             keyboard_focus: false,
             component_menu_open: false,
             upstream_feedback: None,
@@ -367,22 +439,6 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night);
         let prefs = self.projection.preferences;
         let enabled = prefs.is_some() && !self.projection.pending && !self.picker_pending;
-        let (theme, language, tray_icon) = prefs.unwrap_or_default();
-        let theme_label = match theme {
-            ThemePreference::System => l.text("跟随系统", "System"),
-            ThemePreference::Light => l.text("浅色", "Light"),
-            ThemePreference::Dark => l.text("深色", "Dark"),
-        };
-        let language_label = match language {
-            LanguagePreference::System => l.text("跟随系统", "System"),
-            LanguagePreference::Chinese => "简体中文",
-            LanguagePreference::English => "English",
-        };
-        let tray_icon_label = match tray_icon {
-            TrayIconPreference::FollowAppearance => l.text("跟随外观", "Follow appearance"),
-            TrayIconPreference::AmeowBlue => "Ameow Blue",
-            TrayIconPreference::Apricot => "Apricot",
-        };
         let on = matches!(self.startup, Some(Ok(StartupState::Enabled)));
         let switch_enabled = !self.startup_pending && self.startup.is_some();
         let switch = self.focusable_control("startup-switch", switch_enabled, cx)
@@ -417,21 +473,6 @@ impl SettingsWindow {
                 .gap(px(12.))
                 .child(div().flex_none().text_size(px(13.)).child(label))
                 .child(control)
-        };
-        let theme_index = match theme {
-            ThemePreference::System => 0,
-            ThemePreference::Light => 1,
-            ThemePreference::Dark => 2,
-        };
-        let language_index = match language {
-            LanguagePreference::System => 0,
-            LanguagePreference::Chinese => 1,
-            LanguagePreference::English => 2,
-        };
-        let tray_icon_index = match tray_icon {
-            TrayIconPreference::FollowAppearance => 0,
-            TrayIconPreference::AmeowBlue => 1,
-            TrayIconPreference::Apricot => 2,
         };
         let startup_status = match &self.startup {
             Some(Ok(StartupState::Stale)) => Some((
@@ -471,43 +512,15 @@ impl SettingsWindow {
             }))
             .child(row(
                 l.text("主题", "Theme"),
-                self.select_menu(
-                    Page::General,
-                    "theme-menu",
-                    theme_label,
-                    [
-                        l.text("跟随系统", "System"),
-                        l.text("浅色", "Light"),
-                        l.text("深色", "Dark"),
-                    ],
-                    theme_index,
-                    enabled,
-                    cx,
-                ),
+                self.preference_select(0, l.text("主题", "Theme"), enabled, cx),
             ))
             .child(row(
                 l.text("语言", "Language"),
-                self.select_menu(
-                    Page::Download,
-                    "language-menu",
-                    language_label,
-                    [l.text("跟随系统", "System"), "简体中文", "English"],
-                    language_index,
-                    enabled,
-                    cx,
-                ),
+                self.preference_select(1, l.text("语言", "Language"), enabled, cx),
             ))
             .child(row(
                 l.text("托盘图标", "Tray icon"),
-                self.select_menu(
-                    Page::Components,
-                    "tray-icon-menu",
-                    tray_icon_label,
-                    [l.text("跟随外观", "Follow appearance"), "Ameow Blue", "Apricot"],
-                    tray_icon_index,
-                    enabled,
-                    cx,
-                ),
+                self.preference_select(2, l.text("托盘图标", "Tray icon"), enabled, cx),
             ));
         let status = if let Some((message, danger)) = &self.notice {
             Some((settings_message(l, message), *danger))
@@ -546,98 +559,33 @@ impl SettingsWindow {
             })
             .into_any_element()
     }
-    fn select_menu(
-        &self,
-        menu: Page,
-        id: &'static str,
-        label: &'static str,
-        options: [&'static str; 3],
-        selected: usize,
-        enabled: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let p = Palette::new(self.projection.night);
-        let was_open = self.menu == Some(menu);
-        let mut control = div().relative().w(px(144.)).child(self.button(
-            id,
-            label,
-            enabled,
-            ButtonStyle::Select,
-            cx,
-            move |this, _, cx| {
-                this.menu = if was_open { None } else { Some(menu) };
-                this.menu_index = selected;
-                cx.notify();
-            },
-        ));
-        if self.menu == Some(menu) {
-            let mut list = div()
-                .id(if menu == Page::General {
-                    "theme-options"
-                } else if menu == Page::Download {
-                    "language-options"
-                } else {
-                    "tray-icon-options"
-                })
-                .w(px(144.))
-                .p(px(4.))
-                .rounded(px(6.))
-                .bg(p.surface)
-                .occlude()
-                .border_1()
-                .border_color(p.border)
-                .flex()
-                .flex_col()
-                .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                    this.menu = None;
-                    cx.notify();
-                }));
-            for (index, option) in options.into_iter().enumerate() {
-                list = list.child(
-                    div()
-                        .id((id, index))
-                        .h(px(28.))
-                        .px(px(6.))
-                        .rounded(px(4.))
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .gap(px(4.))
-                        .bg(if self.menu_index == index {
-                            p.badge
-                        } else {
-                            transparent_black()
-                        })
-                        .hover(move |s| s.bg(p.badge))
-                        .cursor_pointer()
-                        .text_size(px(13.))
-                        .whitespace_nowrap()
-                        .child(div().flex_1().min_w(px(0.)).child(option))
-                        .child(canvas(|_, _, _| (), move |bounds, _, window, _| {
-                            if selected != index { return; }
-                            let mut path = PathBuilder::stroke(px(1.2));
-                            path.move_to(bounds.origin + point(px(1.), px(4.)));
-                            path.line_to(bounds.origin + point(px(3.), px(6.)));
-                            path.line_to(bounds.origin + point(px(7.), px(2.)));
-                            if let Ok(path) = path.build() { window.paint_path(path, p.primary_text()); }
-                        }).size(px(8.)).flex_none())
-                        .on_click(
-                            cx.listener(move |this, _, _, cx| {
-                                this.select_option(menu, index, cx);
-                                cx.stop_propagation();
-                            }),
-                        ),
-                );
+    fn sync_preference_selects(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for select in &mut self.selects {
+            let selected = select.kind.selected(&self.projection);
+            let labels_changed = select.language != self.projection.language;
+            if labels_changed || select.state.read(cx).selected_value().copied() != selected {
+                select.state.update(cx, |state, cx| {
+                    if labels_changed { state.set_items(select.kind.items(self.projection.language), window, cx); }
+                    // The ACK projection is the only committed value, including while saving or after failure.
+                    // Do not compare the list cursor: arrow navigation is deliberately uncommitted.
+                    state.set_selected_index(selected.map(IndexPath::new), window, cx);
+                });
+                select.language = self.projection.language;
             }
-            control = control.child(deferred(anchored().child(list)));
         }
-        control.into_any_element()
     }
-    fn select_option(&mut self, menu: Page, index: usize, cx: &mut Context<Self>) {
-        self.menu = None;
+    fn preference_select(&self, index: usize, label: &'static str, enabled: bool, cx: &mut Context<Self>) -> AnyElement {
+        let select = &self.selects[index];
+        self.control_focus.borrow_mut().insert(select.kind.id(), select.trigger.clone());
+        let (container, _) = self.control_container(select.kind.id(), enabled, cx);
+        container.w(px(176.)).child(Select::new(&select.state)
+            .id(select.kind.id()).accessibility_label(label).disabled(!enabled)).into_any_element()
+    }
+    fn select_option(&mut self, kind: PreferenceKind, index: usize, cx: &mut Context<Self>) {
+        if index >= 3 || self.projection.pending || self.picker_pending { cx.notify(); return; }
         if self.projection.preview { cx.notify(); return; }
         if let Some((theme, language, tray_icon)) = self.projection.preferences {
-            if menu == Page::General {
+            if matches!(kind, PreferenceKind::Theme) {
                 let next = [
                     ThemePreference::System,
                     ThemePreference::Light,
@@ -647,7 +595,7 @@ impl SettingsWindow {
                     self.save_preferences(next, language, cx);
                     return;
                 }
-            } else if menu == Page::Download {
+            } else if matches!(kind, PreferenceKind::Language) {
                 let next = [
                     LanguagePreference::System,
                     LanguagePreference::Chinese,
@@ -657,7 +605,7 @@ impl SettingsWindow {
                     self.save_preferences(theme, next, cx);
                     return;
                 }
-            } else if menu == Page::Components {
+            } else if matches!(kind, PreferenceKind::TrayIcon) {
                 let next = [TrayIconPreference::FollowAppearance, TrayIconPreference::AmeowBlue, TrayIconPreference::Apricot][index];
                 if next != tray_icon && !self.projection.pending && !self.picker_pending {
                     self.notice = None;
@@ -831,22 +779,17 @@ impl SettingsWindow {
             .track_focus(&focus)
             .disabled(!enabled)
             .flex_none()
-            .h(px(if style == ButtonStyle::Select { tokens::SELECT_HEIGHT } else { tokens::CONTROL_HEIGHT }))
+            .h(px(tokens::CONTROL_HEIGHT))
             .px(px(if style == ButtonStyle::Quiet {
                 0.
             } else if quiet {
                 8.
-            } else if style == ButtonStyle::Select {
-                10.
             } else {
                 12.
             }))
             .flex()
             .items_center()
             .justify_center()
-            .when(style == ButtonStyle::Select, |s| {
-                s.w_full().justify_between().gap(px(8.))
-            })
             .when(style == ButtonStyle::Icon, |s| s.w(px(32.)))
             .when(style == ButtonStyle::Menu, |s| s.w_full().justify_start())
             .rounded(px(tokens::CONTROL_RADIUS))
@@ -869,24 +812,6 @@ impl SettingsWindow {
             .text_size(px(tokens::CONTROL_FONT_SIZE))
             .line_height(px(tokens::CONTROL_LINE_HEIGHT))
             .child(label)
-            .when(style == ButtonStyle::Select, |s| {
-                s.child(
-                    canvas(
-                        |_, _, _| (),
-                        move |bounds, _, window, _| {
-                            let mut path = PathBuilder::stroke(px(1.3));
-                            path.move_to(bounds.origin + point(px(1.), px(2.)));
-                            path.line_to(bounds.origin + point(px(4.), px(5.)));
-                            path.line_to(bounds.origin + point(px(7.), px(2.)));
-                            if let Ok(path) = path.build() {
-                                window.paint_path(path, p.neutral);
-                            }
-                        },
-                    )
-                    .size(px(8.))
-                    .flex_none(),
-                )
-            })
             .when(enabled, |s| {
                 s.cursor_pointer()
                     .hover(move |s| s.bg(p.badge))
@@ -941,7 +866,6 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.page = page;
                 this.component_menu_open = false;
-                this.menu = None;
                 this.scroll.set_offset(point(px(0.), px(0.)));
                 cx.notify();
             }))
@@ -1189,6 +1113,16 @@ impl Render for SettingsWindow {
             self.title_language = self.projection.language;
             window.set_window_title(self.title_language.text("Ameow · 设置", "Ameow · Settings"));
         }
+        tokens::sync_kit_theme(self.projection.night, cx);
+        self.sync_preference_selects(window, cx);
+        if let Some(kind) = self.preview_select.take() {
+            let trigger = self.selects.iter().find(|s| s.kind.id() == kind.id()).unwrap().trigger.clone();
+            // Dispatch after the trigger exists in the rendered focus tree.
+            window.on_next_frame(move |window, cx| {
+                trigger.focus(window, cx);
+                trigger.dispatch_action(&gpui_base::actions::Confirm { secondary: false }, window, cx);
+            });
+        }
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
         let reveal = self.reveal_focus.clone();
@@ -1222,6 +1156,20 @@ impl Render for SettingsWindow {
                 if !this.keyboard_focus {
                     this.keyboard_focus = true;
                     cx.notify();
+                }
+                if let Some(select) = this.selects.iter().find(|s| s.is_open(cx)) {
+                    match event.keystroke.key.as_str() {
+                        "escape" | "enter" | "space" | "up" | "down" => return,
+                        "tab" => {
+                            // Leave from the trigger's position in the form, not the deferred list.
+                            window.focus(&select.trigger, cx);
+                            if event.keystroke.modifiers.shift { window.focus_prev(cx); } else { window.focus_next(cx); }
+                            this.reveal_focus.set(true);
+                            cx.stop_propagation();
+                            return;
+                        }
+                        _ => {}
+                    }
                 }
                 if this.component_menu_open {
                     match event.keystroke.key.as_str() {
@@ -1270,46 +1218,6 @@ impl Render for SettingsWindow {
                             return;
                         }
                         _ => {}
-                    }
-                }
-                if event.keystroke.key == "escape" && this.menu.is_some() {
-                    this.menu = None;
-                    cx.notify();
-                    cx.stop_propagation();
-                    return;
-                }
-                if this.page == Page::General {
-                    if let Some(menu) = general_select_menu(this.menu) {
-                        match event.keystroke.key.as_str() {
-                            "escape" => {
-                                this.menu = None;
-                                cx.notify();
-                                cx.stop_propagation();
-                                return;
-                            }
-                            "up" => {
-                                this.menu_index = (this.menu_index + 2) % 3;
-                                cx.notify();
-                                cx.stop_propagation();
-                                return;
-                            }
-                            "down" => {
-                                this.menu_index = (this.menu_index + 1) % 3;
-                                cx.notify();
-                                cx.stop_propagation();
-                                return;
-                            }
-                            "enter" | "space" => {
-                                this.select_option(menu, this.menu_index, cx);
-                                cx.stop_propagation();
-                                return;
-                            }
-                            "tab" => {
-                                this.menu = None;
-                                cx.notify();
-                            }
-                            _ => {}
-                        }
                     }
                 }
                 if event.keystroke.key == "escape" {
@@ -1592,11 +1500,14 @@ fn anchor(main: HWND) -> Anchor {
         }
     }
 }
-fn show(handle: WindowHandle<SettingsWindow>, first: Option<Anchor>, cx: &mut App) {
+fn show(handle: WindowHandle<Root>, first: Option<Anchor>, cx: &mut App) {
     cx.defer(move |cx| {
-        let Ok(target) = handle.update(cx, |view, window, cx| {
-            window.focus(&view.focus, cx);
-            view.refresh_health(true, cx);
+        let Ok(target) = handle.update(cx, |root, window, cx| {
+            let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
+            view.update(cx, |view, cx| {
+                window.focus(&view.focus, cx);
+                view.refresh_health(true, cx);
+            });
             hwnd(window)
         }) else {
             return;
@@ -1681,17 +1592,19 @@ impl Prototype {
         }
         projection.preview_upstream = Some(upstream);
         if let Some(handle) = self.settings_window {
-            let _ = handle.update(cx, |view, _, cx| {
+            let _ = handle.update(cx, |root, window, cx| {
+                let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
+                view.update(cx, |view, cx| {
+                window.focus(&view.focus, cx);
                 view.projection = projection;
                 view.startup = Some(Ok(StartupState::Disabled));
                 view.startup_pending = false;
-                view.menu = match scene.state.as_str() {
-                    "theme-menu" => Some(Page::General),
-                    "language-menu" => Some(Page::Download),
-                    "tray-menu" => Some(Page::Components),
+                view.preview_select = match scene.state.as_str() {
+                    "theme-menu" => Some(PreferenceKind::Theme),
+                    "language-menu" => Some(PreferenceKind::Language),
+                    "tray-menu" => Some(PreferenceKind::TrayIcon),
                     _ => None,
                 };
-                view.menu_index = 0;
                 view.health = Some(Ok(()));
                 view.notice = None;
                 view.engine_confirmation = None;
@@ -1724,6 +1637,7 @@ impl Prototype {
                 }
                 view.scroll.set_offset(point(px(0.), px(0.)));
                 cx.notify();
+                });
             });
         }
     }
@@ -1782,7 +1696,10 @@ impl Prototype {
                 is_minimizable: true,
                 ..Default::default()
             },
-            move |window, cx| cx.new(|cx| SettingsWindow::new(main, projection, window, cx)),
+            move |window, cx| {
+                let view = cx.new(|cx| SettingsWindow::new(main, projection, window, cx));
+                cx.new(|cx| Root::new(view, window, cx))
+            },
         ) {
             Ok(handle) => {
                 self.settings_window = Some(handle);
@@ -1807,15 +1724,6 @@ mod tests {
             let target = Bounds::new(point(px(0.), px(top)), size(px(100.), px(32.)));
             assert_eq!(super::focus_scroll_delta(viewport, target), px(expected));
         }
-    }
-    #[test]
-    fn all_general_select_menus_receive_keyboard_navigation() {
-        use super::{Page, general_select_menu};
-        for menu in [Page::General, Page::Download, Page::Components] {
-            assert!(general_select_menu(Some(menu)) == Some(menu));
-        }
-        assert!(general_select_menu(Some(Page::About)).is_none());
-        assert!(general_select_menu(None).is_none());
     }
     #[test]
     fn path_preview_preserves_short_paths_and_bounds_long_unicode() {

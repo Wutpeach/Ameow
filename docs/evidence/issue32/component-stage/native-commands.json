@@ -1,0 +1,122 @@
+[
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "dark",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "dark",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "chinese",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "light",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "dark",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "error",
+    "code": "E_SETTINGS_SAVE"
+  },
+  {
+    "type": "command",
+    "command": "save-settings",
+    "quality": "Balanced",
+    "theme": "dark",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "reply",
+    "reply": "settings-saved",
+    "quality": "Balanced",
+    "theme": "dark",
+    "language": "system",
+    "tray_icon": "follow_appearance"
+  },
+  {
+    "type": "tray-popup-open",
+    "summary": "空闲",
+    "queued": null,
+    "failure": null,
+    "clickable": false
+  },
+  {
+    "type": "tray-popup-action",
+    "action": "Settings"
+  }
+]
