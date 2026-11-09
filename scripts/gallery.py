@@ -4,6 +4,8 @@ Without scene/batch flags, opens the native GPUI Gallery. Previews never create
 production services, user settings, startup registration or the system tray.
 """
 import argparse
+import ctypes as c
+from ctypes import wintypes as w
 import hashlib
 import html
 import json
@@ -17,6 +19,51 @@ from preview_capture import capture
 
 ROOT = Path(__file__).resolve().parents[1]
 FLAGS = subprocess.CREATE_NO_WINDOW
+
+
+class OwnedJob:
+    """The owned preview exits even if its Python controller is terminated."""
+    def __init__(self, process):
+        class Limits(c.Structure):
+            _fields_ = [('process_time', c.c_int64), ('job_time', c.c_int64),
+                        ('flags', w.DWORD), ('min_working_set', c.c_size_t),
+                        ('max_working_set', c.c_size_t), ('active', w.DWORD),
+                        ('affinity', c.c_size_t), ('priority', w.DWORD), ('scheduling', w.DWORD)]
+        class ExtendedLimits(c.Structure):
+            _fields_ = [('basic', Limits), ('io', c.c_uint64*6),
+                        ('process_memory', c.c_size_t), ('job_memory', c.c_size_t),
+                        ('peak_process', c.c_size_t), ('peak_job', c.c_size_t)]
+        self.kernel = c.WinDLL('kernel32', use_last_error=True)
+        self.kernel.CreateJobObjectW.argtypes = [c.c_void_p, w.LPCWSTR]
+        self.kernel.CreateJobObjectW.restype = w.HANDLE
+        self.kernel.SetInformationJobObject.argtypes = [w.HANDLE, c.c_int, c.c_void_p, w.DWORD]
+        self.kernel.AssignProcessToJobObject.argtypes = [w.HANDLE, w.HANDLE]
+        self.kernel.CloseHandle.argtypes = [w.HANDLE]
+        self.handle = self.kernel.CreateJobObjectW(None, None)
+        limits = ExtendedLimits()
+        limits.basic.flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        try:
+            if not self.handle or not self.kernel.SetInformationJobObject(self.handle, 9, c.byref(limits), c.sizeof(limits)):
+                raise c.WinError(c.get_last_error())
+            if not self.kernel.AssignProcessToJobObject(self.handle, int(process._handle)):
+                raise c.WinError(c.get_last_error())
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        if self.handle:
+            self.kernel.CloseHandle(self.handle)
+            self.handle = None
+
+
+class Cancelled(RuntimeError):
+    pass
+
+
+def check_cancel(cancel):
+    if cancel and cancel.exists():
+        raise Cancelled('本轮截图已取消，已保留完成的证据')
 
 
 def catalog(exe):
@@ -43,12 +90,18 @@ class Session:
         self.current = None
         self.night = False
         self.cancel = cancel
+        self.job = None
         command = [str(self.exe), '--preview', '--preview-scene', self.scenes[0]['name'],
                    '--preview-control', str(self.control)]
         if reduced:
             command.append('--reduced')
         try:
             self.process = subprocess.Popen(command, cwd=ROOT, creationflags=FLAGS, stdout=self.log, stderr=self.log)
+            try:
+                self.job = OwnedJob(self.process)
+            except BaseException:
+                self.process.kill(); self.process.wait(timeout=5)
+                raise
         except BaseException:
             self.log.close(); self.temporary.cleanup()
             raise
@@ -82,8 +135,7 @@ class Session:
         self.request(dict(scene=scene, night=night))
         deadline = time.monotonic()+timeout
         while time.monotonic() < deadline:
-            if self.cancel and self.cancel.exists():
-                raise RuntimeError('本轮截图已取消')
+            check_cancel(self.cancel)
             if self.process.poll() is not None:
                 raise RuntimeError(f'本轮预览已退出：{self.process.returncode}')
             ack = self.read_ack()
@@ -94,7 +146,10 @@ class Session:
                     raise RuntimeError('场景/主题回执与请求不匹配')
                 self.current, self.night = scene, night
                 # ACK accepts state. This delay is not a GPU render-complete barrier.
-                time.sleep(settle)
+                until = time.monotonic()+settle
+                while time.monotonic() < until:
+                    check_cancel(self.cancel)
+                    time.sleep(min(.025, max(0, until-time.monotonic())))
                 return ack
             time.sleep(.025)
         raise TimeoutError(f'场景切换超时：{scene}')
@@ -120,6 +175,8 @@ class Session:
                 if self.process.poll() is None:
                     self.process.kill(); self.process.wait(timeout=5)
             finally:
+                if self.job:
+                    self.job.close()
                 self.log.close(); self.temporary.cleanup()
 
     def __enter__(self):
@@ -164,26 +221,38 @@ def batch(exe, scenes, output, themes, settle, cancel=None):
     print(f'批量截图将依次显示 {len(scenes)*len(themes)} 个真实窗口；请在桌面空闲时使用。Ctrl+C 只结束本轮预览。', flush=True)
     entries = []
     manifest = dict(exe=str(exe), exe_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
-                    settle_seconds=settle, motion='reduced', catalog=scenes, captures=entries, complete=False)
+                    settle_seconds=settle, motion='reduced', catalog=scenes, captures=entries,
+                    expected_count=len(scenes)*len(themes), status='running', complete=False)
     def save_manifest():
         pending = output/'manifest.tmp'
         pending.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
         pending.replace(output/'manifest.json')
     save_manifest()
     try:
+        check_cancel(cancel)
         with Session(exe, scenes, cancel=cancel) as session:
+            manifest['preview_pid'] = session.process.pid
+            save_manifest()
             for theme in themes:
                 for scene in scenes:
-                    if cancel and cancel.exists():
-                        raise RuntimeError('本轮批量截图已取消，已保留完成的证据')
+                    check_cancel(cancel)
                     name = scene['name']
                     session.select(name, night=theme == 'dark', settle=settle)
                     image = f'{theme}-{name}.png'
                     session.capture(output/image)
                     entries.append(dict(scene=name, surface=scene['surface'], theme=theme, image=image))
                     save_manifest()
+            check_cancel(cancel)
         overview(output, entries)
+        check_cancel(cancel)
         manifest['complete'] = True
+        manifest['status'] = 'complete'
+    except BaseException as error:
+        manifest['status'] = 'cancelled' if isinstance(error, (Cancelled, KeyboardInterrupt)) else 'failed'
+        manifest['error'] = str(error)
+        if entries:
+            overview(output, entries)
+        raise
     finally:
         save_manifest()
     print(str((output/'index.html').resolve()))
@@ -195,6 +264,7 @@ def main():
     parser.add_argument('--scene', help='打开一个真实场景；可与 --capture 合用')
     parser.add_argument('--list', action='store_true', help='列出指定 EXE 内置的真实目录')
     parser.add_argument('--all', action='store_true', help='批量截取 EXE 目录的全部场景')
+    parser.add_argument('--surface', help='仅截取指定分类，与 --all 合用；如 settings、menu')
     parser.add_argument('--theme', choices=['light','dark','both'], default='light')
     parser.add_argument('--capture', type=Path, help='单场景截图 PNG 路径，禁止覆盖')
     parser.add_argument('--output', type=Path, help='批量截图新目录或 Gallery 截图根目录')
@@ -210,9 +280,15 @@ def main():
         parser.error('--capture 需要 --scene')
     if args.all and (args.scene or not args.output):
         parser.error('--all 需要新 --output 目录，不能同时指定 --scene')
+    if args.surface and not args.all:
+        parser.error('--surface 需要 --all')
     if args.scene and args.theme == 'both':
         parser.error('单场景请选 light 或 dark；both 用于 --all')
     scenes = catalog(exe)
+    if args.surface:
+        scenes = [scene for scene in scenes if scene['surface'] == args.surface]
+        if not scenes:
+            parser.error(f'EXE 目录中没有分类：{args.surface}')
     if args.list:
         for scene in scenes:
             print(f'{scene["name"]:36} {scene["description"]}')

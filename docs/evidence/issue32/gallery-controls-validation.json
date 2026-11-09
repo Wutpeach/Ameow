@@ -1,0 +1,182 @@
+{
+  "base_commit": "c89cd6455af338561ccefdaa1bdffd3a4dcf2a19",
+  "change_state": "uncommitted phase changes in feature/gpui-kit-migration",
+  "exe": "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+  "exe_sha256": "3e9cab923f8ae9455f9cfcc069a39d3173d0a589fb01c456c58e9a81dc4f1fb1",
+  "source_identity_note": "The binary was built from the dirty migration worktree; checkout HEAD is not the build commit.",
+  "gallery_native": {
+    "complete": true,
+    "input": "Gallery buttons via owned-HWND Win32 mouse messages, bounded cancellation and recovery; not physical input or a catalog matrix",
+    "dpi": 96,
+    "checks": [
+      {
+        "name": "dark switch receives the matching native preview ACK",
+        "passed": true,
+        "observed": {
+          "step": 2,
+          "pid": 22428,
+          "scene": "compact.idle",
+          "night": true,
+          "error": null
+        }
+      },
+      {
+        "name": "category screenshot button completes real dual-theme Menu overview",
+        "passed": true,
+        "observed": {
+          "expected_count": 2,
+          "status": "complete",
+          "complete": true,
+          "preview_pid": 15832,
+          "completed_captures": 2
+        }
+      },
+      {
+        "name": "all screenshot button starts full catalog; cancel preserves only partial evidence and settles child",
+        "passed": true,
+        "observed": {
+          "expected_count": 188,
+          "status": "cancelled",
+          "complete": false,
+          "preview_pid": 8788,
+          "completed_captures": 1
+        }
+      },
+      {
+        "name": "screenshot failure can be retried without reselecting scene or restarting Gallery",
+        "passed": true,
+        "observed": "menu.root"
+      },
+      {
+        "name": "reopen preview button recovers the selected scene and theme after child exit",
+        "passed": true,
+        "observed": 16960
+      },
+      {
+        "name": "closing Gallery cancels active batch and settles all owned descendants",
+        "passed": true,
+        "observed": {
+          "returncode": 0,
+          "status": "cancelled",
+          "complete": false,
+          "completed_captures": 0
+        }
+      }
+    ],
+    "native_capture_count": 5,
+    "derived_overview_png_count": 3,
+    "raw_evidence": "D:\\Ameow-gpui-kit\\evidence\\issue32\\gallery-native-final-3"
+  },
+  "compatibility": {
+    "exe": "D:\\Ameow-gpui-kit\\target\\debug\\ameow.exe",
+    "exe_sha256": "3e9cab923f8ae9455f9cfcc069a39d3173d0a589fb01c456c58e9a81dc4f1fb1",
+    "checks": [
+      {
+        "name": "motion renders repeated Compact/Full transitions and exits cleanly",
+        "passed": true,
+        "observed": {
+          "dpi": 96,
+          "frames": 122,
+          "intermediate_frames": 40,
+          "min": 0,
+          "max": 1
+        }
+      },
+      {
+        "name": "reduced renders repeated Compact/Full transitions and exits cleanly",
+        "passed": true,
+        "observed": {
+          "dpi": 96,
+          "frames": 122,
+          "intermediate_frames": 0,
+          "min": 0,
+          "max": 1
+        }
+      },
+      {
+        "name": "Shell has the owned application notification icon",
+        "passed": true,
+        "observed": {
+          "hwnd": 33559944,
+          "rect": [
+            2138,
+            1400,
+            2378,
+            1440
+          ]
+        }
+      },
+      {
+        "name": "owned tray callback opens the actual GPUI popup",
+        "passed": true,
+        "observed": {
+          "hwnd": 15733892,
+          "bounds": [
+            2130,
+            1228,
+            2378,
+            1400
+          ],
+          "dpi": 96
+        }
+      },
+      {
+        "name": "second tray callback closes popup and preserves main process",
+        "passed": true,
+        "observed": 50660
+      },
+      {
+        "name": "clean fixture exit removes its notification icon",
+        "passed": true,
+        "observed": 0
+      }
+    ],
+    "complete": true,
+    "limits": "One actual DPI; no compositor cadence, cross-monitor, production persistence or physical Shell-input claim."
+  },
+  "engineering_checks": [
+    {
+      "command": "cargo build --locked --bin ameow",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo check --locked --all-targets",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo test --locked settings",
+      "result": "23 PASS; not a full suite"
+    },
+    {
+      "command": "python scripts/test_gallery_tools.py",
+      "result": "7 PASS; no windows"
+    },
+    {
+      "command": "python -m py_compile scripts/gallery.py scripts/test_gallery_native.py scripts/test_gpui_compatibility.py",
+      "result": "PASS"
+    }
+  ],
+  "process_cleanup": {
+    "checked_owned_pids": [
+      8788,
+      15832,
+      16960,
+      22044,
+      22428,
+      54256
+    ],
+    "remaining": []
+  },
+  "limits": [
+    "No completed 94x2 matrix; accepted prior evidence reused",
+    "Gallery physical mouse/keyboard traversal remains pending; final button checks use owned-HWND messages",
+    "Settings integration covers real UI command/ACK and disk/reopen, not production-window end-to-end acceptance",
+    "Only actual 96 DPI; mixed DPI/cross-monitor/compositor timing unverified",
+    "Main remains 4d57d3a7 with independent uncommitted update work; no merge/push/release/Issue close"
+  ],
+  "post_engineering_build": {
+    "exe_sha256": "860efe4d81045d7c16ab647eb8b8adbf872a66eca562c2244f76c5ac90a18e84",
+    "reason": "cargo test --locked settings rebuilt the regular bin after adding only cfg(test) coverage in download_ui.rs; Gallery runtime source unchanged since native acceptance",
+    "native_rerun": false
+  }
+}

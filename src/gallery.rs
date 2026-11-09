@@ -43,7 +43,7 @@ impl PreviewProcess {
         Ok(())
     }
     fn poll(&mut self, scene: &str, night: bool) -> anyhow::Result<bool> {
-        if let Some(status) = self.child.try_wait()? { anyhow::bail!("预览已退出（{status}），请重新打开 Gallery"); }
+        if let Some(status) = self.child.try_wait()? { anyhow::bail!("预览已退出（{status}），请点击“重新打开预览”"); }
         let Some(started) = self.pending else { return Ok(false); };
         if started.elapsed() > Duration::from_secs(20) { self.pending = None; anyhow::bail!("场景切换超时，请重新选择场景"); }
         let Ok(bytes) = fs::read(self.control.with_extension("ack.json")) else { return Ok(false); };
@@ -121,6 +121,12 @@ impl Gallery {
         self.image = None;
         self.accepted_at = None;
         self.error = false;
+        if self.session.is_none() {
+            match PreviewProcess::start() {
+                Ok(session) => self.session = Some(session),
+                Err(error) => { self.error = true; self.notice = format!("无法打开隔离预览：{error}，请重试"); return; }
+            }
+        }
         if let Some(session) = &mut self.session {
             match session.select(&self.scenes[index].name, self.night) {
                 Ok(()) => self.notice = "正在切换场景…".into(),
@@ -129,10 +135,10 @@ impl Gallery {
         }
     }
     fn poll(&mut self) {
-        if let Some(session) = &mut self.session {
-            match session.poll(&self.scenes[self.selected].name, self.night) {
+        if let Some(result) = self.session.as_mut().map(|session| session.poll(&self.scenes[self.selected].name, self.night)) {
+            match result {
                 Ok(true) => { self.accepted_at = Some(Instant::now()); self.notice = "真实预览窗口已切换，可查看或截图".into(); }
-                Err(error) => { self.error = true; self.accepted_at = None; self.notice = error.to_string(); }
+                Err(error) => { self.session = None; self.error = true; self.accepted_at = None; self.notice = error.to_string(); }
                 _ => {}
             }
         }
@@ -140,21 +146,34 @@ impl Gallery {
         if let Some(result) = finished {
             let (mut child, path, log) = self.capture.take().unwrap();
             match result {
-                Ok(status) if status.success() => { self.notice = format!("截图已保存：{}", path.display()); self.image = Some(path); }
+                Ok(status) if status.success() => { self.error = false; self.notice = format!("截图已保存：{}", path.display()); self.image = Some(path); }
                 _ => { let _ = child.kill(); let _ = child.wait(); self.error = true; self.notice = format!("截图失败，请检查日志：{}", log.display()); }
             }
         }
         let finished = self.batch.as_mut().and_then(|(child, _, _)| child.try_wait().transpose());
         if let Some(result) = finished {
             let (mut child, output, _) = self.batch.take().unwrap();
+            let manifest = fs::read(output.join("manifest.json")).ok()
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
             match result {
-                Ok(status) if status.success() => self.notice = format!("全部截图已保存：{}", output.join("index.html").display()),
+                Ok(status) if status.success() && manifest.as_ref().is_some_and(|m| m["complete"] == true) => { self.error = false; self.notice = format!("截图总览已保存：{}", output.join("index.html").display()); }
+                _ if manifest.as_ref().is_some_and(|m| m["status"] == "cancelled") => { self.error = false; self.notice = format!("已取消，已完成的证据保留在：{}", output.display()); }
                 _ => { let _ = child.kill(); let _ = child.wait(); self.error = true; self.notice = format!("批量截图未完成，已保留证据；日志：{}", output.with_extension("log").display()); }
+            }
+        } else if let Some((_, output, cancel)) = &self.batch {
+            if !cancel.exists() {
+                if let Ok(bytes) = fs::read(output.join("manifest.json")) {
+                    if let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        let done = manifest["captures"].as_array().map_or(0, Vec::len);
+                        self.notice = format!("正在截图 {done}/{}；可点击“取消截图”，已完成的证据会保留。", manifest["expected_count"]);
+                    }
+                }
             }
         }
     }
     fn capture(&mut self) {
         if !self.ready() { return; }
+        self.error = false;
         let Some(session) = &self.session else { return; };
         self.serial += 1;
         let theme = if self.night { "dark" } else { "light" };
@@ -177,25 +196,37 @@ impl Gallery {
         }
     }
     fn ready(&self) -> bool {
-        !self.error && self.capture.is_none() && self.batch.is_none() && self.accepted_at.is_some_and(|at| at.elapsed() >= Duration::from_millis(500))
+        self.session.is_some() && self.capture.is_none() && self.batch.is_none() && self.accepted_at.is_some_and(|at| at.elapsed() >= Duration::from_millis(500))
     }
-    fn capture_all(&mut self) {
+    fn capture_all(&mut self, current_group: bool) {
         if !self.ready() { return; }
+        self.error = false;
         self.serial += 1;
         let output = self.output.join(format!("all-{}", self.serial));
         let cancel = output.with_extension("cancel");
         let spawn = (|| -> anyhow::Result<Child> {
             fs::create_dir_all(&self.output)?;
             let file = fs::File::create(output.with_extension("log"))?;
-            Ok(Command::new("python").arg(PathBuf::from(SOURCE).join("scripts/gallery.py"))
+            let mut command = Command::new("python");
+            command.arg(PathBuf::from(SOURCE).join("scripts/gallery.py"))
                 .arg("--exe").arg(std::env::current_exe()?).args(["--all","--theme","both","--settle","0.8"])
                 .arg("--output").arg(&output).arg("--cancel-file").arg(&cancel)
                 .current_dir(SOURCE).stdin(Stdio::null()).stdout(file.try_clone()?).stderr(file)
-                .creation_flags(HIDDEN).spawn()?)
+                .creation_flags(HIDDEN);
+            if current_group { command.arg("--surface").arg(&self.surface); }
+            Ok(command.spawn()?)
         })();
         match spawn {
-            Ok(child) => { self.notice = "正在生成全部状态的双主题截图，关闭 Gallery 可取消本轮。".into(); self.batch = Some((child, output, cancel)); }
+            Ok(child) => { self.notice = "正在生成双主题截图，可点击“取消截图”。".into(); self.batch = Some((child, output, cancel)); }
             Err(error) => { self.error = true; self.notice = format!("无法启动批量截图：{error}"); }
+        }
+    }
+    fn cancel_batch(&mut self) {
+        if let Some((_, _, cancel)) = &self.batch {
+            match fs::write(cancel, "cancel") {
+                Ok(()) => self.notice = "正在取消并关闭本轮预览…".into(),
+                Err(error) => { self.error = true; self.notice = format!("无法取消截图：{error}，请重试"); }
+            }
         }
     }
     fn button(&self, id: impl Into<ElementId>, label: impl Into<SharedString>, selected: bool) -> Button {
@@ -212,8 +243,13 @@ impl Drop for Gallery {
         if let Some((child, _, _)) = &mut self.capture { let _ = child.kill(); let _ = child.wait(); }
         if let Some((child, _, cancel)) = &mut self.batch {
             let _ = fs::write(cancel, "cancel");
-            // The CLI owns and settles its own preview before exiting.
-            let _ = child.wait();
+            let until = Instant::now() + Duration::from_secs(5);
+            while Instant::now() < until {
+                if child.try_wait().ok().flatten().is_some() { return; }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            // The CLI's kill-on-close Job also settles its owned preview.
+            let _ = child.kill(); let _ = child.wait();
         }
     }
 }
@@ -251,22 +287,29 @@ impl Render for Gallery {
         let detail = div().flex_1().min_w(px(0.)).h_full().p(px(20.)).flex().flex_col().gap(px(12.))
             .child(div().text_size(px(18.)).font_weight(FontWeight::MEDIUM).child(scene.name.clone()))
             .child(div().text_color(p.neutral).child(scene.description.clone()))
-            .child(div().flex().gap(px(8.))
+            .child(div().flex().flex_wrap().gap(px(8.))
                 .child(self.button("gallery-light","浅色",!self.night).disabled(busy).child("浅色")
                     .on_click(cx.listener(|this,_,_,cx|{this.night=false;this.select(this.selected);cx.notify();})))
                 .child(self.button("gallery-dark","深色",self.night).disabled(busy).child("深色")
                     .on_click(cx.listener(|this,_,_,cx|{this.night=true;this.select(this.selected);cx.notify();})))
+                .when(self.session.is_none(), |s| s.child(self.button("gallery-reopen","重新打开预览",false).disabled(busy).child("重新打开预览")
+                    .on_click(cx.listener(|this,_,_,cx|{this.select(this.selected);cx.notify();})))))
+            .child(div().flex().flex_wrap().gap(px(8.))
                 .child(self.button("gallery-capture","截图",false).disabled(!self.ready()).child("截图")
                     .on_click(cx.listener(|this,_,_,cx|{this.capture();cx.notify();})))
+                .child(self.button("gallery-capture-group","本分类截图",false).disabled(!self.ready()).child("本分类截图")
+                    .on_click(cx.listener(|this,_,_,cx|{this.capture_all(true);cx.notify();})))
                 .child(self.button("gallery-capture-all","全部截图",false).disabled(!self.ready()).child("全部截图")
-                    .on_click(cx.listener(|this,_,_,cx|{this.capture_all();cx.notify();}))))
+                    .on_click(cx.listener(|this,_,_,cx|{this.capture_all(false);cx.notify();})))
+                .when(self.batch.is_some(), |s| s.child(self.button("gallery-cancel","取消截图",false).child("取消截图")
+                    .on_click(cx.listener(|this,_,_,cx|{this.cancel_batch();cx.notify();})))))
             .child(div().text_size(px(12.)).text_color(if self.error { p.red } else { p.neutral }).child(self.notice.clone()))
             .child(div().flex_1().min_h(px(100.)).flex().items_center().justify_center().border_1().border_color(p.border)
                 .rounded(px(8.)).overflow_hidden()
                 .when_some(self.image.clone(), |s,path| s.child(img(path).max_w_full().max_h_full().object_fit(ObjectFit::Contain)))
                 .when(self.image.is_none(), |s| s.child(div().p(px(16.)).text_color(p.neutral).child("在真实预览窗口中检查交互，或点击“截图”在此查看。"))))
             .child(div().text_size(px(12.)).text_color(p.neutral)
-                .child(format!("“全部截图”会依次显示 {} 个真实窗口，约 3–5 分钟，请在桌面空闲时使用。局部修改请只截当前场景。", self.scenes.len()*2)));
+                .child(format!("“本分类截图”截取当前分类的双主题状态；“全部截图”会依次显示 {} 个真实窗口，约 3–5 分钟，请在桌面空闲时使用。", self.scenes.len()*2)));
         div().size_full().bg(p.surface).text_color(p.primary_text()).font(tokens::desktop_ui_font())
             .text_size(px(13.)).line_height(px(20.)).flex().flex_col()
             .child(div().h(px(64.)).px(px(20.)).flex().items_center().justify_between().border_b_1().border_color(p.border)

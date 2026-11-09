@@ -2335,6 +2335,70 @@ mod tests {
         assert!(!ui.settings_pending);
     }
     #[test]
+    fn settings_ack_round_trip_uses_real_store_and_recovers_after_write_failure() {
+        use super::*;
+        use ameow_next::download::{composition, queue::DownloadCoordinator};
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        let defaults = Settings { output_dir: root.path().into(), ..exit_snapshot().settings };
+        let backend = composition::download_coordinator(root.path().join("runtime"), path.clone(), defaults.clone()).unwrap();
+        let (commands, receiver) = mpsc::sync_channel(2);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.snapshot = Some(Arc::new(backend.snapshot()));
+        assert!(ui.request_preferences(ThemePreference::Dark, LanguagePreference::English, 1));
+        assert!(ui.settings_pending);
+        assert_eq!(ui.settings().unwrap(), defaults);
+        let reply = backend.apply(receiver.recv_timeout(Duration::from_secs(1)).unwrap());
+        let persisted = Settings::load(&path, defaults.clone()).unwrap();
+        assert_eq!(persisted.theme, ThemePreference::Dark);
+        assert_eq!(persisted.language, LanguagePreference::English);
+        assert_eq!(ui.settings().unwrap(), defaults, "disk success alone is not a UI ACK");
+        ui.complete_settings(reply);
+        assert_eq!(ui.settings().unwrap(), persisted);
+        assert!(!ui.settings_pending);
+
+        // Block atomic replacement with a directory; keep the accepted bytes intact.
+        let accepted_bytes = std::fs::read(&path).unwrap();
+        let held = root.path().join("accepted-settings.json");
+        std::fs::rename(&path, &held).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert!(ui.request_tray_icon(TrayIconPreference::Apricot, 2));
+        let failure = backend.apply(receiver.recv_timeout(Duration::from_secs(1)).unwrap());
+        std::fs::remove_dir(&path).unwrap();
+        std::fs::rename(&held, &path).unwrap();
+        assert!(matches!(failure, CommandReply::Error(_)));
+        ui.complete_settings(failure);
+        assert!(!ui.settings_pending);
+        assert!(matches!(ui.settings_status, SettingsStatus::Failed(_)));
+        assert_eq!(ui.settings().unwrap(), persisted);
+        assert_eq!(backend.snapshot().settings, persisted);
+        assert_eq!(std::fs::read(&path).unwrap(), accepted_bytes);
+
+        assert!(ui.request_tray_icon(TrayIconPreference::Apricot, 3));
+        ui.complete_settings(backend.apply(receiver.recv_timeout(Duration::from_secs(1)).unwrap()));
+        let acknowledged = ui.settings().unwrap();
+        assert_eq!(acknowledged.tray_icon, TrayIconPreference::Apricot);
+        assert_eq!(acknowledged.theme, ThemePreference::Dark);
+        assert_eq!(acknowledged.quality, defaults.quality);
+        assert_eq!(acknowledged.output_dir, defaults.output_dir);
+        fn stop(backend: &DownloadCoordinator) {
+            backend.stop();
+            let deadline = Instant::now()+Duration::from_secs(3);
+            while !backend.snapshot().stopped {
+                assert!(Instant::now() < deadline, "idle coordinator must stop");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        stop(&backend);
+        let reopened = composition::download_coordinator(root.path().join("runtime"), path, defaults).unwrap();
+        assert_eq!(reopened.snapshot().settings, acknowledged);
+        assert!(reopened.snapshot().jobs.is_empty());
+        assert!(!reopened.snapshot().preparing);
+        stop(&reopened);
+    }
+    #[test]
     fn tray_icon_waits_for_ack_and_preserves_previous_value_on_failure() {
         use super::*;
         let (mut ui, receiver) = row_ui(JobPhase::Failure, false);

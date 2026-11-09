@@ -68,3 +68,31 @@ Base 按钮的 12 项 Debug 原生检查及 Token 投影测试通过。
 生产设置 ACK、原生动画/DPI/系统托盘与主线自动更新联合回归。旧 PowerShell 菜单/包装脚本
 仍保留，等替代覆盖和界面验收后清理。main 仍为 4d57d3a7，未提交自动更新成果没有复制。
 本检查点不是 #32 最终 Done，不合并主线、不 Push/发布或关闭 Issue。
+
+## Gallery 定向验收与工具收敛（2026-11-08 续）
+
+从 c89cd645 继续，本阶段改动保留在 feature/gpui-kit-migration 的未提交工作区。
+Gallery 已补齐“本分类截图”、批量进度、“取消截图”、截图失败直接重试和预览退出后恢复。
+根据用户本轮明确同意进行了有限桌面检查；所有测试窗口/进程已退出。没有重跑 94×2。
+
+- Gallery 定向原生检查 6 项通过；另复用本轮较早一次的 Light 单张成功证据。
+  分类 Menu 完成 2 张双主题截图，完整批次仅 1 张后取消，关闭时取消另一批且完成 0 张。
+  最新通过轮原生截图共 5 张，另有 3 张从这些资产派生的总览。失败/中断轮不算整轮通过。
+- 普通动画与 reduced motion 各记录 122 个应用帧；中间过渡分别为 40 / 0，重复 Compact/Full
+  及退出通过。这些计数不是显示器呈现帧率或卡顿指标。
+- 实际 Shell 通知图标注册、所属回调打开/关闭 GPUI 弹窗、退出移除图标通过。
+- 真实设置服务 + UI command/ACK + 磁盘保存/失败恢复/服务重建读回集成测试通过；
+  协调器测试仅使用临时目录，未启动常规生产实例或使用用户设置；不将结果升级为完整生产 UI 端到端验收。
+- 23 项设置相关测试、7 项不打开窗口的工具检查、Debug 增量构建、全目标编译检查通过。
+
+职责对照见 [gallery-coverage.md](gallery-coverage.md)，最新阶段报告见
+[gallery-stage-report.md](gallery-stage-report.md)，机器证据见
+[gallery-controls-validation.json](gallery-controls-validation.json)。原尺寸菜单与恢复后截图见
+[gallery-menu-light.png](gallery-menu-light.png)、[gallery-recovery-dark.png](gallery-recovery-dark.png)，
+对应 JSON 保留原生截图回执与二进制身份。旧 PowerShell/控制台菜单及其专用布局测试已移除；
+原生截图、CLI、隔离/ACK、DPI/跨屏/阴影、键鼠等专用验证能力保留。
+
+本轮 GUI 按钮使用所属 HWND 的 Win32 消息，托盘采用所属回调；物理鼠标/键盘遍历、
+实际 Shell 点击、生产设置 UI 全链、其他 DPI/跨屏、呈现节奏及更新/重启联合回归仍待验收。
+main 仍为 4d57d3a7，自动更新尚未形成稳定提交，不复制 dirty 工作，也不提前合并。
+新的产品状态未增加，仅 Gallery 开发期状态改变，94 个产品 Preview Scenes 保持不变。
