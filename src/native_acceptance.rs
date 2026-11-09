@@ -16,6 +16,7 @@ fn settings_and_tray() {
     options.tray_fixture = true;
     options.reduced = true;
     options.exit_after_ms = Some(420_000);
+    let completion_root = root.clone();
     gpui_platform::application().with_assets(Assets).run(move |cx| {
         gpui_base::init(cx);
         cx.text_system().add_fonts(tokens::LATIN_FONT_BYTES.into_iter().map(Cow::Borrowed).collect()).unwrap();
@@ -57,4 +58,6 @@ fn settings_and_tray() {
             }
         }).detach();
     });
+    std::fs::write(completion_root.join("application-returned.json"),
+        serde_json::json!({"application_run_returned":true}).to_string()).unwrap();
 }

@@ -120,3 +120,11 @@ main 仍为 4d57d3a7，自动更新尚未形成稳定提交，不复制 dirty �
 原版宿主退出日志出现尚未定位的 TLS AccessError，未将进程干净退出记为通过。
 当前结论与证据边界见 [manual-native-stage-report.md](manual-native-stage-report.md) 和
 [manual-native-validation.json](manual-native-validation.json)。未重跑完整矩阵，停止等待网页侧阶段验收。
+
+## 2026-11-09 TLS 退出专项
+
+后续两轮复现取得真实异常退出码与符号调用栈，将直接缺陷定位到 AccessKit Windows
+StringBuffer 在 TLS 已销毁后访问缓存。现有 0.34.0 已保留局部源码补丁，析构回归与
+四项缓存测试通过；第三轮相同人工路径退出码 0，Stop/stopped、应用返回与窗口/托盘清理一致。
+详见 [tls-exit-report.md](tls-exit-report.md)、[tls-exit-validation.json](tls-exit-validation.json)
+及 [符号日志](tls-stack-symbolized.txt)。该结果更新上轮 TLS 未定位状态，其他验收结论复用。

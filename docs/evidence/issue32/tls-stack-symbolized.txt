@@ -1,0 +1,85 @@
+
+running 1 test
+
+thread '<unnamed>' (8172) panicked at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\thread\local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x7ff6743737e9 - std::backtrace_rs::backtrace::win64::trace
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\..\..\backtrace\src\backtrace\win64.rs:85
+   1:     0x7ff6743737e9 - std::backtrace_rs::backtrace::trace_unsynchronized
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\..\..\backtrace\src\backtrace\mod.rs:66
+   2:     0x7ff6743737e9 - std::sys::backtrace::_print_fmt
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\sys\backtrace.rs:74
+   3:     0x7ff6743737e9 - std::sys::backtrace::impl$0::print::impl$0::fmt
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\sys\backtrace.rs:44
+   4:     0x7ff6743898c1 - core::fmt::write
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\core\src\fmt\mod.rs:0
+   5:     0x7ff674379c24 - std::io::default_write_fmt
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\io\mod.rs:626
+   6:     0x7ff674379c24 - std::io::Write::write_fmt<std::sys::stdio::windows::Stderr>
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\io\mod.rs:1730
+   7:     0x7ff674355575 - std::sys::backtrace::BacktraceLock::print
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\sys\backtrace.rs:47
+   8:     0x7ff674355575 - std::panicking::default_hook::closure$0
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\panicking.rs:292
+   9:     0x7ff674369948 - std::panicking::default_hook
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\panicking.rs:319
+  10:     0x7ff674369d23 - std::panicking::panic_with_hook
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\panicking.rs:815
+  11:     0x7ff67435564e - std::panicking::panic_handler::closure$0
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\panicking.rs:688
+  12:     0x7ff674352edf - std::sys::backtrace::__rust_end_short_backtrace<std::panicking::panic_handler::closure_env$0,never$>
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\sys\backtrace.rs:182
+  13:     0x7ff67435612e - std::panicking::panic_handler
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\panicking.rs:679
+  14:     0x7ff6743afc5d - core::panicking::panic_fmt
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\core\src\panicking.rs:80
+  15:     0x7ff6743ae8b0 - std::thread::local::panic_access_error
+                               at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\std\src\thread\local.rs:385
+  16:     0x7ff672c650dd - <std[2a1f8e54e2930f4]::thread::local::LocalKey<core[6380f46c71b215e4]::cell::RefCell<alloc[b8a7db27d8b7bce8]::vec::Vec<alloc[b8a7db27d8b7bce8]::vec::Vec<u16>>>>>::with::<<accesskit_windows[3a879fa5ff8574a3]::util::StringBuffer>::acquire::{closure#0}, alloc[b8a7db27d8b7bce8]::vec::Vec<u16>>
+  17:     0x7ff672c664bf - <accesskit_windows[3a879fa5ff8574a3]::util::StringBuffer>::acquire
+  18:     0x7ff672c64483 - <accesskit_windows[3a879fa5ff8574a3]::adapter::AdapterChangeHandler as accesskit_consumer[dc374785ce8c4754]::tree::ChangeHandler>::node_updated
+  19:     0x7ff672c59987 - <accesskit_consumer[dc374785ce8c4754]::tree::Tree>::process_changes::<accesskit_windows[3a879fa5ff8574a3]::adapter::AdapterChangeHandler>
+  20:     0x7ff672c5a332 - <accesskit_consumer[dc374785ce8c4754]::tree::Tree>::update_host_focus_state_and_process_changes::<accesskit_windows[3a879fa5ff8574a3]::adapter::AdapterChangeHandler>
+  21:     0x7ff672c61e6f - <accesskit_windows[3a879fa5ff8574a3]::adapter::Adapter>::update_window_focus_state
+  22:     0x7ff672b87e99 - <gpui_windows[a7955ae9d0d372fe]::window::WindowsWindowInner>::handle_activate_msg::{closure#0}
+  23:     0x7ff672b69842 - RINvMNtCs8xEFJqa6dYS_4core6optionINtB3_6OptionINtNtB5_4cell6RefMutIBw_NtNtCseo2DLM7iKpm_12gpui_windows6window9A11yStateEEE8and_thenNtNtCs51ygmDMoUAF_17accesskit_windows7adapter12QueuedEventsNCNvMs0_NtB1a_6eventsNtB18_18WindowsWindowInner19handle_activate_m
+  24:     0x7ff672c3f031 - <gpui_windows[a7955ae9d0d372fe]::window::WindowsWindowInner>::handle_keydown_msg
+  25:     0x7ff672c3bf8f - <lock_api[eb38708ee6e02ad]::mutex::Mutex<parking_lot[6711161b48b1d48c]::raw_mutex::RawMutex, gpui[50ec7eb062e09821]::platform::AtlasState<gpui_windows[a7955ae9d0d372fe]::directx_atlas::DirectXAtlasTextures>>>::new
+  26:     0x7ff672c488f2 - gpui_windows[a7955ae9d0d372fe]::window::window_from_hwnd
+  27:     0x7ff94c4252e6 - CallWindowProcW
+  28:     0x7ff94c424b6c - GetFocus
+  29:     0x7ff94c44f593 - GetWindowDpiAwarenessContext
+  30:     0x7ff94d8e5d94 - KiUserCallbackDispatcher
+  31:     0x7ff94b3b1304 - NtUserPeekMessage
+  32:     0x7ff94c4219df - PeekMessageW
+  33:     0x7ff94c421968 - PeekMessageW
+  34:     0x7ff94bfd51a7 - <unknown>
+  35:     0x7ff94bfd5107 - <unknown>
+  36:     0x7ff94bfd50ae - <unknown>
+  37:     0x7ff94c065859 - CoTaskMemFree
+  38:     0x7ff94c065745 - CoTaskMemFree
+  39:     0x7ff94c065391 - CoTaskMemFree
+  40:     0x7ff94c0598dc - CoWaitForMultipleHandles
+  41:     0x7ff94c05e25f - CoUninitialize
+  42:     0x7ff8b5d4869b - DllUnregisterServer
+  43:     0x7ff8b5d4b883 - DllUnregisterServer
+  44:     0x7ff94cb09bc2 - TF_CreateCicLoadWinStaMutex
+  45:     0x7ff94cb09b56 - TF_CreateCicLoadWinStaMutex
+  46:     0x7ff94cb284c3 - CtfImeCreateInputContext
+  47:     0x7ff94cae1443 - TF_CreateInputProcessorProfiles
+  48:     0x7ff94cadee1d - TF_CanUninitialize
+  49:     0x7ff94cade972 - TF_CanUninitialize
+  50:     0x7ff94caddae6 - CtfImeDestroyInputContext
+  51:     0x7ff94cadc947 - CtfImeDestroyThreadMgr
+  52:     0x7ff94cadc160 - CtfImeDestroyThreadMgr
+  53:     0x7ff94c5f930b - CtfImmCoUninitialize
+  54:     0x7ff94c5f99e7 - ImmIsUIMessageW
+  55:     0x7ff94c05e1a0 - CoUninitialize
+  56:     0x7ff94c091475 - CreateStreamOnHGlobal
+  57:     0x7ff94c091409 - CreateStreamOnHGlobal
+  58:     0x7ff94d7ffa6f - RtlFreeActivationContextStack
+  59:     0x7ff94d7ff477 - LdrShutdownThread
+  60:     0x7ff94d7feed6 - RtlExitUserThread
+  61:     0x7ff94cdeddb0 - BaseThreadInitThunk
+  62:     0x7ff94d7fee4c - RtlUserThreadStart

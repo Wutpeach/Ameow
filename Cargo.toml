@@ -33,3 +33,8 @@ debug = 0
 embed-resource = "=3.0.11"
 
 [workspace]
+exclude = ["vendor/accesskit_windows"]
+
+[patch.crates-io]
+# #32: preserve accessibility during Windows COM callbacks after TLS teardown.
+accesskit_windows = { path = "vendor/accesskit_windows" }

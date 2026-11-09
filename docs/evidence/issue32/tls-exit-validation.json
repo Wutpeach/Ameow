@@ -1,0 +1,330 @@
+{
+  "date": "2026-11-09",
+  "branch": "feature/gpui-kit-migration",
+  "parent_commit": "4c75a89a1e7664d7560639e2a45d5cefd0738f1d",
+  "root_cause": "accesskit_windows 0.34.0 StringBuffer requires TLS cache during COM/IME thread teardown callback",
+  "input": "User physical input in all three rounds; no Agent input injection or screenshots",
+  "rounds": [
+    {
+      "pid": 59432,
+      "sha256": "bfa153b7b8d01ca84e7dc2086abf62560b01e3e900f4c56bae4af0da038659f3",
+      "exit_code": 3221226505,
+      "tls_panic": true,
+      "test_passed": false,
+      "timed_out": false,
+      "started": 1794195526.4829416,
+      "finished": 1794195583.6202374,
+      "startup_unchanged": true,
+      "tray_registered_seen": null,
+      "tray_after_exit": [
+        {
+          "hwnd": 29169782,
+          "is_window": false,
+          "shell_icon_hresult": -2147467259
+        }
+      ],
+      "remaining_windows": [],
+      "observed_direct_children": null,
+      "remaining_direct_children": null,
+      "observer_head": "4c75a89a1e7664d7560639e2a45d5cefd0738f1d",
+      "observer_head_is_not_binary_source_commit": true,
+      "events": [
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Settings"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "command",
+          "command": "stop"
+        },
+        {
+          "type": "reply",
+          "reply": "stopping"
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Exit"
+        },
+        {
+          "type": "exit-request",
+          "source": "main-menu"
+        }
+      ],
+      "final_state": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "\\\\?\\D:\\Ameow-gpui-kit\\evidence\\issue32\\tls-exit-round1\\download-test",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": false
+      },
+      "logs_sha256": {
+        "evidence/issue32/tls-exit-round1/run.json": "48a24bb6cb741a9da6181bedd245d7f2609ece60fcb14c54033755d8364e1f69",
+        "evidence/issue32/tls-exit-round1/host.log": "74b61f9d207101ebd755b8efe1946d0e2d7da97047dffcf57a60daa4e8f4482d",
+        "evidence/issue32/tls-exit-round1/states.jsonl": "135aeea047ccb88b37f42f884f14c31a978a4ef9ca91c454dfd347491fb9a377",
+        "evidence/issue32/tls-exit-round1/isolated/commands.jsonl": "d23a51f94be21d8b6749276bb0c2a42e34ef2d0f79809be0960e41cedbc039cd",
+        "evidence/issue32/tls-exit-round1/isolated/state.json": "042958015e61e26f95c5d0216449f3765351924605b3954bc245ae577a03515e"
+      }
+    },
+    {
+      "pid": 38624,
+      "sha256": "75e5afb5ce7aea2d8cd17bc33fff303a2f7b441509bb1e535517ba1ce2b775c4",
+      "exit_code": 3221226505,
+      "tls_panic": true,
+      "test_passed": false,
+      "timed_out": false,
+      "started": 1794195693.4545262,
+      "finished": 1794195750.6198273,
+      "startup_unchanged": true,
+      "tray_registered_seen": null,
+      "tray_after_exit": [
+        {
+          "hwnd": 71636426,
+          "is_window": false,
+          "shell_icon_hresult": -2147467259
+        }
+      ],
+      "remaining_windows": [],
+      "observed_direct_children": null,
+      "remaining_direct_children": null,
+      "observer_head": "4c75a89a1e7664d7560639e2a45d5cefd0738f1d",
+      "observer_head_is_not_binary_source_commit": true,
+      "events": [
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "command",
+          "command": "stop"
+        },
+        {
+          "type": "reply",
+          "reply": "stopping"
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Exit"
+        },
+        {
+          "type": "exit-request",
+          "source": "main-menu"
+        }
+      ],
+      "final_state": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "\\\\?\\D:\\Ameow-gpui-kit\\evidence\\issue32\\tls-exit-round2\\download-test",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": true
+      },
+      "logs_sha256": {
+        "evidence/issue32/tls-exit-round2/run.json": "41ee2e27078cda66f639feb7fe8e8afeafd939d187da25dcb865dc962de6db77",
+        "evidence/issue32/tls-exit-round2/host.log": "94624569e56c1dfe357f2447c0600c511f1d7d7b3ca138b9c5cce5455f826308",
+        "evidence/issue32/tls-exit-round2/states.jsonl": "b578bb4977b7e79b96c76e920e8d725d5969c7a4ec36e100b2c9a12fd1d688d2",
+        "evidence/issue32/tls-exit-round2/isolated/commands.jsonl": "3406d182fdb27f0c4bf8edc6ab55fac91c9241748d31e9582071df8066a9921a",
+        "evidence/issue32/tls-exit-round2/isolated/state.json": "a7724a189be33802095065f07cbbaf84d153ae33972de985979aecfda50d663f"
+      }
+    },
+    {
+      "pid": 20924,
+      "sha256": "7a0dc33e2fffa449b271806921e9b5a759d4776f4fbfaa54978e811ec1669b4a",
+      "exit_code": 0,
+      "tls_panic": false,
+      "test_passed": true,
+      "timed_out": false,
+      "started": 1794196398.4779801,
+      "finished": 1794196559.179324,
+      "startup_unchanged": true,
+      "tray_registered_seen": true,
+      "tray_after_exit": [
+        {
+          "hwnd": 25106306,
+          "is_window": false,
+          "shell_icon_hresult": -2147467259
+        }
+      ],
+      "remaining_windows": [],
+      "observed_direct_children": [],
+      "remaining_direct_children": [],
+      "observer_head": "4c75a89a1e7664d7560639e2a45d5cefd0738f1d",
+      "observer_head_is_not_binary_source_commit": true,
+      "events": [
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "command",
+          "command": "stop"
+        },
+        {
+          "type": "reply",
+          "reply": "stopping"
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Exit"
+        },
+        {
+          "type": "exit-request",
+          "source": "main-menu"
+        },
+        {
+          "type": "acceptance-transport-stopped",
+          "stopped": true
+        }
+      ],
+      "final_state": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "\\\\?\\D:\\Ameow-gpui-kit\\evidence\\issue32\\tls-exit-round3\\download-test",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": true
+      },
+      "logs_sha256": {
+        "evidence/issue32/tls-exit-round3/run.json": "759292d77eace2ff9f2c55bada443ac8cbdf60b0c4f8d05d0b15fcb963d8f44b",
+        "evidence/issue32/tls-exit-round3/host.log": "70fb29e07a97887a1d64d6d6a1259b1e432d0feb5131b3142e8407335784bdd4",
+        "evidence/issue32/tls-exit-round3/states.jsonl": "0211317fbfc8d2985f59ebc72d0e09d814ccaf65d66e29cd2a4fca77b2ec19b7",
+        "evidence/issue32/tls-exit-round3/isolated/commands.jsonl": "783854b75df69b5d3b888ce60b7195e14e446e8080a26530a46d94e71acf75ae",
+        "evidence/issue32/tls-exit-round3/isolated/state.json": "68a03a1fe640829a0c7dce452c8454d09773da097a7c0b18efcc2cff073728bc"
+      }
+    }
+  ],
+  "total_host_seconds": 275.0039405822754,
+  "regression": {
+    "before_parent_exit": 1,
+    "before_child_exit": 3221226505,
+    "before_child_error": "TLS AccessError / thread local panicked on drop",
+    "after_util_tests_passed": 5,
+    "after_util_tests_failed": 0,
+    "test_source": "vendor/accesskit_windows/src/util.rs",
+    "command": "cargo test --manifest-path vendor/accesskit_windows/Cargo.toml --target-dir target --locked --lib util::tests:: -- --nocapture",
+    "after_stdout_location": "Codex tool receipt; result summarized here; standalone vendor test lock is ignored"
+  },
+  "product_check_exit": 0,
+  "isolated_transport_test_passed": 1,
+  "application_run_returned": true,
+  "vendor": {
+    "version": "0.34.0",
+    "source_commit": "c88605b96d04431f9c3c792464a0f2f253480e94",
+    "published_crate_sha256": "106c2b961215864d1c2e703ee63269c25c4e80a577ffb2c1017b9c17dcdf83a1",
+    "modified_upstream_files": [
+      "src/util.rs"
+    ],
+    "root_lock_change": "Only accesskit_windows registry source/checksum removed; all package versions and dependencies identical",
+    "licenses": [
+      "vendor/accesskit_windows/LICENSE-MIT",
+      "vendor/accesskit_windows/LICENSE-APACHE"
+    ]
+  },
+  "validation_limits": [
+    "No production-instance E2E or Release native run",
+    "No screen-reader full workflow",
+    "No mixed DPI, other IMEs/Windows environments or main update/restart combined regression",
+    "Post-process resource cleanup does not prove all HWNDs destroyed before TLS teardown"
+  ],
+  "raw_evidence": "evidence/issue32/tls-*; local only, no push or GitHub attachment upload",
+  "checks_sha256": {
+    "evidence/issue32/tls-regression-before.log": "98f2f606232e7fa6241844f59c9d9b59fa625dd1d1a63bdaae54e8d1ad9d14ac",
+    "evidence/issue32/tls-product-check.log": "234619abaa66aa125fb8b040f00e5bc2d6d472a019c7236cff7e52e2169ced1a",
+    "evidence/issue32/tls-transport-check.log": "84a2b09bea587b3f45a78b67c75678b3bad60c9d36ff3e7c2a893b7ee15a283e",
+    "evidence/issue32/tls-host-build.jsonl": "30d3a2f8d12a360911a5aab95905f682a04a3e7891f225d098afb7ef9a55348a",
+    "vendor/accesskit_windows/src/util.rs": "4302b0cb4d2c448edef37fab5efa9c1674f69082bd49e263bae6de817d85a831",
+    "docs/evidence/issue32/tls-stack-symbolized.txt": "94624569e56c1dfe357f2447c0600c511f1d7d7b3ca138b9c5cce5455f826308"
+  }
+}

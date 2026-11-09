@@ -48,7 +48,11 @@ impl DownloadUi {
                 assert!(snapshot.jobs.is_empty() && !snapshot.preparing);
                 let stopped = snapshot.stopped;
                 *projection.lock().unwrap() = Some(Arc::new(snapshot));
-                if stopped { break; }
+                if stopped {
+                    writeln!(log, "{}", serde_json::json!({"type":"acceptance-transport-stopped","stopped":true})).unwrap();
+                    log.flush().unwrap();
+                    break;
+                }
             }
         });
         let mut ui = Self::with_transport(commands, evidence, replies, latest);
