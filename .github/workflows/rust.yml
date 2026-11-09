@@ -3,17 +3,23 @@ name: Rust Windows
 on:
   push:
     branches: [main]
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    tags: ['v*']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', '.github/workflows/rust.yml']
   pull_request:
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
   check:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Install locked toolchain
@@ -23,3 +29,27 @@ jobs:
         run: cargo +1.93.0 check --locked --all-targets
       - name: Run tests without external runtime fixtures
         run: cargo +1.93.0 test --locked
+      - name: Fetch locked release dependencies before the offline build
+        run: cargo +1.93.0 fetch --locked --target x86_64-pc-windows-msvc
+      - name: Build and audit controlled release inputs
+        shell: pwsh
+        run: |
+          ./scripts/package_portable.ps1 -BuildOnly -ReleasePreparation -TargetDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-target') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-build')
+      - name: Verify release command boundaries
+        shell: pwsh
+        run: |
+          ./scripts/test_release_preparation.ps1 -ReleaseTool (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/ameow-release.exe') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-boundaries')
+      # No executable/ZIP uploads, secrets, signing, draft, tag creation or release job.
+      - name: Retain public build evidence only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ameow-controlled-build-evidence
+          path: |
+            ${{ runner.temp }}/ameow-c1-build/input-manifest.json
+            ${{ runner.temp }}/ameow-c1-build/release-build.json
+            ${{ runner.temp }}/ameow-c1-build/release-tool.json
+            ${{ runner.temp }}/ameow-c1-build/material-audit.json
+            ${{ runner.temp }}/ameow-c1-build/prepared/unsigned-plan.json
+            ${{ runner.temp }}/ameow-c1-boundaries/result.json
+          if-no-files-found: error
+          retention-days: 14

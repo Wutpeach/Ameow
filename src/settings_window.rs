@@ -98,6 +98,7 @@ fn settings_message(language: Language, message: &str) -> String {
 
 #[derive(Clone)]
 struct Projection {
+    app_update: ameow_next::app_update::service::View,
     preview: bool,
     path: Option<PathBuf>,
     pending: bool,
@@ -120,6 +121,7 @@ impl Projection {
     fn from_main(main: &Prototype) -> Self {
         let ui = main.downloads.as_ref();
         Self {
+            app_update: ui.map(|u| u.updates.snapshot()).unwrap_or_default(),
             preview: main.preview.is_some(),
             path: ui.and_then(|ui| ui.settings()).map(|s| s.output_dir),
             pending: ui.is_some_and(|ui| ui.settings_pending),
@@ -1124,7 +1126,7 @@ impl SettingsWindow {
                             .text_size(px(12.))
                             .text_color(p.neutral)
                             .font(tokens::ui_font())
-                            .child(env!("CARGO_PKG_VERSION")),
+                            .child(ameow_next::app_update::BUILD_VERSION),
                     ),
             )
             .child(
@@ -1144,6 +1146,178 @@ impl SettingsWindow {
                         |this, _, cx| { if !this.projection.preview { cx.open_url("https://github.com/Wutpeach/Ameow"); } },
                     )),
             )
+            .child(self.app_update_section(cx))
+            .into_any_element()
+    }
+    fn update_action(
+        &mut self,
+        action: ameow_next::app_update::service::Action,
+        cx: &mut Context<Self>,
+    ) {
+        if self.projection.preview {
+            return;
+        }
+        let _ = self
+            .main
+            .update(cx, |main, cx| main.app_update_action(action, cx));
+        cx.notify();
+    }
+    fn update_switch(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+        use ameow_next::app_update::service::Action;
+        let v = &self.projection.app_update;
+        let l = self.projection.language;
+        let p = Palette::new(self.projection.night);
+        let on = match index {
+            0 => v.preferences.auto_check,
+            1 => v.preferences.auto_download,
+            _ => v.preferences.idle_restart,
+        };
+        let enabled = !v.saving && (index != 1 || v.preferences.auto_check);
+        let id = match index {
+            0 => "update-auto-check",
+            1 => "update-auto-download",
+            _ => "update-idle-restart",
+        };
+        let mut prefs = v.preferences.clone();
+        match index {
+            0 => prefs.auto_check = !on,
+            1 => prefs.auto_download = !on,
+            _ => prefs.idle_restart = !on,
+        };
+        let keyboard = prefs.clone();
+        let switch = self
+            .focusable_control(id, enabled, cx)
+            .w(px(40.))
+            .h(px(32.))
+            .rounded(px(6.))
+            .border_1()
+            .border_color(transparent_black())
+            .flex()
+            .items_center()
+            .justify_end()
+            .child(
+                div()
+                    .w(px(32.))
+                    .h(px(18.))
+                    .rounded(px(9.))
+                    .bg(if on { p.blue } else { p.control_border() })
+                    .p(px(3.))
+                    .flex()
+                    .when(on, |s| s.justify_end())
+                    .child(div().size(px(12.)).rounded_full().bg(p.surface)),
+            )
+            .opacity(if enabled { 1. } else { 0.45 })
+            .when(enabled, |s| {
+                s.cursor_pointer()
+                    .when(self.keyboard_focus, |s| {
+                        s.focus(move |s| s.border_color(p.blue))
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.update_action(Action::Save(prefs.clone()), cx)
+                    }))
+                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                            this.update_action(Action::Save(keyboard.clone()), cx);
+                            cx.stop_propagation();
+                        }
+                    }))
+            });
+        let label = match index {
+            0 => l.text("自动检查更新", "Automatically check for updates"),
+            1 => l.text("后台下载更新", "Download updates in background"),
+            _ => l.text("空闲时自动重启更新", "Restart to update when idle"),
+        };
+        div()
+            .min_h(px(44.))
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(12.))
+            .child(div().flex_1().text_size(px(13.)).child(label))
+            .child(switch)
+            .into_any_element()
+    }
+    fn app_update_section(&self, cx: &mut Context<Self>) -> AnyElement {
+        use ameow_next::app_update::{Phase, service::Action};
+        let v = &self.projection.app_update;
+        let l = self.projection.language;
+        let p = Palette::new(self.projection.night);
+        let busy = matches!(
+            v.update.phase,
+            Phase::Checking
+                | Phase::Downloading
+                | Phase::Verifying
+                | Phase::Switching
+                | Phase::WaitingForTasks
+        );
+        let mut actions = div().flex().flex_wrap().gap(px(8.)).mt(px(12.));
+        if v.confirmation {
+            actions = actions
+                .child(self.button(
+                    "update-wait",
+                    l.text("等待任务结束后更新", "Update after tasks finish"),
+                    true,
+                    ButtonStyle::Standard,
+                    cx,
+                    |t, _, cx| t.update_action(Action::Wait, cx),
+                ))
+                .child(self.button(
+                    "update-later",
+                    l.text("稍后再更新", "Update later"),
+                    true,
+                    ButtonStyle::Quiet,
+                    cx,
+                    |t, _, cx| t.update_action(Action::Later, cx),
+                ));
+        } else {
+            actions = actions.child(self.button(
+                "update-check",
+                if v.check_retry_secs>0{format!("{} ({}s)",l.text("检查更新","Check for updates"),v.check_retry_secs)}else{l.text("检查更新","Check for updates").to_string()},
+                !busy && v.update.phase != Phase::Ready && v.check_retry_secs==0,
+                ButtonStyle::Standard,
+                cx,
+                |t, _, cx| t.update_action(Action::Check, cx),
+            ));
+            if v.update.phase == Phase::Available {
+                actions = actions.child(self.button(
+                    "update-download",
+                    l.text("下载更新", "Download update"),
+                    true,
+                    ButtonStyle::Standard,
+                    cx,
+                    |t, _, cx| t.update_action(Action::Download, cx),
+                ));
+            }
+            if v.update.phase == Phase::Ready {
+                actions = actions.child(self.button(
+                    "update-restart",
+                    l.text("重启并更新", "Restart and update"),
+                    v.launcher,
+                    ButtonStyle::Standard,
+                    cx,
+                    |t, _, cx| t.update_action(Action::Restart, cx),
+                ));
+            }
+            if v.update.phase == Phase::WaitingForTasks {
+                actions = actions.child(self.button(
+                    "update-later",
+                    l.text("稍后再更新", "Update later"),
+                    true,
+                    ButtonStyle::Quiet,
+                    cx,
+                    |t, _, cx| t.update_action(Action::Later, cx),
+                ));
+            }
+        }
+        let detail = crate::app_update_ui::detail(v, l);
+        div().mt(px(22.)).border_t_1().border_color(p.border).pt(px(20.)).flex().flex_col()
+            .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("应用更新","Application updates")))
+            .child(div().mt(px(12.)).text_size(px(13.)).child(crate::app_update_ui::headline(v,l)))
+            .when(!detail.is_empty(),|s|s.child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(detail)))
+            .when(v.update.phase==Phase::Ready&&!v.launcher,|s|s.child(div().mt(px(6.)).text_size(px(12.)).text_color(p.neutral).child(l.text("请通过 Ameow 启动入口重新打开后更新。","Open Ameow through its launcher to install the update."))))
+            .child(actions).child(div().mt(px(16.)).child(self.update_switch(0,cx)).child(self.update_switch(1,cx)).child(self.update_switch(2,cx)))
+            .child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(l.text("自动下载随自动检查暂停；手动检查始终可用。没有待执行或进行中的 Ameow 任务且资源安全释放后，即可自动重启更新。","Automatic downloads pause with automatic checks. Manual checking remains available. Ameow can restart automatically when no tasks remain and their resources have been safely released.")))
+            .when(v.saving||v.saved||v.save_error.is_some(),|s|s.child(div().mt(px(8.)).text_size(px(12.)).text_color(if v.save_error.is_some(){error_text(p)}else{p.neutral}).child(if v.save_error.is_some(){l.text("保存失败，请重试","Could not save. Try again")}else if v.saving{l.text("正在保存…","Saving…")}else{l.text("已保存","Saved")})))
             .into_any_element()
     }
 }
@@ -1648,6 +1822,16 @@ fn show(handle: WindowHandle<SettingsWindow>, first: Option<Anchor>, cx: &mut Ap
     });
 }
 impl Prototype {
+    pub(super) fn open_update_settings(&mut self, cx: &mut Context<Self>) {
+        self.open_or_focus_settings(cx);
+        if let Some(handle) = self.settings_window {
+            let _ = handle.update(cx, |view, _, cx| {
+                view.page = Page::About;
+                view.scroll.set_offset(point(px(0.), px(0.)));
+                cx.notify();
+            });
+        }
+    }
     pub(super) fn apply_preview_settings_scene(&mut self, scene: &crate::preview::Scene, cx: &mut Context<Self>) {
         self.open_or_focus_settings(cx);
         let mut projection = Projection::from_main(self);
@@ -1700,6 +1884,7 @@ impl Prototype {
                 view.engine_confirmation = None;
                 view.component_menu_open = matches!(scene.state.as_str(), "checking" | "check-failed");
                 view.page = match scene.surface.as_str() {
+                    _ if scene.state.starts_with("app-") => Page::About,
                     "components" | "diagnostics" => Page::Components,
                     _ if matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
                     _ => Page::Download,

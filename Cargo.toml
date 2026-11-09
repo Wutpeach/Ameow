@@ -30,3 +30,7 @@ debug = 0
 embed-resource = "=3.0.11"
 
 [workspace]
+
+[features]
+# Explicitly isolated local fixtures; forbidden in release builds.
+app-update-fixture = []

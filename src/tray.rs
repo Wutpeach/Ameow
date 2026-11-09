@@ -162,7 +162,7 @@ fn current_icon_size() -> i32 {
 fn refresh_icon(state: &State) -> Result<(), String> {
     let size = current_icon_size();
     let hicon = crate::brand_icons::load(state.resource.get(), size)
-        .map_err(|_| "无法加载托盘图标，请重新打开 Ameow".to_string())?;
+        .map_err(|error| format!("无法加载托盘图标，请重新打开 Ameow：{error}"))?;
     state.size.set(size);
     state.hicon.set(hicon);
     Ok(())
@@ -268,11 +268,11 @@ impl Tray {
             let class = WNDCLASSW {
                 lpfnWndProc: Some(window_proc),
                 hInstance: instance,
-                lpszClassName: w!("AmeowNextTrayOwner"),
+                lpszClassName: w!("AmeowTrayOwner"),
                 ..Default::default()
             };
             if RegisterClassW(&class) == 0 {
-                return Err("无法创建托盘窗口类".into());
+                return Err(format!("无法创建托盘窗口类：{}", windows::core::Error::from_win32()));
             }
             let mut state = Box::new(State {
                 language: Cell::new(crate::ui_text::SystemPreferences::read().language),
@@ -299,10 +299,11 @@ impl Tray {
                 Some(instance),
                 Some((&mut *state as *mut State).cast()),
             )
-            .map_err(|_| "无法创建托盘入口")?;
+            .map_err(|error| format!("无法创建托盘入口：{error}"))?;
             if !Shell_NotifyIconW(NIM_ADD, &icon(hwnd, &state)).as_bool() {
+                let error = windows::core::Error::from_win32();
                 let _ = DestroyWindow(hwnd);
-                return Err("托盘入口不可用，请保持窗口打开".into());
+                return Err(format!("托盘入口不可用，请保持窗口打开：{error}"));
             }
             Ok(Self { hwnd, state })
         }

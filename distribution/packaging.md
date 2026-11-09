@@ -1,10 +1,12 @@
 # Windows x64 private validation packaging
 
+For #33's Launcher-based controlled release preparation, see [Stage C1](../docs/application-update-stage-c1.md). The existing entry can use -BuildOnly -ReleasePreparation to build/audit the application, Launcher and offline tool together. This produces an unsigned controlled update plan and reports; the distinct first-extraction portable ZIP requires owner-side signature verification. It does not replace the historical private review below, enable a public package, generate a production key or upload binaries.
+
 This entry preserves the TRA-23 private validation protocol. A private ZIP requires an actual review bound to the current build inputs; #18 uses BuildOnly and does not renew an older review. Every private package carries `PRIVATE LOCAL VALIDATION — NOT FOR DISTRIBUTION`. Do not share or upload it. Public Gate B remains blocked and public release is not authorized; a successful private build never clears it. Product and clean ordinary-user acceptance remain separate.
 
 Use 64-bit PowerShell on Windows and the locked Rust MSVC toolchain. The script resolves its package root from its own location. Supply separate task-owned target/output directories outside the source package. Output must not already exist. No file is deleted, existing package overwritten, old runtime copied, or repository tree staged. Cargo can reuse only the chosen task-owned target. Use new task-owned paths and preserve historical evidence and targets.
 
-Build-only creates an EXE and evidence, without evaluating Gate A or making a ZIP:
+Without -ReleasePreparation, build-only creates an EXE and evidence, without evaluating Gate A or making a ZIP:
 
 ~~~powershell
 & ./scripts/package_portable.ps1 -TargetDirectory D:/task/r12-static-build -OutputDirectory D:/task/r12-build-evidence-01 -BuildOnly

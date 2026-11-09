@@ -18,10 +18,11 @@ use windows_sys::Win32::{
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const APPROVAL_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-// Preserve existing startup registration and single-instance coordination.
-const VALUE: &str = "AmeowNext";
-const MUTEX: &str = r"Local\AmeowNext.SingleInstance";
-const RESTORE_EVENT: &str = r"Local\AmeowNext.Restore";
+// Production uses one identity across installed versions and the stable launcher.
+const VALUE: &str = "Ameow";
+const LEGACY_VALUE: &str = "AmeowNext";
+const MUTEX: &str = r"Local\Ameow.SingleInstance";
+const RESTORE_EVENT: &str = r"Local\Ameow.Restore";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartupState {
@@ -211,20 +212,36 @@ fn set_at(path: &str, name: &str, exe: &Path, enabled: bool) -> Result<StartupSt
     Ok(state)
 }
 pub fn read() -> Result<StartupState, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("Cannot locate executable: {e}"))?;
+    let exe = crate::app_update::startup_entry()?;
     let state = read_at(RUN_KEY, VALUE, &exe)?;
+    if state == StartupState::Disabled && read_value(RUN_KEY, LEGACY_VALUE)?.is_some() {
+        return Ok(StartupState::Stale);
+    }
     if state == StartupState::Enabled {
         ensure_approved(APPROVAL_KEY, VALUE)?;
     }
     Ok(state)
 }
 pub fn set_enabled(enabled: bool) -> Result<StartupState, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("Cannot locate executable: {e}"))?;
+    let exe = crate::app_update::startup_entry()?;
     let state = set_at(RUN_KEY, VALUE, &exe, enabled)?;
     if enabled {
         ensure_approved(APPROVAL_KEY, VALUE)?;
     }
+    retire_legacy_at(RUN_KEY)?;
     Ok(state)
+}
+fn retire_legacy_at(path: &str) -> Result<(), String> {
+    let Some(value) = read_value(path, LEGACY_VALUE)? else { return Ok(()); };
+    let executable = value.strip_prefix('"').and_then(|v| v.strip_suffix("\" --login-startup"));
+    let owned = executable.and_then(|v| Path::new(v).file_name()).and_then(|v| v.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("ameow.exe") || name.eq_ignore_ascii_case("ameow-next.exe"));
+    if !owned { return Err("E_STARTUP_LEGACY_CONFLICT: Unrecognized legacy startup command; preserved".into()); }
+    let key = open(path, true)?.ok_or("E_STARTUP_KEY")?;
+    let code = unsafe { RegDeleteValueW(key.0, wide(LEGACY_VALUE).as_ptr()) };
+    if code != ERROR_SUCCESS && code != ERROR_FILE_NOT_FOUND { return Err(error("Retire legacy startup", code)); }
+    if read_value(path, LEGACY_VALUE)?.is_some() { return Err("E_STARTUP_LEGACY_VERIFY".into()); }
+    Ok(())
 }
 
 pub enum InstanceAcquire {
@@ -427,5 +444,19 @@ mod tests {
         );
         assert!(ensure_approved(path, "test").is_err());
         assert!(command(Path::new("bad\"path")).is_err());
+    }
+    #[test]
+    fn isolated_registry_retires_only_recognized_ameow_legacy_commands() {
+        let scratch = Scratch(format!(r"Software\AmeowTests\LegacyStartup-{}", std::process::id()));
+        let root = tempfile::tempdir().unwrap();
+        let exe = root.path().join("Ameow.exe"); std::fs::write(&exe, b"test-only").unwrap();
+        set_at(&scratch.0, LEGACY_VALUE, &exe, true).unwrap();
+        retire_legacy_at(&scratch.0).unwrap();
+        assert!(read_value(&scratch.0, LEGACY_VALUE).unwrap().is_none());
+        let foreign = root.path().join("Other.exe"); std::fs::write(&foreign, b"test-only").unwrap();
+        set_at(&scratch.0, LEGACY_VALUE, &foreign, true).unwrap();
+        assert!(retire_legacy_at(&scratch.0).is_err());
+        assert_eq!(read_value(&scratch.0, LEGACY_VALUE).unwrap(), Some(command(&foreign).unwrap()));
+        set_at(&scratch.0, LEGACY_VALUE, &foreign, false).unwrap();
     }
 }

@@ -1,6 +1,7 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=AMEOW_FIXTURE_BUILD_VERSION");
     println!("cargo:rerun-if-changed=assets/brand");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
