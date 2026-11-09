@@ -293,8 +293,12 @@ fn installed_files(install: &Install, version: &str, sequence: u64) {
     fs::write(dir.join("manifest.json"), envelope).unwrap();
 }
 
+// Separate temporary directories still share the Windows production instance mutex.
+static INSTALLER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn installer_reinstall_preserves_state_and_upgrade_uses_pending_trial() {
+    let _installer_test = INSTALLER_TEST_LOCK.lock().unwrap();
     let root = tempfile::tempdir().unwrap();
     let install = Install::fixture(root.path().into()).unwrap();
     installed_files(&install, "0.1.0", 1);
@@ -318,6 +322,7 @@ fn installer_reinstall_preserves_state_and_upgrade_uses_pending_trial() {
 
 #[test]
 fn installer_rejects_tampering_running_launcher_and_downgrade_without_resetting_state() {
+    let _installer_test = INSTALLER_TEST_LOCK.lock().unwrap();
     let root = tempfile::tempdir().unwrap();
     let install = Install::fixture(root.path().into()).unwrap();
     installed_files(&install, "0.1.1", 2);
