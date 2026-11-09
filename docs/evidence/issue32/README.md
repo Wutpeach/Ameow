@@ -112,3 +112,11 @@ main 仍为 4d57d3a7，自动更新尚未形成稳定提交，不复制 dirty �
 独立本地提交入库，旧报告里的“尚未提交”保留为历史检查点。详见
 [remaining-stage-report.md](remaining-stage-report.md)、[remaining-validation.json](remaining-validation.json)
 及尚未执行的 [manual-tray-check.md](manual-tray-check.md)。
+
+## 2026-11-09 用户人工验收与英文说明修复
+
+用户随后完成 Gallery 分类/滚动/焦点、设置剩余操作和真实 Shell 托盘开关/入口/退出的
+人工检查。英文测试保护说明残留已局部修复并经用户复验；7 项设置窗口测试通过。
+原版宿主退出日志出现尚未定位的 TLS AccessError，未将进程干净退出记为通过。
+当前结论与证据边界见 [manual-native-stage-report.md](manual-native-stage-report.md) 和
+[manual-native-validation.json](manual-native-validation.json)。未重跑完整矩阵，停止等待网页侧阶段验收。

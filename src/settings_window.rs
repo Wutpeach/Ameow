@@ -44,6 +44,11 @@ fn focus_scroll_delta(viewport: Bounds<Pixels>, target: Bounds<Pixels>) -> Pixel
 
 fn settings_message(language: Language, message: &str) -> String {
     let pair = match message {
+        #[cfg(test)]
+        "测试宿主禁用用户启动项操作" => Some((
+            "测试宿主禁用用户启动项操作",
+            "Startup changes are disabled in this test host.",
+        )),
         "当前无法保存，若另一个设置正在保存，请稍后重试" => Some((
             "当前无法保存，若另一个设置正在保存，请稍后重试",
             "Cannot save now. If another setting is being saved, try again shortly.",
@@ -1860,6 +1865,12 @@ mod tests {
         assert!(settings_message(Language::English, message).contains("Cannot access"));
         assert!(
             settings_message(Language::English, "E_SETTINGS_SAVE: failure").contains("not saved")
+        );
+        let isolated = "测试宿主禁用用户启动项操作";
+        assert_eq!(settings_message(Language::Chinese, isolated), isolated);
+        assert_eq!(
+            settings_message(Language::English, isolated),
+            "Startup changes are disabled in this test host."
         );
     }
     #[test]

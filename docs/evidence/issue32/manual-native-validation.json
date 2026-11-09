@@ -1,0 +1,367 @@
+{
+  "date": "2026-11-09",
+  "branch": "feature/gpui-kit-migration",
+  "parent_commit": "5da7a23ef726f26e457fbc15be5a805f68714840",
+  "main_head_read_only": "4d57d3a70889b739cada6efc2040a1f91b6ef67e",
+  "input_mode": "User physical mouse/keyboard; Agent read-only after USER_INPUT_ACTIVE refusal",
+  "user_confirmations": {
+    "gallery_9_categories_scrolling_selection_long_list_focus": "验收通过，全部正常",
+    "settings_language_icon_directory_choose_cancel_copy": "怎么切到英文后，还有中文残留呢，其余的验收通过",
+    "tray_popup_settings_reopen_show_main_quality": "正常，验收通过",
+    "tray_exit_windows_and_icon_disappear": "验收通过",
+    "fixed_english_startup_protection_notice": "英文说明正常"
+  },
+  "gallery_partial_acks": {
+    "count": 27,
+    "first_step": 27,
+    "last_step": 53,
+    "all_errors_null": true,
+    "does_not_prove_all_categories": true,
+    "successful_gallery_screenshot": false
+  },
+  "transports": {
+    "isolated": {
+      "counts": {
+        "presentation": 1288,
+        "command": 11,
+        "reply": 11,
+        "tray-popup-open": 2,
+        "tray-popup-action": 2,
+        "exit-request": 1
+      },
+      "events": [
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "ameow_blue"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "ameow_blue"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Settings"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Highest",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Highest",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "tray-popup-open",
+          "summary": "空闲",
+          "queued": null,
+          "failure": null,
+          "clickable": false
+        },
+        {
+          "type": "command",
+          "command": "stop"
+        },
+        {
+          "type": "reply",
+          "reply": "stopping"
+        },
+        {
+          "type": "tray-popup-action",
+          "action": "Exit"
+        },
+        {
+          "type": "exit-request",
+          "source": "main-menu"
+        }
+      ],
+      "final_state": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "\\\\?\\D:\\Ameow-gpui-kit\\evidence\\issue32\\remaining-native-2\\download-test",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": true
+      },
+      "disk_equals_state": true,
+      "upstream_all_idle": true
+    },
+    "isolated-fixed": {
+      "counts": {
+        "presentation": 948,
+        "command": 1,
+        "reply": 1
+      },
+      "events": [
+        {
+          "type": "command",
+          "command": "save-settings",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        {
+          "type": "reply",
+          "reply": "settings-saved",
+          "quality": "Balanced",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        }
+      ],
+      "final_state": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "D:\\Ameow-gpui-kit\\evidence\\issue32\\remaining-native-2\\isolated-fixed",
+          "theme": "light",
+          "language": "english",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "English",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": false
+      },
+      "disk_equals_state": true,
+      "upstream_all_idle": true
+    }
+  },
+  "run": {
+    "gallery_pid": 61156,
+    "gallery_started": 1794193479.1962311,
+    "gallery_exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\gallery-controls-after-checks.exe",
+    "gallery_sha256": "860efe4d81045d7c16ab647eb8b8adbf872a66eca562c2244f76c5ac90a18e84",
+    "gallery_finished": 1794193648.845557,
+    "gallery_manual_result": "User confirmed categories, scrolling/selection, long-list keyboard focus all normal",
+    "gallery_gone": true,
+    "settings_pid": 59056,
+    "settings_started": 1794193649.161742,
+    "settings_sha256": "bfa153b7b8d01ca84e7dc2086abf62560b01e3e900f4c56bae4af0da038659f3",
+    "startup_before": {
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Run": null,
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run": null
+    },
+    "settings_finished": 1794193971.6292562,
+    "settings_user_exit_confirmed": true,
+    "settings_gone": true,
+    "fixed_pid": 48092,
+    "fixed_started": 1794193971.9470792,
+    "fixed_sha256": "75e5afb5ce7aea2d8cd17bc33fff303a2f7b441509bb1e535517ba1ce2b775c4",
+    "startup_after": {
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Run": null,
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run": null
+    },
+    "startup_unchanged": true,
+    "cleanup_verified_utc": "2026-11-09T03:17:52.930571+00:00",
+    "fixed_test_log_result": "1 passed; 0 failed; no TLS diagnostic",
+    "original_test_log_result": "TLS AccessError; no successful test completion or exit code captured"
+  },
+  "exit_risk": {
+    "original": "TLS AccessError on unnamed thread; no successful test completion or exit code captured",
+    "fixed": "test completed: 1 passed; process exit code not captured; not the same full workflow",
+    "root_cause": "Unknown; no backtrace. Do not attribute to product or dismiss as test-only.",
+    "original_log": "\nrunning 1 test\ntest native_acceptance::settings_and_tray has been running for over 60 seconds\n\nthread '<unnamed>' (52992) panicked at /rustc/48a229ceaefd4985c50990b14116b6d856af0985/library\\std\\src\\thread\\local.rs:429:25:\ncannot access a Thread Local Storage value during or after destruction: AccessError\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+    "fixed_log": "\nrunning 1 test\ntest native_acceptance::settings_and_tray has been running for over 60 seconds\ntest native_acceptance::settings_and_tray ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 207.57s\n\n"
+  },
+  "localization_checks": {
+    "before": "   Compiling ameow v0.1.0 (D:\\Ameow-gpui-kit)\n    Finished `test` profile [unoptimized] target(s) in 4.16s\n     Running unittests src\\main.rs (target\\debug\\deps\\ameow-2ec7eae2389c78e5.exe)\n\nrunning 1 test\n\nthread 'settings_window::tests::settings_notices_follow_effective_language' (61420) panicked at src\\settings_window.rs:1866:9:\nassertion `left == right` failed\n  left: \"测试宿主禁用用户启动项操作\"\n right: \"Startup changes are disabled in this test host.\"\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\ntest settings_window::tests::settings_notices_follow_effective_language ... FAILED\n\nfailures:\n\nfailures:\n    settings_window::tests::settings_notices_follow_effective_language\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 162 filtered out; finished in 0.00s\n\nerror: test failed, to rerun pass `--bin ameow`\n",
+    "after": "   Compiling ameow v0.1.0 (D:\\Ameow-gpui-kit)\n    Finished `test` profile [unoptimized] target(s) in 4.32s\n     Running unittests src\\main.rs (target\\debug\\deps\\ameow-2ec7eae2389c78e5.exe)\n\nrunning 7 tests\ntest settings_window::tests::keyboard_reveal_scrolls_only_enough_to_show_the_target ... ok\ntest settings_window::tests::placement_uses_right_then_left_and_clamps_to_work_area_at_each_scale ... ok\ntest settings_window::tests::all_general_select_menus_receive_keyboard_navigation ... ok\ntest settings_window::tests::settings_notices_follow_effective_language ... ok\ntest settings_window::tests::path_preview_preserves_short_paths_and_bounds_long_unicode ... ok\ntest settings_window::tests::display_paths_only_unwrap_absolute_drive_and_complete_unc ... ok\ntest settings_window::tests::picker_empty_multiple_and_unavailable_paths_do_not_claim_a_saved_directory ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 156 filtered out; finished in 0.00s\n\n"
+  },
+  "screenshot_scope": {
+    "manual-english-before.png": "User attachment shows the original untranslated test-only reason",
+    "manual-english-download.png": "Download page only; not image proof of the fixed red General notice"
+  },
+  "reuse": [
+    "native-stage-report.md",
+    "native-validation.json",
+    "gallery-controls-validation.json"
+  ],
+  "unverified": [
+    "TLS root cause and clean tray exit",
+    "real startup registration changes",
+    "Apricot-specific machine ACK",
+    "mixed DPI and cross-monitor",
+    "compositor pacing",
+    "main integration and update/restart combined regression",
+    "final concentrated full regression"
+  ],
+  "hashes": {
+    "evidence/issue32/remaining-native-2/settings-tray-host.exe": "bfa153b7b8d01ca84e7dc2086abf62560b01e3e900f4c56bae4af0da038659f3",
+    "evidence/issue32/remaining-native-2/settings-tray-host-fixed.exe": "75e5afb5ce7aea2d8cd17bc33fff303a2f7b441509bb1e535517ba1ce2b775c4",
+    "evidence/issue32/remaining-native-2/manual-gallery-acks.jsonl": "113777c19ca539f6ef00d406d220914b51816fddd142542db980ac61d0ff941b",
+    "evidence/issue32/remaining-native-2/manual-settings-states.jsonl": "3890982fabf7634c8da5e59dc9d9f7896d739ea982d8dbf2e29cc31c99a932e6",
+    "evidence/issue32/remaining-native-2/isolated/commands.jsonl": "2f1243a33b58675d101c8252038180b30c5bce36ea6ae0ca6f357ee24d5d2876",
+    "evidence/issue32/remaining-native-2/isolated-fixed/commands.jsonl": "8e54444cdf54170e8a9c0fd0413c1bd07991bc429f58e3beea86225dd95e89ea",
+    "evidence/issue32/remaining-native-2/isolated/state.json": "9988ec68f080fbd32a9732d87e9b5d33060ee7f28d65df9c6f971c9a893a27ab",
+    "evidence/issue32/remaining-native-2/isolated/settings.json": "8b72ba6c46a03a7cef338826e747d444881926e6644164638a55fdd31f167680",
+    "evidence/issue32/remaining-native-2/settings.log": "b27694c5b7b4a3e898b1535ffb2f4c7429d8ed0dc9e18d463884b6de15bc8d7f",
+    "evidence/issue32/remaining-native-2/settings-fixed.log": "fc700e6514ba8cfba090a003ec96c082973e9f72beb2b3ce01f78d62321c4467",
+    "evidence/issue32/remaining-native-2/desktop-tool-receipts.json": "9674f5bbedaa4af9b2a5860d806b0d0367f53e54ca6fa24b64c567d46bd7b31d",
+    "evidence/issue32/remaining-native-2/localization-before.log": "ab7af90518cf28831d1e37de1cb46976a536c39cd7885b53523a4de20b2a3c54",
+    "evidence/issue32/remaining-native-2/localization-after.log": "22b434891b2e8124b111bc58197cb5ac304858375ce26a6770e7f4072078103c",
+    "docs/evidence/issue32/manual-english-before.png": "1c0d20eef8753449e6c9f46c8fd5a8c596524893638f7ce026c61f373bc727ae",
+    "docs/evidence/issue32/manual-english-download.png": "0e64ceb0b984050ffe70a5b5213a7df810b9f1b908db1fe213d43941e6231ef1"
+  }
+}
