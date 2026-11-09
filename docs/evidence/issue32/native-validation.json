@@ -1,0 +1,162 @@
+{
+  "local_commit": "11fc718dae33cc6960d21923a4da4c9fc17564d6",
+  "branch": "feature/gpui-kit-migration",
+  "main_head": "4d57d3a70889b739cada6efc2040a1f91b6ef67e",
+  "native_duration_seconds": 384.03,
+  "saved_screenshots": 6,
+  "full_matrix_run": false,
+  "native_input": "Cindy computer foreground global_input / Windows SendInput; not PostMessage or tray callbacks",
+  "executables": {
+    "gallery_exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\gallery-controls-after-checks.exe",
+    "gallery_sha256": "860efe4d81045d7c16ab647eb8b8adbf872a66eca562c2244f76c5ac90a18e84",
+    "settings_exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\physical-native-1\\settings-tray-host.exe",
+    "settings_sha256": "820c8613ff184366be9016ed82bc87c7a950d7f19a2396254ab8d42994942638"
+  },
+  "gallery": {
+    "mouse_theme_ack_step": 2,
+    "tab_enter_capture": "captures/dark-compact.idle-1.png",
+    "shift_tab_space_ack_step": 3,
+    "scene": "compact.idle",
+    "night": true,
+    "dpi": 96,
+    "scope": "Theme controls and screenshot focus sequence only; full catalog traversal not claimed"
+  },
+  "settings": {
+    "native_scope": "General theme selector via real mouse and Up/Down/Enter, failed save, immediate retry, close",
+    "states": {
+      "success": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "D:\\Ameow-gpui-kit\\evidence\\issue32\\physical-native-1\\isolated",
+          "theme": "dark",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": true,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": false
+      },
+      "failure": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "D:\\Ameow-gpui-kit\\evidence\\issue32\\physical-native-1\\isolated",
+          "theme": "dark",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Failed(\"保存失败，默认设置未更改。E_SETTINGS_SAVE: Cannot replace saved defaults\")",
+        "night": true,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": false
+      },
+      "recovered": {
+        "settings": {
+          "quality": "Balanced",
+          "output_dir": "D:\\Ameow-gpui-kit\\evidence\\issue32\\physical-native-1\\isolated",
+          "theme": "light",
+          "language": "chinese",
+          "tray_icon": "follow_appearance"
+        },
+        "pending": false,
+        "status": "Saved",
+        "night": false,
+        "language": "Chinese",
+        "hidden": false,
+        "queue_open": false,
+        "stopped": false
+      }
+    },
+    "commands": [
+      {
+        "type": "command",
+        "command": "save-settings",
+        "quality": "Balanced",
+        "theme": "dark",
+        "language": "chinese",
+        "tray_icon": "follow_appearance"
+      },
+      {
+        "type": "command",
+        "command": "save-settings",
+        "quality": "Balanced",
+        "theme": "light",
+        "language": "chinese",
+        "tray_icon": "follow_appearance"
+      },
+      {
+        "type": "command",
+        "command": "save-settings",
+        "quality": "Balanced",
+        "theme": "light",
+        "language": "chinese",
+        "tray_icon": "follow_appearance"
+      },
+      {
+        "type": "command",
+        "command": "stop"
+      }
+    ],
+    "replies": [
+      {
+        "type": "reply",
+        "reply": "settings-saved",
+        "quality": "Balanced",
+        "theme": "dark",
+        "language": "chinese",
+        "tray_icon": "follow_appearance"
+      },
+      {
+        "type": "reply",
+        "reply": "error",
+        "code": "E_SETTINGS_SAVE"
+      },
+      {
+        "type": "reply",
+        "reply": "settings-saved",
+        "quality": "Balanced",
+        "theme": "light",
+        "language": "chinese",
+        "tray_icon": "follow_appearance"
+      },
+      {
+        "type": "reply",
+        "reply": "stopping"
+      }
+    ],
+    "disk_matches_recovered_ack": true,
+    "upstream_observed_idle": true
+  },
+  "cleanup": {
+    "startup_unchanged": true,
+    "gallery_gone": true,
+    "preview_gone": true,
+    "settings_host_gone": true,
+    "tray_removed_after_exit": true
+  },
+  "tray": {
+    "registration": true,
+    "real_shell_click": "NOT_VERIFIED",
+    "reason": "Cindy computer list_windows omits Shell_TrayWnd; get_window_state for actual HWND 133072 returns tool_invocation_failed / No window with window_id 133072 exists. No click sent."
+  },
+  "headless": {
+    "settings_tests_passed": 24,
+    "native_host_ignored_by_default": true,
+    "product_cargo_check": true,
+    "tools_tests_passed_before_commit": 7
+  },
+  "remaining": [
+    "Full Gallery keyboard/scroll traversal and focus visibility across all groups",
+    "Settings language/tray/quality/directory picker, cancel, clipboard, complete close/reopen flow and user startup flow",
+    "Actual Shell tray click, popup toggling, settings/open/exit entries",
+    "Mixed DPI/cross-monitor and compositor cadence at final acceptance",
+    "Stable main updater commits, integration and update/restart regression",
+    "Final web acceptance, authorized merge and post-merge checks"
+  ]
+}

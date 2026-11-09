@@ -96,3 +96,19 @@ Gallery 已补齐“本分类截图”、批量进度、“取消截图”、截
 实际 Shell 点击、生产设置 UI 全链、其他 DPI/跨屏、呈现节奏及更新/重启联合回归仍待验收。
 main 仍为 4d57d3a7，自动更新尚未形成稳定提交，不复制 dirty 工作，也不提前合并。
 新的产品状态未增加，仅 Gallery 开发期状态改变，94 个产品 Preview Scenes 保持不变。
+
+## 2026-11-09 本地提交与真实输入补验
+
+上述 Gallery/清理/兼容性成果已本地提交为 `11fc718dae33cc6960d21923a4da4c9fc17564d6`。
+本轮补齐有限 Gallery 真实鼠标/键盘焦点路径，以及隔离设置窗口的真实保存失败与重试；
+保留 6 张窗口截图，未运行完整矩阵。新增 test-only 宿主与本轮证据尚未提交。
+设置全操作与实际 Shell 点击仍未完成；后者受到当前桌面工具未枚举任务栏的限制。
+详见 [native-stage-report.md](native-stage-report.md) 与 [native-validation.json](native-validation.json)。
+
+## 剩余交互验收与本地提交收尾
+
+后续首次 Gallery 输入受到主线 #33 前台窗口竞争，未新增真实交互 PASS。用户选择先整理
+代码与本地提交，桌面验收稍后；本轮测试进程已结束。上述 test-only 宿主与证据现随本轮
+独立本地提交入库，旧报告里的“尚未提交”保留为历史检查点。详见
+[remaining-stage-report.md](remaining-stage-report.md)、[remaining-validation.json](remaining-validation.json)
+及尚未执行的 [manual-tray-check.md](manual-tray-check.md)。

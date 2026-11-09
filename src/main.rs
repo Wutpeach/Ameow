@@ -21,6 +21,8 @@ mod settings_window;
 mod login_startup;
 mod ui_text;
 mod brand_icons;
+#[cfg(test)]
+mod native_acceptance;
 
 use gpui::{prelude::*, *};
 use model::{Geometry, Model, Stage};

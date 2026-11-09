@@ -1,4 +1,7 @@
 //! Production GPUI command boundary. Initialization, persistence and polling stay off the UI.
+#[cfg(test)]
+#[path = "native_settings_transport.rs"]
+mod native_settings_transport;
 use ameow_next::download::{
     preparation::{ErrorCategory, PreparationPhase, PreparationSnapshot, PreparationStage},
     queue::{
@@ -95,6 +98,8 @@ pub struct DownloadUi {
     presentation: crate::queue_presentation::Presentation,
     queue_scroll: gpui::ScrollHandle,
     fixture: bool,
+    #[cfg(test)]
+    isolated_settings_acceptance: bool,
     named_preview: Option<crate::preview::Scene>,
     preview_scenes: Option<SyncSender<&'static str>>,
     row_notices: std::collections::HashMap<u64, (&'static str, u64)>,
@@ -310,6 +315,8 @@ impl DownloadUi {
             presentation: Default::default(),
             queue_scroll: gpui::ScrollHandle::new(),
             fixture: false,
+            #[cfg(test)]
+            isolated_settings_acceptance: false,
             named_preview: None,
             preview_scenes: None,
             row_notices: Default::default(),
@@ -378,6 +385,8 @@ impl DownloadUi {
             && self.snapshot.as_ref().is_some_and(|s| s.preparation_retry_allowed)
     }
     pub fn upstream_check_available(&self) -> bool {
+        #[cfg(test)]
+        if self.isolated_settings_acceptance { return false; }
         !self.fixture
     }
     pub fn preparation_status_at(&self, now: u64) -> Option<(String, bool)> {

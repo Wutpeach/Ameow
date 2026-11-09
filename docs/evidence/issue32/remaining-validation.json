@@ -1,0 +1,39 @@
+{
+  "base_commit": "11fc718dae33cc6960d21923a4da4c9fc17564d6",
+  "branch": "feature/gpui-kit-migration",
+  "phase": "local commit and handoff; desktop acceptance deferred by user",
+  "new_real_input_pass_count": 0,
+  "gallery": {
+    "status": "BLOCKED",
+    "input_route": "Cindy computer foreground SendInput",
+    "pid": 21716,
+    "hwnd": 60103328,
+    "exe_sha256": "860efe4d81045d7c16ab647eb8b8adbf872a66eca562c2244f76c5ac90a18e84",
+    "error": "tool_invocation_failed / foreground_unavailable",
+    "foreground_pid": 44932,
+    "foreground_hwnd": 137369834,
+    "foreground_owner": "main issue33 automatic update validation",
+    "owned_processes_closed": true
+  },
+  "settings": {
+    "status": "NOT_RUN_THIS_ROUND",
+    "host_timeout_seconds": 420,
+    "latest_host_build_only_sha256": "bfa153b7b8d01ca84e7dc2086abf62560b01e3e900f4c56bae4af0da038659f3"
+  },
+  "tray": {
+    "status": "NOT_RUN_THIS_ROUND",
+    "next": "manual-tray-check.md"
+  },
+  "checks": {
+    "no_window_host_build": true,
+    "prior_binary_and_image_hashes_rechecked": true,
+    "reused_settings_tests": 24,
+    "reused_gallery_tool_tests": 7,
+    "full_matrix_run": false
+  },
+  "limits": [
+    "No new interaction PASS from the interrupted attempt",
+    "No main integration, push, release, worktree cleanup or issue closure",
+    "Current desktop tests stopped by user steering; arrange next session separately"
+  ]
+}

@@ -278,6 +278,12 @@ impl SettingsWindow {
         this
     }
     fn refresh_startup(&mut self, change: Option<bool>, cx: &mut Context<Self>) {
+        // The ignored native acceptance host must never touch user startup registration.
+        #[cfg(test)]
+        if std::env::var_os("AMEOW_NATIVE_ACCEPTANCE_DIR").is_some() {
+            self.startup = Some(Err("测试宿主禁用用户启动项操作".into()));
+            return;
+        }
         if self.projection.preview { return; }
         if self.startup_pending {
             return;
