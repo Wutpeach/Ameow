@@ -1,0 +1,680 @@
+{
+  "date": "2026-11-09",
+  "branch": "feature/gpui-kit-migration",
+  "source_head": "d135f85164ca1b9ea05a0a53bbd99b9c855b9153",
+  "exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+  "exe_sha256": "89c37b34790fbdead22a1980c1babf6a1cc4bebd8ddbbf66b6c8b84ce7778ccd",
+  "product_source_changed": false,
+  "test_host_change": "inherit Options reduced preference; expose motion_reduced in state receipt",
+  "conclusions": {
+    "original_product_bug_reproduced": false,
+    "prior_exe_identity": "unknown",
+    "test_host_forced_reduced_confirmed": true,
+    "historical_symptom_root_cause": "not conclusively established; old acceptance host forced reduced, consistent with symptom",
+    "normal_user_observation": "效果好像不错诶，比之前的版本更流畅了",
+    "related_user_observation": "都正常；磁吸边缘卡顿与旧版相同",
+    "magnetic_edge_stutter": "existing baseline issue per user; cause not isolated; parameters unchanged",
+    "engine_upgrade_performance_claim": false
+  },
+  "manual_before": {
+    "frames": {
+      "frames": 1695,
+      "intermediate_frames": 1037,
+      "min_fullness": 0,
+      "max_fullness": 1,
+      "reduced_values": [
+        false
+      ],
+      "target_changes": [
+        {
+          "ms": 40558,
+          "target_full": true,
+          "fullness": 0.014209894,
+          "velocity": 2.9449472
+        },
+        {
+          "ms": 41242,
+          "target_full": false,
+          "fullness": 0.99168,
+          "velocity": -2.0800002
+        },
+        {
+          "ms": 41743,
+          "target_full": true,
+          "fullness": 0.06276727,
+          "velocity": 6.0941544
+        },
+        {
+          "ms": 44842,
+          "target_full": false,
+          "fullness": 0.99948,
+          "velocity": -0.52000004
+        },
+        {
+          "ms": 48591,
+          "target_full": true,
+          "fullness": 0.00052000006,
+          "velocity": 0.52000004
+        },
+        {
+          "ms": 49741,
+          "target_full": false,
+          "fullness": 0.99792,
+          "velocity": -1.0400001
+        },
+        {
+          "ms": 50108,
+          "target_full": true,
+          "fullness": 0.050003726,
+          "velocity": 5.518923
+        },
+        {
+          "ms": 50992,
+          "target_full": false,
+          "fullness": 0.99168,
+          "velocity": -2.0800002
+        },
+        {
+          "ms": 51526,
+          "target_full": true,
+          "fullness": 0.018452264,
+          "velocity": 3.377421
+        },
+        {
+          "ms": 56392,
+          "target_full": false,
+          "fullness": 0.9891676,
+          "velocity": -2.5124736
+        },
+        {
+          "ms": 61241,
+          "target_full": true,
+          "fullness": 0.00052000006,
+          "velocity": 0.52000004
+        },
+        {
+          "ms": 61259,
+          "target_full": false,
+          "fullness": 0.089959264,
+          "velocity": 7.0515537
+        },
+        {
+          "ms": 61353,
+          "target_full": true,
+          "fullness": 0.09649727,
+          "velocity": -1.5398964
+        },
+        {
+          "ms": 61592,
+          "target_full": false,
+          "fullness": 0.9977389,
+          "velocity": 0.23785153
+        },
+        {
+          "ms": 61975,
+          "target_full": true,
+          "fullness": 0.0020800002,
+          "velocity": 1.0400001
+        },
+        {
+          "ms": 62258,
+          "target_full": false,
+          "fullness": 1,
+          "velocity": 0
+        },
+        {
+          "ms": 62389,
+          "target_full": true,
+          "fullness": 0.13620417,
+          "velocity": -3.25756
+        },
+        {
+          "ms": 63207,
+          "target_full": false,
+          "fullness": 0.99532,
+          "velocity": -1.5600001
+        }
+      ]
+    },
+    "native": {
+      "summary": {
+        "type": "native_summary",
+        "requested": 916,
+        "applied": 916,
+        "skipped": 0,
+        "unchanged": 779,
+        "framechanged_always": true
+      },
+      "requested_applied_mismatches": 0,
+      "max_queue_ms": 3.726,
+      "max_call_ms": 5.296,
+      "startup_topmost": true,
+      "startup_foreground_unchanged": true
+    },
+    "exit_code": null,
+    "observer_limit": "observer raced with HWND destruction at auto-exit; code not captured; empty app stderr, final frame/native summary, no remaining process"
+  },
+  "related": {
+    "frames": {
+      "frames": 2456,
+      "intermediate_frames": 22,
+      "min_fullness": 0,
+      "max_fullness": 1,
+      "reduced_values": [
+        false,
+        true
+      ],
+      "target_changes": [
+        {
+          "ms": 119,
+          "target_full": true,
+          "fullness": 0,
+          "velocity": 0
+        },
+        {
+          "ms": 96500,
+          "target_full": false,
+          "fullness": 0.8436118,
+          "velocity": -8.396679
+        },
+        {
+          "ms": 100318,
+          "target_full": true,
+          "fullness": 0.010832474,
+          "velocity": 2.5124736
+        }
+      ]
+    },
+    "native": {
+      "summary": {
+        "type": "native_summary",
+        "requested": 132,
+        "applied": 132,
+        "skipped": 0,
+        "unchanged": 2324,
+        "framechanged_always": true
+      },
+      "requested_applied_mismatches": 0,
+      "max_queue_ms": 6.952,
+      "max_call_ms": 6.028,
+      "startup_topmost": true,
+      "startup_foreground_unchanged": true
+    },
+    "result": {
+      "pid": 66068,
+      "hwnd": 7737988,
+      "command": [
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+        "--stage",
+        "idle",
+        "--measure",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\related-native\\frames.jsonl",
+        "--native-metrics",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\related-native\\native.jsonl",
+        "--telemetry",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\related-native\\telemetry.jsonl",
+        "--exit-after-ms",
+        "120000",
+        "--queue-fixture-control",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\related-native\\control.json",
+        "--queue-evidence",
+        "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\related-native\\queue.jsonl"
+      ],
+      "exe_sha256": "89c37b34790fbdead22a1980c1babf6a1cc4bebd8ddbbf66b6c8b84ce7778ccd",
+      "crop": [
+        480,
+        280,
+        800,
+        600
+      ],
+      "dpi": 96,
+      "started_at": "2026-11-09T14:44:30+0800",
+      "limits": "60fps BitBlt desktop crop; duplicates possible; no claim of GPU Present timestamps; user supplies all input.",
+      "exit_code": 0,
+      "capture_exit_code": 0,
+      "elapsed_s": 120.74132269999245,
+      "windows_after": {}
+    },
+    "coverage_limits": [
+      "drag moved window outside fixed video crop after about 55s",
+      "reduced flag toggled but no morph target switch in interval",
+      "terminal control identities did not produce Success/Failure UI; not PASS evidence"
+    ]
+  },
+  "automatic": {
+    "report": {
+      "exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+      "sha256": "89c37b34790fbdead22a1980c1babf6a1cc4bebd8ddbbf66b6c8b84ce7778ccd",
+      "runs": [
+        {
+          "name": "normal",
+          "command": [
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+            "--measure",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\normal-frames.jsonl",
+            "--native-metrics",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\normal-native.jsonl",
+            "--telemetry",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\normal-telemetry.jsonl",
+            "--exit-after-ms",
+            "4000",
+            "--hover",
+            "off",
+            "--probe-period-ms",
+            "160",
+            "--stage",
+            "downloading"
+          ],
+          "host_start_ms": 328.19840000593103,
+          "pid": 60888,
+          "hwnd": 8330648,
+          "exit_code": 0,
+          "windows_after": {},
+          "host_end_ms": 4898.425100021996
+        },
+        {
+          "name": "reduced",
+          "command": [
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+            "--measure",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\reduced-frames.jsonl",
+            "--native-metrics",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\reduced-native.jsonl",
+            "--telemetry",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\reduced-telemetry.jsonl",
+            "--exit-after-ms",
+            "4000",
+            "--hover",
+            "off",
+            "--probe-period-ms",
+            "650",
+            "--stage",
+            "downloading",
+            "--reduced"
+          ],
+          "host_start_ms": 4898.674800002482,
+          "pid": 57888,
+          "hwnd": 119281734,
+          "exit_code": 0,
+          "windows_after": {},
+          "host_end_ms": 9445.254000020213
+        },
+        {
+          "name": "states",
+          "command": [
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\before.exe",
+            "--measure",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\states-frames.jsonl",
+            "--native-metrics",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\states-native.jsonl",
+            "--telemetry",
+            "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\automatic-native\\states-telemetry.jsonl",
+            "--exit-after-ms",
+            "9000",
+            "--hover",
+            "off",
+            "--demo"
+          ],
+          "host_start_ms": 9445.436600013636,
+          "pid": 65356,
+          "hwnd": 15015002,
+          "exit_code": 0,
+          "windows_after": {},
+          "host_end_ms": 18977.783600013936
+        }
+      ],
+      "limits": "60fps desktop BitBlt crop; actual GPU Present timestamps are not measured.",
+      "capture_exit_code": 0,
+      "elapsed_s": 19.38986660001683
+    },
+    "frames": {
+      "normal": {
+        "frames": 121,
+        "intermediate_frames": 120,
+        "min_fullness": 0,
+        "max_fullness": 0.96227753,
+        "reduced_values": [
+          false
+        ],
+        "target_changes": [
+          {
+            "ms": 181,
+            "target_full": false,
+            "fullness": 0.96227753,
+            "velocity": 1.1273061
+          },
+          {
+            "ms": 348,
+            "target_full": true,
+            "fullness": 0.056313146,
+            "velocity": -1.5589744
+          },
+          {
+            "ms": 481,
+            "target_full": false,
+            "fullness": 0.86985326,
+            "velocity": 3.097285
+          },
+          {
+            "ms": 648,
+            "target_full": true,
+            "fullness": 0.05762673,
+            "velocity": -1.5620631
+          },
+          {
+            "ms": 814,
+            "target_full": false,
+            "fullness": 0.94366306,
+            "velocity": 1.5535057
+          },
+          {
+            "ms": 981,
+            "target_full": true,
+            "fullness": 0.0563711,
+            "velocity": -1.554928
+          },
+          {
+            "ms": 1148,
+            "target_full": false,
+            "fullness": 0.94212717,
+            "velocity": 1.5886576
+          },
+          {
+            "ms": 1281,
+            "target_full": true,
+            "fullness": 0.12718949,
+            "velocity": -3.0389462
+          },
+          {
+            "ms": 1448,
+            "target_full": false,
+            "fullness": 0.9423318,
+            "velocity": 1.5622892
+          },
+          {
+            "ms": 1615,
+            "target_full": true,
+            "fullness": 0.056341212,
+            "velocity": -1.5533153
+          },
+          {
+            "ms": 1781,
+            "target_full": false,
+            "fullness": 0.9436029,
+            "velocity": 1.5554966
+          },
+          {
+            "ms": 1948,
+            "target_full": true,
+            "fullness": 0.05790334,
+            "velocity": -1.5893896
+          },
+          {
+            "ms": 2081,
+            "target_full": false,
+            "fullness": 0.87281585,
+            "velocity": 3.0382338
+          },
+          {
+            "ms": 2248,
+            "target_full": true,
+            "fullness": 0.05764402,
+            "velocity": -1.5633
+          },
+          {
+            "ms": 2414,
+            "target_full": false,
+            "fullness": 0.94365495,
+            "velocity": 1.5534109
+          },
+          {
+            "ms": 2581,
+            "target_full": true,
+            "fullness": 0.05637047,
+            "velocity": -1.5549105
+          },
+          {
+            "ms": 2748,
+            "target_full": false,
+            "fullness": 0.9420966,
+            "velocity": 1.5893983
+          },
+          {
+            "ms": 2881,
+            "target_full": true,
+            "fullness": 0.12721257,
+            "velocity": -3.0383804
+          },
+          {
+            "ms": 3048,
+            "target_full": false,
+            "fullness": 0.9438544,
+            "velocity": 1.5301976
+          },
+          {
+            "ms": 3231,
+            "target_full": true,
+            "fullness": 0.036320027,
+            "velocity": -1.0811672
+          },
+          {
+            "ms": 3365,
+            "target_full": false,
+            "fullness": 0.8696012,
+            "velocity": 3.113246
+          },
+          {
+            "ms": 3532,
+            "target_full": true,
+            "fullness": 0.056200664,
+            "velocity": -1.5298499
+          },
+          {
+            "ms": 3698,
+            "target_full": false,
+            "fullness": 0.9436648,
+            "velocity": 1.5538628
+          },
+          {
+            "ms": 3865,
+            "target_full": true,
+            "fullness": 0.056351446,
+            "velocity": -1.5546656
+          },
+          {
+            "ms": 4032,
+            "target_full": false,
+            "fullness": 0.9420688,
+            "velocity": 1.5897877
+          }
+        ]
+      },
+      "reduced": {
+        "frames": 120,
+        "intermediate_frames": 0,
+        "min_fullness": 0,
+        "max_fullness": 1,
+        "reduced_values": [
+          true
+        ],
+        "target_changes": [
+          {
+            "ms": 656,
+            "target_full": false,
+            "fullness": 0,
+            "velocity": 0
+          },
+          {
+            "ms": 1306,
+            "target_full": true,
+            "fullness": 1,
+            "velocity": 0
+          },
+          {
+            "ms": 1973,
+            "target_full": false,
+            "fullness": 0,
+            "velocity": 0
+          },
+          {
+            "ms": 2606,
+            "target_full": true,
+            "fullness": 1,
+            "velocity": 0
+          },
+          {
+            "ms": 3273,
+            "target_full": false,
+            "fullness": 0,
+            "velocity": 0
+          },
+          {
+            "ms": 3906,
+            "target_full": true,
+            "fullness": 1,
+            "velocity": 0
+          }
+        ]
+      },
+      "states": {
+        "frames": 259,
+        "intermediate_frames": 13,
+        "min_fullness": 0,
+        "max_fullness": 1,
+        "reduced_values": [
+          false
+        ],
+        "target_changes": [
+          {
+            "ms": 8225,
+            "target_full": false,
+            "fullness": 0.90878797,
+            "velocity": -7.0667386
+          }
+        ]
+      }
+    },
+    "native": {
+      "normal": {
+        "summary": {
+          "type": "native_summary",
+          "requested": 121,
+          "applied": 121,
+          "skipped": 0,
+          "unchanged": 0,
+          "framechanged_always": true
+        },
+        "requested_applied_mismatches": 0,
+        "max_queue_ms": 37.975,
+        "max_call_ms": 3.865,
+        "startup_topmost": true,
+        "startup_foreground_unchanged": true
+      },
+      "reduced": {
+        "summary": {
+          "type": "native_summary",
+          "requested": 7,
+          "applied": 7,
+          "skipped": 0,
+          "unchanged": 113,
+          "framechanged_always": true
+        },
+        "requested_applied_mismatches": 0,
+        "max_queue_ms": 38.568,
+        "max_call_ms": 4.064,
+        "startup_topmost": true,
+        "startup_foreground_unchanged": true
+      },
+      "states": {
+        "summary": {
+          "type": "native_summary",
+          "requested": 15,
+          "applied": 15,
+          "skipped": 0,
+          "unchanged": 244,
+          "framechanged_always": true
+        },
+        "requested_applied_mismatches": 0,
+        "max_queue_ms": 39.426,
+        "max_call_ms": 4.106,
+        "startup_topmost": true,
+        "startup_foreground_unchanged": true
+      }
+    }
+  },
+  "tests": {
+    "build": "cargo build --locked --bin ameow: passed",
+    "commands": [
+      {
+        "filter": "reduced",
+        "passed": 8
+      },
+      {
+        "filter": "reversal",
+        "passed": 6
+      },
+      {
+        "filter": "transitions_only_move_content_reverse_direction_and_respect_reduced_motion",
+        "passed": 1
+      },
+      {
+        "filter": "leave_during_expansion_reverses_immediately_without_position_jump",
+        "passed": 1
+      },
+      {
+        "filter": "indicator::tests",
+        "passed": 1
+      }
+    ],
+    "unique_tests_passed": 14,
+    "diff_check": "passed (CRLF aware)"
+  },
+  "remaining": [
+    "original faulty EXE/flags unidentified",
+    "mixed DPI/cross-monitor deferred",
+    "failure/partial-specific dynamic visuals not rerun; existing evidence reused within bounds",
+    "settings/tray physical evidence reused; modified acceptance host not reopened",
+    "no measured GPU/compositor Present cadence or pre-migration speed comparison"
+  ],
+  "preserved": {
+    "main_integration": false,
+    "push": false,
+    "release": false,
+    "worktree_cleanup": false,
+    "issue_closed": false,
+    "full_gallery_matrix": false
+  },
+  "evidence": [
+    {
+      "path": "docs\\evidence\\issue32\\motion-comparison-states.mp4",
+      "sha256": "a613494cfabab7ae242d6a0154f4e37f1f6884f8f22508432db230e406b4fb37",
+      "bytes": 294031
+    },
+    {
+      "path": "docs\\evidence\\issue32\\motion-morph-sheet.png",
+      "sha256": "e00cc49954edb3a29be61b5bd753df0712fc16a345c0c42dcc376628be421907",
+      "bytes": 21093
+    },
+    {
+      "path": "docs\\evidence\\issue32\\motion-morph.mp4",
+      "sha256": "5cf0048ce57172c5bd1f72fee698f74ec04f6374b6798385c10ab2cb5da51a84",
+      "bytes": 23376
+    },
+    {
+      "path": "docs\\evidence\\issue32\\motion-reversal.mp4",
+      "sha256": "ef01fd8028cac635ec6b307a0d159ee8790cc46dcc33b868e7010ca1b7c55347",
+      "bytes": 30512
+    },
+    {
+      "path": "docs\\evidence\\issue32\\motion-state-sheet.png",
+      "sha256": "ab2f688b36f38b949445ca20048a58e43b17798c01d840bcc7f2e7eb878d9130",
+      "bytes": 60435
+    }
+  ],
+  "test_host": {
+    "exe": "D:\\Ameow-gpui-kit\\evidence\\issue32\\motion-regression\\settings-tray-host-inherits-motion.exe",
+    "sha256": "6078ce8d64f1e4214589f2dc76c7238ee4e9ca40ac9307a768ee8988bcbb567a",
+    "compiled": true,
+    "native_run": false
+  }
+}

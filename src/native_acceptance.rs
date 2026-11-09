@@ -14,7 +14,6 @@ fn settings_and_tray() {
     options.fixture = true;
     options.unknown_downloading = true; // Install the normal poll before injecting the real settings transport.
     options.tray_fixture = true;
-    options.reduced = true;
     options.exit_after_ms = Some(420_000);
     let completion_root = root.clone();
     gpui_platform::application().with_assets(Assets).run(move |cx| {
@@ -46,6 +45,7 @@ fn settings_and_tray() {
                         "settings":ui.settings(), "pending":ui.settings_pending,
                         "status":format!("{:?}",ui.settings_status),
                         "night":view.night, "language":format!("{:?}",view.language),
+                        "motion_reduced":view.model.reduced,
                         "hidden":ui.hidden, "queue_open":ui.queue_open,
                         "stopped":ui.snapshot.as_ref().is_some_and(|s|s.stopped),
                     });
