@@ -9,7 +9,7 @@ Copy failed-task diagnostics for a report; do not publish cookies, tokens, or pr
 
 ## Suggested order
 
-1. Confirm the link and content fall within the public single-video scope.
+1. Confirm the link and content fall within the [public media scope](../extension/supported-sites/).
 2. Read the queue message to distinguish component preparation, downloading, and saving.
 3. Check the output folder captured at submission; do not clear the data directory.
 4. If the issue persists, copy diagnostics and record shareable steps, time, and the error message.
