@@ -41,8 +41,8 @@ pub struct Manifest {
     pub target: String,
     pub version: String,
     pub sequence: u64,
+    // Signing time is provenance, never a lifetime limit for an immutable release.
     pub issued: u64,
-    pub expires: u64,
     pub url: String,
     pub package_bytes: u64,
     pub package_sha256: String,
@@ -156,11 +156,8 @@ impl Manifest {
         }
         unhex(&self.package_sha256, 32)?;
         unhex(&self.exe_sha256, 32)?;
-        if self.expires <= self.issued
-            || self.expires - self.issued > 7 * 86400
-            || now.is_some_and(|now| self.issued > now.saturating_add(300) || self.expires <= now)
-        {
-            return Err("E_APP_UPDATE_EXPIRED".into());
+        if now.is_some_and(|now| self.issued > now.saturating_add(300)) {
+            return Err("E_APP_UPDATE_ISSUED_IN_FUTURE".into());
         }
         Ok(())
     }

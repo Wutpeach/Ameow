@@ -30,7 +30,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         version: version.clone(),
         sequence: args[4].parse()?,
         issued: now,
-        expires: now + 86400,
         url: format!(
             "https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-windows-x64.zip"
         ),

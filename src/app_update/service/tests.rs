@@ -49,6 +49,27 @@ fn manual_check_and_download_work_with_automatic_checks_disabled(){
     let other=h.clone();assert!(h.send(Action::Restart));assert!(other.send(Action::Restart));assert!(other.send(Action::Later));assert!(!h.shared.manual_restart.load(Ordering::Acquire));
 }
 #[test]
+fn old_signed_latest_is_available_and_prepares_after_years_without_resigning(){
+    for days in [8,30,365*5] {
+        let root=tempfile::tempdir().unwrap();
+        let source=root.path().join("source");fs::create_dir(&source).unwrap();
+        let (_,package,envelope)=super::super::tests::fixture_issued(
+            "9.0.1",1,&[("Ameow.exe",b"verified old release")],
+            super::super::store::now()-days*86400);
+        fs::write(source.join("manifest.json"),&envelope).unwrap();
+        fs::write(source.join("package.zip"),package).unwrap();
+        let(h,install)=owner(root.path(),Some(source));
+        h.send(Action::Save(Preferences{auto_check:false,auto_download:false,idle_restart:false}));
+        wait(||h.snapshot().saved);
+        h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Available);
+        assert!(install.state().unwrap().pending.is_none());
+        h.send(Action::Download);wait(||h.snapshot().update.phase==Phase::Ready);
+        let pending=install.state().unwrap().pending.unwrap();
+        assert_eq!(pending.version,"9.0.1");install.verify_release(&pending).unwrap();
+        assert_eq!(fs::read(install.root.join("versions/9.0.1/manifest.json")).unwrap(),envelope);
+    }
+}
+#[test]
 fn reenabling_background_download_prepares_the_already_discovered_signed_version(){
     let root=tempfile::tempdir().unwrap();let source=source(root.path(),b"verified fixture");let(h,install)=owner(root.path(),Some(source));
     assert!(h.send(Action::Save(Preferences{auto_download:false,..Default::default()})));wait(||h.snapshot().saved);

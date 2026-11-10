@@ -51,10 +51,12 @@ fn prepared(tmp: &Path) -> (Build, std::path::PathBuf) {
     (build, prepared)
 }
 fn signed_candidate(tmp: &Path) -> (Build, std::path::PathBuf) {
+    signed_candidate_issued(tmp, super::super::store::now())
+}
+fn signed_candidate_issued(tmp: &Path, issued: u64) -> (Build, std::path::PathBuf) {
     let (build, prepared) = prepared(tmp);
     let output = tmp.join("signed");
-    let now = super::super::store::now();
-    sign_fixture(&prepared, &output, 1, now, now + 86400).unwrap();
+    sign_fixture(&prepared, &output, 1, issued).unwrap();
     (build, output)
 }
 fn save_build(root: &Path, build: &Build) {
@@ -63,8 +65,9 @@ fn save_build(root: &Path, build: &Build) {
 
 #[test]
 fn separate_archives_and_unconfirmed_first_boot_verify_with_launcher_trust() {
+    for days in [8, 30, 365 * 5] {
     let tmp = tempfile::tempdir().unwrap();
-    let (build, output) = signed_candidate(tmp.path());
+    let (build, output) = signed_candidate_issued(tmp.path(), super::super::store::now() - days * 86400);
     verify_signed_with_roots(&output, &build.trust).unwrap();
     let update = read(&output.join(update_name(&build.version)), MAX_PACKAGE).unwrap();
     assert_eq!(
@@ -73,7 +76,7 @@ fn separate_archives_and_unconfirmed_first_boot_verify_with_launcher_trust() {
             .len(),
         1
     );
-    let portable = read(&output.join(portable_name(&build.version)), MAX_PACKAGE).unwrap();
+    let portable = read(&output.join(portable_name(&build)), MAX_PACKAGE).unwrap();
     assert!(
         verify_update(
             &portable,
@@ -98,6 +101,7 @@ fn separate_archives_and_unconfirmed_first_boot_verify_with_launcher_trust() {
     let pending = state.pending.unwrap();
     assert_eq!(pending.version, "0.1.0");
     install.verify_release(&pending).unwrap();
+    }
 }
 #[test]
 fn changed_application_is_rejected_before_preparation() {
@@ -243,7 +247,7 @@ fn wrong_manifest_signature_version_and_platform_fail_verification() {
 fn portable_bootstrap_may_not_skip_ready_trial() {
     let tmp = tempfile::tempdir().unwrap();
     let (build, output) = signed_candidate(tmp.path());
-    let path = output.join(portable_name(&build.version));
+    let path = output.join(portable_name(&build));
     let bytes = read(&path, MAX_PACKAGE).unwrap();
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
     let mut contents = BTreeMap::new();
@@ -263,7 +267,7 @@ fn portable_bootstrap_may_not_skip_ready_trial() {
     );
 }
 #[test]
-fn empty_production_trust_and_invalid_validity_fail_before_signed_output() {
+fn empty_production_trust_and_invalid_sequence_or_issuance_fail_before_signed_output() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
     let mut build = source(&input);
@@ -273,19 +277,18 @@ fn empty_production_trust_and_invalid_validity_fail_before_signed_output() {
     prepare(&input, &prepared).unwrap();
     let now = super::super::store::now();
     let output = tmp.path().join("signed");
-    assert!(sign_fixture(&prepared, &output, 1, now, now + 86400).is_err());
+    assert!(sign_fixture(&prepared, &output, 1, now).is_err());
     assert!(!output.exists());
     let valid_source = tmp.path().join("valid-input");
     source(&valid_source);
     let valid = tmp.path().join("valid-prepared");
     prepare(&valid_source, &valid).unwrap();
-    for (seq, expires, expected) in [
-        (0, now + 86400, "E_APP_UPDATE_SIZE"),
-        (1, now, "E_APP_UPDATE_EXPIRED"),
-        (1, now + 8 * 86400, "E_APP_UPDATE_EXPIRED"),
+    for (seq, issued, expected) in [
+        (0, now, "E_APP_UPDATE_SIZE"),
+        (1, now + 3600, "E_APP_UPDATE_ISSUED_IN_FUTURE"),
     ] {
         assert_eq!(
-            sign_fixture(&valid, &output, seq, now, expires).unwrap_err(),
+            sign_fixture(&valid, &output, seq, issued).unwrap_err(),
             expected
         );
         assert!(!output.exists());
@@ -314,4 +317,108 @@ fn public_import_rejects_known_fixture_and_preserves_existing_roots() {
     assert_eq!(new.keys, vec!["12".repeat(32), "34".repeat(32)]);
     assert_eq!(json::<PublicRoots>(&roots).unwrap().keys.len(), 1);
     assert!(import_public(&roots, &public, &output).is_err());
+}
+
+// An ephemeral test key stays in memory and is never a production trust root.
+fn public_source(root: &Path) -> (Build, Ed25519KeyPair) {
+    let mut build = source(root);
+    let document = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new()).unwrap();
+    let key = Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
+    build.trust.keys = vec![
+        key.public_key()
+            .as_ref()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+    ];
+    build.public_gate_b = "approved".into();
+    build.license_review = "approved".into();
+    build.dirty = false;
+    build.tag = Some(format!("v{}", build.version));
+    let inventory = serde_json::json!({"schema":1,"scope":"public-release","publicGateB":{"status":"approved","blockers":[]},
+        "materials":[{"destination":"LICENSE","sha256":build.notices[0].sha256}]});
+    let bytes = encode(&inventory).unwrap();
+    fs::write(root.join("licenses/license-inputs.json"), &bytes).unwrap();
+    build.notices[1] = FileRecord::of("licenses/license-inputs.json", &bytes);
+    save_build(root, &build);
+    (build, key)
+}
+
+#[test]
+fn approved_public_archives_keep_signed_core_notices_and_pending_bootstrap() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("input");
+    let (build, key) = public_source(&input);
+    let prepared = tmp.path().join("prepared");
+    let output = tmp.path().join("signed");
+    prepare(&input, &prepared).unwrap();
+    let now = super::super::store::now();
+    sign_with_key(&prepared, &output, &key, 1, now).unwrap();
+    verify_signed_with_roots(&output, &build.trust).unwrap();
+    let update = read(&output.join(update_name(&build.version)), MAX_PACKAGE).unwrap();
+    verify_update(
+        &update,
+        &build,
+        &FileRecord::of(&update_name(&build.version), &update),
+    )
+    .unwrap();
+    let bytes = read(&output.join(portable_name(&build)), MAX_PACKAGE).unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    assert!(zip.by_name("CONTROLLED.txt").is_err());
+    assert!(zip.by_name("AmeowLauncher.exe").is_ok());
+    assert!(zip.by_name("LICENSE").is_ok());
+    let mut state = Vec::new();
+    zip.by_name("state.json")
+        .unwrap()
+        .read_to_end(&mut state)
+        .unwrap();
+    let state: State = serde_json::from_slice(&state).unwrap();
+    assert!(state.current.is_none() && state.pending.is_some() && state.trial.is_none());
+    assert!(!output.join("CONTROLLED.txt").exists());
+}
+
+#[test]
+fn public_release_rejects_unreviewed_materials_and_unapproved_identity_before_output() {
+    for case in 0..8 {
+        let tmp = tempfile::tempdir().unwrap();
+        let input = tmp.path().join("input");
+        let (mut build, _) = public_source(&input);
+        match case {
+            0 => build.dirty = true,
+            1 => build.tag = None,
+            2 => build.trust.keys.clear(),
+            3 => build.trust.keys = vec![FIXTURE_PUBLIC.into()],
+            4 => build.license_review = "not-evaluated".into(),
+            5 => build.commit = "0".repeat(40),
+            _ => {
+                let path = input.join("licenses/license-inputs.json");
+                let mut inventory: serde_json::Value = json(&path).unwrap();
+                if case == 6 {
+                    inventory["publicGateB"]["status"] = "blocked".into();
+                } else {
+                    inventory["materials"][0]["sha256"] = "00".repeat(32).into();
+                }
+                let bytes = encode(&inventory).unwrap();
+                fs::write(path, &bytes).unwrap();
+                build.notices[1] = FileRecord::of("licenses/license-inputs.json", &bytes);
+            }
+        }
+        save_build(&input, &build);
+        let output = tmp.path().join("out");
+        assert!(prepare(&input, &output).is_err(), "case {case}");
+        assert!(!output.exists(), "case {case}");
+    }
+}
+
+#[test]
+fn public_signer_must_match_the_approved_root_before_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("input");
+    public_source(&input);
+    let prepared = tmp.path().join("prepared");
+    let output = tmp.path().join("signed");
+    prepare(&input, &prepared).unwrap();
+    let now = super::super::store::now();
+    assert!(sign_fixture(&prepared, &output, 1, now).is_err());
+    assert!(!output.exists());
 }

@@ -24,13 +24,13 @@ try {
     $private=Join-Path $EvidenceDirectory 'must-not-exist.pk8'
     & $ReleaseTool keygen $private (Join-Path $EvidenceDirectory 'must-not-exist.hex') *> (Join-Path $EvidenceDirectory 'ci-keygen.txt')
     if ($LASTEXITCODE -ne 2 -or (Test-Path -LiteralPath $private) -or (Get-Content -LiteralPath (Join-Path $EvidenceDirectory 'ci-keygen.txt') -Raw) -notmatch 'E_RELEASE_OFFLINE_OWNER_ONLY') { throw 'CI key generation was not blocked before output.' }
-    & $ReleaseTool sign $EvidenceDirectory $private (Join-Path $EvidenceDirectory 'must-not-exist-signed') 1 1 2 *> (Join-Path $EvidenceDirectory 'ci-sign.txt')
+    & $ReleaseTool sign $EvidenceDirectory $private (Join-Path $EvidenceDirectory 'must-not-exist-signed') 1 1 *> (Join-Path $EvidenceDirectory 'ci-sign.txt')
     if ($LASTEXITCODE -ne 2 -or (Test-Path -LiteralPath (Join-Path $EvidenceDirectory 'must-not-exist-signed')) -or (Get-Content -LiteralPath (Join-Path $EvidenceDirectory 'ci-sign.txt') -Raw) -notmatch 'E_RELEASE_OFFLINE_OWNER_ONLY') { throw 'CI signing was not blocked before output.' }
     $cases+=@('ci-keygen-no-output','ci-sign-no-output')
 } finally { $env:CI=$previousCi }
 $requirements=Get-Content -LiteralPath (Join-Path $root 'distribution/license-inputs.json') -Raw | ConvertFrom-Json
-if ($requirements.publicGateB.status -cne 'blocked') { throw 'Public Gate B must stay blocked.' }
-@{result='PASS';checks=$cases;count=$cases.Count;productionPrivateKeyCreated=$false;publicGateB='blocked'} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json') -Encoding utf8
+if ($requirements.publicGateB.status -cnotin @('blocked', 'approved')) { throw 'Unknown public material review.' }
+@{result='PASS';checks=$cases;count=$cases.Count;productionPrivateKeyCreated=$false;publicGateB=$requirements.publicGateB.status} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json') -Encoding utf8
 Get-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json')
 # Expected command rejections leave LASTEXITCODE=2; successful verification must return 0.
 exit 0

@@ -129,15 +129,14 @@ The current C1 format is still CONTROLLED / NOT FOR DISTRIBUTION with license_re
 
 ### 5. Owner signs and verifies offline only after candidate approval
 
-Transfer the approved candidate and the newly rebuilt, independently hash-checked tool to the offline owner. Use a new signed output directory. The owner maintains an append-only public release-sequence ledger; a greater sequence is required for each newly offered authorization, including re-signing after expiry. Use a correct clock and sign near the future permitted distribution time. The maximum acquisition validity is seven days; the example deliberately uses six:
+Transfer the approved candidate and the newly rebuilt, independently hash-checked tool to the offline owner. Use a new signed output directory. The owner maintains an append-only public release-sequence ledger; a greater sequence is required for each newly offered authorization. Use a correct clock for signing provenance. The [0.5.0 decision](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6759540545) supersedes the former seven-day policy: signed assets are permanent, with no expires field, deadline parameter or periodic re-signing. Installation and update preparation share this policy while preserving signature, hash, identity and sequence checks.
 
 ~~~powershell
 & D:/verified-tools/ameow-release.exe verify D:/review/ameow-approved-build-01/prepared
 if ($LASTEXITCODE -ne 0) { throw 'Candidate verification failed; do not sign' }
 $sequence = [UInt64](Read-Host 'Enter the approved globally increasing release sequence')
 $issued = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$expires = $issued + 6 * 24 * 60 * 60
-& D:/verified-tools/ameow-release.exe sign D:/review/ameow-approved-build-01/prepared X:/AmeowSigning/ameow-primary.pk8 D:/review/signed-01 $sequence $issued $expires
+& D:/verified-tools/ameow-release.exe sign D:/review/ameow-approved-build-01/prepared X:/AmeowSigning/ameow-primary.pk8 D:/review/signed-01 $sequence $issued
 if ($LASTEXITCODE -ne 0) { throw 'Signing failed; do not publish' }
 & D:/verified-tools/ameow-release.exe verify-signed D:/review/signed-01 D:/trusted-copy/approved-public-roots.json
 if ($LASTEXITCODE -ne 0) { throw 'Signed candidate verification failed' }

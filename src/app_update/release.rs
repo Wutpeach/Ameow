@@ -1,4 +1,4 @@
-//! Offline, controlled release preparation. No publishing or production key activation.
+//! Offline release preparation. No publishing or production key activation.
 use super::package::{DOMAIN, MAX_PACKAGE, hash, unhex};
 use super::store::plain;
 use super::{Manifest, Release, SignedManifest, State, TARGET, Trust, Version};
@@ -15,6 +15,7 @@ const IDENTITY_DOMAIN: &[u8] = b"Ameow controlled release identity v1\n";
 const FIXTURE_PUBLIC: &str = "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
 const MARKER: &[u8] = b"CONTROLLED LOCAL PREPARATION - NOT FOR DISTRIBUTION\nPublic Gate B remains blocked. License/product/ordinary-user acceptance is not granted.\n";
 const GUIDE: &[u8] = b"Ameow controlled portable candidate\nExtract the entire ZIP into a NEW writable directory. Start AmeowLauncher.exe; do not launch versions/*/Ameow.exe directly.\nRecommended future location: %LOCALAPPDATA%/Programs/Ameow. User data stays in %LOCALAPPDATA%/Ameow.\nThe first start is an unconfirmed signed trial; only the application's real Ready handshake confirms it. Missing/untrusted signatures fail closed.\nNo managed runtimes, caches or downloads are bundled. No administrator rights or installer are required by this layout.\nThis controlled artifact is not authorized for distribution.\n";
+const PUBLIC_GUIDE: &[u8] = b"Ameow for Windows x64\nExtract the entire ZIP into a new writable directory, then start AmeowLauncher.exe. Keep the complete folder together; do not start versions/*/Ameow.exe directly.\nUser data stays in %LOCALAPPDATA%/Ameow. No administrator rights are required.\nThe first start verifies the signed application and confirms it only after successful startup.\nThird-party notices are in LICENSE, licenses/ and Settings > About. Runtime components are downloaded separately when needed.\n";
 type Result<T> = std::result::Result<T, String>;
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -88,6 +89,16 @@ pub struct Build {
     pub notices: Vec<FileRecord>,
 }
 impl Build {
+    fn is_public(&self) -> bool {
+        self.public_gate_b == "approved"
+    }
+    fn guide(&self) -> &'static [u8] {
+        if self.is_public() {
+            PUBLIC_GUIDE
+        } else {
+            GUIDE
+        }
+    }
     fn validate(&self) -> Result<()> {
         Version::parse(&self.version)?;
         if !cfg!(any(
@@ -104,12 +115,29 @@ impl Build {
         if self.schema != 1
             || self.target != TARGET
             || self.toolchain != "1.93.0"
-            || self.public_gate_b != "blocked"
-            || self.license_review != "not-evaluated"
+            || !matches!(
+                (self.public_gate_b.as_str(), self.license_review.as_str()),
+                ("blocked", "not-evaluated") | ("approved", "approved")
+            )
             || self.app.path != "Ameow.exe"
             || self.launcher.path != "AmeowLauncher.exe"
         {
             return Err("E_RELEASE_BUILD_IDENTITY".into());
+        }
+        if self.is_public() {
+            if self.dirty
+                || self.tag.as_deref() != Some(&format!("v{}", self.version))
+                || self.commit == "0".repeat(40)
+                || self.tree == "0".repeat(40)
+            {
+                return Err("E_RELEASE_TAG".into());
+            }
+            if self.trust.keys.is_empty() {
+                return Err("E_APP_UPDATE_TRUST_NOT_CONFIGURED".into());
+            }
+            if self.trust.keys.iter().any(|key| key == FIXTURE_PUBLIC) {
+                return Err("E_RELEASE_TEST_KEY".into());
+            }
         }
         unhex(&self.commit, 20)?;
         unhex(&self.tree, 20)?;
@@ -266,8 +294,48 @@ fn members(bytes: &[u8], expected: &BTreeSet<String>) -> Result<BTreeMap<String,
 fn update_name(version: &str) -> String {
     format!("Ameow-{version}-windows-x64.zip")
 }
-fn portable_name(version: &str) -> String {
-    format!("Ameow-{version}-windows-x64-portable-CONTROLLED.zip")
+fn portable_name(build: &Build) -> String {
+    let suffix = if build.is_public() { "" } else { "-CONTROLLED" };
+    format!("Ameow-{}-windows-x64-portable{suffix}.zip", build.version)
+}
+fn verify_public_inventory(build: &Build, bytes: &[u8]) -> Result<()> {
+    if !build.is_public() {
+        return Ok(());
+    }
+    let inventory: serde_json::Value = serde_json::from_slice(bytes).map_err(err)?;
+    let materials = inventory["materials"]
+        .as_array()
+        .ok_or("E_RELEASE_MATERIAL_REVIEW")?;
+    if inventory["schema"] != 1
+        || inventory["scope"] != "public-release"
+        || inventory["publicGateB"]["status"] != "approved"
+        || inventory["publicGateB"]["blockers"]
+            .as_array()
+            .is_none_or(|b| !b.is_empty())
+        || materials.is_empty()
+        || materials.len() + 1 != build.notices.len()
+    {
+        return Err("E_RELEASE_MATERIAL_REVIEW".into());
+    }
+    let mut names = BTreeSet::new();
+    for material in materials {
+        let name = material["destination"]
+            .as_str()
+            .ok_or("E_RELEASE_MATERIAL_REVIEW")?;
+        let digest = material["sha256"]
+            .as_str()
+            .ok_or("E_RELEASE_MATERIAL_REVIEW")?;
+        if name == "licenses/license-inputs.json"
+            || !names.insert(name)
+            || !build
+                .notices
+                .iter()
+                .any(|n| n.path == name && n.sha256.eq_ignore_ascii_case(digest))
+        {
+            return Err("E_RELEASE_MATERIAL_REVIEW".into());
+        }
+    }
+    Ok(())
 }
 fn load_build(root: &Path) -> Result<Build> {
     let build: Build = json(&root.join("release-build.json"))?;
@@ -281,6 +349,10 @@ fn load_build(root: &Path) -> Result<Build> {
     for notice in &build.notices {
         notice.check(&read(&root.join(&notice.path), MAX_PACKAGE)?)?;
     }
+    verify_public_inventory(
+        &build,
+        &read(&root.join("licenses/license-inputs.json"), MAX_PACKAGE)?,
+    )?;
     Ok(build)
 }
 fn verify_update(bytes: &[u8], build: &Build, record: &FileRecord) -> Result<()> {
@@ -313,20 +385,25 @@ pub fn prepare(build_root: &Path, output: &Path) -> Result<()> {
     }
     write_new(&output.join("release-build.json"), &encode(&build)?)?;
     write_new(&output.join(&record.path), &update)?;
-    write_new(&output.join("CONTROLLED.txt"), MARKER)?;
+    if !build.is_public() {
+        write_new(&output.join("CONTROLLED.txt"), MARKER)?;
+    }
+    let controlled = !build.is_public();
     write_new(
         &output.join("unsigned-plan.json"),
         &encode(&Plan {
             build,
             update: record,
-            controlled: true,
+            controlled,
         })?,
     )?;
     verify_prepared(output).map(|_| ())
 }
 fn verify_prepared(root: &Path) -> Result<Plan> {
     let plan: Plan = json(&root.join("unsigned-plan.json"))?;
-    if !plan.controlled || encode(&load_build(root)?)? != encode(&plan.build)? {
+    if plan.controlled == plan.build.is_public()
+        || encode(&load_build(root)?)? != encode(&plan.build)?
+    {
         return Err("E_RELEASE_PLAN_IDENTITY".into());
     }
     if plan.update.path != update_name(&plan.build.version) {
@@ -357,7 +434,6 @@ fn sign_with_key(
     key: &Ed25519KeyPair,
     sequence: u64,
     issued: u64,
-    expires: u64,
 ) -> Result<()> {
     let plan = verify_prepared(root)?;
     let build = &plan.build;
@@ -371,7 +447,6 @@ fn sign_with_key(
         version: version.clone(),
         sequence,
         issued,
-        expires,
         url: format!(
             "https://github.com/Wutpeach/Ameow/releases/download/v{version}/Ameow-{version}-windows-x64.zip"
         ),
@@ -388,7 +463,7 @@ fn sign_with_key(
         build: build.clone(),
         update: plan.update.clone(),
         manifest_sha256: hash(&manifest_bytes),
-        controlled: true,
+        controlled: !build.is_public(),
     };
     let identity_bytes = encode(&signed(&identity, IDENTITY_DOMAIN, key)?)?;
     let release = Release {
@@ -417,9 +492,11 @@ fn sign_with_key(
         ),
         ("state.json".into(), encode(&state)?),
         ("release-identity.json".into(), identity_bytes.clone()),
-        ("README.txt".into(), GUIDE.to_vec()),
-        ("CONTROLLED.txt".into(), MARKER.to_vec()),
+        ("README.txt".into(), build.guide().to_vec()),
     ]);
+    if !build.is_public() {
+        files.insert("CONTROLLED.txt".into(), MARKER.to_vec());
+    }
     for notice in &build.notices {
         files.insert(
             notice.path.clone(),
@@ -435,8 +512,10 @@ fn sign_with_key(
     write_new(&output.join("manifest.json"), &manifest_bytes)?;
     write_new(&output.join("release-identity.json"), &identity_bytes)?;
     write_new(&output.join("release-build.json"), &encode(build)?)?;
-    write_new(&output.join(portable_name(version)), &portable)?;
-    write_new(&output.join("CONTROLLED.txt"), MARKER)?;
+    write_new(&output.join(portable_name(build)), &portable)?;
+    if !build.is_public() {
+        write_new(&output.join("CONTROLLED.txt"), MARKER)?;
+    }
     verify_signed_with_roots(output, &build.trust)
 }
 /// The private key stays outside every candidate directory and is never copied or logged.
@@ -446,7 +525,6 @@ pub fn sign(
     output: &Path,
     sequence: u64,
     issued: u64,
-    expires: u64,
 ) -> Result<()> {
     offline_only()?;
     if !root.is_absolute() || !output.is_absolute() {
@@ -467,7 +545,7 @@ pub fn sign(
     }
     let key =
         Ed25519KeyPair::from_pkcs8(&read(private, 4096)?).map_err(|_| "E_RELEASE_PRIVATE_KEY")?;
-    sign_with_key(root, output, &key, sequence, issued, expires)
+    sign_with_key(root, output, &key, sequence, issued)
 }
 pub fn verify(root: &Path) -> Result<()> {
     verify_prepared(root).map(|_| ())
@@ -501,7 +579,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
         return Err("E_RELEASE_IDENTITY_SIGNATURE".into());
     }
     let identity: Identity = serde_json::from_str(&envelope.payload).map_err(err)?;
-    if !identity.controlled || encode(&identity.build)? != encode(&build)? {
+    if identity.controlled == build.is_public() || encode(&identity.build)? != encode(&build)? {
         return Err("E_RELEASE_SOURCE_IDENTITY".into());
     }
     let signed_bytes = read(&root.join("manifest.json"), 16384)?;
@@ -524,20 +602,22 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
         &identity.update,
     )?;
     let version = &build.version;
-    let expected = BTreeSet::from([
+    let mut expected = BTreeSet::from([
         "AmeowLauncher.exe".into(),
         format!("versions/{version}/Ameow.exe"),
         format!("versions/{version}/manifest.json"),
         "state.json".into(),
         "release-identity.json".into(),
         "README.txt".into(),
-        "CONTROLLED.txt".into(),
     ]);
+    if !build.is_public() {
+        expected.insert("CONTROLLED.txt".into());
+    }
     let expected = expected
         .into_iter()
         .chain(build.notices.iter().map(|n| n.path.clone()))
         .collect();
-    let portable_path = portable_name(version);
+    let portable_path = portable_name(&build);
     let portable_bytes = read(&root.join(&portable_path), MAX_PACKAGE)?;
     let files = members(&portable_bytes, &expected)?;
     build
@@ -547,6 +627,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     for notice in &build.notices {
         notice.check(&files[&notice.path])?;
     }
+    verify_public_inventory(&build, &files["licenses/license-inputs.json"])?;
     let state: State = serde_json::from_slice(&files["state.json"]).map_err(err)?;
     let expected_release = Release {
         version: version.clone(),
@@ -562,12 +643,12 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     if encode(&state)? != encode(&expected_state)?
         || files[&format!("versions/{version}/manifest.json")] != signed_bytes
         || files["release-identity.json"] != identity_bytes
-        || files["README.txt"] != GUIDE
-        || files["CONTROLLED.txt"] != MARKER
+        || files["README.txt"] != build.guide()
+        || !build.is_public() && files["CONTROLLED.txt"] != MARKER
     {
         return Err("E_RELEASE_BOOTSTRAP".into());
     }
-    let report = serde_json::json!({"schema":1,"controlled":true,"publicGateB":"blocked","build":build,"update":identity.update,"portable":FileRecord::of(&portable_path,&portable_bytes),"members":files.iter().map(|(n,b)|FileRecord::of(n,b)).collect::<Vec<_>>(),"firstStart":"pending trial; real Launcher Ready required"});
+    let report = serde_json::json!({"schema":1,"controlled":!build.is_public(),"publicGateB":build.public_gate_b,"build":build,"update":identity.update,"portable":FileRecord::of(&portable_path,&portable_bytes),"members":files.iter().map(|(n,b)|FileRecord::of(n,b)).collect::<Vec<_>>(),"firstStart":"pending trial; real Launcher Ready required"});
     // Verification is read-only; the caller decides where to retain the public report.
     println!("{}", serde_json::to_string_pretty(&report).map_err(err)?);
     Ok(())
@@ -629,14 +710,13 @@ pub fn sign_fixture(
     output: &Path,
     sequence: u64,
     issued: u64,
-    expires: u64,
 ) -> Result<()> {
     let seed = unhex(
         "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
         32,
     )?;
     let key = Ed25519KeyPair::from_seed_unchecked(&seed).map_err(|_| "E_RELEASE_FIXTURE_KEY")?;
-    sign_with_key(root, output, &key, sequence, issued, expires)
+    sign_with_key(root, output, &key, sequence, issued)
 }
 #[cfg(test)]
 mod tests;

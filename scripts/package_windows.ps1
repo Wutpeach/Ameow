@@ -11,8 +11,12 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-if ($PackageMode -ceq 'public-release') { throw 'PUBLIC_GATE_B_BLOCKED: public delivery is not authorized.' }
+$publicRelease = $PackageMode -ceq 'public-release'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$inventory = Get-Content -LiteralPath (Join-Path $repository 'distribution/license-inputs.json') -Raw | ConvertFrom-Json
+if ($publicRelease -and ($Fixture -or $inventory.schema -ne 1 -or $inventory.scope -cne 'public-release' -or $inventory.publicGateB.status -cne 'approved' -or @($inventory.publicGateB.blockers).Count -ne 0)) {
+    throw 'PUBLIC_GATE_B_BLOCKED: approved public materials and a production signed build are required.'
+}
 $utf8 = New-Object Text.UTF8Encoding($false)
 function Assert-PlainPath([string]$Path) {
     if (-not [IO.Path]::IsPathFullyQualified($Path) -or $Path -match '["\r\n]') { throw "Choose an absolute plain path: $Path" }
@@ -27,22 +31,28 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Choose a new output direct
 if (-not (Test-Path -LiteralPath $Iscc -PathType Leaf)) { throw 'INNO_SETUP_NOT_FOUND: install Inno Setup 6 or supply -Iscc.' }
 $roots = Get-Content -LiteralPath $TrustedPublicRoots -Raw | ConvertFrom-Json
 $production = Get-Content -LiteralPath (Join-Path $repository 'assets/app-update-trust.json') -Raw | ConvertFrom-Json
-$inventory = Get-Content -LiteralPath (Join-Path $repository 'distribution/license-inputs.json') -Raw | ConvertFrom-Json
-if ($inventory.publicGateB.status -cne 'blocked') { throw 'PUBLIC_GATE_B_BLOCKED: preserve the current release restriction.' }
+if ($inventory.publicGateB.status -cnotin @('blocked', 'approved')) { throw 'PUBLIC_GATE_B_BLOCKED: unknown material review.' }
 $testKey = 'd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a'
 if ($Fixture) {
     if ($roots.schema -ne 1 -or @($roots.keys).Count -ne 1 -or $roots.keys[0] -cne $testKey) { throw 'FIXTURE_ROOT_REQUIRED: use only the public RFC fixture root.' }
 } else {
     if (@($production.keys).Count -eq 0) { throw 'E_APP_UPDATE_TRUST_NOT_CONFIGURED: no production delivery can be made.' }
+    if ($production.keys -ccontains $testKey) { throw 'E_RELEASE_TEST_KEY: fixture roots cannot authorize production delivery.' }
     if (($roots | ConvertTo-Json -Compress) -cne ($production | ConvertTo-Json -Compress)) { throw 'E_RELEASE_TRUST_MISMATCH' }
 }
 $verification = & $ReleaseTool verify-signed $SignedDirectory $TrustedPublicRoots
 if ($LASTEXITCODE -ne 0) { throw 'SIGNED_DELIVERY_REQUIRED: existing release verification rejected the input.' }
 $report = ($verification -join "`n") | ConvertFrom-Json
-if (-not $report.controlled -or $report.publicGateB -cne 'blocked' -or $report.build.version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Invalid controlled build report.' }
+$gate = if ($publicRelease) { 'approved' } else { 'blocked' }
+if ($report.controlled -eq $publicRelease -or $report.publicGateB -cne $gate -or $report.build.version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'E_RELEASE_BUILD_IDENTITY: signed build does not match the selected delivery mode.' }
+if ($publicRelease) {
+    $reviewedInventory = @($report.build.notices | Where-Object path -CEQ 'licenses/license-inputs.json')
+    if ($reviewedInventory.Count -ne 1 -or (Get-FileHash -LiteralPath (Join-Path $repository 'distribution/license-inputs.json') -Algorithm SHA256).Hash -ine $reviewedInventory[0].sha256) { throw 'E_RELEASE_MATERIAL_REVIEW: signed inventory differs from the current approved review.' }
+}
 if ($Fixture -and ($report.build.commit -cne ('0' * 40) -or -not $report.build.dirty)) { throw 'FIXTURE_IDENTITY_REQUIRED: synthetic debug fixtures only.' }
 $version = $report.build.version
-$suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } else { 'CONTROLLED' }
+$suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } elseif ($publicRelease) { 'PUBLIC' } else { 'CONTROLLED' }
+$fileSuffix = if ($publicRelease) { '' } else { "-$suffix" }
 $name = if ($Fixture) { 'Ameow C5 Validation' } else { 'Ameow' }
 $appId = if ($Fixture) { 'Ameow.C5.Validation' } else { 'Ameow.Rust' }
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
@@ -59,7 +69,7 @@ function Check-Record([string]$Path, $Record) {
 }
 $portableSource = Join-Path $SignedDirectory $report.portable.path
 Check-Record $portableSource $report.portable
-$portableName = "Ameow_${version}_windows_x64_portable-$suffix.zip"
+$portableName = "Ameow_${version}_windows_x64_portable$fileSuffix.zip"
 Copy-Item -LiteralPath $portableSource -Destination (Join-Path $output $portableName)
 $archive = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $output $portableName)), [IO.Compression.ZipArchiveMode]::Read)
 $lines = @('[Files]')
@@ -84,7 +94,7 @@ $include = Join-Path $output 'payload.iss'
 [IO.File]::WriteAllLines($include, [string[]]$lines, $utf8)
 $appMember = @($report.members | Where-Object path -CEQ "versions/$version/Ameow.exe")[0]
 $manifestMember = @($report.members | Where-Object path -CEQ "versions/$version/manifest.json")[0]
-$installerName = "Ameow_${version}_windows_x64_installer-$suffix"
+$installerName = "Ameow_${version}_windows_x64_installer$fileSuffix"
 $defines = @("/DPayloadInclude=$include", "/DApplicationId=$appId", "/DApplicationName=$name", "/DApplicationVersion=$version", "/DDeliveryOutput=$output", "/DInstallerName=$installerName", "/DAppHash=$($appMember.sha256)", "/DManifestHash=$($manifestMember.sha256)")
 if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
@@ -100,7 +110,16 @@ foreach ($member in $report.members) { Check-Record (Join-Path $payload $member.
 Check-Record (Join-Path $output $portableName) $report.portable
 Check-Record (Join-Path $SignedDirectory $report.update.path) $report.update
 Copy-Item -LiteralPath (Join-Path $SignedDirectory $report.update.path) -Destination (Join-Path $output $report.update.path)
+Check-Record (Join-Path $SignedDirectory 'manifest.json') $manifestMember
+$manifestName = 'ameow-update-windows-x64.json'
+Copy-Item -LiteralPath (Join-Path $SignedDirectory 'manifest.json') -Destination (Join-Path $output $manifestName)
 [IO.File]::WriteAllText((Join-Path $output 'verified-release.json'), ($report | ConvertTo-Json -Depth 30), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;publicGateB='blocked';productionKeyCreated=$false;build=$report.build;installer=(Record (Join-Path $output "$installerName.exe") "$installerName.exe");portable=(Record (Join-Path $output $portableName) $portableName);update=$report.update;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$installer = Record (Join-Path $output "$installerName.exe") "$installerName.exe"
+$portable = Record (Join-Path $output $portableName) $portableName
+$manifest = Record (Join-Path $output $manifestName) $manifestName
+$assets = @($installer, $portable, $report.update, $manifest)
+foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
+[IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
+$result = [ordered]@{schema=1;mode=$suffix;publicGateB=$gate;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
-Write-Output "Controlled Windows delivery: $output/delivery.json ($suffix; public Gate B remains blocked)"
+Write-Output "Windows delivery: $output/delivery.json ($suffix; public Gate B $gate; nothing uploaded)"

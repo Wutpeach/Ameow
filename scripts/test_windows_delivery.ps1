@@ -24,8 +24,10 @@ function Reject([string]$Name, [scriptblock]$Action, [string]$Expected) {
 }
 Reject 'public' { param($out) & $package @common -OutputDirectory $out -Fixture -PackageMode public-release } 'PUBLIC_GATE_B_BLOCKED:'
 $checks += 'public-mode-rejected-before-output'
-Reject 'production' { param($out) & $package @common -OutputDirectory $out } 'E_APP_UPDATE_TRUST_NOT_CONFIGURED:'
-$checks += 'empty-production-root-rejected-before-output'
+$production = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../assets/app-update-trust.json') -Raw | ConvertFrom-Json
+$productionRejection = if (@($production.keys).Count -eq 0) { 'E_APP_UPDATE_TRUST_NOT_CONFIGURED:' } else { 'E_RELEASE_TRUST_MISMATCH' }
+Reject 'production' { param($out) & $package @common -OutputDirectory $out } $productionRejection
+$checks += $(if (@($production.keys).Count -eq 0) { 'empty-production-root-rejected-before-output' } else { 'production-trust-mismatch-rejected-before-output' })
 $broken = Join-Path $EvidenceDirectory 'tampered-source'
 New-Item -ItemType Directory -Path $broken | Out-Null
 foreach ($file in Get-ChildItem -LiteralPath $SignedDirectory -File) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $broken $file.Name) }
@@ -45,6 +47,15 @@ $valid = Join-Path $EvidenceDirectory 'valid'
 & $package @common -OutputDirectory $valid -Fixture
 $delivery = Get-Content -LiteralPath (Join-Path $valid 'delivery.json') -Raw | ConvertFrom-Json
 if ($delivery.mode -cne 'FIXTURE-NOT-FOR-DISTRIBUTION' -or $delivery.publicGateB -cne 'blocked' -or $delivery.installer.bytes -le 0) { throw 'Missing controlled installer identity.' }
+if (@($delivery.assets).Count -ne 4 -or $delivery.manifest.path -cne 'ameow-update-windows-x64.json') { throw 'Missing one of the four release assets.' }
+foreach ($asset in $delivery.assets) {
+    $file = Join-Path $valid $asset.path
+    if ((Get-Item -LiteralPath $file).Length -ne $asset.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $asset.sha256) { throw "Release asset changed: $($asset.path)" }
+}
+if ((Get-FileHash -LiteralPath (Join-Path $SignedDirectory 'manifest.json') -Algorithm SHA256).Hash -ine $delivery.manifest.sha256 -or @(Get-Content -LiteralPath (Join-Path $valid 'SHA256SUMS.txt')).Count -ne 4) { throw 'Signed manifest or checksum list changed.' }
+$envelope = Get-Content -LiteralPath (Join-Path $valid $delivery.manifest.path) -Raw | ConvertFrom-Json
+$manifest = $envelope.payload | ConvertFrom-Json
+if ($manifest.PSObject.Properties.Name -contains 'expires' -or $manifest.version -cne $delivery.build.version) { throw 'Release manifest must have no expiry and match the delivery version.' }
 Add-Type -AssemblyName System.IO.Compression
 $zip = [IO.Compression.ZipArchive]::new([IO.File]::OpenRead((Join-Path $valid $delivery.update.path)), [IO.Compression.ZipArchiveMode]::Read)
 try {
