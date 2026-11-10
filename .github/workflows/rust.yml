@@ -18,13 +18,32 @@ concurrency:
 
 jobs:
   check:
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Install locked toolchain
         shell: pwsh
         run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Locate independent Release cache
+        id: cache-paths
+        shell: pwsh
+        run: |
+          $releaseTarget = [IO.Path]::GetRelativePath($env:GITHUB_WORKSPACE, (Join-Path $env:RUNNER_TEMP 'ameow-c1-target'))
+          "release-target=$releaseTarget" >> $env:GITHUB_OUTPUT
+          "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
+      - name: Cache Rust dependencies for check, test and static CRT Release
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # Include the native tool image and the script that sets Release flags.
+          # rust-cache also keys Rust versions, Cargo.lock, manifests and compiler env.
+          key: windows-2025-x64-msvc-${{ steps.cache-paths.outputs.image }}-static-crt-${{ hashFiles('scripts/package_portable.ps1') }}
+          # Targets stay separate; only dependency artifacts are saved by default.
+          workspaces: |
+            . -> target
+            . -> ${{ steps.cache-paths.outputs.release-target }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check application and development tools
         run: cargo +1.98.1 check --locked --all-targets
       - name: Run tests without external runtime fixtures
