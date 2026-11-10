@@ -1,0 +1,159 @@
+{
+  "date": "2026-11-10",
+  "instruction": "https://github.com/Wutpeach/Ameow/issues/32#issuecomment-6761747164",
+  "branch": "feature/gpui-kit-migration",
+  "head": "a62e0c3a0e02a09ca78579e29c67f17e407971ea",
+  "result": "ENVIRONMENT_BLOCKED",
+  "shellAcceptance": "PENDING",
+  "timestampUtc": "2026-11-10T07:39:59.6218609Z",
+  "shellHost": {
+    "pid": 15028,
+    "name": "explorer",
+    "sessionId": 1,
+    "parentPid": 14992,
+    "executable": "C:\\windows\\Explorer.EXE",
+    "startTime": "2026-11-06T09:17:26.3819850Z",
+    "elevated": 1,
+    "integrity": 12288,
+    "restricted": 0,
+    "adminSidAttributes": 15,
+    "tokenReadError": null
+  },
+  "taskbarWindows": [
+    {
+      "hwnd": 23462436,
+      "windowClass": "Shell_SecondaryTrayWnd",
+      "pid": 15028,
+      "dpi": 96,
+      "visible": true,
+      "rect": {
+        "left": 2560,
+        "top": 1400,
+        "right": 5120,
+        "bottom": 1440
+      },
+      "monitor": {
+        "left": 2560,
+        "top": 0,
+        "right": 5120,
+        "bottom": 1440
+      },
+      "workArea": {
+        "left": 2560,
+        "top": 0,
+        "right": 5120,
+        "bottom": 1400
+      }
+    },
+    {
+      "hwnd": 133072,
+      "windowClass": "Shell_TrayWnd",
+      "pid": 15028,
+      "dpi": 96,
+      "visible": true,
+      "rect": {
+        "left": 0,
+        "top": 1400,
+        "right": 2560,
+        "bottom": 1440
+      },
+      "monitor": {
+        "left": 0,
+        "top": 0,
+        "right": 2560,
+        "bottom": 1440
+      },
+      "workArea": {
+        "left": 0,
+        "top": 0,
+        "right": 2560,
+        "bottom": 1400
+      }
+    },
+    {
+      "hwnd": 463504,
+      "windowClass": "NotifyIconOverflowWindow",
+      "pid": 15028,
+      "dpi": 96,
+      "visible": false,
+      "rect": {
+        "left": 1995,
+        "top": 1232,
+        "right": 2195,
+        "bottom": 1392
+      },
+      "monitor": {
+        "left": 0,
+        "top": 0,
+        "right": 2560,
+        "bottom": 1440
+      },
+      "workArea": {
+        "left": 0,
+        "top": 0,
+        "right": 2560,
+        "bottom": 1400
+      }
+    }
+  ],
+  "activeConsoleSessionId": 1,
+  "sessions": [
+    {
+      "id": 0,
+      "station": "Services",
+      "state": "Disconnected"
+    },
+    {
+      "id": 1,
+      "station": "Console",
+      "state": "Active"
+    }
+  ],
+  "enableLUA": 1,
+  "applicationLaunched": false,
+  "nimAddAttemptedThisRound": false,
+  "fresh0x80070005Reproduction": false,
+  "rootCauseEstablished": false,
+  "nativeInteractionTimingAnimationOrReducedMotion": "NOT VERIFIED",
+  "staticSourceComparison": {
+    "refs": [
+      "580acfc1",
+      "acd8c7db",
+      "a62e0c3a"
+    ],
+    "fadeInMilliseconds": 130,
+    "reducedMotionSkipsAnimation": true,
+    "closeUsesImmediateWindowRemoval": true,
+    "runtimeProof": false
+  },
+  "codeChanged": false,
+  "newBuildOrTests": false,
+  "priorAcceptedChecksReused": [
+    "380 passed / 0 failed / 19 ignored",
+    "release boundaries 4/4",
+    "Windows delivery 6/6",
+    "0.5.0 to fixture 0.5.1 Ready"
+  ],
+  "preservation": {
+    "mainHead": "acd8c7db380e5674370b70998200cf614de33a5c",
+    "mainStatusMatches": true,
+    "mainProtectedFilesChecked": 1607,
+    "changed": [],
+    "migrationHead": "a62e0c3a0e02a09ca78579e29c67f17e407971ea",
+    "migrationStartingStatus": ""
+  },
+  "rawEvidenceRoot": "D:/Ameow-kit-tray-evidence-20261110-153956",
+  "mergeAssessment": "does not clear Shell acceptance; web review and explicit main integration authorization still required",
+  "futureCleanup": {
+    "authorizedAfter": "main integration and acceptance",
+    "removeWorktree": "D:/Ameow-gpui-kit",
+    "deleteFullyMergedBranch": "feature/gpui-kit-migration",
+    "extraBackupRequired": false,
+    "retainGitHistoryAndNecessaryEvidence": true,
+    "performedThisRound": false
+  },
+  "committedThisRound": false,
+  "pushed": false,
+  "tagOrReleaseCreated": false,
+  "environmentChanged": false
+}

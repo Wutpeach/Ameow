@@ -75,3 +75,24 @@ Topics: [.trellis/research/issue32-gpui-kit-final-integration.md](../../research
 ### Status
 
 [OK] **Completed**
+
+
+## Session 330: #32 真实Shell补验环境受限与清理决定
+<!-- trellis-session: v=2 fp=fa8d595bcc0651bc -->
+
+**Date**: 2026-11-10
+**Task**: #32 真实Shell补验环境受限与清理决定
+**Branch**: `feature/gpui-kit-migration`
+
+### Summary
+
+重新核对真实任务栏归属与令牌，唯一活动桌面仍为High Explorer，无普通Medium Shell；未启动应用或改变环境，Shell与动画PENDING。记录未来main验收通过后删除迁移树/已合并分支、不额外备份的明确决定。本轮仅未提交证据与交接。
+Topics: [.trellis/research/issue32-gpui-kit-final-integration.md](../../research/issue32-gpui-kit-final-integration.md)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Status
+
+[OK] **Completed**
