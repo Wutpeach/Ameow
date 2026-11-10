@@ -1,0 +1,103 @@
+{
+  "date": "2026-11-10",
+  "issue": "https://github.com/Wutpeach/Ameow/issues/32#issuecomment-6760659657",
+  "branch": "feature/gpui-kit-migration",
+  "integrationCommit": "45b9f3f02966bf1217a6b7f4236901f368122efc",
+  "licenseRepairCommit": "9e93d1637dab7cb8efe6dcb13ef3180b37e8e1f4",
+  "mainBaseline": "acd8c7db380e5674370b70998200cf614de33a5c",
+  "testedCodeCandidate": "45b9f3f0 + canonical license-input hash; final evidence commit changes documentation only",
+  "tests": {
+    "passed": 380,
+    "failed": 0,
+    "ignored": 19
+  },
+  "debugAndAllTargetCheck": "PASS",
+  "releaseBuild": "PASS",
+  "releaseApp": {
+    "path": "Ameow.exe",
+    "bytes": 35334656,
+    "sha256": "f4b029048de933fb9c8c62984eb18581c21743454ec7d5d3044077ecbcab9fb8"
+  },
+  "releaseToolchain": "1.98.1",
+  "releaseBoundaryCount": 4,
+  "windowsDelivery": {
+    "nativeInstallerExecution": false,
+    "delivery": "valid/delivery.json",
+    "result": "PASS",
+    "publicGateB": "blocked",
+    "checks": [
+      "public-mode-rejected-before-output",
+      "empty-production-root-rejected-before-output",
+      "tampered-portable-rejected-before-output",
+      "installer-compiled-from-verified-portable",
+      "shared-core-and-notice-hashes",
+      "single-exe-update-preserved"
+    ],
+    "productionPrivateKeyCreated": false,
+    "count": 6
+  },
+  "futureMain": {
+    "migrationIntegrationCommit": "45b9f3f02966bf1217a6b7f4236901f368122efc",
+    "canonicalLicenseRepairCommit": "9e93d1637dab7cb8efe6dcb13ef3180b37e8e1f4",
+    "mainBaseline": "acd8c7db380e5674370b70998200cf614de33a5c",
+    "method": "detached clean worktree; git merge --ff-only; locked offline cargo metadata; all material hashes",
+    "futureMainFastForward": "PASS",
+    "checkoutClean": true,
+    "migrationTree": "14c192216d05b0fd2e66b42858e9c3a14a0e755a",
+    "materialHashCount": 13,
+    "materialHashes": "PASS",
+    "publicGateB": "blocked",
+    "mainBranchChanged": false,
+    "productionKeysUsed": false,
+    "previewSceneCount": 119,
+    "tests": {
+      "passed": 380,
+      "failed": 0,
+      "ignored": 19
+    },
+    "manifest": {
+      "version": "0.5.0",
+      "expiresPresent": false
+    },
+    "updateZipMembers": [
+      "Ameow.exe"
+    ],
+    "nativeEvidence": "prior canonical-license repair; application logic unchanged; see final-integration report"
+  },
+  "preservation": {
+    "mainFilesChecked": 1607,
+    "fileMismatches": [],
+    "statusMatches": true,
+    "headMatches": true
+  },
+  "native": {
+    "inputOwner": "user",
+    "settingsAndKeyboard": "user confirmed; ACK logs; isolated host exit=0",
+    "settingsFailureAndRecovery": "user confirmed; failed screenshot and final settings preserved",
+    "update": "0.5.0 -> 0.5.1; old exit before new spawn; Ready; pending/trial clear",
+    "updatedProcess": {
+      "pid": 19576,
+      "elevated": 0,
+      "integrity": 8192
+    },
+    "fullUpdatePrompt": "user confirmed",
+    "gallery": "user confirmed light/dark; exit=0",
+    "launcherFinalExitCode": null,
+    "shellTray": "PENDING; both versions NIM_ADD 0x80070005",
+    "trayMenuLatencyAndAnimation": "unresolved observation; no valid new Shell comparison"
+  },
+  "previewSceneCount": 119,
+  "remaining": {
+    "publicGateB": "blocked",
+    "preciseLicenseSourceGaps": 9,
+    "mainIntegration": "await web review and explicit authorization",
+    "nativeShell": "PENDING",
+    "macOSAndMixedDpi": "NOT VERIFIED",
+    "magneticCollapseOffset": "known previous accepted residual; unchanged"
+  },
+  "rawEvidenceRoot": "D:/Ameow-kit-final-evidence-20261110-143703-739057",
+  "productionKeysUsed": false,
+  "pushed": false,
+  "tagOrReleaseCreated": false,
+  "issueOrProjectStateChanged": false
+}

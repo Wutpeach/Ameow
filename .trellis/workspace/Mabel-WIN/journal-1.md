@@ -51,3 +51,27 @@ Topics: [.trellis/research/issue18-rust-takeover.md](../../research/issue18-rust
 ### Status
 
 [OK] **Completed**
+
+
+## Session 329: #32 GPUI Kit 最终整合待网页验收
+<!-- trellis-session: v=2 fp=8ef4406533e95ed0 -->
+
+**Date**: 2026-11-10
+**Task**: #32 GPUI Kit 最终整合待网页验收
+**Branch**: `feature/gpui-kit-migration`
+
+### Summary
+
+0.5.0 main 已合并至迁移分支；Windows 380/0/19、发行4/4、Inno6/6及用户原生定向检查通过。干净检出修复GPL字节哈希。真实Shell与菜单观察仍未验证，未push/main merge/发行，等待网页侧复核。
+Topics: [.trellis/research/issue32-gpui-kit-final-integration.md](../../research/issue32-gpui-kit-final-integration.md)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `45b9f3f0` | merge: integrate main 0.5.0 into GPUI Kit migration (#32) |
+| `9e93d163` | fix(release): use canonical GPL bytes in material audit (#32) |
+
+### Status
+
+[OK] **Completed**

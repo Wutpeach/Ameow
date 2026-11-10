@@ -2,6 +2,8 @@
 
 当前开发以 GitHub Issue 的最新有效要求及实际代码为准；历史报告不能授权新开发。
 
+- [#32 GPUI Kit 最终整合](issue32-gpui-kit-final-integration.md)：0.5.0 主线整合、Rust 1.98.1、工程/原生验证与等待网页验收的边界。
+
 - [#18 正式 Rust 主线整理交接](issue18-rust-takeover.md)：目录、身份兼容、保全与本次验证。
 - [T04 下载引擎更新报告](t04-runtime-update-report.md)及[离线恢复验收补充](t04-offline-recovery-acceptance.md)：复用原验收，保留未覆盖项。
 - [设置中心 R10](tra28-r10-settings-master-report.md)、[R3–R10 检查点](tra28-r3-r10-stage-checkpoint.md)：原设置/托盘交付证据。
