@@ -5,7 +5,7 @@ description: Quality and formats
 
 Before submission choose Highest (no height cap), Balanced (up to 1080p), or Saver (up to 480p). Balanced is the default; actual formats depend on the site and video, and a cap does not guarantee that resolution. Accepted tasks retain quality, including on retry.
 
-The old AE compatibility toggle is unavailable; verify the finished file in your target software.
+Height caps select video formats; they do not resize downloaded images. The old AE compatibility toggle is unavailable; verify the finished file in your target software.
 
 ## Choosing quality
 

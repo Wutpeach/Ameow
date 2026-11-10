@@ -3,7 +3,7 @@ title: 本地开发环境
 description: 在 Windows x64 上从源码运行 Rust 应用。
 ---
 
-在 Windows x64 安装 Rust 1.93.0、Visual Studio C++ Build Tools 和 Windows SDK。仓库的 `rust-toolchain.toml` 固定 Rust 工具链；应用本身不依赖 Node、Python 或 Electron。
+在 Windows x64 安装 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK。仓库的 `rust-toolchain.toml` 固定 Rust 工具链；应用本身不依赖 Node、Python 或 Electron。
 
 在仓库根目录运行：
 
