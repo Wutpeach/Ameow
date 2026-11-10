@@ -18,9 +18,6 @@ fn run() -> Result<(), String> {
         ),
         Some("keygen") if args.len() == 3 => release::keygen(p(1), p(2)),
         Some("import-public") if args.len() == 4 => release::import_public(p(1), p(2), p(3)),
-        Some("public-release") => {
-            Err("PUBLIC_GATE_B_BLOCKED: publishing is not implemented or authorized".into())
-        }
         _ => Err(usage.into()),
     }
 }

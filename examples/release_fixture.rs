@@ -65,8 +65,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         source_sha256: hash(b"synthetic first-boot layout fixture"),
         cargo_lock_sha256: hash(&fs::read(repository.join("Cargo.lock"))?),
         toolchain: "1.98.1".into(),
-        public_gate_b: "blocked".into(),
-        license_review: "not-evaluated".into(),
         trust: trust.clone(),
         app: FileRecord::of("Ameow.exe", &app),
         launcher: FileRecord::of("AmeowLauncher.exe", &launcher),
@@ -88,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let install = root.join("install");
     fs::create_dir(&install)?;
     let mut archive = zip::ZipArchive::new(fs::File::open(signed.join(format!(
-        "Ameow-{}-windows-x64-portable-CONTROLLED.zip",
+        "Ameow-{}-windows-x64-portable-FIXTURE-NOT-FOR-DISTRIBUTION.zip",
         args[3]
     )))?)?;
     for i in 0..archive.len() {

@@ -34,6 +34,6 @@ Rust 工程从 `ameow-next/` 原位提升；应用依赖版本和功能基线保
 
 保留 Pages 地址 `https://wutpeach.github.io/Ameow/`。工作流直接执行 `npm --prefix site run build`，PR 仅构建，不部署；main 或 main 上手动执行才部署。旧 Electron/macOS/tag release 工作流已从候选树退役，Rust CI 不发布 EXE。
 
-README 与关键站点入口区分已公开的 Electron v0.3.1 和未公开发行的 Rust 源码。文档全文更新留给 #19。私有包的 hash-bound review 必须对应当前新输入；既有 Gate A 通过记录不是本次打包授权，公开 Gate B 仍阻断。
+README 与关键站点入口区分已公开的 Electron v0.3.1 和未公开发行的 Rust 源码。文档全文更新留给 #19。2026-11-10 的 #33 已取消私有审核文件及 Gate A/B 状态；当前发行路径见 [首次 Rust 发行](first-rust-release.md)，真实签名、源码身份和材料哈希仍校验。
 
 集中验收后，使用正常 PR/非强制 merge 切换 GitHub main。冻结 Electron 本地 main 仍是独立历史分支，不应在脏树中 pull/reset。后续开发先从接受的远端 main 建立干净 Rust 检出；是否迁移本机目录名、退役哪个旧工作树或分支，按本次保全清单与最终授权再执行。

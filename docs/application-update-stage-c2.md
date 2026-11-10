@@ -1,5 +1,7 @@
 # Windows public-distribution review and signing preparation — Stage C2
 
+> Historical stage record. Gate A/B approval switches and the old packaging flags below were retired on 2026-11-10. Use [the current release steps](first-rust-release.md) for executable commands.
+
 Scope: [#33 C2 instruction](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6734985761), based on accepted local commit 1f4b3f21d7e770d427d7bcec109cc647014ce6ff. This is engineering evidence and owner preparation, not legal clearance, public-release approval or key activation. Gate B remains blocked; production keys remain empty. No production private key was generated, read or uploaded. No application/Launcher code, dependency, runtime download mechanism or version is changed.
 
 ## Gate B findings (2026-11-09)

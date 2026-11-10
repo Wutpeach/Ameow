@@ -6,17 +6,11 @@ param(
     [Parameter(Mandatory)][string]$TrustedPublicRoots,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [string]$Iscc = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe",
-    [switch]$Fixture,
-    [ValidateSet('controlled', 'public-release')][string]$PackageMode = 'controlled'
+    [switch]$Fixture
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$publicRelease = $PackageMode -ceq 'public-release'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$inventory = Get-Content -LiteralPath (Join-Path $repository 'distribution/license-inputs.json') -Raw | ConvertFrom-Json
-if ($publicRelease -and ($Fixture -or $inventory.schema -ne 1 -or $inventory.scope -cne 'public-release' -or $inventory.publicGateB.status -cne 'approved' -or @($inventory.publicGateB.blockers).Count -ne 0)) {
-    throw 'PUBLIC_GATE_B_BLOCKED: approved public materials and a production signed build are required.'
-}
 $utf8 = New-Object Text.UTF8Encoding($false)
 function Assert-PlainPath([string]$Path) {
     if (-not [IO.Path]::IsPathFullyQualified($Path) -or $Path -match '["\r\n]') { throw "Choose an absolute plain path: $Path" }
@@ -31,7 +25,6 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Choose a new output direct
 if (-not (Test-Path -LiteralPath $Iscc -PathType Leaf)) { throw 'INNO_SETUP_NOT_FOUND: install Inno Setup 6 or supply -Iscc.' }
 $roots = Get-Content -LiteralPath $TrustedPublicRoots -Raw | ConvertFrom-Json
 $production = Get-Content -LiteralPath (Join-Path $repository 'assets/app-update-trust.json') -Raw | ConvertFrom-Json
-if ($inventory.publicGateB.status -cnotin @('blocked', 'approved')) { throw 'PUBLIC_GATE_B_BLOCKED: unknown material review.' }
 $testKey = 'd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a'
 if ($Fixture) {
     if ($roots.schema -ne 1 -or @($roots.keys).Count -ne 1 -or $roots.keys[0] -cne $testKey) { throw 'FIXTURE_ROOT_REQUIRED: use only the public RFC fixture root.' }
@@ -43,16 +36,11 @@ if ($Fixture) {
 $verification = & $ReleaseTool verify-signed $SignedDirectory $TrustedPublicRoots
 if ($LASTEXITCODE -ne 0) { throw 'SIGNED_DELIVERY_REQUIRED: existing release verification rejected the input.' }
 $report = ($verification -join "`n") | ConvertFrom-Json
-$gate = if ($publicRelease) { 'approved' } else { 'blocked' }
-if ($report.controlled -eq $publicRelease -or $report.publicGateB -cne $gate -or $report.build.version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'E_RELEASE_BUILD_IDENTITY: signed build does not match the selected delivery mode.' }
-if ($publicRelease) {
-    $reviewedInventory = @($report.build.notices | Where-Object path -CEQ 'licenses/license-inputs.json')
-    if ($reviewedInventory.Count -ne 1 -or (Get-FileHash -LiteralPath (Join-Path $repository 'distribution/license-inputs.json') -Algorithm SHA256).Hash -ine $reviewedInventory[0].sha256) { throw 'E_RELEASE_MATERIAL_REVIEW: signed inventory differs from the current approved review.' }
-}
+if ($report.fixture -ne [bool]$Fixture -or $report.build.version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'E_RELEASE_BUILD_IDENTITY: signed fixture identity differs from delivery mode.' }
 if ($Fixture -and ($report.build.commit -cne ('0' * 40) -or -not $report.build.dirty)) { throw 'FIXTURE_IDENTITY_REQUIRED: synthetic debug fixtures only.' }
 $version = $report.build.version
-$suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } elseif ($publicRelease) { 'PUBLIC' } else { 'CONTROLLED' }
-$fileSuffix = if ($publicRelease) { '' } else { "-$suffix" }
+$suffix = if ($Fixture) { 'FIXTURE-NOT-FOR-DISTRIBUTION' } else { 'PUBLIC' }
+$fileSuffix = if ($Fixture) { "-$suffix" } else { '' }
 $name = if ($Fixture) { 'Ameow C5 Validation' } else { 'Ameow' }
 $appId = if ($Fixture) { 'Ameow.C5.Validation' } else { 'Ameow.Rust' }
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
@@ -120,6 +108,6 @@ $manifest = Record (Join-Path $output $manifestName) $manifestName
 $assets = @($installer, $portable, $report.update, $manifest)
 foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;publicGateB=$gate;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
-Write-Output "Windows delivery: $output/delivery.json ($suffix; public Gate B $gate; nothing uploaded)"
+Write-Output "Windows delivery: $output/delivery.json ($suffix; nothing uploaded)"

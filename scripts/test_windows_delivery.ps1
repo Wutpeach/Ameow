@@ -22,8 +22,10 @@ function Reject([string]$Name, [scriptblock]$Action, [string]$Expected) {
         $_.Exception.Message | Set-Content -LiteralPath (Join-Path $EvidenceDirectory "$Name.txt") -Encoding utf8
     }
 }
-Reject 'public' { param($out) & $package @common -OutputDirectory $out -Fixture -PackageMode public-release } 'PUBLIC_GATE_B_BLOCKED:'
-$checks += 'public-mode-rejected-before-output'
+$wrongRoots = Join-Path $EvidenceDirectory 'wrong-fixture-roots.json'
+@{schema=1;keys=@('12' * 32)} | ConvertTo-Json | Set-Content -LiteralPath $wrongRoots -Encoding utf8
+Reject 'fixture-root' { param($out) & $package -SignedDirectory $SignedDirectory -ReleaseTool $ReleaseTool -TrustedPublicRoots $wrongRoots -OutputDirectory $out -Fixture -Iscc $Iscc } 'FIXTURE_ROOT_REQUIRED:'
+$checks += 'wrong-fixture-root-rejected-before-output'
 $production = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../assets/app-update-trust.json') -Raw | ConvertFrom-Json
 $productionRejection = if (@($production.keys).Count -eq 0) { 'E_APP_UPDATE_TRUST_NOT_CONFIGURED:' } else { 'E_RELEASE_TRUST_MISMATCH' }
 Reject 'production' { param($out) & $package @common -OutputDirectory $out } $productionRejection
@@ -31,7 +33,7 @@ $checks += $(if (@($production.keys).Count -eq 0) { 'empty-production-root-rejec
 $broken = Join-Path $EvidenceDirectory 'tampered-source'
 New-Item -ItemType Directory -Path $broken | Out-Null
 foreach ($file in Get-ChildItem -LiteralPath $SignedDirectory -File) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $broken $file.Name) }
-$portable = @(Get-ChildItem -LiteralPath $broken -Filter '*portable-CONTROLLED.zip')[0]
+$portable = @(Get-ChildItem -LiteralPath $broken -Filter '*portable-FIXTURE-NOT-FOR-DISTRIBUTION.zip')[0]
 Add-Type -AssemblyName System.IO.Compression
 $version = (Get-Content -LiteralPath (Join-Path $broken 'release-build.json') -Raw | ConvertFrom-Json).version
 $zip = [IO.Compression.ZipArchive]::new([IO.File]::Open($portable.FullName, [IO.FileMode]::Open), [IO.Compression.ZipArchiveMode]::Update)
@@ -46,7 +48,7 @@ $checks += 'tampered-portable-rejected-before-output'
 $valid = Join-Path $EvidenceDirectory 'valid'
 & $package @common -OutputDirectory $valid -Fixture
 $delivery = Get-Content -LiteralPath (Join-Path $valid 'delivery.json') -Raw | ConvertFrom-Json
-if ($delivery.mode -cne 'FIXTURE-NOT-FOR-DISTRIBUTION' -or $delivery.publicGateB -cne 'blocked' -or $delivery.installer.bytes -le 0) { throw 'Missing controlled installer identity.' }
+if ($delivery.mode -cne 'FIXTURE-NOT-FOR-DISTRIBUTION' -or -not $delivery.fixture -or $delivery.installer.bytes -le 0) { throw 'Missing controlled installer identity.' }
 if (@($delivery.assets).Count -ne 4 -or $delivery.manifest.path -cne 'ameow-update-windows-x64.json') { throw 'Missing one of the four release assets.' }
 foreach ($asset in $delivery.assets) {
     $file = Join-Path $valid $asset.path
@@ -62,7 +64,7 @@ try {
     if ($zip.Entries.Count -ne 1 -or $zip.Entries[0].FullName -cne 'Ameow.exe') { throw 'Application update is not a single-EXE ZIP.' }
 } finally { $zip.Dispose() }
 $checks += @('installer-compiled-from-verified-portable','shared-core-and-notice-hashes','single-exe-update-preserved')
-$result = @{result='PASS';checks=$checks;count=$checks.Count;nativeInstallerExecution=$false;productionPrivateKeyCreated=$false;publicGateB='blocked';delivery='valid/delivery.json'}
+$result = @{result='PASS';checks=$checks;count=$checks.Count;nativeInstallerExecution=$false;productionPrivateKeyCreated=$false;delivery='valid/delivery.json'}
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'result.json') -Encoding utf8
 $result | ConvertTo-Json -Depth 5
 # Expected release-tool rejections leave LASTEXITCODE=2.

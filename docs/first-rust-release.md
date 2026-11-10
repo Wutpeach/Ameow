@@ -1,14 +1,8 @@
 # 首次 Rust 正式发行：最短操作路径
 
-本轮依据 [#33 首次发行准备指令](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6756964913)，
-并按 [0.5.0 与永久有效指令](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6759540545) 更新版本和清单语义。
-这是待验收的操作说明，不是执行密钥、Tag 或公开发布的授权。当前生产根仍为空，材料 Gate B
-仍 blocked；现有 C5 fixture 不能改名后发布。C5 原生安装/卸载与 Windows CI 的通过结果沿用。
+按 [#33 最新简化要求](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6767912509)，发行工具已取消 Gate A/B 人工审批与构建前强制 Tag。#32 的 GPUI Kit 已进入 main=5e2eb3a4，工具链为 Rust 1.98.1；后续从包含已验收发行修改的确定 Commit 构建。历史阶段证据保留，不重复全套原生验收。
 
-首次 `v0.5.0` 必须包含 #32 的 GPUI Kit 迁移。迁移分支整合验证及网页侧复核通过后，
-还需另行取得合入 main 的授权；当前 main 的旧 GPUI 构建不能直接作为正式首发产物。
-本次整合将实际构建工具链统一为 Rust 1.98.1，并保留 AccessKit Windows 本地补丁；
-下文使用整合后的依赖材料，历史 C1/C2 的 Rust 1.93.0 证据不改写。
+当前生产公钥仍为空。本说明不授权本轮生产密钥、Tag/Release 或上传操作；fixture 不能改名当作正式包。
 
 ## 已确认版本与四类资产
 
@@ -30,25 +24,13 @@ Cargo.toml/Cargo.lock 中 Ameow 自身版本已同步为 0.5.0。发布前再次
 构建目录、payload、离线签名目录或工具。安装版与便携版使用同一已验签核心和声明；
 更新 ZIP 不重压缩、不加入 Launcher 或许可文件，版本对应的声明已经内嵌在 EXE 中。
 
-## 一次性准备：仅在后续明确批准后执行
+## 必要准备
 
-1. 用户确认发行主体，解决下面列出的实际材料/权属问题。沿用既有声明库存；
-   审核实际分发字节及其 SHA-256 后，才在同一份 `distribution/license-inputs.json` 中将
-   `scope` 设为 `public-release`、`publicGateB.status` 设为 `approved`、blockers 清空。
-   不得只改状态字段以跳过未决材料；本轮没有修改该文件。
-2. 用户批准一套 Ed25519 生产密钥与保管方式后，由所有者在离线、加密且权限受限的存储中
-   使用现有 `ameow-release keygen`。立即保留离线加密备份，验证能从备份恢复并签名，
-   把解锁材料另行保管。工具本身不负责加密或备份。具体命令与权限说明见
-   [C2 保管步骤](application-update-stage-c2.md#production-signing-unexecuted-owner-runbook)。
-   私钥只在所有者离线签名环境中使用，不进入仓库、Issue、Actions Secret、日志或 Release。
-3. 独立核对公钥指纹，用现有 `import-public` 生成公钥配置提案；仅在获批后更新
-   `assets/app-update-trust.json`。将最终版本同时反映到 Cargo.toml/Cargo.lock；
-   App、Launcher、release tool 必须从同一批准源码和公钥配置重新构建。
-4. 取得独立的提交/推送/Tag 授权，将已验收源码固定在新的 `v0.5.0`。从干净检出构建，
-   不必清理或覆盖当前带其他未提交工作的开发目录。该 Tag 必须精确指向构建 HEAD。
+1. 所有者决定发行主体并履行实际第三方许可、声明/源代码和工具分发义务；库存记录实际材料、字节哈希及来源缺口，不设置 approved/blocked 字段。
+2. 所有者在离线环境保管 Ed25519 私钥，留存可恢复的加密备份；私钥不进入 Git、CI、Issue、日志或产物。仅编入独立核对过的公开可信根，App、Launcher 和离线工具使用同一份源码和公钥配置。
+3. 将最终源码固定为一个 Commit，在独立干净检出中构建；无需先创建版本 Tag，也无需清理带有其它任务修改的主工作区。Tag 留到候选验证后、正式上传前建立并核对，禁止覆盖历史 Tag。
 
-Ed25519 是应用更新与发布身份签名；它不会给 EXE 增加 Windows Authenticode 发布者身份。
-未做 Authenticode 的安装器可能显示未知发布者/SmartScreen 提示，应在实际首发时说明。
+Ed25519 用于应用更新和发行身份，不等于 Windows Authenticode。首发不要求购买 Authenticode 证书；无该签名时 Windows 可能显示未知发布者或 SmartScreen 提示。
 
 ## 每次发行：构建一次，离线签名，再制作双资产
 
@@ -57,14 +39,12 @@ Ed25519 是应用更新与发布身份签名；它不会给 EXE 增加 Windows A
 Windows SDK 和 Inno Setup 6 可用。
 
 ```powershell
-# 在已经获批、干净且精确位于版本 Tag 的检出中：
-./scripts/package_portable.ps1 -BuildOnly -ReleasePreparation -PackageMode public-release `
+# 在独立、干净、精确位于发行 Commit 的检出中；此时可以没有 Tag：
+./scripts/package_portable.ps1 `
   -TargetDirectory D:/AmeowRelease/target -OutputDirectory D:/AmeowRelease/0.5.0/build
 ```
 
-此入口在构建前拒绝未批准材料、空/fixture 根、脏工作区及缺失/错误 Tag；材料必须与
-库存实际哈希一致。release tool 继续核对其编入的版本与根。构建结果与 prepared 中
-正式身份为 `public_gate_b=approved`、`license_review=approved`，不产生 CONTROLLED 标记。
+构建默认一次生成 App、Launcher、离线工具及未签名准备目录，不读取人工审核文件。材料字节必须与清单哈希一致。开发工作区的脏输入可生成未签名开发候选，真实 dirty 状态会被记录，正式签名拒绝它。确定的干净 Commit 即可成为正式候选，无需已有 Tag。
 
 把公开构建材料和经独立校验的工具移到离线所有者环境。独立可信公钥副本不能取自待验产物。
 
@@ -72,7 +52,7 @@ Windows SDK 和 Inno Setup 6 可用。
 $tool = 'D:/AmeowRelease/0.5.0/build/ameow-release.exe'
 $prepared = 'D:/AmeowRelease/0.5.0/build/prepared'
 $signed = 'D:/AmeowRelease/0.5.0/signed'
-$roots = 'X:/AmeowSigning/approved-public-roots.json'
+$roots = 'X:/AmeowSigning/public-roots.json'
 $issued = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 # sequence 必须由所有者选取从未使用过的、全局递增的值；此处不提供默认值。
 & $tool verify $prepared
@@ -81,12 +61,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Prepared input rejected' }
 if ($LASTEXITCODE -ne 0) { throw 'Signing rejected' }
 & $tool verify-signed $signed $roots
 if ($LASTEXITCODE -ne 0) { throw 'Signed input rejected' }
-./scripts/package_windows.ps1 -PackageMode public-release -SignedDirectory $signed `
+./scripts/package_windows.ps1 -SignedDirectory $signed `
   -ReleaseTool $tool -TrustedPublicRoots $roots -OutputDirectory D:/AmeowRelease/0.5.0/delivery
 ```
 
-双资产入口验证签名、当前批准材料与签名内库存的一致性，复用 Inno 编译；生成四项资产
-和逐项哈希。正式模式拒绝 fixture 与 CONTROLLED 身份，fixture 演练始终有不可分发标记。
+双资产入口验证真实签名、编入可信根、签名核心中的材料及哈希，复用 Inno 生成四项资产。正式入口拒绝空可信根、fixture/test key、伪造身份和篡改。fixture 演练始终使用明确文件名和测试身份，不作为正式资产。
 
 安装版、便携版、签名清单与对应更新 ZIP 永久有效。清单不含 `expires`，sign 命令也没有
 到期参数；`issued` 只记录签发时间，保留明显未来时间的合理性检查。安装登记、更新检查、
@@ -100,13 +79,13 @@ if ($LASTEXITCODE -ne 0) { throw 'Signed input rejected' }
 
 先实际启动最终生产根包中的 Launcher，完成一次安装/启动/退出，以及便携启动和更新
 清单 HTTPS 获取核验；复用 C5 未受影响的卸载与安全证据，不再跑全套安装器设计验收。
-审核最终文件、Tag/Commit、签名时间及发布说明后，再取得用户明确的公开发布授权。
+核对最终文件、Commit、签名时间及发布说明，由用户决定是否公开上传。此时才为该 Commit 创建版本 Tag；先检查远端同名 Tag，已有时核对且绝不覆盖。创建/推送 Tag 与上传仍是用户明确选择的发布操作。
 
 ```powershell
 $delivery = 'D:/AmeowRelease/0.5.0/delivery'
 $receipt = Get-Content -LiteralPath (Join-Path $delivery 'delivery.json') -Raw | ConvertFrom-Json
 $tag = 'v' + $receipt.build.version
-if ($receipt.mode -cne 'PUBLIC' -or $receipt.publicGateB -cne 'approved') { throw 'Not a public release' }
+if ($receipt.mode -cne 'PUBLIC' -or $receipt.fixture -or $receipt.build.dirty) { throw 'Not a production candidate' }
 git fetch origin "refs/tags/${tag}:refs/tags/${tag}"
 if ($LASTEXITCODE -ne 0) { throw 'Remote tag verification failed' }
 if ((git rev-parse "${tag}^{commit}") -cne $receipt.build.commit) { throw 'Remote tag differs from signed build' }
@@ -129,18 +108,22 @@ if ($LASTEXITCODE -ne 0) { throw 'Release publication failed; inspect GitHub bef
 这一步有意让首次 Rust 正式版成为 latest；本轮没有执行它。不要使用覆盖上传、递归通配符
 或旧 `latest.json`。完成后重新下载四项资产核对哈希，确认正式更新清单 URL 可获取。
 
-## 真正仍待决定的事项
+## 自定义发行门槛审查
 
-- **权属**：确认品牌素材可发行、实际开发主体符合 Visual Studio
-  Community 使用资格与静态生成代码条款。既有 Penpot 导出链不代替权属声明。
-- **材料**：已按 Kit 的 Windows normal/build 图同步为 450 个第三方包，沿用 C3 内嵌交付。
-  9 项精确原文来源缺口为 accesskit 0.24.1、accesskit_consumer 0.38.0、mac 0.1.1、
-  rust-i18n-macro 4.2.4、rust-i18n-support 4.2.4、seahash 4.1.0、taffy 0.15.1、
-  zune-core 0.4.12、zune-jpeg 0.4.21。实际源码/.crate 中无独立精确正文来源的项目
-  仍明确披露，需要权威材料或对现有声明的合格评估。Rust 标准库声明同步至 1.98.1。
-  三个旧图标 tag 缺口与按需下载工具义务基于既有披露判断，不再全量重审历史。
-- **生产操作**：一套离线生产密钥与加密备份、公钥编入重建、最终包一次关键验证，
-  以及提交/推送/Tag/Release/公开上传授权，均等待后续明确批准。
+| 项目 | 处理与理由 |
+| --- | --- |
+| Gate B 的状态、scope、批准清单和双重审批字段 | 已移除；它们不提供签名或完整性保证 |
+| Gate A 审核人/时间/证据文件与独立私有 ZIP 路径 | 已移除；复用同一未签名准备和已签名打包路径 |
+| 构建前必须有版本 Tag | 已移除；最终上传时用 --verify-tag 核对版本和同一 Commit |
+| BuildOnly + ReleasePreparation + PackageMode 及永久失败 public-release 命令 | 已移除；一个构建入口，不新增发布平台 |
+| 干净 Commit、版本/平台、编入可信根、签名和材料哈希 | 保留；分别保证来源身份、真实性和完整性 |
+| 私钥离线、不进 Git/CI，Ready/防降级/重放/回滚 | 保留；保护密钥和已安装应用 |
+| Authenticode 证书 | 不作为首发门槛 |
+| 第三方许可/源代码/署名、品牌权属、Visual Studio 资格 | 真实外部义务；由发行主体履行，不做打包审批变量 |
+
+仍需实际完成：所有者准备并保管真实 Ed25519 密钥、编入公钥后固定源码 Commit；从独立干净检出构建、离线签名并核验最终安装/便携包及 HTTPS 更新来源；决定是否创建 Tag 和公开上传四项资产。
+
+材料沿用 450 个第三方包的实际库存。9 项精确原文来源缺口（accesskit、accesskit_consumer、mac、rust-i18n-macro、rust-i18n-support、seahash、taffy、zune-core、zune-jpeg）及历史图标 tag、按需工具义务继续在既有材料中披露；这不代表权属已确认，也不重新启动全量许可审计。
 
 ## 现有依赖告警的有界判断
 

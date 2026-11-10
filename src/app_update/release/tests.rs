@@ -7,11 +7,16 @@ fn source(root: &Path) -> Build {
     let app = b"controlled application bytes";
     let launcher = b"controlled launcher bytes";
     let license = b"unit fixture notice, not a distribution review";
-    let inventory = b"{\"publicGateB\":{\"status\":\"blocked\"}}";
+    let third_party = b"unit third-party notice";
+    let inventory = encode(&serde_json::json!({"schema":1,"materials":[
+        {"destination":"LICENSE","sha256":hash(license)},
+        {"destination":"licenses/THIRD_PARTY_NOTICES.md","sha256":hash(third_party)}
+    ]})).unwrap();
     for (name, bytes) in [
         ("Ameow.exe", app.as_slice()),
         ("AmeowLauncher.exe", launcher.as_slice()),
         ("LICENSE", license.as_slice()),
+        ("licenses/THIRD_PARTY_NOTICES.md", third_party.as_slice()),
         ("licenses/license-inputs.json", inventory.as_slice()),
     ] {
         fs::write(root.join(name), bytes).unwrap();
@@ -27,8 +32,6 @@ fn source(root: &Path) -> Build {
         source_sha256: hash(b"unit source"),
         cargo_lock_sha256: hash(b"unit lock"),
         toolchain: "1.98.1".into(),
-        public_gate_b: "blocked".into(),
-        license_review: "not-evaluated".into(),
         trust: PublicRoots {
             schema: 1,
             keys: vec![FIXTURE_PUBLIC.into()],
@@ -37,7 +40,8 @@ fn source(root: &Path) -> Build {
         launcher: FileRecord::of("AmeowLauncher.exe", launcher),
         notices: vec![
             FileRecord::of("LICENSE", license),
-            FileRecord::of("licenses/license-inputs.json", inventory),
+            FileRecord::of("licenses/THIRD_PARTY_NOTICES.md", third_party),
+            FileRecord::of("licenses/license-inputs.json", &inventory),
         ],
     };
     fs::write(root.join("release-build.json"), encode(&build).unwrap()).unwrap();
@@ -134,7 +138,7 @@ fn wrong_version_platform_commit_and_tag_are_rejected() {
             2 => candidate.commit = "wrong".into(),
             3 => candidate.tag = Some("v9.9.9".into()),
             4 => candidate.tag = Some("v0.1.0".into()),
-            _ => candidate.public_gate_b = "passed".into(),
+            _ => candidate.toolchain = "wrong".into(),
         };
         save_build(&input, &candidate);
         assert!(
@@ -320,7 +324,7 @@ fn public_import_rejects_known_fixture_and_preserves_existing_roots() {
 }
 
 // An ephemeral test key stays in memory and is never a production trust root.
-fn public_source(root: &Path) -> (Build, Ed25519KeyPair) {
+fn release_source(root: &Path) -> (Build, Ed25519KeyPair) {
     let mut build = source(root);
     let document = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new()).unwrap();
     let key = Ed25519KeyPair::from_pkcs8(document.as_ref()).unwrap();
@@ -331,24 +335,19 @@ fn public_source(root: &Path) -> (Build, Ed25519KeyPair) {
             .map(|b| format!("{b:02x}"))
             .collect(),
     ];
-    build.public_gate_b = "approved".into();
-    build.license_review = "approved".into();
     build.dirty = false;
-    build.tag = Some(format!("v{}", build.version));
-    let inventory = serde_json::json!({"schema":1,"scope":"public-release","publicGateB":{"status":"approved","blockers":[]},
-        "materials":[{"destination":"LICENSE","sha256":build.notices[0].sha256}]});
-    let bytes = encode(&inventory).unwrap();
-    fs::write(root.join("licenses/license-inputs.json"), &bytes).unwrap();
-    build.notices[1] = FileRecord::of("licenses/license-inputs.json", &bytes);
     save_build(root, &build);
     (build, key)
 }
 
 #[test]
-fn approved_public_archives_keep_signed_core_notices_and_pending_bootstrap() {
+fn untagged_release_without_approval_fields_keeps_signed_core_and_pending_bootstrap() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
-    let (build, key) = public_source(&input);
+    let (build, key) = release_source(&input);
+    assert!(build.tag.is_none());
+    let identity = serde_json::to_value(&build).unwrap();
+    assert!(identity.get("public_gate_b").is_none() && identity.get("license_review").is_none());
     let prepared = tmp.path().join("prepared");
     let output = tmp.path().join("signed");
     prepare(&input, &prepared).unwrap();
@@ -364,7 +363,7 @@ fn approved_public_archives_keep_signed_core_notices_and_pending_bootstrap() {
     .unwrap();
     let bytes = read(&output.join(portable_name(&build)), MAX_PACKAGE).unwrap();
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-    assert!(zip.by_name("CONTROLLED.txt").is_err());
+    assert!(zip.by_name("FIXTURE.txt").is_err());
     assert!(zip.by_name("AmeowLauncher.exe").is_ok());
     assert!(zip.by_name("LICENSE").is_ok());
     let mut state = Vec::new();
@@ -374,47 +373,60 @@ fn approved_public_archives_keep_signed_core_notices_and_pending_bootstrap() {
         .unwrap();
     let state: State = serde_json::from_slice(&state).unwrap();
     assert!(state.current.is_none() && state.pending.is_some() && state.trial.is_none());
-    assert!(!output.join("CONTROLLED.txt").exists());
+    assert!(!output.join("FIXTURE.txt").exists());
 }
 
 #[test]
-fn public_release_rejects_unreviewed_materials_and_unapproved_identity_before_output() {
-    for case in 0..8 {
+fn source_integrity_and_material_failures_still_prevent_signed_output() {
+    for case in 0..5 {
         let tmp = tempfile::tempdir().unwrap();
         let input = tmp.path().join("input");
-        let (mut build, _) = public_source(&input);
+        let (mut build, key) = release_source(&input);
         match case {
             0 => build.dirty = true,
-            1 => build.tag = None,
-            2 => build.trust.keys.clear(),
-            3 => build.trust.keys = vec![FIXTURE_PUBLIC.into()],
-            4 => build.license_review = "not-evaluated".into(),
-            5 => build.commit = "0".repeat(40),
+            1 => build.commit = "0".repeat(40),
+            2 => build.tree = "0".repeat(40),
+            3 => build.trust.keys.clear(),
             _ => {
                 let path = input.join("licenses/license-inputs.json");
                 let mut inventory: serde_json::Value = json(&path).unwrap();
-                if case == 6 {
-                    inventory["publicGateB"]["status"] = "blocked".into();
-                } else {
-                    inventory["materials"][0]["sha256"] = "00".repeat(32).into();
-                }
+                inventory["materials"][0]["sha256"] = "00".repeat(32).into();
                 let bytes = encode(&inventory).unwrap();
                 fs::write(path, &bytes).unwrap();
-                build.notices[1] = FileRecord::of("licenses/license-inputs.json", &bytes);
+                build.notices[2] = FileRecord::of("licenses/license-inputs.json", &bytes);
             }
         }
         save_build(&input, &build);
-        let output = tmp.path().join("out");
-        assert!(prepare(&input, &output).is_err(), "case {case}");
+        let prepared = tmp.path().join("prepared");
+        let output = tmp.path().join("signed");
+        if case == 4 {
+            assert!(prepare(&input, &prepared).is_err());
+            assert!(!prepared.exists());
+        } else {
+            prepare(&input, &prepared).unwrap();
+            assert!(sign_with_key(&prepared, &output, &key, 1, super::super::store::now()).is_err());
+        }
         assert!(!output.exists(), "case {case}");
     }
 }
 
 #[test]
-fn public_signer_must_match_the_approved_root_before_output() {
+fn own_and_third_party_license_texts_are_required() {
+    for path in ["LICENSE", "licenses/THIRD_PARTY_NOTICES.md"] {
+        let tmp = tempfile::tempdir().unwrap();
+        let input = tmp.path().join("input");
+        let mut build = source(&input);
+        build.notices.retain(|notice| notice.path != path);
+        save_build(&input, &build);
+        assert!(prepare(&input, &tmp.path().join("prepared")).is_err());
+    }
+}
+
+#[test]
+fn signer_must_match_the_trusted_root_before_output() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("input");
-    public_source(&input);
+    release_source(&input);
     let prepared = tmp.path().join("prepared");
     let output = tmp.path().join("signed");
     prepare(&input, &prepared).unwrap();

@@ -31,11 +31,11 @@ jobs:
         run: cargo +1.98.1 test --locked
       - name: Fetch locked release dependencies before the offline build
         run: cargo +1.98.1 fetch --locked --target x86_64-pc-windows-msvc
-      - name: Build and audit controlled release inputs
+      - name: Build and verify unsigned release inputs
         shell: pwsh
         run: |
-          ./scripts/package_portable.ps1 -BuildOnly -ReleasePreparation -TargetDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-target') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-build')
-      - name: Verify release command boundaries
+          ./scripts/package_portable.ps1 -TargetDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-target') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-build')
+      - name: Verify offline release commands
         shell: pwsh
         run: |
           ./scripts/test_release_preparation.ps1 -ReleaseTool (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/ameow-release.exe') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-boundaries')

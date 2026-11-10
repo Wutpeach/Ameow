@@ -51,7 +51,7 @@ licensed Feather shapes, compared with Feather v4.29.2 and Lucide 0.468.0.
 Both the existing Lucide ISC and full Cole Bemis Feather MIT notices are
 retained above. The exact historical immediate source tag was not recorded.
 The comparison tags are evidence references, not a claim that local SVG bytes
-match those upstream files. Exact version provenance remains a public Gate B
+match those upstream files. Exact version provenance remains a disclosed
 record gap; no third-party asset is relicensed under Ameow's MIT.
 Local SHA-256:
 x.svg 705B0FD2C9E10403E52A1B88FE776DAD557B0B9E8C2943C53A205FAD47B510A6
@@ -67,4 +67,4 @@ Stroke color is set to white for GPUI tinting and stroke width to 1.8 on the
 24px viewBox (1.2px at 16px). Geometry is retained. The ISC and Feather MIT
 notices above apply; this exact source tag is recorded for these additions.
 
-C2 source verification (2026-11-09): the nine 2026-11-03 additions were compared against Lucide tag 0.468.0, commit f12b0de177fbc2a6795e99be065887e72b237123. SVG child geometry matches; root stroke/tint/size adaptations remain. The upstream copyright line above includes the Feather attribution absent from the former generic Lucide line. This comparison does not recover the historical immediate tag of x.svg/check.svg/copy.svg and does not clear Gate B.
+C2 source verification (2026-11-09): the nine 2026-11-03 additions were compared against Lucide tag 0.468.0, commit f12b0de177fbc2a6795e99be065887e72b237123. SVG child geometry matches; root stroke/tint/size adaptations remain. The upstream copyright line above includes the Feather attribution absent from the former generic Lucide line. This comparison does not recover the historical immediate tag of x.svg/check.svg/copy.svg.

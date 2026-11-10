@@ -1,5 +1,7 @@
 # Windows application updates — Stage B
 
+> Historical stage record. Gate A/B approval switches and the old packaging flags below were retired on 2026-11-10. Use [the current release steps](first-rust-release.md) for executable commands.
+
 Scope: [Ameow #33 Stage B](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6722184278), on the accepted, uncommitted Stage A foundation. Public distribution Gate B remains blocked. See [Stage A](application-update-stage-a.md) for the signed package, Launcher, ownership and rollback contracts.
 
 ## Shared policy and settings

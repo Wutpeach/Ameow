@@ -1,5 +1,7 @@
 # Windows release preparation — Stage C1
 
+> Historical stage record. Gate A/B approval switches and the old packaging flags below were retired on 2026-11-10. Use [the current release steps](first-rust-release.md) for executable commands.
+
 Scope: [#33 C1](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6733821585). This is controlled infrastructure, not permission to commit, push, create a tag/draft or publish. Production public roots remain empty; license Gate B and product/ordinary-user/Shell gates remain independent and blocked/pending. No installer or launcher self-update is introduced.
 
 ## Build once, keep the bytes

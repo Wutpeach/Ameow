@@ -34,4 +34,4 @@ npm --prefix site run build
 
 Pages 地址保持不变，文档以当前 Rust 源码为准；历史 Electron v0.3.1 已停止支持。文档维护由 [#19](https://github.com/Wutpeach/Ameow/issues/19) 跟踪，网页选择问题由 [#22](https://github.com/Wutpeach/Ameow/issues/22) 研究。
 
-应用自有代码采用 [MIT](LICENSE)。第三方代码、字体、图标及运行时适用各自许可，见 [发行材料](distribution/packaging.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。构建不等于发行许可通过；私有包需要匹配当前输入的审核，公开发行 Gate B 继续阻断。安装版和便携版的受控构建及手动发行衔接见 [Windows 交付说明](distribution/windows-delivery.md)；现有 CI 不上传 EXE/ZIP，也不自动发布。
+应用自有代码采用 [MIT](LICENSE)。第三方代码、字体、图标及运行时适用各自许可，见 [发行材料](distribution/packaging.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。材料清单保留实际第三方义务；构建与打包不依赖人工审批状态。安装版和便携版的构建、离线签名及手动发行衔接见 [Windows 交付说明](distribution/windows-delivery.md)；现有 CI 不上传 EXE/ZIP，也不自动发布。

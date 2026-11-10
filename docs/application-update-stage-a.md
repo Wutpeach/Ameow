@@ -1,5 +1,7 @@
 # Windows application updates — Stage A
 
+> Historical stage record. Gate A/B approval switches and the old packaging flags below were retired on 2026-11-10. Use [the current release steps](first-rust-release.md) for executable commands.
+
 Scope: [Ameow #33, Stage A](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6721474253). This is a local, controlled update foundation. It does not enable public distribution. [Packaging Gate B](../distribution/packaging.md) remains blocked.
 
 ## Layout and identity

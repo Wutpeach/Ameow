@@ -1,10 +1,9 @@
 {
   "schema": 1,
-  "scope": "private-owner-validation",
   "materials": [
     {
       "kind": "embedded third-party notice source",
-      "obligation": "Preserve the versioned source and checked local full texts; engineering delivery does not clear public Gate B.",
+      "obligation": "Preserve the versioned source and checked local full texts.",
       "source": "THIRD_PARTY_NOTICES.md",
       "destination": "licenses/THIRD_PARTY_NOTICES.md",
       "sha256": "ED4653E1F45415925CD395BF78C52C1782B3EFEB32FF728457443FCF944D2A5E"
@@ -28,7 +27,7 @@
       "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
       "source": "distribution/notices/icon-licenses.txt",
       "destination": "licenses/icon-licenses.txt",
-      "sha256": "A85FF4FFF2338F62FEE4E107D987A76D8E4FDDC8164BCA290799034405BED123"
+      "sha256": "4ECAEC64BBDE5A30317ED62A24E62E81FE3DD94571C0A92D56BCFA383BD11E98"
     },
     {
       "kind": "Rust material/provenance",
@@ -77,11 +76,11 @@
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "C6BB2A47AAC413FB4FFEAE22444DF1C91202070062DA076395EA05CEE59315AE"
+      "sha256": "2EA561EDC76D9E48AB7C447225D5BFD2E4E1BB7720E1D92F6332487ACBE6BB0B"
     },
     {
       "kind": "on-demand GPL context",
-      "obligation": "Provide GPL text as context; redistribution/source review stays blocked.",
+      "obligation": "Provide GPL text as context; fulfill applicable source and redistribution obligations for tools actually distributed.",
       "source": "assets/runtime-GPL-3.0.txt",
       "destination": "licenses/runtime-GPL-3.0.txt",
       "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
@@ -91,16 +90,12 @@
       "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
       "source": "distribution/notices/msvc-build-context.md",
       "destination": "licenses/msvc-build-context.md",
-      "sha256": "74D2F18FC90A4F24F95E268CD41AADDED8A75728EDE375FC7500C2FF96ECDB80"
+      "sha256": "1F10BAF386424B926C420B8045DEC55041F96D1B78929745571F79274C78B9E3"
     }
   ],
-  "publicGateB": {
-    "status": "blocked",
-    "blockers": [
-      "External/public distribution is not authorized by R11 or this private flow trial.",
-      "Complete external redistribution/source/third-party review of the actual product and future bundled tools remains pending.",
-      "Exact historical icon tag and upstream package-text provenance gaps listed in the dependency inventory remain disclosed.",
-      "Applicable MSVC generated-binary external redistribution review remains pending."
-    ]
-  }
+  "notes": [
+    "Third-party rights and license obligations remain the publisher's responsibility; this inventory records materials, not an approval decision.",
+    "Exact historical icon tags and nine upstream package-text provenance gaps remain disclosed in the dependency inventory.",
+    "Confirm the actual publisher's Visual Studio Community eligibility and applicable generated-binary terms."
+  ]
 }
