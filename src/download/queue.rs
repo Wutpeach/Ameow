@@ -757,7 +757,7 @@ mod tests {
         assert_eq!(backend.snapshot().settings, changed);
         Ok(())
     }
-    fn fake_backend(root: &std::path::Path) -> DownloadCoordinator {
+    pub(super) fn fake_backend(root: &std::path::Path) -> DownloadCoordinator {
         let model = Model::new(defaults(root));
         let snapshot = model.snapshot();
         DownloadCoordinator {
@@ -776,6 +776,64 @@ mod tests {
                 preparation_test_joined: std::sync::atomic::AtomicBool::new(false),
             }),
         }
+    }
+    #[test]
+    fn app_update_closes_admission_but_preserves_queued_work_and_settings() {
+        let root = tempfile::tempdir().unwrap(); let backend = fake_backend(root.path());
+        let id = backend.submit("https://youtu.be/00000000001".into()).unwrap();
+        assert!(!backend.drain_for_app_update());
+        let before = backend.snapshot();
+        assert!(!before.stopping); assert!(!before.stopped);
+        assert!(!before.jobs.iter().find(|j| j.job_id == id).unwrap().phase.terminal());
+        assert!(backend.submit("https://youtu.be/00000000002".into()).is_err());
+        assert!(backend.save_settings(defaults(root.path())).is_err());
+        assert!(!backend.retry_preparation());
+        assert!(matches!(backend.apply(QueueCommand::RestoreRecommended), CommandReply::Error(_)));
+    }
+    #[test]
+    fn app_update_waits_for_each_actual_owner_barrier() {
+        let root = tempfile::tempdir().unwrap();
+        for barrier in ["preparing", "held", "owner-lost", "component-operation"] {
+            let backend = fake_backend(root.path());
+            {
+                let mut model = lock(&backend.shared.model);
+                match barrier {
+                    "preparing" => model.preparing = true,
+                    "held" => model.preparation_held = true,
+                    "owner-lost" => model.preparation_owner_lost = true,
+                    _ => model.update_preparing = true,
+                }
+            }
+            assert!(!backend.drain_for_app_update(), "{barrier}");
+            assert!(!backend.snapshot().stopping, "{barrier}");
+        }
+    }
+    #[test]
+    fn automatic_app_update_preserves_every_resource_owner_barrier() {
+        let root = tempfile::tempdir().unwrap();
+        for barrier in ["requested", "preparing", "held", "owner-lost", "component-operation", "pending-component"] {
+            let backend = fake_backend(root.path());
+            {
+                let mut model = lock(&backend.shared.model);
+                match barrier {
+                    "requested" => model.preparation_requested = true,
+                    "preparing" => { model.preparation_requested = false; model.preparing = true; }
+                    "held" => { model.preparation_requested = false; model.preparation_held = true; }
+                    "owner-lost" => { model.preparation_requested = false; model.preparation_owner_lost = true; }
+                    "component-operation" => { model.preparation_requested = false; model.update_preparing = true; }
+                    _ => { model.preparation_requested = false; model.update_request = Some(Default::default()); }
+                }
+            }
+            assert!(!backend.begin_idle_app_update(), "{barrier}");
+            assert!(!backend.snapshot().stopping, "{barrier}");
+        }
+    }
+    #[test]
+    fn app_update_does_not_treat_stop_request_as_resource_release() {
+        let root = tempfile::tempdir().unwrap(); let backend = fake_backend(root.path());
+        // This backend has no dispatcher: no owner can acknowledge completed joins.
+        assert!(!backend.drain_for_app_update());
+        assert!(backend.snapshot().stopping); assert!(!backend.snapshot().stopped);
     }
     fn success() -> Snapshot {
         Snapshot {
@@ -1684,6 +1742,12 @@ mod tests {
         assert!(view.preparing);
         assert!(!view.preparation_owner_lost);
         assert_eq!(view.active_slots, 0);
+        assert!(!backend.drain_for_app_update());
+        assert!(!backend.snapshot().stopping);
+        assert!(handles.iter().all(|handle| !handle.stopped()));
+        assert!(!lock(&backend.shared.preparation_control).is_cancelled());
+        preparation_fixture::write_record(&native_root, "app-update-deferred.txt",
+            "Update admission closed; real Held tree remains alive and uncancelled; switching refused");
         backend.stop();
         assert!(backend.retry_cleanup(0));
         thread::sleep(Duration::from_millis(75));
@@ -1998,8 +2062,25 @@ struct Model {
     verified_runtime_versions: Vec<(String, String)>,
     stopping: bool,
     stopped: bool,
+    app_update_draining: bool,
 }
 impl Model {
+    fn app_update_idle(&self) -> bool {
+        if self.preparation_requested {return false;}
+        !self.stopping
+            && !self.stopped
+            && !self.preparing
+            && !self.preparation_held
+            && !self.preparation_owner_lost
+            && !self.update_preparing
+            && self.update_request.is_none()
+            && self.records.values().all(|r| {
+                r.view.phase.terminal()
+                    && r.view.resources_released
+                    && r.running.is_none()
+                    && !r.view.slot_owned
+            })
+    }
     fn restore_preferences(&mut self, path: &std::path::Path) {
         (self.downloader_preferences, self.downloader_preferences_error, self.downloader_preferences_unreadable) = super::preferences::Preferences::restore(path);
     }
@@ -2070,6 +2151,7 @@ impl Model {
             verified_runtime_versions: Vec::new(),
             stopping: false,
             stopped: false,
+            app_update_draining: false,
         }
     }
     fn active(&self) -> usize {
@@ -2080,7 +2162,7 @@ impl Model {
             && !self.preparation_owner_lost && !preparation_owner_outstanding
     }
     fn can_retry_preparation(&self) -> bool {
-        !self.stopping && !self.stopped && !self.preparing && !self.preparation_held
+        !self.stopping && !self.app_update_draining && !self.stopped && !self.preparing && !self.preparation_held
             && !self.preparation_owner_lost && !self.preparation_requested
             && self.update_request.is_none()
             && !matches!(self.runtime_update.phase, super::runtime_update::RuntimeUpdatePhase::Preparing | super::runtime_update::RuntimeUpdatePhase::Downloading | super::runtime_update::RuntimeUpdatePhase::Verifying | super::runtime_update::RuntimeUpdatePhase::Waiting)
@@ -2135,7 +2217,7 @@ impl Model {
         }
     }
     fn accept(&mut self, accepted: Accepted, frozen: Option<String>) -> Result<u64, String> {
-        if self.stopping {
+        if self.stopping || self.app_update_draining {
             return Err("E_STOPPING: Downloads are stopping".into());
         }
         if self.preparation_owner_lost {
@@ -2431,7 +2513,7 @@ impl DownloadCoordinator {
         let _ordered = lock(&self.shared.command_gate);
         let preferences_only = {
             let model = lock(&self.shared.model);
-            if model.stopping {
+            if model.stopping || model.app_update_draining {
                 return Err("E_STOPPING: Downloads are stopping".into());
             }
             settings.quality == model.settings.quality
@@ -2482,6 +2564,7 @@ impl DownloadCoordinator {
     pub fn retry(&self, failed_job: u64) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
         let mut model = lock(&self.shared.model);
+        if model.app_update_draining { return Err("E_APP_UPDATE_DRAINING".into()); }
         let old = model
             .records
             .get(&failed_job)
@@ -2543,7 +2626,48 @@ impl DownloadCoordinator {
         false
     }
     pub fn stop(&self) {
+        let _ordered = lock(&self.shared.command_gate);
         stop_shared(&self.shared);
+    }
+    /// Close admission without cancelling queued/running work. Stop only after the
+    /// existing owners finish; stopped is published after native joins and lease drop.
+    pub fn drain_for_app_update(&self) -> bool {
+        let _ordered = lock(&self.shared.command_gate);
+        let safe_to_stop = {
+            let mut model = lock(&self.shared.model);
+            model.app_update_draining = true;
+            model.records.values().all(|r| r.view.phase.terminal() && r.view.resources_released)
+                && model.active() == 0 && !model.preparing && !model.preparation_held
+                && !model.preparation_owner_lost && model.update_request.is_none()
+                && !model.update_preparing
+        };
+        if safe_to_stop { stop_shared(&self.shared); }
+        lock(&self.shared.model).stopped
+    }
+    #[cfg(test)]
+    pub(crate) fn update_test_queue(root:&std::path::Path)->Self { let queue=tests::fake_backend(root);lock(&queue.shared.model).preparation_requested=false;queue }
+    pub fn app_update_idle(&self) -> bool {
+        lock(&self.shared.model).app_update_idle()
+    }
+    pub fn begin_idle_app_update(&self) -> bool {
+        let _ordered = lock(&self.shared.command_gate);
+        let mut model = lock(&self.shared.model);
+        if !model.app_update_idle() {
+            return false;
+        }
+        model.app_update_draining = true;
+        drop(model);
+        stop_shared(&self.shared);
+        true
+    }
+    pub fn cancel_app_update_drain(&self) -> bool {
+        let _ordered = lock(&self.shared.command_gate);
+        let mut model = lock(&self.shared.model);
+        if model.stopping {
+            return false;
+        }
+        model.app_update_draining = false;
+        true
     }
     pub fn diagnostic(&self, job: u64) -> Result<String, String> {
         let model = lock(&self.shared.model);
@@ -2565,7 +2689,7 @@ impl DownloadCoordinator {
                 let valid = super::upstream::normalize_stable_version(&version).as_deref() == Some(version.as_str())
                     && model.runtime_update.active_version.as_ref().is_some_and(|active|
                         super::upstream::compare_stable_versions(&version, active) == Some(std::cmp::Ordering::Greater));
-                if !valid || model.stopping || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
+                if !valid || model.stopping || model.app_update_draining || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
                     return CommandReply::Error("E_RUNTIME_UPDATE: Invalid version or update unavailable".into());
                 }
                 model.update_request = Some(super::runtime_update::Selection {
@@ -2581,7 +2705,7 @@ impl DownloadCoordinator {
             }
             QueueCommand::RestoreRecommended => {
                 let mut model = lock(&self.shared.model);
-                if model.stopping || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
+                if model.stopping || model.app_update_draining || model.preparing || model.preparation_owner_lost || model.update_request.is_some() || model.runtime_update.phase == super::runtime_update::RuntimeUpdatePhase::Waiting {
                     return CommandReply::Error("E_RUNTIME_UPDATE: Update unavailable".into());
                 }
                 model.update_request = Some(Default::default());

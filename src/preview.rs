@@ -92,12 +92,13 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
         "validating" => snapshot(vec![job(1, JobPhase::Validating, Some(1), None)]),
         "publishing" => snapshot(vec![job(1, JobPhase::Publishing, Some(1), None)]),
         "held" => snapshot(vec![job(1, JobPhase::Held, Some(1), None)]),
-        "concurrent" => fifo(),
+        "concurrent" | "app-conflict" => fifo(),
         "mixed" | "badge" | "exit-confirm" => {
             let mut s = fifo(); s.jobs.push(job(5, JobPhase::Failure, Some(5), None)); s
         }
         _ => snapshot(Vec::new()),
     };
+    if scene.state=="app-conflict" {s.preparation.phase=ameow_next::download::preparation::PreparationPhase::Failed;}
     if scene.surface == "settings" || scene.surface == "components" || scene.surface == "diagnostics" {
         s = snapshot(Vec::new());
     }
@@ -134,7 +135,7 @@ impl crate::Prototype {
                         } else { ameow_next::download::settings::ThemePreference::Light };
                     }
                 }
-                self.model.locks.menu = scene.surface != "compact";
+                self.model.locks.menu = scene.surface != "compact" && scene.surface != "full";
                 if scene.surface == "compact" { self.model.request_compact(self.now()); }
                 else { self.model.set_target(true, self.now()); }
                 match scene.surface.as_str() {

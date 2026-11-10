@@ -22,6 +22,7 @@ const HEIGHT: f32 = 172.;
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
     Status,
+    Update,
     Open,
     Settings,
     Exit,
@@ -29,6 +30,7 @@ pub enum Action {
 }
 #[derive(Clone)]
 struct Projection {
+    update: ameow_next::app_update::service::View,
     preview: bool,
     language: Language,
     night: bool,
@@ -50,6 +52,11 @@ impl Projection {
         let mut snapshot = main.downloads.as_ref().and_then(|ui| ui.snapshot.as_deref()).cloned();
         if let (Some(scene), Some(snapshot)) = (preview, snapshot.as_mut()) { preview_snapshot(snapshot, &scene.state); }
         Self {
+            update: main
+                .downloads
+                .as_ref()
+                .map(|u| u.updates.snapshot())
+                .unwrap_or_default(),
             preview: preview.is_some(),
             language: main.language,
             night: main.night,
@@ -223,6 +230,8 @@ fn summary(snapshot: Option<&QueueSnapshot>, startup_failed: bool, language: Lan
     }
 }
 pub struct TrayPopup {
+    anchor:crate::tray::PopupAnchor,
+    layout_height:f32,
     projection: Projection,
     actions: Rc<RefCell<Vec<Action>>>,
     selected: Option<usize>,
@@ -236,10 +245,11 @@ impl TrayPopup {
         main: Entity<Prototype>,
         projection: Projection,
         actions: Rc<RefCell<Vec<Action>>>,
-        icon: RECT,
+        anchor: crate::tray::PopupAnchor,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let icon=anchor.icon;
         let observer = cx.observe(&main, |this, main, cx| {
             this.projection = Projection::from_main(main.read(cx));
             cx.notify();
@@ -264,6 +274,8 @@ impl TrayPopup {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         Self {
+            layout_height:HEIGHT+if projection.update.attention(){40.}else{0.},
+            anchor,
             projection,
             actions,
             selected: None,
@@ -277,6 +289,7 @@ impl TrayPopup {
         if self.projection.preview { return; }
         let action = match index {
             0 if self.projection.summary.clickable => Action::Status,
+            4 if self.projection.update.attention() => Action::Update,
             1 => Action::Open,
             2 => Action::Settings,
             3 => Action::Exit,
@@ -335,10 +348,27 @@ impl TrayPopup {
     }
 }
 impl Render for TrayPopup {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
         let summary = self.projection.summary.clone();
+        let attention = self.projection.update.attention();
+        let (update_label,update_action)=match self.projection.update.update.phase {
+            ameow_next::app_update::Phase::Ready=>(l.text("更新已就绪","Update ready"),l.text("重启并更新","Restart & update")),
+            ameow_next::app_update::Phase::RolledBack=>(l.text("已恢复原版本","Version restored"),l.text("查看","View")),
+            _=>(l.text("等待安全更新","Waiting to update"),l.text("查看","View")),
+        };
+        let expected = HEIGHT + if attention { 40. } else { 0. };
+        if self.layout_height!=expected {
+            self.layout_height=expected;
+            let scale=(self.anchor.dpi as f32/96.).max(0.01);
+            let width=WIDTH.min((self.anchor.work.right-self.anchor.work.left).max(1)as f32/scale);
+            let height=expected.min((self.anchor.work.bottom-self.anchor.work.top).max(1)as f32/scale);
+            let pos=self.anchor.place(width,height);
+            let RawWindowHandle::Win32(raw)=HasWindowHandle::window_handle(window).expect("tray HWND").as_raw() else {unreachable!()};
+            let target=HWND(raw.hwnd.get()as *mut _);
+            cx.foreground_executor().spawn(async move {unsafe {let _=SetWindowPos(target,Some(HWND_TOPMOST),pos.x,pos.y,(width*scale).round()as i32,(height*scale).round()as i32,SWP_SHOWWINDOW|SWP_NOOWNERZORDER);}}).detach();
+        }
         let panel = div()
             .size_full()
             .p(px(8.))
@@ -364,22 +394,32 @@ impl Render for TrayPopup {
                     }
                     "up" => {
                         this.keyboard = true;
-                        let next = this.selected.map_or(3, |selected| (selected + 3) % 4);
-                        this.selected = Some(if next == 0 && !this.projection.summary.clickable {
-                            3
-                        } else {
-                            next
-                        });
+                        let mut choices = vec![1, 2, 3];
+                        if this.projection.summary.clickable {
+                            choices.insert(0, 0);
+                        }
+                        if this.projection.update.attention() {
+                            choices.insert(usize::from(this.projection.summary.clickable), 4);
+                        }
+                        let index = this.selected.and_then(|s| choices.iter().position(|i| *i == s))
+                            .unwrap_or(0);
+                        this.selected = Some(choices[(index + choices.len() - 1) % choices.len()]);
                         cx.notify();
                     }
                     "down" => {
                         this.keyboard = true;
-                        let next = this.selected.map_or(1, |selected| (selected + 1) % 4);
-                        this.selected = Some(if next == 0 && !this.projection.summary.clickable {
-                            1
-                        } else {
-                            next
-                        });
+                        let mut choices = vec![1, 2, 3];
+                        if this.projection.summary.clickable {
+                            choices.insert(0, 0);
+                        }
+                        if this.projection.update.attention() {
+                            choices.insert(usize::from(this.projection.summary.clickable), 4);
+                        }
+                        this.selected = Some(
+                            this.selected
+                                .and_then(|s| choices.iter().position(|i| *i == s))
+                                .map_or(choices[0], |i| choices[(i + 1) % choices.len()]),
+                        );
                         cx.notify();
                     }
                     "enter" | "space" => {
@@ -464,6 +504,33 @@ impl Render for TrayPopup {
                         d.child(status_icon(StatusIcon::Forward, p.neutral))
                     }),
             )
+            .when(attention, |panel| {
+                panel.child(
+                    div()
+                        .id("tray-app-update")
+                        .h(px(40.))
+                        .w_full()
+                        .px(px(12.))
+                        .rounded(px(4.))
+                        .flex()
+                        .items_center()
+                        .text_size(px(12.))
+                        .text_color(p.blue)
+                        .cursor_pointer()
+                        .when(self.selected == Some(4), |d| d.bg(p.badge))
+                        .hover(move |d| d.bg(p.badge))
+                        .on_hover(cx.listener(|this, inside: &bool, _, cx| {
+                            if *inside {
+                                this.selected = Some(4);
+                                this.keyboard = false;
+                            }
+                            cx.notify();
+                        }))
+                        .on_click(cx.listener(|this, _, window, _| this.trigger(4, window)))
+                        .child(div().flex_1().min_w(px(0.)).overflow_hidden().child(update_label))
+                        .child(update_action),
+                )
+            })
             .child(div().h(px(1.)).bg(p.border).mx(px(12.)).my(px(2.)))
             .child(self.row(
                 1,
@@ -517,7 +584,12 @@ impl Prototype {
                 return;
             }
         }
-        let anchor = if self.preview.is_some() {
+        // Explicit debug fixtures can exercise popup actions when Explorer's tray is unavailable.
+        #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+        let fixture_anchor = self.tray.is_none() && std::env::args().any(|arg| arg == "--app-update-ui-control");
+        #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
+        let fixture_anchor = false;
+        let anchor = if self.preview.is_some() || fixture_anchor {
             let (width, height) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
             crate::tray::PopupAnchor { icon: RECT { left: width - 50, top: height - 50, right: width - 20, bottom: height - 20 }, work: RECT { left: 0, top: 0, right: width, bottom: height }, dpi: 96, edge: crate::tray::TaskbarEdge::Bottom }
         } else if let Some(anchor) = self.tray.as_ref().map(|tray| tray.popup_anchor()) { anchor } else {
@@ -525,12 +597,21 @@ impl Prototype {
         };
         let scale = (anchor.dpi as f32 / 96.).max(0.01);
         let width = WIDTH.min((anchor.work.right - anchor.work.left).max(1) as f32 / scale);
-        let height = HEIGHT.min((anchor.work.bottom - anchor.work.top).max(1) as f32 / scale);
+        let extra = if self
+            .downloads
+            .as_ref()
+            .is_some_and(|u| u.updates.snapshot().attention())
+        {
+            40.
+        } else {
+            0.
+        };
+        let height =
+            (HEIGHT + extra).min((anchor.work.bottom - anchor.work.top).max(1) as f32 / scale);
         let pos = anchor.place(width, height);
         let projection = Projection::from_main(self);
         let main = cx.entity();
         let actions = self.tray_actions.clone();
-        let icon = anchor.icon;
         let summary_evidence = serde_json::json!({"type":"tray-popup-open", "summary":projection.summary.text, "queued":projection.summary.queued, "failure":projection.summary.failure, "clickable":projection.summary.clickable});
         let opened = cx.open_window(
             WindowOptions {
@@ -552,7 +633,7 @@ impl Prototype {
                 ..Default::default()
             },
             move |window, cx| {
-                cx.new(|cx| TrayPopup::new(main, projection, actions, icon, window, cx))
+                cx.new(|cx| TrayPopup::new(main, projection, actions, anchor, window, cx))
             },
         );
         if let Ok(handle) = opened {

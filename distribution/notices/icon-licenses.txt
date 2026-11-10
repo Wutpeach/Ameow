@@ -1,22 +1,26 @@
-Lucide icons, adapted to the Penpot 16px / 1.2px stroke.
-Copyright (c) Lucide Contributors
+Lucide / Feather icons adapted for Ameow; third-party terms remain separate.
+
+Lucide 0.468.0 license (exact upstream text):
+https://github.com/lucide-icons/lucide/blob/f12b0de177fbc2a6795e99be065887e72b237123/LICENSE
 
 ISC License
 
-Permission to use, copy, modify, and/or distribute this software for any purpose
-with or without fee is hereby granted, provided that the above copyright notice
-and this permission notice appear in all copies.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-Feather-derived icon portions
-Source: https://github.com/feathericons/feather/blob/v4.29.2/LICENSE
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Feather-derived icon portions; exact upstream MIT text:
+https://github.com/feathericons/feather/blob/24c23655d77f46af2d81bd48eabb3d81ada5f562/LICENSE
 
 The MIT License (MIT)
 
@@ -43,7 +47,7 @@ SOFTWARE.
 Adapted-icon source record (2026-10-13)
 Ameow embeds x.svg, check.svg and copy.svg with product-specific 16px geometry.
 Their source comments identify Lucide; vector paths trace to the permissively
-licensed Feather shapes, compared with Feather v4.29.2 and Lucide v0.468.0.
+licensed Feather shapes, compared with Feather v4.29.2 and Lucide 0.468.0.
 Both the existing Lucide ISC and full Cole Bemis Feather MIT notices are
 retained above. The exact historical immediate source tag was not recorded.
 The comparison tags are evidence references, not a claim that local SVG bytes
@@ -62,3 +66,5 @@ https://github.com/lucide-icons/lucide/tree/0.468.0/icons
 Stroke color is set to white for GPUI tinting and stroke width to 1.8 on the
 24px viewBox (1.2px at 16px). Geometry is retained. The ISC and Feather MIT
 notices above apply; this exact source tag is recorded for these additions.
+
+C2 source verification (2026-11-09): the nine 2026-11-03 additions were compared against Lucide tag 0.468.0, commit f12b0de177fbc2a6795e99be065887e72b237123. SVG child geometry matches; root stroke/tint/size adaptations remain. The upstream copyright line above includes the Feather attribution absent from the former generic Lucide line. This comparison does not recover the historical immediate tag of x.svg/check.svg/copy.svg and does not clear Gate B.

@@ -3,6 +3,13 @@
   "scope": "private-owner-validation",
   "materials": [
     {
+      "kind": "embedded third-party notice source",
+      "obligation": "Preserve the versioned source and checked local full texts; engineering delivery does not clear public Gate B.",
+      "source": "THIRD_PARTY_NOTICES.md",
+      "destination": "licenses/THIRD_PARTY_NOTICES.md",
+      "sha256": "ED4653E1F45415925CD395BF78C52C1782B3EFEB32FF728457443FCF944D2A5E"
+    },
+    {
       "kind": "Ameow-owned code",
       "obligation": "Preserve exact MIT copyright and permission; third-party terms remain separate.",
       "source": "LICENSE",
@@ -21,28 +28,28 @@
       "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
       "source": "distribution/notices/icon-licenses.txt",
       "destination": "licenses/icon-licenses.txt",
-      "sha256": "130456514CB87A94A968A20CAD07CF107AF32009B09E40AE04494AD0240E9FAB"
+      "sha256": "A85FF4FFF2338F62FEE4E107D987A76D8E4FDDC8164BCA290799034405BED123"
     },
     {
       "kind": "Rust material/provenance",
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-dependency-licenses.txt",
       "destination": "licenses/rust-dependency-licenses.txt",
-      "sha256": "E8EF2CEB89FC99F0AFFFA040BCACA409F1C4EBE6FFCEB70953BAE908B59AD6F2"
+      "sha256": "894C1B135020472B119C6FC120C7A529A17A10AC40272BDBCE8385B45B1E30FB"
     },
     {
       "kind": "Rust material/provenance",
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-dependency-inventory.json",
       "destination": "licenses/rust-dependency-inventory.json",
-      "sha256": "555F68DC2209C2BC6425A75A7E97EA6183F2EDC93C9FB91C95D15FA12F99E0F2"
+      "sha256": "993C72B459991742FA0BE16F93079CA025E28815D9EB115E2E72C14E5354CE9A"
     },
     {
       "kind": "Rust material/provenance",
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-standard-library-notices.txt",
       "destination": "licenses/rust-standard-library-notices.txt",
-      "sha256": "D93D65853736BDE4E8649691233A98848BA709673873AEB39487BC1CA6EE292A"
+      "sha256": "68129500B616D5838629E68F55FF3AED5E096DACF60CE9EB41BBE599A563AFA6"
     },
     {
       "kind": "Rust material/provenance",
@@ -56,35 +63,35 @@
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-standard-library-Apache-2.0.txt",
       "destination": "licenses/rust-standard-library-Apache-2.0.txt",
-      "sha256": "074E6E32C86A4C0EF8B3ED25B721CA23ACA83DF277CD88106EF7177C354615FF"
+      "sha256": "C5C933DD7FD534150D42E86F3755921644AEEE9DF2ADDE2D5A912C83C3C35647"
     },
     {
       "kind": "Rust material/provenance",
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-standard-library-provenance.md",
       "destination": "licenses/rust-standard-library-provenance.md",
-      "sha256": "34A8D9063A475925903C7D2D130DD913516A30D2FE2688A87AB27604E6CC924B"
+      "sha256": "68226CF0F249D64DD9E6DB822EF05F11CFFDBB4F705F6AB54F353D758A0415BC"
     },
     {
       "kind": "on-demand tools",
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "5221159F873BCDE59FC5E0C47BA08C5A6D4AB32C3242DB04BA780294862C9FB2"
+      "sha256": "C6BB2A47AAC413FB4FFEAE22444DF1C91202070062DA076395EA05CEE59315AE"
     },
     {
       "kind": "on-demand GPL context",
       "obligation": "Provide GPL text as context; redistribution/source review stays blocked.",
       "source": "assets/runtime-GPL-3.0.txt",
       "destination": "licenses/runtime-GPL-3.0.txt",
-      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
+      "sha256": "0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B"
     },
     {
       "kind": "MSVC provenance",
       "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
       "source": "distribution/notices/msvc-build-context.md",
       "destination": "licenses/msvc-build-context.md",
-      "sha256": "D34AF1EAC0836BA70A1F590E3AD930BB8F60D82B211657E142CB248ECE47CA02"
+      "sha256": "74D2F18FC90A4F24F95E268CD41AADDED8A75728EDE375FC7500C2FF96ECDB80"
     }
   ],
   "publicGateB": {
@@ -92,7 +99,7 @@
     "blockers": [
       "External/public distribution is not authorized by R11 or this private flow trial.",
       "Complete external redistribution/source/third-party review of the actual product and future bundled tools remains pending.",
-      "Exact historical icon tag and four upstream package-text provenance gaps remain disclosed.",
+      "Exact historical icon tag and upstream package-text provenance gaps listed in the dependency inventory remain disclosed.",
       "Applicable MSVC generated-binary external redistribution review remains pending."
     ]
   }

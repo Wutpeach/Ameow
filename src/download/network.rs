@@ -221,6 +221,19 @@ pub fn resolve(input: &str) -> Result<Route, String> {
 /// The engine cannot delegate its opaque requests back to WinHTTP. Restrict it to a
 /// static configuration whose bypass does not match the accepted origin. Native media requests use this explicit accepted-origin route; unrelated bypass entries do not block public videos. This does not attest every future redirect/CDN request.
 pub fn engine_route(input: &str) -> Result<Route, String> {
+    // Local media evidence only: keep production URL checks and real engines, while
+    // an explicit debug update fixture serves these fixed public-origin test paths.
+    #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+    {
+        let args: Vec<_> = std::env::args().collect();
+        if args.iter().any(|arg| arg == "--app-update-fixture-dir")
+            && matches!(input, "http://example.com/ameow-issue33-1.mp4" | "http://example.com/ameow-issue33-2.mp4" | "http://example.com/ameow-issue33-3.mp4")
+            && let Some(port) = args.windows(2).find(|p| p[0] == "--app-update-fixture-media-port")
+                .and_then(|p| p[1].parse::<u16>().ok()).filter(|port| *port != 0)
+        {
+            return Ok(Route::Proxy(format!("http://127.0.0.1:{port}")));
+        }
+    }
     let mut config = WINHTTP_CURRENT_USER_IE_PROXY_CONFIG::default();
     if unsafe { WinHttpGetIEProxyConfigForCurrentUser(&mut config) } == 0 {
         return Err(format!(

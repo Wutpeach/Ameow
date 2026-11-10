@@ -1,12 +1,25 @@
 use std::{env, fs, path::PathBuf};
+#[path = "build_support/notices.rs"]
+mod notices;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=AMEOW_FIXTURE_BUILD_VERSION");
     println!("cargo:rerun-if-changed=assets/brand");
+    let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    for input in [notices::SOURCE, notices::INVENTORY, notices::PACKAGES, "build_support/notices.rs"]
+        .into_iter().chain(notices::TEXTS.iter().copied()) {
+        println!("cargo:rerun-if-changed={input}");
+    }
+    let version = if env::var_os("CARGO_FEATURE_APP_UPDATE_FIXTURE").is_some()
+        && env::var("PROFILE").as_deref() == Ok("debug") {
+        env::var("AMEOW_FIXTURE_BUILD_VERSION").unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap())
+    } else { env::var("CARGO_PKG_VERSION").unwrap() };
+    let text = notices::assemble(&root, &version).expect("Third-party notice material must be complete and hash-verified");
+    fs::write(out.join("third_party_notices.txt"), text).expect("Write embedded notices");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
-    let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let mut rc = format!(
         "1 ICON \"{}\"\n",
         root.join("assets/brand/ameow.ico").display()

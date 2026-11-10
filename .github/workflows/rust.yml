@@ -3,23 +3,65 @@ name: Rust Windows
 on:
   push:
     branches: [main]
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    tags: ['v*']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   pull_request:
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'src/**', 'tests/**', 'examples/**', 'assets/**', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
   check:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Install locked toolchain
         shell: pwsh
-        run: rustup toolchain install 1.93.0 --profile minimal
+        run: rustup toolchain install 1.98.1 --profile minimal
       - name: Check application and development tools
-        run: cargo +1.93.0 check --locked --all-targets
+        run: cargo +1.98.1 check --locked --all-targets
       - name: Run tests without external runtime fixtures
-        run: cargo +1.93.0 test --locked
+        run: cargo +1.98.1 test --locked
+      - name: Fetch locked release dependencies before the offline build
+        run: cargo +1.98.1 fetch --locked --target x86_64-pc-windows-msvc
+      - name: Build and audit controlled release inputs
+        shell: pwsh
+        run: |
+          ./scripts/package_portable.ps1 -BuildOnly -ReleasePreparation -TargetDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-target') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-build')
+      - name: Verify release command boundaries
+        shell: pwsh
+        run: |
+          ./scripts/test_release_preparation.ps1 -ReleaseTool (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/ameow-release.exe') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-boundaries')
+      - name: Compile and verify controlled installer and portable fixtures
+        shell: pwsh
+        run: |
+          cargo +1.98.1 build --locked --offline --features app-update-fixture --bin ameow-launcher --bin ameow-release --example release_fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fixture = Join-Path $env:RUNNER_TEMP 'ameow-c5-fixture'
+          $version = (Get-Content (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/release-build.json') -Raw | ConvertFrom-Json).version
+          ./target/debug/examples/release_fixture.exe (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/Ameow.exe') ./target/debug/ameow-launcher.exe $version $fixture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test_windows_delivery.ps1 -SignedDirectory (Join-Path $fixture 'signed') -ReleaseTool (Resolve-Path ./target/debug/ameow-release.exe) -TrustedPublicRoots (Join-Path $fixture 'fixture-public-roots.json') -EvidenceDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c5-checks')
+      # No executable/ZIP uploads, secrets, signing, draft, tag creation or release job.
+      - name: Retain public build evidence only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ameow-controlled-build-evidence
+          path: |
+            ${{ runner.temp }}/ameow-c1-build/input-manifest.json
+            ${{ runner.temp }}/ameow-c1-build/release-build.json
+            ${{ runner.temp }}/ameow-c1-build/release-tool.json
+            ${{ runner.temp }}/ameow-c1-build/material-audit.json
+            ${{ runner.temp }}/ameow-c1-build/prepared/unsigned-plan.json
+            ${{ runner.temp }}/ameow-c1-boundaries/result.json
+            ${{ runner.temp }}/ameow-c5-checks/result.json
+            ${{ runner.temp }}/ameow-c5-checks/valid/delivery.json
+          if-no-files-found: error
+          retention-days: 14

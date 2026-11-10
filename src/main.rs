@@ -18,7 +18,8 @@ mod tokens;
 mod context_menu;
 mod surface_actions;
 mod settings_window;
-mod login_startup;
+use ameow_next::login_startup;
+mod app_update_ui;
 mod ui_text;
 mod brand_icons;
 #[cfg(test)]
@@ -280,7 +281,18 @@ impl Prototype {
         let downloads = if options.preview { Some(download_ui::DownloadUi::controlled_preview()) } else if let Some(path) = options.queue_fixture {
             Some(download_ui::DownloadUi::fixture(path))
         } else { (!options.fixture).then(download_ui::DownloadUi::start) };
-        let tray = if !options.fixture || (options.tray_fixture && !options.preview) { tray::Tray::new().ok() } else { None };
+        let tray = if !options.fixture || (options.tray_fixture && !options.preview) {
+            match tray::Tray::new() {
+                Ok(tray) => {
+                    if let Some(ui) = &downloads { ui.evidence(serde_json::json!({"type":"tray-created"})); }
+                    Some(tray)
+                }
+                Err(error) => {
+                    if let Some(ui) = &downloads { ui.evidence(serde_json::json!({"type":"tray-create-failed","error":error})); }
+                    None
+                }
+            }
+        } else { None };
         let download_poll = (downloads.is_some() || options.unknown_downloading).then(|| cx.spawn_in(window, async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
@@ -292,7 +304,7 @@ impl Prototype {
             instance: options.instance,
             production_preferences: !options.fixture,
             preview: options.preview_session,
-            language: ui_text::Language::Chinese,
+            language: if options.preview && std::env::args().any(|arg|arg=="--preview-english") {ui_text::Language::English}else{ui_text::Language::Chinese},
             system_preferences: ui_text::SystemPreferences::read(),
             last_system_preferences_ms: 0,
             menu_save_generation: None,
@@ -1033,6 +1045,11 @@ impl Render for Prototype {
             }))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {this.background_clicks.motion([event.position.x.into(),event.position.y.into()]);cx.notify();}))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if event.keystroke.key == "u" && this.downloads.as_ref().is_some_and(|ui| ui.updates.snapshot().attention()) {
+                    this.open_update_settings(cx);
+                    cx.stop_propagation();
+                    return;
+                }
                 // GPUI registers tab stops but requires the application to move focus.
                 if this.surface_menu.is_open() {
                     this.key(event.keystroke.key.as_str(), cx);
@@ -1144,6 +1161,10 @@ impl Render for Prototype {
     }
 }
 fn main() {
+    if let Err(error) = ameow_next::app_update::session::Session::from_env() {
+        eprintln!("Ameow Launcher session: {error}");
+        std::process::exit(2);
+    }
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|a| a == "--gallery") {
         if let Err(error) = gallery::run() { eprintln!("Gallery 无法启动：{error}"); std::process::exit(1); }

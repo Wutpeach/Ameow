@@ -23,6 +23,7 @@ use std::{
 };
 
 pub enum UiReply {
+    AppUpdate(ameow_next::app_update::service::Handle),
     Reply(CommandReply),
     Retry { source: u64, reply: CommandReply },
     RowCommand { job: u64, cleanup: bool, reply: CommandReply },
@@ -76,6 +77,10 @@ impl ExitIntent {
     }
 }
 pub struct DownloadUi {
+    #[cfg(all(feature="app-update-fixture",debug_assertions))]
+    update_ui_step:Option<u64>,
+    pub updates: ameow_next::app_update::service::Handle,
+    pub app_update: Option<Arc<ameow_next::app_update::session::Session>>,
     pub language: crate::ui_text::Language,
     commands: SyncSender<QueueCommand>,
     evidence: SyncSender<serde_json::Value>,
@@ -127,6 +132,8 @@ pub enum SettingsStatus {
 }
 impl DownloadUi {
     pub fn start() -> Self {
+        let launch = ameow_next::app_update::session::Session::from_env().expect("validated launcher session").map(Arc::new);
+        let worker_launch = launch.clone();
         let (commands, receiver) = mpsc::sync_channel(64);
         let (evidence, evidence_receiver) = mpsc::sync_channel(64);
         let (sender, replies) = mpsc::channel();
@@ -144,12 +151,30 @@ impl DownloadUi {
             })();
             let coordinator = match setup {
                 Ok(coordinator) => coordinator,
-                Err(error) => { let _ = sender.send(UiReply::StartupError(error)); return; }
+                Err(error) => {
+                    let _ = sender.send(UiReply::StartupError(error));
+                    // Construction failed before any queue/native owner was started.
+                    if let Some(session) = &worker_launch { session.quit.store(true, std::sync::atomic::Ordering::Release); }
+                    return;
+                }
             };
-            let mut evidence = value("--queue-evidence").and_then(|path| File::create(path).ok());
+            let mut evidence = value("--queue-evidence").and_then(|path| {
+                #[cfg(all(feature="app-update-fixture",debug_assertions))]
+                if value("--app-update-fixture-dir").is_some(){return std::fs::OpenOptions::new().create(true).append(true).open(path).ok();}
+                File::create(path).ok()
+            });
+            if let Some(file)=&mut evidence{let _=writeln!(file,"{}",serde_json::json!({"type":"application-start","pid":std::process::id(),"version":ameow_next::app_update::BUILD_VERSION}));}
+            let settings_path=value("--settings-path").map(PathBuf::from).unwrap_or_else(||RuntimeManager::default_root().unwrap().join("ui-settings.json"));
+            #[cfg(all(feature="app-update-fixture",debug_assertions))]
+            let update_fixture=value("--app-update-fixture-dir").map(PathBuf::from);
+            #[cfg(not(all(feature="app-update-fixture",debug_assertions)))]
+            let update_fixture=None;
+            let updates=ameow_next::app_update::service::Handle::start(settings_path,worker_launch.clone(),update_fixture);
+            let _=sender.send(UiReply::AppUpdate(updates.clone()));
             let started = Instant::now();
             let mut last_revision = None;
             for pair in args.windows(2).filter(|pair| pair[0] == "--queue-submit") {
+                if worker_launch.is_some() { continue; }
                 let command = QueueCommand::Submit { url:pair[1].clone() };
                 append_evidence(&mut evidence, &started, command_summary(&command));
                 let reply = coordinator.apply(command);
@@ -160,6 +185,11 @@ impl DownloadUi {
             loop {
                 match receiver.recv_timeout(Duration::from_millis(80)) {
                     Ok(command) => {
+                        if worker_launch.as_ref().is_some_and(|s| !s.commands_allowed())
+                            && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) {
+                            let _ = sender.send(UiReply::Reply(CommandReply::Error("E_APP_UPDATE_STARTING_OR_DRAINING".into())));
+                            continue;
+                        }
                         append_evidence(&mut evidence, &started, command_summary(&command));
                         let diagnostic_job = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
@@ -191,6 +221,11 @@ impl DownloadUi {
                     Err(mpsc::RecvTimeoutError::Disconnected) => { disconnected = true; coordinator.stop(); std::thread::sleep(Duration::from_millis(80)); }
                 }
                 for event in evidence_receiver.try_iter() { append_evidence(&mut evidence, &started, event); }
+                updates.poll(&coordinator,worker_launch.as_deref());
+                if let Some(session) = &worker_launch && let Err(error) = session.poll(&coordinator) {
+                    append_evidence(&mut evidence, &started, serde_json::json!({"type":"app-update-error","error":error}));
+                    updates.restart_failed(&coordinator,session,error);
+                }
                 let snapshot = Arc::new(coordinator.snapshot());
                 if last_revision != Some(snapshot.revision) {
                     if let Some(file) = &mut evidence {
@@ -218,11 +253,14 @@ impl DownloadUi {
             }
         });
         if result.is_err() {
+            if let Some(session) = &launch { session.quit.store(true, std::sync::atomic::Ordering::Release); }
             let _ = error_sender.send(UiReply::StartupError(
                 "无法启动下载命令处理，请重新打开 Ameow".into(),
             ));
         }
-        Self::with_transport(commands, evidence, replies, latest)
+        let mut ui = Self::with_transport(commands, evidence, replies, latest);
+        ui.app_update = launch;
+        ui
     }
     pub fn fixture(path: PathBuf) -> Self {
         Self::fixture_transport(Some(path), false)
@@ -236,6 +274,9 @@ impl DownloadUi {
         ui
     }
     pub fn set_preview_scene(&mut self, scene: &crate::preview::Scene) {
+        self.updates = ameow_next::app_update::service::Handle::inert(
+            crate::app_update_ui::preview_view(&scene.state),
+        );
         self.named_preview = Some(scene.clone());
         self.snapshot = Some(Arc::new(crate::preview::snapshot(scene)));
         self.presentation = Default::default();
@@ -331,6 +372,10 @@ impl DownloadUi {
             preparation_copy_pending: false,
             preparation_status: None,
             upstream: Default::default(),
+            #[cfg(all(feature="app-update-fixture",debug_assertions))]
+            update_ui_step:None,
+            updates: Default::default(),
+            app_update: None,
             engine_command_pending: false,
             engine_notice: None,
         }
@@ -339,6 +384,8 @@ impl DownloadUi {
         let _ = self.evidence.try_send(value);
     }
     pub fn send(&mut self, command: QueueCommand, now: u64) -> bool {
+        if self.app_update.as_ref().is_some_and(|s| !s.commands_allowed())
+            && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) { return false; }
         if self.named_preview.is_some() { return false; }
         if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
             return false;
@@ -1282,7 +1329,45 @@ fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> AnyElement {
     }).size(px(16.)).flex_none().into_any_element()
 }
 impl Prototype {
+    /// Debug fixture opens a real surface; all update actions still require native UI input.
+    #[cfg(all(feature="app-update-fixture",debug_assertions))]
+    fn poll_update_ui_fixture(&mut self,cx:&mut Context<Self>){
+        let Some(ui)=self.downloads.as_mut()else{return;};
+        if !ui.app_update.as_ref().is_some_and(|s|s.accepted.load(std::sync::atomic::Ordering::Acquire)){return;}
+        let args:Vec<_>=std::env::args().collect();
+        let Some(path)=args.windows(2).find(|p|p[0]=="--app-update-ui-control").map(|p|PathBuf::from(&p[1]))else{return;};
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Open{step:u64,surface:String,#[serde(default)]url:Option<String>,#[serde(default)]version:Option<String>}
+        use std::io::Read;
+        let Ok(file)=File::open(&path)else{return;};
+        let mut bytes=Vec::new();if file.take(4097).read_to_end(&mut bytes).is_err()||bytes.len()>4096{return;}
+        let Ok(request)=serde_json::from_slice::<Open>(&bytes)else{return;};
+        if ui.update_ui_step.is_some_and(|s|s>=request.step){return;}
+        ui.update_ui_step=Some(request.step);
+        match request.surface.as_str(){
+            "submit" => {
+                if request.version.as_deref() != Some(ameow_next::app_update::BUILD_VERSION) { return; }
+                if let Some(url) = request.url {
+                    let now = self.now();
+                    if let Some(ui) = &mut self.downloads { ui.send(QueueCommand::Submit { url }, now); }
+                }
+            },
+            "about"=>self.open_update_settings(cx),
+            "tray"=>self.toggle_tray_popup(cx),
+            _=>return,
+        }
+        if let Some(ui)=&self.downloads{ui.evidence(serde_json::json!({"type":"fixture-open-surface","surface":request.surface,"step":request.step}));}
+    }
     pub(super) fn poll_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        #[cfg(all(feature="app-update-fixture",debug_assertions))]
+        self.poll_update_ui_fixture(cx);
+        if let Some(session) = self.downloads.as_ref().and_then(|ui| ui.app_update.as_ref()) {
+            if self.native.is_some() && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()) {
+                session.native_ready.store(true, std::sync::atomic::Ordering::Release);
+            }
+            if session.quit.load(std::sync::atomic::Ordering::Acquire) { cx.quit(); return; }
+        }
         self.poll_preview(cx);
         let now = self.now();
         // A removed/disabled action can release the last focused handle. Restore the existing
@@ -1311,6 +1396,16 @@ impl Prototype {
             if let Some(ui) = &self.downloads { ui.evidence(serde_json::json!({"type":"tray-popup-action","action":format!("{action:?}")})); }
             match action {
                 crate::tray_popup::Action::Status => { self.restore_downloads(window, cx); self.open_queue(cx); }
+                crate::tray_popup::Action::Update => {
+                    if self.downloads.as_ref().is_some_and(|u| {
+                        u.updates.snapshot().update.phase == ameow_next::app_update::Phase::Ready
+                    }) {
+                        self.app_update_action(
+                            ameow_next::app_update::service::Action::Restart,
+                            cx,
+                        );
+                    }
+                    self.open_update_settings(cx); }
                 crate::tray_popup::Action::Open => self.restore_downloads(window, cx),
                 crate::tray_popup::Action::Settings => self.open_or_focus_settings(cx),
                 crate::tray_popup::Action::Exit => { self.restore_downloads(window, cx); if let Some(ui) = &mut self.downloads { ui.request_menu_exit(); } }
@@ -1323,6 +1418,7 @@ impl Prototype {
         let mut menu_saved = false;
         for reply in ui.poll() {
             match reply {
+                UiReply::AppUpdate(handle) => ui.updates = handle,
                 UiReply::RuntimeUpdate(reply) => {
                     ui.engine_command_pending = false;
                     ui.engine_notice = Some(matches!(reply, CommandReply::Applied(true)));
@@ -2076,6 +2172,10 @@ impl Prototype {
                 .and_then(|ui| ui.snapshot.as_ref())
                 .is_some_and(|snapshot| {
                     preparation_visible(snapshot, ameow_next::download::progress::now_ms())
+                        || self
+                            .downloads
+                            .as_ref()
+                            .is_some_and(|ui| ui.updates.snapshot().attention())
                 })
     }
     pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
@@ -2099,18 +2199,22 @@ impl Prototype {
             return div().into_any_element();
         };
         let preparation = &snapshot.preparation;
+        let update = ui.updates.snapshot();
+        let update_attention = update.attention();
         let p = Palette::new(self.night);
         let g = self.model.geometry();
         let failed = preparation.phase == PreparationPhase::Failed
             || snapshot.preparation_held
             || snapshot.preparation_owner_lost;
-        let ready = preparation.phase == PreparationPhase::Ready && !failed;
+        let ready = (preparation.phase == PreparationPhase::Ready || update_attention) && !failed;
         let fraction = preparation_fraction(preparation);
         let now = self.now();
         let can_retry = ui.preparation_retry_available();
         let (headline, message) = preparation_popup_copy(snapshot, ui.language);
         let color = if failed {
             p.red
+        } else if update_attention {
+            p.blue
         } else if ready {
             p.green
         } else {
@@ -2187,12 +2291,47 @@ impl Prototype {
                 },
             )));
         }
+        if update_attention {
+            details = details
+                .child(
+                    div()
+                        .mt(px(5.))
+                        .border_t_1()
+                        .border_color(p.border)
+                        .pt(px(6.))
+                        .text_color(p.primary_text())
+                        .child(crate::app_update_ui::headline(&update, ui.language)),
+                )
+                .child(self.row_action(
+                    "application-update-open".into(),
+                    ui.language.text("查看应用更新", "View app update"),
+                    false,
+                    cx,
+                    |this, cx| this.open_update_settings(cx),
+                ));
+            if update.update.phase == ameow_next::app_update::Phase::Ready && update.launcher {
+                details = details.child(self.row_action(
+                    "application-update-restart".into(),
+                    ui.language.text("重启并更新", "Restart and update"),
+                    false,
+                    cx,
+                    |this, cx| {
+                        this.app_update_action(
+                            ameow_next::app_update::service::Action::Restart,
+                            cx,
+                        );
+                        this.open_update_settings(cx);
+                    },
+                ));
+            }
+        }
         div()
             .id("component-preparation-indicator")
             .absolute()
             .left(px(g.gutter + 12.))
             .bottom(px(g.gutter + 12.))
-            .w(px(if ui.preparation_hovered && !ready { 176. } else { 24. }))
+            .w(px(if ui.preparation_hovered && (!ready || update_attention) { 176. } else { 24. },
+            ))
             .flex()
             .flex_col()
             .items_start()
@@ -2206,10 +2345,11 @@ impl Prototype {
                 MouseButton::Left,
                 cx.listener(|_, _, _, cx| cx.stop_propagation()),
             )
-            .when(ui.preparation_hovered && !ready, |indicator| {
+            .when(ui.preparation_hovered && (!ready || update_attention), |indicator| {
                 // Keep the popover, bridge and ring inside one real hover hitbox.
                 indicator.child(div().pb(px(6.)).child(details))
-            })
+            },
+            )
             .child(
                 div()
                     .relative()
@@ -2246,7 +2386,7 @@ impl Prototype {
                                 .left(px(7.))
                                 .top(px(7.))
                                 .size(px(10.))
-                                .text_color(p.green),
+                                .text_color(if update_attention { p.blue } else { p.green }),
                         )
                     }),
             )

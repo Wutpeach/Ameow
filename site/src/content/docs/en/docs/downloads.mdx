@@ -5,15 +5,17 @@ description: Download Ameow
 
 import { Steps } from '@astrojs/starlight/components';
 
-The public release is [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1). Rust / GPUI is the current source baseline and has no public installer.
+Rust / GPUI is the only product line and has not been officially released. The default light Windows x64 installer and portable ZIP are under controlled validation; no Rust download is approved for public use yet. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history.
 
 <Steps>
-1. For the public release, check the assets on the [v0.3.1 release page](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1).
+1. Use the source-build steps below; historical Electron packages are not the current product.
 2. To run Rust source on Windows x64, install Rust 1.93.0, Visual Studio C++ Build Tools, and the Windows SDK.
 3. Run `cargo build --locked` at the repository root, then run `./target/debug/ameow.exe`.
 </Steps>
 
 A source build is not a public release. Native macOS and Linux operation is unverified. See the [developer guide](../developer/).
+
+After an official release, the installer will provide a Start menu entry, Windows uninstall registration and an optional desktop shortcut. The portable ZIP must be fully extracted and started with `AmeowLauncher.exe`. Both use the same app and secure updater. Uninstall retains `%LOCALAPPDATA%\Ameow` user data by default.
 
 ## Before and after running
 

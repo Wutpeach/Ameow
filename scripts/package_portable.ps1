@@ -12,6 +12,7 @@ param(
     [Parameter(Mandatory = $true)][string]$TargetDirectory,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [switch]$BuildOnly,
+    [switch]$ReleasePreparation,
     [ValidateSet('private-owner-validation', 'public-release')][string]$PackageMode,
     [string]$LicenseReviewFile
 )
@@ -25,6 +26,7 @@ $platform = 'x86_64-pc-windows-msvc'
 $utf8 = New-Object Text.UTF8Encoding($false)
 $privateMarker = 'PRIVATE LOCAL VALIDATION ' + [char]0x2014 + ' NOT FOR DISTRIBUTION'
 $requirementsPath = 'distribution/license-inputs.json'
+$publicRelease = $PackageMode -ceq 'public-release'
 
 function Write-Json([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 30), $utf8)
@@ -52,7 +54,7 @@ function File-Record([string]$RelativePath) {
 }
 
 function Source-Inventory {
-    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
+    $paths = @(Invoke-Native git @('-C', $packageRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'vendor/accesskit_windows', 'build.rs', 'build_support', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'src', 'assets', 'distribution/notices', $requirementsPath))
     # Own license and the reviewed requirements are mandatory package inputs, even if ignored.
     if (-not $BuildOnly) { $paths += @('LICENSE', $requirementsPath) }
     return @($paths | Sort-Object -Unique | ForEach-Object { File-Record $_ })
@@ -113,7 +115,7 @@ function Reviewed-Notices($Review, $Inputs, [string]$Head) {
     foreach ($notice in $notices) {
         # Only reviewed text notices are eligible. No arbitrary repo, task, runtime or user files.
         $ownLicense = $notice.source -ceq 'LICENSE' -and $notice.destination -ceq 'LICENSE'
-        if ((-not $ownLicense -and ($notice.source -cnotmatch '^(distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -or
+        if ((-not $ownLicense -and ($notice.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -or
             $notice.destination -cnotmatch '^licenses/[A-Za-z0-9_./-]+\.(txt|md|json)$')) -or
             $notice.source -match '(^|/)\.\.?(/|$)' -or
             $notice.destination -match '(^|/)\.\.?(/|$)' -or
@@ -134,8 +136,24 @@ function Reviewed-Notices($Review, $Inputs, [string]$Head) {
 }
 
 if ($env:OS -ne 'Windows_NT' -or -not [Environment]::Is64BitProcess) { throw 'Run in 64-bit PowerShell on Windows.' }
-if ($PackageMode -ceq 'public-release') { throw 'PUBLIC_GATE_B_BLOCKED: public release is not authorized; private success never clears Gate B.' }
-if ($BuildOnly -and $PackageMode) { throw 'Choose BuildOnly or an explicit package mode, not both.' }
+if ($publicRelease) {
+    $approval = Get-Content -LiteralPath (Join-Path $packageRoot $requirementsPath) -Raw | ConvertFrom-Json
+    if ($approval.schema -ne 1 -or $approval.scope -cne 'public-release' -or $approval.publicGateB.status -cne 'approved' -or @($approval.publicGateB.blockers).Count -ne 0) {
+        throw 'PUBLIC_GATE_B_BLOCKED: reviewed public materials and explicit owner approval are required.'
+    }
+    if (-not $BuildOnly -or -not $ReleasePreparation) { throw 'PUBLIC_GATE_B_BLOCKED: select BuildOnly + ReleasePreparation; this entry never publishes.' }
+    $roots = Get-Content -LiteralPath (Join-Path $packageRoot 'assets/app-update-trust.json') -Raw | ConvertFrom-Json
+    if ($roots.schema -ne 1 -or @($roots.keys).Count -eq 0) { throw 'E_APP_UPDATE_TRUST_NOT_CONFIGURED: approve and compile the production public key first.' }
+    foreach ($key in $roots.keys) {
+        if ($key -cnotmatch '^[0-9a-f]{64}$' -or $key -ceq 'd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a') { throw 'E_RELEASE_TEST_KEY: valid approved production public roots required.' }
+    }
+    if (@(Invoke-Native git @('-C', $packageRoot, 'status', '--porcelain=v1', '--untracked-files=all')).Count -ne 0) { throw 'E_RELEASE_TAG: public builds require a clean checkout.' }
+    foreach ($material in $approval.materials) {
+        if ((File-Record $material.source).sha256 -ine $material.sha256) { throw "E_RELEASE_MATERIAL_REVIEW: changed $($material.source)." }
+    }
+}
+if ($ReleasePreparation -and -not $BuildOnly) { throw 'ReleasePreparation extends BuildOnly only; it does not grant a private or public release review.' }
+if ($BuildOnly -and $PackageMode -and -not $publicRelease) { throw 'Choose BuildOnly or an explicit package mode, not both.' }
 if (-not $BuildOnly -and $PackageMode -cne 'private-owner-validation') { throw 'PRIVATE_MODE_REQUIRED: explicitly select private-owner-validation for an owner-only ZIP.' }
 if (-not $BuildOnly -and -not $LicenseReviewFile) { throw 'PRIVATE_GATE_A_BLOCKED: actual minimum-material review is required; no output created.' }
 foreach ($directory in @($targetRoot, $outputRoot)) {
@@ -160,11 +178,17 @@ try {
     $privateReview = $(if ($BuildOnly) { $null } else { Read-Private-Review })
     $head = (Invoke-Native git @('rev-parse', 'HEAD')) -join ''
     $tree = (Invoke-Native git @('rev-parse', 'HEAD^{tree}')) -join ''
+    if ($publicRelease) {
+        $publicVersion = ((Invoke-Native cargo @('metadata','--locked','--offline','--no-deps','--format-version','1')) -join '' | ConvertFrom-Json).packages | Where-Object name -CEQ 'ameow' | Select-Object -ExpandProperty version
+        if ($publicVersion -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or ((Invoke-Native git @('rev-parse', '--verify', "refs/tags/v$publicVersion^{commit}")) -join '') -cne $head) { throw 'E_RELEASE_TAG: the approved version tag must already point at HEAD.' }
+    }
     $rustc = @(Invoke-Native rustc @('-Vv'))
     if (-not ($rustc -contains "host: $platform")) { throw "Required toolchain host: $platform" }
+    if ($ReleasePreparation -and -not ($rustc -contains 'release: 1.98.1')) { throw 'Release preparation requires Rust 1.98.1.' }
     $cargo = (Invoke-Native cargo @('-V')) -join ''
     $before = @(Source-Inventory)
     $implementationInputs = @(File-Record 'scripts/package_portable.ps1'; File-Record 'distribution/README.txt'; File-Record 'distribution/packaging.md')
+    if ($ReleasePreparation) { $implementationInputs += @(File-Record '.github/workflows/rust.yml'; File-Record 'rust-toolchain.toml'; File-Record 'scripts/test_release_preparation.ps1'; File-Record 'docs/application-update-stage-c1.md') }
     $validationInputs = @(Invoke-Native git @('ls-files', '--cached', '--others', '--exclude-standard', '--', 'tests') | Sort-Object -Unique | ForEach-Object { File-Record $_ })
     $dependencies = @(Invoke-Native cargo @('tree', '--locked', '--offline', '--target', $platform, '--edges', 'normal,build', '--prefix', 'none', '--format', '{p}|{l}') | ForEach-Object { $_.Replace($packageRoot, '<package>').Replace($packageRoot.Replace('\', '/'), '<package>') } | Sort-Object -Unique)
     $reviewedNotices = @()
@@ -178,6 +202,7 @@ try {
     # An explicit target keeps host procedural macros out of the static-CRT target build.
     $env:RUSTFLAGS = '-C target-feature=+crt-static'
     $buildArguments = @('build', '--locked', '--offline', '--release', '--target', $platform, '--bin', 'ameow')
+    if ($ReleasePreparation) { $buildArguments += @('--bin', 'ameow-launcher', '--bin', 'ameow-release') }
     & cargo @buildArguments *> (Join-Path $outputRoot 'build.log')
     if ($LASTEXITCODE -ne 0) { throw "Release build failed; see $outputRoot/build.log" }
     $after = @(Source-Inventory)
@@ -209,11 +234,59 @@ try {
         managedRuntime = (Get-Content -LiteralPath (Join-Path $packageRoot 'assets/runtime-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
         executable = $exeRecord
         privateGateA = $(if ($BuildOnly) { [ordered]@{ status = 'not-evaluated'; zipCreated = $false } } else { [ordered]@{ status = 'minimum-materials-verified'; useModel = 'owner-only-controlled-device'; reviewSha256 = $reviewHash; licenseInputsSha256 = (File-Record $requirementsPath).sha256 } })
-        publicGateB = [ordered]@{ status = 'blocked'; authorization = 'not-authorized'; privateValidationClearsPublicGate = $false; blockers = $(if ($BuildOnly) { @('Public release review and authorization are outstanding.') } else { @((Get-Content -LiteralPath (Join-Path $packageRoot $requirementsPath) -Raw -Encoding UTF8 | ConvertFrom-Json).publicGateB.blockers) }) }
+        publicGateB = [ordered]@{ status = $(if ($publicRelease) { 'approved' } else { 'blocked' }); authorization = $(if ($publicRelease) { 'publication-requires-separate-owner-approval' } else { 'not-authorized' }); privateValidationClearsPublicGate = $false; blockers = $(if ($publicRelease) { @() } elseif ($BuildOnly) { @('Public release review and authorization are outstanding.') } else { @((Get-Content -LiteralPath (Join-Path $packageRoot $requirementsPath) -Raw -Encoding UTF8 | ConvertFrom-Json).publicGateB.blockers) }) }
         notices = $reviewedNotices
     }
     Write-Json (Join-Path $outputRoot 'input-manifest.json') $manifest
     if ($BuildOnly) {
+        if ($ReleasePreparation) {
+            $version = ((Invoke-Native cargo @('metadata','--locked','--offline','--no-deps','--format-version','1')) -join '' | ConvertFrom-Json).packages | Where-Object { $_.name -ceq 'ameow' } | Select-Object -ExpandProperty version
+            $tag = $null
+            $dirty = @(Invoke-Native git @('status','--porcelain=v1','--untracked-files=all')).Count -ne 0
+            if ($publicRelease -or $env:GITHUB_REF_TYPE -ceq 'tag') {
+                $tag = if ($publicRelease) { "v$version" } else { $env:GITHUB_REF_NAME }
+                if ($tag -cne "v$version" -or $dirty -or ((Invoke-Native git @('rev-parse',"$tag^{commit}")) -join '') -cne $head) { throw 'Tag build requires a clean source tree and exact Cargo version tag at HEAD.' }
+            }
+            $appPath=Join-Path $outputRoot 'Ameow.exe'
+            $launcherPath=Join-Path $outputRoot 'AmeowLauncher.exe'
+            $toolPath=Join-Path $outputRoot 'ameow-release.exe'
+            Copy-Item -LiteralPath $exe -Destination $appPath
+            Copy-Item -LiteralPath (Join-Path $targetRoot "$platform/release/ameow-launcher.exe") -Destination $launcherPath
+            Copy-Item -LiteralPath (Join-Path $targetRoot "$platform/release/ameow-release.exe") -Destination $toolPath
+            if ([Diagnostics.FileVersionInfo]::GetVersionInfo($appPath).ProductVersion -cne $version) { throw 'PE product version differs from Cargo version.' }
+            $recordFile = { param($path,$name) [ordered]@{path=$name;bytes=(Get-Item -LiteralPath $path).Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()} }
+            $materials = @()
+            $materialAudit = @()
+            $requirements = Get-Content -LiteralPath (Join-Path $packageRoot $requirementsPath) -Raw | ConvertFrom-Json
+            if ($requirements.schema -ne 1 -or $requirements.publicGateB.status -cnotin @('blocked', 'approved')) { throw 'PUBLIC_GATE_B_BLOCKED: preserve the actual material review.' }
+            $destinations=@{}
+            foreach ($material in @($requirements.materials) + @([pscustomobject]@{source=$requirementsPath;destination='licenses/license-inputs.json';sha256=(File-Record $requirementsPath).sha256})) {
+                $own=$material.source -ceq 'LICENSE' -and $material.destination -ceq 'LICENSE'
+                if ((-not $own -and ($material.source -cnotmatch '^(THIRD_PARTY_NOTICES\.md|distribution/notices/[A-Za-z0-9_./-]+\.(txt|md|json)|assets/(LICENSE|runtime-notices\.md|runtime-GPL-3\.0\.txt|fonts/OFL\.txt))$' -and $material.source -cne $requirementsPath)) -or
+                    (-not $own -and $material.destination -cnotmatch '^licenses/[A-Za-z0-9_./-]+\.(txt|md|json)$') -or
+                    $material.source -match '(^|/)\.\.?(/|$)' -or $material.destination -match '(^|/)\.\.?(/|$)' -or $destinations.ContainsKey($material.destination)) { throw 'Invalid controlled material allowlist.' }
+                $actual=File-Record $material.source
+                if ($publicRelease -and $actual.sha256 -ine $material.sha256) { throw 'E_RELEASE_MATERIAL_REVIEW: material changed after public approval.' }
+                # Controlled C1 candidates record actual bytes, never renew a historical license review.
+                $materialAudit += [ordered]@{source=$material.source;destination=$material.destination;inventorySha256=$material.sha256;actualSha256=$actual.sha256;matchesInventory=($actual.sha256 -ieq $material.sha256)}
+                $destinations[$material.destination]=$true
+                $destination=Join-Path $outputRoot $material.destination
+                New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($destination)) -Force | Out-Null
+                Copy-Item -LiteralPath (Join-Path $packageRoot $material.source) -Destination $destination
+                $materials += & $recordFile $destination $material.destination
+            }
+            $gate = if ($publicRelease) { 'approved' } else { 'blocked' }
+            $review = if ($publicRelease) { 'approved' } else { 'not-evaluated' }
+            Write-Json (Join-Path $outputRoot 'material-audit.json') ([ordered]@{review=$review;publicGateB=$gate;materials=$materialAudit})
+            $releaseBuild=[ordered]@{schema=1;version=$version;target=$platform;commit=$head;tree=$tree;tag=$tag;dirty=$dirty;source_sha256=(Inventory-Digest $before).ToLowerInvariant();cargo_lock_sha256=(File-Record 'Cargo.lock').sha256.ToLowerInvariant();toolchain='1.98.1';public_gate_b=$gate;license_review=$review;trust=(Get-Content -LiteralPath (Join-Path $packageRoot 'assets/app-update-trust.json') -Raw | ConvertFrom-Json);app=(& $recordFile $appPath 'Ameow.exe');launcher=(& $recordFile $launcherPath 'AmeowLauncher.exe');notices=$materials}
+            Write-Json (Join-Path $outputRoot 'release-build.json') $releaseBuild
+            & $toolPath prepare $outputRoot (Join-Path $outputRoot 'prepared') *> (Join-Path $outputRoot 'release-preparation.log')
+            if ($LASTEXITCODE -ne 0) { throw "Controlled update preparation failed; see $outputRoot/release-preparation.log" }
+            & $toolPath verify (Join-Path $outputRoot 'prepared')
+            if ($LASTEXITCODE -ne 0) { throw 'Controlled update verification failed.' }
+            Write-Json (Join-Path $outputRoot 'release-tool.json') (& $recordFile $toolPath 'ameow-release.exe')
+            if ((Inventory-Digest @(Source-Inventory)) -cne (Inventory-Digest $before)) { throw 'Inputs changed during release preparation.' }
+        }
         Write-Output "Build-only candidate: $exe"
         Write-Output "SHA256: $($exeRecord.sha256)"
         return

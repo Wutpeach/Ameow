@@ -327,8 +327,7 @@ impl RuntimeManager {
         Ok(PathBuf::from(
             std::env::var("LOCALAPPDATA").map_err(|e| format!("Managed local data path: {e}"))?,
         )
-        // Preserve the existing user settings and runtime cache location.
-        .join("AmeowNext/stage-a"))
+        .join("Ameow"))
     }
     pub fn prepare(
         &self,

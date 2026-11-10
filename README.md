@@ -2,7 +2,7 @@
 
 Ameow 是基于 Rust / GPUI 的 Windows 悬浮下载应用。本仓库维护正式 Rust 开发基线，主线接管记录见 [#18](https://github.com/Wutpeach/Ameow/issues/18)。
 
-**公开下载仍是 [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1)。Rust 版尚未公开发行安装包。** 旧 Tags、Releases 与可恢复历史保留；旧浏览器扩展不接入当前 Rust 版。不要将历史 Electron 安装包当作当前 Rust 实现。
+**Rust 版尚未正式公开发行。** Windows x64 的 Inno Setup 默认浅色安装版和 Launcher 便携 ZIP 正在受控验证；生产签名与公开发行限制尚未解除。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 仅作为历史记录保留，已废弃，不再维护、升级或提供兼容支持。
 
 [English](README.en.md) · [文档站](https://wutpeach.github.io/Ameow/docs/) · [开发说明](CONTRIBUTING.md) · [整理与恢复](docs/repository-handoff.md)
 
@@ -19,9 +19,9 @@ cargo build --locked
 
 ## 更新与现有数据
 
-为了复用已有设置、运行时选择、缓存和历史，继续使用 `%LOCALAPPDATA%\AmeowNext\stage-a`。不移动、清空用户数据，也不读取旧 Electron 配置。单实例协调与 Windows 启动项的内部 `AmeowNext` 标识有意保留。
+当前设置、运行时选择和缓存位于 `%LOCALAPPDATA%\Ameow`；程序目录与用户数据分离。不迁移或清理旧 `AmeowNext\stage-a` 数据，也不导入 Electron 配置。单实例与当前 Windows 启动项使用 `Ameow`；仅在用户调整开机启动时退役可识别的早期 Rust `AmeowNext` 启动项。
 
-EXE 正式名称为 `Ameow.exe`（Cargo 输出 `ameow.exe`）。从旧开发版更名或移动目录后，先正常退出旧版，再启动新版；重建旧快捷方式/任务栏固定项。曾开启开机启动的用户应在新版本设置中重新开启并核对启动状态；未开启者不会自动注册。外部快捷方式不会自动迁移，实际重新登录启动尚未实测。
+发行布局的正常入口是稳定的 `AmeowLauncher.exe`，应用位于 `versions/<version>/Ameow.exe`；安装版默认位于 `%LOCALAPPDATA%\Programs\Ameow`，便携版需完整解压。源码开发版仍可直接运行 Cargo 输出的 `ameow.exe`。安装、更新和移动目录前正常退出应用；开机启动由用户在设置中选择，外部快捷方式不会自动迁移。实际重新登录启动仍待验收。
 
 ## 文档与发行
 
@@ -32,6 +32,6 @@ npm ci --prefix site
 npm --prefix site run build
 ```
 
-Pages 地址保持不变，文档以当前 Rust 源码为准，并明确区分尚未公开发行的 Rust 版与历史 Electron v0.3.1。文档维护由 [#19](https://github.com/Wutpeach/Ameow/issues/19) 跟踪，网页选择问题由 [#22](https://github.com/Wutpeach/Ameow/issues/22) 研究。
+Pages 地址保持不变，文档以当前 Rust 源码为准；历史 Electron v0.3.1 已停止支持。文档维护由 [#19](https://github.com/Wutpeach/Ameow/issues/19) 跟踪，网页选择问题由 [#22](https://github.com/Wutpeach/Ameow/issues/22) 研究。
 
-应用自有代码采用 [MIT](LICENSE)。第三方代码、字体、图标及运行时适用各自许可，见 [发行材料](distribution/packaging.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。构建不等于发行许可通过；私有包需要匹配当前输入的审核，公开发行 Gate B 继续阻断。本仓库没有自动发布安装包的工作流。
+应用自有代码采用 [MIT](LICENSE)。第三方代码、字体、图标及运行时适用各自许可，见 [发行材料](distribution/packaging.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。构建不等于发行许可通过；私有包需要匹配当前输入的审核，公开发行 Gate B 继续阻断。安装版和便携版的受控构建及手动发行衔接见 [Windows 交付说明](distribution/windows-delivery.md)；现有 CI 不上传 EXE/ZIP，也不自动发布。

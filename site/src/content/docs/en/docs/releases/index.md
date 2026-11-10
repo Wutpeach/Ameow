@@ -9,7 +9,7 @@ The current development baseline is the repository-root Rust / GPUI application,
 
 ## Historical release history
 
-All release notes below describe historical Ameow / FlowSelect releases, not current Rust features. The public release remains [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1).
+All release notes below describe historical Ameow / FlowSelect releases, not current Rust features. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history; Rust has not been officially released.
 
 This page tracks user-visible Ameow / FlowSelect changes across stable releases and prerelease builds. Stable releases are the right reference for most users. Prerelease notes are mainly for understanding what a test build was validating.
 
