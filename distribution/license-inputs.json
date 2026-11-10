@@ -84,7 +84,7 @@
       "obligation": "Provide GPL text as context; redistribution/source review stays blocked.",
       "source": "assets/runtime-GPL-3.0.txt",
       "destination": "licenses/runtime-GPL-3.0.txt",
-      "sha256": "0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B"
+      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
     },
     {
       "kind": "MSVC provenance",
