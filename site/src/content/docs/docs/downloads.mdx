@@ -5,11 +5,11 @@ description: 下载 Ameow
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI 是唯一产品主线，尚未正式公开发行。Windows x64 默认浅色安装版与便携 ZIP 正在受控验证，当前没有获准公开使用的 Rust 下载包。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃、停止支持，仅保留历史记录。
+Rust / GPUI 是唯一产品主线，尚未正式公开发行。Windows x64 安装版与便携 ZIP 的发行流程已准备，但当前没有正式公开的 Rust 下载包。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃、停止支持，仅保留历史记录。
 
 <Steps>
 1. 当前可按以下步骤从 Rust 源码运行；请勿把历史 Electron 包当作当前版本。
-2. 如运行 Rust 源码，在 Windows x64 安装 Rust 1.93.0、Visual Studio C++ Build Tools 和 Windows SDK。
+2. 如运行 Rust 源码，在 Windows x64 安装 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK。
 3. 仓库根目录执行 `cargo build --locked`，然后运行 `./target/debug/ameow.exe`。
 </Steps>
 

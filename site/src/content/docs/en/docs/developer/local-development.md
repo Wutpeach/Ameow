@@ -3,7 +3,7 @@ title: Local development
 description: Run the Rust application from source on Windows x64.
 ---
 
-Install Rust 1.93.0, Visual Studio C++ Build Tools, and the Windows SDK on Windows x64. `rust-toolchain.toml` pins the Rust toolchain. The application itself does not depend on Node, Python, or Electron.
+Install Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK on Windows x64. `rust-toolchain.toml` pins the Rust toolchain. The application itself does not depend on Node, Python, or Electron.
 
 From the repository root:
 
