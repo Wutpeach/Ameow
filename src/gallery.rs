@@ -27,10 +27,10 @@ impl PreviewProcess {
             .creation_flags(HIDDEN).spawn()?;
         Ok(Self { child, _directory: directory, control, step: 0, pending: None })
     }
-    fn select(&mut self, scene: &str, night: bool) -> anyhow::Result<()> {
+    fn select(&mut self, scene: &str, night: bool, motion: bool) -> anyhow::Result<()> {
         self.step += 1;
         let pending = self.control.with_extension("tmp");
-        fs::write(&pending, serde_json::to_vec(&serde_json::json!({"step":self.step,"scene":scene,"night":night}))?)?;
+        fs::write(&pending, serde_json::to_vec(&serde_json::json!({"step":self.step,"scene":scene,"night":night,"reduced":!motion}))?)?;
         let deadline = Instant::now() + Duration::from_millis(100);
         loop {
             match fs::rename(&pending, &self.control) {
@@ -42,7 +42,7 @@ impl PreviewProcess {
         self.pending = Some(Instant::now());
         Ok(())
     }
-    fn poll(&mut self, scene: &str, night: bool) -> anyhow::Result<bool> {
+    fn poll(&mut self, scene: &str, night: bool, motion: bool) -> anyhow::Result<bool> {
         if let Some(status) = self.child.try_wait()? { anyhow::bail!("预览已退出（{status}），请点击“重新打开预览”"); }
         let Some(started) = self.pending else { return Ok(false); };
         if started.elapsed() > Duration::from_secs(20) { self.pending = None; anyhow::bail!("场景切换超时，请重新选择场景"); }
@@ -52,6 +52,7 @@ impl PreviewProcess {
         self.pending = None;
         if let Some(error) = ack["error"].as_str() { anyhow::bail!("无法切换场景：{error}"); }
         if ack["scene"].as_str() != Some(scene) || ack["night"].as_bool() != Some(night) { anyhow::bail!("场景或主题回执不匹配"); }
+        if ack["reduced"].as_bool() != Some(!motion) { anyhow::bail!("动态预览状态未同步，请重新选择场景"); }
         Ok(true)
     }
 }
@@ -76,6 +77,7 @@ struct Gallery {
     surface: String,
     selected: usize,
     night: bool,
+    motion: bool,
     session: Option<PreviewProcess>,
     notice: String,
     error: bool,
@@ -91,7 +93,7 @@ fn group_name(surface: &str) -> &'static str {
     match surface {
         "compact" => "Compact", "full" => "Full", "queue" => "队列",
         "settings" => "设置", "components" => "组件管理", "diagnostics" => "诊断",
-        "tray" => "托盘", "menu" => "菜单", "overlay" => "退出确认", _ => "其他",
+        "tray" => "托盘", "menu" => "菜单", "overlay" => "退出异常", _ => "其他",
     }
 }
 impl Gallery {
@@ -99,7 +101,7 @@ impl Gallery {
         let scenes = preview::scenes();
         let surface = scenes[0].surface.clone();
         let mut this = Self {
-            scenes, surface, selected: 0, night: false, session: None,
+            scenes, surface, selected: 0, night: false, motion: false, session: None,
             notice: String::new(), error: false, accepted_at: None,
             output, image: None, capture: None, batch: None, serial: 0, scroll: ScrollHandle::new(),
         };
@@ -128,14 +130,14 @@ impl Gallery {
             }
         }
         if let Some(session) = &mut self.session {
-            match session.select(&self.scenes[index].name, self.night) {
+            match session.select(&self.scenes[index].name, self.night, self.motion) {
                 Ok(()) => self.notice = "正在切换场景…".into(),
                 Err(error) => { self.error = true; self.notice = format!("无法切换场景：{error}"); }
             }
         }
     }
     fn poll(&mut self) {
-        if let Some(result) = self.session.as_mut().map(|session| session.poll(&self.scenes[self.selected].name, self.night)) {
+        if let Some(result) = self.session.as_mut().map(|session| session.poll(&self.scenes[self.selected].name, self.night, self.motion)) {
             match result {
                 Ok(true) => { self.accepted_at = Some(Instant::now()); self.notice = "真实预览窗口已切换，可查看或截图".into(); }
                 Err(error) => { self.session = None; self.error = true; self.accepted_at = None; self.notice = error.to_string(); }
@@ -292,6 +294,9 @@ impl Render for Gallery {
                     .on_click(cx.listener(|this,_,_,cx|{this.night=false;this.select(this.selected);cx.notify();})))
                 .child(self.button("gallery-dark","深色",self.night).disabled(busy).child("深色")
                     .on_click(cx.listener(|this,_,_,cx|{this.night=true;this.select(this.selected);cx.notify();})))
+                .child(self.button("gallery-motion",if self.motion { "动态预览：开" } else { "动态预览：关" },self.motion).disabled(busy)
+                    .child(if self.motion { "动态预览：开" } else { "动态预览：关" })
+                    .on_click(cx.listener(|this,_,_,cx|{this.motion=!this.motion;this.select(this.selected);cx.notify();})))
                 .when(self.session.is_none(), |s| s.child(self.button("gallery-reopen","重新打开预览",false).disabled(busy).child("重新打开预览")
                     .on_click(cx.listener(|this,_,_,cx|{this.select(this.selected);cx.notify();})))))
             .child(div().flex().flex_wrap().gap(px(8.))

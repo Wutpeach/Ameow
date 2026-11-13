@@ -16,6 +16,8 @@ mod repair_motion;
 mod ring_glow;
 mod tokens;
 mod context_menu;
+mod ui_motion;
+mod ui_tooltip;
 mod surface_actions;
 mod settings_window;
 use ameow_next::login_startup;
@@ -36,6 +38,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokens::Palette;
+use ui_tooltip::TooltipExt as _;
 
 const DIAGNOSTIC: &str = "Ameow · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
 #[derive(Clone, Copy, Default)]
@@ -68,6 +71,9 @@ impl AssetSource for Assets {
             "icons/circle-alert.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-alert.svg"))),
             "icons/chevron-right.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-right.svg"))),
             "icons/chevron-down.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-down.svg"))),
+            "icons/circle-arrow-up.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-arrow-up.svg"))),
+            "icons/clock.svg" => Some(Cow::Borrowed(include_bytes!("../assets/clock.svg"))),
+            "icons/rotate-ccw.svg" => Some(Cow::Borrowed(include_bytes!("../assets/rotate-ccw.svg"))),
             // Preserve Ameow's existing aliases; other component icons use the official bundle.
             _ => match ring_glow::load(path) {
                 Some(bytes) => Some(Cow::Owned(bytes)),
@@ -79,7 +85,8 @@ impl AssetSource for Assets {
         let mut paths: Vec<SharedString> = ["icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
             "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",
             "icons/blocks.svg", "icons/info.svg", "icons/circle-alert.svg",
-            "icons/chevron-right.svg", "icons/chevron-down.svg"]
+            "icons/chevron-right.svg", "icons/chevron-down.svg",
+            "icons/circle-arrow-up.svg", "icons/clock.svg", "icons/rotate-ccw.svg"]
             .into_iter()
             .map(Into::into)
             .chain(ring_glow::asset_paths())
@@ -248,6 +255,9 @@ struct Prototype {
     hover: edge_hover::Hover,
     magnetic: Magnetic,
     spring_hover: magnetic_spring::Hover,
+    ui_motion: ui_motion::Motion,
+    tooltips: ui_tooltip::Host,
+    queue_motion_rows: Vec<ameow_next::download::queue::JobSnapshot>,
 }
 impl Prototype {
     fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -345,6 +355,9 @@ impl Prototype {
             hover: edge_hover::Hover::default(),
             magnetic: options.magnetic,
             spring_hover: magnetic_spring::Hover::default(),
+            ui_motion: ui_motion::Motion::default(),
+            tooltips: ui_tooltip::Host::new(cx),
+            queue_motion_rows: Vec::new(),
         }
     }
     fn now(&self) -> u64 {
@@ -401,7 +414,8 @@ impl Prototype {
         if self.surface_menu.is_open() { return; }
         if !self.model.target_full || self.model.fullness < 0.999 { return; }
         if self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open) { return; }
-        self.surface_menu.open(self.now());
+        let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
+        self.surface_menu.open(quality, self.now());
         self.model.locks.menu = true;
         self.background_clicks.reset();
         self.drag=None;self.model.locks.drag=false;
@@ -506,7 +520,7 @@ impl Prototype {
             self.exit_after_ms = None;
             if self.downloads.is_some() { self.stop_and_exit(cx); } else { cx.quit(); }
         }
-        if self.copied_at.is_some_and(|at| now >= at + 900) {
+        if self.copied_at.is_some_and(|at| now >= at + ui_motion::COPY_FEEDBACK_MS) {
             self.copied_at = None;
         }
         if self.native.is_none() {
@@ -672,6 +686,11 @@ impl Prototype {
 }
 impl Render for Prototype {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.ui_motion.begin(self.model.reduced);
+        let queue_presence = self.ui_motion.presence("full-queue", self.downloads.as_ref().is_some_and(|ui| ui.queue_open));
+        let exit_presence = self.ui_motion.presence("full-exit", self.downloads.as_ref().is_some_and(|ui| ui.exit_open));
+        let held = queue_presence.visible() || exit_presence.visible() || self.surface_menu.visible(self.now(), self.model.reduced);
+        if held != self.model.locks.menu { self.model.locks.menu = held; self.model.locks_changed(self.now()); }
         let render_start = Instant::now();
         let timestamp_us = self.clock.elapsed().as_micros();
         let dt_actual_ms = timestamp_us.saturating_sub(self.last_frame_us) as f64 / 1000.;
@@ -787,7 +806,7 @@ impl Render for Prototype {
             frame
         };
         let stage = self.model.stage;
-        let copied = self.copied_at.is_some_and(|t| now < t + 900);
+        let copied = self.copied_at.is_some_and(|t| now < t + ui_motion::COPY_FEEDBACK_MS);
         self.wake = None;
         let motion_delay = if self.demo || self.probe_period_ms.is_some()
             || self.model.indeterminate_animation(indeterminate) {
@@ -797,7 +816,7 @@ impl Render for Prototype {
         };
         let copy_delay = self
             .copied_at
-            .map(|at| (at + 900).saturating_sub(now).max(1));
+            .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
@@ -823,6 +842,12 @@ impl Render for Prototype {
         } else {
             p.border
         };
+        // Keep the small Compact compression centered inside the legal native bounds.
+        let surface_origin = g.gutter + if self.model.window_motion.candidate == Candidate::Converged {
+            (g.native - 2. * g.gutter - g.surface) * 0.5
+        } else {
+            0.
+        };
         // GPUI's style path paints fill/border separately. Combine them before outer AA
         // coverage here, while the original div retains its 1px layout inset and hitbox.
         let surface_paint = canvas(
@@ -839,16 +864,16 @@ impl Render for Prototype {
             },
         )
         .absolute()
-        .left(px(g.gutter))
-        .top(px(g.gutter))
+        .left(px(surface_origin))
+        .top(px(surface_origin))
         .size(px(g.surface));
         let surface = div()
             .id("surface")
             .absolute()
-            .left(px(g.gutter))
-            .top(px(g.gutter))
+            .left(px(surface_origin))
+            .top(px(surface_origin))
             .size(px(g.surface))
-            .rounded(px(g.radius))
+            .rounded(px(g.radius.min(g.surface * 0.5)))
             .border_1()
             .border_color(gpui::transparent_black())
             .on_mouse_down(
@@ -895,6 +920,7 @@ impl Render for Prototype {
             .child(indicator::center(frame))
             .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() })
             .when(stage.active() || matches!(stage, Stage::Failure | Stage::Partial), |s| {
+                let copy = matches!(stage, Stage::Failure | Stage::Partial);
                 s.child(
                     div()
                         .id("state-action")
@@ -902,7 +928,7 @@ impl Render for Prototype {
                         .absolute()
                         .left(px(41.))
                         .top(px(83.))
-                        .size(px(16.))
+                        .size(px(tokens::FULL_ACTION_SIZE))
                         .rounded_full()
                         .cursor_pointer()
                         .flex()
@@ -910,14 +936,9 @@ impl Render for Prototype {
                         .justify_center()
                         .text_color(p.neutral)
                         .hover(move |s| {
-                            s.bg(p.red)
-                                .text_color(gpui::white())
-                                .shadow(vec![BoxShadow { inset: false,
-                                    color: p.red.opacity(0.3),
-                                    offset: point(px(0.), px(2.4)),
-                                    blur_radius: px(4.8),
-                                    spread_radius: px(0.),
-                                }])
+                            if copy { tokens::icon_hover(s, p).shadow(tokens::state_action_shadow(p.neutral)) } else {
+                                s.bg(p.red).text_color(gpui::white()).shadow(tokens::state_action_shadow(p.red))
+                            }
                         })
                         .child(
                             svg()
@@ -932,7 +953,7 @@ impl Render for Prototype {
                                 })
                                 .size(px(if matches!(stage, Stage::Failure | Stage::Partial) { 10. } else { 16. }))
                                 .text_color(p.neutral)
-                                .group_hover("state-action", move |s| s.text_color(gpui::white())),
+                                .group_hover("state-action", move |s| s.text_color(if copy { p.neutral } else { gpui::white() })),
                         )
                         .on_mouse_down(
                             MouseButton::Left,
@@ -1009,10 +1030,13 @@ impl Render for Prototype {
         )
         .absolute()
         .size_full();
-        let menu_open = self.surface_menu.is_open();
-        let content_alpha = self.surface_menu.content_alpha(now, self.model.reduced);
+        let menu_open = self.surface_menu.visible(now, self.model.reduced);
+        let menu_alpha = self.surface_menu.menu_alpha(now, self.model.reduced);
+        let queue_presence = self.ui_motion.presence("full-queue", self.downloads.as_ref().is_some_and(|ui| ui.queue_open));
+        let exit_presence = self.ui_motion.presence("full-exit", self.downloads.as_ref().is_some_and(|ui| ui.exit_open));
+        let content_alpha = (1. - menu_alpha) * (1. - queue_presence.alpha) * (1. - exit_presence.alpha);
         let main_content = div().absolute().size(px(g.native)).opacity(content_alpha)
-            .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
+            .child(slot)
             .when(badge_visible, |group| group.child(badge))
             .when(self.preparation_indicator_visible(), |group| group.child(self.preparation_indicator(cx)));
         let visual_group = div()
@@ -1024,11 +1048,16 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .when(!menu_open, |group| group.child(main_content))
+            .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
-            .when(self.downloads.as_ref().is_some_and(|ui|ui.queue_open),|s|s.child(self.queue_panel(window,cx)))
-            .when(self.downloads.as_ref().is_some_and(|ui|ui.exit_open),|s|s.child(self.exit_panel(cx)));
+            .when(queue_presence.visible(), |s| s.child(div().absolute().inset_0().left(px(queue_presence.travel(5.))).opacity(queue_presence.alpha)
+                .when(!queue_presence.open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation()).capture_key_down(|_, _, cx| cx.stop_propagation()))
+                .child(self.queue_panel(window, cx))))
+            .when(exit_presence.visible(), |s| s.child(div().absolute().inset_0().opacity(exit_presence.alpha)
+                .when(!exit_presence.open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation()).capture_key_down(|_, _, cx| cx.stop_propagation()))
+                .child(self.exit_panel(cx))));
+        self.ui_motion.finish(window);
         let result = div()
             .id("ameow-root")
             .track_focus(&self.focus)
@@ -1052,7 +1081,10 @@ impl Render for Prototype {
                 }
                 // GPUI registers tab stops but requires the application to move focus.
                 if this.surface_menu.is_open() {
-                    this.key(event.keystroke.key.as_str(), cx);
+                    let key = if event.keystroke.key == "tab" && event.keystroke.modifiers.shift {
+                        "shift-tab"
+                    } else { event.keystroke.key.as_str() };
+                    this.key(key, cx);
                     cx.stop_propagation();
                 } else if event.keystroke.key == "tab"
                     && this.downloads.as_ref().is_some_and(|ui| ui.queue_open)
@@ -1088,7 +1120,7 @@ impl Render for Prototype {
             .child(overlays)
             .when(self.downloads.is_none() && self.model.locks.menu, |s| {
                 s.child(self.menu(cx))
-            });
+            }).tooltip_root(&self.tooltips);
         if let Some(writer) = &mut self.measure {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();
@@ -1234,6 +1266,8 @@ fn main() {
                     // executor before showing this Windows popup without activation.
                     show: !cfg!(target_os = "windows"),
                     focus: !cfg!(target_os = "windows"),
+                    // The floating indicator animates without activation; its own wakeups stop at rest.
+                    inactive_frame_interval: None,
                     window_background: WindowBackgroundAppearance::Transparent,
                     is_resizable: false,
                     is_minimizable: false,

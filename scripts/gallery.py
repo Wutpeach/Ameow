@@ -89,6 +89,7 @@ class Session:
         self.step = 0
         self.current = None
         self.night = False
+        self.reduced = reduced
         self.cancel = cancel
         self.job = None
         command = [str(self.exe), '--preview', '--preview-scene', self.scenes[0]['name'],
@@ -132,7 +133,7 @@ class Session:
     def select(self, scene, night=False, settle=.35, timeout=20):
         if not any(s['name'] == scene for s in self.scenes):
             raise ValueError(f'未知场景：{scene}')
-        self.request(dict(scene=scene, night=night))
+        self.request(dict(scene=scene, night=night, reduced=self.reduced))
         deadline = time.monotonic()+timeout
         while time.monotonic() < deadline:
             check_cancel(self.cancel)
@@ -144,6 +145,8 @@ class Session:
                     raise RuntimeError(f'场景切换失败：{ack["error"]}')
                 if ack.get('scene') != scene or ack.get('night') != night:
                     raise RuntimeError('场景/主题回执与请求不匹配')
+                if ack.get('reduced') != self.reduced:
+                    raise RuntimeError('动态预览状态与请求不匹配')
                 self.current, self.night = scene, night
                 # ACK accepts state. This delay is not a GPU render-complete barrier.
                 until = time.monotonic()+settle

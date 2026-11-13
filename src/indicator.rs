@@ -173,20 +173,20 @@ fn dot(window: &mut Window, center: Point<Pixels>, radius: f32, color: Hsla) {
         BorderStyle::Solid,
     ));
 }
-fn stroke(window: &mut Window, points: &[Point<Pixels>], width: f32, color: Hsla) {
+fn stroke(window: &mut Window, points: &[Point<Pixels>], width: f32, color: Hsla, closed: bool) {
     if points.len() < 2 || color.a <= 0. {
         return;
     }
     let mut path = PathBuilder::stroke(px(width));
-    path.move_to(points[0]);
-    for p in points.iter().skip(1) {
-        path.line_to(*p);
-    }
+    // Full circles have no end caps: translucent caps would stack into a fixed dot.
+    path.add_polygon(if closed { &points[..points.len() - 1] } else { points }, closed);
     if let Ok(path) = path.build() {
         window.paint_path(path, color);
     }
-    dot(window, points[0], width / 2., color);
-    dot(window, *points.last().unwrap(), width / 2., color);
+    if !closed {
+        dot(window, points[0], width / 2., color);
+        dot(window, *points.last().unwrap(), width / 2., color);
+    }
 }
 /// The component preparation ring has its own geometry and never enters media ring/glow state.
 pub fn preparation_ring(
@@ -229,9 +229,9 @@ pub fn preparation_ring(
                     })
                     .collect::<Vec<_>>()
             };
-            stroke(window, &points(0., 1.), 1.6, palette.border);
+            stroke(window, &points(0., 1.), 1.6, palette.border, true);
             if sweep > 0. {
-                stroke(window, &points(start, sweep), 1.6, color);
+                stroke(window, &points(start, sweep), 1.6, color, sweep >= 1.);
             }
         },
     )
@@ -252,7 +252,7 @@ fn arc(window: &mut Window, origin: Point<Pixels>, start: f32, sweep: f32, color
             )
         })
         .collect::<Vec<_>>();
-    stroke(window, &points, 5., color);
+    stroke(window, &points, 5., color, sweep == 1.);
 }
 fn draw_symbol(
     window: &mut Window,
@@ -295,7 +295,7 @@ fn draw_symbol(
             }
         }
         if fraction > 0. {
-            stroke(window, &out, 2.8, color);
+            stroke(window, &out, 2.8, color, false);
         }
     };
     if matches!(stage, Stage::Failure | Stage::Partial) {
@@ -308,6 +308,25 @@ fn draw_symbol(
     } else {
         draw(window, &points, fraction);
     }
+}
+
+/// Static cleanup attention uses the Full indicator's geometry without changing job state.
+pub fn cleanup_attention(p: Palette, label: &'static str) -> Div {
+    div().relative().w(px(96.)).h(px(75.))
+        .child(div().absolute().left(px(23.)).top_0().size(px(50.))
+            .child(ring_glow::arc(0., 1., 10, p.orange.opacity(tokens::RING_GLOW_OPACITY)))
+            .child(canvas(|_, _, _| (), move |bounds, _, window, _| {
+                arc(window, bounds.origin, 0., 1., p.orange);
+                stroke(window, &[
+                    bounds.origin + point(px(25.), px(17.)),
+                    bounds.origin + point(px(25.), px(27.)),
+                ], 2.8, p.orange, false);
+                dot(window, bounds.origin + point(px(25.), px(33.)), 1.4, p.orange);
+            }).size(px(50.))))
+        .child(div().absolute().left_0().top(px(59.)).w(px(96.)).h(px(16.))
+            .rounded(px(8.)).bg(p.orange.opacity(0.08)).border_1().border_color(p.orange.opacity(0.3))
+            .flex().items_center().justify_center().text_size(px(8.))
+            .font_weight(FontWeight::MEDIUM).text_color(p.orange).child(label))
 }
 
 pub fn ring(f: Frame) -> impl IntoElement {

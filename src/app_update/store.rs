@@ -107,6 +107,10 @@ impl Install {
     pub fn fixture(root: PathBuf) -> Result<Self, String> {
         Self::new(root, Trust::fixture())
     }
+    #[cfg(test)]
+    pub(super) fn unconfigured(root: PathBuf) -> Result<Self, String> {
+        Self::new(root, Trust::offline(&[])?)
+    }
     fn new(root: PathBuf, trust: Trust) -> Result<Self, String> {
         if !root.is_absolute() {
             return Err("E_APP_UPDATE_PATH".into());

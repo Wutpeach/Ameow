@@ -179,7 +179,9 @@ impl Hover {
         self.last = Some(now);
         self.integrated_target =
             std::array::from_fn(|axis| self.axes[axis].segment.map_or(0., |s| s.target as f32));
-        self.tracking = input.enabled && input.full_intent && !input.reduced;
+        let (weight, weight_velocity) = fade(input.fullness, input.fullness_velocity);
+        // Keep the visible spring through collapse; retire it only after its fade reaches zero.
+        self.tracking = input.enabled && !input.reduced && (input.full_intent || weight > 0.);
         if !self.tracking {
             self.eligible = false;
             self.q = 0.;
@@ -206,7 +208,7 @@ impl Hover {
             axis.advance(now);
         }
         self.cap();
-        self.eligible = input.inside_native && !input.locks.into_iter().any(|v| v);
+        self.eligible = input.full_intent && input.inside_native && !input.locks.into_iter().any(|v| v);
         let projection = nearest(input.pointer);
         self.distance = projection.distance;
         self.nearest_point = projection.point;
@@ -225,7 +227,6 @@ impl Hover {
         for (axis, target) in self.axes.iter_mut().zip(next_target) {
             axis.retarget(now, target);
         }
-        let (weight, weight_velocity) = fade(input.fullness, input.fullness_velocity);
         self.fade_weight = weight as f32;
         self.fade_velocity = weight_velocity as f32;
         self.spring_position = self.axes.each_ref().map(|axis| axis.position as f32);
@@ -461,14 +462,14 @@ mod tests {
         }
     }
     #[test]
-    fn suppression_clears_segments_and_new_input_never_catches_up_idle_time() {
+    fn compact_reduced_and_disabled_motion_never_catch_up_idle_time() {
         for cause in 0..3 {
             let mut h = Hover::default();
             h.sample(0, input([200., 100.]));
             h.sample(16, input([200., 100.]));
             let mut i = input([200., 100.]);
             match cause {
-                0 => i.full_intent = false,
+                0 => { i.full_intent = false; i.fullness = 0.; },
                 1 => i.reduced = true,
                 _ => i.enabled = false,
             }
@@ -526,7 +527,7 @@ mod tests {
         }
     }
     #[test]
-    fn real_repair_b_expand_settle_rest_keeps_same_spring_and_time_owner() {
+    fn real_expand_arrives_without_a_size_pulse_and_keeps_follow_continuous() {
         use crate::repair_motion::{Candidate, Motion};
         for cadence in [4, 16, 33] {
             let mut motion = Motion::new(Candidate::Converged, false, 0);
@@ -538,7 +539,6 @@ mod tests {
             let identities = h.axis_generations();
             assert_eq!(h.axis_started_ms(), [Some(0), Some(0)]);
             let mut saw_late = false;
-            let mut saw_settle = false;
             let mut saw_rest = false;
             for now in (cadence..=640).step_by(cadence as usize) {
                 motion.tick(now, true, false);
@@ -556,29 +556,106 @@ mod tests {
                     assert!(h.fade_weight > 0. && h.fade_weight <= 1.);
                     assert_ne!(h.offset, [0., 0.]);
                 }
-                if motion.phase() == "settle" || motion.phase() == "rest" {
+                assert_eq!((motion.extra, motion.extra_v), (0., 0.));
+                if motion.phase() == "rest" {
                     assert_eq!(h.fade_weight, 1.);
                     assert_eq!(h.fade_velocity, 0.);
                     assert_eq!(h.offset, h.spring_position);
                     assert_eq!(h.velocity, h.spring_velocity);
-                    saw_settle |= motion.phase() == "settle";
-                    saw_rest |= motion.phase() == "rest";
+                    saw_rest = true;
                 }
             }
-            assert!(saw_late && saw_settle && saw_rest);
-            // Reversing the lifecycle retires all hidden and visible residual immediately.
+            assert!(saw_late && saw_rest);
+        }
+    }
+    #[test]
+    fn collapse_and_reentry_preserve_visible_position_and_velocity() {
+        for at in [100, 800] {
+            let mut h = Hover::default();
+            let mut i = input([200., 100.]);
+            h.sample(0, i);
+            h.sample(at, i);
+            let position = h.offset;
+            let velocity = h.velocity;
+            assert!(position[0] > 0.);
+            // A manual collapse may begin while the pointer is still inside the window.
             i.full_intent = false;
-            h.sample(641, i);
-            assert_eq!(h.offset, [0., 0.]);
-            assert_eq!(h.velocity, [0., 0.]);
-            assert_eq!(h.spring_position, [0., 0.]);
-            assert!(!h.moving());
+            h.sample(at, i);
+            assert_eq!(h.offset, position);
+            assert_eq!(h.velocity, velocity);
+            assert_eq!(h.target_offset, [0., 0.]);
+            assert!(!h.eligible);
+            assert!(h.tracking && h.moving());
+            h.sample(at + 16, i);
+            let position = h.offset;
+            let velocity = h.velocity;
             i.full_intent = true;
-            i.fullness = 0.;
-            h.sample(10000, i);
-            assert_eq!(h.step_ms, 0.);
-            assert_eq!(h.offset, [0., 0.]);
-            assert_eq!(h.axis_started_ms(), [Some(10000), Some(10000)]);
+            h.sample(at + 16, i);
+            assert_eq!(h.offset, position);
+            assert_eq!(h.velocity, velocity);
+            assert_eq!(h.target_offset, [6., 0.]);
+            h.sample(at + 816, i);
+            assert_eq!(h.offset, [6., 0.]);
+            assert!(!h.moving());
+        }
+    }
+    #[test]
+    fn window_collapse_fades_follow_to_rest_and_can_reverse_without_a_jump() {
+        use crate::repair_motion::{Candidate, Motion};
+        for cadence in [4, 16, 33] {
+            for reverse in [false, true] {
+                let mut motion = Motion::new(Candidate::Converged, false, 0);
+                let mut h = Hover::default();
+                let mut i = input([30., 30.]);
+                motion.tick(0, true, false);
+                i.fullness = 0.;
+                h.sample(0, i);
+                for now in (cadence..800).step_by(cadence as usize) {
+                    motion.tick(now, true, false);
+                    i.fullness = motion.x;
+                    i.fullness_velocity = motion.v;
+                    h.sample(now, i);
+                }
+                motion.tick(800, true, false);
+                i.fullness = motion.x;
+                i.fullness_velocity = motion.v;
+                h.sample(800, i);
+                let position = h.offset;
+                let velocity = h.velocity;
+                assert!(position[0].hypot(position[1]) > 5.);
+                motion.tick(800, false, false);
+                i.full_intent = false;
+                h.sample(800, i);
+                assert_eq!(h.offset, position);
+                assert_eq!(h.velocity, velocity);
+                for now in (800 + cadence..=2000).step_by(cadence as usize) {
+                    motion.tick(now, i.full_intent, false);
+                    i.fullness = motion.x;
+                    i.fullness_velocity = motion.v;
+                    h.sample(now, i);
+                    assert!(h.offset[0].hypot(h.offset[1]) <= MAX_OFFSET + 0.000001);
+                    assert!(h.velocity.iter().all(|v| v.is_finite()));
+                    if reverse && !i.full_intent && now >= 816 {
+                        let position = h.offset;
+                        let velocity = h.velocity;
+                        motion.tick(now, true, false);
+                        i.full_intent = true;
+                        h.sample(now, i);
+                        assert_eq!(h.offset, position);
+                        assert_eq!(h.velocity, velocity);
+                    }
+                }
+                if reverse {
+                    assert_eq!(h.offset, target(i.pointer));
+                    assert_eq!(h.velocity, [0., 0.]);
+                } else {
+                    assert_eq!(h.offset, [0., 0.]);
+                    assert_eq!(h.velocity, [0., 0.]);
+                    assert_eq!(h.spring_position, [0., 0.]);
+                    assert!(!h.tracking);
+                }
+                assert!(!h.moving());
+            }
         }
     }
     #[test]
@@ -608,7 +685,7 @@ mod tests {
         assert_eq!(regular.velocity, dropped.velocity);
     }
     #[test]
-    fn reversal_reduced_and_off_clear_hidden_and_visible_motion_at_every_fade_stage() {
+    fn compact_reduced_and_off_clear_hidden_and_visible_motion_at_every_fade_stage() {
         for fullness in [0.5, 0.95, 1.] {
             for cause in 0..3 {
                 let mut h = Hover::default();
@@ -619,7 +696,7 @@ mod tests {
                 h.sample(160, i);
                 assert_ne!(h.spring_position, [0., 0.]);
                 match cause {
-                    0 => i.full_intent = false,
+                    0 => { i.full_intent = false; i.fullness = 0.; },
                     1 => i.reduced = true,
                     _ => i.enabled = false,
                 }

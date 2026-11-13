@@ -12,14 +12,14 @@ pub fn find(name: &str) -> Result<Scene, String> {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Request { step: u64, scene: Option<String>, night: Option<bool>, #[serde(default)] quit: bool }
+struct Request { step: u64, scene: Option<String>, night: Option<bool>, reduced: Option<bool>, #[serde(default)] quit: bool }
 pub enum Change { Scene(Scene), Quit }
 pub struct Session {
-    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool, night: Option<bool>,
+    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool, night: Option<bool>, reduced: Option<bool>,
 }
 impl Session {
     pub fn new(control: Option<PathBuf>, name: &str) -> Result<Self, String> {
-        Ok(Self { control, scene: find(name)?, step: None, initial: true, night: None })
+        Ok(Self { control, scene: find(name)?, step: None, initial: true, night: None, reduced: None })
     }
     pub fn scene(&self) -> &Scene { &self.scene }
     pub fn poll(&mut self) -> Option<Change> {
@@ -38,14 +38,14 @@ impl Session {
         self.step = Some(request.step);
         if request.quit { return Some(Change::Quit); }
         match request.scene.as_deref().map(find) {
-            Some(Ok(scene)) => { self.scene = scene.clone(); self.night = request.night; Some(Change::Scene(scene)) }
+            Some(Ok(scene)) => { self.scene = scene.clone(); self.night = request.night; self.reduced = request.reduced; Some(Change::Scene(scene)) }
             Some(Err(error)) => { self.ack(Some(&error)); None }
             None => { self.ack(Some("预览请求缺少 scene")); None }
         }
     }
     pub fn ack(&self, error: Option<&str>) {
         if let Some(path) = &self.control {
-            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"night":self.night,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
+            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"night":self.night,"reduced":self.reduced,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
             if let Err(error) = fs::write(path.with_extension("ack.json"), value.to_string()) { eprintln!("无法写入预览回执：{error}"); }
         }
     }
@@ -92,15 +92,39 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
         "validating" => snapshot(vec![job(1, JobPhase::Validating, Some(1), None)]),
         "publishing" => snapshot(vec![job(1, JobPhase::Publishing, Some(1), None)]),
         "held" => snapshot(vec![job(1, JobPhase::Held, Some(1), None)]),
-        "concurrent" | "app-conflict" => fifo(),
-        "mixed" | "badge" | "exit-confirm" => {
+        "concurrent" | "app-conflict" | "app-conflict-copied" | "app-update-feedback" => fifo(),
+        "exit-cleanup" => {
+            let mut s = snapshot(vec![job(1, JobPhase::Held, Some(1), None)]);
+            s.stopping = true;
+            s
+        }
+        "exit-unconfirmed" => {
+            let mut s = snapshot(Vec::new());
+            s.stopping = true;
+            s.preparation_owner_lost = true;
+            s
+        }
+        "mixed" | "badge" => {
             let mut s = fifo(); s.jobs.push(job(5, JobPhase::Failure, Some(5), None)); s
         }
         _ => snapshot(Vec::new()),
     };
-    if scene.state=="app-conflict" {s.preparation.phase=ameow_next::download::preparation::PreparationPhase::Failed;}
+    if matches!(scene.state.as_str(), "app-conflict" | "app-conflict-copied") {
+        s.preparation.phase = ameow_next::download::preparation::PreparationPhase::Failed;
+    }
+    if scene.state=="app-preparing" {
+        s.preparing = true;
+        s.preparation.phase = ameow_next::download::preparation::PreparationPhase::Preparing;
+    }
     if scene.surface == "settings" || scene.surface == "components" || scene.surface == "diagnostics" {
         s = snapshot(Vec::new());
+    }
+    if scene.surface == "menu" {
+        s.settings.quality = match scene.state.as_str() {
+            "highest" => ameow_next::download::request::Quality::Highest,
+            "saver" => ameow_next::download::request::Quality::Saver,
+            _ => ameow_next::download::request::Quality::Balanced,
+        };
     }
     s.unfinished = s.jobs.iter().filter(|j| !j.phase.terminal()).count();
     s.failures = s.jobs.iter().filter(|j| matches!(j.phase, JobPhase::Failure | JobPhase::Partial)).count();
@@ -118,6 +142,7 @@ impl crate::Prototype {
                 // set_preview_scene clears selected_job, so an empty next snapshot
                 // cannot otherwise retire the previous scene's painted indicator.
                 let now = self.now();
+                if let Some(reduced) = self.preview.as_ref().and_then(|p| p.reduced) { self.model.set_reduced(reduced, now); }
                 self.model.state(crate::model::Stage::Idle, 0., now);
                 self.model.previous = crate::model::Stage::Idle;
                 self.model.previous_progress = 0.;
@@ -141,7 +166,15 @@ impl crate::Prototype {
                 match scene.surface.as_str() {
                     "settings" | "components" | "diagnostics" => self.apply_preview_settings_scene(&scene, cx),
                     "tray" => self.apply_preview_tray_scene(&scene, cx),
-                    "menu" => { self.surface_menu.open(self.now()); }
+                    "menu" => {
+                        let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
+                        self.surface_menu.open(quality, self.now());
+                        self.surface_menu.hint = match scene.state.as_str() {
+                            "saving" => Some("正在保存画质…".into()),
+                            "save-failed" => Some("保存失败，请重试".into()),
+                            _ => None,
+                        };
+                    }
                     _ => {}
                 }
                 let error = match scene.surface.as_str() {
@@ -178,21 +211,29 @@ mod tests {
                     file.relative_path.as_os_str().is_empty() && file.delivered.path.as_os_str().is_empty())));
         }
         assert!(find("does-not-exist").is_err());
+        assert!(find("queue.empty").is_err());
     }
     #[test]
     fn requests_switch_reject_and_quit_without_touching_another_session() {
         let root = tempfile::tempdir().unwrap(); let path = root.path().join("control.json");
         let mut p = Session::new(Some(path.clone()), "queue.mixed").unwrap(); p.poll();
-        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed","night":true}"#).unwrap();
+        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed","night":true,"reduced":false}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Scene(_)))); p.ack(None);
         assert_eq!(p.night, Some(true));
-        fs::write(&path, r#"{"step":2,"scene":"unknown"}"#).unwrap();
+        let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
+        assert_eq!(ack["reduced"], false);
+        fs::write(&path, r#"{"step":2,"scene":"unknown","reduced":true}"#).unwrap();
         assert!(p.poll().is_none()); assert_eq!(p.scene().name, "diagnostics.copy-failed");
         assert_eq!(p.night, Some(true));
+        assert_eq!(p.reduced, Some(false));
         let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
         assert!(ack["error"].as_str().unwrap().contains("unknown"));
         assert!(p.poll().is_none());
-        fs::write(&path, r#"{"step":3,"quit":true}"#).unwrap();
+        fs::write(&path, r#"{"step":3,"scene":"diagnostics.copy-failed","night":true,"reduced":true}"#).unwrap();
+        assert!(matches!(p.poll(), Some(Change::Scene(_)))); p.ack(None);
+        let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
+        assert_eq!(ack["reduced"], true);
+        fs::write(&path, r#"{"step":4,"quit":true}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Quit)));
     }
     #[test]
@@ -209,6 +250,24 @@ mod tests {
         assert_eq!(ui.snapshot.as_ref().unwrap().jobs[0].phase, JobPhase::Success);
         assert!(!ui.upstream_check_available());
         assert!(!ui.preparation_retry_available());
+    }
+    #[test]
+    fn menu_scene_switches_restore_acknowledged_quality_and_retire_pending_state() {
+        use ameow_next::download::{request::Quality, queue::QueueCommand};
+        let mut ui = crate::download_ui::DownloadUi::controlled_preview();
+        for (name, quality, pending) in [
+            ("menu.highest", Quality::Highest, false),
+            ("menu.saving", Quality::Balanced, true),
+            ("menu.save-failed", Quality::Balanced, false),
+            ("menu.saver", Quality::Saver, false),
+            ("menu.root", Quality::Balanced, false),
+        ] {
+            ui.set_preview_scene(&find(name).unwrap());
+            assert_eq!(ui.settings().unwrap().quality, quality);
+            assert_eq!(ui.settings_pending, pending);
+            assert!(!ui.send(QueueCommand::SaveSettings(ui.settings().unwrap()), 100));
+            assert_eq!(ui.settings().unwrap().quality, quality);
+        }
     }
     #[test]
     fn atomic_control_replacement_survives_concurrent_polling_on_windows() {

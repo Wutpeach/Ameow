@@ -2,18 +2,19 @@ use crate::{
     Prototype,
     tokens::{self, Palette},
     ui_text::Language,
+    ui_tooltip::TooltipExt as _,
 };
 use ameow_next::download::preparation::PreparationPhase;
 use ameow_next::download::queue::{JobPhase, QueueSnapshot};
 use gpui::{prelude::*, *};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{cell::RefCell, rc::Rc};
 use windows::Win32::{
     Foundation::{HWND, POINT, RECT},
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
     UI::WindowsAndMessaging::{
         GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
-        SetWindowPos,
+        SetWindowPos, SWP_NOACTIVATE,
     },
 };
 
@@ -35,13 +36,14 @@ struct Projection {
     language: Language,
     night: bool,
     reduced: bool,
+    exit_issue: bool,
     summary: Summary,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Summary {
     text: String,
-    downloading: bool,
-    queued_primary: bool,
+    icon: StatusIcon,
+    count: Option<usize>,
     queued: Option<String>,
     failure: Option<String>,
     clickable: bool,
@@ -61,6 +63,7 @@ impl Projection {
             language: main.language,
             night: main.night,
             reduced: main.model.reduced,
+            exit_issue: main.downloads.as_ref().is_some_and(|ui| ui.exit_issue().is_some()),
             summary: summary(
                 if preview.is_some_and(|scene| scene.state == "startup-failed") { None } else { snapshot.as_ref() },
                 preview.is_some_and(|scene| scene.state == "startup-failed") || main.downloads.as_ref().is_some_and(|ui| ui.startup_error.is_some()),
@@ -79,67 +82,27 @@ fn preview_snapshot(snapshot: &mut QueueSnapshot, state: &str) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StatusIcon {
     Download,
     Clock,
     Warning,
-    Forward,
+    Loading,
+    Check,
 }
 
 fn status_icon(icon: StatusIcon, color: Hsla) -> impl IntoElement {
-    canvas(
-        |_, _, _| (),
-        move |bounds, _, window, _| {
-            let paths: &[&[(f32, f32)]] = match icon {
-                StatusIcon::Download => &[
-                    &[(8., 2.), (8., 10.)],
-                    &[(4.5, 6.5), (8., 10.), (11.5, 6.5)],
-                    &[(2.5, 9.), (2.5, 13.), (13.5, 13.), (13.5, 9.)],
-                ],
-                StatusIcon::Clock => &[
-                    &[
-                        (8., 2.),
-                        (11., 2.8),
-                        (13.2, 5.),
-                        (14., 8.),
-                        (13.2, 11.),
-                        (11., 13.2),
-                        (8., 14.),
-                        (5., 13.2),
-                        (2.8, 11.),
-                        (2., 8.),
-                        (2.8, 5.),
-                        (5., 2.8),
-                        (8., 2.),
-                    ],
-                    &[(8., 4.5), (8., 8.), (10.5, 9.5)],
-                ],
-                StatusIcon::Warning => &[
-                    &[(8., 2.), (14., 13.), (2., 13.), (8., 2.)],
-                    &[(8., 5.5), (8., 9.)],
-                    &[(8., 11.), (8., 11.5)],
-                ],
-                StatusIcon::Forward => &[&[(6., 4.), (10., 8.), (6., 12.)]],
-            };
-            for points in paths {
-                let mut path = PathBuilder::stroke(px(1.2));
-                for (index, (x, y)) in points.iter().enumerate() {
-                    let position = bounds.origin + point(px(*x * 0.875), px(*y * 0.875));
-                    if index == 0 {
-                        path.move_to(position);
-                    } else {
-                        path.line_to(position);
-                    }
-                }
-                if let Ok(path) = path.build() {
-                    window.paint_path(path, color);
-                }
-            }
-        },
-    )
-    .size(px(14.))
-    .flex_none()
+    svg()
+        .path(match icon {
+            StatusIcon::Download => "icons/download.svg",
+            StatusIcon::Clock => "icons/clock.svg",
+            StatusIcon::Warning => "icons/circle-alert.svg",
+            StatusIcon::Loading => "icons/loader-circle.svg",
+            StatusIcon::Check => "icons/check.svg",
+        })
+        .size(px(14.))
+        .flex_none()
+        .text_color(color)
 }
 fn summary(snapshot: Option<&QueueSnapshot>, startup_failed: bool, language: Language) -> Summary {
     let Some(s) = snapshot else {
@@ -158,14 +121,15 @@ fn summary(snapshot: Option<&QueueSnapshot>, startup_failed: bool, language: Lan
                     },
                 )
                 .into(),
-            downloading: false,
-            queued_primary: false,
+            icon: if startup_failed { StatusIcon::Warning } else { StatusIcon::Loading },
+            count: None,
             queued: None,
             failure: None,
             clickable: false,
         };
     };
-    let clickable = s.unfinished > 0 || s.failures > 0;
+    let issue = crate::download_ui::exit_issue(s);
+    let clickable = s.unfinished > 0 || s.failures > 0 || issue.is_some();
     let downloading = s
         .jobs
         .iter()
@@ -176,62 +140,79 @@ fn summary(snapshot: Option<&QueueSnapshot>, startup_failed: bool, language: Lan
         .iter()
         .filter(|j| j.phase == JobPhase::Queued)
         .count();
-    let text = if s.stopping {
-        language.text("正在安全停止", "Stopping safely").to_string()
-    } else if s.preparation_owner_lost {
-        language.text("清理未确认", "Cleanup unknown").to_string()
-    } else if s.preparation_held {
-        language
-            .text("等待组件清理", "Waiting for cleanup")
-            .to_string()
+    let (icon, text, count) = if issue == Some(crate::download_ui::ExitIssue::OwnerLost) {
+        (
+            StatusIcon::Warning,
+            language.text("清理未确认", "Cleanup unknown").to_string(),
+            None,
+        )
+    } else if issue == Some(crate::download_ui::ExitIssue::Cleanup) {
+        (
+            StatusIcon::Warning,
+            if s.preparation_held { language.text("等待组件清理", "Waiting for cleanup") }
+                else { language.text("等待任务清理", "Waiting for task cleanup") }.to_string(),
+            None,
+        )
+    } else if s.stopping {
+        (
+            StatusIcon::Clock,
+            language.text("正在安全停止", "Stopping safely").to_string(),
+            None,
+        )
     } else if downloading > 0 {
-        format!("{} {}", language.text("下载中", "Downloading"), downloading)
+        (
+            StatusIcon::Download,
+            format!("{} {}", language.text("下载中", "Downloading"), downloading),
+            Some(downloading),
+        )
     } else if s.preparation.phase == PreparationPhase::Failed {
-        language
-            .text("组件准备失败", "Preparation failed")
-            .to_string()
+        (
+            StatusIcon::Warning,
+            language.text("组件准备失败", "Preparation failed").to_string(),
+            None,
+        )
     } else if s.preparing {
-        language.text("准备中", "Preparing").to_string()
+        (
+            StatusIcon::Loading,
+            language.text("准备中", "Preparing").to_string(),
+            None,
+        )
     } else if queued > 0 && queued == s.unfinished {
-        format!("{} {}", language.text("排队中", "Queued"), queued)
+        (
+            StatusIcon::Clock,
+            format!("{} {}", language.text("排队中", "Queued"), queued),
+            Some(queued),
+        )
     } else if s.unfinished > 0 {
-        format!(
-            "{} {}",
-            language.text("任务进行中", "Tasks in progress"),
-            s.unfinished
+        (
+            StatusIcon::Loading,
+            format!("{} {}", language.text("任务进行中", "Tasks in progress"), s.unfinished),
+            Some(s.unfinished),
         )
     } else if s.failures > 0 {
-        language.text("需要处理", "Needs attention").to_string()
+        (
+            StatusIcon::Warning,
+            language.text("需要处理", "Needs attention").to_string(),
+            None,
+        )
     } else {
-        language.text("空闲", "Idle").to_string()
+        (StatusIcon::Check, language.text("空闲", "Idle").to_string(), None)
     };
-    let queued_primary = !s.stopping
-        && !s.preparation_owner_lost
-        && !s.preparation_held
-        && downloading == 0
-        && s.preparation.phase != PreparationPhase::Failed
-        && !s.preparing
-        && queued > 0
-        && queued == s.unfinished;
+    let queued_primary = icon == StatusIcon::Clock && count == Some(queued);
     let failure =
         (s.failures > 0).then(|| format!("{} {}", language.text("失败", "Failed"), s.failures));
     let queued = (queued > 0 && !queued_primary)
         .then(|| format!("{} {}", language.text("排队", "Queued"), queued));
     Summary {
         text,
-        downloading: downloading > 0
-            && !s.stopping
-            && !s.preparation_owner_lost
-            && !s.preparation_held,
-        queued_primary,
+        icon,
+        count,
         queued,
         failure,
         clickable,
     }
 }
 pub struct TrayPopup {
-    anchor:crate::tray::PopupAnchor,
-    layout_height:f32,
     projection: Projection,
     actions: Rc<RefCell<Vec<Action>>>,
     selected: Option<usize>,
@@ -239,6 +220,10 @@ pub struct TrayPopup {
     focus: FocusHandle,
     _observer: Subscription,
     _activation: Subscription,
+    motion: crate::ui_motion::Motion,
+    tooltips: crate::ui_tooltip::Host,
+    closing: bool,
+    edge: crate::tray::TaskbarEdge,
 }
 impl TrayPopup {
     fn new(
@@ -254,9 +239,8 @@ impl TrayPopup {
             this.projection = Projection::from_main(main.read(cx));
             cx.notify();
         });
-        let activation_actions = actions.clone();
         let preview = projection.preview;
-        let activation = cx.observe_window_activation(window, move |_, window, _| {
+        let activation = cx.observe_window_activation(window, move |this, window, cx| {
             if preview { return; }
             if !window.is_window_active() {
                 let mut cursor = POINT::default();
@@ -266,16 +250,13 @@ impl TrayPopup {
                     && cursor.y >= icon.top
                     && cursor.y < icon.bottom;
                 if !on_icon {
-                    activation_actions.borrow_mut().push(Action::Closed);
-                    window.remove_window();
+                    this.dismiss(Action::Closed, cx);
                 }
             }
         });
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         Self {
-            layout_height:HEIGHT+if projection.update.attention(){40.}else{0.},
-            anchor,
             projection,
             actions,
             selected: None,
@@ -283,9 +264,11 @@ impl TrayPopup {
             focus,
             _observer: observer,
             _activation: activation,
+            motion: crate::ui_motion::Motion::default(), tooltips: crate::ui_tooltip::Host::new(cx), closing: false, edge: anchor.edge,
         }
     }
-    fn trigger(&mut self, index: usize, window: &mut Window) {
+    fn trigger(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.closing { return; }
         if self.projection.preview { return; }
         let action = match index {
             0 if self.projection.summary.clickable => Action::Status,
@@ -295,15 +278,20 @@ impl TrayPopup {
             3 => Action::Exit,
             _ => return,
         };
+        self.dismiss(action, cx);
+    }
+    fn dismiss(&mut self, action: Action, cx: &mut Context<Self>) {
+        if self.closing { return; }
+        self.closing = true;
         self.actions.borrow_mut().push(action);
-        window.remove_window();
+        cx.notify();
     }
     fn row(
         &self,
         index: usize,
         label: &'static str,
         color: Hsla,
-        p: Palette,
+        _p: Palette,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         div()
@@ -317,14 +305,7 @@ impl TrayPopup {
             .text_size(px(13.))
             .text_color(color)
             .cursor_pointer()
-            .when(self.selected == Some(index), |d| {
-                d.bg(if self.keyboard {
-                    p.badge.opacity(0.7)
-                } else {
-                    p.badge
-                })
-            })
-            .hover(move |d| d.bg(p.badge))
+            .bg(transparent_black())
             .on_hover(cx.listener(move |this, inside: &bool, _, cx| {
                 let was_keyboard = this.keyboard;
                 if *inside {
@@ -342,34 +323,52 @@ impl TrayPopup {
                     cx.notify();
                 }
             }))
-            .on_click(cx.listener(move |this, _, window, _| this.trigger(index, window)))
+            .on_click(cx.listener(move |this, _, window, cx| this.trigger(index, window, cx)))
             .child(label)
             .into_any_element()
     }
 }
 impl Render for TrayPopup {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.motion.begin(self.projection.reduced);
+        let presence = self.motion.presence("tray-presence", !self.closing);
+        if self.closing && !presence.visible() { window.remove_window(); }
+        let highlight = self.motion.presence("tray-row-highlight", self.selected.is_some_and(|i| (1..=3).contains(&i)));
+        let row_y = self.motion.value("tray-row-position", match self.selected { Some(2) => 85., Some(3) => 122., _ => 53. });
+        let offset = presence.travel(4.);
+        let (dx, dy) = match self.edge { crate::tray::TaskbarEdge::Left => (-offset, 0.), crate::tray::TaskbarEdge::Right => (offset, 0.),
+            crate::tray::TaskbarEdge::Top => (0., -offset), crate::tray::TaskbarEdge::Bottom => (0., offset) };
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
         let summary = self.projection.summary.clone();
         let attention = self.projection.update.attention();
-        let (update_label,update_action)=match self.projection.update.update.phase {
-            ameow_next::app_update::Phase::Ready=>(l.text("更新已就绪","Update ready"),l.text("重启并更新","Restart & update")),
-            ameow_next::app_update::Phase::RolledBack=>(l.text("已恢复原版本","Version restored"),l.text("查看","View")),
-            _=>(l.text("等待安全更新","Waiting to update"),l.text("查看","View")),
-        };
-        let expected = HEIGHT + if attention { 40. } else { 0. };
-        if self.layout_height!=expected {
-            self.layout_height=expected;
-            let scale=(self.anchor.dpi as f32/96.).max(0.01);
-            let width=WIDTH.min((self.anchor.work.right-self.anchor.work.left).max(1)as f32/scale);
-            let height=expected.min((self.anchor.work.bottom-self.anchor.work.top).max(1)as f32/scale);
-            let pos=self.anchor.place(width,height);
-            let RawWindowHandle::Win32(raw)=HasWindowHandle::window_handle(window).expect("tray HWND").as_raw() else {unreachable!()};
-            let target=HWND(raw.hwnd.get()as *mut _);
-            cx.foreground_executor().spawn(async move {unsafe {let _=SetWindowPos(target,Some(HWND_TOPMOST),pos.x,pos.y,(width*scale).round()as i32,(height*scale).round()as i32,SWP_SHOWWINDOW|SWP_NOOWNERZORDER);}}).detach();
+        let update = &self.projection.update;
+        let update_hint = format!(
+            "{} · {}",
+            crate::app_update_ui::headline(update, l),
+            if crate::app_update_ui::popup_restart_available(update) {
+                crate::app_update_ui::popup_label(update, l)
+            } else {
+                l.text("查看应用更新", "View app update")
+            },
+        );
+        let mut status_hint = summary.text.clone();
+        for detail in [&summary.queued, &summary.failure].into_iter().flatten() {
+            status_hint.push_str(" · ");
+            status_hint.push_str(detail);
         }
-        let panel = div()
+        if summary.clickable {
+            status_hint.push_str(if self.projection.exit_issue {
+                l.text(" · 查看退出问题", " · View quit issue")
+            } else { l.text(" · 打开队列", " · Open queue") });
+        }
+        let status_label = summary.count.map_or_else(|| summary.text.clone(), |count| count.to_string());
+        let status_color = match summary.icon {
+            StatusIcon::Download => p.blue,
+            StatusIcon::Warning => p.orange,
+            _ => p.neutral,
+        };
+        let panel = div().relative().left(px(dx)).top(px(dy)).opacity(presence.alpha)
             .size_full()
             .p(px(8.))
             .font(tokens::desktop_ui_font())
@@ -380,7 +379,7 @@ impl Render for TrayPopup {
             .border_1()
             .border_color(p.border.opacity(0.65))
             .shadow(vec![BoxShadow { inset: false,
-                color: gpui::black().opacity(if p.night { 0.20 } else { 0.10 }),
+                color: gpui::black().opacity((if p.night { 0.20 } else { 0.10 }) * presence.alpha.powi(3)),
                 offset: point(px(0.), px(1.)),
                 blur_radius: px(8.),
                 spread_radius: px(0.),
@@ -389,8 +388,7 @@ impl Render for TrayPopup {
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 match event.keystroke.key.as_str() {
                     "escape" => {
-                        this.actions.borrow_mut().push(Action::Closed);
-                        window.remove_window();
+                        this.dismiss(Action::Closed, cx);
                     }
                     "up" => {
                         this.keyboard = true;
@@ -424,113 +422,138 @@ impl Render for TrayPopup {
                     }
                     "enter" | "space" => {
                         if let Some(selected) = this.selected {
-                            this.trigger(selected, window);
+                            this.trigger(selected, window, cx);
                         }
                     }
                     _ => return,
                 }
                 cx.stop_propagation();
             }))
+            .child(div().absolute().left(px(8.)).right(px(8.)).top(px(row_y)).h(px(32.))
+                .rounded(px(4.)).bg(p.badge.opacity(highlight.alpha)))
             .child(
                 div()
-                    .id("status")
                     .w_full()
                     .h(px(40.))
-                    .px(px(12.))
-                    .rounded(px(4.))
+                    .p(px(4.))
+                    .rounded(px(6.))
+                    .bg(p.badge.opacity(0.45))
                     .flex()
                     .items_center()
                     .gap(px(4.))
-                    .text_size(px(12.))
-                    .when(summary.clickable, |d| {
-                        d.cursor_pointer().hover(move |d| d.bg(p.badge))
-                    })
-                    .when(self.selected == Some(0) && summary.clickable, |d| {
-                        d.bg(if self.keyboard {
-                            p.badge.opacity(0.7)
-                        } else {
-                            p.badge
-                        })
-                    })
-                    .on_hover(cx.listener(|this, inside: &bool, _, cx| {
-                        let was_keyboard = this.keyboard;
-                        if *inside && this.projection.summary.clickable {
-                            this.keyboard = false;
-                        }
-                        let selected = if *inside && this.projection.summary.clickable {
-                            Some(0)
-                        } else if !this.keyboard && this.selected == Some(0) {
-                            None
-                        } else {
-                            this.selected
-                        };
-                        if this.selected != selected || was_keyboard != this.keyboard {
-                            this.selected = selected;
-                            cx.notify();
-                        }
-                    }))
-                    .on_click(cx.listener(|this, _, window, _| this.trigger(0, window)))
-                    .when(summary.downloading, |d| {
-                        d.child(status_icon(StatusIcon::Download, p.blue))
-                    })
-                    .when(summary.queued_primary, |d| {
-                        d.child(status_icon(StatusIcon::Clock, p.neutral))
-                    })
-                    .child(div().flex_1().overflow_hidden().child(summary.text))
-                    .when_some(summary.queued, |d, queued| {
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(2.))
-                                .flex_shrink_0()
-                                .child(status_icon(StatusIcon::Clock, p.neutral))
-                                .child(queued.split_whitespace().last().unwrap_or("").to_string()),
-                        )
-                    })
-                    .when_some(summary.failure, |d, failure| {
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(2.))
-                                .flex_shrink_0()
-                                .text_color(p.red)
-                                .child(status_icon(StatusIcon::Warning, p.red))
-                                .child(failure.split_whitespace().last().unwrap_or("").to_string()),
-                        )
-                    })
-                    .when(summary.clickable, |d| {
-                        d.child(status_icon(StatusIcon::Forward, p.neutral))
-                    }),
-            )
-            .when(attention, |panel| {
-                panel.child(
-                    div()
-                        .id("tray-app-update")
-                        .h(px(40.))
-                        .w_full()
-                        .px(px(12.))
+                    .child(gpui_base::Button::new("status")
+                        .accessibility_label(status_hint.clone())
+                        .disabled(!summary.clickable)
+                        .focusable(false)
+                        .flex_1()
+                        .min_w(px(0.))
+                        .h(px(32.))
+                        .px(px(6.))
                         .rounded(px(4.))
+                        .border_1()
+                        .border_color(transparent_black())
                         .flex()
                         .items_center()
+                        .gap(px(5.))
                         .text_size(px(12.))
-                        .text_color(p.blue)
-                        .cursor_pointer()
-                        .when(self.selected == Some(4), |d| d.bg(p.badge))
-                        .hover(move |d| d.bg(p.badge))
+                        .text_color(p.primary_text())
+                        .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                            text: status_hint.clone(), night: p.night,
+                        }).into())
+                        .when(summary.clickable, |d| {
+                            d.cursor_pointer().hover(move |d| d.bg(p.badge))
+                                .active(move |d| d.bg(p.border))
+                        })
+                        .when(self.selected == Some(0) && summary.clickable, |d| {
+                            d.bg(if self.keyboard {
+                                p.badge.opacity(0.7)
+                            } else {
+                                p.badge
+                            }).when(self.keyboard, |d| d.border_color(p.neutral))
+                        })
                         .on_hover(cx.listener(|this, inside: &bool, _, cx| {
-                            if *inside {
-                                this.selected = Some(4);
+                            let was_keyboard = this.keyboard;
+                            if *inside && this.projection.summary.clickable {
                                 this.keyboard = false;
                             }
-                            cx.notify();
+                            let selected = if *inside && this.projection.summary.clickable {
+                                Some(0)
+                            } else if !this.keyboard && this.selected == Some(0) {
+                                None
+                            } else {
+                                this.selected
+                            };
+                            if this.selected != selected || was_keyboard != this.keyboard {
+                                this.selected = selected;
+                                cx.notify();
+                            }
                         }))
-                        .on_click(cx.listener(|this, _, window, _| this.trigger(4, window)))
-                        .child(div().flex_1().min_w(px(0.)).overflow_hidden().child(update_label))
-                        .child(update_action),
-                )
-            })
+                        .on_click(cx.listener(|this, _, window, cx| this.trigger(0, window, cx)))
+                        .child(status_icon(summary.icon, status_color))
+                        .child(div().min_w(px(0.)).truncate()
+                            .when(summary.count.is_none(), |d| d.flex_1())
+                            .child(status_label))
+                        .when_some(summary.queued, |d, queued| {
+                            d.child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(2.))
+                                    .flex_shrink_0()
+                                    .child(status_icon(StatusIcon::Clock, p.neutral))
+                                    .child(queued.split_whitespace().last().unwrap_or("").to_string()),
+                            )
+                        })
+                        .when_some(summary.failure, |d, failure| {
+                            d.child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(2.))
+                                    .flex_shrink_0()
+                                    .text_color(p.red)
+                                    .child(status_icon(StatusIcon::Warning, p.red))
+                                    .child(failure.split_whitespace().last().unwrap_or("").to_string()),
+                            )
+                        })
+                        .when(summary.clickable, |d| {
+                            d.child(svg().path("icons/chevron-right.svg").size(px(12.)).ml_auto().flex_none().text_color(p.neutral))
+                        }))
+                    .when(attention, |group| group
+                        .child(div().w(px(1.)).h(px(16.)).flex_none().bg(p.border))
+                        .child(gpui_base::Button::new("tray-app-update")
+                            .accessibility_label(update_hint.clone())
+                            .focusable(false)
+                            .size(px(32.))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(4.))
+                            .border_1()
+                            .border_color(transparent_black())
+                            .cursor_pointer()
+                            .when(self.selected == Some(4), |d| d.bg(p.badge)
+                                .when(self.keyboard, |d| d.border_color(p.neutral)))
+                            .hover(move |d| crate::tokens::icon_hover(d, p))
+                            .active(move |d| d.bg(p.border))
+                            .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                                text: update_hint.clone(), night: p.night,
+                            }).into())
+                            .on_hover(cx.listener(|this, inside: &bool, _, cx| {
+                                let previous = (this.selected, this.keyboard);
+                                if *inside {
+                                    this.selected = Some(4);
+                                    this.keyboard = false;
+                                } else if !this.keyboard && this.selected == Some(4) {
+                                    this.selected = None;
+                                }
+                                if previous != (this.selected, this.keyboard) { cx.notify(); }
+                            }))
+                            .on_click(cx.listener(|this, _, window, cx| this.trigger(4, window, cx)))
+                            .child(svg().path(crate::app_update_ui::popup_icon(update))
+                                .size(px(16.)).text_color(p.primary_text())))),
+            )
             .child(div().h(px(1.)).bg(p.border).mx(px(12.)).my(px(2.)))
             .child(self.row(
                 1,
@@ -542,17 +565,11 @@ impl Render for TrayPopup {
             .child(self.row(2, l.text("设置", "Settings"), p.primary_text(), p, cx))
             .child(div().h(px(1.)).bg(p.border).mx(px(12.)).my(px(2.)))
             .child(self.row(3, l.text("退出 Ameow", "Quit Ameow"), p.red, p, cx));
-        let root = div().size_full().p(px(4.)).child(panel);
-        if self.projection.reduced {
-            root.into_any_element()
-        } else {
-            root.with_animation(
-                "tray-fade-in",
-                Animation::new(Duration::from_millis(130)),
-                |element, delta| element.opacity(delta),
-            )
-            .into_any_element()
-        }
+        let root = div().id("tray-root").size_full().p(px(4.)).child(panel)
+            .when(self.closing, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
+                .capture_key_down(|_, _, cx| cx.stop_propagation()));
+        self.motion.finish(window);
+        root.tooltip_root(&self.tooltips).into_any_element()
     }
 }
 impl Prototype {
@@ -561,9 +578,9 @@ impl Prototype {
         self.toggle_tray_popup(cx);
     }
     pub(super) fn close_tray_popup(&mut self, cx: &mut Context<Self>) {
-        if let Some(handle) = self.tray_popup.take() {
+        if let Some(handle) = self.tray_popup {
             if handle
-                .update(cx, |_, window, _| window.remove_window())
+                .update(cx, |view, _, cx| view.dismiss(Action::Closed, cx))
                 .is_ok()
             {
                 if let Some(ui) = &self.downloads {
@@ -573,9 +590,11 @@ impl Prototype {
         }
     }
     pub(super) fn toggle_tray_popup(&mut self, cx: &mut Context<Self>) {
-        if let Some(handle) = self.tray_popup.take() {
+        if let Some(handle) = self.tray_popup {
             if handle
-                .update(cx, |_, window, _| window.remove_window())
+                .update(cx, |view, _, cx| {
+                    if view.closing { view.closing = false; cx.notify(); } else { view.dismiss(Action::Closed, cx); }
+                })
                 .is_ok()
             {
                 if let Some(ui) = &self.downloads {
@@ -597,19 +616,10 @@ impl Prototype {
         };
         let scale = (anchor.dpi as f32 / 96.).max(0.01);
         let width = WIDTH.min((anchor.work.right - anchor.work.left).max(1) as f32 / scale);
-        let extra = if self
-            .downloads
-            .as_ref()
-            .is_some_and(|u| u.updates.snapshot().attention())
-        {
-            40.
-        } else {
-            0.
-        };
-        let height =
-            (HEIGHT + extra).min((anchor.work.bottom - anchor.work.top).max(1) as f32 / scale);
+        let height = HEIGHT.min((anchor.work.bottom - anchor.work.top).max(1) as f32 / scale);
         let pos = anchor.place(width, height);
         let projection = Projection::from_main(self);
+        let preview = projection.preview;
         let main = cx.entity();
         let actions = self.tray_actions.clone();
         let summary_evidence = serde_json::json!({"type":"tray-popup-open", "summary":projection.summary.text, "queued":projection.summary.queued, "failure":projection.summary.failure, "clickable":projection.summary.clickable});
@@ -672,9 +682,9 @@ impl Prototype {
                                 pos.y,
                                 (width * scale).round() as i32,
                                 (height * scale).round() as i32,
-                                SWP_SHOWWINDOW | SWP_NOOWNERZORDER,
+                                SWP_SHOWWINDOW | SWP_NOOWNERZORDER | if preview { SWP_NOACTIVATE } else { Default::default() },
                             );
-                            let _ = SetForegroundWindow(hwnd);
+                            if !preview { let _ = SetForegroundWindow(hwnd); }
                         }
                     })
                     .detach();
@@ -693,16 +703,25 @@ mod tests {
 
     #[test]
     fn preview_states_reach_the_real_summary() {
-        for (state, expected) in [("preparing", "Preparing"), ("cleanup-unknown", "Cleanup unknown"), ("stopping", "Stopping safely")] {
+        for (state, expected, icon) in [
+            ("preparing", "Preparing", StatusIcon::Loading),
+            ("cleanup-unknown", "Cleanup unknown", StatusIcon::Warning),
+            ("stopping", "Stopping safely", StatusIcon::Clock),
+        ] {
             let mut s = snapshot(vec![]);
             preview_snapshot(&mut s, state);
-            assert_eq!(summary(Some(&s), false, Language::English).text, expected);
+            let result = summary(Some(&s), false, Language::English);
+            assert_eq!(result.text, expected);
+            assert_eq!(result.icon, icon);
+            assert_eq!(result.count, None);
         }
     }
 
     #[test]
     fn summary_reports_unknown_idle_preparation_and_cleanup() {
         assert!(!summary(None, false, Language::English).clickable);
+        assert_eq!(summary(None, false, Language::English).icon, StatusIcon::Loading);
+        assert_eq!(summary(None, true, Language::English).icon, StatusIcon::Warning);
         assert_eq!(
             summary(None, true, Language::English).text,
             "Startup failed"
@@ -710,6 +729,7 @@ mod tests {
         let mut s = snapshot(vec![]);
         s.preparing = false;
         assert_eq!(summary(Some(&s), false, Language::English).text, "Idle");
+        assert_eq!(summary(Some(&s), false, Language::English).icon, StatusIcon::Check);
         s.preparing = true;
         assert_eq!(
             summary(Some(&s), false, Language::English).text,
@@ -741,7 +761,8 @@ mod tests {
         ]);
         let result = summary(Some(&s), false, Language::English);
         assert!(result.clickable);
-        assert!(result.downloading);
+        assert_eq!(result.icon, StatusIcon::Download);
+        assert_eq!(result.count, Some(1));
         assert_eq!(result.text, "Downloading 1");
         assert_eq!(result.queued.as_deref(), Some("Queued 1"));
         assert_eq!(result.failure.as_deref(), Some("Failed 1"));
@@ -750,10 +771,40 @@ mod tests {
     #[test]
     fn queued_count_remains_visible_during_cleanup() {
         let mut s = snapshot(vec![job(1, JobPhase::Queued, None, None)]);
+        let queued = summary(Some(&s), false, Language::English);
+        assert_eq!(queued.text, "Queued 1");
+        assert_eq!(queued.icon, StatusIcon::Clock);
+        assert_eq!(queued.count, Some(1));
+        assert_eq!(queued.queued, None);
         s.preparation_owner_lost = true;
         let result = summary(Some(&s), false, Language::English);
         assert_eq!(result.text, "Cleanup unknown");
         assert_eq!(result.queued.as_deref(), Some("Queued 1"));
-        assert!(!result.queued_primary);
+        assert_eq!(result.icon, StatusIcon::Warning);
+        assert_eq!(result.count, None);
+    }
+
+    #[test]
+    fn cleanup_issue_stays_visible_while_stopping_without_hiding_queued_jobs() {
+        let mut s = snapshot(vec![
+            job(1, JobPhase::Downloading, Some(1), None),
+            job(2, JobPhase::Queued, None, None),
+            job(3, JobPhase::Failure, Some(3), None),
+        ]);
+        s.preparation_owner_lost = true;
+        let cleanup = summary(Some(&s), false, Language::English);
+        assert_eq!(cleanup.text, "Cleanup unknown");
+        assert_eq!(cleanup.icon, StatusIcon::Warning);
+        assert_eq!(cleanup.count, None);
+        assert!(cleanup.clickable);
+        s.stopping = true;
+        let stopping = summary(Some(&s), false, Language::English);
+        assert_eq!(stopping.text, "Cleanup unknown");
+        assert_eq!(stopping.icon, StatusIcon::Warning);
+        assert_eq!(stopping.count, None);
+        for result in [cleanup, stopping] {
+            assert_eq!(result.queued.as_deref(), Some("Queued 1"));
+            assert_eq!(result.failure.as_deref(), Some("Failed 1"));
+        }
     }
 }

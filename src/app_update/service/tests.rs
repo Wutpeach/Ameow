@@ -95,9 +95,9 @@ fn disabling_during_verification_cannot_publish_a_ready_update(){
     assert_eq!(result.unwrap_err(),"E_APP_UPDATE_CANCELLED");assert!(install.state().unwrap().pending.is_none());assert!(!install.root.join("versions/9.0.1").exists());
 }
 #[test]
-fn production_source_is_closed_before_fixture_or_network_and_source_failure_is_visible(){
-    let root=tempfile::tempdir().unwrap();let production=Install::production(root.path().join("production")).unwrap();
-    assert_eq!(read_source(&production,Some(root.path()),&AtomicBool::new(false)).unwrap_err(),"E_APP_UPDATE_TRUST_NOT_CONFIGURED");
+fn unconfigured_source_is_closed_before_fixture_or_network_and_source_failure_is_visible(){
+    let root=tempfile::tempdir().unwrap();let unconfigured=Install::unconfigured(root.path().join("unconfigured")).unwrap();
+    assert_eq!(read_source(&unconfigured,Some(root.path()),&AtomicBool::new(false)).unwrap_err(),"E_APP_UPDATE_TRUST_NOT_CONFIGURED");
     let(h,_)=owner(root.path(),Some(root.path().join("missing")));h.send(Action::Check);wait(||h.snapshot().update.phase==Phase::Failed);
     assert!(h.snapshot().update.error.unwrap().contains("E_APP_UPDATE_SOURCE"));
 }
@@ -109,14 +109,17 @@ fn restart_fixture(root:&Path)->(Handle,Session,DownloadCoordinator){
     (h,session,DownloadCoordinator::update_test_queue(root))
 }
 #[test]
-fn manual_tasks_require_a_choice_repeated_actions_share_one_drain_and_later_reopens_admission(){
+fn manual_restart_with_tasks_schedules_one_drain_without_a_second_choice(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());
+    h.shared.view.lock().unwrap().preferences.idle_restart=false;
     q.submit("https://youtu.be/00000000001".into()).unwrap();
-    h.send(Action::Restart);h.clone().send(Action::Restart);h.poll(&q,Some(&s));
-    assert!(h.snapshot().confirmation);assert!(!q.snapshot().stopping);
     q.submit("https://youtu.be/00000000002".into()).unwrap();
-    h.send(Action::Wait);h.poll(&q,Some(&s));s.poll(&q).unwrap();
+    assert!(h.send(Action::Restart));assert!(h.clone().send(Action::Restart));
+    h.poll(&q,Some(&s));s.poll(&q).unwrap();
     assert_eq!(h.snapshot().update.phase,Phase::WaitingForTasks);assert!(q.submit("https://youtu.be/00000000003".into()).is_err());assert!(!q.snapshot().stopping);
+    assert_eq!(q.snapshot().unfinished,2);assert!(!s.quit.load(Ordering::Acquire));
+    assert!(h.send(Action::Restart));h.poll(&q,Some(&s));s.poll(&q).unwrap();
+    assert_eq!(h.snapshot().update.phase,Phase::WaitingForTasks);assert_eq!(q.snapshot().unfinished,2);assert!(!q.snapshot().stopping);
     h.send(Action::Later);h.poll(&q,Some(&s));s.poll(&q).unwrap();
     assert_eq!(h.snapshot().update.phase,Phase::Ready);assert!(q.submit("https://youtu.be/00000000003".into()).is_ok());assert!(!s.quit.load(Ordering::Acquire));
 }

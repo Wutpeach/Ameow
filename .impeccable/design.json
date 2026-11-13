@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T03:16:24.922634Z",
+  "title": "Design System: Ameow",
+  "extensions": {
+    "colorMeta": {
+      "blue-light": {
+        "displayName": "下载蓝（浅色）",
+        "role": "primary",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 254.95)",
+          "oklch(0.30 0.10500 254.95)",
+          "oklch(0.40 0.14000 254.95)",
+          "oklch(0.50 0.17500 254.95)",
+          "oklch(0.60 0.14000 254.95)",
+          "oklch(0.72 0.09800 254.95)",
+          "oklch(0.84 0.05600 254.95)",
+          "oklch(0.95 0.01750 254.95)"
+        ]
+      },
+      "blue-dark": {
+        "displayName": "下载蓝（深色）",
+        "role": "primary",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 253.30)",
+          "oklch(0.30 0.10500 253.30)",
+          "oklch(0.40 0.14000 253.30)",
+          "oklch(0.50 0.17276 253.30)",
+          "oklch(0.60 0.14000 253.30)",
+          "oklch(0.72 0.09800 253.30)",
+          "oklch(0.84 0.05600 253.30)",
+          "oklch(0.95 0.01750 253.30)"
+        ]
+      },
+      "orange-light": {
+        "displayName": "转码橙（浅色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 49.84)",
+          "oklch(0.30 0.10500 49.84)",
+          "oklch(0.40 0.14000 49.84)",
+          "oklch(0.50 0.17500 49.84)",
+          "oklch(0.60 0.14000 49.84)",
+          "oklch(0.72 0.09800 49.84)",
+          "oklch(0.84 0.05600 49.84)",
+          "oklch(0.95 0.01750 49.84)"
+        ]
+      },
+      "orange-dark": {
+        "displayName": "转码橙（深色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 55.64)",
+          "oklch(0.30 0.10500 55.64)",
+          "oklch(0.40 0.14000 55.64)",
+          "oklch(0.50 0.15605 55.64)",
+          "oklch(0.60 0.14000 55.64)",
+          "oklch(0.72 0.09800 55.64)",
+          "oklch(0.84 0.05600 55.64)",
+          "oklch(0.95 0.01750 55.64)"
+        ]
+      },
+      "green-light": {
+        "displayName": "成功绿（浅色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 150.82)",
+          "oklch(0.30 0.10500 150.82)",
+          "oklch(0.40 0.14000 150.82)",
+          "oklch(0.50 0.15529 150.82)",
+          "oklch(0.60 0.14000 150.82)",
+          "oklch(0.72 0.09800 150.82)",
+          "oklch(0.84 0.05600 150.82)",
+          "oklch(0.95 0.01750 150.82)"
+        ]
+      },
+      "green-dark": {
+        "displayName": "成功绿（深色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 153.92)",
+          "oklch(0.30 0.10500 153.92)",
+          "oklch(0.40 0.14000 153.92)",
+          "oklch(0.50 0.15391 153.92)",
+          "oklch(0.60 0.14000 153.92)",
+          "oklch(0.72 0.09800 153.92)",
+          "oklch(0.84 0.05600 153.92)",
+          "oklch(0.95 0.01750 153.92)"
+        ]
+      },
+      "red-light": {
+        "displayName": "失败红（浅色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 23.04)",
+          "oklch(0.30 0.10500 23.04)",
+          "oklch(0.40 0.14000 23.04)",
+          "oklch(0.50 0.17500 23.04)",
+          "oklch(0.60 0.14000 23.04)",
+          "oklch(0.72 0.09800 23.04)",
+          "oklch(0.84 0.05600 23.04)",
+          "oklch(0.95 0.01750 23.04)"
+        ]
+      },
+      "red-dark": {
+        "displayName": "失败红（深色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 21.43)",
+          "oklch(0.30 0.10500 21.43)",
+          "oklch(0.40 0.14000 21.43)",
+          "oklch(0.50 0.17500 21.43)",
+          "oklch(0.60 0.14000 21.43)",
+          "oklch(0.72 0.09800 21.43)",
+          "oklch(0.84 0.05600 21.43)",
+          "oklch(0.95 0.01750 21.43)"
+        ]
+      },
+      "error-text-light": {
+        "displayName": "错误正文（浅色）",
+        "tonalRamp": [
+          "oklch(0.20 0.07000 21.41)",
+          "oklch(0.30 0.10500 21.41)",
+          "oklch(0.40 0.14000 21.41)",
+          "oklch(0.50 0.17001 21.41)",
+          "oklch(0.60 0.14000 21.41)",
+          "oklch(0.72 0.09800 21.41)",
+          "oklch(0.84 0.05600 21.41)",
+          "oklch(0.95 0.01750 21.41)"
+        ]
+      },
+      "surface-light": {
+        "displayName": "窗口表面（浅色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00000 0.00)",
+          "oklch(0.30 0.00000 0.00)",
+          "oklch(0.40 0.00000 0.00)",
+          "oklch(0.50 0.00000 0.00)",
+          "oklch(0.60 0.00000 0.00)",
+          "oklch(0.72 0.00000 0.00)",
+          "oklch(0.84 0.00000 0.00)",
+          "oklch(0.95 0.00000 0.00)"
+        ]
+      },
+      "surface-dark": {
+        "displayName": "窗口表面（深色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00577 271.19)",
+          "oklch(0.30 0.00577 271.19)",
+          "oklch(0.40 0.00577 271.19)",
+          "oklch(0.50 0.00577 271.19)",
+          "oklch(0.60 0.00577 271.19)",
+          "oklch(0.72 0.00577 271.19)",
+          "oklch(0.84 0.00577 271.19)",
+          "oklch(0.95 0.00577 271.19)"
+        ]
+      },
+      "neutral-light": {
+        "displayName": "辅助中性色（浅色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.01018 264.48)",
+          "oklch(0.30 0.01018 264.48)",
+          "oklch(0.40 0.01018 264.48)",
+          "oklch(0.50 0.01018 264.48)",
+          "oklch(0.60 0.01018 264.48)",
+          "oklch(0.72 0.01018 264.48)",
+          "oklch(0.84 0.01018 264.48)",
+          "oklch(0.95 0.01018 264.48)"
+        ]
+      },
+      "neutral-dark": {
+        "displayName": "辅助中性色（深色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00796 260.73)",
+          "oklch(0.30 0.00796 260.73)",
+          "oklch(0.40 0.00796 260.73)",
+          "oklch(0.50 0.00796 260.73)",
+          "oklch(0.60 0.00796 260.73)",
+          "oklch(0.72 0.00796 260.73)",
+          "oklch(0.84 0.00796 260.73)",
+          "oklch(0.95 0.00796 260.73)"
+        ]
+      },
+      "border-light": {
+        "displayName": "边界（浅色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00289 264.54)",
+          "oklch(0.30 0.00289 264.54)",
+          "oklch(0.40 0.00289 264.54)",
+          "oklch(0.50 0.00289 264.54)",
+          "oklch(0.60 0.00289 264.54)",
+          "oklch(0.72 0.00289 264.54)",
+          "oklch(0.84 0.00289 264.54)",
+          "oklch(0.95 0.00289 264.54)"
+        ]
+      },
+      "border-dark": {
+        "displayName": "边界（深色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00606 258.35)",
+          "oklch(0.30 0.00606 258.35)",
+          "oklch(0.40 0.00606 258.35)",
+          "oklch(0.50 0.00606 258.35)",
+          "oklch(0.60 0.00606 258.35)",
+          "oklch(0.72 0.00606 258.35)",
+          "oklch(0.84 0.00606 258.35)",
+          "oklch(0.95 0.00606 258.35)"
+        ]
+      },
+      "badge-light": {
+        "displayName": "轻量底色（浅色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00133 286.38)",
+          "oklch(0.30 0.00133 286.38)",
+          "oklch(0.40 0.00133 286.38)",
+          "oklch(0.50 0.00133 286.38)",
+          "oklch(0.60 0.00133 286.38)",
+          "oklch(0.72 0.00133 286.38)",
+          "oklch(0.84 0.00133 286.38)",
+          "oklch(0.95 0.00133 286.38)"
+        ]
+      },
+      "badge-dark": {
+        "displayName": "轻量底色（深色）",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(0.20 0.00560 271.22)",
+          "oklch(0.30 0.00560 271.22)",
+          "oklch(0.40 0.00560 271.22)",
+          "oklch(0.50 0.00560 271.22)",
+          "oklch(0.60 0.00560 271.22)",
+          "oklch(0.72 0.00560 271.22)",
+          "oklch(0.84 0.00560 271.22)",
+          "oklch(0.95 0.00560 271.22)"
+        ]
+      },
+      "primary-text-light": {
+        "displayName": "正文（浅色）",
+        "role": "neutral"
+      },
+      "primary-text-dark": {
+        "displayName": "正文（深色）",
+        "role": "neutral"
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "正文",
+        "purpose": "设置与托盘的系统 UI 字体"
+      },
+      "title": {
+        "displayName": "标题",
+        "purpose": "设置页的短标题"
+      },
+      "caption": {
+        "displayName": "辅助说明",
+        "purpose": "必要说明与局部提示条"
+      },
+      "floating": {
+        "displayName": "浮层正文",
+        "purpose": "Full 浮层与等宽路径"
+      },
+      "queue": {
+        "displayName": "队列文字",
+        "purpose": "仅限紧凑队列与数量胶囊"
+      },
+      "queue-status": {
+        "displayName": "队列状态",
+        "purpose": "仅限第二行状态槽"
+      }
+    },
+    "shadows": [
+      {
+        "name": "state-action-only",
+        "value": "0 2.4px 4.8px 0 role-color / 30%",
+        "purpose": "唯一按钮光晕：状态环下方取消用 red，失败复制用 neutral，随主题切换。"
+      },
+      {
+        "name": "settings-dropdown",
+        "value": "0 2px 10px rgba(0,0,0,.12)",
+        "purpose": "下拉容器结构阴影；不授予内部按钮光晕。"
+      },
+      {
+        "name": "tray-container-light",
+        "value": "0 1px 8px rgba(0,0,0,.10)",
+        "purpose": "浅色托盘容器。"
+      },
+      {
+        "name": "tray-container-dark",
+        "value": "0 1px 8px rgba(0,0,0,.20)",
+        "purpose": "深色托盘容器。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "feedback",
+        "value": "150ms",
+        "purpose": "普通状态反馈。"
+      },
+      {
+        "name": "enter",
+        "value": "180ms",
+        "purpose": "原生 UI 进入。"
+      },
+      {
+        "name": "exit",
+        "value": "110ms",
+        "purpose": "原生 UI 退出；退出中不可操作。"
+      },
+      {
+        "name": "copy-feedback",
+        "value": "2000ms",
+        "purpose": "真实复制成功勾的反馈时间。"
+      },
+      {
+        "name": "bounded-ease-out",
+        "value": "1 - (1 - t)^3",
+        "purpose": "无越界；反向从当前可见值继续。"
+      },
+      {
+        "name": "signature-owners",
+        "value": "magnetic_spring / model / indicator",
+        "purpose": "独立特效 owner；6px 单层磁吸，展开无弹性，收起保留已验收调参，不受普通 UI 默认参数覆盖。"
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "标准操作",
+      "kind": "button",
+      "refersTo": "button-standard",
+      "description": "32px 中性按钮；示意使用浅深色主题与原生 UI 字体。",
+      "html": "<button type=\"button\" class=\"ds-standard\">选择文件夹</button>",
+      "css": ".ds-standard { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-standard:hover { background:#f2f2f3; } .ds-standard:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-standard:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-standard { color:#a5a8ad; } .ds-standard:hover { background:#2b2c2f; } .ds-standard:active { background:#2e3033; } .ds-standard:focus-visible { outline-color:#3d9aff; } }.ds-standard { width:auto; padding:0 12px; background:#ffffff; color:hsl(220 4.3902439024% 16%); border-color:rgba(98,101,107,.23); font:400 13px/20px \"Segoe UI\",\"Microsoft YaHei UI\",sans-serif; } @media (prefers-color-scheme:dark) { .ds-standard { background:#232427; color:hsl(217.5 4.6511627907% 90%); border-color:rgba(165,168,173,.35); } .ds-standard:hover { background:#2b2c2f; } .ds-standard:active { background:#2e3033; } }"
+    },
+    {
+      "name": "Full 信息入口",
+      "kind": "button",
+      "refersTo": "button-full-info",
+      "description": "24px 圆形信息入口；有底色，无光晕。",
+      "html": "<button type=\"button\" class=\"ds-info\" aria-label=\"查看详情\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.8\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"M12 16v-4\" />\n  <path d=\"M12 8h.01\" />\n</svg></button>",
+      "css": ".ds-info { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:9999px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-info:hover { background:#f2f2f3; } .ds-info:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-info:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-info { color:#a5a8ad; } .ds-info:hover { background:#2b2c2f; } .ds-info:active { background:#2e3033; } .ds-info:focus-visible { outline-color:#3d9aff; } }.ds-info { background:#f2f2f3; } @media (prefers-color-scheme:dark) { .ds-info { background:#2b2c2f; } }"
+    },
+    {
+      "name": "浮窗复制",
+      "kind": "button",
+      "refersTo": "button-popover-icon",
+      "description": "24px 圆角矩形，16px 图标，位于失败标题行右侧。",
+      "html": "<button type=\"button\" class=\"ds-popover-copy\" aria-label=\"复制诊断\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.92\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"6\" width=\"8\" height=\"8\" rx=\"1.333\"/><path d=\"M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666\"/></svg></button>",
+      "css": ".ds-popover-copy { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:4px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-popover-copy:hover { background:#f2f2f3; } .ds-popover-copy:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-popover-copy:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-popover-copy { color:#a5a8ad; } .ds-popover-copy:hover { background:#2b2c2f; } .ds-popover-copy:active { background:#2e3033; } .ds-popover-copy:focus-visible { outline-color:#3d9aff; } }"
+    },
+    {
+      "name": "设置图标操作",
+      "kind": "button",
+      "refersTo": "button-settings-icon",
+      "description": "32px 圆角矩形；复制等常规操作复用此密度，无光晕。",
+      "html": "<button type=\"button\" class=\"ds-settings-copy\" aria-label=\"复制\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.92\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"6\" width=\"8\" height=\"8\" rx=\"1.333\"/><path d=\"M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666\"/></svg></button>",
+      "css": ".ds-settings-copy { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-settings-copy:hover { background:#f2f2f3; } .ds-settings-copy:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-settings-copy:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-settings-copy { color:#a5a8ad; } .ds-settings-copy:hover { background:#2b2c2f; } .ds-settings-copy:active { background:#2e3033; } .ds-settings-copy:focus-visible { outline-color:#3d9aff; } }"
+    },
+    {
+      "name": "Full 关闭",
+      "kind": "button",
+      "refersTo": "button-full-close",
+      "description": "28px 点击范围中的 18px 可见圆底；队列 X 仅改点击范围为 24px。",
+      "html": "<button type=\"button\" class=\"ds-close\" aria-label=\"关闭\"><span class=\"ds-close-disc\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 5 5 11M5 5l6 6\"/></svg></span></button>",
+      "css": ".ds-close { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; padding:0; background:transparent; border:0; cursor:pointer; color:#62656b; } .ds-close-disc { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:9999px; transition:background-color 150ms; } .ds-close:hover .ds-close-disc { background:#f2f2f3; } .ds-close:active .ds-close-disc { background:#ecedef; } .ds-close:focus-visible { outline:0; } .ds-close:focus-visible .ds-close-disc { outline:1px solid #62656b; } @media (prefers-color-scheme:dark) { .ds-close { color:#a5a8ad; } .ds-close:hover .ds-close-disc { background:#2b2c2f; } .ds-close:active .ds-close-disc { background:#2e3033; } .ds-close:focus-visible .ds-close-disc { outline-color:#a5a8ad; } }"
+    },
+    {
+      "name": "圆环下方失败复制",
+      "kind": "button",
+      "refersTo": "button-state-action",
+      "description": "16px 状态环操作位，10px 复制图标；唯一允许按钮光晕的位置。",
+      "html": "<button type=\"button\" class=\"ds-state-copy\" aria-label=\"复制错误详情\"><svg width=\"10\" height=\"10\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.92\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"6\" width=\"8\" height=\"8\" rx=\"1.333\"/><path d=\"M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666\"/></svg></button>",
+      "css": ".ds-state-copy { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:9999px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-state-copy:hover { background:#f2f2f3; } .ds-state-copy:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-state-copy:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-state-copy { color:#a5a8ad; } .ds-state-copy:hover { background:#2b2c2f; } .ds-state-copy:active { background:#2e3033; } .ds-state-copy:focus-visible { outline-color:#3d9aff; } }.ds-state-copy { border:0; } .ds-state-copy:hover { box-shadow:0 2.4px 4.8px 0 rgba(98,101,107,.3); } @media (prefers-color-scheme:dark) { .ds-state-copy:hover { box-shadow:0 2.4px 4.8px 0 rgba(165,168,173,.3); } }"
+    },
+    {
+      "name": "队列数量胶囊",
+      "kind": "chip",
+      "refersTo": "chip-queue-summary",
+      "description": "只读信息：下载中 1，等待 2；实际界面只显示非零项。",
+      "html": "<span class=\"ds-queue-summary\" role=\"img\" aria-label=\"进行中 1，等待 2\"><span class=\"ds-queue-count\"><svg width=\"12\" height=\"12\" aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.8\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />\n  <polyline points=\"7 10 12 15 17 10\" />\n  <line x1=\"12\" x2=\"12\" y1=\"15\" y2=\"3\" />\n</svg><span>1</span></span><span class=\"ds-queue-count\"><svg width=\"12\" height=\"12\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"12\" cy=\"12\" r=\"10\"/>\n  <path d=\"M12 6v6l4 2\"/>\n</svg><span>2</span></span></span>",
+      "css": ".ds-queue-summary { display:inline-flex; align-items:center; height:22px; padding:0 6px; gap:8px; border-radius:6px; background:#f2f2f3; color:#62656b; font:400 10px \"JetBrains Mono\",\"Microsoft YaHei UI\",monospace; } .ds-queue-count { display:inline-flex; align-items:center; gap:3px; } @media (prefers-color-scheme:dark) { .ds-queue-summary { background:#2b2c2f; color:#a5a8ad; } }"
+    },
+    {
+      "name": "路径与内嵌复制",
+      "kind": "input",
+      "refersTo": "input-path",
+      "description": "最小高 44px 的路径框；复制按钮嵌入右侧，长内容不挤走操作。",
+      "html": "<div class=\"ds-path\"><input class=\"ds-path-value\" aria-label=\"下载目录\" readonly value=\"D:\\Downloads\"><button type=\"button\" class=\"ds-path-copy\" aria-label=\"复制目录\"><svg width=\"16\" height=\"16\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.92\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"6\" width=\"8\" height=\"8\" rx=\"1.333\"/><path d=\"M3.333 10H2.667A1.333 1.333 0 0 1 1.333 8.667v-6A1.333 1.333 0 0 1 2.667 1.333h6A1.333 1.333 0 0 1 10 2.667v.666\"/></svg></button></div>",
+      "css": ".ds-path-copy { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-path-copy:hover { background:#f2f2f3; } .ds-path-copy:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-path-copy:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-path-copy { color:#a5a8ad; } .ds-path-copy:hover { background:#2b2c2f; } .ds-path-copy:active { background:#2e3033; } .ds-path-copy:focus-visible { outline-color:#3d9aff; } }.ds-path { display:flex; align-items:center; gap:8px; min-height:44px; padding:6px 6px 6px 12px; box-sizing:border-box; border-radius:6px; background:rgba(242,242,243,.55); } .ds-path-value { flex:1; min-width:0; padding:0; border:0; background:transparent; font:400 12px \"JetBrains Mono\",\"Microsoft YaHei UI\",monospace; color:hsl(220 4.3902439024% 16%); } .ds-path-value:focus-visible { outline:1px solid #0285ff; outline-offset:2px; } .ds-path-copy { flex-shrink:0; } @media (prefers-color-scheme:dark) { .ds-path { background:rgba(43,44,47,.55); } .ds-path-value { color:hsl(217.5 4.6511627907% 90%); } .ds-path-value:focus-visible { outline-color:#3d9aff; } }"
+    },
+    {
+      "name": "设置导航",
+      "kind": "nav",
+      "refersTo": "nav-settings",
+      "description": "36px 高的选中项，14px 图标与 8px 间隔；使用底色而不加光晕。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"设置\"><button type=\"button\" class=\"ds-nav-item\" aria-current=\"page\"><svg width=\"14\" height=\"14\" aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.8\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <line x1=\"21\" x2=\"14\" y1=\"4\" y2=\"4\" />\n  <line x1=\"10\" x2=\"3\" y1=\"4\" y2=\"4\" />\n  <line x1=\"21\" x2=\"12\" y1=\"12\" y2=\"12\" />\n  <line x1=\"8\" x2=\"3\" y1=\"12\" y2=\"12\" />\n  <line x1=\"21\" x2=\"16\" y1=\"20\" y2=\"20\" />\n  <line x1=\"12\" x2=\"3\" y1=\"20\" y2=\"20\" />\n  <line x1=\"14\" x2=\"14\" y1=\"2\" y2=\"6\" />\n  <line x1=\"8\" x2=\"8\" y1=\"10\" y2=\"14\" />\n  <line x1=\"16\" x2=\"16\" y1=\"18\" y2=\"22\" />\n</svg><span>常规</span></button></nav>",
+      "css": ".ds-nav-item { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; box-sizing:border-box; padding:0; border:1px solid transparent; border-radius:6px; background:transparent; color:#62656b; cursor:pointer; transition:background-color 150ms,color 150ms; } .ds-nav-item:hover { background:#f2f2f3; } .ds-nav-item:focus-visible { outline:1px solid #0285ff; outline-offset:1px; } .ds-nav-item:active { background:#ecedef; } @media (prefers-color-scheme:dark) { .ds-nav-item { color:#a5a8ad; } .ds-nav-item:hover { background:#2b2c2f; } .ds-nav-item:active { background:#2e3033; } .ds-nav-item:focus-visible { outline-color:#3d9aff; } }.ds-nav-item { justify-content:flex-start; width:100%; padding:0 8px; gap:8px; font:400 13px/20px \"Segoe UI\",\"Microsoft YaHei UI\",sans-serif; } .ds-nav-item[aria-current=\"page\"] { background:#f2f2f3; color:hsl(220 4.3902439024% 16%); } @media (prefers-color-scheme:dark) { .ds-nav-item[aria-current=\"page\"] { background:#2b2c2f; color:hsl(217.5 4.6511627907% 90%); } }"
+    },
+    {
+      "name": "局部错误提示条",
+      "kind": "card",
+      "refersTo": "notice-inline",
+      "description": "仅在需要解释错误时出现，浅底、图标和原因一起对齐内容区；不用于 Full 底部 toast。",
+      "html": "<div class=\"ds-notice\" role=\"note\"><svg width=\"14\" height=\"14\" aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.8\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" />\n  <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" />\n</svg><span>读取失败，请重试</span></div>",
+      "css": ".ds-notice { display:flex; align-items:center; gap:8px; padding:10px; border-radius:6px; background:rgba(227,71,76,.07); color:#b8323c; font:400 12px/18px \"Segoe UI\",\"Microsoft YaHei UI\",sans-serif; } .ds-notice svg { flex-shrink:0; } @media (prefers-color-scheme:dark) { .ds-notice { background:rgba(238,92,97,.12); color:#ee5c61; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "安静地呈现下载",
+    "overview": "Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。\n\n本文记录截至 2026-11-13 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。",
+    "keyCharacteristics": [
+      "密度紧凑，标题、状态、操作各司其职。",
+      "按容器选择形状，同类同密度操作保持一致。",
+      "以中性色承载操作，以语义色区分真实状态。",
+      "反馈就近、可解释，普通退出与正常准备过程保持安静。",
+      "普通控件动效克制，保留已验收的 Ameow 磁吸与形变手感。"
+    ],
+    "rules": [
+      {
+        "name": "The Neutral Action Rule",
+        "body": "复制、重试和普通更新操作使用中性处理；关闭、取消、退出按其破坏性语义强调。页面处于失败状态不意味着整页按钮都要染红。真实错误可以使用语义色文字、图标与浅背景。",
+        "section": "colors"
+      },
+      {
+        "name": "The Single Message Rule",
+        "body": "标题表达对象，状态表达事实，按钮表达动作。删除重复解释与“刚刚检查”一类低价值尾注；保留用户做决定所需的真实错误、恢复方式和被截断内容。",
+        "section": "typography"
+      },
+      {
+        "name": "The One Halo Rule",
+        "body": "只有下载状态环下方的操作按钮保留光晕，包括下载中取消和失败后复制。例外由 state_action_shadow 显式添加：纵向偏移 2.4px，模糊 4.8px，扩散 0，角色色透明度 0.3；取消使用红色，复制使用中性色。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Container Shape Rule",
+        "body": "Full 本体上的小图标按钮使用圆形底；Full 内部浮窗、设置页、托盘弹窗中的普通图标按钮使用圆角矩形。不能因为浮窗在 Full 内部就把它的按钮也做成圆形。",
+        "section": "shapes"
+      },
+      {
+        "name": "The Hit Target Rule",
+        "body": "点击范围与可见底色分开。Full 右上关闭点击范围 28px，队列 X 点击范围 24px；二者可见圆底均为 18px，图标不随点击范围缩放。保留键盘焦点以及可见底色外、点击范围内的悬停和按压反馈。",
+        "section": "shapes"
+      },
+      {
+        "name": "The Anchored Tooltip Rule",
+        "body": "以控件真实 bounds 为锚，优先在上方、间隔 6px；空间不足时翻转并约束在窗口内，避开指针。复用 [ui_tooltip.rs](src/ui_tooltip.rs)，不能回到跟随鼠标的位置算法。",
+        "section": "components"
+      },
+      {
+        "name": "The Signature Motion Rule",
+        "body": "磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do 先辨明按钮所属容器，再复用对应形状、密度与反馈；用现有 SVG 和主题角色。",
+      "Do 把反馈放在操作附近；错误信息交代原因与恢复路径，图标动作保留可访问名称与键盘访问。",
+      "Do 维护受影响的 Gallery 场景，集中到修改完成后验证；尽量不占用用户的鼠标与前台，需要主观点击或手感验收时交给用户。",
+      "Do 区分代码配置、工程／原生检查和用户验收。复用未受影响的既有证据，历史报告保留当时结论；本文件和 sidecar 同步维护。"
+    ],
+    "donts": [
+      "Don't 把所有选中态加光晕，把普通复制或重试染红，或把 Full 内部浮窗的按钮改成圆形。",
+      "Don't 让点击范围决定可见圆底大小，把辅助数量挤进队列标题，或让悬停说明挤动轨道。",
+      "Don't 恢复底部临时小字、重复说明、含义不明的复制入口、常驻等待更新状态或空队列页面。",
+      "Don't 让 tooltip 被鼠标挡住，把读取失败显示成读取中，或用动画掩盖错误和业务安全门槛。",
+      "Don't 把文档示意、构建成功或其他平台的配置当作原生视觉通过；Windows x64/MSVC 是当前已验证目标，macOS 仍未验证。"
+    ]
+  }
+}

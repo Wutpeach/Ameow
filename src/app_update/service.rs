@@ -42,18 +42,16 @@ pub struct View {
     pub saving: bool,
     pub save_error: Option<String>,
     pub saved: bool,
-    pub confirmation: bool,
     pub launcher: bool,
     #[serde(default)]
     pub check_retry_secs:u64,
 }
 impl View {
     pub fn attention(&self) -> bool {
-        self.confirmation
-            || matches!(
-                self.update.phase,
-                Phase::Ready | Phase::WaitingForTasks | Phase::Switching | Phase::RolledBack
-            )
+        matches!(
+            self.update.phase,
+            Phase::Ready | Phase::WaitingForTasks | Phase::Switching | Phase::RolledBack
+        )
     }
 }
 #[derive(Clone, Debug)]
@@ -61,7 +59,6 @@ pub enum Action {
     Check,
     Download,
     Restart,
-    Wait,
     Later,
     Save(Preferences),
 }
@@ -111,24 +108,15 @@ impl Handle {
         // Cancellation is observed during an in-flight acquisition before preference persistence.
         match action {
             Action::Restart => {
-                if self.snapshot().update.phase != Phase::Ready {
+                if !matches!(self.snapshot().update.phase, Phase::Ready | Phase::WaitingForTasks) {
                     return false;
                 }
                 self.shared.manual_restart.store(true, Ordering::Release);
                 true
             }
-            Action::Wait => {
-                if !self.snapshot().confirmation {
-                    return false;
-                }
-                self.shared.waiting.store(true, Ordering::Release);
-                self.shared.view.lock().unwrap().confirmation = false;
-                true
-            }
             Action::Later => {
                 self.shared.manual_restart.store(false, Ordering::Release);
                 self.shared.waiting.store(false, Ordering::Release);
-                self.shared.view.lock().unwrap().confirmation = false;
                 true
             }
             Action::Save(p) => {
@@ -374,13 +362,9 @@ impl Handle {
             return;
         }
         if self.shared.manual_restart.swap(false, Ordering::AcqRel)
-            && view.update.phase == Phase::Ready
+            && matches!(view.update.phase, Phase::Ready | Phase::WaitingForTasks)
         {
-            if queue.app_update_idle() {
-                self.shared.waiting.store(true, Ordering::Release);
-            } else {
-                self.shared.view.lock().unwrap().confirmation = true;
-            }
+            self.shared.waiting.store(true, Ordering::Release);
         }
         if self.shared.waiting.load(Ordering::Acquire) {
             let control = self.shared.view.lock().unwrap();
@@ -398,7 +382,6 @@ impl Handle {
             }
         }
         if view.update.phase != Phase::Ready
-            || view.confirmation
             || view.save_error.is_some()
             || !view.preferences.idle_restart
             || !queue.app_update_idle()
@@ -410,7 +393,6 @@ impl Handle {
         let control = self.shared.view.lock().unwrap();
         if !control.saving
             && control.save_error.is_none()
-            && !control.confirmation
             && control.preferences.idle_restart
             && queue.begin_idle_app_update()
         {

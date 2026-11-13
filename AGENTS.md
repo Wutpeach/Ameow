@@ -44,6 +44,14 @@ Use the narrowest observable-behavior test. Bug fixes need a regression at the l
 
 When adding, changing, or removing a user-visible UI state, assess and update the corresponding preview scenes as needed. Unrelated development does not require running the full scene catalog, and ordinary scene maintenance does not need a separate Issue.
 
+## UI Design
+
+Read [DESIGN.md](DESIGN.md) before changing user-visible UI. It records the
+accepted design rules; use the linked Rust sources for current implementation
+values. Keep its tokens and `.impeccable/design.json` in sync when updating it.
+Later explicit user decisions take precedence; do not restore superseded styles
+from historical evidence.
+
 ## File Search
 
 For any file search, filename or path lookup, or content grep in the current git-indexed directory, use the `fff` MCP tools instead of the default search tools.

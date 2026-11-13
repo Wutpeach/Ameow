@@ -1,7 +1,7 @@
 //! Measured Penpot tokens, 2026-10-06. Raw Night values take precedence over
 //! resolvedValue, which can still reflect the active Light token-set alias.
 use crate::model::Stage;
-use gpui::{Font, FontFallbacks, Hsla, font, rgb};
+use gpui::{BoxShadow, Font, FontFallbacks, Hsla, Styled, font, point, px, rgb};
 
 pub const LATIN_FONT: &str = "JetBrains Mono";
 pub const LATIN_FONT_BYTES: [&[u8]; 2] = [
@@ -18,6 +18,22 @@ pub const CONTROL_HEIGHT: f32 = 32.;
 pub const CONTROL_RADIUS: f32 = 6.;
 pub const CONTROL_FONT_SIZE: f32 = 13.;
 pub const CONTROL_LINE_HEIGHT: f32 = 20.;
+pub const ICON_SIZE: f32 = 16.;
+pub const SMALL_ICON_BUTTON_SIZE: f32 = 24.;
+pub const FULL_ACTION_SIZE: f32 = 16.;
+pub const FULL_CLOSE_DISC_SIZE: f32 = 18.;
+
+// Only the action below the download ring carries a hover shadow.
+pub fn state_action_shadow(color: Hsla) -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        inset: false, color: color.opacity(0.3),
+        offset: point(px(0.), px(2.4)), blur_radius: px(4.8), spread_radius: px(0.),
+    }]
+}
+
+pub fn icon_hover<S: Styled>(style: S, p: Palette) -> S {
+    style.bg(p.badge)
+}
 
 pub fn ui_font() -> Font {
     let mut font = font(LATIN_FONT);
@@ -113,7 +129,7 @@ pub fn sync_kit_theme(night: bool, cx: &mut gpui::App) {
     theme.tokens = kit_tokens(night);
 }
 
-/// Component owns control geometry, focus rings, elevation and motion; Ameow owns colors.
+/// Component retains its control tokens; Ameow owns colors and ordinary UI motion.
 fn map_component_colors(c: &mut gpui_component::ThemeColor, night: bool) {
     let p = Palette::new(night);
     c.background = p.surface;

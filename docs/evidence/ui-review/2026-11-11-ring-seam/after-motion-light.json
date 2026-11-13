@@ -1,0 +1,791 @@
+{
+  "scene": "full.resolving",
+  "reduced": false,
+  "ack": {
+    "step": 1,
+    "scene": "full.resolving",
+    "night": false,
+    "reduced": null,
+    "pid": 63168,
+    "error": null,
+    "catalog": [
+      {
+        "name": "compact.idle",
+        "surface": "compact",
+        "state": "idle",
+        "description": "\u7a7a\u95f2"
+      },
+      {
+        "name": "compact.resolving",
+        "surface": "compact",
+        "state": "resolving",
+        "description": "\u89e3\u6790\u89c6\u9891"
+      },
+      {
+        "name": "compact.downloading",
+        "surface": "compact",
+        "state": "downloading",
+        "description": "\u5df2\u77e5\u8fdb\u5ea6\u4e0b\u8f7d"
+      },
+      {
+        "name": "compact.unknown",
+        "surface": "compact",
+        "state": "unknown",
+        "description": "\u672a\u77e5\u8fdb\u5ea6\u4e0b\u8f7d"
+      },
+      {
+        "name": "compact.audio",
+        "surface": "compact",
+        "state": "audio",
+        "description": "\u97f3\u9891\u4e0b\u8f7d\u9636\u6bb5"
+      },
+      {
+        "name": "compact.merging",
+        "surface": "compact",
+        "state": "merging",
+        "description": "\u5408\u5e76\u5a92\u4f53"
+      },
+      {
+        "name": "compact.success",
+        "surface": "compact",
+        "state": "success",
+        "description": "\u4e0b\u8f7d\u6210\u529f"
+      },
+      {
+        "name": "compact.failure",
+        "surface": "compact",
+        "state": "failure",
+        "description": "\u4e0b\u8f7d\u5931\u8d25\u53ca\u5931\u8d25 Badge"
+      },
+      {
+        "name": "compact.partial",
+        "surface": "compact",
+        "state": "partial",
+        "description": "\u90e8\u5206\u5b8c\u6210"
+      },
+      {
+        "name": "compact.cancelled",
+        "surface": "compact",
+        "state": "cancelled",
+        "description": "\u5df2\u53d6\u6d88"
+      },
+      {
+        "name": "compact.badge",
+        "surface": "compact",
+        "state": "badge",
+        "description": "\u591a\u4efb\u52a1\u4e0e\u5931\u8d25\u6570\u636e\uff08Compact \u9690\u85cf Badge\uff09"
+      },
+      {
+        "name": "full.idle",
+        "surface": "full",
+        "state": "idle",
+        "description": "Full \u7a7a\u95f2"
+      },
+      {
+        "name": "full.downloading",
+        "surface": "full",
+        "state": "downloading",
+        "description": "Full \u5df2\u77e5\u8fdb\u5ea6"
+      },
+      {
+        "name": "full.success",
+        "surface": "full",
+        "state": "success",
+        "description": "Full \u6210\u529f\u53cd\u9988"
+      },
+      {
+        "name": "full.failure",
+        "surface": "full",
+        "state": "failure",
+        "description": "Full \u5931\u8d25\u53cd\u9988"
+      },
+      {
+        "name": "full.partial",
+        "surface": "full",
+        "state": "partial",
+        "description": "Full \u90e8\u5206\u5b8c\u6210\u53cd\u9988"
+      },
+      {
+        "name": "full.cancelled",
+        "surface": "full",
+        "state": "cancelled",
+        "description": "Full \u53d6\u6d88\u53cd\u9988"
+      },
+      {
+        "name": "full.resolving",
+        "surface": "full",
+        "state": "resolving",
+        "description": "Full \u89e3\u6790\u4e2d"
+      },
+      {
+        "name": "full.fallback",
+        "surface": "full",
+        "state": "fallback",
+        "description": "\u5c1d\u8bd5\u5907\u7528\u4e0b\u8f7d\u7ec4\u4ef6"
+      },
+      {
+        "name": "full.unknown",
+        "surface": "full",
+        "state": "unknown",
+        "description": "Full \u672a\u77e5\u8fdb\u5ea6"
+      },
+      {
+        "name": "full.audio",
+        "surface": "full",
+        "state": "audio",
+        "description": "Full \u97f3\u9891\u9636\u6bb5"
+      },
+      {
+        "name": "full.merging",
+        "surface": "full",
+        "state": "merging",
+        "description": "Full \u5408\u5e76\u9636\u6bb5"
+      },
+      {
+        "name": "full.badge",
+        "surface": "full",
+        "state": "badge",
+        "description": "Full \u591a\u4efb\u52a1\u548c\u5931\u8d25 Badge"
+      },
+      {
+        "name": "queue.empty",
+        "surface": "queue",
+        "state": "empty",
+        "description": "\u7a7a\u961f\u5217"
+      },
+      {
+        "name": "queue.queued",
+        "surface": "queue",
+        "state": "queued",
+        "description": "\u5355\u4efb\u52a1\u7b49\u5f85"
+      },
+      {
+        "name": "queue.resolving",
+        "surface": "queue",
+        "state": "resolving",
+        "description": "\u5355\u4efb\u52a1\u89e3\u6790"
+      },
+      {
+        "name": "queue.fallback",
+        "surface": "queue",
+        "state": "fallback",
+        "description": "\u540c\u4e00\u4efb\u52a1\u5c1d\u8bd5\u5907\u7528\u7ec4\u4ef6"
+      },
+      {
+        "name": "queue.downloading",
+        "surface": "queue",
+        "state": "downloading",
+        "description": "\u5df2\u77e5\u8fdb\u5ea6\u4e0e\u901f\u5ea6"
+      },
+      {
+        "name": "queue.gallery",
+        "surface": "queue",
+        "state": "gallery",
+        "description": "\u56fe\u7247\u96c6\u4e0b\u8f7d\u4e0e\u5df2\u77e5\u603b\u6570"
+      },
+      {
+        "name": "queue.gallery-unknown",
+        "surface": "queue",
+        "state": "gallery-unknown",
+        "description": "\u56fe\u7247\u96c6\u4e0b\u8f7d\u4e0e\u672a\u77e5\u603b\u6570"
+      },
+      {
+        "name": "queue.unknown",
+        "surface": "queue",
+        "state": "unknown",
+        "description": "\u672a\u77e5\u8fdb\u5ea6"
+      },
+      {
+        "name": "queue.audio",
+        "surface": "queue",
+        "state": "audio",
+        "description": "\u97f3\u9891\u9636\u6bb5"
+      },
+      {
+        "name": "queue.merging",
+        "surface": "queue",
+        "state": "merging",
+        "description": "\u5a92\u4f53\u5408\u5e76"
+      },
+      {
+        "name": "queue.validating",
+        "surface": "queue",
+        "state": "validating",
+        "description": "\u6821\u9a8c\u5a92\u4f53"
+      },
+      {
+        "name": "queue.publishing",
+        "surface": "queue",
+        "state": "publishing",
+        "description": "\u4fdd\u5b58\u6587\u4ef6"
+      },
+      {
+        "name": "queue.success",
+        "surface": "queue",
+        "state": "success",
+        "description": "\u4fdd\u6301\u6210\u529f\u884c"
+      },
+      {
+        "name": "queue.failure",
+        "surface": "queue",
+        "state": "failure",
+        "description": "\u5931\u8d25\u884c\u53ca\u4e09\u4e2a\u64cd\u4f5c"
+      },
+      {
+        "name": "queue.unsupported-object",
+        "surface": "queue",
+        "state": "unsupported-object",
+        "description": "\u6682\u4e0d\u652f\u6301\u7684\u94fe\u63a5\u5185\u5bb9\u8303\u56f4"
+      },
+      {
+        "name": "queue.partial",
+        "surface": "queue",
+        "state": "partial",
+        "description": "\u90e8\u5206\u5b8c\u6210\u53ca\u5df2\u4fdd\u5b58\u6570\u91cf"
+      },
+      {
+        "name": "queue.partial-unknown",
+        "surface": "queue",
+        "state": "partial-unknown",
+        "description": "\u603b\u6570\u672a\u77e5\u7684\u90e8\u5206\u5b8c\u6210"
+      },
+      {
+        "name": "queue.partial-retry-pending",
+        "surface": "queue",
+        "state": "partial-retry-pending",
+        "description": "\u90e8\u5206\u5b8c\u6210\u91cd\u8bd5\u5904\u7406\u4e2d"
+      },
+      {
+        "name": "queue.concurrent",
+        "surface": "queue",
+        "state": "concurrent",
+        "description": "\u4e09\u5e76\u53d1\u4e0e\u6392\u961f"
+      },
+      {
+        "name": "queue.mixed",
+        "surface": "queue",
+        "state": "mixed",
+        "description": "\u4e0b\u8f7d\u3001\u6392\u961f\u548c\u5931\u8d25"
+      },
+      {
+        "name": "queue.long-title",
+        "surface": "queue",
+        "state": "long-title",
+        "description": "\u957f\u6807\u9898\u53ca\u7a84\u6807\u9898\u533a\u57df"
+      },
+      {
+        "name": "queue.held",
+        "surface": "queue",
+        "state": "held",
+        "description": "\u6e05\u7406\u672a\u786e\u8ba4"
+      },
+      {
+        "name": "queue.retry-pending",
+        "surface": "queue",
+        "state": "retry-pending",
+        "description": "\u91cd\u8bd5\u5904\u7406\u4e2d"
+      },
+      {
+        "name": "queue.retry-refused",
+        "surface": "queue",
+        "state": "retry-refused",
+        "description": "\u91cd\u8bd5\u672a\u53d7\u7406\u53cd\u9988"
+      },
+      {
+        "name": "queue.copied",
+        "surface": "queue",
+        "state": "copied",
+        "description": "\u8bca\u65ad\u5df2\u590d\u5236\u53cd\u9988"
+      },
+      {
+        "name": "queue.copy-failed",
+        "surface": "queue",
+        "state": "copy-failed",
+        "description": "\u8bca\u65ad\u590d\u5236\u5931\u8d25\u53cd\u9988"
+      },
+      {
+        "name": "settings.general",
+        "surface": "settings",
+        "state": "general",
+        "description": "\u5e38\u89c4\u9875\u9762\u4e0e\u4e3b\u8981\u9009\u9879"
+      },
+      {
+        "name": "settings.about",
+        "surface": "settings",
+        "state": "about",
+        "description": "\u5173\u4e8e\u9875\u9762\u4e0e\u7b2c\u4e09\u65b9\u8bb8\u53ef\u5165\u53e3"
+      },
+      {
+        "name": "settings.third-party-licenses",
+        "surface": "settings",
+        "state": "third-party-licenses",
+        "description": "\u5f53\u524d EXE \u5185\u5d4c\u7684\u53ef\u6eda\u52a8\u8bb8\u53ef\u58f0\u660e"
+      },
+      {
+        "name": "settings.download",
+        "surface": "settings",
+        "state": "download",
+        "description": "\u4e0b\u8f7d\u9875\u9762\u4e0e\u4e3b\u8981\u9009\u9879"
+      },
+      {
+        "name": "settings.saving",
+        "surface": "settings",
+        "state": "saving",
+        "description": "\u4fdd\u5b58\u4e2d\u53ca\u7981\u7528\u63a7\u4ef6"
+      },
+      {
+        "name": "settings.saved",
+        "surface": "settings",
+        "state": "saved",
+        "description": "\u4fdd\u5b58\u540e\u5df2\u786e\u8ba4\u7684\u8bbe\u7f6e"
+      },
+      {
+        "name": "settings.save-failed",
+        "surface": "settings",
+        "state": "save-failed",
+        "description": "\u4fdd\u5b58\u5931\u8d25"
+      },
+      {
+        "name": "settings.unavailable",
+        "surface": "settings",
+        "state": "unavailable",
+        "description": "\u8bbe\u7f6e\u5c1a\u672a\u5c31\u7eea"
+      },
+      {
+        "name": "settings.path-unavailable",
+        "surface": "settings",
+        "state": "path-unavailable",
+        "description": "\u76ee\u5f55\u4e0d\u5b58\u5728"
+      },
+      {
+        "name": "settings.path-denied",
+        "surface": "settings",
+        "state": "path-denied",
+        "description": "\u76ee\u5f55\u65e0\u6cd5\u8bbf\u95ee"
+      },
+      {
+        "name": "settings.path-copied",
+        "surface": "settings",
+        "state": "path-copied",
+        "description": "\u5b8c\u6574\u8def\u5f84\u5df2\u590d\u5236\u53cd\u9988"
+      },
+      {
+        "name": "settings.path-copy-failed",
+        "surface": "settings",
+        "state": "path-copy-failed",
+        "description": "\u8def\u5f84\u590d\u5236\u5931\u8d25\u53cd\u9988"
+      },
+      {
+        "name": "settings.open-failed",
+        "surface": "settings",
+        "state": "open-failed",
+        "description": "\u6253\u5f00\u76ee\u5f55\u5931\u8d25"
+      },
+      {
+        "name": "settings.picker-cancelled",
+        "surface": "settings",
+        "state": "picker-cancelled",
+        "description": "\u672a\u9009\u62e9\u6587\u4ef6\u5939"
+      },
+      {
+        "name": "settings.theme-menu",
+        "surface": "settings",
+        "state": "theme-menu",
+        "description": "\u5e38\u89c4\uff1a\u4e3b\u9898\u9009\u9879"
+      },
+      {
+        "name": "settings.language-menu",
+        "surface": "settings",
+        "state": "language-menu",
+        "description": "\u5e38\u89c4\uff1a\u8bed\u8a00\u9009\u9879"
+      },
+      {
+        "name": "settings.tray-menu",
+        "surface": "settings",
+        "state": "tray-menu",
+        "description": "\u5e38\u89c4\uff1a\u6258\u76d8\u56fe\u6807\u9009\u9879"
+      },
+      {
+        "name": "settings.startup-enabled",
+        "surface": "settings",
+        "state": "startup-enabled",
+        "description": "\u5f00\u673a\u542f\u52a8\u5df2\u542f\u7528"
+      },
+      {
+        "name": "settings.startup-unavailable",
+        "surface": "settings",
+        "state": "startup-unavailable",
+        "description": "\u5f00\u673a\u542f\u52a8\u72b6\u6001\u4e0d\u53ef\u7528"
+      },
+      {
+        "name": "settings.startup-pending",
+        "surface": "settings",
+        "state": "startup-pending",
+        "description": "\u5f00\u673a\u542f\u52a8\u8bfb\u53d6\u4e2d"
+      },
+      {
+        "name": "components.ready",
+        "surface": "components",
+        "state": "ready",
+        "description": "\u7ec4\u4ef6\u7248\u672c\u4e0e\u5c31\u7eea"
+      },
+      {
+        "name": "components.missing",
+        "surface": "components",
+        "state": "missing",
+        "description": "\u7ec4\u4ef6\u5c1a\u672a\u51c6\u5907"
+      },
+      {
+        "name": "components.preparing",
+        "surface": "components",
+        "state": "preparing",
+        "description": "\u7ec4\u4ef6\u51c6\u5907\u4e2d"
+      },
+      {
+        "name": "components.checking",
+        "surface": "components",
+        "state": "checking",
+        "description": "\u68c0\u67e5\u66f4\u65b0\u4e2d"
+      },
+      {
+        "name": "components.check-failed",
+        "surface": "components",
+        "state": "check-failed",
+        "description": "\u68c0\u67e5\u66f4\u65b0\u5931\u8d25"
+      },
+      {
+        "name": "components.update-available",
+        "surface": "components",
+        "state": "update-available",
+        "description": "\u53ef\u66f4\u65b0\u7248\u672c"
+      },
+      {
+        "name": "components.update-confirm",
+        "surface": "components",
+        "state": "update-confirm",
+        "description": "\u66f4\u65b0\u786e\u8ba4\u5c42"
+      },
+      {
+        "name": "components.updating",
+        "surface": "components",
+        "state": "updating",
+        "description": "\u7ec4\u4ef6\u66f4\u65b0\u4e2d"
+      },
+      {
+        "name": "components.update-waiting",
+        "surface": "components",
+        "state": "update-waiting",
+        "description": "\u7b49\u5f85\u5f53\u524d\u4efb\u52a1\u7ed3\u675f"
+      },
+      {
+        "name": "components.update-failed",
+        "surface": "components",
+        "state": "update-failed",
+        "description": "\u66f4\u65b0\u5931\u8d25"
+      },
+      {
+        "name": "components.restored",
+        "surface": "components",
+        "state": "restored",
+        "description": "\u5df2\u6062\u590d\u63a8\u8350\u7248\u672c"
+      },
+      {
+        "name": "components.recovery-required",
+        "surface": "components",
+        "state": "recovery-required",
+        "description": "\u9700\u8981\u6062\u590d\u7ec4\u4ef6"
+      },
+      {
+        "name": "components.owner-lost",
+        "surface": "components",
+        "state": "owner-lost",
+        "description": "\u7ec4\u4ef6\u6e05\u7406\u672a\u786e\u8ba4"
+      },
+      {
+        "name": "diagnostics.ready",
+        "surface": "diagnostics",
+        "state": "ready",
+        "description": "\u8bca\u65ad\u53ef\u590d\u5236"
+      },
+      {
+        "name": "diagnostics.copying",
+        "surface": "diagnostics",
+        "state": "copying",
+        "description": "\u8bca\u65ad\u590d\u5236\u4e2d"
+      },
+      {
+        "name": "diagnostics.copied",
+        "surface": "diagnostics",
+        "state": "copied",
+        "description": "\u8bca\u65ad\u590d\u5236\u6210\u529f\u53cd\u9988"
+      },
+      {
+        "name": "diagnostics.copy-failed",
+        "surface": "diagnostics",
+        "state": "copy-failed",
+        "description": "\u8bca\u65ad\u590d\u5236\u5931\u8d25\u53cd\u9988"
+      },
+      {
+        "name": "diagnostics.unavailable",
+        "surface": "diagnostics",
+        "state": "unavailable",
+        "description": "\u8bca\u65ad\u4e0d\u53ef\u7528"
+      },
+      {
+        "name": "tray.idle",
+        "surface": "tray",
+        "state": "idle",
+        "description": "\u6258\u76d8\u5f39\u7a97\u7a7a\u95f2"
+      },
+      {
+        "name": "tray.downloading",
+        "surface": "tray",
+        "state": "downloading",
+        "description": "\u6258\u76d8\u5f39\u7a97\u4e0b\u8f7d\u4e2d"
+      },
+      {
+        "name": "tray.mixed",
+        "surface": "tray",
+        "state": "mixed",
+        "description": "\u6258\u76d8\u4e0b\u8f7d\u3001\u6392\u961f\u548c\u5931\u8d25"
+      },
+      {
+        "name": "tray.preparing",
+        "surface": "tray",
+        "state": "preparing",
+        "description": "\u6258\u76d8\u51c6\u5907\u7ec4\u4ef6"
+      },
+      {
+        "name": "tray.cleanup-unknown",
+        "surface": "tray",
+        "state": "cleanup-unknown",
+        "description": "\u6258\u76d8\u6e05\u7406\u672a\u786e\u8ba4"
+      },
+      {
+        "name": "tray.startup-failed",
+        "surface": "tray",
+        "state": "startup-failed",
+        "description": "\u6258\u76d8\u542f\u52a8\u5931\u8d25"
+      },
+      {
+        "name": "tray.stopping",
+        "surface": "tray",
+        "state": "stopping",
+        "description": "\u6258\u76d8\u6b63\u5728\u505c\u6b62"
+      },
+      {
+        "name": "menu.root",
+        "surface": "menu",
+        "state": "root",
+        "description": "Full \u53f3\u952e\u83dc\u5355"
+      },
+      {
+        "name": "overlay.exit-confirm",
+        "surface": "overlay",
+        "state": "exit-confirm",
+        "description": "\u6b63\u5728\u4e0b\u8f7d\u65f6\u9000\u51fa\u786e\u8ba4"
+      },
+      {
+        "name": "settings.app-unchecked",
+        "surface": "settings",
+        "state": "app-unchecked",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aunchecked"
+      },
+      {
+        "name": "settings.app-current",
+        "surface": "settings",
+        "state": "app-current",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1acurrent"
+      },
+      {
+        "name": "settings.app-unavailable",
+        "surface": "settings",
+        "state": "app-unavailable",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aunavailable"
+      },
+      {
+        "name": "settings.app-checking",
+        "surface": "settings",
+        "state": "app-checking",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1achecking"
+      },
+      {
+        "name": "settings.app-available",
+        "surface": "settings",
+        "state": "app-available",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aavailable"
+      },
+      {
+        "name": "settings.app-downloading",
+        "surface": "settings",
+        "state": "app-downloading",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1adownloading"
+      },
+      {
+        "name": "settings.app-verifying",
+        "surface": "settings",
+        "state": "app-verifying",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1averifying"
+      },
+      {
+        "name": "settings.app-ready",
+        "surface": "settings",
+        "state": "app-ready",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aready"
+      },
+      {
+        "name": "settings.app-confirm",
+        "surface": "settings",
+        "state": "app-confirm",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aconfirm"
+      },
+      {
+        "name": "settings.app-waiting",
+        "surface": "settings",
+        "state": "app-waiting",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1awaiting"
+      },
+      {
+        "name": "settings.app-switching",
+        "surface": "settings",
+        "state": "app-switching",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1aswitching"
+      },
+      {
+        "name": "settings.app-failed",
+        "surface": "settings",
+        "state": "app-failed",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1afailed"
+      },
+      {
+        "name": "settings.app-rollback",
+        "surface": "settings",
+        "state": "app-rollback",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1arollback"
+      },
+      {
+        "name": "settings.app-save-failed",
+        "surface": "settings",
+        "state": "app-save-failed",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1asave-failed"
+      },
+      {
+        "name": "settings.app-paused",
+        "surface": "settings",
+        "state": "app-paused",
+        "description": "\u5e94\u7528\u66f4\u65b0\u72b6\u6001\uff1apaused"
+      },
+      {
+        "name": "full.app-ready",
+        "surface": "full",
+        "state": "app-ready",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1aready"
+      },
+      {
+        "name": "full.app-conflict",
+        "surface": "full",
+        "state": "app-conflict",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1aconflict"
+      },
+      {
+        "name": "full.app-waiting",
+        "surface": "full",
+        "state": "app-waiting",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1awaiting"
+      },
+      {
+        "name": "full.app-rollback",
+        "surface": "full",
+        "state": "app-rollback",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1arollback"
+      },
+      {
+        "name": "tray.app-ready",
+        "surface": "tray",
+        "state": "app-ready",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1aready"
+      },
+      {
+        "name": "tray.app-conflict",
+        "surface": "tray",
+        "state": "app-conflict",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1aconflict"
+      },
+      {
+        "name": "tray.app-waiting",
+        "surface": "tray",
+        "state": "app-waiting",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1awaiting"
+      },
+      {
+        "name": "tray.app-rollback",
+        "surface": "tray",
+        "state": "app-rollback",
+        "description": "\u5e94\u7528\u66f4\u65b0\u5165\u53e3\uff1arollback"
+      }
+    ],
+    "version": "0.5.0"
+  },
+  "pid": 63168,
+  "exe": "D:\\Ameow\\target\\debug\\ameow-ui-review.exe",
+  "exe_sha256": "5e2df91951be14f9a15bd7c6242aeaabdc1e19774313cb0c7ed62ef1f5c22637",
+  "bounds": [
+    500,
+    300,
+    728,
+    528
+  ],
+  "times_ms": [
+    18.6,
+    67.6,
+    134.1,
+    201.3,
+    250.7,
+    317.7,
+    367.7,
+    436.5,
+    501.8,
+    551.7,
+    617.8,
+    666.9,
+    734.4,
+    782.9,
+    850.1,
+    917.3,
+    968.1,
+    1034.7,
+    1100.3,
+    1150.3,
+    1216.6,
+    1268.2,
+    1335.0,
+    1401.6,
+    1452.1,
+    1519.0,
+    1566.1,
+    1633.1,
+    1701.1,
+    1752.2,
+    1818.3,
+    1865.7,
+    1932.7,
+    1999.4,
+    2048.9,
+    2116.0,
+    2165.4,
+    2232.1,
+    2298.7,
+    2349.0,
+    2415.9,
+    2465.4,
+    2532.0,
+    2598.7,
+    2649.1,
+    2716.2,
+    2765.4,
+    2832.0,
+    2882.4,
+    2949.1
+  ],
+  "distinct_frames": 47
+}

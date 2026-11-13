@@ -1,17 +1,10 @@
 //! Main-Surface menu state. No native windows, input polling, or settings authority.
 use ameow_next::download::request::Quality;
-pub const FADE_MS: u64 = 140;
-pub const PAGE_MS: u64 = 190;
+pub const FADE_MS: u64 = crate::ui_motion::ENTER_MS;
 pub const HOVER_MS: u64 = 90;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Page {
-    Primary,
-    Quality,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
-    Back,
-    OpenQuality,
+    Close,
     Quality(Quality),
     Hide,
     Settings,
@@ -19,12 +12,13 @@ pub enum Action {
 }
 #[derive(Default)]
 pub struct Menu {
-    pub page: Option<Page>,
+    open: bool,
     pub selected: usize,
+    // Quality-control tooltip only; Full has no temporary status text at its bottom.
     pub hint: Option<String>,
     generation: u64,
-    content_at: Option<u64>,
-    previous: Option<(Page, u64, f32)>,
+    presence: crate::ui_motion::Scalar,
+    quality_focus: usize,
     hovered: Option<usize>,
     old_hover: Option<usize>,
     hover_at: u64,
@@ -39,36 +33,36 @@ fn ease(now: u64, at: u64, duration: u64, reduced: bool) -> f32 {
 }
 impl Menu {
     pub fn is_open(&self) -> bool {
-        self.page.is_some()
+        self.open
     }
     pub fn generation(&self) -> u64 {
         self.generation
     }
     pub fn name(&self) -> &'static str {
-        match self.page {
-            None => "closed",
-            Some(Page::Primary) => "primary",
-            Some(Page::Quality) => "quality",
-        }
+        if self.open { "primary" } else { "closed" }
     }
-    pub fn open(&mut self, now: u64) {
+    pub fn open(&mut self, current: Option<Quality>, now: u64) {
         self.generation += 1;
-        self.page = Some(Page::Primary);
-        self.content_at = Some(now);
-        self.previous = None;
+        self.open = true;
+        self.presence.set(1., now, FADE_MS, false);
         self.reset_selection();
+        self.quality_focus = match current {
+            Some(Quality::Highest) => 0,
+            Some(Quality::Saver) => 2,
+            _ => 1,
+        };
+        self.selected = self.quality_focus;
     }
     pub fn close(&mut self, now: u64) {
-        if self.page.take().is_some() {
+        if self.open {
             self.generation += 1;
-            self.content_at = Some(now);
+            self.presence.set(0., now, crate::ui_motion::EXIT_MS, false);
         }
-        self.previous = None;
-        self.reset_selection();
+        self.open = false;
     }
     /// Acknowledgements from an earlier closed menu cannot dismiss a newer session.
     pub fn saved(&mut self, generation: u64, success: bool, now: u64) -> bool {
-        if !self.is_open() || self.generation != generation {
+        if !self.open || self.generation != generation {
             return false;
         }
         if success {
@@ -86,76 +80,47 @@ impl Menu {
         self.keyboard = false;
         self.hint = None;
     }
-    pub fn quality(&mut self, current: Option<Quality>, now: u64) {
-        if self.page != Some(Page::Primary) {
-            return;
-        }
-        self.previous = Some((Page::Primary, now, 1.));
-        self.page = Some(Page::Quality);
-        self.reset_selection();
-        self.selected = match current {
-            Some(Quality::Balanced) => 1,
-            Some(Quality::Saver) => 2,
-            _ => 0,
-        };
-    }
-    /// Returns true only when Back closes the primary page.
-    pub fn back(&mut self, now: u64) -> bool {
-        match self.page {
-            Some(Page::Quality) => {
-                self.previous = Some((Page::Quality, now, -1.));
-                self.page = Some(Page::Primary);
-                self.reset_selection();
-                false
-            }
-            Some(Page::Primary) => {
-                self.close(now);
-                true
-            }
-            None => false,
-        }
-    }
-    pub fn row_count(page: Page) -> usize {
-        if page == Page::Primary { 4 } else { 3 }
-    }
-    /// Local to the list at y44; the hint starts at y132 on either page.
-    pub fn row_metrics(page: Page) -> (f32, f32) {
-        if page == Page::Primary { (33., 32.) } else { (44., 40.) }
-    }
-    pub fn action(page: Page, index: usize) -> Option<Action> {
-        match (page, index) {
-            (Page::Primary, 0) => Some(Action::OpenQuality),
-            (Page::Primary, 1) => Some(Action::Hide),
-            (Page::Primary, 2) => Some(Action::Settings),
-            (Page::Primary, 3) => Some(Action::Exit),
-            (Page::Quality, 0) => Some(Action::Quality(Quality::Highest)),
-            (Page::Quality, 1) => Some(Action::Quality(Quality::Balanced)),
-            (Page::Quality, 2) => Some(Action::Quality(Quality::Saver)),
+    pub fn action(index: usize) -> Option<Action> {
+        match index {
+            0 => Some(Action::Quality(Quality::Highest)),
+            1 => Some(Action::Quality(Quality::Balanced)),
+            2 => Some(Action::Quality(Quality::Saver)),
+            3 => Some(Action::Settings),
+            4 => Some(Action::Hide),
+            5 => Some(Action::Exit),
+            6 => Some(Action::Close),
             _ => None,
         }
     }
     pub fn key(&mut self, key: &str) -> Option<Action> {
-        let page = self.page?;
-        let count = Self::row_count(page);
+        if !self.open { return None; }
         match key {
-            "escape" | "left" => return Some(Action::Back),
-            "up" => {
-                self.selected = (self.selected + count - 1) % count;
-                self.keyboard = true;
+            "escape" => return Some(Action::Close),
+            "enter" | "space" => return Self::action(self.selected),
+            "left" | "right" if self.selected < 3 => {
+                self.selected = (self.selected + if key == "left" { 2 } else { 1 }) % 3;
             }
-            "down" => {
-                self.selected = (self.selected + 1) % count;
-                self.keyboard = true;
-            }
-            "enter" | "space" => return Self::action(page, self.selected),
-            "right" if page == Page::Primary && self.selected == 0 => {
-                return Some(Action::OpenQuality);
-            }
-            _ => {}
+            "up" => self.selected = match self.selected {
+                0..=2 | 6 => 5,
+                3 => self.quality_focus,
+                index => index - 1,
+            },
+            "down" => self.selected = match self.selected {
+                0..=2 => 3,
+                5 | 6 => self.quality_focus,
+                index => index + 1,
+            },
+            // Tab also reaches the close button; arrow navigation follows the visual groups.
+            "tab" => self.selected = (self.selected + 1) % 7,
+            "shift-tab" => self.selected = (self.selected + 6) % 7,
+            _ => return None,
         }
+        if self.selected < 3 { self.quality_focus = self.selected; }
+        self.keyboard = true;
         None
     }
     pub fn hover(&mut self, index: usize, inside: bool, now: u64) {
+        if !self.open { return; }
         let next = if inside {
             Some(index)
         } else if self.hovered == Some(index) {
@@ -163,142 +128,123 @@ impl Menu {
         } else {
             self.hovered
         };
-        if next == self.hovered {
-            return;
-        }
+        if next == self.hovered { return; }
         self.old_hover = self.hovered;
         self.hovered = next;
         self.hover_at = now;
         if inside {
             self.selected = index;
+            if index < 3 { self.quality_focus = index; }
             self.keyboard = false;
         }
     }
+    pub fn keyboard_selected(&self, index: usize) -> bool {
+        self.keyboard && self.selected == index
+    }
     pub fn highlight(&self, index: usize, now: u64, reduced: bool) -> f32 {
-        if self.keyboard && self.selected == index {
-            return 1.;
-        }
+        if self.keyboard_selected(index) { return 1.; }
         let t = ease(now, self.hover_at, HOVER_MS, reduced);
-        if self.hovered == Some(index) {
-            t
-        } else if self.old_hover == Some(index) {
-            1. - t
-        } else {
-            0.
-        }
+        if self.hovered == Some(index) { t }
+        else if self.old_hover == Some(index) { 1. - t }
+        else { 0. }
     }
+    #[cfg(test)]
     pub fn content_alpha(&self, now: u64, reduced: bool) -> f32 {
-        self.content_at
-            .map_or(1., |at| ease(now, at, FADE_MS, reduced))
+        if self.open { self.menu_alpha(now, reduced) } else { 1. - self.menu_alpha(now, reduced) }
     }
-    /// Current page, optional outgoing page. Only the current page receives input.
-    pub fn pages(&self, now: u64, reduced: bool) -> Vec<(Page, f32, bool)> {
-        let Some(current) = self.page else {
-            return Vec::new();
-        };
-        if let Some((previous, at, direction)) = self.previous {
-            let t = ease(now, at, PAGE_MS, reduced);
-            if t < 1. {
-                return vec![
-                    (previous, -direction * t * 176., false),
-                    (current, direction * (1. - t) * 176., true),
-                ];
-            }
-        }
-        vec![(current, 0., true)]
+    pub fn menu_alpha(&self, now: u64, reduced: bool) -> f32 {
+        if reduced { if self.open { 1. } else { 0. } } else { self.presence.sample(now) }
     }
+    pub fn visible(&self, now: u64, reduced: bool) -> bool { self.open || self.menu_alpha(now, reduced) > 0.001 }
+    pub fn active_item(&self) -> Option<usize> { if self.keyboard { Some(self.selected) } else { self.hovered } }
     pub fn animating(&self, now: u64, reduced: bool) -> bool {
-        !reduced
-            && (self.content_at.is_some_and(|at| now < at + FADE_MS)
-                || self.previous.is_some_and(|(_, at, _)| now < at + PAGE_MS)
-                || now < self.hover_at + HOVER_MS)
+        !reduced && (self.presence.moving(now)
+            || now < self.hover_at + HOVER_MS)
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn escape_has_one_owner_and_back_preserves_the_open_session() {
+    fn closing_disables_actions_immediately_and_reopening_continues_the_fade() {
         let mut menu = Menu::default();
-        menu.open(10);
-        let session = menu.generation();
-        menu.quality(Some(Quality::Balanced), 20);
-        assert_eq!(menu.name(), "quality");
-        assert_eq!(menu.selected, 1);
-        assert_eq!(menu.key("escape"), Some(Action::Back));
-        assert!(!menu.back(30));
-        assert_eq!(menu.name(), "primary");
-        assert_eq!(menu.generation(), session);
-        assert!(menu.back(40));
-        assert_eq!(menu.name(), "closed");
-        menu.open(50);
-        assert_ne!(menu.generation(), session);
+        menu.open(None, 0);
+        menu.close(FADE_MS);
+        assert!(!menu.is_open());
+        assert!(menu.visible(FADE_MS, false));
+        assert_eq!(menu.key("enter"), None);
+        let at = FADE_MS + 45;
+        let fading = menu.menu_alpha(at, false);
+        assert!(fading > 0. && fading < 1.);
+        menu.open(None, at);
+        assert_eq!(menu.menu_alpha(at, false), fading);
+        assert_eq!(menu.menu_alpha(at + FADE_MS, false), 1.);
+        menu.close(at + FADE_MS);
+        assert!(!menu.visible(at + FADE_MS, true));
+        assert!(!menu.visible(at + FADE_MS + crate::ui_motion::EXIT_MS, false));
     }
     #[test]
-    fn navigation_uses_four_primary_rows_and_three_quality_rows() {
+    fn quality_and_window_actions_are_reachable_without_a_second_page() {
         let mut menu = Menu::default();
-        menu.open(0);
+        menu.open(Some(Quality::Balanced), 0);
+        assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Balanced)));
+        menu.key("left");
+        assert_eq!(menu.key("space"), Some(Action::Quality(Quality::Highest)));
+        menu.key("left");
+        assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
         menu.key("down");
-        assert_eq!(menu.key("enter"), Some(Action::Hide));
-        menu.quality(Some(Quality::Highest), 20);
+        assert_eq!(menu.key("enter"), Some(Action::Settings));
         menu.key("up");
         assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
-        assert_eq!(Menu::action(Page::Quality, 3), None);
-        assert_eq!(Menu::action(Page::Primary, 3), Some(Action::Exit));
-        menu.open(30);
-        for _ in 0..3 { menu.key("down"); }
-        assert_eq!(menu.key("enter"), Some(Action::Exit));
-        assert_eq!(menu.key("space"), Some(Action::Exit));
-        menu.key("down");
-        assert_eq!(menu.selected, 0);
-        assert_eq!(menu.key("enter"), Some(Action::OpenQuality));
-    }
-    #[test]
-    fn all_menu_hit_rows_fit_above_the_hint_without_overlap() {
-        for page in [Page::Primary, Page::Quality] {
-            let (stride, height) = Menu::row_metrics(page);
-            assert!(height <= stride);
-            assert!((Menu::row_count(page) - 1) as f32 * stride + height <= 132.);
-            assert!(44. + 132. + 20. <= 200.);
+        for expected in [Action::Settings, Action::Hide, Action::Exit] {
+            menu.key("down");
+            assert_eq!(menu.key("enter"), Some(expected));
         }
+        assert_eq!(menu.name(), "primary");
+        assert_eq!(menu.key("escape"), Some(Action::Close));
+        menu.close(20);
+        assert_eq!(menu.key("enter"), None);
     }
     #[test]
-    fn transitions_only_move_content_reverse_direction_and_respect_reduced_motion() {
+    fn tab_reaches_every_action_in_both_directions_including_close() {
         let mut menu = Menu::default();
-        menu.open(0);
+        menu.open(Some(Quality::Highest), 0);
+        for expected in [Action::Quality(Quality::Balanced), Action::Quality(Quality::Saver),
+            Action::Settings, Action::Hide, Action::Exit, Action::Close,
+            Action::Quality(Quality::Highest)] {
+            menu.key("tab");
+            assert_eq!(menu.key("enter"), Some(expected));
+        }
+        menu.key("shift-tab");
+        assert_eq!(menu.key("enter"), Some(Action::Close));
+        menu.key("shift-tab");
+        assert_eq!(menu.key("enter"), Some(Action::Exit));
+    }
+    #[test]
+    fn menu_fade_and_hover_respect_reduced_motion() {
+        let mut menu = Menu::default();
+        menu.open(None, 0);
         assert_eq!(menu.content_alpha(0, false), 0.);
-        assert_eq!(menu.content_alpha(140, false), 1.);
-        menu.quality(None, 200);
-        assert_eq!(
-            menu.pages(200, false),
-            vec![(Page::Primary, 0., false), (Page::Quality, 176., true)]
-        );
-        assert_eq!(menu.pages(200, true), vec![(Page::Quality, 0., true)]);
-        menu.back(400);
-        assert_eq!(
-            menu.pages(400, false),
-            vec![(Page::Quality, 0., false), (Page::Primary, -176., true)]
-        );
-        assert!(!menu.animating(400, true));
-        menu.close(600);
-        assert_eq!(menu.content_alpha(600, true), 1.);
-        assert!(!menu.is_open());
+        assert_eq!(menu.content_alpha(FADE_MS, false), 1.);
+        assert_eq!(menu.content_alpha(0, true), 1.);
+        menu.hover(4, true, 200);
+        assert_eq!(menu.highlight(4, 200, true), 1.);
+        assert!(!menu.animating(200, true));
     }
     #[test]
     fn quality_waits_for_ack_failure_stays_and_stale_success_cannot_close_a_new_menu() {
         let mut menu = Menu::default();
-        menu.open(0);
-        menu.quality(None, 10);
+        menu.open(Some(Quality::Balanced), 0);
         let session = menu.generation();
-        assert_eq!(menu.name(), "quality");
         assert!(!menu.saved(session, false, 20));
-        assert_eq!(menu.name(), "quality");
+        assert!(menu.is_open());
         assert!(menu.hint.is_some());
         assert!(menu.saved(session, true, 30));
-        assert_eq!(menu.name(), "closed");
-        menu.open(40);
+        assert!(!menu.is_open());
+        menu.open(Some(Quality::Saver), 40);
         assert!(!menu.saved(session, true, 50));
-        assert_eq!(menu.name(), "primary");
+        assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
+        assert!(menu.is_open());
     }
     #[test]
     fn menu_lock_does_not_pause_terminal_expiry_and_release_uses_current_stage_and_pointer() {
