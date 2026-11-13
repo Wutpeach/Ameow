@@ -99,6 +99,7 @@ pub struct ProducedArtifact {
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct VerifiedFacts {
+    pub video_width: Option<u64>,
     pub video_height: Option<u64>,
     pub video_codec: Option<VideoCodec>,
     pub audio_present: bool,

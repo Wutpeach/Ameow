@@ -199,6 +199,9 @@ fn collection_names_and_collisions_preserve_existing_files() {
         });
     }
     let snapshot = queue.snapshot();
+    let first = snapshot.jobs[0].collection.as_ref().unwrap();
+    assert_eq!(first.files[0].delivered.path.file_name().unwrap(), "作品_名称.bin");
+    assert_eq!(first.files[1].delivered.path.file_name().unwrap(), "作品_名称 (1).bin");
     assert_ne!(
         snapshot.jobs[0].collection.as_ref().unwrap().directory,
         snapshot.jobs[1].collection.as_ref().unwrap().directory

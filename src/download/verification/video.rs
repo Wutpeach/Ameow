@@ -48,16 +48,14 @@ pub fn verify(
     let info: Value =
         serde_json::from_slice(&probe.stdout).map_err(|e| format!("ffprobe JSON: {e}"))?;
     let streams = info["streams"].as_array().ok_or("No ffprobe streams")?;
-    if !streams.iter().any(|s| {
+    let video = streams.iter().find(|s| {
         s["codec_type"] == "video"
             && s["width"].as_u64().is_some_and(|w| w > 0)
             && s["height"].as_u64() == Some(expected.height)
             && s["codec_name"]
                 .as_str()
                 .is_some_and(|name| codec_matches(&expected.codec, name))
-    }) {
-        return Err("Delivered media video dimensions do not match accepted format".into());
-    }
+    }).ok_or("Delivered media video dimensions do not match accepted format")?;
     let audio_present = streams.iter()
         .any(|s| s["codec_type"] == "audio" && s["channels"].as_u64().is_some_and(|n| n > 0));
     if expected.requires_audio && !audio_present {
@@ -75,6 +73,7 @@ pub fn verify(
     }
     verified.kind = MediaKind::Video;
     verified.facts = VerifiedFacts {
+        video_width: video["width"].as_u64(),
         video_height: Some(expected.height),
         video_codec: Some(expected.codec.clone()),
         audio_present,

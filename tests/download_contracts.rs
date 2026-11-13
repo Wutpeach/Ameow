@@ -456,6 +456,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         "ffprobe.exe",
     )?;
     assert!(verified.bytes > 0);
+    assert_eq!(verified.facts.video_width, Some(64));
     assert!(verified.facts.audio_present);
     assert!(fs::write(&media, b"external corruption").is_err());
     assert!(fs::remove_file(&media).is_err());
@@ -525,6 +526,8 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         }),
         verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
     });
+    let existing = destination.path().join("Silent fixture[64x48].mkv");
+    fs::write(&existing, b"existing user media").map_err(|e| e.to_string())?;
     coordinator.accept(DownloadIntent {
         url: "https://youtu.be/jNQXAC9IVRw".into(), quality: Quality::Balanced,
         output_dir: destination.path().into(),
@@ -536,7 +539,11 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
             assert_eq!(snapshot.phase, Phase::Success, "{}", snapshot.message);
             assert!(snapshot.resources_released);
             assert_eq!(snapshot.terminal_count, 1);
-            assert!(!snapshot.delivered.unwrap().facts.audio_present);
+            let delivered = snapshot.delivered.unwrap();
+            assert!(!delivered.facts.audio_present);
+            assert_eq!(delivered.facts.video_width, Some(64));
+            assert_eq!(delivered.path.file_name().unwrap(), "Silent fixture[64x48] (1).mkv");
+            assert_eq!(fs::read(&existing).map_err(|e| e.to_string())?, b"existing user media");
             break;
         }
         assert!(Instant::now() < deadline, "Silent video delivery did not finish: {snapshot:?}");

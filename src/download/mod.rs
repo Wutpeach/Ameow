@@ -646,13 +646,14 @@ fn execute(
         staged
             .fill(&media)
             .map_err(|error| format!("E_STORAGE: {error}"))?;
+        let name = output::media_basename(&identity.title, &identity.id, &media.facts);
         commit_delivery(
             &state,
             job,
             attempt,
             staged,
             &accepted.intent.output_dir,
-            &identity.id,
+            &name,
             media,
         )?;
         Ok::<(), String>(())
@@ -824,10 +825,11 @@ fn deliver_collection(
             state.publish();
         }
         staged.fill(&media)?;
-        let base = artifact.relative_path.file_stem().and_then(|s| s.to_str()).ok_or("Missing collection filename")?;
+        let fallback = artifact.relative_path.file_stem().and_then(|s| s.to_str()).ok_or("Missing collection filename")?;
+        let name = output::media_basename(&artifact.identity.title, fallback, &media.facts);
         // Completed collection files survive cancellation; no transfer is running at this point.
         let mut delivered = media;
-        delivered.path = staged.publish(destination, base)?;
+        delivered.path = staged.publish(destination, &name)?;
         delivered.identity_guard = None;
         saved.files.retain(|f| f.relative_path != artifact.relative_path);
         saved.files.push(contract::CollectionFile { relative_path: artifact.relative_path, delivered });
@@ -850,7 +852,7 @@ fn commit_delivery(
     attempt: u64,
     staged: &mut output::DestinationStage,
     destination: &std::path::Path,
-    identity: &str,
+    name: &str,
     mut media: output::VerifiedMedia,
 ) -> Result<(), String> {
     let mut authority = lock(state);
@@ -865,7 +867,7 @@ fn commit_delivery(
         return Err("Cancelled before atomic publication".into());
     }
     media.path = staged
-        .publish(destination, identity)
+        .publish(destination, name)
         .map_err(|error| format!("E_STORAGE: {error}"))?;
     media.identity_guard = None;
     authority.snapshot.delivered = Some(media);

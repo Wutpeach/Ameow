@@ -150,6 +150,7 @@ fn neutral_data_adapter_delivers_through_real_lifecycle_without_video_tools() ->
         .delivered
         .as_ref()
         .ok_or("Missing delivered data receipt")?;
+    assert_eq!(media.path.file_name().unwrap(), "Synthetic data fixture.bin");
     assert_eq!(
         fs::read(&media.path).map_err(|e| e.to_string())?,
         b"neutral adapter artifact"
