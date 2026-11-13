@@ -611,7 +611,7 @@ fn execute(
             return Err("Artifact kind or admitted identity mismatch".into());
         }
         if let VerificationRequirements::Video(expected) = &artifact.verification
-            && (expected.height_cap != accepted.intent.quality.cap() || !expected.requires_audio)
+            && expected.height_cap != accepted.intent.quality.cap()
         {
             return Err("Artifact verification changed frozen video requirements".into());
         }

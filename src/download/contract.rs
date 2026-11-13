@@ -81,6 +81,7 @@ pub enum VideoCodec {
 pub struct VideoExpectation {
     pub height: u64,
     pub codec: VideoCodec,
+    // Reflect native selection; a video without a selected audio stream is valid.
     pub requires_audio: bool,
     pub height_cap: u64,
 }

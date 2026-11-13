@@ -44,7 +44,7 @@ pub fn expectation(metadata: &Value, quality: Quality) -> Result<VideoExpectatio
     let selected = chosen(metadata);
     if selected.is_empty() || selected.len() > 2 { return Err("Ambiguous native selected streams".into()); }
     let videos: Vec<_> = selected.iter().filter(|s| s["vcodec"].as_str().is_some_and(|s| s != "none")).collect();
-    if videos.len() != 1 || !selected.iter().any(|s| s["acodec"].as_str().is_some_and(|s| !s.is_empty() && s != "none")) { return Err("Native selection lacks exactly one video and required audio".into()); }
+    if videos.len() != 1 { return Err("Native selection lacks exactly one video".into()); }
     let video = videos[0];
     let height = video["height"]
         .as_u64()
@@ -56,7 +56,7 @@ pub fn expectation(metadata: &Value, quality: Quality) -> Result<VideoExpectatio
     Ok(VideoExpectation {
         height,
         codec: codec(video["vcodec"].as_str().ok_or("Selected codec missing")?)?,
-        requires_audio: true,
+        requires_audio: selected.iter().any(|s| s["acodec"].as_str().is_some_and(|s| !s.is_empty() && s != "none")),
         height_cap: quality.cap(),
     })
 }
@@ -90,12 +90,22 @@ mod tests {
         assert_eq!(expected, expectation(&separate, Quality::Saver).unwrap());
         assert_eq!(expected, expectation(&nested, Quality::Saver).unwrap());
         for invalid in [
-            video.clone(),
+            audio,
             json!({"requested_formats":[video.clone(),video]}),
             json!({"requested_formats":[]}),
             json!({"height":1080,"vcodec":"avc1","acodec":"aac"}),
         ] {
             assert!(expectation(&invalid, Quality::Saver).is_err());
+        }
+    }
+    #[test]
+    fn native_video_without_audio_is_a_valid_selected_result() {
+        let video = json!({"height":720,"vcodec":"avc1.640820","acodec":"none"});
+        for metadata in [video.clone(), json!({"requested_downloads":[video]})] {
+            let expected = expectation(&metadata, Quality::Balanced).unwrap();
+            assert_eq!(expected.height, 720);
+            assert_eq!(expected.codec, VideoCodec::H264);
+            assert!(!expected.requires_audio);
         }
     }
 }

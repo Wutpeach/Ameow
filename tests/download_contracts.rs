@@ -85,20 +85,18 @@ fn bilibili_part_and_playlist_ambiguity_fail_before_download() -> Result<(), Str
     Ok(())
 }
 #[test]
-fn native_selected_facts_require_video_audio_and_frozen_quality() -> Result<(), String> {
+fn native_selected_facts_preserve_optional_audio_and_frozen_quality() -> Result<(), String> {
     let actual = json!({"requested_formats":[{"height":1080,"vcodec":"avc1","acodec":"none"},{"vcodec":"none","acodec":"opus"}]});
     let expected = selection::expectation(&actual, Quality::Balanced)?;
     assert_eq!(expected.height, 1080);
     assert_eq!(expected.codec, VideoCodec::H264);
     assert!(expected.requires_audio);
     assert!(selection::expectation(&actual, Quality::Saver).is_err());
-    assert!(
-        selection::expectation(
-            &json!({"height":480,"vcodec":"h264","acodec":"none"}),
-            Quality::Saver
-        )
-        .is_err()
-    );
+    let silent = selection::expectation(
+        &json!({"height":480,"vcodec":"h264","acodec":"none"}),
+        Quality::Saver,
+    )?;
+    assert!(!silent.requires_audio);
     assert!(
         selection::expectation(
             &json!({"height":0,"vcodec":"h264","acodec":"aac"}),
@@ -382,15 +380,20 @@ fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> 
 #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
 fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(), String> {
     use ameow_next::download::{
+        Coordinator,
+        adapter::{DownloadServices, DownloaderAdapter, ExecutionContext},
+        contract::{AdapterResult, ExecutionRequest, ProducedArtifact, VerificationRequirements},
+        diagnostics::{Failure, FailureCode},
         process_supervisor::{self, ProcessSpec},
         runtime,
+        verification::VerifierRegistry,
     };
     let root = std::path::PathBuf::from(
         std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?,
     );
     let lease =
         RuntimeManager::new(root.clone()).prepare(&composition::requirements(), &Control::default(), Arc::new(|_| {}), |_| {})?;
-    let workspace = tempfile::tempdir_in(root).map_err(|e| e.to_string())?;
+    let workspace = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
     let media = workspace.path().join("fixture.mkv");
     let result = process_supervisor::run(
         ProcessSpec {
@@ -453,6 +456,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         "ffprobe.exe",
     )?;
     assert!(verified.bytes > 0);
+    assert!(verified.facts.audio_present);
     assert!(fs::write(&media, b"external corruption").is_err());
     assert!(fs::remove_file(&media).is_err());
     let destination = tempfile::tempdir().map_err(|e| e.to_string())?;
@@ -460,6 +464,84 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     stage.fill(&verified)?;
     let delivered = stage.publish(destination.path(), "fixture")?;
     assert!(delivered.is_file());
+    let silent = workspace.path().join("silent.mkv");
+    let result = process_supervisor::run(
+        ProcessSpec {
+            executable: lease.file("ffmpeg.exe")?,
+            args: vec![
+                "-nostdin".into(), "-v".into(), "error".into(), "-i".into(),
+                media.display().to_string(), "-c:v".into(), "copy".into(),
+                "-an".into(), "-n".into(), silent.display().to_string(),
+            ],
+            cwd: workspace.path().into(),
+            env: runtime::child_environment(workspace.path())?,
+            stdout_limit: 1024,
+            stderr_limit: 128 * 1024,
+            timeout: Some(Duration::from_secs(30)),
+        },
+        &Control::default(),
+        Arc::new(|_| {}),
+    )?;
+    assert_eq!(result.exit_code, 0, "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(result.facts.resources_releasable());
+    assert!(ameow_next::download::verification::video::verify(
+        &silent, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    ).is_err());
+    plan.requires_audio = false;
+    let silent_verified = ameow_next::download::verification::video::verify(
+        &silent, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    )?;
+    assert!(!silent_verified.facts.audio_present);
+    let audio_verified = ameow_next::download::verification::video::verify(
+        &media, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    )?;
+    assert!(audio_verified.facts.audio_present);
+    struct SilentVideoAdapter {
+        source: std::path::PathBuf,
+        expected: VideoExpectation,
+        requirements: runtime::TrustedRuntimeRequirements,
+    }
+    impl DownloaderAdapter for SilentVideoAdapter {
+        fn kind(&self) -> MediaKind { MediaKind::Video }
+        fn requirements(&self) -> &runtime::TrustedRuntimeRequirements { &self.requirements }
+        fn evidence_files(&self) -> &[(&str, u64)] { &[] }
+        fn execute(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> AdapterResult {
+            let proof = identity::proof(&request.accepted, &json!({
+                "id":"jNQXAC9IVRw", "extractor_key":"Youtube", "title":"Silent fixture",
+            })).map_err(|_| Failure::new(FailureCode::Identity, "admission"))?;
+            context.admit(&proof)?;
+            fs::copy(&self.source, context.workspace().join("silent.mkv"))
+                .map_err(|_| Failure::new(FailureCode::Storage, "transfer"))?;
+            Ok(ProducedArtifact {
+                relative_path: "silent.mkv".into(), identity: proof.identity, kind: MediaKind::Video,
+                verification: VerificationRequirements::Video(self.expected.clone()),
+            })
+        }
+    }
+    let coordinator = Coordinator::new(DownloadServices {
+        runtime: Arc::new(RuntimeManager::new(root)),
+        adapter: Arc::new(SilentVideoAdapter {
+            source: silent, expected: plan.clone(), requirements: composition::requirements(),
+        }),
+        verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
+    });
+    coordinator.accept(DownloadIntent {
+        url: "https://youtu.be/jNQXAC9IVRw".into(), quality: Quality::Balanced,
+        output_dir: destination.path().into(),
+    })?;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let snapshot = coordinator.snapshot();
+        if snapshot.phase.terminal() {
+            assert_eq!(snapshot.phase, Phase::Success, "{}", snapshot.message);
+            assert!(snapshot.resources_released);
+            assert_eq!(snapshot.terminal_count, 1);
+            assert!(!snapshot.delivered.unwrap().facts.audio_present);
+            break;
+        }
+        assert!(Instant::now() < deadline, "Silent video delivery did not finish: {snapshot:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
     plan.height = 1080;
     assert!(
         ameow_next::download::verification::video::verify(

@@ -58,11 +58,9 @@ pub fn verify(
     }) {
         return Err("Delivered media video dimensions do not match accepted format".into());
     }
-    if expected.requires_audio
-        && !streams
-            .iter()
-            .any(|s| s["codec_type"] == "audio" && s["channels"].as_u64().is_some_and(|n| n > 0))
-    {
+    let audio_present = streams.iter()
+        .any(|s| s["codec_type"] == "audio" && s["channels"].as_u64().is_some_and(|n| n > 0));
+    if expected.requires_audio && !audio_present {
         return Err("Delivered media missing required audio".into());
     }
     if info["format"]["duration"]
@@ -79,7 +77,7 @@ pub fn verify(
     verified.facts = VerifiedFacts {
         video_height: Some(expected.height),
         video_codec: Some(expected.codec.clone()),
-        audio_present: true,
+        audio_present,
         duration_seconds: info["format"]["duration"]
             .as_str()
             .and_then(|s| s.parse().ok()),
