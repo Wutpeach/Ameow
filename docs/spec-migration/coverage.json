@@ -1,0 +1,1492 @@
+{
+  "date": "2026-11-15",
+  "baseline_head": "eb61f7b30a0a3c98de13bda7fc2bb29122186868",
+  "sources": [
+    {
+      "old_path": ".trellis/spec/index.md",
+      "sha256": "6bfcf83d932f8e05d8340dc0f90c43c2a214724d9b4aebdeef38567415291b70",
+      "line_count": 10,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# Ameow Spec 导航",
+          "targets": [
+            "openspec/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# Ameow Spec 导航",
+          "targets": [
+            "openspec/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。",
+          "end_line": 10
+        }
+      ]
+    },
+    {
+      "old_path": ".trellis/spec/rust/index.md",
+      "sha256": "826d28a77aeb92421bbcce7d7903d4c83a2097128b2ab3fd4698783102077703",
+      "line_count": 12,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# Rust / GPUI Spec 导航",
+          "targets": [
+            "openspec/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# Rust / GPUI Spec 导航",
+          "targets": [
+            "openspec/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。",
+          "end_line": 12
+        }
+      ]
+    },
+    {
+      "old_path": ".trellis/spec/context-curation.md",
+      "sha256": "e677946c337b5217b5b0273a45eb699895f197a5191d5f523980843cada7f7a5",
+      "line_count": 13,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# 上下文整理规则",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# 上下文整理规则",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。",
+          "end_line": 13
+        }
+      ]
+    },
+    {
+      "old_path": ".trellis/spec/legacy-path-compatibility.md",
+      "sha256": "c3b0f83e369d6a2baa6b84754b39f19be428e935571e9bb826264aaaf81372cd",
+      "line_count": 9,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# 历史路径与恢复边界",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# 历史路径与恢复边界",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/README.md"
+          ],
+          "disposition": "索引统一到 OpenSpec；确认结论/来源/未知/恢复限制保留，旧 CLI/journal 活跃维护路径退出。",
+          "end_line": 9
+        }
+      ]
+    },
+    {
+      "old_path": ".trellis/spec/backend/next-rust-download-contract.md",
+      "sha256": "fae9eb515ea1bf87dc58bfa7eb2707e9025dad1c9b5ae91fc338c83297f99164",
+      "line_count": 237,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# Ameow Next Windows single-job ownership contract",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "原题名/历史语境归档，不作为新要求。"
+        },
+        {
+          "line": 3,
+          "heading": "## 1. Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "历史范围和 Review 状态归参考；#18 后采用根级 Rust 工程，不继承旧任务授权。"
+        },
+        {
+          "line": 15,
+          "heading": "## 2. Signatures",
+          "targets": [
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "精确 API 以当前源码导航为准，不在规范复制签名。"
+        },
+        {
+          "line": 24,
+          "heading": "## 3. Contracts",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "合并有效规则；早期音轨/retry/UI 投影按后续明确替代。"
+        },
+        {
+          "line": 42,
+          "heading": "## 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "错误与安全否定项归能力要求/情景；无证据原因保持未知。"
+        },
+        {
+          "line": 59,
+          "heading": "## 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "例子归入适用能力的情景，不作为新阶段。"
+        },
+        {
+          "line": 65,
+          "heading": "## 6. Tests required",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "测试方法/原生证据限制归指南；pending 不提升 PASS。"
+        },
+        {
+          "line": 71,
+          "heading": "### Native test helper module isolation (R10 engineering evidence; awaiting Review)",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "PID/module 隔离归指南；awaiting Review 保留。"
+        },
+        {
+          "line": 77,
+          "heading": "## 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "保留所有权、无覆盖、重试及发布否定项；解释代码留原归档。"
+        },
+        {
+          "line": 93,
+          "heading": "## R7 bounded metadata and transfer observation (2026-10-12)",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 95,
+          "heading": "### Scope and signatures",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 98,
+          "heading": "### Contracts and rationale",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 105,
+          "heading": "### Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 116,
+          "heading": "### Cases and required tests",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 121,
+          "heading": "### Wrong versus correct",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。"
+        },
+        {
+          "line": 124,
+          "heading": "## R8 neutral execution contract (2026-10-12)",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 126,
+          "heading": "### 1. Scope / trigger",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 129,
+          "heading": "### 2. Signatures",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 142,
+          "heading": "### 3. Request / result / runtime contracts",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 152,
+          "heading": "### 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 164,
+          "heading": "### 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 167,
+          "heading": "### 6. Tests required",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 170,
+          "heading": "### 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。"
+        },
+        {
+          "line": 173,
+          "heading": "## R11 startup close and private packaging increment (2026-10-13; awaiting web Review)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 175,
+          "heading": "### 1. Scope / trigger",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 178,
+          "heading": "### 2. Signatures",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 181,
+          "heading": "### 3. Contracts",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 186,
+          "heading": "### 4. Validation / error matrix",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 195,
+          "heading": "### 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 198,
+          "heading": "### 6. Tests required",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 201,
+          "heading": "### 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。"
+        },
+        {
+          "line": 204,
+          "heading": "## R12 startup preparation and safe diagnostics (2026-10-14; Web CONTINUE on 2026-10-15)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。"
+        },
+        {
+          "line": 206,
+          "heading": "### Scope and interfaces",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。"
+        },
+        {
+          "line": 209,
+          "heading": "### Required behavior",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。"
+        },
+        {
+          "line": 216,
+          "heading": "### Diagnostics and shutdown limits",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。"
+        },
+        {
+          "line": 221,
+          "heading": "### Cases and verification",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。"
+        },
+        {
+          "line": 226,
+          "heading": "## T04 optional engine update (2026-11-03; final recovery UI accepted)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "显式候选是 embedded-only 的例外；官方签名/原子 policy/无租约恢复限制及离线未知边界保留。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# Ameow Next Windows single-job ownership contract",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "原题名/历史语境归档，不作为新要求。",
+          "end_line": 2
+        },
+        {
+          "line": 3,
+          "heading": "## 1. Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "历史范围和 Review 状态归参考；#18 后采用根级 Rust 工程，不继承旧任务授权。",
+          "end_line": 14
+        },
+        {
+          "line": 15,
+          "heading": "## 2. Signatures",
+          "targets": [
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "精确 API 以当前源码导航为准，不在规范复制签名。",
+          "end_line": 23
+        },
+        {
+          "line": 24,
+          "heading": "## 3. Contracts",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "合并有效规则；早期音轨/retry/UI 投影按后续明确替代。",
+          "end_line": 41
+        },
+        {
+          "line": 42,
+          "heading": "## 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "错误与安全否定项归能力要求/情景；无证据原因保持未知。",
+          "end_line": 58
+        },
+        {
+          "line": 59,
+          "heading": "## 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "例子归入适用能力的情景，不作为新阶段。",
+          "end_line": 64
+        },
+        {
+          "line": 65,
+          "heading": "## 6. Tests required",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "测试方法/原生证据限制归指南；pending 不提升 PASS。",
+          "end_line": 76
+        },
+        {
+          "line": 77,
+          "heading": "## 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "保留所有权、无覆盖、重试及发布否定项；解释代码留原归档。",
+          "end_line": 92
+        },
+        {
+          "line": 93,
+          "heading": "## R7 bounded metadata and transfer observation (2026-10-12)",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留有界捕获/最终记录/观察/隐私；全所选流百分比被 TRA-26 R3 primary exact/estimate 替代。",
+          "end_line": 123
+        },
+        {
+          "line": 124,
+          "heading": "## R8 neutral execution contract (2026-10-12)",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "R8 明确取消 Rust 排序/replay/URL 等值门槛及应用网络恢复；2026-11-13 音轨可选更新选择/验证责任。",
+          "end_line": 172
+        },
+        {
+          "line": 173,
+          "heading": "## R11 startup close and private packaging increment (2026-10-13; awaiting web Review)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/release-integrity/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留早期关闭意图/真实结算；现行 packaging/#33 文档取消 Gate A/B、审核文件和 BuildOnly；后续 DESIGN 静默退出替代普通确认。",
+          "end_line": 203
+        },
+        {
+          "line": 204,
+          "heading": "## R12 startup preparation and safe diagnostics (2026-10-14; Web CONTINUE on 2026-10-15)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/process-ownership/spec.md"
+          ],
+          "disposition": "共享准备/缓存/typed history/真实 stop 合并；DESIGN Quiet Startup 替代正常缓存 Ready 提示。",
+          "end_line": 225
+        },
+        {
+          "line": 226,
+          "heading": "## T04 optional engine update (2026-11-03; final recovery UI accepted)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "显式候选是 embedded-only 的例外；官方签名/原子 policy/无租约恢复限制及离线未知边界保留。",
+          "end_line": 237
+        }
+      ]
+    },
+    {
+      "old_path": ".trellis/spec/backend/next-rust-queue-contract.md",
+      "sha256": "ca94c344c0f52489e78823367d78532c491aec5b3d67e661ffe94d4541b1274c",
+      "line_count": 414,
+      "headings": [
+        {
+          "line": 1,
+          "heading": "# Ameow Next queue and GPUI contract",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "原题名/历史语境归档，不作为新要求。"
+        },
+        {
+          "line": 3,
+          "heading": "## 1. Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "历史范围和 Review 状态归参考；#18 后采用根级 Rust 工程，不继承旧任务授权。"
+        },
+        {
+          "line": 11,
+          "heading": "## 2. Signatures",
+          "targets": [
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "精确 API 以当前源码导航为准，不在规范复制签名。"
+        },
+        {
+          "line": 29,
+          "heading": "## 3. Contracts",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "合并有效规则；早期音轨/retry/UI 投影按后续明确替代。"
+        },
+        {
+          "line": 44,
+          "heading": "## 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "错误与安全否定项归能力要求/情景；无证据原因保持未知。"
+        },
+        {
+          "line": 69,
+          "heading": "## 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "例子归入适用能力的情景，不作为新阶段。"
+        },
+        {
+          "line": 76,
+          "heading": "## 6. Tests required",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "测试方法/原生证据限制归指南；pending 不提升 PASS。"
+        },
+        {
+          "line": 86,
+          "heading": "## 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "保留所有权、无覆盖、重试及发布否定项；解释代码留原归档。"
+        },
+        {
+          "line": 99,
+          "heading": "## R12 shared preparation and Full indicator increment (2026-10-14; Web CONTINUE on 2026-10-15)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "共享准备和计数隔离合并；正常 Ready 1800ms 被静默自检替代；R13 人类 Cancel 不等于工程结算证明。"
+        },
+        {
+          "line": 107,
+          "heading": "### R13 evidence boundary (2026-10-15)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "共享准备和计数隔离合并；正常 Ready 1800ms 被静默自检替代；R13 人类 Cancel 不等于工程结算证明。"
+        },
+        {
+          "line": 113,
+          "heading": "## TRA-26 R2 stage A presentation increment (2026-10-15; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留最新实际启动、1500/500ms、滚动 anchor；96px/全流进度被 R3 56px/primary 替代。"
+        },
+        {
+          "line": 128,
+          "heading": "## TRA-26 R3 A Repair presentation contract (2026-10-21; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 130,
+          "heading": "### 1. Scope and supersession",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 133,
+          "heading": "### 2. Signatures",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 136,
+          "heading": "### 3. Contracts",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 142,
+          "heading": "### 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 153,
+          "heading": "### 5. Good, base and bad cases",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 156,
+          "heading": "### 6. Required tests and evidence",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 159,
+          "heading": "### 7. Wrong versus correct",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。"
+        },
+        {
+          "line": 163,
+          "heading": "## TRA-26 R4 A Queue UI Polish (2026-10-21; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "独立图标、ack、单次键盘及延迟标题保留；整行 100/76 布局被 R5 两行取代。"
+        },
+        {
+          "line": 184,
+          "heading": "## TRA-26 R5 A Two-Row Layout Repair (2026-10-22; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "保留 56px 两行及按图标分配标题；自适应第二行测量被 R6 用户固定 122/4/54 取代。"
+        },
+        {
+          "line": 196,
+          "heading": "## TRA-26 R6 A Hover + Failure Label Repair (2026-10-28; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 207,
+          "heading": "### Scope and trigger",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 211,
+          "heading": "### UI-only signatures",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 215,
+          "heading": "### Contracts",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 219,
+          "heading": "### Error matrix",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 229,
+          "heading": "### Cases",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 233,
+          "heading": "### Tests and evidence",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 237,
+          "heading": "### Wrong versus correct",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。"
+        },
+        {
+          "line": 242,
+          "heading": "## TRA-26 R6 user follow-up: fixed track and second-line action labels (2026-10-28; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 244,
+          "heading": "### Authority and scope",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 248,
+          "heading": "### Presentation contract",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 254,
+          "heading": "### Intent and restoration",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 260,
+          "heading": "### Error and command results",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 264,
+          "heading": "### Cases",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 268,
+          "heading": "### Verification",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 272,
+          "heading": "### Boundaries",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。"
+        },
+        {
+          "line": 276,
+          "heading": "## TRA-26 R7 temporary Popup evidence checkpoint (2026-10-28; blocked, not product acceptance)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 278,
+          "heading": "### Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 282,
+          "heading": "### Signatures / native boundary",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 286,
+          "heading": "### Contracts",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 290,
+          "heading": "### Validation / error matrix",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 300,
+          "heading": "### Good / base / bad cases",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 304,
+          "heading": "### Tests required",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 308,
+          "heading": "### Wrong versus correct",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。"
+        },
+        {
+          "line": 313,
+          "heading": "## TRA-26 R8 in-main-window menu checkpoint (2026-10-28; blocked, not product acceptance)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 315,
+          "heading": "### Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 319,
+          "heading": "### Signatures",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 323,
+          "heading": "### Contracts",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 327,
+          "heading": "### Validation and error matrix",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 336,
+          "heading": "### Good / base / bad cases",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 340,
+          "heading": "### Tests required",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 344,
+          "heading": "### Wrong versus correct",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。"
+        },
+        {
+          "line": 348,
+          "heading": "## TRA-26 R9 focus observation boundary (2026-10-28)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留诊断边界及未知根因；later non-repro 不擦除旧失败，不授予生产修复。"
+        },
+        {
+          "line": 356,
+          "heading": "## TRA-26 R10 real-settings acceptance boundary (2026-10-29)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 358,
+          "heading": "### Scope / trigger",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 362,
+          "heading": "### Signatures",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 366,
+          "heading": "### Contracts",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 372,
+          "heading": "### Validation / error matrix",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 382,
+          "heading": "### Good / base / bad cases",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 386,
+          "heading": "### Tests required",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 390,
+          "heading": "### Wrong versus correct",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。"
+        },
+        {
+          "line": 394,
+          "heading": "## TRA-26 R11 Badge and idle feedback contract (2026-10-29; product Review pending)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "用户选中的紧凑共用 Badge/idle 无指南保留；宽点组/字形算法/逐主题修补明确撤回；底部临时反馈由后续 DESIGN 收敛。"
+        },
+        {
+          "line": 409,
+          "heading": "## TRA-28 R5 custom title-bar focus and TOPMOST (2026-10-31; pending web Review)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留标题 focus/drag/TOPMOST 及四项定向证据；时序/混合 DPI 未测不变。"
+        }
+      ],
+      "sections": [
+        {
+          "line": 1,
+          "heading": "# Ameow Next queue and GPUI contract",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "原题名/历史语境归档，不作为新要求。",
+          "end_line": 2
+        },
+        {
+          "line": 3,
+          "heading": "## 1. Scope / trigger",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "历史范围和 Review 状态归参考；#18 后采用根级 Rust 工程，不继承旧任务授权。",
+          "end_line": 10
+        },
+        {
+          "line": 11,
+          "heading": "## 2. Signatures",
+          "targets": [
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "精确 API 以当前源码导航为准，不在规范复制签名。",
+          "end_line": 28
+        },
+        {
+          "line": 29,
+          "heading": "## 3. Contracts",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "合并有效规则；早期音轨/retry/UI 投影按后续明确替代。",
+          "end_line": 43
+        },
+        {
+          "line": 44,
+          "heading": "## 4. Validation and error matrix",
+          "targets": [
+            "openspec/specs/download-execution/spec.md",
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "错误与安全否定项归能力要求/情景；无证据原因保持未知。",
+          "end_line": 68
+        },
+        {
+          "line": 69,
+          "heading": "## 5. Good / base / bad cases",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "例子归入适用能力的情景，不作为新阶段。",
+          "end_line": 75
+        },
+        {
+          "line": 76,
+          "heading": "## 6. Tests required",
+          "targets": [
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "测试方法/原生证据限制归指南；pending 不提升 PASS。",
+          "end_line": 85
+        },
+        {
+          "line": 86,
+          "heading": "## 7. Wrong vs correct",
+          "targets": [
+            "openspec/specs/process-ownership/spec.md",
+            "openspec/specs/artifact-delivery/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md"
+          ],
+          "disposition": "保留所有权、无覆盖、重试及发布否定项；解释代码留原归档。",
+          "end_line": 98
+        },
+        {
+          "line": 99,
+          "heading": "## R12 shared preparation and Full indicator increment (2026-10-14; Web CONTINUE on 2026-10-15)",
+          "targets": [
+            "openspec/specs/runtime-management/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "共享准备和计数隔离合并；正常 Ready 1800ms 被静默自检替代；R13 人类 Cancel 不等于工程结算证明。",
+          "end_line": 112
+        },
+        {
+          "line": 113,
+          "heading": "## TRA-26 R2 stage A presentation increment (2026-10-15; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留最新实际启动、1500/500ms、滚动 anchor；96px/全流进度被 R3 56px/primary 替代。",
+          "end_line": 127
+        },
+        {
+          "line": 128,
+          "heading": "## TRA-26 R3 A Repair presentation contract (2026-10-21; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/download-execution/spec.md"
+          ],
+          "disposition": "保留 primary exact/受限 estimate、phase、preview/timeline；More/详情条和动态布局被 R4/R5/R6 follow-up 替代。",
+          "end_line": 162
+        },
+        {
+          "line": 163,
+          "heading": "## TRA-26 R4 A Queue UI Polish (2026-10-21; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "独立图标、ack、单次键盘及延迟标题保留；整行 100/76 布局被 R5 两行取代。",
+          "end_line": 183
+        },
+        {
+          "line": 184,
+          "heading": "## TRA-26 R5 A Two-Row Layout Repair (2026-10-22; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md"
+          ],
+          "disposition": "保留 56px 两行及按图标分配标题；自适应第二行测量被 R6 用户固定 122/4/54 取代。",
+          "end_line": 195
+        },
+        {
+          "line": 196,
+          "heading": "## TRA-26 R6 A Hover + Failure Label Repair (2026-10-28; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "合并 friendly Failure/5000ms notice/真实回执；禁止第二行 hint 被用户 follow-up 明确替代。",
+          "end_line": 241
+        },
+        {
+          "line": 242,
+          "heading": "## TRA-26 R6 user follow-up: fixed track and second-line action labels (2026-10-28; pending web Review)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md"
+          ],
+          "disposition": "采用固定 122/4/54、右齐、第二行 hover/focus/restoration；保留真实进度与权限。",
+          "end_line": 275
+        },
+        {
+          "line": 276,
+          "heading": "## TRA-26 R7 temporary Popup evidence checkpoint (2026-10-28; blocked, not product acceptance)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "failed temporary Popup 候选归历史；证据真实性原则保留，不成为当前架构。",
+          "end_line": 312
+        },
+        {
+          "line": 313,
+          "heading": "## TRA-26 R8 in-main-window menu checkpoint (2026-10-28; blocked, not product acceptance)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "actual-blur FAIL 与未完成候选归历史；不恢复旧菜单/架构或提升 PASS。",
+          "end_line": 347
+        },
+        {
+          "line": 348,
+          "heading": "## TRA-26 R9 focus observation boundary (2026-10-28)",
+          "targets": [
+            "docs/spec-migration/unresolved.md",
+            "docs/spec-maintenance.md"
+          ],
+          "disposition": "保留诊断边界及未知根因；later non-repro 不擦除旧失败，不授予生产修复。",
+          "end_line": 355
+        },
+        {
+          "line": 356,
+          "heading": "## TRA-26 R10 real-settings acceptance boundary (2026-10-29)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "openspec/specs/queue-lifecycle/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "真实 settings/ACK/pending input/Explorer 目标与隔离证据保留，fixture 不代替持久化验证。",
+          "end_line": 393
+        },
+        {
+          "line": 394,
+          "heading": "## TRA-26 R11 Badge and idle feedback contract (2026-10-29; product Review pending)",
+          "targets": [
+            "openspec/specs/progress-presentation/spec.md",
+            "openspec/specs/desktop-interaction/spec.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "用户选中的紧凑共用 Badge/idle 无指南保留；宽点组/字形算法/逐主题修补明确撤回；底部临时反馈由后续 DESIGN 收敛。",
+          "end_line": 408
+        },
+        {
+          "line": 409,
+          "heading": "## TRA-28 R5 custom title-bar focus and TOPMOST (2026-10-31; pending web Review)",
+          "targets": [
+            "openspec/specs/desktop-interaction/spec.md",
+            "docs/spec-maintenance.md",
+            "docs/spec-migration/unresolved.md"
+          ],
+          "disposition": "保留标题 focus/drag/TOPMOST 及四项定向证据；时序/混合 DPI 未测不变。",
+          "end_line": 414
+        }
+      ]
+    }
+  ],
+  "former_archive_root": "D:/AmeowMigrationBackups/20261115-openspec-migration",
+  "archive_root": null,
+  "archive_available": false,
+  "archive_disposition": "User requested deletion on 2026-11-15; moved to Windows Recycle Bin. Paths and hashes are provenance only."
+}

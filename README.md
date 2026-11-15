@@ -4,7 +4,7 @@ Ameow 是基于 Rust / GPUI 的 Windows 悬浮下载应用。本仓库维护正�
 
 **Rust 版尚未正式公开发行。** Windows x64 的 Inno Setup 默认浅色安装版和 Launcher 便携 ZIP 正在受控验证；生产签名与公开发行限制尚未解除。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 仅作为历史记录保留，已废弃，不再维护、升级或提供兼容支持。
 
-[English](README.en.md) · [文档站](https://wutpeach.github.io/Ameow/docs/) · [开发说明](CONTRIBUTING.md) · [整理与恢复](docs/repository-handoff.md)
+[English](README.en.md) · [文档站](https://wutpeach.github.io/Ameow/docs/) · [开发说明](CONTRIBUTING.md) · [工程文档与历史说明](docs/README.md)
 
 ## 从源码运行
 
