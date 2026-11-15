@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "scheduleId": "2f51bb54-18c9-4824-a306-9796d77943c7",
+  "repository": "Wutpeach/Ameow",
+  "branch": "main",
+  "reviews": [
+    {
+      "checkedAtUtc": "2026-11-04T04:59:01Z",
+      "previousReviewedSha": null,
+      "baselineSha": "eb7f5ac56aaac736da7d5f51ed4368dfc96b64e5",
+      "baselineReason": "首次运行：#19 A 已按此 Rust 产品基线完成双语文档验收；之前的产品变更已由该验收覆盖。",
+      "reviewedThroughSha": "660de6164d086cf2345baf88bb2fac9f6713e193",
+      "result": "no_documentation_update",
+      "reason": "基线之后仅有已验收的 #28 文档更新及其合并；main 文件树与已验收候选一致，未发现新的产品代码变更。",
+      "pendingDocumentationPullRequests": [],
+      "otherOpenPullRequests": [
+        {
+          "number": 8,
+          "url": "https://github.com/Wutpeach/Ameow/pull/8",
+          "relevance": "非本次新增 main 产品变更或文档 PR"
+        }
+      ],
+      "deployment": {
+        "sha": "660de6164d086cf2345baf88bb2fac9f6713e193",
+        "status": "success",
+        "run": "https://github.com/Wutpeach/Ameow/actions/runs/41774106739"
+      },
+      "evidence": [
+        "https://github.com/Wutpeach/Ameow/pull/28",
+        "https://github.com/Wutpeach/Ameow/issues/19#issuecomment-6622682657"
+      ],
+      "checks": [
+        "git fetch origin main",
+        "git log baseline..origin/main",
+        "git diff --stat baseline origin/main",
+        "git diff --quiet accepted-PR-head origin/main",
+        "git merge-base --is-ancestor baseline origin/main",
+        "gh pr list --state open --base main",
+        "git ls-remote origin refs/heads/main"
+      ],
+      "scheduleStatusAtReview": "paused",
+      "validationScope": "本轮只检查当前真实主线并验证相同 SHA 的前置跳过；未声称完成 #19 B 的全部端到端验收。"
+    },
+    {
+      "checkedAtUtc": "2026-11-04T08:17:13.182Z",
+      "previousReviewedSha": "660de6164d086cf2345baf88bb2fac9f6713e193",
+      "reviewedThroughSha": "cf49e60e1912f92b08e3fe65177626b7dc02d87f",
+      "result": "documentation_merged_and_deployed",
+      "reason": "补查旧游标 660de616..cf49e60e：first-parent 仅已验收并部署的 PR29 分页、PR31 正式品牌图标及本次 PR30 恢复协议，无新增 Rust 产品行为；复用既有验收、20项定向测试与精确 HEAD c37fe12d 的 CI/独立 Worker 限定 PASS。以 GitHub expectedHeadSha 原子绑定该审核 SHA 合并为 cf49e60e；对应 Pages build/deploy 成功，实际双语开发页 HTTP200 且含恢复协议。接受丢失创建回执且他人已合并时安全停止、保留记录的非阻塞限制。PR30 临时工作树非构建文件已独立归档逐项 SHA256 回读验证；残留仅归档文件、已合并 Git 内容及可重建产物，核对后移入回收站，本地已合并分支安全删除。未触发调度，paused 保留。",
+      "evidence": [
+        "https://github.com/Wutpeach/Ameow/pull/30#issuecomment-6625940114",
+        "https://github.com/Wutpeach/Ameow/actions/runs/41792669719",
+        "https://github.com/Wutpeach/Ameow/actions/runs/41797761820",
+        "https://github.com/Wutpeach/Ameow/pull/30#issuecomment-6625902308",
+        "https://github.com/Wutpeach/Ameow/issues/19#issuecomment-6624903193",
+        "https://wutpeach.github.io/Ameow/docs/developer/docs-and-locales/",
+        "https://wutpeach.github.io/Ameow/en/docs/developer/docs-and-locales/"
+      ],
+      "pullRequest": {
+        "topic": "recovery",
+        "head": "docs/sync-recovery",
+        "through": "38f42ac21fbffce4e3ff89fbffc46abe29427916",
+        "headSha": "c37fe12d09310257859805706bf3e8f1c14c2645",
+        "phase": "deployed",
+        "number": 30,
+        "historicalPrNumbers": [],
+        "url": "https://github.com/Wutpeach/Ameow/pull/30",
+        "mergeSha": "cf49e60e1912f92b08e3fe65177626b7dc02d87f",
+        "deployment": {
+          "id": 7541241308,
+          "sha": "cf49e60e1912f92b08e3fe65177626b7dc02d87f",
+          "state": "success",
+          "url": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7541241308/statuses",
+          "environmentUrl": "https://wutpeach.github.io/Ameow/",
+          "statusUrl": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7541241308/statuses/21324456936",
+          "required": true
+        }
+      }
+    },
+    {
+      "checkedAtUtc": "2026-11-09T16:33:03.456Z",
+      "previousReviewedSha": "cf49e60e1912f92b08e3fe65177626b7dc02d87f",
+      "reviewedThroughSha": "61c5a33f92748daad6642c96b8617d7be23fde61",
+      "result": "documentation_merged_and_deployed",
+      "reason": "审查 cf49e60e..b2dd4368 的 #20–#23 与 #33 主线变化；PR #34 更新双语下载范围和重试说明，Check Worker 对 8bb9961e 完整 HEAD 独立复审 PASS；PR 文档构建与精确 SHA 合并后 Pages 部署成功。保留 #21 实际网络、#22 泛化范围与 #33 公开发行限制。",
+      "evidence": [
+        "https://github.com/Wutpeach/Ameow/pull/34",
+        "https://github.com/Wutpeach/Ameow/actions/runs/42654588087",
+        "https://github.com/Wutpeach/Ameow/actions/runs/42655549173",
+        "Cindy Check Worker d9lopkk7qzyzk4t44e5vpve7 PASS on 8bb9961e38ac4c853ecad048d1503aacfc3664a1"
+      ],
+      "pullRequest": {
+        "topic": "download-scope",
+        "head": "docs/sync-download-scope",
+        "through": "b2dd436828927747672764ce933bee8803cfba30",
+        "headSha": "8bb9961e38ac4c853ecad048d1503aacfc3664a1",
+        "phase": "deployed",
+        "number": 34,
+        "historicalPrNumbers": [],
+        "url": "https://github.com/Wutpeach/Ameow/pull/34",
+        "mergeSha": "61c5a33f92748daad6642c96b8617d7be23fde61",
+        "deployment": {
+          "id": 7660245486,
+          "sha": "61c5a33f92748daad6642c96b8617d7be23fde61",
+          "state": "success",
+          "url": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7660245486/statuses",
+          "environmentUrl": "https://wutpeach.github.io/Ameow/",
+          "statusUrl": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7660245486/statuses/21780677333",
+          "required": true
+        }
+      }
+    },
+    {
+      "checkedAtUtc": "2026-11-11T02:15:00.332Z",
+      "previousReviewedSha": "61c5a33f92748daad6642c96b8617d7be23fde61",
+      "reviewedThroughSha": "21c9153e27572ffc3c528ac9b30c505d48a68754",
+      "result": "documentation_merged_and_deployed",
+      "reason": "PR #35 resolves prior retry and image-quality review findings and updates bilingual toolchain and unreleased status guidance. Reviewed changes from 61c5a33f92748daad6642c96b8617d7be23fde61 through ffd0946011e0fca690e5dbd317f72ab7869330a2; the only subsequent main change is this documentation merge. Independent Cindy reviewer PASS on PR head 79f42708a8cce0e789acb399c92ccb3cf9022326. Known limitation: command-level locking does not provide whole-run mutual exclusion.",
+      "evidence": [
+        "https://github.com/Wutpeach/Ameow/pull/35",
+        "https://github.com/Wutpeach/Ameow/actions/runs/42851345042",
+        "https://github.com/Wutpeach/Ameow/actions/runs/42944568307",
+        "Independent Cindy reviewer PASS on head 79f42708a8cce0e789acb399c92ccb3cf9022326; schedule runs checked with no active run before merge."
+      ],
+      "pullRequest": {
+        "topic": "guidance-recovery",
+        "head": "docs/sync-guidance-recovery",
+        "through": "ffd0946011e0fca690e5dbd317f72ab7869330a2",
+        "headSha": "79f42708a8cce0e789acb399c92ccb3cf9022326",
+        "phase": "deployed",
+        "number": 35,
+        "historicalPrNumbers": [],
+        "url": "https://github.com/Wutpeach/Ameow/pull/35",
+        "mergeSha": "21c9153e27572ffc3c528ac9b30c505d48a68754",
+        "deployment": {
+          "id": 7699785031,
+          "sha": "21c9153e27572ffc3c528ac9b30c505d48a68754",
+          "state": "success",
+          "url": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7699785031/statuses",
+          "environmentUrl": "https://wutpeach.github.io/Ameow/",
+          "statusUrl": "https://api.github.com/repos/Wutpeach/Ameow/deployments/7699785031/statuses/21911250478",
+          "required": true
+        }
+      }
+    },
+    {
+      "checkedAtUtc": "2026-11-11T16:01:22.899Z",
+      "previousReviewedSha": "21c9153e27572ffc3c528ac9b30c505d48a68754",
+      "reviewedThroughSha": "124f3720561fc84923ced4c9962765f213062672",
+      "result": "no_documentation_update",
+      "reason": "Reviewed the release handoff change; public bilingual site guidance remains accurate and no documentation update is needed. Prior unregistered recovery directory is preserved pending safe ownership and content review.",
+      "evidence": [
+        "Commit 124f3720561fc84923ced4c9962765f213062672 changes only docs/first-rust-release.md and describes release preparation, not a public Rust release.",
+        "GitHub releases list shows v0.3.1 as latest; remote v0.5.0 tag was absent. Issue #33 comment 6790262452 records a private candidate awaiting visual review, without public upload.",
+        "Reviewed Chinese and English downloads pages at origin/main; both correctly state Rust has not been officially released.",
+        "Prior failure: PR #35 merged at 21c9153e27572ffc3c528ac9b30c505d48a68754 and Pages deployment succeeded. Non-forced worktree removal returned Directory not empty after registration was removed; D:/Ameow-docs-sync-guidance-recovery and its contents remain. Remote topic branch was absent. No separate process with this path in its command line was found; this does not establish that the directory is safe to delete."
+      ],
+      "pullRequest": null
+    }
+  ]
+}
