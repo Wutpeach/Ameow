@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-13T03:16:24.922634Z",
+  "generatedAt": "2026-11-13T10:42:15.131323Z",
   "title": "Design System: Ameow",
   "extensions": {
     "colorMeta": {
@@ -447,6 +447,11 @@
       {
         "name": "The Anchored Tooltip Rule",
         "body": "以控件真实 bounds 为锚，优先在上方、间隔 6px；空间不足时翻转并约束在窗口内，避开指针。复用 [ui_tooltip.rs](src/ui_tooltip.rs)，不能回到跟随鼠标的位置算法。",
+        "section": "components"
+      },
+      {
+        "name": "The Quiet Startup Rule",
+        "body": "命中缓存后的正常启动自检静默进行，Full 左下不显示组件提示，也不闪“组件已就绪”。实际下载、安装修复及异常保留进度与恢复入口；仅依据本次准备过程决定提示，过去下载或失败的历史不能让新一次正常自检亮起。后台完整性校验与本地版本检测继续执行。",
         "section": "components"
       },
       {

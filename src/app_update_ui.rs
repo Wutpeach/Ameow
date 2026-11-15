@@ -66,7 +66,7 @@ pub fn preview_view(state: &str) -> View {
         "app-available" => Phase::Available,
         "app-downloading" => Phase::Downloading,
         "app-verifying" => Phase::Verifying,
-        "app-ready" | "app-preparing" | "app-conflict" | "app-conflict-copied" | "app-help" => Phase::Ready,
+        "app-ready" | "app-preparing" | "app-self-check" | "app-conflict" | "app-conflict-copied" | "app-help" => Phase::Ready,
         "app-update-feedback" => Phase::WaitingForTasks,
         "app-switching" => Phase::Switching,
         "app-failed" => Phase::Failed,
@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn ready_and_scheduled_updates_keep_the_same_ui_and_require_a_launcher() {
-        for state in ["app-ready", "app-preparing", "app-conflict", "app-conflict-copied", "app-update-feedback"] {
+        for state in ["app-ready", "app-preparing", "app-self-check", "app-conflict", "app-conflict-copied", "app-update-feedback"] {
             let mut view = preview_view(state);
             assert!(popup_restart_available(&view));
             assert_eq!(popup_label(&view, Language::Chinese), "重启更新");

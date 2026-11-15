@@ -983,14 +983,23 @@ fn preparation_visible(snapshot: &QueueSnapshot, now: u64) -> bool {
     if snapshot.stopping || snapshot.stopped {
         return false;
     }
+    let preparation = &snapshot.preparation;
+    // Local cache checks are quiet; only work from this attempt can earn a success hint.
+    let setup = preparation.phase == PreparationPhase::Downloading
+        || preparation.failure.is_some()
+        || matches!(preparation.stage, PreparationStage::Acquire | PreparationStage::Verify | PreparationStage::Extract)
+        || preparation.history.iter().any(|event| event.attempt == preparation.attempt
+            && (event.category.is_some()
+                || matches!(event.stage, PreparationStage::Acquire | PreparationStage::Verify | PreparationStage::Extract)));
     snapshot.preparation_held
         || snapshot.preparation_owner_lost
-        || match snapshot.preparation.phase {
+        || match preparation.phase {
             PreparationPhase::Idle => false,
+            PreparationPhase::Failed => true,
             PreparationPhase::Ready => {
-                now.saturating_sub(snapshot.preparation.updated_at_ms) < PREPARATION_SUCCESS_MS
+                setup && now.saturating_sub(preparation.updated_at_ms) < PREPARATION_SUCCESS_MS
             }
-            _ => true,
+            _ => setup,
         }
 }
 fn preparation_popup_visible(snapshot: &QueueSnapshot, now: u64, update_attention: bool) -> bool {
@@ -2293,8 +2302,10 @@ impl Prototype {
                 })
     }
     pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
-        let preparation = &self.downloads.as_ref()?.snapshot.as_ref()?.preparation;
+        let snapshot = self.downloads.as_ref()?.snapshot.as_ref()?;
+        let preparation = &snapshot.preparation;
         (self.preparation_indicator_visible()
+            && preparation_visible(snapshot, ameow_next::download::progress::now_ms())
             && !self.model.reduced
             && matches!(
                 preparation.phase,
@@ -2538,6 +2549,8 @@ impl ExitIssue {
 }
 #[cfg(test)]
 mod tests {
+    use super::{ErrorCategory, PreparationPhase, PreparationStage};
+
     #[test]
     fn partial_rows_show_verified_counts_and_failure_actions() {
         use super::*;
@@ -3475,11 +3488,12 @@ mod tests {
         use ameow_next::download::preparation::PreparationPhase;
         let mut snapshot = exit_snapshot();
         assert!(!super::preparation_visible(&snapshot, 100));
-        snapshot.preparation.phase = PreparationPhase::Downloading;
+        snapshot.preparation = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap()).preparation;
         assert!(super::preparation_visible(&snapshot, 100));
         // Component preparation never contributes to media counts.
         assert_eq!(badge_counts(snapshot.unfinished, snapshot.failures), None);
         snapshot.preparation.phase = PreparationPhase::Ready;
+        snapshot.preparation.stage = PreparationStage::Publish;
         snapshot.preparation.updated_at_ms = 100;
         assert!(super::preparation_visible(&snapshot, 1899));
         assert!(!super::preparation_visible(&snapshot, 1900));
@@ -3492,17 +3506,64 @@ mod tests {
         assert!(!super::preparation_visible(&snapshot, 50_000));
     }
     #[test]
+    fn cached_startup_checks_and_success_stay_quiet_despite_earlier_downloads() {
+        let mut snapshot = crate::preview::snapshot(&crate::preview::find("full.components-checking").unwrap());
+        assert!(!snapshot.preparation.history.is_empty());
+        for (phase, stage) in [
+            (PreparationPhase::Preparing, PreparationStage::Cache),
+            (PreparationPhase::Verifying, PreparationStage::Probe),
+            (PreparationPhase::Ready, PreparationStage::Publish),
+        ] {
+            snapshot.preparation.phase = phase;
+            snapshot.preparation.stage = stage;
+            snapshot.preparation.updated_at_ms = 100;
+            assert!(!super::preparation_visible(&snapshot, 100));
+            assert!(!super::preparation_popup_visible(&snapshot, 100, true));
+        }
+        snapshot.preparation.phase = PreparationPhase::Verifying;
+        snapshot.preparation.stage = PreparationStage::Probe;
+        snapshot.preparation_held = true;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation_held = false;
+        snapshot.preparation_owner_lost = true;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation_owner_lost = false;
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        assert!(super::preparation_visible(&snapshot, 100));
+    }
+    #[test]
+    fn actual_setup_remains_visible_through_local_probes_and_repair() {
+        let mut snapshot = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap());
+        snapshot.preparation.phase = PreparationPhase::Verifying;
+        snapshot.preparation.stage = PreparationStage::Probe;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation.history.clear();
+        assert!(!super::preparation_visible(&snapshot, 100));
+        snapshot.preparation.stage = PreparationStage::Extract;
+        assert!(super::preparation_visible(&snapshot, 100));
+        let mut event = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap())
+            .preparation.history.remove(0);
+        event.stage = PreparationStage::Cache;
+        event.phase = PreparationPhase::Preparing;
+        event.category = Some(ErrorCategory::Hash);
+        snapshot.preparation.stage = PreparationStage::Probe;
+        snapshot.preparation.history.push(event);
+        assert!(super::preparation_visible(&snapshot, 100));
+    }
+    #[test]
     fn update_popup_only_includes_components_that_need_attention() {
         use super::preparation_popup_visible;
         use ameow_next::download::preparation::PreparationPhase;
         let mut snapshot = exit_snapshot();
         assert!(!preparation_popup_visible(&snapshot, 100, true));
+        snapshot.preparation = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap()).preparation;
         for phase in [PreparationPhase::Preparing, PreparationPhase::Downloading,
             PreparationPhase::Verifying, PreparationPhase::Failed] {
             snapshot.preparation.phase = phase;
             assert!(preparation_popup_visible(&snapshot, 100, true));
         }
         snapshot.preparation.phase = PreparationPhase::Ready;
+        snapshot.preparation.stage = PreparationStage::Publish;
         snapshot.preparation.updated_at_ms = 100;
         assert!(preparation_popup_visible(&snapshot, 100, false));
         assert!(!preparation_popup_visible(&snapshot, 1900, false));

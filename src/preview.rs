@@ -112,9 +112,25 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
     if matches!(scene.state.as_str(), "app-conflict" | "app-conflict-copied") {
         s.preparation.phase = ameow_next::download::preparation::PreparationPhase::Failed;
     }
-    if scene.state=="app-preparing" {
-        s.preparing = true;
-        s.preparation.phase = ameow_next::download::preparation::PreparationPhase::Preparing;
+    if matches!(scene.state.as_str(), "components-checking" | "components-ready" | "components-downloading" | "app-self-check" | "app-preparing") {
+        use ameow_next::download::preparation::{PreparationEvent, PreparationPhase, PreparationStage, RuntimeComponent};
+        let downloading = matches!(scene.state.as_str(), "components-downloading" | "app-preparing");
+        let ready = scene.state == "components-ready";
+        s.preparing = !ready;
+        let preparation = &mut s.preparation;
+        preparation.attempt = 2;
+        preparation.phase = if downloading { PreparationPhase::Downloading } else if ready { PreparationPhase::Ready } else { PreparationPhase::Verifying };
+        preparation.stage = if downloading { PreparationStage::Acquire } else if ready { PreparationStage::Publish } else { PreparationStage::Probe };
+        preparation.component = Some(RuntimeComponent::YtDlp);
+        preparation.updated_at_ms = ameow_next::download::progress::now_ms();
+        preparation.downloaded_bytes = if downloading { 25_000_000 } else { 0 };
+        preparation.total_bytes = downloading.then_some(40_000_000);
+        preparation.history.push(PreparationEvent {
+            attempt: if downloading { preparation.attempt } else { preparation.attempt - 1 },
+            timestamp_ms: 0, phase: PreparationPhase::Downloading,
+            component: Some(RuntimeComponent::YtDlp), stage: PreparationStage::Acquire,
+            category: None, http_status: None, downloaded_bytes: 25_000_000, total_bytes: Some(40_000_000),
+        });
     }
     if scene.surface == "settings" || scene.surface == "components" || scene.surface == "diagnostics" {
         s = snapshot(Vec::new());
