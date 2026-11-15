@@ -257,6 +257,6 @@ Full 右键菜单保留画质三段、规格悬停入口与右上关闭。退出
 - **Don't** 让 tooltip 被鼠标挡住，把读取失败显示成读取中，或用动画掩盖错误和业务安全门槛。
 - **Don't** 把文档示意、构建成功或其他平台的配置当作原生视觉通过；Windows x64/MSVC 是当前已验证目标，macOS 仍未验证。
 
-基线依据：本轮用户确认与 [按钮光晕范围收敛](docs/evidence/ui-review/2026-11-13-button-backgrounds.md)、[Tooltip 位置](docs/evidence/ui-review/2026-11-13-tooltip-placement.md)、[队列标题与空状态](docs/evidence/ui-review/2026-11-13-queue-header.md)、[队列关闭圆底](docs/evidence/ui-review/2026-11-13-queue-close-disc.md)。历史报告中的待验收说明保留其时间语境；队列关闭圆底的后续用户验收已通过。队列报告中前台／光标未变化的两项环境检查未通过、原因未确认，不归为全项通过。
+基线依据：本轮用户确认与历史按钮光晕范围收敛、Tooltip 位置、队列标题与空状态、队列关闭圆底记录，见 [历史资料索引](docs/README.md#历史资料) 中原 `docs/evidence/ui-review/` 路径；本机外部副本已按用户要求移除，来源可用性以索引说明为准。历史报告中的待验收说明保留其时间语境；队列关闭圆底的后续用户验收已通过。队列报告中前台／光标未变化的两项环境检查未通过、原因未确认，不归为全项通过。
 
 [.impeccable/design.json](.impeccable/design.json) 提供格式扩展与组件示意，HTML／CSS 仅用于文档预览，不是产品实现或 GPUI 原生验证证据。颜色梯度若用于文档面板辅助预览，不增加产品可用色。

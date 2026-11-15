@@ -89,6 +89,6 @@ scripts/test_gallery_tools.py 不打开窗口，检查防覆盖、回执边界�
 
 旧 preview.ps1 / preview-menu.ps1 / preview-console.cs / start-preview.bat 和对应的
 test_preview_menu.ps1 已在职责对照后移除。替代证据与保留工具见
-[Gallery 职责覆盖](evidence/issue32/gallery-coverage.md)。preview_capture.py、
+[Gallery 职责覆盖的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue32/gallery-coverage.md`）。preview_capture.py、
 repair_a_runtime.py、windows_validate.py 及专门的 DPI/跨屏/阴影验证工具继续保留。
-旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录](evidence/issue20/README.md) 回溯。
+旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue20/README.md`）回溯。
