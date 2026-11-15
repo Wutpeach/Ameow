@@ -450,6 +450,7 @@ const PRESET_LABEL_KEYS: Readonly<Record<string, string>> = {
   "download-queued": "downloadQueued",
   "transcode-active": "transcodeActive",
   "transcode-failed": "transcodeFailed",
+  "network-failed": "networkFailed",
   "mixed-busy": "mixedBusy",
   "compact-neutral": "compactNeutral",
   "compact-pointer": "compactPointer",
@@ -671,6 +672,8 @@ export function PresentationLab() {
       setActiveFixtureId("download-active");
     } else if (scenarioId === "transcode") {
       setActiveFixtureId("transcode-active");
+    } else if (scenarioId === "network") {
+      setActiveFixtureId("network-failed");
     } else if (scenarioId === "mixed") {
       setActiveFixtureId("mixed-busy");
     }
@@ -905,6 +908,13 @@ export function PresentationLab() {
                 onClick={() => selectScenario("transcode")}
                 dataAttributes={{ "data-lab-preset": "transcode-active" }}
                 title={t("presets.transcodeActive.description")}
+              />
+              <LabStripChip
+                label={t("presets.networkFailed.label")}
+                selected={activeScenarioId === "network"}
+                onClick={() => selectScenario("network")}
+                dataAttributes={{ "data-lab-preset": "network-failed" }}
+                title={t("presets.networkFailed.description")}
               />
               <LabStripChip
                 label={t("presets.mixedBusy.label")}

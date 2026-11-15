@@ -115,9 +115,13 @@ import {
   type CenterOverlayState,
 } from "./utils/centerOverlayState";
 import {
-  errorDiagnosticCategoryTranslationKey,
+  errorDiagnosticMessageTranslationKey,
   resolveErrorDiagnosticCategory,
 } from "./utils/errorDiagnosticCategories";
+import {
+  resolveErrorDiagnosticRetryTarget,
+  WINDOWS_NETWORK_PROXY_SETTINGS_URI,
+} from "./utils/errorDiagnosticRecovery";
 import { parseDesktopAppConfig } from "./updates/appUpdatePreferences";
 import { isVideoUrl } from "./utils/videoUrl";
 import { saveOutputPath } from "./utils/outputPath";
@@ -766,7 +770,10 @@ function App() {
       failure: normalizedFailure,
       fallbackMessage: normalizedFallback,
     });
-    const userMessage = t(errorDiagnosticCategoryTranslationKey(category));
+    const userMessage = t(errorDiagnosticMessageTranslationKey({
+      category,
+      failure: normalizedFailure,
+    }));
 
     return {
       surface,
@@ -791,6 +798,13 @@ function App() {
         console.error("Failed to copy error diagnostics:", error);
       });
   }, [clearForegroundTaskOutcomeTimer, updateCenterOverlayState]);
+
+  const openNetworkProxySettings = useCallback(() => {
+    void desktopSystem.openExternal(WINDOWS_NETWORK_PROXY_SETTINGS_URI)
+      .catch((error) => {
+        console.error("Failed to open the system proxy settings:", error);
+      });
+  }, []);
 
   const showForegroundTaskOutcome = useCallback(({
     status,
@@ -1140,6 +1154,23 @@ function App() {
       removePendingTranscodeActionTraceId(traceId);
     }
   }, [addPendingTranscodeActionTraceId, removePendingTranscodeActionTraceId]);
+
+  const retryFailedDiagnostic = useCallback((diagnostic: ErrorDiagnosticCopyRequest) => {
+    const target = resolveErrorDiagnosticRetryTarget(diagnostic);
+    if (!target) {
+      return;
+    }
+    dismissTransientCenterOverlay();
+    if (target.kind === "transcode") {
+      void retryTranscodeTask(target.traceId);
+      return;
+    }
+    void enqueueVideoDownload(target.url);
+  }, [
+    dismissTransientCenterOverlay,
+    enqueueVideoDownload,
+    retryTranscodeTask,
+  ]);
 
   const removeTranscodeTask = useCallback(async (traceId: string) => {
     if (!traceId || pendingTranscodeActionTraceIdsRef.current.has(traceId)) {
@@ -2848,6 +2879,9 @@ function App() {
           primaryTaskStatusText={primaryTaskStatusText}
           primaryTaskSummaryText={primaryTaskSummaryText}
           onCopyDiagnostic={handleCopyErrorDiagnostic}
+          onOpenProxySettings={openNetworkProxySettings}
+          onRetryDiagnostic={retryFailedDiagnostic}
+          isWindows={isWindows}
           showPrimaryCancel={
             Boolean(
               centerOverlayVisual.kind === "task-progress"

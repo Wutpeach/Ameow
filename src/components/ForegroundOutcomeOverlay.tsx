@@ -1,4 +1,5 @@
 import type { ComponentType, CSSProperties, SVGProps } from "react";
+import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { CircularProgressIndicator } from "./CircularProgressIndicator";
@@ -26,6 +27,17 @@ type OutcomeIconProps = SVGProps<SVGSVGElement> & {
  */
 export type ForegroundOutcomeStatus = "success" | "failure" | "cancelled";
 
+/**
+ * Optional recovery control rendered under the outcome headline. Actions are
+ * supplied by the caller (the overlay never decides which recovery applies)
+ * so the presentation layer stays free of product/transport semantics.
+ */
+export type ForegroundOutcomeAction = {
+  key: string;
+  label: string;
+  onClick: () => void;
+};
+
 export type ForegroundOutcomeOverlayProps = {
   outcomeVisible: boolean;
   status: ForegroundOutcomeStatus;
@@ -41,6 +53,10 @@ export type ForegroundOutcomeOverlayProps = {
   copyDiagnosticLabel?: string;
   SuccessIcon?: ComponentType<OutcomeIconProps>;
   successIconStrokeWidth?: number;
+  /** Sanitized target host (origin only) the failure refers to. */
+  targetHost?: string | null;
+  /** Recovery controls; omitted entirely when no action applies. */
+  actions?: ForegroundOutcomeAction[];
 };
 
 export const ForegroundOutcomeOverlay = ({
@@ -58,8 +74,14 @@ export const ForegroundOutcomeOverlay = ({
   copyDiagnosticLabel,
   SuccessIcon = CheckIcon,
   successIconStrokeWidth = 3,
+  targetHost = null,
+  actions,
 }: ForegroundOutcomeOverlayProps) => {
   const shouldReduceMotion = useReducedMotion();
+  const [hoveredActionKey, setHoveredActionKey] = useState<string | null>(null);
+  const hasFailureDetail = outcomeVisible && status !== "success";
+  const visibleActions = hasFailureDetail ? actions ?? [] : [];
+  const visibleHost = hasFailureDetail ? targetHost : null;
 
   const ringExitTransition = shouldReduceMotion
     ? { duration: 0.1 }
@@ -229,6 +251,83 @@ export const ForegroundOutcomeOverlay = ({
               <CopyIcon size={13} strokeWidth={2} style={{ pointerEvents: "none" }} />
             </button>
           ) : null}
+        </motion.div>
+      ) : null}
+      {visibleHost ? (
+        <motion.div
+          animate={errorMessageAnimate}
+          transition={errorMessageTransition}
+          title={visibleHost}
+          style={{
+            maxWidth: "100%",
+            padding: "0 8px",
+            fontSize: 8,
+            lineHeight: 1.2,
+            color: loadingTextColor,
+            opacity: 0.72,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        >
+          {visibleHost}
+        </motion.div>
+      ) : null}
+      {visibleActions.length > 0 ? (
+        <motion.div
+          animate={errorMessageAnimate}
+          transition={errorMessageTransition}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            maxWidth: "100%",
+            padding: "0 4px",
+            pointerEvents: "none",
+          }}
+        >
+          {visibleActions.map((action) => {
+            const isHovered = hoveredActionKey === action.key;
+            return (
+              <button
+                key={action.key}
+                type="button"
+                onMouseDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onMouseEnter={() => setHoveredActionKey(action.key)}
+                onMouseLeave={() => {
+                  setHoveredActionKey((current) => (current === action.key ? null : current));
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  action.onClick();
+                }}
+                style={{
+                  fontSize: 8.5,
+                  lineHeight: 1,
+                  padding: "3px 7px",
+                  borderRadius: 5,
+                  border: `1px solid ${loadingTextColor}`,
+                  backgroundColor: isHovered
+                    ? `color-mix(in srgb, ${loadingTextColor} 18%, transparent)`
+                    : "transparent",
+                  color: loadingTextColor,
+                  opacity: isHovered ? 1 : 0.75,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  pointerEvents: "auto",
+                  transition: "opacity 0.15s, background-color 0.15s",
+                }}
+              >
+                {action.label}
+              </button>
+            );
+          })}
         </motion.div>
       ) : null}
     </div>

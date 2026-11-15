@@ -227,6 +227,9 @@ export function LabOverlayStage(props: LabOverlayStageProps) {
           primaryTaskStatusText={overlayProjection.primaryTaskStatusText}
           primaryTaskSummaryText={overlayProjection.primaryTaskSummaryText}
           onCopyDiagnostic={onCopyDiagnostic}
+          onOpenProxySettings={() => {}}
+          onRetryDiagnostic={() => {}}
+          isWindows
           showPrimaryCancel={overlayProjection.showPrimaryCancel}
           isPrimaryCancelPending={overlayProjection.isPrimaryCancelPending}
           primaryTaskTraceId={overlayProjection.primaryTaskTraceId}

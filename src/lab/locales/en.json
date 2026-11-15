@@ -100,6 +100,7 @@
     "downloadQueued": { "label": "Download queued", "description": "Badge count + queued task rows." },
     "transcodeActive": { "label": "Transcode active", "description": "CircularProgressIndicator ring + queue rows." },
     "transcodeFailed": { "label": "Transcode failed", "description": "Failure center overlay (copy diagnostic) + failed row." },
+    "networkFailed": { "label": "Network failed", "description": "Typed network failure: precise headline, target host, and recovery controls." },
     "mixedBusy": { "label": "Mixed busy", "description": "Download (WebGL arc) and transcode (DOM ring) concurrency." },
     "compactNeutral": { "label": "Compact · neutral", "description": "The current Compact character at rest; no pointer attention." },
     "compactPointer": { "label": "Compact · pointer attention", "description": "The current Compact character tracking the workspace pointer." },

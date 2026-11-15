@@ -100,6 +100,7 @@
     "downloadQueued": { "label": "下载排队中", "description": "徽章计数 + 排队任务行。" },
     "transcodeActive": { "label": "转码进行中", "description": "CircularProgressIndicator 转码环 + 队列行。" },
     "transcodeFailed": { "label": "转码失败", "description": "失败中心 overlay（可复制诊断）+ 失败行。" },
+    "networkFailed": { "label": "网络失败", "description": "类型化网络失败：精确文案、目标域名与恢复按钮。" },
     "mixedBusy": { "label": "混合忙碌", "description": "下载（WebGL 弧）与转码（DOM 环）并发。" },
     "compactNeutral": { "label": "紧凑 · 中性", "description": "当前紧凑角色静止；无指针注意力。" },
     "compactPointer": { "label": "紧凑 · 指针注意力", "description": "当前紧凑角色追踪工作区指针。" },

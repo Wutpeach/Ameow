@@ -138,6 +138,19 @@
         "runtime_downloader_unavailable": "下载组件未准备好",
         "transcode_merge": "视频处理失败，可复制诊断信息",
         "unclassified": "处理失败，可复制诊断信息反馈"
+      },
+      "networkDetail": {
+        "dns_failed": "域名解析失败，请检查网络",
+        "tls_failed": "安全连接失败，请检查证书",
+        "timeout": "连接超时，请检查网络或代理",
+        "proxy_auth_failed": "代理认证失败，请检查代理账号",
+        "proxy_connection_failed": "代理连接失败，请检查代理地址",
+        "proxy_resolution_failed": "无法读取系统代理设置",
+        "proxy_unsupported": "代理配置不受支持，请改用 HTTP 代理"
+      },
+      "action": {
+        "openProxySettings": "打开代理设置",
+        "retry": "重试"
       }
     }
   },

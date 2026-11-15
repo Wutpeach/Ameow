@@ -138,6 +138,19 @@
         "runtime_downloader_unavailable": "Downloader is not ready",
         "transcode_merge": "Video processing failed. Copy diagnostics",
         "unclassified": "Processing failed. Copy diagnostics to report it"
+      },
+      "networkDetail": {
+        "dns_failed": "DNS lookup failed. Check your network",
+        "tls_failed": "Secure connection failed. Check certificate",
+        "timeout": "Connection timed out. Check network or proxy",
+        "proxy_auth_failed": "Proxy auth failed. Check proxy credentials",
+        "proxy_connection_failed": "Proxy connection failed. Check proxy address",
+        "proxy_resolution_failed": "Cannot read system proxy settings",
+        "proxy_unsupported": "Unsupported proxy. Use an HTTP proxy"
+      },
+      "action": {
+        "openProxySettings": "Open proxy settings",
+        "retry": "Retry"
       }
     }
   },

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   errorDiagnosticCategoryTranslationKey,
+  errorDiagnosticMessageTranslationKey,
   resolveErrorDiagnosticCategory,
+  resolveErrorDiagnosticNetworkDetail,
+  resolveErrorDiagnosticTargetHost,
 } from "./errorDiagnosticCategories";
 
 describe("errorDiagnosticCategories", () => {
@@ -127,5 +130,84 @@ describe("errorDiagnosticCategories", () => {
   it("returns stable desktop translation keys", () => {
     expect(errorDiagnosticCategoryTranslationKey("output_write"))
       .toBe("app.errorDiagnostic.category.output_write");
+  });
+});
+
+describe("network sub-detail resolution", () => {
+  it("maps every typed network classification to its own detail", () => {
+    const cases = [
+      ["NETWORK_DNS_FAILED", "dns_failed"],
+      ["NETWORK_TLS_FAILED", "tls_failed"],
+      ["NETWORK_TIMEOUT", "timeout"],
+      ["NETWORK_PROXY_AUTH_FAILED", "proxy_auth_failed"],
+      ["NETWORK_PROXY_CONNECTION_FAILED", "proxy_connection_failed"],
+      ["NETWORK_PROXY_RESOLUTION_FAILED", "proxy_resolution_failed"],
+      ["NETWORK_PROXY_UNSUPPORTED", "proxy_unsupported"],
+    ] as const;
+    for (const [classification, expected] of cases) {
+      expect(resolveErrorDiagnosticNetworkDetail({ classification })).toBe(expected);
+    }
+  });
+
+  it("accepts lower-case classification text without inventing a cause", () => {
+    expect(resolveErrorDiagnosticNetworkDetail({ classification: "network_dns_failed" }))
+      .toBe("dns_failed");
+  });
+
+  it("keeps the generic copy for unknown or missing classifications", () => {
+    expect(resolveErrorDiagnosticNetworkDetail({ classification: "NETWORK_UNKNOWN" })).toBeNull();
+    expect(resolveErrorDiagnosticNetworkDetail({ rawMessage: "fetch failed" })).toBeNull();
+    expect(resolveErrorDiagnosticNetworkDetail(null)).toBeNull();
+    expect(resolveErrorDiagnosticNetworkDetail(undefined)).toBeNull();
+  });
+
+  it("prefers the typed network detail over the generic category headline", () => {
+    expect(errorDiagnosticMessageTranslationKey({
+      category: "network_proxy",
+      failure: { classification: "NETWORK_DNS_FAILED" },
+    })).toBe("app.errorDiagnostic.networkDetail.dns_failed");
+  });
+
+  it("falls back to the category headline when no detail is typed", () => {
+    expect(errorDiagnosticMessageTranslationKey({
+      category: "network_proxy",
+      failure: { classification: "NETWORK_UNKNOWN" },
+    })).toBe("app.errorDiagnostic.category.network_proxy");
+  });
+
+  it("never applies a network detail to another category", () => {
+    expect(errorDiagnosticMessageTranslationKey({
+      category: "auth_login_state",
+      failure: { classification: "NETWORK_DNS_FAILED" },
+    })).toBe("app.errorDiagnostic.category.auth_login_state");
+  });
+});
+
+describe("diagnostic target host", () => {
+  it("uses the already-sanitized origin when present", () => {
+    expect(resolveErrorDiagnosticTargetHost({
+      safeUrl: { origin: "https://www.youtube.com", hasQuery: true, hasFragment: false },
+    })).toBe("www.youtube.com");
+  });
+
+  it("derives only the host from a raw user URL and drops path/query", () => {
+    expect(resolveErrorDiagnosticTargetHost({
+      userUrl: "https://www.youtube.com/watch?v=SECRET&token=abc",
+    })).toBe("www.youtube.com");
+    expect(resolveErrorDiagnosticTargetHost({
+      userUrl: "https://example.com:8443/path?x=1",
+    })).toBe("example.com:8443");
+  });
+
+  it("accepts a scheme-less host", () => {
+    expect(resolveErrorDiagnosticTargetHost({ userUrl: "bilibili.com/video/BV1" }))
+      .toBe("bilibili.com");
+  });
+
+  it("returns null when nothing parseable is available", () => {
+    expect(resolveErrorDiagnosticTargetHost(null)).toBeNull();
+    expect(resolveErrorDiagnosticTargetHost({})).toBeNull();
+    expect(resolveErrorDiagnosticTargetHost({ userUrl: "   " })).toBeNull();
+    expect(resolveErrorDiagnosticTargetHost({ userUrl: "not a url at all" })).toBeNull();
   });
 });

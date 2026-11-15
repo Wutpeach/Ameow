@@ -32,7 +32,7 @@ export const LAB_TRANSCODE_TRACE_ID = "lab-transcode-trace";
  */
 export type LabOverlayFixture =
   | { kind: "runtime"; gate: RuntimeDependencyGateStatePayload }
-  | { kind: "download"; queue: DownloadQueueState }
+  | { kind: "download"; queue: DownloadQueueState; centerOverlayState?: CenterOverlayState }
   | { kind: "transcode"; transcodeTasks: VideoTranscodeTaskPayload[]; centerOverlayState: CenterOverlayState }
   | { kind: "mixed"; queue: DownloadQueueState; transcodeTasks: VideoTranscodeTaskPayload[] };
 
@@ -195,6 +195,43 @@ export const createMixedBusyFixture = (): LabOverlayFixture => {
 export const createEmptyDownloadQueueFixture = (): DownloadQueueState =>
   createInitialDownloadQueueState();
 
+/**
+ * Network failure scene. Uses a typed DNS classification so the overlay shows
+ * the precise headline, the sanitized target host, and the recovery controls
+ * instead of the generic "check your proxy" copy.
+ */
+export const createNetworkFailedFixture = (): LabOverlayFixture => {
+  const errorMessage = "域名解析失败，请检查网络";
+  return {
+    kind: "download",
+    queue: createEmptyDownloadQueueFixture(),
+    centerOverlayState: {
+      kind: "task-outcome-visible",
+      requestId: 1,
+      source: "download",
+      status: "failure",
+      origin: "terminal",
+      message: errorMessage,
+      durationMs: 60_000,
+      diagnostic: {
+        surface: "download",
+        traceId: LAB_DOWNLOAD_TRACE_ID,
+        userMessage: errorMessage,
+        category: "network_proxy",
+        failure: {
+          classification: "NETWORK_DNS_FAILED",
+          userUrl: "https://www.youtube.com/watch?v=lab-fixture",
+          safeUrl: {
+            origin: "https://www.youtube.com",
+            hasQuery: true,
+            hasFragment: false,
+          },
+        },
+      },
+    },
+  };
+};
+
 export const LAB_OVERLAY_FIXTURES: Readonly<Record<string, () => LabOverlayFixture>> = {
   "runtime-auto-config": createRuntimeAutoConfigFixture,
   "runtime-failed": createRuntimeFailedFixture,
@@ -202,6 +239,7 @@ export const LAB_OVERLAY_FIXTURES: Readonly<Record<string, () => LabOverlayFixtu
   "download-queued": createDownloadQueuedFixture,
   "transcode-active": createTranscodeActiveFixture,
   "transcode-failed": createTranscodeFailedFixture,
+  "network-failed": createNetworkFailedFixture,
   "mixed-busy": createMixedBusyFixture,
 };
 

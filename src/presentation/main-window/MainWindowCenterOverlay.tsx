@@ -14,13 +14,20 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../contexts/ThemeContext";
 import { CircularProgressIndicator } from "../../components/CircularProgressIndicator";
-import { ForegroundOutcomeOverlay } from "../../components/ForegroundOutcomeOverlay";
+import {
+  ForegroundOutcomeOverlay,
+  type ForegroundOutcomeAction,
+} from "../../components/ForegroundOutcomeOverlay";
 import { FolderCheckIcon } from "../../components/icons/AppIcons";
 import {
   CENTER_OVERLAY_CONTENT_STYLE,
   CENTER_OVERLAY_PRESENCE_MOTION,
 } from "../../components/foregroundOverlayShared";
 import type { CenterOverlayVisual } from "../../utils/centerOverlayState";
+import {
+  resolveErrorDiagnosticRecoveryActions,
+} from "../../utils/errorDiagnosticRecovery";
+import { resolveErrorDiagnosticTargetHost } from "../../utils/errorDiagnosticCategories";
 import type { ErrorDiagnosticCopyRequest } from "../../types/errorDiagnostics";
 
 export type MainWindowPrimaryTaskView = {
@@ -35,6 +42,9 @@ export type MainWindowCenterOverlayProps = {
   primaryTaskStatusText: string;
   primaryTaskSummaryText: string;
   onCopyDiagnostic: (diagnostic: ErrorDiagnosticCopyRequest) => void;
+  onOpenProxySettings: () => void;
+  onRetryDiagnostic: (diagnostic: ErrorDiagnosticCopyRequest) => void;
+  isWindows: boolean;
   showPrimaryCancel: boolean;
   isPrimaryCancelPending: boolean;
   primaryTaskTraceId: string | null;
@@ -46,6 +56,33 @@ export const MainWindowCenterOverlay = (props: MainWindowCenterOverlayProps) => 
   const { t } = useTranslation("desktop");
   const { centerOverlayVisual, primaryTask } = props;
   const [isProgressCancelHovered, setIsProgressCancelHovered] = useState(false);
+
+  // Recovery controls are derived from the typed diagnostic only; a category
+  // without a meaningful user-side action keeps the copy-only overlay.
+  const outcomeDiagnostic = centerOverlayVisual.kind === "task-outcome"
+    ? centerOverlayVisual.diagnostic
+    : null;
+  const outcomeTargetHost = resolveErrorDiagnosticTargetHost(outcomeDiagnostic?.failure);
+  const recoveryActions: ForegroundOutcomeAction[] = resolveErrorDiagnosticRecoveryActions({
+    diagnostic: outcomeDiagnostic,
+    isWindows: props.isWindows,
+  }).map((actionKey) => (
+    actionKey === "open_proxy_settings"
+      ? {
+          key: actionKey,
+          label: t("app.errorDiagnostic.action.openProxySettings"),
+          onClick: props.onOpenProxySettings,
+        }
+      : {
+          key: actionKey,
+          label: t("app.errorDiagnostic.action.retry"),
+          onClick: () => {
+            if (outcomeDiagnostic) {
+              props.onRetryDiagnostic(outcomeDiagnostic);
+            }
+          },
+        }
+  ));
 
   const primaryTaskStroke = primaryTask?.kind === "transcode"
     ? colors.transcodeSolid
@@ -147,6 +184,8 @@ export const MainWindowCenterOverlay = (props: MainWindowCenterOverlayProps) => 
             outcomeVisible={centerOverlayVisual.outcomeVisible}
             status={centerOverlayVisual.status}
             errorMessage={centerOverlayVisual.message}
+            targetHost={outcomeTargetHost}
+            actions={recoveryActions}
             showCopyAction={centerOverlayVisual.status === "failure" && Boolean(centerOverlayVisual.diagnostic)}
             onCopyDiagnostic={centerOverlayVisual.diagnostic
               ? () => {

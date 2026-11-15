@@ -228,7 +228,9 @@ export const projectLabOverlayFixture = (
       : null;
 
   const centerOverlayState: CenterOverlayState =
-    fixture.kind === "transcode" ? fixture.centerOverlayState : createIdleCenterOverlayState();
+    fixture.kind === "transcode" || fixture.kind === "download"
+      ? fixture.centerOverlayState ?? createIdleCenterOverlayState()
+      : createIdleCenterOverlayState();
   const centerOverlayVisual = selectCenterOverlayVisual({
     primaryTask: primaryTask
       ? {

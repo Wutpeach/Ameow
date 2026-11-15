@@ -7,6 +7,7 @@ import {
   createDownloadActiveFixture,
   createDownloadQueuedFixture,
   createMixedBusyFixture,
+  createNetworkFailedFixture,
   createRuntimeAutoConfigFixture,
   createRuntimeFailedFixture,
   createTranscodeActiveFixture,
@@ -20,7 +21,7 @@ import {
 const t = (key: string): string => key;
 
 describe("Lab overlay fixtures", () => {
-  it("registers exactly the seven migrated legacy scenarios", () => {
+  it("registers every migrated legacy scenario plus the typed network scene", () => {
     expect(LAB_OVERLAY_FIXTURE_IDS).toEqual([
       "runtime-auto-config",
       "runtime-failed",
@@ -28,8 +29,21 @@ describe("Lab overlay fixtures", () => {
       "download-queued",
       "transcode-active",
       "transcode-failed",
+      "network-failed",
       "mixed-busy",
     ]);
+  });
+
+  it("network-failed carries a typed DNS classification and a sanitized host", () => {
+    const fixture = createNetworkFailedFixture();
+    if (fixture.kind !== "download") return;
+    expect(fixture.centerOverlayState?.kind).toBe("task-outcome-visible");
+    const diagnostic = fixture.centerOverlayState?.kind === "task-outcome-visible"
+      ? fixture.centerOverlayState.diagnostic
+      : null;
+    expect(diagnostic?.category).toBe("network_proxy");
+    expect(diagnostic?.failure?.classification).toBe("NETWORK_DNS_FAILED");
+    expect(diagnostic?.failure?.safeUrl?.origin).toBe("https://www.youtube.com");
   });
 
   it("download-active drives the production Download selectors to a determinate 0.64 arc", () => {
@@ -153,8 +167,21 @@ describe("Lab overlay projection (production pure path)", () => {
     expect(projection.primaryTaskSummaryText).toContain("ffmpeg");
   });
 
-  it("runtime-auto-config projects the shared runtime indicator with progress", () => {
-    const projection = projectLabOverlayFixture(createRuntimeAutoConfigFixture(), t);
+  it("network-failed projects a failure outcome overlay carrying the typed network fact", () => {
+    const projection = projectLabOverlayFixture(createNetworkFailedFixture(), t);
+    expect(projection.primaryTask).toBeNull();
+    expect(projection.centerOverlayVisual.kind).toBe("task-outcome");
+    if (projection.centerOverlayVisual.kind === "task-outcome") {
+      expect(projection.centerOverlayVisual.status).toBe("failure");
+      expect(projection.centerOverlayVisual.diagnostic?.category).toBe("network_proxy");
+      expect(projection.centerOverlayVisual.diagnostic?.failure?.classification)
+        .toBe("NETWORK_DNS_FAILED");
+      expect(projection.centerOverlayVisual.diagnostic?.failure?.safeUrl?.origin)
+        .toBe("https://www.youtube.com");
+    }
+  });
+
+  it("runtime-auto-config projects the shared runtime indicator with progress", () => {    const projection = projectLabOverlayFixture(createRuntimeAutoConfigFixture(), t);
     expect(projection.showRuntimeIndicator).toBe(true);
     expect(projection.runtimeRequiresManualAction).toBe(false);
     expect(projection.runtimeProgressPercent).toBe(42);
