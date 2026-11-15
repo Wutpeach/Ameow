@@ -56,10 +56,10 @@ describe("managed runtime bootstrap helpers", () => {
 
   it("keeps pinned Python downloader package metadata explicit", () => {
     expect(resolvePinnedManagedPythonPackage("yt-dlp")).toMatchObject({
-      packageVersion: "2026.07.04",
-      installSource: "yt-dlp==2026.07.04",
-      installSources: ["yt-dlp==2026.07.04", "yt-dlp-ejs==0.8.0"],
-      packageSetId: "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0",
+      packageVersion: "2026.10.26",
+      installSource: "yt-dlp==2026.10.26",
+      installSources: ["yt-dlp==2026.10.26", "yt-dlp-ejs==0.8.0"],
+      packageSetId: "yt-dlp==2026.10.26;yt-dlp-ejs==0.8.0",
     });
     expect(resolvePinnedManagedPythonPackage("gallery-dl")).toMatchObject({
       packageVersion: "1.32.8",

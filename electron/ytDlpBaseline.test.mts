@@ -57,7 +57,7 @@ const createFixture = async () => {
   const binariesRoot = join(root, "binaries");
   const baselineRoot = join(binariesRoot, "ytdlp-baseline");
   const bundledPythonPath = join(root, "python.exe");
-  const ytDlpWheel = "yt_dlp-2026.7.4-py3-none-any.whl";
+  const ytDlpWheel = "yt_dlp-2026.10.26-py3-none-any.whl";
   const ejsWheel = "yt_dlp_ejs-0.8.0-py3-none-any.whl";
   const ytDlpBytes = "yt-dlp-wheel";
   const ejsBytes = "yt-dlp-ejs-wheel";
@@ -73,15 +73,15 @@ const createFixture = async () => {
   await writeFile(join(baselineRoot, ".official-ytdlp-baseline.json"), JSON.stringify({
     schemaVersion: 1,
     layoutVersion: 1,
-    packageSetId: "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0",
+    packageSetId: "yt-dlp==2026.10.26;yt-dlp-ejs==0.8.0",
     packages: [
       {
         name: "yt-dlp",
-        version: "2026.07.04",
+        version: "2026.10.26",
         filename: ytDlpWheel,
         size: Buffer.byteLength(ytDlpBytes),
         sha256: sha256(ytDlpBytes),
-        provenanceUrl: "https://pypi.org/pypi/yt-dlp/2026.07.04/json",
+        provenanceUrl: "https://pypi.org/pypi/yt-dlp/2026.10.26/json",
       },
       {
         name: "yt-dlp-ejs",
@@ -100,7 +100,7 @@ const createFixture = async () => {
       remoteComponents: "disabled",
       jsRuntime: "managed-deno-absolute-path",
     },
-    probe: { args: ["--version"], expectedVersion: "2026.07.04" },
+    probe: { args: ["--version"], expectedVersion: "2026.10.26" },
   }, null, 2));
   return { root, configDir, baselineRoot, bundledPythonPath };
 };
@@ -109,9 +109,9 @@ type Fixture = Awaited<ReturnType<typeof createFixture>>;
 
 const configureSuccessfulMaterialization = (fixture: Fixture) => {
   readCommandVersionMock.mockImplementation(async (entryPath: string) => (
-    entryPath === fixture.bundledPythonPath ? "Python 3.13.0" : "2026.07.04"
+    entryPath === fixture.bundledPythonPath ? "Python 3.13.0" : "2026.10.26"
   ));
-  runCapturedUtilityCommandMock.mockResolvedValue({ stdout: "2026.7.4\n0.8.0\n", stderr: "" });
+  runCapturedUtilityCommandMock.mockResolvedValue({ stdout: "2026.10.26\n0.8.0\n", stderr: "" });
   runUtilityCommandMock.mockImplementation(async (_command: string, args: string[]) => {
     if (args[1] !== "venv") {
       return;
@@ -153,7 +153,7 @@ describe("bundled yt-dlp baseline", () => {
       platform: "win32",
       arch: "x64",
     })).resolves.toMatchObject({
-      manifest: { packageSetId: "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0" },
+      manifest: { packageSetId: "yt-dlp==2026.10.26;yt-dlp-ejs==0.8.0" },
       packages: [{ name: "yt-dlp" }, { name: "yt-dlp-ejs" }],
     });
 
@@ -219,10 +219,10 @@ describe("bundled yt-dlp baseline", () => {
       if (entryPath === fixture.bundledPythonPath) {
         return "Python 3.13.0";
       }
-      return entryPath === entrypoint ? "corrupt" : "2026.07.04";
+      return entryPath === entrypoint ? "corrupt" : "2026.10.26";
     });
     runCapturedUtilityCommandMock.mockImplementation(async (pythonPath: string) => ({
-      stdout: pythonPath === cachePython ? "broken\nbroken\n" : "2026.7.4\n0.8.0\n",
+      stdout: pythonPath === cachePython ? "broken\nbroken\n" : "2026.10.26\n0.8.0\n",
       stderr: "",
     }));
     runUtilityCommandMock.mockClear();
@@ -238,10 +238,10 @@ describe("bundled yt-dlp baseline", () => {
     const cachePython = join(fixture.configDir, "runtimes", "yt-dlp", "x86_64-pc-windows-msvc", "baseline", "venv", "Scripts", "python.exe");
 
     readCommandVersionMock.mockImplementation(async (entryPath: string) => (
-      entryPath === fixture.bundledPythonPath ? "Python 3.13.0" : entryPath === entrypoint ? "corrupt" : "2026.07.04"
+      entryPath === fixture.bundledPythonPath ? "Python 3.13.0" : entryPath === entrypoint ? "corrupt" : "2026.10.26"
     ));
     runCapturedUtilityCommandMock.mockImplementation(async (pythonPath: string) => ({
-      stdout: pythonPath === cachePython ? "broken\nbroken\n" : "2026.7.4\n0.8.0\n",
+      stdout: pythonPath === cachePython ? "broken\nbroken\n" : "2026.10.26\n0.8.0\n",
       stderr: "",
     }));
 

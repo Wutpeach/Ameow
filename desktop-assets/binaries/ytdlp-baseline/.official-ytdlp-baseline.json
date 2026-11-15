@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "layoutVersion": 1,
-  "packageSetId": "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0",
+  "packageSetId": "yt-dlp==2026.10.26;yt-dlp-ejs==0.8.0",
   "packages": [
     {
       "name": "yt-dlp",
-      "version": "2026.07.04",
-      "filename": "yt_dlp-2026.7.4-py3-none-any.whl",
-      "size": 3184705,
-      "sha256": "f11f2b11d5a8ac4059f9bdf29fa4407dc7c6bb00c5097e95ca22a7a9db518266",
-      "provenanceUrl": "https://pypi.org/pypi/yt-dlp/2026.07.04/json"
+      "version": "2026.10.26",
+      "filename": "yt_dlp-2026.10.26-py3-none-any.whl",
+      "size": 3186201,
+      "sha256": "a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae",
+      "provenanceUrl": "https://pypi.org/pypi/yt-dlp/2026.10.26/json"
     },
     {
       "name": "yt-dlp-ejs",
@@ -40,6 +40,6 @@
     "args": [
       "--version"
     ],
-    "expectedVersion": "2026.07.04"
+    "expectedVersion": "2026.10.26"
   }
 }

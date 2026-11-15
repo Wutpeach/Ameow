@@ -15,11 +15,11 @@ export type ManagedPythonPackageSpec = {
 export const MANAGED_PYTHON_PACKAGE_SPECS: Record<ManagedPythonPackageToolId, ManagedPythonPackageSpec> = {
   "yt-dlp": {
     component: "ytDlp",
-    installSource: "yt-dlp==2026.07.04",
-    installSources: ["yt-dlp==2026.07.04", "yt-dlp-ejs==0.8.0"],
+    installSource: "yt-dlp==2026.10.26",
+    installSources: ["yt-dlp==2026.10.26", "yt-dlp-ejs==0.8.0"],
     minPython: [3, 10, 0],
-    packageSetId: "yt-dlp==2026.07.04;yt-dlp-ejs==0.8.0",
-    packageVersion: "2026.07.04",
+    packageSetId: "yt-dlp==2026.10.26;yt-dlp-ejs==0.8.0",
+    packageVersion: "2026.10.26",
     staleDirectories: ["real"],
   },
   "gallery-dl": {
