@@ -90,7 +90,9 @@ mod tests {
         for night in [false, true] {
             let rest = rig(Pose::default(), night);
             let closed = rig(Pose { blink: 1., gaze: [0.6, -0.12], head: [0.3, -0.06], ears: [0.05, -0.04] }, night);
-            assert_eq!(closed.matches("opacity=\"0\"").count(), 2);
+            for side in ["left", "right"] {
+                assert!(closed.contains(&format!("id=\"glint-{side}\" opacity=\"0\"")));
+            }
             let renderer = SvgRenderer::new(Arc::new(()));
             for scale in [1, 2] {
                 let width = 60 * scale;
