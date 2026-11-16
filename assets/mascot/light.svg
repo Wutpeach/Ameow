@@ -30,8 +30,15 @@
       </g>
       <path d="M28.3323 35.5399C28.9078 35.1946 30.8071 35.2522 31.3827 35.5399C31.6704 35.7126 31.3827 36.1155 31.0373 36.4033L30.174 37.0939C30.0013 37.2666 29.7711 37.2666 29.5409 37.0939L28.62 36.3457C28.3323 36.1155 28.102 35.7126 28.3323 35.5399Z" fill="url(#paint9_linear_5_276)" />
     </g>
-    <path d="M0 39C16 36.8 44 36.8 60 39V60H0V39Z" fill="url(#paint10_linear_5_276)" />
-    <path d="M0 39C16 36.8 44 36.8 60 39" stroke-width="0.65" stroke="#CED5DF" stroke-opacity="0.9" />
+    <g id="perch-a"><path d="M0 40C16 37.8 44 37.8 60 40V60H0V40Z" fill="url(#sill_a_paint10_linear_5_276)" />
+<path d="M0 39C16 36.8 44 36.8 60 39V42.8C44 40.6 16 40.6 0 42.8V39Z" fill="url(#sill_a_paint11_linear_5_276)" />
+<path d="M1 39.05C17 36.95 43 36.95 59 39.05" stroke-width="0.75" stroke="white" stroke-opacity="0.85" />
+<path d="M0 42.7C16 40.5 44 40.5 60 42.7" stroke-width="0.55" stroke="#111214" stroke-opacity="0.15" />
+<g opacity="0.16" filter="url(#sill_a_filter0_f_5_276)">
+<path d="M11.1 41.15C14.0823 41.15 16.5 40.6799 16.5 40.1C16.5 39.5201 14.0823 39.05 11.1 39.05C8.11766 39.05 5.7 39.5201 5.7 40.1C5.7 40.6799 8.11766 41.15 11.1 41.15Z" fill="#111214" />
+<path d="M48.8 41.25C51.8928 41.25 54.4 40.7799 54.4 40.2C54.4 39.6201 51.8928 39.15 48.8 39.15C45.7072 39.15 43.2 39.6201 43.2 40.2C43.2 40.7799 45.7072 41.25 48.8 41.25Z" fill="#111214" />
+</g>
+</g>
     <path d="M6.17356 36.8061C6.40379 35.4824 7.49733 34.5615 8.8211 34.0435C10.0873 33.5255 11.3535 33.4679 12.6197 33.8133C14.1162 34.1586 15.2097 34.8493 15.7853 35.8853C16.3608 37.0364 16.1881 38.5328 15.3824 39.3386C14.6917 39.9717 13.7708 39.8566 13.1953 39.3961C13.0802 40.317 11.1809 40.6623 9.9722 39.8566C9.4542 40.6623 7.78511 40.7199 6.97934 39.9141C6.17356 39.1659 5.82823 37.8997 6.17356 36.8061Z" fill="url(#paint11_linear_5_276)" />
     <path d="M43.8721 35.7126C44.5628 34.619 45.8865 33.9284 47.2103 33.7557C48.3614 33.5255 49.6852 33.6982 50.8363 34.1011C52.3903 34.619 53.4262 35.4824 53.8291 36.8637C54.232 38.245 53.7716 39.7415 52.9082 40.317C51.9874 40.8926 50.8938 40.6048 50.1456 39.9141C49.2823 40.7199 47.5556 40.4897 46.9225 39.6839C46.0017 40.1443 44.793 39.799 44.2174 39.0508C43.4117 38.1299 43.239 36.8061 43.8721 35.7126Z" fill="url(#paint12_linear_5_276)" />
     <path d="M9.33909 36.8637C9.39665 37.8421 9.4542 38.8206 9.9722 39.8566C9.62687 39.9141 9.39665 39.3961 9.28154 38.763C9.16643 38.0724 9.16643 37.3241 9.33909 36.8637Z" fill="url(#paint13_linear_5_276)" />
@@ -127,5 +134,20 @@
     <clipPath id="clip0_5_276">
       <rect width="60" height="60" rx="30" fill="white" />
     </clipPath>
-  </defs>
+  <linearGradient id="sill_a_paint10_linear_5_276" x1="30" y1="40" x2="30" y2="60" gradientUnits="userSpaceOnUse">
+<stop stop-color="#E0E2E5" />
+<stop offset="0.35" stop-color="#FAFAFB" />
+<stop offset="1" stop-color="white" />
+</linearGradient>
+<linearGradient id="sill_a_paint11_linear_5_276" x1="30" y1="37" x2="30" y2="44" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" />
+<stop offset="0.4" stop-color="#F1F2F3" />
+<stop offset="1" stop-color="#D2D5D9" />
+</linearGradient>
+<filter id="sill_a_filter0_f_5_276" x="4.6" y="37.95" width="50.9" height="4.4" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix" />
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+<feGaussianBlur stdDeviation="0.55" result="effect1_foregroundBlur_5_276" />
+</filter>
+</defs>
 </svg>

@@ -115,7 +115,7 @@ mod tests {
                     }
                 }
             }
-            let foreground = |s: &str| s[s.find("M0 39C16").unwrap()..].to_owned();
+            let foreground = |s: &str| s[s.find("id=\"perch-a\"").unwrap()..].to_owned();
             assert_eq!(foreground(&rest), foreground(&closed));
             assert!(closed.contains("rx=\"30\""));
         }
