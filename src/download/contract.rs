@@ -79,8 +79,8 @@ pub enum VideoCodec {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VideoExpectation {
-    pub height: u64,
-    pub codec: VideoCodec,
+    pub height: Option<u64>,
+    pub codec: Option<VideoCodec>,
     // Reflect native selection; a video without a selected audio stream is valid.
     pub requires_audio: bool,
     pub height_cap: u64,
@@ -88,7 +88,13 @@ pub struct VideoExpectation {
 #[derive(Clone, Debug)]
 pub enum VerificationRequirements {
     Video(VideoExpectation),
+    Media { height_cap: u64 },
     Data,
+}
+impl VerificationRequirements {
+    pub fn height_cap(&self) -> Option<u64> {
+        match self { Self::Video(video) => Some(video.height_cap), Self::Media { height_cap } => Some(*height_cap), Self::Data => None }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct ProducedArtifact {
@@ -99,6 +105,8 @@ pub struct ProducedArtifact {
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct VerifiedFacts {
+    #[serde(default)]
+    pub extension: Option<String>,
     pub video_width: Option<u64>,
     pub video_height: Option<u64>,
     pub video_codec: Option<VideoCodec>,

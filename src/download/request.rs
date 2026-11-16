@@ -111,16 +111,12 @@ impl Accepted {
             .filter(|s| !s.is_empty())
             .collect();
         let query: Vec<_> = u.query_pairs().collect();
-        let known_video = matches!(host, "youtu.be" | "www.youtube.com" | "youtube.com" | "m.youtube.com" | "www.bilibili.com" | "bilibili.com" | "m.bilibili.com" | "b23.tv" | "www.b23.tv");
-        if known_video && query.iter().any(|(key, _)| {
-            matches!(
-                key.as_ref(),
-                "list" | "playlist" | "season_id" | "series_id"
-            )
-        }) {
-            return Err("Playlist/series URLs do not identify one media object".into());
+        if matches!(host, "www.youtube.com" | "youtube.com" | "m.youtube.com")
+            && query.iter().filter(|(key, _)| key == "v").count() > 1
+        {
+            return Err("Ambiguous YouTube object".into());
         }
-        let parts: Vec<_> = query.iter().filter(|(key, _)| key == "p" && matches!(host, "b23.tv" | "www.b23.tv")).collect();
+        let parts: Vec<_> = query.iter().filter(|(key, _)| key == "p" && matches!(host, "b23.tv" | "www.b23.tv" | "www.bilibili.com" | "bilibili.com" | "m.bilibili.com")).collect();
         if parts.len() > 1 {
             return Err("Ambiguous Bilibili part".into());
         }
@@ -131,7 +127,8 @@ impl Accepted {
         if part == Some(0) {
             return Err("Bilibili part starts at 1".into());
         }
-        let object = match host {
+        // Recognition supplies stronger identity evidence; the downloader owns other URL syntax.
+        let recognized = (|| -> Result<Object, String> { Ok(match host {
             "youtu.be" if segments.len() == 1 => Object::Youtube(segments[0].to_string()),
             "www.youtube.com" | "youtube.com" | "m.youtube.com" => {
                 let ids: Vec<_> = query.iter().filter(|(k,_)| k == "v").map(|(_,v)| v.as_ref()).collect();
@@ -149,26 +146,27 @@ impl Accepted {
                 Object::Bilibili{id:id.to_owned(),part}
             },
             "b23.tv" | "www.b23.tv" if segments.len() == 1 && !segments[0].is_empty() && segments[0].len() <= 64 && segments[0].bytes().all(|b| b.is_ascii_alphanumeric()) => Object::BilibiliShort { code: segments[0].into(), part },
-            "imgur.com" | "www.imgur.com" if query.is_empty() => {
+            "imgur.com" | "www.imgur.com" => {
                 let (kind, id) = match segments.as_slice() { [id] => ("image", *id), ["a", id] => ("album", *id), _ => return Err("Imgur URL must identify one image or album".into()) };
                 if !matches!(id.len(), 5 | 7) || !id.bytes().all(|b| b.is_ascii_alphanumeric()) || (kind == "image" && matches!(id, "gallery" | "search" | "about")) { return Err("Invalid Imgur ID".into()); }
                 Object::Gallery { site: Site::Imgur, id: format!("{kind}:{id}") }
             },
-            "bsky.app" if query.is_empty() => {
+            "bsky.app" => {
                 let ["profile", handle, "post", id] = segments.as_slice() else { return Err("Bluesky URL must identify one post".into()); };
                 if handle.is_empty() || handle.len() > 253 || !handle.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':')) || id.is_empty() || id.len() > 32 || !id.bytes().all(|b| b.is_ascii_alphanumeric()) { return Err("Invalid Bluesky post identity".into()); }
                 Object::Gallery { site: Site::Bluesky, id: format!("{handle}/{id}") }
             },
-            "youtu.be" | "b23.tv" | "www.b23.tv" | "imgur.com" | "www.imgur.com" | "bsky.app" => return Err("Invalid known site URL".into()),
+            "youtu.be" | "b23.tv" | "www.b23.tv" => return Err("Unrecognized known site URL".into()),
             _ => Object::Generic { url: u.to_string() },
-        };
+        }) })();
+        let mut object = recognized.unwrap_or_else(|_| Object::Generic { url: u.to_string() });
         if let Object::Youtube(id) = &object
             && (id.len() != 11
                 || !id
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
         {
-            return Err("Invalid YouTube video ID".into());
+            object = Object::Generic { url: u.to_string() };
         }
         intent.output_dir = intent
             .output_dir
@@ -244,8 +242,10 @@ mod generic_tests {
         assert!(!accepted.object.provisional_key().contains("example"));
     }
     #[test]
-    fn known_sites_do_not_fall_through() {
-        for url in ["https://youtu.be/", "https://b23.tv/invalid/path", "https://youtube.com/playlist", "https://bilibili.com/invalid", "https://imgur.com/a/abcde?x=1", "https://bsky.app/?x=1"] { assert!(accept(url).is_err(), "{url}"); }
+    fn unrecognized_site_syntax_reaches_native_resolution() {
+        for url in ["https://youtu.be/", "https://b23.tv/invalid/path", "https://youtube.com/playlist", "https://bilibili.com/invalid", "https://bsky.app/?x=1"] { assert!(matches!(accept(url).unwrap().object, Object::Generic { .. }), "{url}"); }
+        assert!(matches!(accept("https://imgur.com/a/abcde?x=1").unwrap().object, Object::Gallery { .. }));
+        assert!(accept("https://youtube.com/watch?v=jNQXAC9IVRw&v=dQw4w9WgXcQ").is_err());
         assert!(accept("https://youtu.be/abcdefghijk?p=not-a-number").is_ok());
         assert!(accept("https://b23.tv/abc?p=not-a-number").is_err());
     }

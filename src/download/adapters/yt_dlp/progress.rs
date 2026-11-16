@@ -526,15 +526,15 @@ mod tests {
             let expected = super::super::selection::expectation(
                 &before,
                 crate::download::request::Quality::Highest,
-            )?;
+            );
             assert_eq!(
                 expected,
                 super::super::selection::expectation(
                     &actual,
                     crate::download::request::Quality::Highest
-                )?
+                )
             );
-            assert_eq!(expected.height, 48);
+            assert_eq!(expected.height, Some(48));
             let final_record =
                 std::fs::read(working.join("final-object.txt")).map_err(|e| e.to_string())?;
             assert_eq!(

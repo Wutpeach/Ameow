@@ -8,7 +8,7 @@ use crate::download::{
     adapter::{DownloaderAdapter, ExecutionContext, ManagedCommand},
     contract::{
         AdapterEvent, AdapterResult, ExecutionRequest, MediaKind, ProducedArtifact,
-        VerificationRequirements,
+        VerificationRequirements, VideoExpectation,
     },
     diagnostics::{Failure, FailureCode},
     network,
@@ -85,8 +85,6 @@ impl DownloaderAdapter for YtDlpAdapter {
             check_generic_object(accepted, &metadata)?;
             let proof =
                 identity::proof(accepted, &metadata).map_err(|e| format!("E_IDENTITY: {e}"))?;
-            selection::expectation(&metadata, accepted.intent.quality)?;
-            selection::public_sources(&metadata)?;
             context
                 .admit(&proof)
                 .map_err(|failure| format!("{}: {}", failure.code, failure.reason))?;
@@ -160,8 +158,6 @@ impl DownloaderAdapter for YtDlpAdapter {
                         && let Ok(value) = read_selection(&selected_path)
                         && let Ok(proof) = identity::proof(&accepted_for_progress, &value)
                         && proof.identity.canonical_key() == expected
-                        && selection::expectation(&value, accepted_for_progress.intent.quality)
-                            .is_ok()
                     {
                         state.1 = progress::ProgressFeed::selected(&value).with_timeline(timeline.clone());
                         state.0 = true;
@@ -176,38 +172,30 @@ impl DownloaderAdapter for YtDlpAdapter {
                 }
             });
             let record = invoke(context, args, Some(output), "transfer")?;
+            phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
+            let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
+            if !final_metadata.is_file() || final_metadata.file_attributes() & 0x400 != 0 {
+                return Err("E_MEDIA_UNVERIFIED: final path is not a regular non-reparse file".into());
+            }
             let canonical_path = final_path.canonicalize().map_err(|e| e.to_string())?;
             let canonical_workspace = working.canonicalize().map_err(|e| e.to_string())?;
             let relative_path = canonical_path
                 .strip_prefix(&canonical_workspace)
                 .map_err(|_| "Final object escaped owned workspace")?
                 .to_path_buf();
-            let actual = read_metadata_file(&working.join("media.info.json"))?;
+            let actual = read_metadata_file(&working.join("media.info.json")).map_err(|error| {
+                if error.starts_with("E_METADATA_") { error } else { format!("E_MEDIA_UNVERIFIED: native metadata unavailable: {error}") }
+            })?;
             check_generic_object(accepted, &actual)?;
             let actual_proof =
                 identity::proof(accepted, &actual).map_err(|e| format!("E_IDENTITY: {e}"))?;
-            if actual_proof.identity.canonical_key() != proof.identity.canonical_key() {
+            if actual_proof.identity.canonical_key() != proof.identity.canonical_key()
+                || !identity::consistent(&metadata, &actual) {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
-            let video = selection::expectation(&actual, accepted.intent.quality)?;
-            let selection_path = working.join("selection.txt");
-            if fs::symlink_metadata(&selection_path)
-                .map_err(|e| e.to_string())?
-                .len()
-                > 0
-            {
-                let before = read_selection(&selection_path)?;
-                let before_proof =
-                    identity::proof(accepted, &before).map_err(|e| format!("E_IDENTITY: {e}"))?;
-                if before_proof.identity.canonical_key() != actual_proof.identity.canonical_key() {
-                    return Err("E_IDENTITY: contradictory native object records".into());
-                }
-                if selection::expectation(&before, accepted.intent.quality)? != video {
-                    return Err("Contradictory native selected media observations".into());
-                }
-            }
-            selection::public_sources(&actual)?;
+            let before = read_selection(&working.join("selection.txt")).ok();
+            let video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
             context.emit(AdapterEvent::Finalizing);
             Ok(ProducedArtifact {
                 relative_path,
@@ -229,6 +217,18 @@ impl DownloaderAdapter for YtDlpAdapter {
         })
     }
 }
+fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::download::request::Quality) -> Result<VideoExpectation, String> {
+    let mut video = selection::expectation(actual, quality);
+    if let Some(before) = before {
+        if !identity::consistent(before, actual) { return Err("E_IDENTITY: contradictory native object records".into()); }
+        let observed = selection::expectation(before, quality);
+        if !selection::consistent(&observed, &video) { return Err("E_MEDIA_INVALID: contradictory native selected media observations".into()); }
+        video.height = video.height.or(observed.height);
+        if video.codec.is_none() || matches!(video.codec, Some(crate::download::contract::VideoCodec::Other(_))) { video.codec = observed.codec.or(video.codec); }
+        video.requires_audio |= observed.requires_audio;
+    }
+    Ok(video)
+}
 fn generic_args(args: &mut Vec<String>, accepted: &Accepted, resolving: bool) {
     if !matches!(accepted.object, Object::Generic { .. }) { return; }
     // Expose collections instead of letting --no-playlist silently select one item.
@@ -238,10 +238,7 @@ fn generic_args(args: &mut Vec<String>, accepted: &Accepted, resolving: bool) {
 }
 fn check_generic_object(accepted: &Accepted, value: &Value) -> Result<(), String> {
     if matches!(accepted.object, Object::Generic { .. })
-        && (value.get("entries").is_some()
-            || value.get("_type").is_some_and(|kind| kind.as_str() != Some("video"))
-            || ["playlist_id", "playlist_count", "playlist_index", "n_entries"].iter()
-                .any(|key| value.get(*key).is_some_and(|v| !v.is_null())))
+        && identity::is_collection(value)
     {
         return Err("E_OBJECT_UNSUPPORTED: a complete single object could not be established".into());
     }
@@ -511,8 +508,8 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
         })?;
         assert_eq!(identity::attest(&accepted, &parsed)?.id, "jNQXAC9IVRw");
         assert_eq!(
-            selection::expectation(&parsed, request::Quality::Balanced)?.height,
-            1080
+            selection::expectation(&parsed, request::Quality::Balanced).height,
+            Some(1080)
         );
         fs::write(working.join("resolve-stdout.log"), &bytes).map_err(|e| e.to_string())?;
         let archived = crate::download::preserve_diagnostics(root.path(), &working, 1, EVIDENCE)?;
@@ -617,6 +614,20 @@ mod generic_tests {
         Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
     #[test]
+    fn optional_before_dl_can_be_missing_or_sparse_while_known_contradictions_fail() {
+        let actual = json!({"id":"one","height":null,"vcodec":"unknown","acodec":null});
+        for before in [None, Some(json!({})), Some(json!({"height":null,"acodec":"unknown"}))] {
+            let selected = transfer_expectation(&actual, before.as_ref(), Quality::Balanced).unwrap();
+            assert_eq!(selected.height, None); assert_eq!(selected.codec, None); assert!(!selected.requires_audio);
+        }
+        let before = json!({"id":"one","height":720,"vcodec":"avc1","acodec":"aac"});
+        let selected = transfer_expectation(&actual, Some(&before), Quality::Balanced).unwrap();
+        assert_eq!(selected.height, Some(720)); assert!(selected.requires_audio);
+        assert_eq!(selected.codec, Some(crate::download::contract::VideoCodec::H264));
+        assert!(transfer_expectation(&json!({"id":"other"}), Some(&before), Quality::Balanced).unwrap_err().starts_with("E_IDENTITY:"));
+        assert!(transfer_expectation(&json!({"height":480,"vcodec":"h264"}), Some(&before), Quality::Balanced).unwrap_err().starts_with("E_MEDIA_INVALID:"));
+    }
+    #[test]
     fn generic_exposes_bounded_collections_and_rejects_even_one_or_empty_entry() {
         let a = accepted("https://example.com/work");
         let mut args = vec!["--no-playlist".into(), "--ignore-config".into()];
@@ -624,12 +635,15 @@ mod generic_tests {
         assert!(!args.iter().any(|arg| arg == "--no-playlist"));
         assert!(args.windows(3).any(|w| w == ["--yes-playlist", "--playlist-end", "2"]));
         assert!(args.iter().any(|arg| arg == "--flat-playlist"));
-        for v in [json!({"entries":[]}), json!({"entries":[{"id":"one"}]}), json!({"_type":"url"}), json!({"_type":null}), json!({"playlist_index":1})] {
+        for v in [json!({"entries":[]}), json!({"entries":[{"id":"one"}]}), json!({"_type":"playlist"})] {
             let error = check_generic_object(&a, &v).unwrap_err();
             assert_eq!(diagnostics::classify(&Phase::Resolving, &error).code, "E_OBJECT_UNSUPPORTED");
         }
         assert!(check_generic_object(&a, &json!({"_type":"video","playlist_id":null})).is_ok());
-        assert!(identity::attest(&a, &json!({})).is_err());
+        for v in [json!({}), json!({"_type":null}), json!({"playlist_index":null}), json!({"entries":null})] {
+            assert!(check_generic_object(&a, &v).is_ok());
+            assert!(identity::attest(&a, &v).is_ok());
+        }
         let known = accepted("https://youtu.be/jNQXAC9IVRw");
         let mut known_args = vec!["--no-playlist".into()];
         generic_args(&mut known_args, &known, true);

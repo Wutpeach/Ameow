@@ -59,6 +59,7 @@ impl VerifierRegistry {
         let path = workspace.join(&artifact.relative_path);
         match (&artifact.kind, &artifact.verification) {
             (MediaKind::Video, VerificationRequirements::Video(expected)) => video::verify(&path, workspace, expected, lease, control, observer, self.video_probe.ok_or("No declared video verifier")?),
+            (_, VerificationRequirements::Media { height_cap }) if self.images => video::verify_media(&path, workspace, *height_cap, lease, control, observer, self.video_probe.ok_or("No declared media verifier")?),
             (MediaKind::Data, VerificationRequirements::Data) if self.images => image::verify(&path, workspace, lease, control, observer),
             (MediaKind::Data, VerificationRequirements::Data) if self.data => output::verify_data(&path, workspace),
             _ => Err("Undeclared or mismatched artifact verification kind".into()),

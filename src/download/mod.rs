@@ -31,7 +31,7 @@ use process_supervisor::{Control, ProcessObservation};
 #[cfg(test)]
 use process_supervisor::ProcessSpec;
 use adapter::{DownloadServices, ExecutionContext, IdentityAdmission};
-use contract::{AdapterEvent, ExecutionRequest, VerificationRequirements};
+use contract::{AdapterEvent, ExecutionRequest};
 #[cfg(test)]
 use contract::MediaKind;
 use request::{Accepted, DownloadIntent, Identity};
@@ -591,6 +591,7 @@ fn execute(
             })?;
         if batch.collection {
             let failure = batch.failure.clone();
+            adapter_failure = failure.clone();
             deliver_collection(&state, &services, &context, &accepted, job, attempt, batch, &mut destination_stage)?;
             if let Some(failure) = failure {
                 let message = format!("{}: {}", failure.code, failure.reason);
@@ -610,8 +611,7 @@ fn execute(
         {
             return Err("Artifact kind or admitted identity mismatch".into());
         }
-        if let VerificationRequirements::Video(expected) = &artifact.verification
-            && expected.height_cap != accepted.intent.quality.cap()
+        if artifact.verification.height_cap().is_some_and(|cap| cap != accepted.intent.quality.cap())
         {
             return Err("Artifact verification changed frozen video requirements".into());
         }
@@ -692,7 +692,7 @@ fn execute(
         }
     };
     let failure = if matches!(phase, Phase::Failure | Phase::Partial) {
-        Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::local(&error_phase)))
+        Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::from_error(&error_phase, &message)))
     } else if phase == Phase::Cancelled {
         Some(diagnostics::cancelled())
     } else {
@@ -804,6 +804,10 @@ fn deliver_collection(
     let mut invalid = None;
     let verification_started = std::time::Instant::now();
     for artifact in batch.artifacts {
+        if artifact.verification.height_cap().is_some_and(|cap| cap != accepted.intent.quality.cap()) {
+            invalid = Some("Artifact verification changed frozen quality requirements".into());
+            continue;
+        }
         // Best-effort salvage is bounded; cancellation must not decode an entire large album.
         if context.cancelled() && verification_started.elapsed() >= Duration::from_secs(2) { break; }
         update(state, job, attempt, Phase::Validating, String::new());

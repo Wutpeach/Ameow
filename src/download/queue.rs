@@ -1344,7 +1344,6 @@ mod tests {
                 .is_err()
         );
         for url in [
-            "https://youtube.com/watch?v=jNQXAC9IVRw&list=PLabc",
             "https://b23.tv/AbCd12?p=1&p=2",
             "https://b23.tv/AbCd12?p=0",
         ] {
@@ -1356,7 +1355,7 @@ mod tests {
             output_dir: root.path().into(),
         })?;
         assert!(matches!(generic.object, crate::download::request::Object::Generic { .. }));
-        assert!(generic.identity(&metadata).is_err()); // a copied BV path is not a generic identity proof
+        assert_eq!(generic.identity(&metadata)?.site, crate::download::request::Site::Generic);
         Ok(())
     }
     #[test]

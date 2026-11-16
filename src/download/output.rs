@@ -85,14 +85,14 @@ pub struct DestinationStage {
 }
 impl DestinationStage {
     pub fn create(media: &VerifiedMedia, destination: &Path, job: u64) -> Result<Self, String> {
-        let extension = media
+        let extension = media.facts.extension.as_deref().or_else(|| media
             .path
             .extension()
-            .and_then(|s| s.to_str())
+            .and_then(|s| s.to_str()))
             .filter(|s| {
                 !s.is_empty() && s.len() < 12 && s.bytes().all(|b| b.is_ascii_alphanumeric())
             })
-            .ok_or("Unsupported final media extension")?
+            .unwrap_or(if media.kind == MediaKind::Video { "video" } else { "image" })
             .to_owned();
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

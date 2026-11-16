@@ -51,7 +51,6 @@ fn public_url_acceptance_fixes_one_identity_and_destination() -> Result<(), Stri
         "file:///media",
         "https://user:pass@youtube.com/watch?v=jNQXAC9IVRw",
         "https://youtube.com/watch?v=jNQXAC9IVRw&v=dQw4w9WgXcQ",
-        "https://youtu.be/jNQXAC9IVRw/other",
         "https://bilibili.com/video/BV1vL411G7N7?p=1&p=2",
         "https://bilibili.com/video/BV1vL411G7N7?p=0",
     ] {
@@ -85,26 +84,15 @@ fn bilibili_part_and_playlist_ambiguity_fail_before_download() -> Result<(), Str
     Ok(())
 }
 #[test]
-fn native_selected_facts_preserve_optional_audio_and_frozen_quality() -> Result<(), String> {
+fn native_selected_facts_preserve_optional_audio_and_frozen_quality() {
     let actual = json!({"requested_formats":[{"height":1080,"vcodec":"avc1","acodec":"none"},{"vcodec":"none","acodec":"opus"}]});
-    let expected = selection::expectation(&actual, Quality::Balanced)?;
-    assert_eq!(expected.height, 1080);
-    assert_eq!(expected.codec, VideoCodec::H264);
+    let expected = selection::expectation(&actual, Quality::Balanced);
+    assert_eq!(expected.height, Some(1080));
+    assert_eq!(expected.codec, Some(VideoCodec::H264));
     assert!(expected.requires_audio);
-    assert!(selection::expectation(&actual, Quality::Saver).is_err());
-    let silent = selection::expectation(
-        &json!({"height":480,"vcodec":"h264","acodec":"none"}),
-        Quality::Saver,
-    )?;
-    assert!(!silent.requires_audio);
-    assert!(
-        selection::expectation(
-            &json!({"height":0,"vcodec":"h264","acodec":"aac"}),
-            Quality::Highest
-        )
-        .is_err()
-    );
-    Ok(())
+    let unknown = selection::expectation(&json!({}), Quality::Saver);
+    assert_eq!(unknown.height, None); assert_eq!(unknown.codec, None); assert_eq!(unknown.height_cap, 480);
+    assert!(!selection::expectation(&json!({"height":480,"vcodec":"h264","acodec":"none"}), Quality::Saver).requires_audio);
 }
 #[test]
 fn static_proxy_result_is_explicit_and_ambiguous_routes_are_rejected() -> Result<(), String> {
@@ -294,15 +282,9 @@ fn genuine_runtime_reuse_verifies_pins_and_lease() -> Result<(), String> {
 #[test]
 fn native_sources_reject_local_files_and_credentials_without_metadata_replay() -> Result<(), String>
 {
-    let mut selected =
-        json!({"height":480,"vcodec":"h264","acodec":"aac","url":"https://media.example/video"});
-    selection::public_sources(&selected)?;
-    for bad in [
-        "file:///C:/outside",
-        "https://user:password@media.example/video",
-    ] {
-        selected["url"] = json!(bad);
-        assert!(selection::public_sources(&selected).is_err());
+    // Entrypoint safety remains independent of downloader-owned media protocols.
+    for bad in ["file:///C:/outside", "https://user:password@media.example/video"] {
+        assert!(accepted(bad, std::env::temp_dir().as_path()).is_err());
     }
     let root = tempfile::tempdir().map_err(|e| e.to_string())?;
     let outside = tempfile::tempdir().map_err(|e| e.to_string())?;
@@ -393,7 +375,8 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     );
     let lease =
         RuntimeManager::new(root.clone()).prepare(&composition::requirements(), &Control::default(), Arc::new(|_| {}), |_| {})?;
-    let workspace = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
+    let workspace = std::mem::ManuallyDrop::new(tempfile::tempdir_in(&root).map_err(|e| e.to_string())?);
+    println!(">>> Native media evidence: {}", workspace.path().display());
     let media = workspace.path().join("fixture.mkv");
     let result = process_supervisor::run(
         ProcessSpec {
@@ -441,8 +424,8 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     );
     assert!(result.facts.resources_releasable());
     let mut plan = VideoExpectation {
-        height: 48,
-        codec: VideoCodec::H264,
+        height: Some(48),
+        codec: Some(VideoCodec::H264),
         height_cap: 1080,
         requires_audio: true,
     };
@@ -493,6 +476,50 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         &silent, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
     )?;
     assert!(!silent_verified.facts.audio_present);
+    let unknown = VideoExpectation { height: None, codec: None, requires_audio: false, height_cap: 1080 };
+    let unknown_verified = ameow_next::download::verification::video::verify(
+        &silent, workspace.path(), &unknown, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    )?;
+    assert_eq!(unknown_verified.facts.video_height, Some(48));
+    assert!(!unknown_verified.facts.audio_present);
+    let mut too_small = unknown.clone(); too_small.height_cap = 47;
+    assert!(ameow_next::download::verification::video::verify(
+        &silent, workspace.path(), &too_small, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    ).unwrap_err().starts_with("E_MEDIA_INVALID:"));
+    let produce = |name: &str, options: &[&str]| -> Result<std::path::PathBuf, String> {
+        let path = workspace.path().join(name);
+        let outcome = process_supervisor::run(ProcessSpec {
+            executable: lease.file("ffmpeg.exe")?,
+            args: ["-nostdin".into(), "-v".into(), "error".into(), "-i".into(), silent.display().to_string()]
+                .into_iter().chain(options.iter().map(|s| s.to_string())).chain(["-n".into(), path.display().to_string()]).collect(),
+            cwd: workspace.path().into(), env: runtime::child_environment(workspace.path())?,
+            stdout_limit: 4096, stderr_limit: 65536, timeout: Some(Duration::from_secs(30)),
+        }, &Control::default(), Arc::new(|_| {}))?;
+        assert_eq!(outcome.exit_code, 0, "{}", String::from_utf8_lossy(&outcome.stderr));
+        assert!(outcome.facts.resources_releasable()); Ok(path)
+    };
+    let image = produce("actual.tiff", &["-frames:v", "1"])?;
+    let raw = produce("actual.h264", &["-c:v", "copy", "-f", "h264"])?;
+    let registry = VerifierRegistry::video_and_images("ffprobe.exe");
+    let verify_actual = |path: &std::path::Path| {
+        registry.verify(&ProducedArtifact { relative_path: path.strip_prefix(workspace.path()).unwrap().into(),
+            identity: ameow_next::download::request::Identity { id: "actual".into(), title: "Actual media".into(), site: ameow_next::download::request::Site::Generic, part: None },
+            kind: MediaKind::Data, verification: VerificationRequirements::Media { height_cap: 1080 } },
+            workspace.path(), &lease, &Control::default(), Arc::new(|_| {}))
+    };
+    let no_extension = workspace.path().join("native-image"); fs::copy(&image, &no_extension).map_err(|e| e.to_string())?;
+    let image_verified = verify_actual(&no_extension).map_err(|e| format!("TIFF verification: {e}"))?;
+    assert_eq!(image_verified.kind, MediaKind::Data); assert_eq!(image_verified.facts.extension.as_deref(), Some("tiff"));
+    let misleading_extension = workspace.path().join("native-video.png"); fs::copy(&silent, &misleading_extension).map_err(|e| e.to_string())?;
+    let video_verified = verify_actual(&misleading_extension)?;
+    assert_eq!(video_verified.kind, MediaKind::Video); assert_eq!(video_verified.facts.video_height, Some(48));
+    let raw_verified = verify_actual(&raw)?;
+    assert!(raw_verified.facts.duration_seconds.is_some_and(|n| n > 0.));
+    let broken = workspace.path().join("not-media.png"); fs::write(&broken, b"<html>not media</html>").map_err(|e| e.to_string())?;
+    assert!(verify_actual(&broken).unwrap_err().starts_with("E_MEDIA_INVALID:"));
+    assert!(ameow_next::download::verification::video::verify(
+        &silent, destination.path(), &unknown, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+    ).is_err());
     let audio_verified = ameow_next::download::verification::video::verify(
         &media, workspace.path(), &plan, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
     )?;
@@ -522,7 +549,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     let coordinator = Coordinator::new(DownloadServices {
         runtime: Arc::new(RuntimeManager::new(root)),
         adapter: Arc::new(SilentVideoAdapter {
-            source: silent, expected: plan.clone(), requirements: composition::requirements(),
+            source: silent, expected: unknown.clone(), requirements: composition::requirements(),
         }),
         verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
     });
@@ -549,7 +576,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         assert!(Instant::now() < deadline, "Silent video delivery did not finish: {snapshot:?}");
         std::thread::sleep(Duration::from_millis(10));
     }
-    plan.height = 1080;
+    plan.height = Some(1080);
     assert!(
         ameow_next::download::verification::video::verify(
             &media,
