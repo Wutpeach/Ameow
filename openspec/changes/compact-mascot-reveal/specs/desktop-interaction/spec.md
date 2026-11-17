@@ -26,6 +26,11 @@ Mascot SHALL 在Full→Compact完成主要收起行程、接近Compact末段时�
 - **WHEN** 第二次启动唤起已有实例，或用户刷新设置、隐藏后恢复
 - **THEN** 不重新初始化启动入场；未完成入场按可见时间接续，已完成保持当前idle。Full启动保持角色隐藏，之后真实收起仍按既有末段门槛；Reduced Motion保持正确静止终态。
 
+#### Scenario: Windows首显前存在临时原生几何
+
+- **WHEN** Windows隐藏HWND尚未完成首个有效native Rect的apply/show，或延迟hover回调仍携带旧临时几何的命中
+- **THEN** 临时几何不得产生pointer进入或Full目标；首显完成以实际apply/show成功完成为准，不以任务排队、first render或旧visible值替代。完成后立即按当前真实Rect恢复正常hover，真实鼠标进入仍可展开；不使用固定等待或修改已验收弹性。
+
 #### Scenario: 快速再次收起
 
 - **WHEN** 展开后再次转为Compact

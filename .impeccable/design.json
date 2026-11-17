@@ -321,7 +321,7 @@
       {
         "name": "mascot-reveal",
         "value": "mascot_reveal / mascot",
-        "purpose": "f520台面、爪抓沿承重、拉头接idle已双端验收。普通新实例Compact从首次可见隐藏状态播放同一入场，不闪静态猫或增加窗口变形；同实例唤起/设置刷新/恢复不重播。Full同帧全隐藏并清进度/唤醒，真实收起仍原末段新入场；隐藏暂停，Reduced正确终态。新增启动衔接人工确认。"
+        "purpose": "f520抓沿承重拉头已双端验收，Mac c1启动稳定获用户确认。普通新实例首次可见隐藏态播放同一入场，不加窗口变形，同实例恢复不重播。Windows首个有效native apply/show完成前忽略临时Rect hover，完成后真实命中立即正常；不调弹性/延时。Full同帧隐藏、真实收起原末段触发、隐藏暂停/Reduced保持；Windows首显修复待人工确认。"
       },
       {
         "name": "signature-owners",

@@ -1070,7 +1070,13 @@ impl Render for Prototype {
             .on_hover(cx.listener(|this, inside: &bool, _, cx| {
                 if !*inside {this.background_clicks.reset();}
                 if this.probe_period_ms.is_none() && this.preview.is_none() {
-                    this.model.pointer(*inside, this.now());
+                    // A deferred GPUI hover may describe the hidden bootstrap HWND.
+                    // Windows uses the same applied, current native bounds as polling.
+                    #[cfg(target_os = "windows")]
+                    let inside = this.native.as_ref().is_some_and(Native::inside);
+                    #[cfg(not(target_os = "windows"))]
+                    let inside = *inside;
+                    this.model.pointer(inside, this.now());
                 }
                 cx.notify();
             }))
