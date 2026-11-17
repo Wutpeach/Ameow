@@ -152,6 +152,36 @@ fn entrance_blends_back_into_the_frozen_idle_without_chasing_hidden_time() {
 }
 
 #[test]
+fn compact_startup_first_visible_pixels_are_role_free_without_window_travel() {
+    let renderer = SvgRenderer::new(Arc::new(()));
+    for night in [false, true] {
+        for scale in [1., 2.] {
+            let mut model = model::Model::new(0, false);
+            let initial = model.geometry();
+            let mut reveal = mascot_reveal::Reveal::startup();
+            let mut mascot = mascot::Mascot::new(0);
+            reveal.sample(5000, false, 0., false, false);
+            for (now, first_visible) in [(10000, true), (10016, false)] {
+                model.tick(now);
+                assert_eq!(mascot::SurfaceFrame::new(model.geometry()), mascot::SurfaceFrame::new(initial), "startup must not synthesize window travel");
+                reveal.sample(now, model.target_full, model.fullness, true, false);
+                let frame = mascot::SurfaceFrame::new(model.geometry());
+                let pixels = mascot::straight_bgra(mascot.compose_frame(night, frame, reveal.alpha(), mascot_reveal::scene(reveal.progress), scale, &renderer));
+                let empty = mascot::straight_bgra(frame.compose(None, 0., night, scale));
+                if first_visible {
+                    assert!(pixels == empty, "first visible startup frame must not flash the resting cat");
+                    assert_eq!(reveal.progress, 0.);
+                    assert_eq!(mascot.prepare_us, 0, "hidden startup must not prepare a resting role");
+                } else {
+                    assert!(pixels != empty, "the accepted entrance must advance after visibility");
+                    assert!(reveal.progress > 0. && reveal.progress < 0.04);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn full_target_first_frame_removes_cached_partial_and_resting_role_pixels() {
     let renderer = SvgRenderer::new(Arc::new(()));
     let scale = 1.25;

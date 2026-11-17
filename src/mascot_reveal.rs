@@ -46,7 +46,9 @@ impl Default for Reveal {
     fn default() -> Self { Self { progress: 1., last: None, latched: true } }
 }
 impl Reveal {
-    /// Startup Compact keeps the accepted resting pose. Full retires the performance.
+    /// A new ordinary instance starts hidden; its first visible sample owns the clock.
+    pub fn startup() -> Self { Self { progress: 0., last: None, latched: false } }
+    /// Full retires the performance; Compact latches only at its existing tail.
     pub fn sample(&mut self, now: u64, full: bool, fullness: f32, visible: bool, reduced: bool) -> Option<u64> {
         if full {
             self.progress = 0.;
@@ -82,6 +84,48 @@ impl Reveal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_waits_for_visibility_and_does_not_replay_on_restore_or_reduced_changes() {
+        let mut r = Reveal::startup();
+        assert_eq!((r.progress, r.alpha(), r.idle_ready()), (0., 0., false));
+        for now in [0, 5000] {
+            assert_eq!(r.sample(now, false, 0., false, false), None);
+            assert_eq!((r.progress, r.last), (0., None));
+        }
+        assert_eq!(r.sample(10000, false, 0., true, false), Some(16));
+        assert_eq!((r.progress, r.alpha()), (0., 0.));
+        r.sample(10016, false, 0., true, false);
+        assert!(r.progress > 0. && r.progress < 0.04);
+        let paused = r.progress;
+        r.sample(10020, false, 0., false, false);
+        r.sample(20000, false, 0., true, false);
+        assert_eq!(r.progress, paused);
+        assert_eq!(r.sample(21000, false, 0., true, false), None);
+        assert_eq!(r.progress, 1.);
+        for (now, visible, reduced) in [(30000, false, false), (40000, true, false), (40001, true, true), (40002, true, false)] {
+            assert_eq!(r.sample(now, false, 0., visible, reduced), None);
+            assert_eq!((r.progress, r.alpha(), r.idle_ready()), (1., 1., true));
+        }
+    }
+    #[test]
+    fn startup_reduced_and_full_have_correct_endpoints_and_keep_the_tail_rule() {
+        let mut reduced = Reveal::startup();
+        assert_eq!(reduced.sample(5000, false, 0., true, true), None);
+        assert_eq!((reduced.progress, reduced.alpha()), (1., 1.));
+        assert_eq!(reduced.sample(5001, true, 0., false, true), None);
+        assert_eq!((reduced.progress, reduced.alpha()), (0., 0.));
+        let mut full = Reveal::startup();
+        for (now, visible) in [(0, false), (5000, true)] {
+            assert_eq!(full.sample(now, true, 1., visible, false), None);
+            assert_eq!((full.progress, full.alpha(), full.last), (0., 0., None));
+        }
+        assert_eq!(full.sample(5100, false, 0.05, true, false), None);
+        assert_eq!(full.progress, 0.);
+        assert_eq!(full.sample(5200, false, COMPACT_TAIL, true, false), Some(16));
+        assert_eq!(full.progress, 0.);
+        full.sample(5216, false, 0., true, false);
+        assert!(full.progress > 0. && full.progress < 0.04);
+    }
     fn from_full() -> Reveal {
         let mut r = Reveal::default(); r.sample(0, true, 1., true, false); r
     }

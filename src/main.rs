@@ -363,7 +363,7 @@ impl Prototype {
             night: options.night,
             indicator: indicator::Indicator::default(),
             mascot: mascot::Mascot::new(std::process::id() as u64),
-            mascot_reveal: Default::default(),
+            mascot_reveal: if options.fixture { Default::default() } else { mascot_reveal::Reveal::startup() },
             _mascot_visibility: mascot_visibility,
             drag: None,
             copied_at: None,
