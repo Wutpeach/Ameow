@@ -996,9 +996,7 @@ impl Render for Prototype {
             .child(surface_paint)
             .child(surface)
             .when_some(mascot_image, |group, image| group.child(
-                div().absolute().left(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
-                    .top(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
-                    .size(px(mascot_diameter)).opacity(mascot_alpha).child(mascot::element(image, mascot_diameter))))
+                mascot::element(image, mascot_diameter, g.native, mascot_alpha)))
             .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
