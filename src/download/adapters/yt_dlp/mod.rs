@@ -3,6 +3,26 @@ pub mod diagnostics;
 pub mod identity;
 pub mod progress;
 pub mod selection;
+#[cfg(target_os = "macos")]
+pub(crate) mod settlement_macos;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum InvocationPhase {
+    Resolve,
+    Transfer,
+    #[cfg(all(test, target_os = "macos"))]
+    Fixture,
+}
+impl InvocationPhase {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Resolve => "resolve",
+            Self::Transfer => "transfer",
+            #[cfg(all(test, target_os = "macos"))]
+            Self::Fixture => "fixture",
+        }
+    }
+}
 use crate::download::{
     Phase,
     adapter::{DownloaderAdapter, ExecutionContext, ManagedCommand},
@@ -25,11 +45,16 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+const RESOLVED_FILE: &str = "resolved.json";
+const TRANSFER_INFO_FILE: &str = "media.info.json";
+const SELECTION_FILE: &str = "selection.txt";
+const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
+
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
-    ("resolved.json", METADATA_LIMIT as u64),
-    ("media.info.json", METADATA_LIMIT as u64),
-    ("selection.txt", METADATA_LIMIT as u64),
+    (RESOLVED_FILE, METADATA_LIMIT as u64),
+    (TRANSFER_INFO_FILE, METADATA_LIMIT as u64),
+    (SELECTION_FILE, METADATA_LIMIT as u64),
     ("resolve-argv.json", 8 * 1024 * 1024),
     ("resolve-stdout.log", METADATA_LIMIT as u64),
     ("resolve-stderr.log", 1024 * 1024),
@@ -79,7 +104,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--".into(),
                 accepted.intent.url.clone(),
             ]);
-            let bytes = invoke(context, args, None, "resolve")?;
+            let bytes = invoke(context, args, None, InvocationPhase::Resolve)?;
             let metadata = parse_metadata(&bytes)?;
             check_generic_object(accepted, &metadata)?;
             let proof =
@@ -87,7 +112,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             context
                 .admit(&proof)
                 .map_err(|failure| format!("{}: {}", failure.code, failure.reason))?;
-            fs::write(working.join("resolved.json"), &bytes).map_err(|e| e.to_string())?;
+            fs::write(working.join(RESOLVED_FILE), &bytes).map_err(|e| e.to_string())?;
             let canonical = identity::canonical_url(accepted, &proof.identity);
             if network::engine_route(&canonical)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?
@@ -101,7 +126,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             phase = Phase::Downloading;
             context.emit(AdapterEvent::Transferring);
             check_generic_destination(accepted)?;
-            for name in ["final-object.txt", "selection.txt"] {
+            for name in ["final-object.txt", SELECTION_FILE] {
                 fs::OpenOptions::new()
                     .write(true)
                     .create_new(true)
@@ -131,8 +156,8 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--progress-template".into(),
                 progress::PP_TEMPLATE.into(),
                 "--print-to-file".into(),
-                "before_dl:AMEOW_SELECTION=%()j".into(),
-                working.join("selection.txt").display().to_string(),
+                format!("before_dl:{SELECTION_PREFIX}%()j"),
+                working.join(SELECTION_FILE).display().to_string(),
                 "--print-to-file".into(),
                 "after_move:AMEOW_FINAL=%(filepath)j".into(),
                 working.join("final-object.txt").display().to_string(),
@@ -141,7 +166,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             ]);
             let timeline = progress::Timeline::from_args();
             let feed = Mutex::new((false, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
-            let selected_path = working.join("selection.txt");
+            let selected_path = working.join(SELECTION_FILE);
             let expected = proof.identity.canonical_key();
             let accepted_for_progress = accepted.clone();
             let events = context.events.clone();
@@ -170,7 +195,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                     }
                 }
             });
-            let record = invoke(context, args, Some(output), "transfer")?;
+            let record = invoke(context, args, Some(output), InvocationPhase::Transfer)?;
             phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
             let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
@@ -183,7 +208,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 .strip_prefix(&canonical_workspace)
                 .map_err(|_| "Final object escaped owned workspace")?
                 .to_path_buf();
-            let actual = read_metadata_file(&working.join("media.info.json")).map_err(|error| {
+            let actual = read_metadata_file(&working.join(TRANSFER_INFO_FILE)).map_err(|error| {
                 if error.starts_with("E_METADATA_") { error } else { format!("E_MEDIA_UNVERIFIED: native metadata unavailable: {error}") }
             })?;
             check_generic_object(accepted, &actual)?;
@@ -193,7 +218,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 || !identity::consistent(&metadata, &actual) {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
-            let before = read_selection(&working.join("selection.txt")).ok();
+            let before = read_selection(&working.join(SELECTION_FILE)).ok();
             let video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
             context.emit(AdapterEvent::Finalizing);
             Ok(ProducedArtifact {
@@ -302,28 +327,30 @@ fn invoke(
     context: &ExecutionContext<'_>,
     args: Vec<String>,
     output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
-    label: &str,
+    invocation: InvocationPhase,
 ) -> Result<Vec<u8>, String> {
+    let label = invocation.label();
     let working = context.workspace();
     fs::write(
         working.join(format!("{label}-argv.json")),
         serde_json::to_vec_pretty(&args).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    let outcome = context.run(
-        ManagedCommand {
-            tool: "yt-dlp.exe",
-            args,
-            stdout_limit: if label == "resolve" {
-                METADATA_LIMIT
-            } else {
-                4 * 1024 * 1024
-            },
-            stderr_limit: 1024 * 1024,
-            timeout: None,
+    let command = ManagedCommand {
+        tool: "yt-dlp.exe",
+        args,
+        stdout_limit: if label == "resolve" {
+            METADATA_LIMIT
+        } else {
+            4 * 1024 * 1024
         },
-        output,
-    )?;
+        stderr_limit: 1024 * 1024,
+        timeout: None,
+    };
+    #[cfg(target_os = "macos")]
+    let outcome = context.run_ytdlp(command, invocation, output)?;
+    #[cfg(not(target_os = "macos"))]
+    let outcome = context.run(command, output)?;
     fs::write(working.join(format!("{label}-stdout.log")), &outcome.stdout)
         .map_err(|e| e.to_string())?;
     fs::write(working.join(format!("{label}-stderr.log")), &outcome.stderr)
@@ -382,7 +409,7 @@ fn read_selection(path: &Path) -> Result<Value, String> {
     let mut lines = text.lines();
     let record = lines
         .next()
-        .and_then(|line| line.strip_prefix("AMEOW_SELECTION="))
+        .and_then(|line| line.strip_prefix(SELECTION_PREFIX))
         .ok_or("Selection marker missing")?;
     if lines.next().is_some() {
         return Err("Multiple native selection observations".into());
@@ -586,7 +613,7 @@ mod selection_record_tests {
     #[test]
     fn only_one_complete_bounded_native_selection_can_attest_progress_or_final_result() {
         let root = tempfile::tempdir().unwrap();
-        let record = root.path().join("selection.txt");
+        let record = root.path().join(SELECTION_FILE);
         fs::write(&record, b"AMEOW_SELECTION={\"height\":480}\n").unwrap();
         assert_eq!(read_selection(&record).unwrap()["height"], 480);
         for bytes in [

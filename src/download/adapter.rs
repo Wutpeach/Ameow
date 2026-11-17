@@ -67,6 +67,26 @@ impl ExecutionContext<'_> {
         command: ManagedCommand,
         output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
     ) -> Result<ProcessOutcome, String> {
+        self.run_command(command, output, #[cfg(target_os = "macos")] None)
+    }
+    #[cfg(target_os = "macos")]
+    pub(crate) fn run_ytdlp(
+        &self,
+        command: ManagedCommand,
+        phase: super::adapters::yt_dlp::InvocationPhase,
+        output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
+    ) -> Result<ProcessOutcome, String> {
+        if !matches!(command.tool, "yt-dlp.exe" | "yt-dlp") {
+            return Err("Managed yt-dlp invocation requires its declared tool".into());
+        }
+        self.run_command(command, output, Some(phase))
+    }
+    fn run_command(
+        &self,
+        command: ManagedCommand,
+        output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
+        #[cfg(target_os = "macos")] phase: Option<super::adapters::yt_dlp::InvocationPhase>,
+    ) -> Result<ProcessOutcome, String> {
         let observer = self.observer.clone();
         let combined = Arc::new(move |event: ProcessObservation| {
             if let Some(output) = &output {
@@ -82,18 +102,22 @@ impl ExecutionContext<'_> {
         let (executable, args) = if command.tool == "yt-dlp.exe" || command.tool == "yt-dlp" {
             super::runtime::python_zipapp(self.tool(super::runtime::PYTHON_TOOL)?, &executable, args)?
         } else { (executable, args) };
-        process_supervisor::run(
-            ProcessSpec {
-                executable,
-                args,
-                cwd: self.workspace.into(),
-                env: self.requirements.environment(self.workspace)?,
-                stdout_limit: command.stdout_limit,
-                stderr_limit: command.stderr_limit,
-                timeout: command.timeout,
-            },
-            self.control,
-            combined,
-        )
+        let spec = ProcessSpec {
+            executable,
+            args,
+            cwd: self.workspace.into(),
+            env: self.requirements.environment(self.workspace)?,
+            stdout_limit: command.stdout_limit,
+            stderr_limit: command.stderr_limit,
+            timeout: command.timeout,
+        };
+        #[cfg(target_os = "macos")]
+        if let Some(phase) = phase {
+            let completion = super::adapters::yt_dlp::settlement_macos::ManagedCompletion::for_invocation(
+                &spec, self.lease, phase,
+            )?;
+            return process_supervisor::run_managed(spec, completion, self.control, combined);
+        }
+        process_supervisor::run(spec, self.control, combined)
     }
 }
