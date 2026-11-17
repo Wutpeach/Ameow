@@ -14,6 +14,9 @@ mod tray_popup;
 mod indicator;
 mod mascot;
 mod mascot_motion;
+mod mascot_reveal;
+mod mascot_layers;
+mod mascot_scene;
 mod magnetic_spring;
 mod model;
 #[cfg(target_os = "windows")]
@@ -252,6 +255,7 @@ struct Prototype {
     night: bool,
     indicator: indicator::Indicator,
     mascot: mascot::Mascot,
+    mascot_reveal: mascot_reveal::Reveal,
     _mascot_visibility: Subscription,
     drag: Option<([f32; 2], [f32; 2])>,
     copied_at: Option<u64>,
@@ -305,6 +309,7 @@ impl Prototype {
         let mascot_visibility = window.observe_window_visibility(move |_, _, cx| {
             let _ = mascot_entity.update(cx, |this, cx| {
                 this.mascot.sample(this.now(), false, this.model.reduced);
+                this.mascot_reveal.sample(this.now(), this.model.target_full, this.model.fullness, false, this.model.reduced);
                 cx.notify();
             });
         });
@@ -358,6 +363,7 @@ impl Prototype {
             night: options.night,
             indicator: indicator::Indicator::default(),
             mascot: mascot::Mascot::new(std::process::id() as u64),
+            mascot_reveal: Default::default(),
             _mascot_visibility: mascot_visibility,
             drag: None,
             copied_at: None,
@@ -719,19 +725,24 @@ impl Render for Prototype {
         let native = self.native.as_ref().unwrap();
         let cursor = Native::cursor();
         let scale = native.scale();
-        let mascot_visible = native.visible() && !self.model.target_full && self.model.fullness <= 0.001;
+        let reveal_delay = self.mascot_reveal.sample(now, self.model.target_full, self.model.fullness, native.visible(), self.model.reduced);
+        let mascot_scene = mascot_reveal::scene(self.mascot_reveal.progress);
+        let mascot_visible = native.visible() && self.mascot_reveal.idle_ready() && self.model.fullness <= 0.001;
         let mut mascot_delay = self.mascot.sample(now, mascot_visible, self.model.reduced);
         if let Some(pose) = self.preview.as_ref().and_then(|p| mascot::preview_pose(&p.scene().state)) {
             self.mascot.pose = pose;
             mascot_delay = None;
         }
-        let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
+        self.mascot.pose = mascot_scene::idle_pose(self.mascot.pose, mascot_scene.idle_weight);
+        let mascot_alpha = if self.mascot_reveal.progress > 0. { mascot_reveal::alpha(self.model.fullness) } else { 0. };
         let surface_frame = mascot::SurfaceFrame::new(g);
-        let surface_image = self.mascot.image(self.night, surface_frame, mascot_alpha, window, cx);
+        let surface_image = self.mascot.image(self.night, surface_frame, mascot_alpha, mascot_scene, window, cx);
         if let Some(log) = &mut self.telemetry {
             let pose = self.mascot.pose;
             let _ = writeln!(log, "{}", serde_json::json!({
                 "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
+                "reveal":self.mascot_reveal.progress,"reveal_delay":reveal_delay,"alpha":mascot_alpha,
+                "local_side":mascot_reveal::local_side(g.surface),"local_origin":mascot_reveal::local_origin(g.native,g.surface),
                 "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
                 "raster_us":self.mascot.raster_us, "prepare_us":self.mascot.prepare_us,
                 "scale":scale, "night":self.night, "reduced":self.model.reduced
@@ -817,7 +828,7 @@ impl Render for Prototype {
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay]
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay, reveal_delay]
             .into_iter()
             .flatten()
             .min();

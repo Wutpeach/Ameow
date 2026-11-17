@@ -319,6 +319,11 @@
         "purpose": "无越界；反向从当前可见值继续。"
       },
       {
+        "name": "mascot-reveal",
+        "value": "mascot_reveal / mascot",
+        "purpose": "窗口先收起，末段台面上浮、猫探头短停并落定接idle；当前进度反向加速退场，保持小尺寸，不延迟窗口或交互；隐藏暂停，减少动态正确终态。初版节奏与原生人工验收分开。"
+      },
+      {
         "name": "signature-owners",
         "value": "magnetic_spring / model / indicator",
         "purpose": "独立特效 owner；6px 单层磁吸，展开无弹性，收起保留已验收调参，不受普通 UI 默认参数覆盖。"

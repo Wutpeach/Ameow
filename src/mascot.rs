@@ -1,59 +1,79 @@
 //! One prepared 60px rig and one composed frame, using the existing raster stack.
-use crate::{mascot_motion::{Idle, Pose}, model::Geometry, tokens::Palette};
+use crate::{mascot_motion::{Idle, Pose}, mascot_reveal::Scene, mascot_scene::Prepared, model::Geometry, tokens::Palette};
 use gpui::*;
 use std::sync::Arc;
 use tiny_skia::{Pixmap, Transform};
-
-const LIGHT: &str = include_str!("../assets/mascot/light.svg");
-const NIGHT: &str = include_str!("../assets/mascot/night.svg");
+use crate::mascot_layers::{LIGHT, NIGHT};
 
 pub struct Mascot {
     idle: Idle,
     pub pose: Pose,
     prepared: Option<(Pose, bool, f32, Pixmap)>,
-    cache: Option<(Pose, bool, f32, SurfaceFrame, f32, Arc<RenderImage>)>,
+    scene_prepared: Option<(Pose, bool, f32, Prepared)>,
+    cache: Option<(Pose, bool, f32, SurfaceFrame, f32, Scene, Arc<RenderImage>)>,
     pub raster_us: u128,
     pub prepare_us: u128,
 }
 impl Mascot {
     pub fn new(seed: u64) -> Self {
-        Self { idle: Idle::new(seed), pose: Pose::default(), prepared: None, cache: None, raster_us: 0, prepare_us: 0 }
+        Self { idle: Idle::new(seed), pose: Pose::default(), prepared: None, scene_prepared: None, cache: None, raster_us: 0, prepare_us: 0 }
     }
     pub fn sample(&mut self, now: u64, visible: bool, reduced: bool) -> Option<u64> {
         let (pose, delay) = self.idle.sample(now, visible, reduced);
         self.pose = pose;
         delay
     }
-    pub fn image(&mut self, night: bool, frame: SurfaceFrame, alpha: f32, window: &mut Window, cx: &App) -> Arc<RenderImage> {
+    pub fn image(&mut self, night: bool, frame: SurfaceFrame, alpha: f32, scene: Scene, window: &mut Window, cx: &App) -> Arc<RenderImage> {
         let scale = window.scale_factor();
         self.prepare_us = 0;
-        if let Some((pose, cached_night, cached_scale, cached_frame, cached_alpha, image)) = &self.cache {
-            if *pose == self.pose && *cached_night == night && *cached_scale == scale && *cached_frame == frame && *cached_alpha == alpha {
+        if let Some((pose, cached_night, cached_scale, cached_frame, cached_alpha, cached_scene, image)) = &self.cache {
+            if *pose == self.pose && *cached_night == night && *cached_scale == scale && *cached_frame == frame && *cached_alpha == alpha && *cached_scene == scene {
                 self.raster_us = 0;
                 return image.clone();
             }
         }
         let started = std::time::Instant::now();
-        if alpha > 0. && !self.prepared.as_ref().is_some_and(|(pose, n, s, _)| *pose == self.pose && *n == night && *s == scale) {
-            let svg = rig(self.pose, night);
-            let source = cx.svg_renderer().render_single_frame(svg.as_bytes(), scale).expect("embedded Mascot rig");
-            self.prepared = Some((self.pose, night, scale, prepared_pixels(&source)));
-            self.prepare_us = started.elapsed().as_micros();
-        }
-        let pixels = frame.compose(self.prepared.as_ref().map(|(_, _, _, pixels)| pixels), alpha, night, scale);
+        let pixels = self.compose_frame(night, frame, alpha, scene, scale, &cx.svg_renderer());
         let side = pixels.width();
         let bytes = straight_bgra(pixels);
         let image = Arc::new(RenderImage::new(vec![image::Frame::new(image::RgbaImage::from_raw(side, side, bytes).expect("surface pixels"))]));
         self.raster_us = started.elapsed().as_micros();
-        if let Some((_, _, _, _, _, previous)) = self.cache.take() { let _ = window.drop_image(previous); }
-        self.cache = Some((self.pose, night, scale, frame, alpha, image.clone()));
+        if let Some((_, _, _, _, _, _, previous)) = self.cache.take() { let _ = window.drop_image(previous); }
+        self.cache = Some((self.pose, night, scale, frame, alpha, scene, image.clone()));
         image
+    }
+    pub(crate) fn compose_frame(&mut self, night: bool, frame: SurfaceFrame, alpha: f32, scene: Scene, scale: f32, renderer: &SvgRenderer) -> Pixmap {
+        let started = std::time::Instant::now();
+        self.prepare_us = 0;
+        let resting = scene == crate::mascot_reveal::scene(1.) && frame.surface <= 60.;
+        if alpha > 0. && resting && !self.prepared.as_ref().is_some_and(|(pose, n, s, _)| *pose == self.pose && *n == night && *s == scale) {
+            let svg = rig(self.pose, night);
+            let source = renderer.render_single_frame(svg.as_bytes(), scale).expect("embedded Mascot rig");
+            self.prepared = Some((self.pose, night, scale, prepared_pixels(&source)));
+            self.prepare_us = started.elapsed().as_micros();
+        } else if alpha > 0. && !resting && !self.scene_prepared.as_ref().is_some_and(|(pose, n, s, _)| *pose == self.pose && *n == night && *s == scale) {
+            let svg = rig(self.pose, night);
+            if let Some((pose, _, _, layers)) = self.scene_prepared.as_mut().filter(|(_, n, s, _)| *n == night && *s == scale) {
+                layers.update_head(&svg, renderer, scale);
+                *pose = self.pose;
+            } else {
+                self.scene_prepared = Some((self.pose, night, scale, Prepared::new(&svg, renderer, scale)));
+            }
+            self.prepare_us = started.elapsed().as_micros();
+        }
+        if resting {
+            frame.compose(self.prepared.as_ref().map(|(_, _, _, pixels)| pixels), alpha, night, scale)
+        } else { frame.compose_with(night, scale, |pixels| {
+            if alpha > 0. {
+                if let Some((_, _, _, prepared)) = &self.scene_prepared { prepared.paint(pixels, frame, scene, alpha, scale); }
+            }
+        }) }
     }
 }
 
 // SVG output is straight BGRA; tiny-skia input is premultiplied RGBA. Convert
 // only when preparing a new local pose, never once per window geometry frame.
-fn prepared_pixels(source: &RenderImage) -> Pixmap {
+pub(crate) fn prepared_pixels(source: &RenderImage) -> Pixmap {
     let side = source.size(0).width.0 as u32;
     // Two transparent source pixels keep Bilinear sampling away from Pad edges.
     let mut pixels = Pixmap::new(side + 4, side + 4).expect("prepared source size");
@@ -67,7 +87,7 @@ fn prepared_pixels(source: &RenderImage) -> Pixmap {
     }
     pixels
 }
-fn straight_bgra(pixels: Pixmap) -> Vec<u8> {
+pub(crate) fn straight_bgra(pixels: Pixmap) -> Vec<u8> {
     let mut bytes = pixels.take();
     for p in bytes.chunks_exact_mut(4) {
         let a = p[3] as u32;
@@ -91,7 +111,17 @@ impl SurfaceFrame {
         let origin = px((self.native - self.surface) * 0.5);
         Bounds::new(carrier.origin + point(origin, origin), size(px(self.surface), px(self.surface)))
     }
-    fn compose(self, art: Option<&Pixmap>, alpha: f32, night: bool, scale: f32) -> Pixmap {
+    pub(crate) fn compose(self, art: Option<&Pixmap>, alpha: f32, night: bool, scale: f32) -> Pixmap {
+        self.compose_with(night, scale, |pixels| {
+            if let Some(art) = art.filter(|_| alpha > 0.) {
+                let factor = self.surface * scale / (art.width() - 4) as f32;
+                let origin = (self.native - self.surface) * 0.5;
+                let offset = origin * scale - 2. * factor;
+                pixels.draw_pixmap(0, 0, art.as_ref(), &tiny_skia::PixmapPaint { opacity: alpha, quality: tiny_skia::FilterQuality::Bilinear, ..Default::default() }, Transform::from_row(factor, 0., 0., factor, offset, offset), None);
+            }
+        })
+    }
+    pub(crate) fn compose_with(self, night: bool, scale: f32, paint_art: impl FnOnce(&mut Pixmap)) -> Pixmap {
         let side = (self.side(scale) * scale).round() as u32;
         let mut pixels = Pixmap::new(side, side).expect("surface size");
         let palette = Palette::new(night);
@@ -104,11 +134,7 @@ impl SurfaceFrame {
         let inner = rounded_path(origin + border_width, self.surface - 2. * border_width, (self.radius - border_width).max(0.));
         let paint = tiny_skia::Paint { shader: tiny_skia::Shader::SolidColor(color(palette.surface)), ..Default::default() };
         pixels.fill_path(&inner, &paint, tiny_skia::FillRule::Winding, Transform::from_scale(scale, scale), None);
-        if let Some(art) = art.filter(|_| alpha > 0.) {
-            let factor = self.surface * scale / (art.width() - 4) as f32;
-            let offset = origin * scale - 2. * factor;
-            pixels.draw_pixmap(0, 0, art.as_ref(), &tiny_skia::PixmapPaint { opacity: alpha, quality: tiny_skia::FilterQuality::Bilinear, ..Default::default() }, Transform::from_row(factor, 0., 0., factor, offset, offset), None);
-        }
+        paint_art(&mut pixels);
         let mut mask = tiny_skia::Mask::new(side, side).expect("surface mask");
         mask.fill_path(&rounded_path(origin, self.surface, self.radius), tiny_skia::FillRule::Winding, true, Transform::from_scale(scale, scale));
         pixels.apply_mask(&mask);
