@@ -3,7 +3,7 @@ use crate::{mascot_motion::{Idle, Pose}, mascot_reveal::Scene, mascot_scene::Pre
 use gpui::*;
 use std::sync::Arc;
 use tiny_skia::{Pixmap, Transform};
-use crate::mascot_layers::{LIGHT, NIGHT};
+use crate::mascot_layers::{Parts, LIGHT, NIGHT};
 
 pub struct Mascot {
     idle: Idle,
@@ -53,21 +53,26 @@ impl Mascot {
             self.prepare_us = started.elapsed().as_micros();
         } else if alpha > 0. && !resting && !self.scene_prepared.as_ref().is_some_and(|(pose, n, s, _)| *pose == self.pose && *n == night && *s == scale) {
             let svg = rig(self.pose, night);
+            let parts = Parts::new(&svg);
+            let render = |body| renderer.render_single_frame(parts.document(body).as_bytes(), scale).expect("approved Mascot layer");
             if let Some((pose, _, _, layers)) = self.scene_prepared.as_mut().filter(|(_, n, s, _)| *n == night && *s == scale) {
-                layers.update_head(&svg, renderer, scale);
+                layers.update_head(render(parts.head));
                 *pose = self.pose;
             } else {
-                self.scene_prepared = Some((self.pose, night, scale, Prepared::new(&svg, renderer, scale)));
+                self.scene_prepared = Some((self.pose, night, scale, Prepared::new(render(parts.head), render(parts.perch), render(parts.paws))));
             }
             self.prepare_us = started.elapsed().as_micros();
         }
         if resting {
             frame.compose(self.prepared.as_ref().map(|(_, _, _, pixels)| pixels), alpha, night, scale)
-        } else { frame.compose_with(night, scale, |pixels| {
+        } else {
+            let mut pixels = frame.background(night, scale);
             if alpha > 0. {
-                if let Some((_, _, _, prepared)) = &self.scene_prepared { prepared.paint(pixels, frame, scene, alpha, scale); }
+                if let Some((_, _, _, prepared)) = &self.scene_prepared { prepared.paint(&mut pixels, frame, scene, alpha, scale); }
             }
-        }) }
+            frame.apply_mask(&mut pixels, scale);
+            pixels
+        }
     }
 }
 
@@ -112,16 +117,17 @@ impl SurfaceFrame {
         Bounds::new(carrier.origin + point(origin, origin), size(px(self.surface), px(self.surface)))
     }
     pub(crate) fn compose(self, art: Option<&Pixmap>, alpha: f32, night: bool, scale: f32) -> Pixmap {
-        self.compose_with(night, scale, |pixels| {
-            if let Some(art) = art.filter(|_| alpha > 0.) {
-                let factor = self.surface * scale / (art.width() - 4) as f32;
-                let origin = (self.native - self.surface) * 0.5;
-                let offset = origin * scale - 2. * factor;
-                pixels.draw_pixmap(0, 0, art.as_ref(), &tiny_skia::PixmapPaint { opacity: alpha, quality: tiny_skia::FilterQuality::Bilinear, ..Default::default() }, Transform::from_row(factor, 0., 0., factor, offset, offset), None);
-            }
-        })
+        let mut pixels = self.background(night, scale);
+        if let Some(art) = art.filter(|_| alpha > 0.) {
+            let factor = self.surface * scale / (art.width() - 4) as f32;
+            let origin = (self.native - self.surface) * 0.5;
+            let offset = origin * scale - 2. * factor;
+            pixels.draw_pixmap(0, 0, art.as_ref(), &tiny_skia::PixmapPaint { opacity: alpha, quality: tiny_skia::FilterQuality::Bilinear, ..Default::default() }, Transform::from_row(factor, 0., 0., factor, offset, offset), None);
+        }
+        self.apply_mask(&mut pixels, scale);
+        pixels
     }
-    pub(crate) fn compose_with(self, night: bool, scale: f32, paint_art: impl FnOnce(&mut Pixmap)) -> Pixmap {
+    pub(crate) fn background(self, night: bool, scale: f32) -> Pixmap {
         let side = (self.side(scale) * scale).round() as u32;
         let mut pixels = Pixmap::new(side, side).expect("surface size");
         let palette = Palette::new(night);
@@ -134,11 +140,13 @@ impl SurfaceFrame {
         let inner = rounded_path(origin + border_width, self.surface - 2. * border_width, (self.radius - border_width).max(0.));
         let paint = tiny_skia::Paint { shader: tiny_skia::Shader::SolidColor(color(palette.surface)), ..Default::default() };
         pixels.fill_path(&inner, &paint, tiny_skia::FillRule::Winding, Transform::from_scale(scale, scale), None);
-        paint_art(&mut pixels);
-        let mut mask = tiny_skia::Mask::new(side, side).expect("surface mask");
+        pixels
+    }
+    pub(crate) fn apply_mask(self, pixels: &mut Pixmap, scale: f32) {
+        let origin = (self.native - self.surface) * 0.5;
+        let mut mask = tiny_skia::Mask::new(pixels.width(), pixels.height()).expect("surface mask");
         mask.fill_path(&rounded_path(origin, self.surface, self.radius), tiny_skia::FillRule::Winding, true, Transform::from_scale(scale, scale));
         pixels.apply_mask(&mask);
-        pixels
     }
 }
 fn rounded_path(origin: f32, side: f32, radius: f32) -> tiny_skia::Path {

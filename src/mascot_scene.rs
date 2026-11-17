@@ -1,6 +1,7 @@
 //! Cached local layers, composed inside the shared surface's final AA mask.
-use crate::{mascot::{prepared_pixels, SurfaceFrame}, mascot_layers::Parts, mascot_motion::Pose, mascot_reveal::{local_origin, local_side, Scene}};
-use gpui::SvgRenderer;
+use crate::{mascot::{prepared_pixels, SurfaceFrame}, mascot_motion::Pose, mascot_reveal::{local_origin, local_side, Scene}};
+use gpui::RenderImage;
+use std::sync::Arc;
 use tiny_skia::{Pixmap, Transform};
 
 pub struct Prepared {
@@ -10,8 +11,8 @@ pub struct Prepared {
 }
 struct Layer { pixels: Pixmap, source_side: f32, offset: [f32; 2] }
 impl Layer {
-    fn new(source: &gpui::RenderImage) -> Self {
-        let full = prepared_pixels(source);
+    fn new(source: Arc<RenderImage>) -> Self {
+        let full = prepared_pixels(&source);
         let (w, h) = (full.width(), full.height());
         let (mut left, mut top, mut right, mut bottom) = (w, h, 0, 0);
         for (i, _) in full.data().chunks_exact(4).enumerate().filter(|(_, p)| p[3] != 0) {
@@ -26,14 +27,11 @@ impl Layer {
     }
 }
 impl Prepared {
-    pub fn new(svg: &str, renderer: &SvgRenderer, scale: f32) -> Self {
-        let parts = Parts::new(svg);
-        let render = |body| Layer::new(&renderer.render_single_frame(parts.document(body).as_bytes(), scale).expect("approved Mascot layer"));
-        Self { head: render(parts.head), perch: render(parts.perch), paws: render(parts.paws) }
+    pub fn new(head: Arc<RenderImage>, perch: Arc<RenderImage>, paws: Arc<RenderImage>) -> Self {
+        Self { head: Layer::new(head), perch: Layer::new(perch), paws: Layer::new(paws) }
     }
-    pub fn update_head(&mut self, svg: &str, renderer: &SvgRenderer, scale: f32) {
-        let parts = Parts::new(svg);
-        self.head = Layer::new(&renderer.render_single_frame(parts.document(parts.head).as_bytes(), scale).expect("approved Mascot head"));
+    pub fn update_head(&mut self, head: Arc<RenderImage>) {
+        self.head = Layer::new(head);
     }
     pub fn paint(&self, target: &mut Pixmap, frame: SurfaceFrame, scene: Scene, alpha: f32, scale: f32) {
         if alpha == 1. { self.paint_layers(target, frame, scene, scale, 0.); return; }
