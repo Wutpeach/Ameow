@@ -24,4 +24,4 @@
 
 ## Impact
 
-以c1f2ff68为父，仅Windows原生pointer首显边界和Windows root hover取样修正，复用已完成apply记录，不新增生命周期字段/锁。Mac代码、window apply/show本身、Model/弹性、统一mask、Reveal/曲线/图层/资产/Prepared、idle/Reduced保持。同一feature分支供原整合者接PR41及Mac固定树，复用现有target，不打包/造副本或自动合并发行。新增被动字段仅写既有可选native日志，新的启动手感仍待用户一次正常启动确认。
+以c1f2ff68为父，仅Windows原生pointer首显边界和Windows root hover取样修正，复用已完成apply记录，不新增生命周期字段/锁。Mac代码、window apply/show本身、Model/弹性、统一mask、Reveal/曲线/图层/资产/Prepared、idle/Reduced保持。同一feature分支供原整合者接PR41及Mac固定树，复用现有target，不打包或造副本。新增被动字段仅写既有可选native日志；f706 Windows启动随后已获用户验收，与已确认Mac启动和f520双端动作共同完成本轮体验范围。规范归档与PR链合并按后续明确授权执行，应用发行仍未授权。
