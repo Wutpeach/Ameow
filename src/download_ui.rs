@@ -221,6 +221,8 @@ impl DownloadUi {
                     Err(mpsc::RecvTimeoutError::Disconnected) => { disconnected = true; coordinator.stop(); std::thread::sleep(Duration::from_millis(80)); }
                 }
                 for event in evidence_receiver.try_iter() { append_evidence(&mut evidence, &started, event); }
+                #[cfg(target_os = "macos")]
+                if let Some(session) = &worker_launch { session.attest_download_owner(!disconnected); }
                 updates.poll(&coordinator,worker_launch.as_deref());
                 if let Some(session) = &worker_launch && let Err(error) = session.poll(&coordinator) {
                     append_evidence(&mut evidence, &started, serde_json::json!({"type":"app-update-error","error":error}));
@@ -1438,6 +1440,12 @@ impl Prototype {
         #[cfg(all(feature="app-update-fixture",debug_assertions))]
         self.poll_update_ui_fixture(cx);
         if let Some(session) = self.downloads.as_ref().and_then(|ui| ui.app_update.as_ref()) {
+            #[cfg(target_os = "macos")]
+            session.attest_native_window(
+                self.native.as_ref().is_some_and(|native| native.ready_for_update())
+                    && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()),
+            );
+            #[cfg(not(target_os = "macos"))]
             if self.native.is_some() && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()) {
                 session.native_ready.store(true, std::sync::atomic::Ordering::Release);
             }

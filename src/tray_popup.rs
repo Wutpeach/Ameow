@@ -7,13 +7,15 @@ use crate::{
 use ameow_next::download::preparation::PreparationPhase;
 use ameow_next::download::queue::{JobPhase, QueueSnapshot};
 use gpui::{prelude::*, *};
+#[cfg(target_os = "windows")]
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{cell::RefCell, rc::Rc};
+#[cfg(target_os = "windows")]
 use windows::Win32::{
-    Foundation::{HWND, POINT, RECT},
+    Foundation::{HWND, RECT},
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
     UI::WindowsAndMessaging::{
-        GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
+        GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
         SetWindowPos, SWP_NOACTIVATE,
     },
 };
@@ -243,12 +245,11 @@ impl TrayPopup {
         let activation = cx.observe_window_activation(window, move |this, window, cx| {
             if preview { return; }
             if !window.is_window_active() {
-                let mut cursor = POINT::default();
-                let on_icon = unsafe { GetCursorPos(&mut cursor).is_ok() }
-                    && cursor.x >= icon.left
-                    && cursor.x < icon.right
-                    && cursor.y >= icon.top
-                    && cursor.y < icon.bottom;
+                let cursor = crate::native::Native::cursor();
+                let on_icon = cursor[0] >= icon.left as f32
+                    && cursor[0] < icon.right as f32
+                    && cursor[1] >= icon.top as f32
+                    && cursor[1] < icon.bottom as f32;
                 if !on_icon {
                     this.dismiss(Action::Closed, cx);
                 }
@@ -609,8 +610,13 @@ impl Prototype {
         #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
         let fixture_anchor = false;
         let anchor = if self.preview.is_some() || fixture_anchor {
+            #[cfg(target_os = "windows")]
+            {
             let (width, height) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
             crate::tray::PopupAnchor { icon: RECT { left: width - 50, top: height - 50, right: width - 20, bottom: height - 20 }, work: RECT { left: 0, top: 0, right: width, bottom: height }, dpi: 96, edge: crate::tray::TaskbarEdge::Bottom }
+            }
+            #[cfg(target_os = "macos")]
+            { crate::tray::PopupAnchor::preview() }
         } else if let Some(anchor) = self.tray.as_ref().map(|tray| tray.popup_anchor()) { anchor } else {
             return;
         };
@@ -651,6 +657,7 @@ impl Prototype {
                 ui.evidence(summary_evidence);
             }
             self.tray_popup = Some(handle);
+            #[cfg(target_os = "windows")]
             cx.defer(move |cx| {
                 let Ok(hwnd) = handle.update(cx, |view, window, cx| {
                     window.focus(&view.focus, cx);
@@ -688,6 +695,21 @@ impl Prototype {
                         }
                     })
                     .detach();
+            });
+            #[cfg(target_os = "macos")]
+            cx.defer(move |cx| {
+                let Ok(target) = handle.update(cx, |view, window, cx| {
+                    window.focus(&view.focus, cx);
+                    let native = crate::native::handle(window);
+                    native.window()
+                }) else { return; };
+                let Some(target) = target else { return; };
+                cx.foreground_executor().spawn(async move {
+                    target.setStyleMask(objc2_app_kit::NSWindowStyleMask::Borderless);
+                    crate::native::configure_overlay(&target);
+                    crate::native::set_bounds(&target, [pos.x, pos.y, width.round() as i32, height.round() as i32]);
+                    target.makeKeyAndOrderFront(None);
+                }).detach();
             });
         } else if let Some(ui) = &mut self.downloads {
             ui.evidence(serde_json::json!({"type":"tray-popup-error"}));

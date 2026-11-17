@@ -172,6 +172,7 @@ impl Accepted {
             .output_dir
             .canonicalize()
             .map_err(|e| format!("Accepted destination: {e}"))?;
+        super::runtime::check_data_location(&intent.output_dir)?;
         if !intent.output_dir.is_dir() {
             return Err("Output destination must be an existing directory".into());
         }

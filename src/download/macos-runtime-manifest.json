@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "platform": "macos-aarch64",
+  "components": [
+    {
+      "name": "python",
+      "version": "3.13.18",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.13.18%2B20261110-aarch64-apple-darwin-install_only.tar.gz",
+      "bytes": 25598083,
+      "sha256": "1AFD3983237C2A10277345F235BE730E9CB49A123E0574ED252DBF3A841A24E4",
+      "license": "Python-2.0 and bundled dependency licenses",
+      "source": "https://github.com/astral-sh/python-build-standalone/releases/tag/20261110",
+      "files": [{"archive_path": "python/bin/python3.13", "name": "python/bin/python3.13", "sha256": "5A1F8E0BAE93B411608B7EDAD162865EE66E28EF4D6075B14A0096E6A6BE8F4F", "probe": "--version", "version_contains": "Python 3.13.18"}]
+    },
+    {
+      "name": "yt-dlp",
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp",
+      "bytes": 3072469,
+      "sha256": "1FA6733C37EA6FB51C99AD8FE785E7B7E5F3246C9B980230329D4FB72ED8D4D6",
+      "license": "Unlicense; bundled EJS and dependencies retain their licenses",
+      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.08.19",
+      "files": [{"archive_path": null, "name": "yt-dlp", "sha256": "1FA6733C37EA6FB51C99AD8FE785E7B7E5F3246C9B980230329D4FB72ED8D4D6", "probe": "--version", "version_contains": "2026.08.19"}]
+    },
+    {
+      "name": "deno",
+      "version": "2.9.7",
+      "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-aarch64-apple-darwin.zip",
+      "bytes": 38469316,
+      "sha256": "5CD46D6268F6F78F5D88BDC7159D20BD44CDAA4B3303474839F87EC6FE7AE25C",
+      "license": "MIT",
+      "source": "https://github.com/denoland/deno/tree/v2.9.7",
+      "files": [{"archive_path": "deno", "name": "deno", "sha256": "B73737579D5A84C160E3316487594783FA5C15F4E13252A6A07050B755317F1A", "probe": "--version", "version_contains": "deno 2.9.7"}]
+    },
+    {
+      "name": "ffmpeg",
+      "version": "9.0.2",
+      "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip",
+      "bytes": 28395699,
+      "sha256": "C8ED4C4E6978A03C485EDBFE4E0A5DC2380F8A30BBA5150531B31B094492D924",
+      "license": "GPL-3.0-or-later; bundled dependencies have separate licenses",
+      "source": "https://ffmpeg.martin-riedl.de/info/detail/macos/arm64/1789931890_9.0.2",
+      "files": [{"archive_path": "ffmpeg", "name": "ffmpeg", "sha256": "2E11C6F90993CDB79FFF84D3F90044D28316B310E75B3E030CFC9A54F2C9D384", "probe": "-version", "version_contains": "ffmpeg version 9.0.2"}]
+    },
+    {
+      "name": "ffprobe",
+      "version": "9.0.2",
+      "url": "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffprobe.zip",
+      "bytes": 28317701,
+      "sha256": "FCBE839537485EAEE7A7A8BC5CBC0F90D53617E80943E8A5B2E31CB851197EA6",
+      "license": "GPL-3.0-or-later; bundled dependencies have separate licenses",
+      "source": "https://ffmpeg.martin-riedl.de/info/detail/macos/arm64/1789931890_9.0.2",
+      "files": [{"archive_path": "ffprobe", "name": "ffprobe", "sha256": "2738AA46A7F9ACBC8AB09A6715554C90F7DE603171AC403726765685DF6A0059", "probe": "-version", "version_contains": "ffprobe version 9.0.2"}]
+    },
+    {
+      "name": "gallery-dl",
+      "version": "1.32.19",
+      "url": "https://files.pythonhosted.org/packages/5d/c3/87c38fa0d392455a14b3f32b8a3acf0887ced4689a7b5fc6e0d9f761213f/gallery_dl-1.32.19-py3-none-any.whl",
+      "bytes": 946594,
+      "sha256": "F6B1EB5E9A7409A988B754335D99DBB1873E130D133ED5D164D32E5E645D1C50",
+      "license": "GPL-2.0-only; wheel dependencies have separate licenses",
+      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.19",
+      "files": [{"archive_path": null, "name": "gallery-dl", "sha256": "006B2522083767789CFE0F1D9B4E5A8BEEC14C319642F348A06FC0786AB5C20C", "probe": "--version", "version_contains": "1.32.19"}]
+    }
+  ]
+}

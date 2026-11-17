@@ -1,12 +1,14 @@
 pub mod bridge_commands;
 pub mod diagnostics;
 pub mod network;
+#[cfg_attr(target_os = "macos", path = "output_macos.rs")]
 pub mod output;
 pub mod contract;
 pub mod adapter;
 pub mod adapters;
 pub mod composition;
 pub mod verification;
+#[cfg_attr(target_os = "macos", path = "process_supervisor_macos.rs")]
 pub mod process_supervisor;
 pub mod progress;
 pub mod preparation;
@@ -14,6 +16,8 @@ pub mod upstream;
 pub mod queue;
 pub mod request;
 pub mod runtime;
+#[cfg(target_os = "macos")]
+mod macos_gallery;
 pub mod runtime_update;
 mod runtime_update_trust;
 mod release_signature;
@@ -23,6 +27,8 @@ pub mod preferences;
 mod neutral_tests;
 #[cfg(test)]
 mod collection_tests;
+#[cfg(all(test, target_os = "macos"))]
+mod runtime_macos_tests;
 // Existing supervisor regression fixtures keep their original bytes; never a production path.
 #[cfg(test)]
 use adapters::yt_dlp::{parse_final_record, validate_engine_outcome};
@@ -39,12 +45,26 @@ use runtime::RuntimeLease;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    os::windows::fs::MetadataExt,
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
     thread,
     time::Duration,
 };
+
+pub(crate) fn is_plain_file(metadata: &fs::Metadata) -> bool {
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 == 0
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Phase {
@@ -364,6 +384,8 @@ fn execute(
     let mut lease = None;
     let mut destination_stage = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        runtime::check_data_location(&manager.root)?;
+        runtime::check_data_location(&accepted.intent.output_dir)?;
         if !accepted.intent.output_dir.is_dir() {
             adapter_failure = Some(diagnostics::Failure::new(
                 diagnostics::FailureCode::Storage,
@@ -639,7 +661,7 @@ fn execute(
             .ok_or("Owned destination stage missing")?;
         {
             let mut state = lock(&state);
-            state.snapshot.destination_stage = Some(staged.path.clone());
+            state.snapshot.destination_stage = staged.owned_path().map(PathBuf::from);
             state.snapshot.revision += 1;
             state.publish();
         }
@@ -791,6 +813,7 @@ fn deliver_collection(
         saved.directory = Some(output::collection_directory(&accepted.intent.output_dir, &identity.title)?);
     }
     let destination = saved.directory.as_deref().unwrap_or(&accepted.intent.output_dir);
+    runtime::check_data_location(destination)?;
     runtime::safe_dir(destination)?;
     if !destination.canonicalize().map_err(|e| e.to_string())?
         .starts_with(&accepted.intent.output_dir) {
@@ -825,7 +848,7 @@ fn deliver_collection(
         let staged = destination_stage.as_mut().ok_or("Collection stage missing")?;
         {
             let mut state = lock(state);
-            state.snapshot.destination_stage = Some(staged.path.clone());
+            state.snapshot.destination_stage = staged.owned_path().map(PathBuf::from);
             state.publish();
         }
         staged.fill(&media)?;
@@ -933,7 +956,7 @@ fn preserve_diagnostics(
         }
         let source = working.join(name);
         match fs::symlink_metadata(&source) {
-            Ok(meta) if meta.is_file() && meta.file_attributes() & 0x400 == 0 => {
+            Ok(meta) if is_plain_file(&meta) => {
                 if meta.len() <= limit
                     && archived_bytes.saturating_add(meta.len()) <= 64 * 1024 * 1024
                 {

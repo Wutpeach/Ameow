@@ -152,10 +152,15 @@ fn delivery_never_replaces_existing_files_and_cleans_only_owned_partial() -> Res
     assert!(dest.path().join(".ameow-other.partial").exists());
     let mut pending = DestinationStage::create(&m, dest.path(), 4)?;
     pending.fill(&m)?;
-    let other_reader = fs::File::open(&pending.path).map_err(|e| e.to_string())?;
-    assert!(pending.cleanup().is_err());
-    assert!(pending.owned_path().is_some());
-    drop(other_reader);
+    #[cfg(windows)]
+    {
+        let other_reader = fs::File::open(&pending.path).map_err(|e| e.to_string())?;
+        assert!(pending.cleanup().is_err());
+        assert!(pending.owned_path().is_some());
+        drop(other_reader);
+    }
+    #[cfg(target_os = "macos")]
+    assert!(pending.owned_path().is_none());
     pending.cleanup()?;
     assert!(pending.owned_path().is_none());
     assert!(DestinationStage::create(&m, &dest.path().join("missing"), 3).is_err());
@@ -208,14 +213,25 @@ fn publication_preserves_exact_filename_and_no_clobber_across_utf16_lengths() ->
     Ok(())
 }
 #[test]
-fn hash_lease_rejects_corruption_and_prevents_live_mutation() -> Result<(), String> {
+fn hash_lease_rejects_corruption_and_holds_platform_guard() -> Result<(), String> {
     let root = tempfile::tempdir().map_err(|e| e.to_string())?;
     let file = root.path().join("runtime.exe");
     fs::write(&file, b"trusted bytes").map_err(|e| e.to_string())?;
     let expected = hash(&b"trusted bytes"[..])?;
     let lease = check_file(&file, &expected)?;
-    assert!(fs::write(&file, b"tamper").is_err());
-    assert!(fs::remove_file(&file).is_err());
+    #[cfg(windows)]
+    {
+        assert!(fs::write(&file, b"tamper").is_err());
+        assert!(fs::remove_file(&file).is_err());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::fd::AsRawFd;
+        let competing = fs::File::open(&file).map_err(|error| error.to_string())?;
+        assert_eq!(unsafe { libc::flock(competing.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, -1);
+        assert_eq!(std::io::Error::last_os_error().raw_os_error(), Some(libc::EWOULDBLOCK));
+        assert_eq!(hash(competing)?, expected);
+    }
     drop(lease);
     fs::write(&file, b"tamper").map_err(|e| e.to_string())?;
     assert!(check_file(&file, &expected).is_err());
@@ -441,8 +457,11 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     assert!(verified.bytes > 0);
     assert_eq!(verified.facts.video_width, Some(64));
     assert!(verified.facts.audio_present);
-    assert!(fs::write(&media, b"external corruption").is_err());
-    assert!(fs::remove_file(&media).is_err());
+    #[cfg(windows)]
+    {
+        assert!(fs::write(&media, b"external corruption").is_err());
+        assert!(fs::remove_file(&media).is_err());
+    }
     let destination = tempfile::tempdir().map_err(|e| e.to_string())?;
     let mut stage = DestinationStage::create(&verified, destination.path(), 1)?;
     stage.fill(&verified)?;

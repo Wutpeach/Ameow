@@ -21,7 +21,6 @@ use std::{
     fs::{self, File},
     io::Read,
     net::ToSocketAddrs,
-    os::windows::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -175,7 +174,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
             let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
-            if !final_metadata.is_file() || final_metadata.file_attributes() & 0x400 != 0 {
+            if !crate::download::is_plain_file(&final_metadata) {
                 return Err("E_MEDIA_UNVERIFIED: final path is not a regular non-reparse file".into());
             }
             let canonical_path = final_path.canonicalize().map_err(|e| e.to_string())?;
@@ -350,7 +349,7 @@ fn invoke(
 }
 fn read_metadata_file(path: &Path) -> Result<Value, String> {
     let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-    if !meta.is_file() || meta.file_attributes() & 0x400 != 0 {
+    if !super::super::is_plain_file(&meta) {
         return Err("Metadata is not a regular non-reparse owned file".into());
     }
     if meta.len() > METADATA_LIMIT as u64 {
@@ -366,7 +365,7 @@ fn read_metadata_file(path: &Path) -> Result<Value, String> {
 }
 fn read_selection(path: &Path) -> Result<Value, String> {
     let meta = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
-    if !meta.is_file() || meta.file_attributes() & 0x400 != 0 || meta.len() > METADATA_LIMIT as u64
+    if !super::super::is_plain_file(&meta) || meta.len() > METADATA_LIMIT as u64
     {
         return Err("Native selection record type/bound".into());
     }

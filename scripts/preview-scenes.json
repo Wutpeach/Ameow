@@ -121,5 +121,11 @@
   {"name":"full.app-rollback","surface":"full","state":"app-rollback","description":"仅应用更新：已恢复可用版本"},
   {"name":"tray.app-ready","surface":"tray","state":"app-ready","description":"托盘状态栏：单个重启更新图标按钮"},
   {"name":"tray.app-conflict","surface":"tray","state":"app-conflict","description":"托盘状态栏：任务数量与独立更新图标按钮"},
-  {"name":"tray.app-rollback","surface":"tray","state":"app-rollback","description":"托盘状态栏：版本恢复图标与更新详情入口"}
+  {"name":"tray.app-rollback","surface":"tray","state":"app-rollback","description":"托盘状态栏：版本恢复图标与更新详情入口"},
+  {"name":"settings.app-retry","surface":"settings","state":"app-retry","description":"应用更新失败后保留恢复入口"},
+  {"name":"settings.app-authorization-cancelled","surface":"settings","state":"app-authorization-cancelled","description":"取消系统授权后可重试"},
+  {"name":"full.app-retry","surface":"full","state":"app-retry","description":"应用更新失败后的Full入口"},
+  {"name":"full.app-authorization-cancelled","surface":"full","state":"app-authorization-cancelled","description":"取消系统授权后的Full入口"},
+  {"name":"tray.app-retry","surface":"tray","state":"app-retry","description":"应用更新失败后的菜单入口"},
+  {"name":"tray.app-authorization-cancelled","surface":"tray","state":"app-authorization-cancelled","description":"取消系统授权后的菜单入口"}
 ]

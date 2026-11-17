@@ -67,7 +67,11 @@ fn inspect(
         .tempdir_in(workspace)
         .map_err(|e| e.to_string())?
         .keep();
+    #[cfg(target_os = "macos")]
+    let probe_path = crate::download::output::probe_input(&media, &probe_dir)?;
+    #[cfg(not(target_os = "macos"))]
     let probe_path = probe_dir.join("media");
+    #[cfg(not(target_os = "macos"))]
     if fs::hard_link(&media.path, &probe_path).is_err() {
         let copied = fs::copy(&media.path, &probe_path)
             .map_err(|e| format!("E_MEDIA_UNVERIFIED: probe input: {e}"))?;

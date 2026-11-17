@@ -15,7 +15,6 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    os::windows::fs::MetadataExt,
     path::{Component, Path, PathBuf},
     sync::{
         Arc,
@@ -308,7 +307,7 @@ fn record_name(line: &[u8], skip: bool, expected: &BTreeMap<PathBuf, Value>, cop
     }
     let path = PathBuf::from(meta["ameow_path"].as_str().ok_or("Missing native final path")?);
     let metadata = fs::symlink_metadata(&path).map_err(|_| "Native final path missing")?;
-    if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 { return Err("Native final path is not a regular non-reparse file".into()); }
+    if !crate::download::is_plain_file(&metadata) { return Err("Native final path is not a regular non-reparse file".into()); }
     let path = path.canonicalize().map_err(|_| "Native final path missing")?;
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     let relative = path.strip_prefix(root).map_err(|_| "Native final path escaped owned media directory")?;

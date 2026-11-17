@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+mod windows {
 //! Windows per-user login registration and single-instance signaling.
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt, path::Path, ptr};
 use windows_sys::Win32::{
@@ -460,3 +462,13 @@ mod tests {
         set_at(&scratch.0, LEGACY_VALUE, &foreign, false).unwrap();
     }
 }
+
+}
+#[cfg(target_os = "windows")]
+pub use windows::*;
+
+#[cfg(target_os = "macos")]
+#[path = "login_startup_macos.rs"]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::*;

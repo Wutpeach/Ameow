@@ -1,6 +1,8 @@
 //! Fixed application identity and theme-aware tray resources from the approved exports.
 use ameow_next::download::settings::TrayIconPreference;
+#[cfg(target_os = "windows")]
 use std::{cell::RefCell, collections::HashMap};
+#[cfg(target_os = "windows")]
 use windows::{
     core::PCWSTR,
     Win32::{
@@ -34,7 +36,9 @@ pub fn tray_size(requested: i32) -> i32 {
         .unwrap()
 }
 
+#[cfg(target_os = "windows")]
 struct OwnedIcon(HICON);
+#[cfg(target_os = "windows")]
 impl Drop for OwnedIcon {
     fn drop(&mut self) {
         unsafe {
@@ -42,10 +46,12 @@ impl Drop for OwnedIcon {
         }
     }
 }
+#[cfg(target_os = "windows")]
 thread_local! {
     // All windows/tray live on this UI thread; handles outlive every use until UI shutdown.
     static ICONS: RefCell<HashMap<(u16, i32), OwnedIcon>> = RefCell::new(HashMap::new());
 }
+#[cfg(target_os = "windows")]
 pub fn load(resource: u16, size: i32) -> windows::core::Result<HICON> {
     ICONS.with(|icons| {
         let mut icons = icons.borrow_mut();
@@ -70,6 +76,7 @@ pub fn load(resource: u16, size: i32) -> windows::core::Result<HICON> {
     })
 }
 
+#[cfg(target_os = "windows")]
 pub fn set_window(hwnd: HWND) {
     unsafe {
         let dpi = GetDpiForWindow(hwnd).max(96);
@@ -90,6 +97,7 @@ pub fn set_window(hwnd: HWND) {
 mod tests {
     use super::*;
     #[test]
+    #[cfg(target_os = "windows")]
     fn native_cache_keeps_requested_sizes_for_the_same_resource() {
         use windows::Win32::Graphics::Gdi::{DeleteObject, GetObjectW, BITMAP, HGDIOBJ};
         for resource in [1, 101, 102, 103, 104] {

@@ -10,6 +10,7 @@ use crate::{
 use ameow_next::download::settings::{LanguagePreference, ThemePreference, TrayIconPreference};
 use gpui::{prelude::*, *};
 use gpui_component::Root;
+#[cfg(target_os = "windows")]
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
     cell::{Cell, RefCell},
@@ -17,6 +18,7 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
 };
+#[cfg(target_os = "windows")]
 use windows::Win32::{
     Foundation::{HWND, POINT, RECT},
     Graphics::Gdi::{
@@ -283,6 +285,7 @@ impl SettingsWindow {
             ]);
             cx.set_global(SettingsKeyBindings);
         }
+        #[cfg(target_os = "windows")]
         crate::brand_icons::set_window(hwnd(window));
         let observer = cx.observe(&main, |this, main, cx| {
             if this.projection.preview { return; }
@@ -561,6 +564,19 @@ impl SettingsWindow {
                         }
                     }))
             });
+        #[cfg(target_os = "macos")]
+        let switch = div().flex().items_center().gap(px(8.))
+            .when(matches!(self.startup, Some(Ok(StartupState::RequiresApproval))), |control| {
+                control.child(self.button(
+                    "startup-unregister",
+                    l.text("撤销注册", "Unregister"),
+                    !self.startup_pending,
+                    ButtonStyle::Quiet,
+                    cx,
+                    |this, _, cx| this.refresh_startup(Some(false), cx),
+                ))
+            })
+            .child(switch);
         let row = |label: &'static str, control: AnyElement| {
             div()
                 .min_h(px(56.))
@@ -572,6 +588,23 @@ impl SettingsWindow {
                 .child(control)
         };
         let startup_status = match &self.startup {
+            #[cfg(target_os = "macos")]
+            Some(Ok(StartupState::RequiresApproval)) => Some((
+                l.text(
+                    "尚未获准开机启动。请在系统设置的“登录项”中批准，或撤销注册。",
+                    "Login startup is not approved. Approve it in System Settings > Login Items, or unregister.",
+                ).to_owned(),
+                true,
+            )),
+            #[cfg(target_os = "macos")]
+            Some(Ok(StartupState::Stale)) => Some((
+                l.text(
+                    "系统尚未找到有效登录项，开启可注册或修复。",
+                    "No valid login item was found; turn on to register or repair it.",
+                ).to_owned(),
+                true,
+            )),
+            #[cfg(target_os = "windows")]
             Some(Ok(StartupState::Stale)) => Some((
                 l.text(
                     "启动项指向旧位置，开启可修复。",
@@ -884,6 +917,8 @@ impl SettingsWindow {
         self.notice = None;
         let task = cx.background_executor().spawn(async move {
             directory_health(&path)?;
+            #[cfg(target_os = "windows")]
+            {
             let explorer = std::env::var_os("WINDIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("C:/Windows"))
@@ -893,6 +928,17 @@ impl SettingsWindow {
                 .spawn()
                 .map(|_| ())
                 .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let status = std::process::Command::new("/usr/bin/open")
+                    .arg("--")
+                    .arg(path)
+                    .status()
+                    .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())?;
+                if status.success() { Ok(()) }
+                else { Err("无法打开文件夹，请检查目录后重试".to_string()) }
+            }
         });
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -1602,7 +1648,18 @@ impl Render for SettingsWindow {
                     .flex()
                     .flex_col()
                     .gap(px(4.))
-                    .child(div().absolute().left(px(12.)).right(px(12.)).top(px(16. + nav_y)).h(px(36.)).rounded(px(6.)).bg(p.border))
+                    .when(cfg!(target_os = "macos"), |sidebar| {
+                        sidebar.relative().pt(px(28. + 16.)).child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .w_full()
+                                .h(px(28.))
+                                .window_control_area(WindowControlArea::Drag),
+                        )
+                    })
+                    .child(div().absolute().left(px(12.)).right(px(12.)).top(px(16. + nav_y + if cfg!(target_os = "macos") { 28. } else { 0. })).h(px(36.)).rounded(px(6.)).bg(p.border))
                     .child(self.nav(Page::General, l.text("常规", "General"), cx))
                     .child(self.nav(Page::Download, l.text("下载", "Download"), cx))
                     .child(self.nav(Page::Components, l.text("组件与诊断", "Components"), cx))
@@ -1628,14 +1685,14 @@ impl Render for SettingsWindow {
                                     .flex_1()
                                     .window_control_area(WindowControlArea::Drag),
                             )
-                            .child(div().pr(px(8.)).child(self.icon_button(
+                            .when(!cfg!(target_os = "macos"), |header| header.child(div().pr(px(8.)).child(self.icon_button(
                                 "close-settings",
                                 "icons/x.svg",
                                 l.text("关闭设置", "Close settings"),
                                 true,
                                 cx,
                                 |_, window, _| window.remove_window(),
-                            ))),
+                            )))),
                     )
                     .child(
                         div()
@@ -1813,6 +1870,7 @@ fn side_bounds(main: Option<[i32; 4]>, work: [i32; 4], scale: f32) -> [i32; 4] {
         height,
     ]
 }
+#[cfg(target_os = "windows")]
 fn hwnd(window: &Window) -> HWND {
     let RawWindowHandle::Win32(handle) = HasWindowHandle::window_handle(window)
         .expect("settings HWND")
@@ -1828,6 +1886,7 @@ struct Anchor {
     monitor: [i32; 4],
     scale: f32,
 }
+#[cfg(target_os = "windows")]
 fn anchor(main: HWND) -> Anchor {
     // SAFETY: called on the foreground thread with the owned main HWND.
     unsafe {
@@ -1861,6 +1920,7 @@ fn anchor(main: HWND) -> Anchor {
         }
     }
 }
+#[cfg(target_os = "windows")]
 fn show(handle: WindowHandle<Root>, first: Option<Anchor>, cx: &mut App) {
     cx.defer(move |cx| {
         let Ok((target, preview)) = handle.update(cx, |root, window, cx| {
@@ -1915,6 +1975,40 @@ fn show(handle: WindowHandle<Root>, first: Option<Anchor>, cx: &mut App) {
             .detach();
     });
 }
+#[cfg(target_os = "macos")]
+fn hwnd(window: &Window) -> crate::native::NativeHandle {
+    crate::native::handle(window)
+}
+
+#[cfg(target_os = "macos")]
+fn anchor(main: crate::native::NativeHandle) -> Anchor {
+    let window = main.window();
+    let screen = window.as_ref().and_then(|window| window.screen()).unwrap_or_else(|| crate::native::screen_at(crate::native::Native::cursor()));
+    Anchor {
+        main: window.filter(|window| window.isVisible()).map(|window| crate::native::rect_edges(window.frame()).map(|value| value.round() as i32)),
+        work: crate::native::rect_edges(screen.visibleFrame()).map(|value| value.round() as i32),
+        monitor: crate::native::rect_edges(screen.frame()).map(|value| value.round() as i32),
+        scale: 1.,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn show(handle: WindowHandle<Root>, _first: Option<Anchor>, cx: &mut App) {
+    cx.defer(move |cx| {
+        let _ = handle.update(cx, |root, window, cx| {
+            let native = crate::native::handle(window);
+            let Some(native) = native.window() else { return; };
+            native.setCollectionBehavior(objc2_app_kit::NSWindowCollectionBehavior::FullScreenNone);
+            let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
+            view.update(cx, |view, cx| {
+                window.focus(&view.focus, cx);
+                view.refresh_health(true, cx);
+            });
+            window.activate_window();
+        });
+    });
+}
+
 impl Prototype {
     pub(super) fn open_component_settings(&mut self, cx: &mut Context<Self>) {
         self.open_or_focus_settings(cx);

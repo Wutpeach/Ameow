@@ -1,5 +1,6 @@
 //! Shared effective appearance and display language. Stored preferences remain in Settings.
 use ameow_next::download::settings::{LanguagePreference, ThemePreference};
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::{
     Globalization::GetUserDefaultUILanguage,
     System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW},
@@ -144,6 +145,7 @@ pub struct SystemPreferences {
     pub language: Language,
 }
 impl SystemPreferences {
+    #[cfg(target_os = "windows")]
     pub fn read() -> Self {
         let key: Vec<u16> = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
             .encode_utf16()
@@ -169,6 +171,20 @@ impl SystemPreferences {
             language: language_from_id(language_id),
         }
     }
+    #[cfg(target_os = "macos")]
+    pub fn read() -> Self {
+        use objc2_foundation::{NSLocale, NSString, NSUserDefaults};
+
+        let defaults = NSUserDefaults::standardUserDefaults();
+        let night = defaults
+            .stringForKey(&NSString::from_str("AppleInterfaceStyle"))
+            .is_some_and(|style| style.to_string() == "Dark");
+        let language = NSLocale::preferredLanguages()
+            .firstObject()
+            .map(|language| language_from_tag(&language.to_string()))
+            .unwrap_or(Language::English);
+        Self { night, language }
+    }
     pub fn effective(
         self,
         theme: ThemePreference,
@@ -190,6 +206,14 @@ impl SystemPreferences {
 }
 fn language_from_id(id: u16) -> Language {
     if id & 0x3ff == 4 {
+        Language::Chinese
+    } else {
+        Language::English
+    }
+}
+#[cfg(any(target_os = "macos", test))]
+fn language_from_tag(tag: &str) -> Language {
+    if tag.split(['-', '_']).next().is_some_and(|language| language.eq_ignore_ascii_case("zh")) {
         Language::Chinese
     } else {
         Language::English
@@ -231,6 +255,8 @@ mod tests {
         assert_eq!(language_from_id(0x0409), Language::English);
         assert_eq!(language_from_id(0x0411), Language::English);
         assert_eq!(language_from_id(0), Language::English);
+        assert_eq!(language_from_tag("zh-Hans-CN"), Language::Chinese);
+        assert_eq!(language_from_tag("en-US"), Language::English);
     }
     #[test]
     fn display_errors_are_localized_but_unknown_content_is_preserved() {

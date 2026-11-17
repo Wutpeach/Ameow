@@ -76,10 +76,16 @@ impl ExecutionContext<'_> {
                 observer(event);
             }
         });
+        let executable = self.tool(command.tool)?;
+        let args = command.args;
+        #[cfg(target_os = "macos")]
+        let (executable, args) = if command.tool == "yt-dlp.exe" || command.tool == "yt-dlp" {
+            super::runtime::python_zipapp(self.tool(super::runtime::PYTHON_TOOL)?, &executable, args)?
+        } else { (executable, args) };
         process_supervisor::run(
             ProcessSpec {
-                executable: self.tool(command.tool)?,
-                args: command.args,
+                executable,
+                args,
                 cwd: self.workspace.into(),
                 env: self.requirements.environment(self.workspace)?,
                 stdout_limit: command.stdout_limit,

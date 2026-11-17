@@ -14,3 +14,6 @@ assets/test/yt-dlp-2026.10.26-SHA2-256SUMS* -text
 /distribution/license-inputs.json -text
 /distribution/notices/** -text
 /THIRD_PARTY_NOTICES.md -text
+/distribution/macos-license-inputs.json -text
+/src/download/macos-runtime-notice-inputs.md -text
+/src/download/macos-runtime-licenses.txt -text

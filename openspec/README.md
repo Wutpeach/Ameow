@@ -12,6 +12,7 @@ OpenSpec 是本仓库唯一活跃的正式 Spec 记录与更新体系。这里�
 | [progress-presentation](specs/progress-presentation/spec.md) | primary 进度、观察限额、前台/队列时钟、固定布局、隔离 preview |
 | [desktop-interaction](specs/desktop-interaction/spec.md) | 图标/反馈、键盘/tooltip、静默启动、设置/窗口/退出、动效 |
 | [release-integrity](specs/release-integrity/spec.md) | 当前构建/签名/四资产、明确发行授权、身份兼容与证据保全 |
+| [macos-native](specs/macos-native/spec.md) | Apple Silicon 原生窗口、菜单栏、组件与应用更新适配 |
 
 按任务只读相关能力，不能按历史轮次、修改日期或最后一条评论推导授权。GitHub Issues/Projects/PR 管理范围与交付；Cindy 原生历史负责会话检索。OpenSpec changes 只承载实际获授权的变更，不重建旧 Linear/Trellis 任务或把历史研发伪装成新 change。
 

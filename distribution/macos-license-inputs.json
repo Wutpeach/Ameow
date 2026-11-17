@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "materials": [
+    {
+      "kind": "macOS on-demand runtime provenance",
+      "obligation": "Describe pinned components, license material and unresolved source and notice coverage.",
+      "source": "src/download/macos-runtime-notice-inputs.md",
+      "destination": "licenses/macos-runtime-notice-inputs.md",
+      "sha256": "139F5516392186D63BE1DEE8BF306CB014DC7C23565A6CD99411236ADF00012E"
+    },
+    {
+      "kind": "macOS Python and gallery license texts",
+      "obligation": "Preserve the verified Python and wheel license texts; review remaining bundled native dependencies.",
+      "source": "src/download/macos-runtime-licenses.txt",
+      "destination": "licenses/macos-runtime-licenses.txt",
+      "sha256": "CE83BCC90F9394DCE5D95192CDAFBF161F569A57385CFD690515D735D4CADD46"
+    },
+    {
+      "kind": "macOS FFmpeg GPL text",
+      "obligation": "Provide GPLv3 text and review the corresponding sources and linked library notices.",
+      "source": "assets/runtime-GPL-3.0.txt",
+      "destination": "licenses/runtime-GPL-3.0.txt",
+      "sha256": "8CEB4B9EE5ADEDDE47B31E975C1D90C73AD27B6B165A1DCD80C7C545EB65B903"
+    }
+  ]
+}
