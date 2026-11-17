@@ -182,6 +182,10 @@ impl Native {
     pub fn scale(&self) -> f32 {
         unsafe { GetDpiForWindow(self.hwnd) as f32 / 96. }
     }
+    pub fn visible(&self) -> bool {
+        // The toolkit visibility cache can lag an externally hidden/restored popup.
+        unsafe { IsWindowVisible(self.hwnd).as_bool() && !IsIconic(self.hwnd).as_bool() }
+    }
     pub fn apply(&mut self, anchor: [f32; 2], surface: f32, gutter: f32, cx: &App) -> Result<()> {
         let scale = self.scale();
         let size = ((surface + gutter * 2.) * scale).round() as i32;

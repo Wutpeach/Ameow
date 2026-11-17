@@ -9,6 +9,8 @@ mod gallery;
 mod tray;
 mod tray_popup;
 mod indicator;
+mod mascot;
+mod mascot_motion;
 mod magnetic_spring;
 mod model;
 mod native;
@@ -237,6 +239,8 @@ struct Prototype {
     focus: FocusHandle,
     night: bool,
     indicator: indicator::Indicator,
+    mascot: mascot::Mascot,
+    _mascot_visibility: Subscription,
     drag: Option<([f32; 2], [f32; 2])>,
     copied_at: Option<u64>,
     demo: bool,
@@ -288,6 +292,13 @@ impl Prototype {
                 false
             });
         }
+        let mascot_entity = cx.entity().downgrade();
+        let mascot_visibility = window.observe_window_visibility(move |_, _, cx| {
+            let _ = mascot_entity.update(cx, |this, cx| {
+                this.mascot.sample(this.now(), false, this.model.reduced);
+                cx.notify();
+            });
+        });
         let downloads = if options.preview { Some(download_ui::DownloadUi::controlled_preview()) } else if let Some(path) = options.queue_fixture {
             Some(download_ui::DownloadUi::fixture(path))
         } else { (!options.fixture).then(download_ui::DownloadUi::start) };
@@ -337,6 +348,8 @@ impl Prototype {
             focus,
             night: options.night,
             indicator: indicator::Indicator::default(),
+            mascot: mascot::Mascot::new(std::process::id() as u64),
+            _mascot_visibility: mascot_visibility,
             drag: None,
             copied_at: None,
             demo: options.demo,
@@ -705,6 +718,25 @@ impl Render for Prototype {
         let native = self.native.as_ref().unwrap();
         let cursor = Native::cursor();
         let scale = native.scale();
+        let mascot_visible = native.visible() && !self.model.target_full && self.model.fullness <= 0.001;
+        let mut mascot_delay = self.mascot.sample(now, mascot_visible, self.model.reduced);
+        if let Some(pose) = self.preview.as_ref().and_then(|p| mascot::preview_pose(&p.scene().state)) {
+            self.mascot.pose = pose;
+            mascot_delay = None;
+        }
+        let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
+        let mascot_diameter = g.surface.min(60.);
+        let mascot_image = (mascot_alpha > 0.).then(|| self.mascot.image(self.night, window, cx));
+        if let Some(log) = &mut self.telemetry {
+            let pose = self.mascot.pose;
+            let _ = writeln!(log, "{}", serde_json::json!({
+                "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
+                "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
+                "raster_us":if mascot_image.is_some() {self.mascot.raster_us} else {0},
+                "scale":scale, "night":self.night, "reduced":self.model.reduced
+            }));
+            let _ = log.flush();
+        }
         let rest_pointer = [
             (cursor[0] - self.anchor[0]) / scale,
             (cursor[1] - self.anchor[1]) / scale,
@@ -821,7 +853,7 @@ impl Render for Prototype {
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay]
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay]
             .into_iter()
             .flatten()
             .min();
@@ -1048,6 +1080,10 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
+            .when_some(mascot_image, |group, image| group.child(
+                div().absolute().left(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
+                    .top(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
+                    .size(px(mascot_diameter)).opacity(mascot_alpha).child(mascot::element(image, mascot_diameter))))
             .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
