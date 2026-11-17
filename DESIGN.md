@@ -242,6 +242,8 @@ macOS 只有菜单栏（系统托盘）使用 AppKit 原生菜单，字体、间
 
 **The Signature Motion Rule.** 磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。
 
+Compact Mascot 沿用 Figma 的 Light 黑猫、Night 白猫与 A 窗沿。Full→Compact先完成窗口主要收起，末段台面初露、两爪先伸出抓牢，短暂承重发力后才把头拉上来，再轻巧落定接既有idle。爪在台面仍上浮时抓住，拉头时保持沿口接触；可见爪先于头，不恢复466编排。f520动作双端验收，Mac c1启动窗口稳定/内部入场已获用户确认。普通新实例初始Compact复用同一动作，从首次可见隐藏状态计时，不闪静态猫、不加窗口收起变形；同实例唤起/设置刷新/恢复不重播。Windows首个有效原生Rect实际apply/show完成前不采信隐藏临时几何的hover；完成后真实命中立即正常，不调弹性或固定延时。Full同帧全隐藏并清角色进度/唤醒，再收起原末段新入场；隐藏暂停、Reduced正确终态，交互不等待。正式行为见compact-mascot-reveal；Windows首显修复手感待人工确认。
+
 ## Do's and Don'ts
 
 ### Do:

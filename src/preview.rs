@@ -12,6 +12,22 @@ pub fn scenes() -> Vec<Scene> { serde_json::from_str(CATALOG).expect("embedded p
 pub fn find(name: &str) -> Result<Scene, String> {
     scenes().into_iter().find(|s| s.name == name).ok_or_else(|| format!("未知预览场景：{name}"))
 }
+
+fn mascot_transition(model: &mut crate::model::Model, reveal: &mut crate::mascot_reveal::Reveal, state: &str, now: u64) -> bool {
+    let enter = match state { "mascot-enter" => true, "mascot-exit" => false, _ => return false };
+    // An explicitly selected replay gets a fresh fixture; production never resets its progress.
+    let reduced = model.reduced;
+    model.set_target(enter, now);
+    model.set_reduced(true, now);
+    model.set_reduced(reduced, now);
+    *reveal = Default::default();
+    reveal.sample(now, enter, model.fullness, true, true);
+    if enter { model.request_compact(now); } else {
+        model.set_target(true, now);
+        reveal.sample(now, true, model.fullness, true, reduced);
+    }
+    true
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request { step: u64, scene: Option<String>, night: Option<bool>, reduced: Option<bool>, #[serde(default)] quit: bool }
@@ -183,8 +199,10 @@ impl crate::Prototype {
                     }
                 }
                 self.model.locks.menu = scene.surface != "compact" && scene.surface != "full";
-                if scene.surface == "compact" { self.model.request_compact(self.now()); }
-                else { self.model.set_target(true, self.now()); }
+                if !mascot_transition(&mut self.model, &mut self.mascot_reveal, &scene.state, now) {
+                    if scene.surface == "compact" { self.model.request_compact(now); }
+                    else { self.model.set_target(true, now); }
+                }
                 match scene.surface.as_str() {
                     "settings" | "components" | "diagnostics" => self.apply_preview_settings_scene(&scene, cx),
                     "tray" => self.apply_preview_tray_scene(&scene, cx),
@@ -219,6 +237,29 @@ impl crate::Prototype {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mascot_scenes_replay_tail_entrance_and_hide_at_the_full_target() {
+        let mut model = crate::model::Model::new(0, false);
+        let mut reveal = crate::mascot_reveal::Reveal::default();
+        assert!(mascot_transition(&mut model, &mut reveal, "mascot-enter", 0));
+        assert_eq!(model.fullness, 1.);
+        assert!(!model.target_full);
+        for now in (0..500).step_by(16) {
+            model.tick(now);
+            reveal.sample(now, model.target_full, model.fullness, true, false);
+        }
+        assert!(reveal.progress > 0. && reveal.progress < 1.);
+        model.set_target(true, 496);
+        assert_eq!(reveal.sample(496, true, model.fullness, true, false), None);
+        assert_eq!((reveal.progress, reveal.alpha()), (0., 0.));
+        assert!(mascot_transition(&mut model, &mut reveal, "mascot-exit", 500));
+        assert_eq!(model.fullness, 0.);
+        assert!(model.target_full);
+        assert_eq!(reveal.progress, 0.);
+        model.set_reduced(true, 500);
+        reveal.sample(500, model.target_full, model.fullness, true, true);
+        assert_eq!(reveal.progress, 0.);
+    }
     #[test]
     fn catalog_is_unique_and_snapshots_never_carry_real_download_targets() {
         let scenes = scenes(); let mut names = std::collections::HashSet::new();

@@ -58,6 +58,8 @@ impl NativeResearch {
     fn window_event(&mut self, event: &str, hwnd: HWND, result: Option<bool>) {
         if self.writer.is_none() { return; }
         let exstyle = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+        let mut rect = RECT::default();
+        unsafe { GetWindowRect(hwnd, &mut rect).expect("startup bounds"); }
         self.emit(&serde_json::json!({
             "type":"native_startup", "version":"r12-first-show", "event":event,
             "timestamp_us":self.clock.elapsed().as_micros(),
@@ -68,6 +70,9 @@ impl NativeResearch {
             "insert_after_topmost":HWND_TOPMOST.0 as isize,
             "topmost":exstyle & WS_EX_TOPMOST.0 as isize != 0,
             "visible":unsafe { IsWindowVisible(hwnd).as_bool() },
+            "bounds":[rect.left, rect.top, rect.right, rect.bottom],
+            "cursor":Native::cursor(), "scale":unsafe { GetDpiForWindow(hwnd) } as f32 / 96.,
+            "pointer_ready":self.last_applied.is_some(),
             "foreground":unsafe { GetForegroundWindow().0 as usize }, "result":result
         }).to_string());
         if let Some(writer) = &mut self.writer { writer.flush().expect("startup metrics flush"); }
@@ -101,6 +106,10 @@ impl Drop for NativeResearch {
 fn is_topmost(hwnd: HWND) -> bool {
     // SAFETY: callers supply the owned live HWND on its foreground thread.
     unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize != 0 }
+}
+
+fn pointer_inside(first_apply_complete: bool, p: [f32; 2], r: [i32; 4]) -> bool {
+    first_apply_complete && p[0] >= r[0] as f32 && p[0] < r[2] as f32 && p[1] >= r[1] as f32 && p[1] < r[3] as f32
 }
 
 /// Runs only after Render releases Window: geometry messages synchronously call GPUI.
@@ -296,10 +305,11 @@ impl Native {
         [p.x as f32, p.y as f32]
     }
     pub fn inside(&self) -> bool {
-        let p = Self::cursor();
-        let r = self.bounds();
-        p[0] >= r[0] as f32 && p[0] < r[2] as f32 && p[1] >= r[1] as f32 && p[1] < r[3] as f32
+        // show:false leaves GPUI's CW_USEDEFAULT HWND in temporary bounds. They
+        // cannot author a pointer/Full intent until our first atomic apply/show ends.
+        pointer_inside(self.pointer_ready(), Self::cursor(), self.bounds())
     }
+    fn pointer_ready(&self) -> bool { self.research.borrow().last_applied.is_some() }
     pub fn left_down() -> bool {
         unsafe { GetAsyncKeyState(1) < 0 }
     }
@@ -322,6 +332,43 @@ impl Native {
 mod tests {
     use super::*;
     use windows::core::w;
+
+    #[test]
+    fn startup_pointer_waits_for_completed_apply_not_a_queued_rect() {
+        let rect = [504, 304, 80, 80];
+        let native = Native {
+            hwnd: HWND::default(), last: Some(rect), latest: Rc::new(Cell::new(Some(rect))),
+            research: Rc::new(RefCell::new(NativeResearch::new(None))), probe: "normal".into(),
+        };
+        assert!(!native.pointer_ready(), "queued native bounds do not authorize pointer input");
+        // Production assigns this only after apply_window_bounds (including show) returns.
+        native.research.borrow_mut().last_applied = Some(rect);
+        assert!(native.pointer_ready());
+    }
+
+    #[test]
+    fn startup_bootstrap_rect_cannot_trigger_a_full_reversal() {
+        let mut model = crate::model::Model::new(0, false);
+        // Existing Windows trace: CW_USEDEFAULT hidden bounds contained a distant
+        // cursor at 3ms; the first native apply corrected them at 27ms.
+        let cursor = [200., 100.];
+        let compact = [504, 304, 584, 384];
+        for (now, ready, rect) in [(3, false, [26, 26, 1946, 1055]), (27, true, compact), (43, true, compact), (59, true, compact)] {
+            model.pointer(pointer_inside(ready, cursor, rect), now);
+            model.tick(now);
+            assert!(!model.target_full && !model.pointer, "unapplied hidden bounds must not create a Full intent");
+            assert_eq!((model.fullness, model.velocity, model.geometry().native), (0., 0., 80.), "the initial Compact must stay at rest");
+        }
+        // A deferred root hover captured true over the bootstrap bounds. The
+        // Windows callback now re-reads this current native hit, just like advance.
+        assert!(pointer_inside(true, cursor, [26, 26, 1946, 1055]));
+        model.pointer(pointer_inside(true, cursor, compact), 60);
+        assert!(!model.target_full);
+        // After first apply, a real pointer over the small window still expands it.
+        model.pointer(pointer_inside(true, [544., 344.], compact), 61);
+        model.tick(77);
+        assert!(model.target_full && model.fullness > 0.);
+    }
 
     struct OwnedWindow(HWND);
     impl OwnedWindow {

@@ -319,6 +319,11 @@
         "purpose": "无越界；反向从当前可见值继续。"
       },
       {
+        "name": "mascot-reveal",
+        "value": "mascot_reveal / mascot",
+        "purpose": "f520抓沿承重拉头已双端验收，Mac c1启动稳定获用户确认。普通新实例首次可见隐藏态播放同一入场，不加窗口变形，同实例恢复不重播。Windows首个有效native apply/show完成前忽略临时Rect hover，完成后真实命中立即正常；不调弹性/延时。Full同帧隐藏、真实收起原末段触发、隐藏暂停/Reduced保持；Windows首显修复待人工确认。"
+      },
+      {
         "name": "signature-owners",
         "value": "magnetic_spring / model / indicator",
         "purpose": "独立特效 owner；6px 单层磁吸，展开无弹性，收起保留已验收调参，不受普通 UI 默认参数覆盖。"
