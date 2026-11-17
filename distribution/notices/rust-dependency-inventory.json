@@ -4,7 +4,7 @@
   "graphMethod": "cargo tree --locked --offline --target x86_64-pc-windows-msvc --edges normal,build --prefix none --format {p}|{l}",
   "packageCount": 450,
   "textBodyCount": 317,
-  "cargoLockSha256": "f0e85e87d090678fa5b76c2ded4d434a7c349c32a93349c8339461031d6e300a",
+  "cargoLockSha256": "77baeb94d6f75a89b88400ffa45c33bff5efef66a343e3fd86990eed02c1b065",
   "packageTextGaps": [
     "accesskit@0.24.1",
     "accesskit_consumer@0.38.0",

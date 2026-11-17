@@ -1,5 +1,5 @@
 //! Application updates are independent of managed media components and user data.
-//! No public publisher key is provisioned yet: production acquisition fails closed.
+//! Embedded trust roots do not imply a published or verified public update feed.
 pub mod launcher;
 pub mod release;
 mod package;

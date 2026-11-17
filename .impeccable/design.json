@@ -455,6 +455,11 @@
         "section": "components"
       },
       {
+        "name": "The Native Mac Tray Menu Rule",
+        "body": "macOS 只有菜单栏（系统托盘）使用真实 AppKit NSMenu，不显示应用状态摘要，保留打开、设置、退出和条件更新。Full 右键继续 GPUI 自绘画质分段、规格提示、设置、隐藏、退出和原关闭/菜单锁交互；画质按 owner 已确认值呈现，保存待确认时禁用。两个设置入口共用原 owner，主线程激活所属窗口并支持原生关闭后重开。Windows 行为与获批 template 图标不变。",
+        "section": "components"
+      },
+      {
         "name": "The Signature Motion Rule",
         "body": "磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。",
         "section": "components"

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import time
 from PIL import Image, ImageDraw
-from windows_validate import Runtime
+from native_capture import Runtime
 
 
 def edge_observation(image):

@@ -219,7 +219,7 @@ impl Session {
     }
     #[cfg(target_os = "macos")]
     fn from_bundle() -> Result<Option<Self>, String> {
-        if std::env::args().any(|argument| matches!(argument.as_str(), "--preview" | "--gallery" | "--download-test-bridge" | "--preview-catalog-out" | "--preview-scene")) {
+        if std::env::args().any(|argument| matches!(argument.as_str(), "--preview" | "--gallery" | "--preview-catalog-out" | "--preview-scene")) {
             return Ok(None);
         }
         let bundle = match super::macos::current_bundle() { Ok(bundle) => bundle, Err(_) => return Ok(None) };

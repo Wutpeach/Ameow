@@ -455,6 +455,13 @@ pub struct RuntimeLease {
     _guards: Vec<File>,
 }
 impl RuntimeLease {
+    #[cfg(target_os = "macos")]
+    pub(crate) fn execution_guards(&self) -> Result<Vec<File>, String> {
+        self.files.iter().map(|(name, path)| {
+            let expected = self.hashes.get(name).ok_or("Runtime executable hash missing")?;
+            check_file(path, expected)
+        }).collect()
+    }
     pub fn file(&self, name: &str) -> Result<PathBuf, String> {
         let name = native_tool_name(name);
         let path = self.files.get(name).cloned()
@@ -471,6 +478,25 @@ impl RuntimeLease {
         Ok(path)
     }
 }
+#[cfg(all(test, target_os = "macos"))]
+#[test]
+fn execution_guards_use_current_lease_hashes_and_reject_changed_files() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("yt-dlp");
+    for bytes in [b"recommended runtime".as_slice(), b"user selected newer runtime".as_slice()] {
+        fs::write(&path, bytes).unwrap();
+        let lease = RuntimeLease {
+            directory: root.path().into(), requirement_id: "fixture".into(), marker_bytes: 0,
+            files: BTreeMap::from([("yt-dlp".into(), path.clone())]),
+            hashes: BTreeMap::from([("yt-dlp".into(), hash(bytes).unwrap())]),
+            versions: Vec::new(), digest: String::new(), _guards: Vec::new(),
+        };
+        assert_eq!(lease.execution_guards().unwrap().len(), 1);
+        fs::write(&path, b"changed executable").unwrap();
+        assert!(lease.execution_guards().unwrap_err().contains("SHA-256 mismatch"));
+    }
+}
+
 pub struct RuntimeManager {
     pub root: PathBuf,
     cache: Mutex<Weak<RuntimeLease>>,

@@ -14,8 +14,8 @@ from pathlib import Path
 import subprocess
 
 from gallery import OwnedJob
-from test_gpui_migration import owned_windows, bounds, wait_for
-from windows_validate import u
+from native_capture import owned_windows, bounds, wait_for
+from native_capture import u
 
 
 def run(exe, output):

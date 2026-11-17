@@ -14,8 +14,8 @@ import time
 
 import psutil
 from gallery import OwnedJob, catalog
-from test_gpui_migration import owned_windows, wait_for
-from windows_validate import u
+from native_capture import owned_windows, wait_for
+from native_capture import u
 
 
 def run(exe, out):

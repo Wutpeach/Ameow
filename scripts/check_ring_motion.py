@@ -13,7 +13,7 @@ import time
 
 from gallery import Session
 from preview_capture import presentation, u
-from repair_a_runtime import CropCapture
+from native_capture import CropCapture
 
 
 def frames(session, count):

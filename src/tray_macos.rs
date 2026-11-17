@@ -1,7 +1,8 @@
 use crate::native::{self, NativeHandle};
+use crate::{tray_popup, ui_text::Language};
 use ameow_next::download::settings::TrayIconPreference;
 use objc2::{AnyThread, DefinedClass, MainThreadOnly, define_class, msg_send, rc::Retained, sel};
-use objc2_app_kit::{NSBitmapImageRep, NSImage, NSPasteboard, NSPasteboardTypeString, NSStatusBar, NSStatusItem};
+use objc2_app_kit::{NSBitmapImageRep, NSImage, NSMenu, NSMenuItem, NSPasteboard, NSPasteboardTypeString, NSStatusBar, NSStatusItem};
 use objc2_foundation::{NSData, NSObject, NSObjectProtocol, NSSize, NSString};
 use std::{
     cell::{Cell, RefCell},
@@ -10,8 +11,69 @@ use std::{
 
 #[derive(Clone, Copy)]
 pub enum TrayEvent {
-    Restore,
-    TogglePopup,
+    Menu(tray_popup::Action),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MenuCommand {
+    Open,
+    Settings,
+    Exit,
+    Update,
+}
+
+impl MenuCommand {
+    fn tag(self) -> isize {
+        match self {
+            Self::Open => 1,
+            Self::Settings => 2,
+            Self::Exit => 3,
+            Self::Update => 4,
+        }
+    }
+
+    fn from_tag(tag: isize) -> Option<Self> {
+        Some(match tag {
+            1 => Self::Open,
+            2 => Self::Settings,
+            3 => Self::Exit,
+            4 => Self::Update,
+            _ => return None,
+        })
+    }
+
+    fn event(self) -> TrayEvent {
+        match self {
+            Self::Open => TrayEvent::Menu(tray_popup::Action::Open),
+            Self::Settings => TrayEvent::Menu(tray_popup::Action::Settings),
+            Self::Exit => TrayEvent::Menu(tray_popup::Action::Exit),
+            Self::Update => TrayEvent::Menu(tray_popup::Action::Update),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MenuEntry {
+    title: &'static str,
+    command: MenuCommand,
+}
+
+impl MenuEntry {
+    fn action(title: &'static str, command: MenuCommand) -> Self {
+        Self { title, command }
+    }
+}
+
+fn status_entries(language: Language, update: Option<&'static str>) -> Vec<Option<MenuEntry>> {
+    let mut entries = vec![
+        Some(MenuEntry::action(language.text("打开 Ameow", "Open Ameow"), MenuCommand::Open)),
+        Some(MenuEntry::action(language.text("设置", "Settings"), MenuCommand::Settings)),
+    ];
+    if let Some(label) = update {
+        entries.push(Some(MenuEntry::action(label, MenuCommand::Update)));
+    }
+    entries.extend([None, Some(MenuEntry::action(language.text("退出", "Exit"), MenuCommand::Exit))]);
+    entries
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,9 +154,11 @@ define_class!(
     unsafe impl NSObjectProtocol for TrayTarget {}
 
     impl TrayTarget {
-        #[unsafe(method(togglePopup:))]
-        fn toggle_popup(&self, _sender: &NSObject) {
-            self.ivars().borrow_mut().push(TrayEvent::TogglePopup);
+        #[unsafe(method(performMenuCommand:))]
+        fn perform_menu_command(&self, sender: &NSMenuItem) {
+            if sender.isEnabled() && let Some(command) = MenuCommand::from_tag(sender.tag()) {
+                self.ivars().borrow_mut().push(command.event());
+            }
         }
     }
 );
@@ -103,6 +167,31 @@ pub struct Tray {
     item: Retained<NSStatusItem>,
     target: Retained<TrayTarget>,
     resource: Cell<Option<u16>>,
+    menu_entries: RefCell<Vec<Option<MenuEntry>>>,
+}
+
+fn build_menu(target: &TrayTarget, entries: &[Option<MenuEntry>]) -> Retained<NSMenu> {
+    let menu = NSMenu::initWithTitle(NSMenu::alloc(native::marker()), &NSString::from_str("Ameow"));
+    menu.setAutoenablesItems(false);
+    for entry in entries {
+        let item = if let Some(entry) = entry {
+            let item = unsafe {
+                NSMenuItem::initWithTitle_action_keyEquivalent(
+                    NSMenuItem::alloc(native::marker()),
+                    &NSString::from_str(entry.title),
+                    Some(sel!(performMenuCommand:)),
+                    &NSString::from_str(""),
+                )
+            };
+            unsafe { item.setTarget(Some(target)); }
+            item.setTag(entry.command.tag());
+            item
+        } else {
+            NSMenuItem::separatorItem(native::marker())
+        };
+        menu.addItem(&item);
+    }
+    menu
 }
 
 fn template_image() -> Result<Retained<NSImage>, String> {
@@ -133,17 +222,17 @@ impl Tray {
             item,
             target,
             resource: Cell::new(None),
+            menu_entries: RefCell::new(Vec::new()),
         };
-        let button = tray
-            .item
-            .button(native::marker())
-            .ok_or("E_STATUS_BUTTON")?;
-        unsafe {
-            button.setTarget(Some(&tray.target));
-            button.setAction(Some(sel!(togglePopup:)));
-        }
         tray.set_image(TrayIconPreference::FollowAppearance, false)?;
+        tray.set_menu(Language::default(), None);
         Ok(tray)
+    }
+    pub fn set_menu(&self, language: Language, update: Option<&'static str>) {
+        let entries = status_entries(language, update);
+        if *self.menu_entries.borrow() == entries { return; }
+        self.item.setMenu(Some(&build_menu(&self.target, &entries)));
+        *self.menu_entries.borrow_mut() = entries;
     }
     fn set_image(&self, preference: TrayIconPreference, night: bool) -> Result<(), String> {
         let resource = crate::brand_icons::tray_resource(preference,
@@ -271,6 +360,7 @@ mod template_tests {
 
 impl Drop for Tray {
     fn drop(&mut self) {
+        self.item.setMenu(None);
         if let Some(button) = self.item.button(native::marker()) {
             unsafe {
                 button.setTarget(None);
@@ -300,6 +390,31 @@ pub fn copy_text(_handle: NativeHandle, text: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn status_menu_keeps_actions_without_a_status_summary() {
+        for language in [Language::Chinese, Language::English] {
+            let commands = |entries: Vec<Option<MenuEntry>>| entries.into_iter().flatten().map(|entry| {
+                entry.command
+            }).collect::<Vec<_>>();
+            assert_eq!(commands(status_entries(language, None)), vec![MenuCommand::Open, MenuCommand::Settings, MenuCommand::Exit]);
+            let with_update = status_entries(language, Some("Restart & update"));
+            assert_eq!(with_update[2].as_ref().unwrap().title, "Restart & update");
+            assert_eq!(commands(with_update), vec![MenuCommand::Open, MenuCommand::Settings, MenuCommand::Update, MenuCommand::Exit]);
+        }
+    }
+
+    #[test]
+    fn native_tray_commands_return_to_the_existing_business_actions() {
+        for command in [MenuCommand::Open, MenuCommand::Settings, MenuCommand::Exit, MenuCommand::Update] {
+            assert_eq!(MenuCommand::from_tag(command.tag()), Some(command));
+        }
+        for tag in [-1, 0, 5, 6, 7, 8, 9, 10, 11, isize::MAX] { assert_eq!(MenuCommand::from_tag(tag), None); }
+        assert!(matches!(MenuCommand::Settings.event(), TrayEvent::Menu(tray_popup::Action::Settings)));
+        assert!(matches!(MenuCommand::Open.event(), TrayEvent::Menu(tray_popup::Action::Open)));
+        assert!(matches!(MenuCommand::Exit.event(), TrayEvent::Menu(tray_popup::Action::Exit)));
+        assert!(matches!(MenuCommand::Update.event(), TrayEvent::Menu(tray_popup::Action::Update)));
+    }
+
     #[test]
     fn menu_popup_stays_within_display_work_area() {
         let anchor = PopupAnchor {

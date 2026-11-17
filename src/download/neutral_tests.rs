@@ -295,3 +295,23 @@ fn generic_native_cancel_settles_owned_extractor_without_delivery() -> Result<()
     fs::write(root.join("stopped.json"), serde_json::to_vec_pretty(&stopped).unwrap()).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+#[test]
+fn failed_job_has_one_terminal_releases_ownership_and_rejects_stale_cancel() -> Result<(), String> {
+    let (root, queue, _) = setup(1)?;
+    for n in 1..=2 {
+        let job = queue.submit("https://youtu.be/jNQXAC9IVRw".into())?;
+        assert_eq!(job, n);
+        let view = wait(&queue, |v| v.jobs.last().is_some_and(|j| j.phase.terminal()))?;
+        let item = view.jobs.last().unwrap();
+        assert_eq!(item.phase, JobPhase::Failure);
+        assert_eq!(item.terminal_count, 1);
+        assert!(item.resources_released);
+        assert_eq!(view.active_slots, 0);
+        assert!(item.events.iter().any(|e| e.kind == "attempt-joined-slot-release"));
+        assert_eq!(fs::read_dir(root.path().join("runtime/jobs")).map_err(|e| e.to_string())?.count(), 0);
+        assert!(!queue.cancel(job));
+        assert!(!queue.cancel(job + 1));
+    }
+    stop(&queue)
+}

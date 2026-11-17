@@ -166,10 +166,6 @@ impl Native {
             probe: "normal".into(),
         }
     }
-    pub fn set_research(&mut self, frame_changed_always: bool) {
-        let mut research = self.research.borrow_mut();
-        research.always_framechanged = frame_changed_always;
-    }
     /// Diagnostic stimuli only, not product window behavior. Both controls follow
     /// the same size trajectory but constrain which native dimensions may change.
     pub fn set_probe(&mut self, probe: &str) {

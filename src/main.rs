@@ -1,6 +1,5 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod edge_hover;
-mod download_bridge;
 mod download_ui;
 mod queue_presentation;
 mod queue_fixture;
@@ -40,7 +39,6 @@ mod native_acceptance;
 use gpui::{prelude::*, *};
 use model::{Geometry, Model, Stage};
 use native::Native;
-use repair_motion::{Candidate, Motion};
 use std::{
     borrow::Cow,
     fs::File,
@@ -51,20 +49,6 @@ use tokens::Palette;
 use ui_tooltip::TooltipExt as _;
 
 const DIAGNOSTIC: &str = "Ameow · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
-#[derive(Clone, Copy, Default)]
-enum Magnetic {
-    #[default]
-    A,
-    B,
-}
-impl Magnetic {
-    fn name(self) -> &'static str {
-        match self {
-            Self::A => "a",
-            Self::B => "b",
-        }
-    }
-}
 struct Assets;
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
@@ -123,19 +107,19 @@ struct Options {
     stage: Stage,
     telemetry: Option<File>,
     measure: Option<BufWriter<File>>,
-    candidate: Candidate,
-    uncapped: bool,
-    native_flags_always: bool,
     native_metrics: Option<String>,
     exit_after_ms: Option<u64>,
     native_probe: String,
     probe_period_ms: Option<u64>,
     hover_enabled: bool,
-    magnetic: Magnetic,
 }
 impl Options {
     fn from_args() -> Self {
         let args: Vec<String> = std::env::args().collect();
+        if let Some(option) = args.iter().find(|arg| matches!(arg.as_str(),
+            "--motion" | "--magnetic" | "--dt" | "--native-flags")) {
+            panic!("{option} was a historical comparison option; use the current defaults");
+        }
         let value = |name: &str| {
             args.iter()
                 .position(|a| a == name)
@@ -177,19 +161,6 @@ impl Options {
                 .map(|p| File::create(p).expect("create local telemetry")),
             measure: value("--measure")
                 .map(|p| BufWriter::new(File::create(p).expect("create research measurements"))),
-            candidate: value("--motion").map_or(Candidate::default(), |v| {
-                Candidate::parse(v).expect("--motion converged|baseline|a-soft|a-crisp|b")
-            }),
-            uncapped: match value("--dt").map_or("baseline", String::as_str) {
-                "baseline" => false,
-                "uncapped" => true,
-                _ => panic!("--dt baseline|uncapped"),
-            },
-            native_flags_always: match value("--native-flags").map_or("always", String::as_str) {
-                "always" => true,
-                "init-only" => false,
-                _ => panic!("--native-flags always|init-only"),
-            },
             native_metrics: value("--native-metrics").cloned(),
             exit_after_ms: if queue_fixture_enabled {
                 Some(value("--exit-after-ms").map_or(120_000, |v| v.parse::<u64>().expect("--exit-after-ms integer")).min(120_000))
@@ -211,11 +182,44 @@ impl Options {
                 "off" => false,
                 _ => panic!("--hover on|off"),
             },
-            magnetic: match value("--magnetic").map_or("b", String::as_str) {
-                "a" => Magnetic::A,
-                "b" => Magnetic::B,
-                _ => panic!("--magnetic a|b"),
-            },
+        }
+    }
+}
+// Opt-in, one retained paint sample. The next render emits it with its originating
+// timestamp; it is not a GPU-present receipt or the current render's layout.
+#[derive(Clone, Copy, serde::Serialize)]
+struct SurfacePaint {
+    source_timestamp_us: u128,
+    paint_unix_us: u128,
+    native_rect_ltrb: [f32; 4],
+    native_coordinate_scale: f32,
+    backing_scale: f32,
+    viewport: [f32; 2],
+    carrier_paint_ltrb: [f32; 4],
+    source_surface_ltrb: [f32; 4],
+    expected_screen_center: [f32; 2],
+    mapped_screen_center: [f32; 2],
+    residual_device: [f32; 2],
+}
+impl SurfacePaint {
+    fn capture(timestamp: u128, window: &Window, actual: [f32; 4], carrier: Bounds<Pixels>, frame: mascot::SurfaceFrame, anchor: [f32; 2], gutter: f32, hover: [f32; 2], native_scale: f32) -> Self {
+        let backing = window.scale_factor();
+        let edges = |bounds: Bounds<Pixels>| [f32::from(bounds.left()), f32::from(bounds.top()), f32::from(bounds.right()), f32::from(bounds.bottom())];
+        let carrier_edges = edges(carrier);
+        let paint_edges = carrier_edges.map(|v| { let d = v * backing; (d.abs() - 0.5).ceil().copysign(d) / backing });
+        let surface = frame.bounds(carrier);
+        let center = surface.center();
+        let expected = std::array::from_fn(|i| anchor[i] + native_scale * (hover[i] + frame.native * 0.5 - gutter));
+        let painted = [actual[0] + f32::from(center.x) * native_scale, actual[1] + f32::from(center.y) * native_scale];
+        let viewport = window.viewport_size();
+        Self {
+            source_timestamp_us: timestamp,
+            paint_unix_us: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("paint clock").as_micros(),
+            native_rect_ltrb: actual, native_coordinate_scale: native_scale, backing_scale: backing,
+            viewport: [viewport.width.into(), viewport.height.into()],
+            carrier_paint_ltrb: paint_edges, source_surface_ltrb: edges(surface),
+            expected_screen_center: expected, mapped_screen_center: painted,
+            residual_device: std::array::from_fn(|i| (painted[i] - expected[i]) * backing / native_scale),
         }
     }
 }
@@ -258,14 +262,12 @@ struct Prototype {
     wake: Option<Task<()>>,
     measure: Option<BufWriter<File>>,
     last_frame_us: u128,
-    native_flags_always: bool,
+    last_surface_paint: Option<std::rc::Rc<std::cell::Cell<Option<SurfacePaint>>>>,
     native_metrics: Option<String>,
     exit_after_ms: Option<u64>,
     native_probe: String,
     probe_period_ms: Option<u64>,
     hover_enabled: bool,
-    hover: edge_hover::Hover,
-    magnetic: Magnetic,
     spring_hover: magnetic_spring::Hover,
     ui_motion: ui_motion::Motion,
     tooltips: ui_tooltip::Host,
@@ -281,7 +283,6 @@ impl Prototype {
             }
         });
         let mut model = Model::new(0, options.reduced);
-        model.window_motion = Motion::new(options.candidate, options.uncapped, 0);
         model.state(
             if options.demo {
                 Stage::Resolving
@@ -365,16 +366,14 @@ impl Prototype {
             telemetry: options.telemetry,
             last_telemetry: 0,
             wake: None,
+            last_surface_paint: options.measure.as_ref().map(|_| Default::default()),
             measure: options.measure,
             last_frame_us: 0,
-            native_flags_always: options.native_flags_always,
             native_metrics: options.native_metrics,
             exit_after_ms: options.exit_after_ms,
             native_probe: options.native_probe,
             probe_period_ms: options.probe_period_ms,
             hover_enabled: options.hover_enabled,
-            hover: edge_hover::Hover::default(),
-            magnetic: options.magnetic,
             spring_hover: magnetic_spring::Hover::default(),
             ui_motion: ui_motion::Motion::default(),
             tooltips: ui_tooltip::Host::new(cx),
@@ -400,6 +399,11 @@ impl Prototype {
         if let Some(tray) = &mut self.tray {
             if let Err(error) = tray.set_preferences(self.language, icon, self.night) {
                 eprintln!("Tray preferences: {error}");
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let update = self.downloads.as_ref().map(|ui| ui.updates.snapshot()).unwrap_or_default();
+                tray.set_menu(self.language, update.attention().then(|| app_update_ui::popup_label(&update, self.language)));
             }
         }
     }
@@ -481,16 +485,6 @@ impl Prototype {
                 self.model.set_reduced(!self.model.reduced, self.now());
                 cx.notify();
             }
-            "m" | "M" => {
-                self.magnetic = match self.magnetic {
-                    Magnetic::A => Magnetic::B,
-                    Magnetic::B => Magnetic::A,
-                };
-                // Retire both candidates; switching back cannot revive an old residual.
-                self.hover = edge_hover::Hover::default();
-                self.spring_hover = magnetic_spring::Hover::default();
-                cx.notify();
-            }
             "+" | "=" => {
                 self.model
                     .progress
@@ -546,17 +540,16 @@ impl Prototype {
         }
         if self.native.is_none() {
             let mut native = Native::attach(window, self.native_metrics.take());
-            native.set_research(self.native_flags_always);
             native.set_probe(&self.native_probe);
             self.native = Some(native);
-            self.clamp_anchor(self.model.window_motion.candidate.max_geometry());
+            self.clamp_anchor(Geometry::at(1.));
         }
         if let Some((cursor, anchor)) = self.drag {
             if Native::left_down() {
                 let p = Native::cursor();
                 if (p[0]-cursor[0]).hypot(p[1]-cursor[1])>4. { self.background_clicks.reset(); }
                 self.anchor = [anchor[0] + p[0] - cursor[0], anchor[1] + p[1] - cursor[1]];
-                self.clamp_anchor(self.model.window_motion.candidate.max_geometry());
+                self.clamp_anchor(Geometry::at(1.));
             } else {
                 self.drag = None;
                 self.model.locks.drag = false;
@@ -610,8 +603,8 @@ impl Prototype {
         if self.clamped_target != self.model.target_full {
             self.clamped_target = self.model.target_full;
             self.clamp_anchor(
-                if self.model.target_full || self.model.window_motion.candidate == Candidate::B {
-                    self.model.window_motion.candidate.max_geometry()
+                if self.model.target_full {
+                    Geometry::at(1.)
                 } else {
                     Geometry::at(0.)
                 },
@@ -625,11 +618,7 @@ impl Prototype {
             .unwrap()
             .apply(
                 self.anchor,
-                if self.model.window_motion.candidate == Candidate::Baseline {
-                    g.surface
-                } else {
-                    g.native - 2. * g.gutter
-                },
+                g.native - 2. * g.gutter,
                 g.gutter,
                 cx,
             )
@@ -737,14 +726,14 @@ impl Render for Prototype {
             mascot_delay = None;
         }
         let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
-        let mascot_diameter = g.surface.min(60.);
-        let mascot_image = (mascot_alpha > 0.).then(|| self.mascot.image(self.night, window, cx));
+        let surface_frame = mascot::SurfaceFrame::new(g);
+        let surface_image = self.mascot.image(self.night, surface_frame, mascot_alpha, window, cx);
         if let Some(log) = &mut self.telemetry {
             let pose = self.mascot.pose;
             let _ = writeln!(log, "{}", serde_json::json!({
                 "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
                 "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
-                "raster_us":if mascot_image.is_some() {self.mascot.raster_us} else {0},
+                "raster_us":self.mascot.raster_us, "prepare_us":self.mascot.prepare_us,
                 "scale":scale, "night":self.night, "reduced":self.model.reduced
             }));
             let _ = log.flush();
@@ -758,19 +747,20 @@ impl Render for Prototype {
             self.model.locks.drop,
             self.model.locks.menu,
         ];
-        let settled_full = self.model.target_full
-            && self.model.fullness == 1.
-            && self.model.velocity == 0.
-            && self.model.window_motion.extra == 0.
-            && self.model.window_motion.phase() == "rest";
-        let hover_input = edge_hover::Input {
-            pointer: rest_pointer,
-            inside_native: native.inside(),
-            settled_full,
-            locks: hover_locks,
-            reduced: self.model.reduced,
-            enabled: self.hover_enabled,
-        };
+        self.spring_hover.sample(
+            now,
+            magnetic_spring::Input {
+                pointer: rest_pointer,
+                inside_native: native.inside(),
+                full_intent: self.model.target_full,
+                fullness: self.model.fullness,
+                fullness_velocity: self.model.velocity,
+                locks: hover_locks,
+                reduced: self.model.reduced,
+                enabled: self.hover_enabled,
+            },
+        );
+        let h = &self.spring_hover;
         let (
             eligible,
             distance,
@@ -783,60 +773,19 @@ impl Render for Prototype {
             step_ms,
             target_changed,
             hover_moving,
-        ) = match self.magnetic {
-            Magnetic::A => {
-                let old_target = self.hover.target_offset;
-                let a_integrated_target =
-                    if hover_input.enabled && hover_input.settled_full && self.hover.q > 0. {
-                        old_target
-                    } else {
-                        [0., 0.]
-                    };
-                self.hover.sample(now, hover_input);
-                (
-                    self.hover.eligible,
-                    self.hover.distance,
-                    self.hover.q,
-                    self.hover.target_offset,
-                    self.hover.nearest_point,
-                    self.hover.offset,
-                    [0., 0.],
-                    a_integrated_target,
-                    0.,
-                    old_target != self.hover.target_offset,
-                    self.hover.moving(),
-                )
-            }
-            Magnetic::B => {
-                self.spring_hover.sample(
-                    now,
-                    magnetic_spring::Input {
-                        pointer: rest_pointer,
-                        inside_native: hover_input.inside_native,
-                        full_intent: self.model.target_full,
-                        fullness: self.model.fullness,
-                        fullness_velocity: self.model.velocity,
-                        locks: hover_locks,
-                        reduced: self.model.reduced,
-                        enabled: self.hover_enabled,
-                    },
-                );
-                let h = &self.spring_hover;
-                (
-                    h.eligible,
-                    h.distance,
-                    h.q,
-                    h.target_offset,
-                    h.nearest_point,
-                    h.offset,
-                    h.velocity,
-                    h.integrated_target,
-                    h.step_ms,
-                    h.target_changed,
-                    h.moving(),
-                )
-            }
-        };
+        ) = (
+            h.eligible,
+            h.distance,
+            h.q,
+            h.target_offset,
+            h.nearest_point,
+            h.offset,
+            h.velocity,
+            h.integrated_target,
+            h.step_ms,
+            h.target_changed,
+            h.moving(),
+        );
         #[cfg(not(target_os = "macos"))]
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
         #[cfg(target_os = "macos")]
@@ -884,36 +833,31 @@ impl Render for Prototype {
                 }));
             }
         }
-        let surface_border = if p.night {
-            gpui::white().opacity(0.15)
-        } else {
-            p.border
-        };
         // Keep the small Compact compression centered inside the legal native bounds.
-        let surface_origin = g.gutter + if self.model.window_motion.candidate == Candidate::Converged {
-            (g.native - 2. * g.gutter - g.surface) * 0.5
-        } else {
-            0.
-        };
-        // GPUI's style path paints fill/border separately. Combine them before outer AA
-        // coverage here, while the original div retains its 1px layout inset and hitbox.
+        let surface_origin = g.gutter + (g.native - 2. * g.gutter - g.surface) * 0.5;
+        let paint_sample = self.last_surface_paint.clone();
+        let paint_anchor = self.anchor;
+        let native_scale = native.scale();
+        let native_handle = native.hwnd;
+        // Only the full-source carrier goes through layout/paint edge snapping.
+        // Circle, art and clip share the continuous transform inside its pixels.
         let surface_paint = canvas(
-            |_, _, _| (),
-            move |bounds, _, window, _| {
-                window.paint_quad(quad(
-                    bounds,
-                    Corners::all(px(g.radius)).clamp_radii_for_quad_size(bounds.size),
-                    p.surface,
-                    Edges::all(px(1.)),
-                    surface_border,
-                    BorderStyle::default(),
-                ));
-            },
-        )
-        .absolute()
-        .left(px(surface_origin))
-        .top(px(surface_origin))
-        .size(px(g.surface));
+                |_, _, _| (),
+                move |bounds, _, window, _| {
+                    let _ = window.paint_image(bounds, bounds, Corners::default(), surface_image, 0, false);
+                    if let Some(sample) = &paint_sample {
+                        #[cfg(target_os = "windows")]
+                        let actual = {
+                            let mut rect = windows::Win32::Foundation::RECT::default();
+                            unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(native_handle, &mut rect).expect("paint native bounds"); }
+                            [rect.left as f32, rect.top as f32, rect.right as f32, rect.bottom as f32]
+                        };
+                        #[cfg(target_os = "macos")]
+                        let actual = native::rect_edges(native_handle.window().expect("paint native window").frame());
+                        sample.set(Some(SurfacePaint::capture(timestamp_us, window, actual, bounds, surface_frame, paint_anchor, g.gutter, visual_offset, native_scale)));
+                    }
+                },
+            ).absolute().left(px(0.)).top(px(0.)).size(px(surface_frame.side(window.scale_factor())));
         let surface = div()
             .id("surface")
             .absolute()
@@ -1095,10 +1039,6 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .when_some(mascot_image, |group, image| group.child(
-                div().absolute().left(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
-                    .top(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
-                    .size(px(mascot_diameter)).opacity(mascot_alpha).child(mascot::element(image, mascot_diameter))))
             .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
@@ -1184,36 +1124,25 @@ impl Render for Prototype {
                 (requested.native * scale).round() as i32,
             ];
             let cpu_render_us = render_start.elapsed().as_micros();
-            let phase = if self.model.window_motion.candidate == Candidate::Baseline {
-                if self.model.velocity != 0. {
-                    "travel"
-                } else {
-                    "rest"
-                }
-            } else {
-                self.model.window_motion.phase()
-            };
-            let handoff_json = match self.magnetic {
-                Magnetic::A => String::new(),
-                Magnetic::B => {
-                    let h = &self.spring_hover;
-                    let starts = h
-                        .axis_started_ms()
-                        .map(|at| at.map_or_else(|| "null".to_owned(), |at| at.to_string()));
-                    format!(
-                        ",\"tracking\":{},\"full_intent\":{},\"fade_weight\":{},\"fade_velocity\":{},\"spring_position\":{:?},\"spring_velocity\":{:?},\"axis_generation\":{:?},\"axis_started_ms\":[{},{}],\"max_offset\":{}",
-                        h.tracking,
-                        self.model.target_full,
-                        h.fade_weight,
-                        h.fade_velocity,
-                        h.spring_position,
-                        h.spring_velocity,
-                        h.axis_generations(),
-                        starts[0],
-                        starts[1],
-                        magnetic_spring::MAX_OFFSET
-                    )
-                }
+            let phase = self.model.window_motion.phase();
+            let handoff_json = {
+                let h = &self.spring_hover;
+                let starts = h
+                    .axis_started_ms()
+                    .map(|at| at.map_or_else(|| "null".to_owned(), |at| at.to_string()));
+                format!(
+                    ",\"tracking\":{},\"full_intent\":{},\"fade_weight\":{},\"fade_velocity\":{},\"spring_position\":{:?},\"spring_velocity\":{:?},\"axis_generation\":{:?},\"axis_started_ms\":[{},{}],\"max_offset\":{}",
+                    h.tracking,
+                    self.model.target_full,
+                    h.fade_weight,
+                    h.fade_velocity,
+                    h.spring_position,
+                    h.spring_velocity,
+                    h.axis_generations(),
+                    starts[0],
+                    starts[1],
+                    magnetic_spring::MAX_OFFSET
+                )
             };
             let hover_json = format!(
                 "{{\"enabled\":{},\"eligible\":{},\"distance\":{},\"q\":{},\"target_offset\":{:?},\"current_offset\":{:?},\"radius\":{},\"locks\":{:?},\"rest_pointer\":{:?},\"nearest_point\":{:?},\"variant\":\"{}\",\"velocity\":{:?},\"integrated_target\":{:?},\"step_ms\":{},\"target_changed\":{}{}}}",
@@ -1227,37 +1156,35 @@ impl Render for Prototype {
                 hover_locks,
                 rest_pointer,
                 nearest_point,
-                self.magnetic.name(),
+                "b",
                 hover_velocity,
                 integrated_target,
                 step_ms,
                 target_changed,
                 handoff_json
             );
-            writeln!(writer,"{{\"type\":\"frame\",\"timestamp_us\":{},\"ms\":{},\"dt_actual_ms\":{},\"rawfullness\":{},\"velocity\":{},\"target_full\":{},\"visualsurface\":{},\"gutter\":{},\"radius\":{},\"native_request\":{:?},\"viewport\":[{},{}],\"bounds\":{:?},\"anchor\":{:?},\"surface_extra\":{},\"extra_velocity\":{},\"settlephase\":\"{}\",\"candidate\":\"{}\",\"reduced\":{},\"cpu_advance_us\":{},\"cpu_render_us\":{},\"pointer\":{},\"native_probe\":\"{}\",\"dt\":\"{}\",\"native_flags\":\"{}\",\"shadow_surface\":{},\"shadow_blur\":{},\"shadow_offset\":{},\"shadow_alpha\":{},\"hover\":{}}}",
+            writeln!(writer,"{{\"type\":\"frame\",\"timestamp_us\":{},\"ms\":{},\"dt_actual_ms\":{},\"rawfullness\":{},\"velocity\":{},\"target_full\":{},\"visualsurface\":{},\"gutter\":{},\"radius\":{},\"native_request\":{:?},\"viewport\":[{},{}],\"bounds\":{:?},\"anchor\":{:?},\"surface_extra\":{},\"extra_velocity\":{},\"settlephase\":\"{}\",\"candidate\":\"{}\",\"reduced\":{},\"cpu_advance_us\":{},\"cpu_render_us\":{},\"pointer\":{},\"native_probe\":\"{}\",\"dt\":\"{}\",\"native_flags\":\"{}\",\"shadow_surface\":{},\"shadow_blur\":{},\"shadow_offset\":{},\"shadow_alpha\":{},\"hover\":{},\"previous_surface_paint\":{}}}",
                 timestamp_us,now,dt_actual_ms,self.model.fullness,self.model.velocity,self.model.target_full,g.surface,g.gutter,g.radius,native_request,
                 f32::from(viewport.width),f32::from(viewport.height),native.bounds(),self.anchor,surface_extra,self.model.window_motion.extra_v,
-                phase,self.model.window_motion.candidate.name(),self.model.reduced,cpu_advance_us,cpu_render_us,self.model.pointer,self.native_probe,
-                if self.model.window_motion.uncapped {"uncapped"}else{"baseline"},if self.native_flags_always {"always"}else{"init-only"},
-                shadow_surface,shadow_blur,shadow_offset,shadow_alpha,hover_json).expect("buffer research frame");
+                phase,"converged",self.model.reduced,cpu_advance_us,cpu_render_us,self.model.pointer,self.native_probe,
+                "baseline","always",
+                shadow_surface,shadow_blur,shadow_offset,shadow_alpha,hover_json,serde_json::to_string(&self.last_surface_paint.as_ref().and_then(|sample| sample.get())).expect("paint sample")).expect("buffer research frame");
         }
         result
     }
 }
 fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|argument| argument == "--download-test-bridge") {
+        eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
+        std::process::exit(2);
+    }
     if let Err(error) = ameow_next::app_update::session::Session::from_env() {
         eprintln!("Ameow Launcher session: {error}");
         std::process::exit(2);
     }
-    let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|a| a == "--gallery") {
         if let Err(error) = gallery::run() { eprintln!("Gallery 无法启动：{error}"); std::process::exit(1); }
-        return;
-    }
-    if !args.iter().any(|argument| argument == "--preview")
-        && args.iter().any(|argument| argument == "--download-test-bridge")
-    {
-        if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
         return;
     }
     if let Some(at) = args.iter().position(|a| a == "--preview-catalog-out") {

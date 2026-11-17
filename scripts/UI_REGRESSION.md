@@ -11,7 +11,7 @@ accepted historical executables. Keep source HEAD, all build-input hashes,
 build command/output and executable hash with the run. An existing output directory
 is rejected so a failed run cannot be silently overwritten.
 
-This mode reuses RepairRuntime, Runtime, CropCapture, the existing Cancel
+This mode reuses native_capture.MeasuredRuntime, Runtime, CropCapture, the existing Cancel
 red/white pixel predicate, and the existing Copy feedback/restoration predicate.
 It explicitly launches --stage idle --reduced --hover off; --stage selects the
 mock fixture, which has no download backend or tray. Do not use telemetry-only
@@ -46,4 +46,5 @@ review grant product acceptance.
 The neutral owned backdrop and temporary TOPMOST calls protect screenshot privacy;
 they cannot prove natural startup z-order. Synthetic fixture controls do not verify
 real settings persistence, downloads, physical-user drag/drop, mixed-DPI displays,
-macOS or GPU/DWM frame pacing. TRA-23/TRA-26 acceptance gates remain open.
+macOS or GPU/DWM frame pacing. Current behavior requirements are in OpenSpec;
+this guide records the workflow and coverage, not live task or release status.

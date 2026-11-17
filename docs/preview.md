@@ -48,7 +48,7 @@ cancelled、failed，expected_count 记录本批预期数量。取消/失败批�
 控制器异常终止也会清理子进程。
 浏览器总览只读本地图片，不重画产品 UI，也不运行任何反馈/标注服务。
 
-截图沿用 preview_capture.py / repair_a_runtime.py 的原生 HWND + BitBlt 链，保留 PID、
+截图沿用 preview_capture.py / native_capture.py 的原生 HWND + BitBlt 链，保留 PID、
 scene、theme、step、HWND、边界、实际 DPI、EXE SHA-256、时间和回执。源码 HEAD 是
 截图时的 checkout HEAD，EXE 的身份以 SHA-256 为准，不能把当前源码 HEAD 当作编译时
 提交。新 Gallery 截图会临时将本轮目标呈现到中性背景上方，之后恢复原 TOPMOST 标志；
@@ -95,5 +95,5 @@ scripts/test_gallery_tools.py 不打开窗口，检查防覆盖、回执边界�
 旧 preview.ps1 / preview-menu.ps1 / preview-console.cs / start-preview.bat 和对应的
 test_preview_menu.ps1 已在职责对照后移除。替代证据与保留工具见
 [Gallery 职责覆盖的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue32/gallery-coverage.md`）。preview_capture.py、
-repair_a_runtime.py、windows_validate.py 及专门的 DPI/跨屏/阴影验证工具继续保留。
+native_capture.py、windows_validate.py 及专门的 DPI/跨屏/阴影验证工具继续保留。
 旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue20/README.md`）回溯。

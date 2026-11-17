@@ -917,28 +917,8 @@ impl SettingsWindow {
         self.notice = None;
         let task = cx.background_executor().spawn(async move {
             directory_health(&path)?;
-            #[cfg(target_os = "windows")]
-            {
-            let explorer = std::env::var_os("WINDIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("C:/Windows"))
-                .join("explorer.exe");
-            std::process::Command::new(explorer)
-                .arg(path)
-                .spawn()
-                .map(|_| ())
+            ameow_next::file_manager::open_directory(&path)
                 .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())
-            }
-            #[cfg(target_os = "macos")]
-            {
-                let status = std::process::Command::new("/usr/bin/open")
-                    .arg("--")
-                    .arg(path)
-                    .status()
-                    .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())?;
-                if status.success() { Ok(()) }
-                else { Err("无法打开文件夹，请检查目录后重试".to_string()) }
-            }
         });
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -1995,17 +1975,25 @@ fn anchor(main: crate::native::NativeHandle) -> Anchor {
 #[cfg(target_os = "macos")]
 fn show(handle: WindowHandle<Root>, _first: Option<Anchor>, cx: &mut App) {
     cx.defer(move |cx| {
-        let _ = handle.update(cx, |root, window, cx| {
-            let native = crate::native::handle(window);
-            let Some(native) = native.window() else { return; };
-            native.setCollectionBehavior(objc2_app_kit::NSWindowCollectionBehavior::FullScreenNone);
+        let Ok(native) = handle.update(cx, |root, window, cx| {
             let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
             view.update(cx, |view, cx| {
                 window.focus(&view.focus, cx);
                 view.refresh_health(true, cx);
             });
-            window.activate_window();
-        });
+            crate::native::handle(window)
+        }) else { return; };
+        cx.foreground_executor().spawn(async move {
+            let Some(window) = native.window() else { return; };
+            window.setCollectionBehavior(objc2_app_kit::NSWindowCollectionBehavior::FullScreenNone);
+            if !window.isVisible() && let Some(view) = window.contentView() {
+                view.setNeedsDisplay(true);
+            }
+            #[allow(deprecated)]
+            objc2_app_kit::NSApplication::sharedApplication(crate::native::marker()).activateIgnoringOtherApps(true);
+            if window.isMiniaturized() { window.deminiaturize(None); }
+            window.makeKeyAndOrderFront(None);
+        }).detach();
     });
 }
 

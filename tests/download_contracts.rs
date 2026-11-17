@@ -1,5 +1,4 @@
 use ameow_next::download::{
-    Phase,
     network::{Route, parse_proxy},
     output::{DestinationStage, VerifiedMedia},
     composition, contract::{MediaKind, VerifiedFacts, VideoExpectation, VideoCodec},
@@ -238,39 +237,6 @@ fn hash_lease_rejects_corruption_and_holds_platform_guard() -> Result<(), String
     Ok(())
 }
 #[test]
-fn failed_job_has_one_terminal_releases_ownership_and_rejects_stale_cancel() -> Result<(), String> {
-    let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-    let invalid = root.path().join("file");
-    fs::write(&invalid, b"not directory").map_err(|e| e.to_string())?;
-    let coordinator = composition::coordinator(invalid);
-    for n in 1..=2 {
-        let job = coordinator.accept(DownloadIntent {
-            url: "https://youtu.be/jNQXAC9IVRw".into(),
-            quality: Quality::Saver,
-            output_dir: root.path().into(),
-        })?;
-        assert_eq!(job, n);
-        let start = Instant::now();
-        loop {
-            let s = coordinator.snapshot();
-            if s.phase.terminal() {
-                assert_eq!(s.phase, Phase::Failure);
-                assert_eq!(s.terminal_count, 1);
-                assert!(s.resources_released);
-                assert!(s.workspace.is_none());
-                break;
-            }
-            if start.elapsed() > Duration::from_secs(5) {
-                return Err("No terminal".into());
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        assert!(!coordinator.cancel(job));
-        assert!(!coordinator.cancel(job + 1));
-    }
-    Ok(())
-}
-#[test]
 #[ignore = "Requires genuine production-prepared cache, supplied via AMEOW_RUNTIME_TEST_ROOT"]
 fn genuine_runtime_reuse_verifies_pins_and_lease() -> Result<(), String> {
     let root = std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?;
@@ -378,7 +344,8 @@ fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> 
 #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
 fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(), String> {
     use ameow_next::download::{
-        Coordinator,
+        queue::{DownloadCoordinator, JobPhase},
+        settings::Settings,
         adapter::{DownloadServices, DownloaderAdapter, ExecutionContext},
         contract::{AdapterResult, ExecutionRequest, ProducedArtifact, VerificationRequirements},
         diagnostics::{Failure, FailureCode},
@@ -389,8 +356,8 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
     let root = std::path::PathBuf::from(
         std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?,
     );
-    let lease =
-        RuntimeManager::new(root.clone()).prepare(&composition::requirements(), &Control::default(), Arc::new(|_| {}), |_| {})?;
+    let manager = Arc::new(RuntimeManager::new(root.clone()));
+    let lease = manager.prepare(&composition::requirements(), &Control::default(), Arc::new(|_| {}), |_| {})?;
     let workspace = std::mem::ManuallyDrop::new(tempfile::tempdir_in(&root).map_err(|e| e.to_string())?);
     println!(">>> Native media evidence: {}", workspace.path().display());
     let media = workspace.path().join("fixture.mkv");
@@ -565,34 +532,45 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
             })
         }
     }
-    let coordinator = Coordinator::new(DownloadServices {
-        runtime: Arc::new(RuntimeManager::new(root)),
+    let coordinator = DownloadCoordinator::new(DownloadServices {
+        runtime: manager,
         adapter: Arc::new(SilentVideoAdapter {
             source: silent, expected: unknown.clone(), requirements: composition::requirements(),
         }),
         verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
-    });
+    }, destination.path().join("probe-settings.json"), Settings {
+        quality: Quality::Balanced, output_dir: destination.path().into(),
+        theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+    })?;
     let existing = destination.path().join("Silent fixture[64x48].mkv");
     fs::write(&existing, b"existing user media").map_err(|e| e.to_string())?;
-    coordinator.accept(DownloadIntent {
-        url: "https://youtu.be/jNQXAC9IVRw".into(), quality: Quality::Balanced,
-        output_dir: destination.path().into(),
-    })?;
+    coordinator.submit("https://youtu.be/jNQXAC9IVRw".into())?;
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
-        let snapshot = coordinator.snapshot();
+        let view = coordinator.snapshot();
+        let snapshot = &view.jobs[0];
         if snapshot.phase.terminal() {
-            assert_eq!(snapshot.phase, Phase::Success, "{}", snapshot.message);
+            assert_eq!(snapshot.phase, JobPhase::Success, "{}", snapshot.message);
             assert!(snapshot.resources_released);
             assert_eq!(snapshot.terminal_count, 1);
-            let delivered = snapshot.delivered.unwrap();
-            assert!(!delivered.facts.audio_present);
-            assert_eq!(delivered.facts.video_width, Some(64));
+            assert_eq!(view.active_slots, 0);
+            assert!(snapshot.events.iter().any(|event| event.kind == "attempt-joined-slot-release"));
+            let delivered = snapshot.delivered.as_ref().unwrap();
+            let verified_delivery = ameow_next::download::verification::video::verify(
+                &delivered.path, destination.path(), &unknown, &lease, &Control::default(), Arc::new(|_| {}), "ffprobe.exe",
+            )?;
+            assert!(!verified_delivery.facts.audio_present);
+            assert_eq!(verified_delivery.facts.video_width, Some(64));
             assert_eq!(delivered.path.file_name().unwrap(), "Silent fixture[64x48] (1).mkv");
             assert_eq!(fs::read(&existing).map_err(|e| e.to_string())?, b"existing user media");
             break;
         }
         assert!(Instant::now() < deadline, "Silent video delivery did not finish: {snapshot:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    coordinator.stop();
+    while !coordinator.snapshot().stopped {
+        assert!(Instant::now() < deadline, "Video queue did not stop");
         std::thread::sleep(Duration::from_millis(10));
     }
     plan.height = Some(1080);

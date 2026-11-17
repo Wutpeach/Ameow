@@ -1,6 +1,5 @@
 //! The only production composition that chooses a concrete downloader.
 use super::{
-    Coordinator,
     adapter::DownloadServices,
     adapters::automatic::AutomaticAdapter,
     queue::DownloadCoordinator,
@@ -36,9 +35,6 @@ pub fn services(root: PathBuf) -> DownloadServices {
         adapter: Arc::new(AutomaticAdapter::new(requirements())),
         verifiers: Arc::new(VerifierRegistry::video_and_images("ffprobe.exe")),
     }
-}
-pub fn coordinator(root: PathBuf) -> Coordinator {
-    Coordinator::new(services(root))
 }
 pub fn download_coordinator(
     root: PathBuf,
