@@ -321,7 +321,7 @@
       {
         "name": "mascot-reveal",
         "value": "mascot_reveal / mascot",
-        "purpose": "窗口先收起，末段台面上浮、猫探头短停并落定接idle；当前进度反向加速退场，保持小尺寸，不延迟窗口或交互；隐藏暂停，减少动态正确终态。初版节奏与原生人工验收分开。"
+        "purpose": "窗口先收起，末段台面先起、猫后探，以短停和轻巧收尾接idle；目标转Full同帧隐藏整套角色并清进度/唤醒，再次收起从末段新入场，不逆放淡出。Compact隐藏暂停，Reduced正确终态；紧凑时长为开发初值，人工验收另记。"
       },
       {
         "name": "signature-owners",

@@ -55,8 +55,8 @@ fn cached_layers_preserve_the_surface_mask_rest_and_hidden_endpoints() {
         let hidden = mascot::straight_bgra(render(0.));
         let empty = mascot::straight_bgra(surface.compose(None, 0., night, scale));
         assert!(hidden == empty, "no hidden head, paws or sill may leak into the surface");
-        let peek = mascot::straight_bgra(render(360. / mascot_reveal::ENTER_MS));
-        let pause = mascot::straight_bgra(render(400. / mascot_reveal::ENTER_MS));
+        let peek = mascot::straight_bgra(render(220. / mascot_reveal::ENTER_MS));
+        let pause = mascot::straight_bgra(render(235. / mascot_reveal::ENTER_MS));
         assert!(peek == pause, "the authored peek has a quiet pause");
     }
 }
@@ -80,35 +80,37 @@ fn entrance_blends_back_into_the_frozen_idle_without_chasing_hidden_time() {
 }
 
 #[test]
-fn expanding_surface_keeps_the_retreat_inside_the_same_small_circle() {
+fn full_target_first_frame_removes_cached_partial_and_resting_role_pixels() {
     let renderer = SvgRenderer::new(Arc::new(()));
     let scale = 1.25;
-    let mut mascot = mascot::Mascot::new(0);
-    let surface = mascot::SurfaceFrame::new(model::Geometry::at(0.5));
-    let image = mascot::straight_bgra(mascot.compose_frame(false, surface, 1., mascot_reveal::scene(1.), scale, &renderer));
-    let empty = mascot::straight_bgra(surface.compose(None, 0., false, scale));
-    let side = (surface.side(scale) * scale).round() as usize;
-    let center = (mascot_reveal::local_origin(surface.native, surface.surface) + 30.) * scale;
-    let mut changed = 0;
-    for (i, (a, b)) in image.chunks_exact(4).zip(empty.chunks_exact(4)).enumerate() {
-        if a == b { continue; }
-        changed += 1;
-        let x = (i % side) as f32 + 0.5 - center;
-        let y = (i / side) as f32 + 0.5 - center;
-        assert!(x.hypot(y) <= 30. * scale + 1., "retreat must not grow with Full or expose a square sill");
-    }
-    assert!(changed > 500);
-    for fullness in [0., 0.02, 0.2, 0.5, 1.] {
-        let g = model::Geometry::at(fullness);
-        let screen = g.origin([514., 314.]);
-        let center = mascot_reveal::local_origin(g.native, g.surface) + mascot_reveal::local_side(g.surface) * 0.5;
-        assert!((screen[0] + center - 544.).abs() < 0.001, "retreat must retain the Compact screen anchor");
-        assert!((screen[1] + center - 344.).abs() < 0.001);
+    for night in [false, true] {
+        for progress in [0.85, 1.] {
+            let mut reveal = mascot_reveal::Reveal::default();
+            reveal.sample(0, true, 1., true, false);
+            reveal.sample(0, false, 0., true, false);
+            let now = (mascot_reveal::ENTER_MS * progress) as u64;
+            reveal.sample(now, false, 0., true, false);
+            let mut mascot = mascot::Mascot::new(0);
+            let compact = mascot::SurfaceFrame::new(model::Geometry::at(0.));
+            let visible = mascot::straight_bgra(mascot.compose_frame(night, compact, reveal.alpha(), mascot_reveal::scene(reveal.progress), scale, &renderer));
+            let empty = mascot::straight_bgra(compact.compose(None, 0., night, scale));
+            assert!(visible != empty, "the regression must start from a visible cached role");
+            assert_eq!(reveal.sample(now, true, 0., true, false), None);
+            assert_eq!((reveal.progress, reveal.alpha()), (0., 0.));
+            for fullness in [0., 0.5, 1.] {
+                assert_eq!(reveal.sample(now, true, fullness, false, false), None);
+                let frame = mascot::SurfaceFrame::new(model::Geometry::at(fullness));
+                let first_full = mascot::straight_bgra(mascot.compose_frame(night, frame, reveal.alpha(), mascot_reveal::scene(reveal.progress), scale, &renderer));
+                assert_eq!(mascot.prepare_us, 0, "hiding must not prepare role sources");
+                let baseline = mascot::straight_bgra(frame.compose(None, 0., night, scale));
+                assert!(first_full == baseline, "Full target must remove cat, sill and paws in the same frame");
+            }
+        }
     }
 }
 
 #[test]
-fn retreat_fades_the_occluded_role_as_one_group() {
+fn prepared_layer_opacity_preserves_occlusion() {
     let renderer = SvgRenderer::new(Arc::new(()));
     let scale = 1.25;
     let surface = mascot::SurfaceFrame::new(model::Geometry::at(0.5));
@@ -141,9 +143,9 @@ fn prepared_local_motion_has_bounded_sources_and_reports_composition_cost() {
     mascot.compose_frame(false, surface, 1., mascot_reveal::scene(0.), scale, &renderer);
     let layer_prepare = mascot.prepare_us;
     let mut times = Vec::new();
-    for elapsed in (0..=720).step_by(16) {
+    for elapsed in (0..=mascot_reveal::ENTER_MS as u64).step_by(16) {
         let start = std::time::Instant::now();
-        let pixels = mascot.compose_frame(false, surface, 1., mascot_reveal::scene(elapsed as f64 / 720.), scale, &renderer);
+        let pixels = mascot.compose_frame(false, surface, 1., mascot_reveal::scene(elapsed as f64 / mascot_reveal::ENTER_MS), scale, &renderer);
         assert_eq!(pixels.width(), 160);
         assert_eq!(mascot.prepare_us, 0, "local timeline frames must reuse prepared sources");
         times.push(start.elapsed().as_micros());
@@ -151,19 +153,6 @@ fn prepared_local_motion_has_bounded_sources_and_reports_composition_cost() {
     times.sort_unstable();
     eprintln!("cached 3-layer composition @2x: median={}us p95={}us max={}us (debug CPU, not native present)", times[times.len()/2], times[times.len()*95/100], times.last().unwrap());
     eprintln!("cold source preparation @2x: whole={rest_prepare}us layers={layer_prepare}us (one miss, not cached composition)");
-    let mut window = repair_motion::Motion::new(0);
-    window.tick(0, true, false);
-    let mut exit = Vec::new();
-    for now in (0..=160).step_by(16) {
-        window.tick(now, true, false);
-        let frame = mascot::SurfaceFrame::new(window.geometry());
-        let start = std::time::Instant::now();
-        mascot.compose_frame(false, frame, mascot_reveal::alpha(window.x), mascot_reveal::scene(1. - now as f64 / 160.), scale, &renderer);
-        assert_eq!(mascot.prepare_us, 0);
-        exit.push(start.elapsed().as_micros());
-    }
-    exit.sort_unstable();
-    eprintln!("expansion + grouped retreat @2x: median={}us p95={}us (includes shared surface; debug CPU, not native present)", exit[exit.len()/2], exit[exit.len()*95/100]);
 }
 
 /// Explicit export, not a native UI test; no desktop, clicks or recording.
@@ -176,7 +165,7 @@ fn export_authored_motion_preview() {
     for (theme, night) in [("light", false), ("night", true)] {
         let mut output = fs::File::create(directory.join(format!("{theme}.bgra"))).unwrap();
         let mut trace = fs::File::create(directory.join(format!("{theme}.csv"))).unwrap();
-        writeln!(trace, "ms,fullness,surface,progress,perch_y,head_y,paws_y").unwrap();
+        writeln!(trace, "ms,target_full,fullness,surface,progress,alpha,reveal_delay,perch_y,head_y,paws_y").unwrap();
         let mut motion = repair_motion::Motion::new(0);
         motion.tick(0, true, true);
         let mut reveal = mascot_reveal::Reveal::default();
@@ -187,9 +176,10 @@ fn export_authored_motion_preview() {
             let full = !(350..2000).contains(&now);
             motion.tick(now, full, false);
             let g = motion.geometry();
-            reveal.sample(now, full, motion.x, true, false);
+            let delay = reveal.sample(now, full, motion.x, true, false);
             let s = mascot_reveal::scene(reveal.progress);
-            let opacity = mascot_reveal::alpha(motion.x);
+            let opacity = reveal.alpha();
+            if full { assert_eq!((reveal.progress, opacity, delay), (0., 0., None)); }
             let surface = mascot::SurfaceFrame::new(g);
             let image = mascot.compose_frame(night, surface, opacity, s, 2., &renderer);
             let side = image.width() as usize;
@@ -203,7 +193,7 @@ fn export_authored_motion_preview() {
                 canvas[destination..destination + side * 4].copy_from_slice(&bytes[y * side * 4..(y + 1) * side * 4]);
             }
             output.write_all(&canvas).unwrap();
-            writeln!(trace, "{now},{},{},{},{},{},{}", motion.x, g.surface, reveal.progress, s.perch_y, s.head_y, s.paws_y).unwrap();
+            writeln!(trace, "{now},{full},{},{},{},{},{},{},{},{}", motion.x, g.surface, reveal.progress, opacity, delay.map(|value| value.to_string()).unwrap_or_default(), s.perch_y, s.head_y, s.paws_y).unwrap();
         }
     }
 }

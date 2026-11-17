@@ -734,7 +734,7 @@ impl Render for Prototype {
             mascot_delay = None;
         }
         self.mascot.pose = mascot_scene::idle_pose(self.mascot.pose, mascot_scene.idle_weight);
-        let mascot_alpha = if self.mascot_reveal.progress > 0. { mascot_reveal::alpha(self.model.fullness) } else { 0. };
+        let mascot_alpha = self.mascot_reveal.alpha();
         let surface_frame = mascot::SurfaceFrame::new(g);
         let surface_image = self.mascot.image(self.night, surface_frame, mascot_alpha, mascot_scene, window, cx);
         if let Some(log) = &mut self.telemetry {

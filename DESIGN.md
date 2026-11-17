@@ -242,7 +242,7 @@ macOS 只有菜单栏（系统托盘）使用 AppKit 原生菜单，字体、间
 
 **The Signature Motion Rule.** 磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。
 
-Compact Mascot 沿用 Figma 的 Light 黑猫、Night 白猫与 A 窗沿。Full→Compact 先完成窗口主要收起行程，末段才由台面上浮、猫咪探头、短停和落定接入既有 idle；一次触发不因回弹重播。退场从当前可见进度沿同轨迹加速反向，角色保持小尺寸，窗口和交互不等待。角色局部动作与窗口/磁吸 owner 分离；隐藏暂停，减少动态呈现正确终态。正式行为见 compact-mascot-reveal 的 desktop-interaction 变更；具体时长为实现初版，原生手感由人工确认。
+Compact Mascot 沿用 Figma 的 Light 黑猫、Night 白猫与 A 窗沿。Full→Compact 先完成窗口主要收起行程，末段才由台面先起、猫咪后探、短停和轻巧落定接入既有idle；一次触发不因回弹重播。用户实际体验后选择目标转Full同帧隐藏整套猫/台面/爪，清掉角色进度与唤醒，不再逆放或淡出；再次收起在末段重新入场。角色局部动作与已验收窗口/磁吸owner分离，窗口和交互不等待；Compact隐藏暂停，减少动态呈现正确终态。正式行为见compact-mascot-reveal的desktop-interaction变更；更紧凑时长为开发初值，角色新节奏仍待人工确认。
 
 ## Do's and Don'ts
 
