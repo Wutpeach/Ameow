@@ -1,5 +1,5 @@
 """Owned native no-glow/follow regression and lossless static-border observations.
-Historical PolishRuntime is reused only for process/input/crop ownership.
+Uses the shared native capture runtime for process/input/crop ownership.
 """
 import argparse
 from collections import Counter
@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 from PIL import Image, ImageDraw
-from polish_c_runtime import PolishRuntime, CropCapture, read_jsonl, u
+from native_capture import MeasuredRuntime, CropCapture, read_jsonl, u
 
 
 def capture(app, path):
@@ -39,34 +39,36 @@ def straight_edges(image, scale):
     return samples
 
 
-def run(exe, out, baseline, night):
+def run(exe, out, night):
     app = None
-    result = {"exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(), "baseline": baseline, "night": night, "checks": [], "cases": []}
+    result = {"exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(), "night": night, "checks": [], "cases": []}
     def check(name, passed, observation):
         result["checks"].append({"name": name, "status": "PASS" if passed else "FAIL", "observed": observation})
     try:
-        app = PolishRuntime(exe, out, night=night, lifetime=45000)
+        app = MeasuredRuntime(exe, out, lifetime=45000, extra_args=['--stage', 'idle'] + (['--night'] if night else []))
+        def point(x, y):
+            app.move(514+x*app.scale, 314+y*app.scale)
         app.backdrop.configure(background="#ffffff"); app.backdrop.update()
         app.outside(); app.wait(.7)
         capture(app, out / "compact.png")
         check("Compact endpoint", app.size() == [round(80 * app.scale)] * 2, app.rect())
-        app.point(30, 30); app.wait(.9); app.click(100, 100); app.point(100, 100); app.wait(.4)
+        point(30, 30); app.wait(.9); app.click(100, 100); point(100, 100); app.wait(.4)
         full = app.rect()
         check("Full endpoint", app.size() == [round(228 * app.scale)] * 2, full)
         settled = capture(app, out / "full.png")
         result["static_straight_edges"] = straight_edges(settled, app.scale)
         for name, x, y in [("centre",100,100),("top",100,0),("right",200,100),("bottom",100,200),("left",0,100),("corner",194,6),("fractional",176,6),("return",100,100)]:
-            app.point(x,y); app.wait(.45)
+            point(x,y); app.wait(.85)
             image = capture(app, out / f"{name}.png")
             blue = sum(b-r > 20 and b-g > 10 for r,g,b in image.get_flattened_data())
             check(f"{name}: native fixed", app.rect() == full, app.rect())
-            if not baseline: check(f"{name}: no blue edge light", blue == 0, blue)
+            check(f"{name}: no blue edge light", blue == 0, blue)
             result["cases"].append({"name":name,"pointer":[x,y],"blue_pixels":blue})
-        app.point(200,100); app.wait(.3); app.key("R"); app.wait(.25)
+        point(200,100); app.wait(.3); app.key("R"); app.wait(.25)
         capture(app,out / "reduced.png")
-        app.key("R"); app.point(200,100); app.wait(.25)
+        app.key("R"); point(200,100); app.wait(.25)
         app.click(100,100,right=True); app.wait(.3); capture(app,out / "menu.png"); app.key("ESC")
-        app.point(200,100); app.wait(.25); app.point(100,100); u.mouse_event(2,0,0,0,0); app.wait(.3); capture(app,out / "drag.png"); u.mouse_event(4,0,0,0,0)
+        point(200,100); app.wait(.25); point(100,100); u.mouse_event(2,0,0,0,0); app.wait(.3); capture(app,out / "drag.png"); u.mouse_event(4,0,0,0,0)
         app.key("0"); app.outside(); app.wait(.95); capture(app,out / "collapsed.png")
         check("Collapse releases Full footprint", app.size()==[round(80*app.scale)]*2,app.rect())
         app.save_host()
@@ -78,15 +80,15 @@ def run(exe, out, baseline, night):
     frames=read_jsonl(out / "frames.jsonl")
     hover=[f for f in frames if "hover" in f]
     if hover:
-        check("Follow bounded to 3px", all(math.hypot(*f["hover"]["current_offset"])<=3.001 for f in hover),max(math.hypot(*f["hover"]["current_offset"]) for f in hover))
-        check("Follow still reaches edge", any(math.hypot(*f["hover"]["current_offset"])>2.99 for f in hover),len(hover))
+        check("Follow bounded to 6px", all(math.hypot(*f["hover"]["current_offset"])<=6.001 for f in hover),max(math.hypot(*f["hover"]["current_offset"]) for f in hover))
+        check("Follow still reaches edge", any(math.hypot(*f["hover"]["current_offset"])>5.99 for f in hover),len(hover))
         reduced=[f for f in hover if f["reduced"]]
         check("Reduced Motion clears follow", bool(reduced) and all(f["hover"]["current_offset"]==[0,0] and f["hover"]["target_offset"]==[0,0] for f in reduced),len(reduced))
         locked=[f for f in hover if any(f["hover"]["locks"])]
         check("Locks suppress follow target",bool(locked) and all(f["hover"]["target_offset"]==[0,0] for f in locked),len(locked))
-        quiet=[f for f in hover if abs(f["hover"]["distance"])>56]
+        quiet=[f for f in hover if math.hypot(*(v-100 for v in f["hover"]["rest_pointer"]))<.001]
         check("Centre has zero target",bool(quiet) and all(f["hover"]["target_offset"]==[0,0] for f in quiet),len(quiet))
-        check("Compact and morph have no follow",all(f["hover"]["current_offset"]==[0,0] for f in hover if not f["target_full"] or f["rawfullness"]!=1 or f["surface_extra"]!=0),len(hover))
+        check("Protected Compact/travel has no follow",all(f["hover"]["current_offset"]==[0,0] for f in hover if f["rawfullness"]<=.9),len(hover))
     else: check("Follow frame evidence available",False,0)
     result["overall"]="PASS" if result["checks"] and all(c["status"]=="PASS" for c in result["checks"]) and "error" not in result else "FAIL"
     (out / "summary.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
@@ -95,9 +97,9 @@ def run(exe, out, baseline, night):
 
 
 if __name__=="__main__":
-    parser=argparse.ArgumentParser(); parser.add_argument("--exe",type=Path,required=True); parser.add_argument("--out",type=Path,required=True); parser.add_argument("--baseline",action="store_true")
+    parser=argparse.ArgumentParser(); parser.add_argument("--exe",type=Path,required=True); parser.add_argument("--out",type=Path,required=True)
     args=parser.parse_args()
-    results=[run(args.exe,args.out/("night" if night else "light"),args.baseline,night) for night in (False,True)]
+    results=[run(args.exe,args.out/("night" if night else "light"),night) for night in (False,True)]
     sheet=Image.new("RGB",(480,500),"white"); draw=ImageDraw.Draw(sheet)
     for i,(theme,mode) in enumerate([(theme,mode) for theme in ("light","night") for mode in ("compact","full")]):
         path=args.out/theme/f"{mode}.png"
