@@ -42,18 +42,16 @@ pub struct View {
     pub saving: bool,
     pub save_error: Option<String>,
     pub saved: bool,
-    pub confirmation: bool,
     pub launcher: bool,
     #[serde(default)]
     pub check_retry_secs:u64,
 }
 impl View {
     pub fn attention(&self) -> bool {
-        self.confirmation
-            || matches!(
-                self.update.phase,
-                Phase::Ready | Phase::WaitingForTasks | Phase::Switching | Phase::RolledBack
-            )
+        matches!(
+            self.update.phase,
+            Phase::Ready | Phase::WaitingForTasks | Phase::Switching | Phase::RolledBack
+        )
     }
 }
 #[derive(Clone, Debug)]
@@ -61,7 +59,6 @@ pub enum Action {
     Check,
     Download,
     Restart,
-    Wait,
     Later,
     Save(Preferences),
 }
@@ -111,24 +108,15 @@ impl Handle {
         // Cancellation is observed during an in-flight acquisition before preference persistence.
         match action {
             Action::Restart => {
-                if self.snapshot().update.phase != Phase::Ready {
+                if !matches!(self.snapshot().update.phase, Phase::Ready | Phase::WaitingForTasks) {
                     return false;
                 }
                 self.shared.manual_restart.store(true, Ordering::Release);
                 true
             }
-            Action::Wait => {
-                if !self.snapshot().confirmation {
-                    return false;
-                }
-                self.shared.waiting.store(true, Ordering::Release);
-                self.shared.view.lock().unwrap().confirmation = false;
-                true
-            }
             Action::Later => {
                 self.shared.manual_restart.store(false, Ordering::Release);
                 self.shared.waiting.store(false, Ordering::Release);
-                self.shared.view.lock().unwrap().confirmation = false;
                 true
             }
             Action::Save(p) => {
@@ -374,13 +362,9 @@ impl Handle {
             return;
         }
         if self.shared.manual_restart.swap(false, Ordering::AcqRel)
-            && view.update.phase == Phase::Ready
+            && matches!(view.update.phase, Phase::Ready | Phase::WaitingForTasks)
         {
-            if queue.app_update_idle() {
-                self.shared.waiting.store(true, Ordering::Release);
-            } else {
-                self.shared.view.lock().unwrap().confirmation = true;
-            }
+            self.shared.waiting.store(true, Ordering::Release);
         }
         if self.shared.waiting.load(Ordering::Acquire) {
             let control = self.shared.view.lock().unwrap();
@@ -398,7 +382,7 @@ impl Handle {
             }
         }
         if view.update.phase != Phase::Ready
-            || view.confirmation
+            || cfg!(target_os = "macos") && view.update.error.is_some()
             || view.save_error.is_some()
             || !view.preferences.idle_restart
             || !queue.app_update_idle()
@@ -408,9 +392,17 @@ impl Handle {
         if session.coordinator.prepare_restart().is_err(){return;}
         // Recheck settings and atomically arbitrate newly accepted work after candidate hashing.
         let control = self.shared.view.lock().unwrap();
+        #[cfg(target_os = "macos")]
+        if session.is_macos_bundle() {
+            if !control.saving && control.save_error.is_none()
+                && control.preferences.idle_restart && queue.app_update_idle() {
+                self.shared.closing.store(true, Ordering::Release);
+                session.request_restart();
+            }
+            return;
+        }
         if !control.saving
             && control.save_error.is_none()
-            && !control.confirmation
             && control.preferences.idle_restart
             && queue.begin_idle_app_update()
         {
@@ -423,9 +415,20 @@ impl Handle {
         if session.cancel_restart(queue) {
             self.shared.closing.store(false, Ordering::Release);
         }
-        session
-            .coordinator
-            .set_state(Phase::Failed, None, Some(error));
+        #[cfg(target_os = "macos")]
+        let error = if error == "E_APP_UPDATE_AUTHORIZATION_CANCELLED" {
+            error
+        } else {
+            super::macos_helper::record_result(session.coordinator.install(), Err(error))
+                .expect_err("recording a failure cannot succeed")
+        };
+        #[cfg(target_os = "macos")]
+        if session.requires_authorized_recovery() || error.starts_with("E_APP_UPDATE_AUTHORIZATION_") {
+            let version = session.coordinator.snapshot().version;
+            session.coordinator.set_state(Phase::Ready, version, Some(error));
+            return;
+        }
+        session.coordinator.set_state(Phase::Failed, None, Some(error));
     }
 }
 #[derive(Debug)]
@@ -487,9 +490,14 @@ fn read_source(
         if bytes.len()>16384{return Err("E_APP_UPDATE_MANIFEST_SIZE".into());}return Ok(bytes);
     }
     let _ = fixture;
-    let mut url = url::Url::parse(
-        "https://github.com/Wutpeach/Ameow/releases/latest/download/ameow-update-windows-x64.json",
-    )
+    let source = match install.trust().target() {
+        super::package::WINDOWS_TARGET => "ameow-update-windows-x64.json",
+        super::package::MACOS_ARM_TARGET => "ameow-update-macos-arm64.json",
+        _ => return Err("E_APP_UPDATE_IDENTITY".into()),
+    };
+    let mut url = url::Url::parse(&format!(
+        "https://github.com/Wutpeach/Ameow/releases/latest/download/{source}"
+    ))
     .unwrap();
     use std::io::Read;
     for _ in 0..8 {

@@ -4,7 +4,7 @@ Ameow is a Rust / GPUI floating download application for Windows. This repositor
 
 **Rust has not been officially released.** A default light Inno Setup installer and Launcher-based portable ZIP for Windows x64 are under controlled validation; production signing and public-release restrictions remain in place. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is an unsupported historical release, with no maintenance, upgrades or compatibility support.
 
-[简体中文](README.md) · [Documentation](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Preservation and handoff](docs/repository-handoff.md)
+[简体中文](README.md) · [Documentation](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
 
 ## Build and run
 

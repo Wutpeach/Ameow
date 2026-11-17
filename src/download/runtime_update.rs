@@ -115,6 +115,7 @@ mod tests {
 
 impl Selection {
     pub(crate) fn load(root: &Path) -> Result<Self, String> {
+        super::runtime::check_data_location(root)?;
         let path = root.join("runtime-selection.json");
         let file = match fs::File::open(path) {
             Ok(file) => file,
@@ -132,6 +133,7 @@ impl Selection {
     }
 
     pub(crate) fn persist(&self, root: &Path) -> Result<(), String> {
+        super::runtime::check_data_location(root)?;
         super::runtime::safe_dir(root).map_err(|_| "Cannot create runtime selection directory")?;
         let mut file = tempfile::NamedTempFile::new_in(root)
             .map_err(|_| "Cannot create runtime selection transaction")?;

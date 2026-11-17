@@ -1,37 +1,37 @@
 # 首次 Rust v0.5.0：最短发行操作与所有者交接
 
-截至 2026-11-11，main 为 21c9153e27572ffc3c528ac9b30c505d48a68754（已合并文档 PR #35）。
-本轮按 [#33 指令](https://github.com/Wutpeach/Ameow/issues/33#issuecomment-6785077059) 完善交接，**没有执行下列密钥、源码提交或发布操作**。
-生产根仍为 keys=[]。下一次接入公钥后，应以届时最新的最终 Commit 统一重建；不能把 ffd09460 的旧 CI 构建当作正式包。
+2026-11-11，已保存的发行说明 Commit 124f3720 已正常推送 main。
+用户随后授权当前 Windows 开发电脑上的 Agent 直接生成、保管和使用生产 Ed25519 密钥，无需额外离线设备、隔离环境或限制本机 Agent 读取私钥。
+本轮接入真实公钥并制作**视觉终审前的私有生产签名候选**。最终源码 Commit 以该候选 release-build.json 为准；不能把 ffd09460 的旧 CI 构建当作正式包。
 已验收的更新系统、发行工具及 CI #14/#15（381/0/19、离线 3/3、双资产 6/6）继续复用，不重复完整矩阵。
 
-连续操作顺序：所有者准备密钥并交付公钥 → 接入公钥并固定源码 → 干净构建 → 所有者离线签名 → 验签与双资产 → 本机验收 → Tag/公开上传 → 公网 HTTPS 核对。
-**构建前不需要 Tag**，没有 Gate A/B 或批准文件。下列命令只供后续分别获得密钥接入、源码保存及公开发行授权的会话执行；这些是实际操作边界，不是新增的软件审批状态。
+连续操作顺序：复用本机生产密钥及加密备份 → 接入公钥并固定源码 → 干净构建 → 本机生产签名 → 验签与双资产 → 本机验收 → 用户视觉终审 → 另获授权后 Tag/公开上传 → 公网 HTTPS 核对。
+**构建前不需要 Tag**，没有 Gate A/B 或批准文件。本轮不创建 Tag、Draft/Release 或公开上传安装包；视觉审查如修改程序，须重新确定 Commit、构建并签名。
 
-## 1. 所有者亲自完成：一次密钥准备，仅交付公开公钥
+## 1. 本机生产密钥：先检查并复用，避免重复生成
 
-在安全离线环境、仓库之外的加密存储上，先准备新的 X:/AmeowSigning 目录（两个输出文件均须不存在），使用经核对的现有 ameow-release 工具一次生成 Ed25519 密钥：
+当前密钥目录为仓库外的 D:/AmeowSigning/production。先检查 ameow-primary.pk8 与 public.hex；已有完整密钥时直接复用，不重新生成。只存在其中一个时保留原件并核对，不自动覆盖或轮换。以下 keygen 仅在两者均不存在时执行，工具本身也拒绝已有输出：
 
 ~~~powershell
 $ErrorActionPreference = 'Stop'
-$ownerTool = 'D:/ReviewedTools/ameow-release.exe'
-& $ownerTool keygen X:/AmeowSigning/ameow-primary.pk8 X:/AmeowSigning/public.hex
+$ownerTool = 'D:/Ameow-issue33-release-simplify-20261110-211118/build-final/ameow-release.exe'
+& $ownerTool keygen D:/AmeowSigning/production/ameow-primary.pk8 D:/AmeowSigning/production/public.hex
 if ($LASTEXITCODE -ne 0) { throw 'Key generation failed; preserve existing files and inspect before retrying' }
 ~~~
 
-keygen 输出的 .pk8 是**未加密的 PKCS#8 私钥文件**，工具不提供密码保护；所有者负责加密存储、离线备份和恢复核对。
-私钥不进入 Git、CI、Issue、聊天、日志或任何构建/发行产物，也不交给助手。若公钥输出等步骤失败，保留已有私钥并停止核对，不自动重新生成或覆盖。
-public.hex 是可公开的 64 个十六进制字符（32 字节）公钥。只将它交给开发者，并通过独立渠道核对完整公钥；不得从候选包反向选取可信根。
+keygen 输出的 .pk8 是**未加密的 PKCS#8 私钥文件**，本机 Agent 可按用户授权读取并签名；不进入 Git、CI、Issue、聊天、日志或任何构建/发行产物。若输出等步骤失败，保留原件并停止核对，不自动重新生成或覆盖。
+加密备份位于 D:/AmeowSigning/backups/ameow-primary.pk8.dpapi，使用 Windows DPAPI CurrentUser。创建后须实际解密并在内存中逐字节核对，避免打印或另存明文。恢复依赖当前 Windows 用户配置及其 DPAPI 恢复材料；这不是可在任意电脑仅凭密码打开的归档，不能把同盘副本当作防磁盘损坏的异地备份。
+public.hex 是可公开的 64 个十六进制字符（32 字节）公钥。用本机原始公钥记录核对生产根及构建记录；不得从候选包反向选取可信根。
 
-接入公钥另获授权后，先准备公开输出的 D:/AmeowRelease 目录，用现有命令生成新的公开根文件：
+本机接入使用现有 import-public 命令生成公开根文件；已有该输出时先核对并复用，不重复导入：
 
 ~~~powershell
-& $ownerTool import-public D:/Ameow/assets/app-update-trust.json D:/AmeowRelease/public.hex D:/AmeowRelease/public-roots.json
+& $ownerTool import-public D:/Ameow/assets/app-update-trust.json D:/AmeowSigning/production/public.hex D:/AmeowSigning/production/public-roots.json
 if ($LASTEXITCODE -ne 0) { throw 'Public root import rejected' }
 ~~~
 
-其中 D:/AmeowRelease/public.hex 是所有者交付并经独立核对的公开文件。核对输出 schema=1、keys 中恰好包含所有者的真实公钥，再由开发者在获授权会话中将该公开 JSON 写入 assets/app-update-trust.json，正常保存源码为确定 Commit。
-只复制公钥 JSON，绝不复制 .pk8。App、Launcher 和正式签名用 release tool 必须从这一份源码/公钥统一重建；上面的旧工具只用于生成密钥和导入公开公钥，不用于替代重建后的正式签名工具。
+核对输出 schema=1、keys 中恰好包含本机生成的真实公钥，再将该公开 JSON 写入 assets/app-update-trust.json，与本机交接说明精确保存为确定 Commit，保护所有无关 dirty/untracked。
+只向仓库复制公钥 JSON，绝不复制 .pk8 或加密备份。App、Launcher 和正式签名用 release tool 必须从这一份源码/公钥统一重建；上面的旧工具只用于生成密钥和导入公开公钥，不用于替代重建后的正式签名工具。
 空生产根继续拒绝正式签名/打包；RFC fixture 根不能导入为正式根，也不能凭修改文件名变成正式资产。
 
 ## 2. 开发者：从最终干净 Commit 构建一次
@@ -50,10 +50,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency fetch failed' }
 release-build.json 应为该最终 Commit/tree、dirty=false、version=0.5.0、正确平台/公钥；tag=null 完全有效。
 开发 dirty 候选仍可做未签名准备，但正式 sign 拒绝它。正式根尚未接入时只能生成未签名开发材料。
 
-## 3. 所有者离线签名，再生成四类资产
+## 3. 本机生产签名，再生成四类资产
 
-把同一构建的 prepared 和经核对的重建工具移到所有者离线环境；独立可信公钥副本取自所有者留存记录。
-所有者选择正整数 sequence，必须高于此前正式签发值、从未使用，不以同一 sequence 重签不同清单；首次正式签发可从 1 起。
+在当前 Windows 电脑使用同一构建的 prepared 和经核对的重建工具；可信公钥副本取自 D:/AmeowSigning/production/public-roots.json。现有工具只拒绝 CI/GITHUB_ACTIONS 中的密钥生成和签名，不要求断网或额外设备。
+选择正整数 sequence，必须高于此前签发值、从未使用，不以同一 sequence 重签不同清单；首次可从 1 起。即使只是本地视觉候选，重建重签也使用新的 sequence，并在仓库外保留签发记录。
 issued 为当前 Unix 秒，不是到期时间；明显未来时间（超过接收方时钟 300 秒）会被拒绝。所有清单均无 expires，不需定期重签。
 
 ~~~powershell
@@ -61,18 +61,18 @@ $ErrorActionPreference = 'Stop'
 $tool = 'D:/AmeowRelease/0.5.0/build/ameow-release.exe'
 $prepared = 'D:/AmeowRelease/0.5.0/build/prepared'
 $signed = 'D:/AmeowRelease/0.5.0/signed'
-$roots = 'X:/AmeowSigning/public-roots.json'
+$roots = 'D:/AmeowSigning/production/public-roots.json'
 $sequence = [UInt64](Read-Host '正式 sequence：正整数，须高于此前正式签发值')
 $issued = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 & $tool verify $prepared
 if ($LASTEXITCODE -ne 0) { throw 'Prepared input rejected' }
-& $tool sign $prepared X:/AmeowSigning/ameow-primary.pk8 $signed $sequence $issued
+& $tool sign $prepared D:/AmeowSigning/production/ameow-primary.pk8 $signed $sequence $issued
 if ($LASTEXITCODE -ne 0) { throw 'Signing rejected; stop and retain the original inputs' }
 & $tool verify-signed $signed $roots
 if ($LASTEXITCODE -ne 0) { throw 'Signed input rejected' }
 ~~~
 
-将公开的 signed 目录交回具有同一源码/公钥和 Inno Setup 6 的构建/打包环境；私钥留在所有者离线存储，不随目录转移。按该环境的本地路径设置 tool、signed、roots，双资产入口会再次验签：
+在同一电脑具有相同源码/公钥和 Inno Setup 6 的环境中打包；私钥留在独立签名目录，不复制到 signed/build/delivery。按本次候选的实际目录设置 tool、signed、roots，双资产入口会再次验签：
 
 ~~~powershell
 $ErrorActionPreference = 'Stop'
@@ -109,7 +109,7 @@ Windows Authenticode 不作为首发门槛；未有该签名时 Windows 可能�
 
 ## 5. 唯一最终核心的定向验收，然后才公开上传
 
-下一轮生产根、签名和发布操作获授权后，只做一次关键路径：
+本轮对私有生产签名候选只做一次以下关键路径；复用已有测试，不重复完整 CI。用户仍将进行最后一轮视觉审查，程序如有修改须重新构建签名；公开上传操作另待明确授权。
 
 - **公开上传前**：从最终核心实际安装、通过 Launcher 启动并退出；便携包解压到新可写目录、通过 Launcher 启动。观察真实 Ready 将 pending 确认为当前版本，核对 About=0.5.0、离线声明与原有用户数据。复用 C3/C5 的卸载、回滚、降级/重放证据，不重做原生矩阵。
 - 用最终核心的隔离副本做一次损坏候选拒绝检查，不修改母本；预期不执行/不确认损坏 EXE、不破坏已有安装。签名、来源、哈希、运行保护和 Ready 继续由现有机制校验。
@@ -192,7 +192,7 @@ foreach ($name in $names) {
 ~~~
 
 再让正式 App 的检查更新流程获取并验签真实 latest 清单；四文件与离线验签后的 delivery 哈希一致，才证明公网交付的是同一个核心。
-保留这一构建的源码 Commit、公钥、签名及 delivery 哈希记录。当前仍未接入生产公钥、未签生产包、未执行最终安装/便携/HTTPS 验收；CI success 不替代这些事实。
+保留这一构建的源码 Commit、公钥、签名、sequence 及 delivery 哈希记录。本机候选的实际签名/原生验证结果见 #33 回写；视觉终审和公开后的 HTTPS 仍需分别完成，CI success 不替代这些事实。
 
 ## 现有依赖告警的有界判断
 

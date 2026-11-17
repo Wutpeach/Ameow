@@ -1,6 +1,7 @@
-//! Adopted asymmetric A-soft window motion, plus explicit historical recovery modes.
+//! Asymmetric window motion with direct Full arrival and a size-tuned Compact spring.
 use crate::model::Geometry;
 const B_MIN_X: f32 = -1.2 / 140.;
+const COMPACT_MIN_X: f32 = -3. / 140.;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Candidate {
@@ -31,8 +32,10 @@ impl Candidate {
             Self::B => "b",
         }
     }
-    fn spring(self) -> (f32, f32) {
+    fn spring(self, full: bool) -> (f32, f32) {
         match self {
+            // Basic 2-inspired, tuned for a visible 2–3px compression of the 60px Compact.
+            Self::Converged if !full => (200., 22.),
             Self::Converged | Self::ASoft => (520., 40.),
             Self::ACrisp => (550., 40.),
             Self::B => (520., 36.5),
@@ -129,11 +132,22 @@ impl Motion {
             }
         } else {
             let mut g = Geometry::at(self.x);
+            if self.candidate == Candidate::Converged {
+                // Compress inside the 80px native window without shrinking its hit boundary.
+                g.surface += 140. * self.x.min(0.);
+            }
             g.surface += self.extra;
             g
         }
     }
     fn change_target(&mut self, target: bool) {
+        if self.candidate == Candidate::Converged && target && self.x < 0. {
+            // Transfer the compressed Surface and its velocity before expansion clamps fullness.
+            self.extra += 140. * self.x;
+            self.extra_v += 140. * self.v;
+            self.x = 0.;
+            self.v = 0.;
+        }
         self.target = target;
         self.landing = None;
         self.pulse = None;
@@ -187,32 +201,33 @@ impl Motion {
                 self.landing = None;
                 arrived = true;
                 let crisp = self.candidate == Candidate::ACrisp;
-                self.pulse = Some(Pulse {
-                    elapsed: 0.,
-                    duration: if self.target {
-                        if crisp { 0.160 } else { 0.170 }
-                    } else if crisp {
-                        0.140
-                    } else if self.candidate == Candidate::Converged {
-                        0.120
-                    } else {
-                        0.150
-                    },
-                    peak: if self.target {
-                        if crisp { 3. } else { 2.5 }
-                    } else if crisp {
-                        2.
-                    } else if self.candidate == Candidate::Converged {
-                        0.85
-                    } else {
-                        1.5
-                    },
-                });
+                // Default motion settles once; historical candidates retain their size pulses.
+                self.pulse = if self.candidate == Candidate::Converged {
+                    None
+                } else {
+                    Some(Pulse {
+                        elapsed: 0.,
+                        duration: if self.target {
+                            if crisp { 0.160 } else { 0.170 }
+                        } else if crisp {
+                            0.140
+                        } else {
+                            0.150
+                        },
+                        peak: if self.target {
+                            if crisp { 3. } else { 2.5 }
+                        } else if crisp {
+                            2.
+                        } else {
+                            1.5
+                        },
+                    })
+                };
             } else {
                 self.landing = Some(landing);
             }
         } else if self.x != target || self.v != 0. {
-            let (k, d) = self.candidate.spring();
+            let (k, d) = self.candidate.spring(self.target);
             self.v += (k * (target - self.x) - d * self.v) * h;
             self.x += self.v * h;
             if self.candidate == Candidate::B {
@@ -226,6 +241,19 @@ impl Motion {
                 }
                 if (self.x - target).abs() < 0.0002 && self.v.abs() < 0.003 {
                     self.x = target;
+                    self.v = 0.;
+                }
+            } else if self.candidate == Candidate::Converged && !self.target {
+                if self.x < COMPACT_MIN_X {
+                    self.x = COMPACT_MIN_X;
+                    self.v = self.v.max(0.);
+                }
+                if self.x > 1. {
+                    self.x = 1.;
+                    self.v = self.v.min(0.);
+                }
+                if self.x.abs() < 0.0002 && self.v.abs() < 0.003 {
+                    self.x = 0.;
                     self.v = 0.;
                 }
             } else {
@@ -286,7 +314,7 @@ mod tests {
         assert!(m.x < 1. && m.x > 0.9);
     }
     #[test]
-    fn chosen_expand_matches_repair_a_soft_exactly_and_collapse_changes_only_residual() {
+    fn chosen_expands_without_a_pulse_and_compact_compresses_before_settling() {
         for interval in [1, 4, 16, 33] {
             let mut chosen = Motion::new(Candidate::Converged, false, 0);
             let mut old = Motion::new(Candidate::ASoft, false, 0);
@@ -295,39 +323,40 @@ mod tests {
             for now in (700..=1400).step_by(interval) {
                 chosen.tick(now, true, false);
                 old.tick(now, true, false);
-                assert_eq!(
-                    (chosen.x, chosen.v, chosen.extra, chosen.extra_v),
-                    (old.x, old.v, old.extra, old.extra_v)
-                );
+                assert_eq!((chosen.x, chosen.v), (old.x, old.v));
+                assert_eq!((chosen.extra, chosen.extra_v), (0., 0.));
+                assert!(chosen.geometry().surface <= 200.);
             }
             chosen.tick(1400, false, false);
-            old.tick(1400, false, false);
-            let mut peak = 0f32;
-            for now in (1400..=2200).step_by(interval) {
+            let mut minimum_surface = 200f32;
+            let mut saw_return = false;
+            let mut saw_midpoint = false;
+            for now in (1400..=2600).step_by(interval) {
                 chosen.tick(now, false, false);
-                old.tick(now, false, false);
-                assert_eq!((chosen.x, chosen.v), (old.x, old.v));
-                assert_eq!(
-                    (chosen.geometry().native, chosen.geometry().radius),
-                    (old.geometry().native, old.geometry().radius)
-                );
-                if let Some(pulse) = chosen.pulse {
-                    assert_eq!(pulse.duration, 0.120);
-                    assert_eq!(pulse.peak, 0.85);
+                let g = chosen.geometry();
+                minimum_surface = minimum_surface.min(g.surface);
+                saw_return |= minimum_surface < 59. && g.surface > minimum_surface + 1.;
+                assert_eq!((chosen.extra, chosen.extra_v), (0., 0.));
+                assert!((57. ..=200.).contains(&g.surface));
+                assert!((80. ..=228.).contains(&g.native));
+                if g.surface < 60. {
+                    assert_eq!((g.native, g.gutter), (80., 10.));
                 }
-                peak = peak.max(chosen.extra);
-                assert!(chosen.geometry().surface >= 60.);
+                if (90..=110).contains(&(now - 1400)) {
+                    // Keep the reference's unhurried travel while making the small endpoint visible.
+                    assert!((0.45..=0.65).contains(&chosen.x));
+                    saw_midpoint = true;
+                }
             }
-            assert!((0.65..=0.851).contains(&peak));
-            if interval == 1 {
-                assert!((peak - 0.85).abs() < 0.001);
-            }
-            assert_eq!(chosen.extra, 0.);
+            assert!(saw_midpoint);
+            assert!((57. ..=58.5).contains(&minimum_surface), "{interval}ms: {minimum_surface}px");
+            assert!(saw_return);
+            assert_eq!(chosen.geometry().surface, 60.);
             assert!(!chosen.moving());
         }
     }
     #[test]
-    fn chosen_settle_reversal_retires_pulse_without_position_or_velocity_reset() {
+    fn chosen_reversals_preserve_position_and_velocity() {
         for reverse_at in [80, 210, 290, 330] {
             let mut m = Motion::new(Candidate::Converged, false, 0);
             m.tick(0, true, false);
@@ -336,33 +365,77 @@ mod tests {
             m.tick(reverse_at, false, false);
             assert_eq!(before, (m.x, m.v, m.extra, m.extra_v));
             assert!(m.pulse.is_none());
-            for now in reverse_at + 1..=reverse_at + 800 {
+            for now in reverse_at + 1..=reverse_at + 1200 {
                 m.tick(now, false, false);
-                if let Some(p) = m.pulse {
-                    assert_eq!(p.peak, 0.85);
-                }
+                assert_eq!((m.extra, m.extra_v), (0., 0.));
                 assert!((80. ..=228.).contains(&m.geometry().native));
             }
             assert_eq!((m.x, m.v, m.extra, m.extra_v), (0., 0., 0., 0.));
         }
     }
     #[test]
-    fn chosen_reduced_motion_clears_expand_and_collapse_settle_without_replay() {
+    fn compressed_compact_reverses_without_a_surface_or_velocity_jump() {
+        for interval in [1, 4, 16, 33] {
+            for reverse_at in [320, 360, 420, 500] {
+                let mut m = Motion::new(Candidate::Converged, false, 0);
+                m.tick(0, true, true);
+                m.tick(0, false, false);
+                for now in (0..=reverse_at).step_by(interval) {
+                    m.tick(now, false, false);
+                }
+                m.tick(reverse_at, false, false);
+                assert!(m.x < 0.);
+                let surface = m.geometry().surface;
+                let velocity = 140. * m.v + m.extra_v;
+                m.tick(reverse_at, true, false);
+                assert!((m.geometry().surface - surface).abs() < 0.0001);
+                assert!((140. * m.v + m.extra_v - velocity).abs() < 0.0001);
+                assert_eq!(m.geometry().native, 80.);
+                for now in (reverse_at..=reverse_at + 1000).step_by(interval) {
+                    m.tick(now, true, false);
+                    assert!((57. ..=200.).contains(&m.geometry().surface));
+                    assert!((80. ..=228.).contains(&m.geometry().native));
+                    assert!(m.pulse.is_none());
+                }
+                assert_eq!(m.geometry().surface, 200.);
+                assert!(!m.moving());
+            }
+        }
+    }
+    #[test]
+    fn chosen_reduced_motion_finishes_current_direction_without_replay() {
         for expand in [true, false] {
             let mut m = Motion::new(Candidate::Converged, false, 0);
             if !expand {
                 m.tick(0, true, true);
             }
             m.tick(0, expand, false);
-            run(&mut m, 1, 300, expand);
-            assert!(m.extra > 0.);
-            m.tick(300, expand, true);
+            let at = 160;
+            run(&mut m, 1, at, expand);
+            assert!(m.moving());
+            m.tick(at, expand, true);
             assert_eq!(m.extra, 0.);
             assert_eq!(m.extra_v, 0.);
             assert!(!m.moving());
-            run(&mut m, 301, 800, expand);
+            run(&mut m, at + 1, 800, expand);
             assert_eq!(m.extra, 0.);
             assert_eq!(m.geometry().radius, if expand { 20. } else { 30. });
+        }
+        for reverse in [false, true] {
+            let mut m = Motion::new(Candidate::Converged, false, 0);
+            m.tick(0, true, true);
+            m.tick(0, false, false);
+            run(&mut m, 1, 360, false);
+            assert!(m.geometry().surface < 59.);
+            if reverse {
+                m.tick(360, true, false);
+                assert!(m.recover);
+            }
+            m.tick(360, reverse, true);
+            run(&mut m, 361, 1400, reverse);
+            assert_eq!(m.geometry().surface, if reverse { 200. } else { 60. });
+            assert_eq!((m.extra, m.extra_v), (0., 0.));
+            assert!(!m.moving());
         }
     }
     fn run(m: &mut Motion, start: u64, end: u64, target: bool) {

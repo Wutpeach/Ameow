@@ -121,7 +121,11 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
         return known("E_NETWORK_TEMPORARY", stage);
     }
     // Status evidence is anchored to actual engine error wording, not arbitrary numbers.
-    let code = if evidence.starts_with("E_OBJECT_UNSUPPORTED:") {
+    let code = if evidence.starts_with("E_MEDIA_UNVERIFIED:") {
+        "E_MEDIA_UNVERIFIED"
+    } else if evidence.starts_with("E_MEDIA_INVALID:") {
+        "E_MEDIA"
+    } else if evidence.starts_with("E_OBJECT_UNSUPPORTED:") {
         "E_OBJECT_UNSUPPORTED"
     } else if evidence.starts_with("E_URL_UNSAFE:") {
         "E_URL_UNSAFE"

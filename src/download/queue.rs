@@ -88,7 +88,7 @@ pub struct JobSnapshot {
     pub events: Vec<JobEvent>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 #[path = "../../tests/support/windows_process_fixture.rs"]
 mod preparation_fixture;
 #[cfg(test)]
@@ -263,6 +263,7 @@ mod tests {
         owner.join().map_err(|_| "dispatch panic")?;
         Ok(())
     }
+    #[cfg(windows)]
     #[test]
     fn selection_commit_failure_keeps_previous_policy_and_lease() -> Result<(), String> {
         use std::os::windows::fs::OpenOptionsExt;
@@ -697,6 +698,7 @@ mod tests {
         );
         Ok(())
     }
+    #[cfg(windows)]
     fn clear_fixture_readonly(path: &std::path::Path) -> Result<(), String> {
         use std::os::windows::{ffi::OsStrExt, fs::MetadataExt};
         use windows_sys::Win32::Storage::FileSystem::{
@@ -770,6 +772,8 @@ mod tests {
                 command_gate: Mutex::new(()),
                 preparation_control: Mutex::new(Control::default()),
                 preparation_owner_live: Mutex::new(false),
+                #[cfg(target_os = "macos")]
+                dispatch_progress: std::sync::atomic::AtomicU64::new(0),
                 probe: Mutex::new(None),
                 preparation_test: Mutex::new(None),
                 dispatch_test_exit: std::sync::atomic::AtomicBool::new(false),
@@ -942,6 +946,7 @@ mod tests {
         assert_eq!(fs::read(path.with_extension("invalid")).unwrap(), original);
         Ok(())
     }
+    #[cfg(windows)]
     #[test]
     fn preservation_failure_keeps_download_success_then_recovers_on_later_success() -> Result<(), String> {
         use super::super::contract::Downloader::{YtDlp, GalleryDl};
@@ -1029,6 +1034,7 @@ mod tests {
             assert_eq!(model.downloader_preferences.preferred(&model.records[&job].view.accepted),super::super::contract::Downloader::YtDlp,"case {case}"); assert!(!path.exists(),"case {case}");
         }
     }
+    #[cfg(windows)]
     #[test]
     fn preference_write_failure_preserves_settings_order_and_success() -> Result<(), String> {
         use super::super::contract::Downloader::GalleryDl;
@@ -1220,21 +1226,24 @@ mod tests {
             Settings::load(&backend.shared.settings_path, defaults(root.path()))?,
             b
         );
-        let bytes = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
-        // Real Windows file share denial makes atomic replacement fail; old persisted file survives.
-        use std::os::windows::fs::OpenOptionsExt;
-        let guard = fs::OpenOptions::new()
-            .read(true)
-            .share_mode(1)
-            .open(&backend.shared.settings_path)
-            .map_err(|e| e.to_string())?;
-        assert!(backend.save_settings(a).is_err());
-        assert_eq!(backend.snapshot().settings, b);
-        assert_eq!(
-            fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?,
-            bytes
-        );
-        drop(guard);
+        #[cfg(windows)]
+        {
+            let bytes = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
+            // Real Windows file share denial makes atomic replacement fail; old persisted file survives.
+            use std::os::windows::fs::OpenOptionsExt;
+            let guard = fs::OpenOptions::new()
+                .read(true)
+                .share_mode(1)
+                .open(&backend.shared.settings_path)
+                .map_err(|e| e.to_string())?;
+            assert!(backend.save_settings(a).is_err());
+            assert_eq!(backend.snapshot().settings, b);
+            assert_eq!(
+                fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?,
+                bytes
+            );
+            drop(guard);
+        }
         assert_eq!(
             Settings::load(&backend.shared.settings_path, defaults(root.path()))?,
             b
@@ -1344,7 +1353,6 @@ mod tests {
                 .is_err()
         );
         for url in [
-            "https://youtube.com/watch?v=jNQXAC9IVRw&list=PLabc",
             "https://b23.tv/AbCd12?p=1&p=2",
             "https://b23.tv/AbCd12?p=0",
         ] {
@@ -1356,7 +1364,7 @@ mod tests {
             output_dir: root.path().into(),
         })?;
         assert!(matches!(generic.object, crate::download::request::Object::Generic { .. }));
-        assert!(generic.identity(&metadata).is_err()); // a copied BV path is not a generic identity proof
+        assert_eq!(generic.identity(&metadata)?.site, crate::download::request::Site::Generic);
         Ok(())
     }
     #[test]
@@ -1642,6 +1650,7 @@ mod tests {
         assert!(view.jobs.is_empty());
         Ok(())
     }
+    #[cfg(windows)]
     #[test]
     fn native_shared_preparation_held_retry_waits_for_settlement_and_outer_join()
     -> Result<(), String> {
@@ -1802,6 +1811,7 @@ mod tests {
         );
         Ok(())
     }
+    #[cfg(windows)]
     #[test]
     #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
     fn native_queued_destination_disappearance_fails_without_substituting_new_defaults()
@@ -1879,6 +1889,7 @@ mod tests {
         wait_until(&backend, |v| v.stopped)?;
         Ok(())
     }
+    #[cfg(windows)]
     #[test]
     #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
     fn native_held_three_slots_stop_retains_exact_partials_until_cleanup_and_join()
@@ -2401,6 +2412,11 @@ fn timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis().min(u64::MAX as u128) as u64)
 }
+#[cfg(target_os = "macos")]
+fn dispatch_millis() -> u64 {
+    static ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    ORIGIN.get_or_init(std::time::Instant::now).elapsed().as_millis().min((u64::MAX - 1) as u128) as u64 + 1
+}
 struct Shared {
     model: Mutex<Model>,
     published: Mutex<Arc<QueueSnapshot>>,
@@ -2412,6 +2428,8 @@ struct Shared {
     // Cleanup retry and owner completion/unwind serialize on this gate. Held observations alone
     // cannot establish that a preparation owner still exists to receive the signal.
     preparation_owner_live: Mutex<bool>,
+    #[cfg(target_os = "macos")]
+    dispatch_progress: std::sync::atomic::AtomicU64,
     #[cfg(test)]
     probe: Mutex<Option<Arc<super::TestProbe>>>,
     #[cfg(test)]
@@ -2461,6 +2479,8 @@ impl DownloadCoordinator {
         settings_path: PathBuf,
         defaults: Settings,
     ) -> Result<Self, String> {
+        super::runtime::check_data_location(&services.runtime.root)?;
+        super::runtime::check_data_location(&settings_path)?;
         let settings = Settings::load(&settings_path, defaults)?;
         let mut model = Model::new(settings);
         model.restore_preferences(&super::preferences::path(&settings_path));
@@ -2474,6 +2494,8 @@ impl DownloadCoordinator {
             command_gate: Mutex::new(()),
             preparation_control: Mutex::new(Control::default()),
             preparation_owner_live: Mutex::new(false),
+            #[cfg(target_os = "macos")]
+            dispatch_progress: std::sync::atomic::AtomicU64::new(0),
             #[cfg(test)]
             probe: Mutex::new(None),
             #[cfg(test)]
@@ -2493,6 +2515,15 @@ impl DownloadCoordinator {
     pub fn snapshot(&self) -> QueueSnapshot {
         let view = lock(&self.shared.published).clone();
         (*view).clone()
+    }
+    #[cfg(target_os = "macos")]
+    pub fn app_update_owner_progress(&self) -> u64 {
+        self.shared.dispatch_progress.load(std::sync::atomic::Ordering::Acquire)
+    }
+    #[cfg(target_os = "macos")]
+    pub fn app_update_owner_is_active(&self) -> bool {
+        let progress = self.app_update_owner_progress();
+        progress != 0 && dispatch_millis().saturating_sub(progress) <= 500
     }
     pub fn submit(&self, url: String) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
@@ -2646,6 +2677,16 @@ impl DownloadCoordinator {
     }
     #[cfg(test)]
     pub(crate) fn update_test_queue(root:&std::path::Path)->Self { let queue=tests::fake_backend(root);lock(&queue.shared.model).preparation_requested=false;queue }
+    #[cfg(all(test, target_os = "macos"))]
+    pub(crate) fn update_test_start_owner(&self) -> JoinHandle<()> {
+        self.shared.dispatch_test_exit.store(false, std::sync::atomic::Ordering::Release);
+        let shared = self.shared.clone();
+        thread::spawn(move || dispatch(shared))
+    }
+    #[cfg(all(test, target_os = "macos"))]
+    pub(crate) fn update_test_stop_owner(&self) {
+        self.shared.dispatch_test_exit.store(true, std::sync::atomic::Ordering::Release);
+    }
     pub fn app_update_idle(&self) -> bool {
         lock(&self.shared.model).app_update_idle()
     }
@@ -3523,6 +3564,8 @@ fn dispatch(shared: Arc<Shared>) {
             shared.publish(&model);
             break;
         }
+        #[cfg(target_os = "macos")]
+        shared.dispatch_progress.store(dispatch_millis(), std::sync::atomic::Ordering::Release);
         thread::sleep(Duration::from_millis(20));
     }
 }

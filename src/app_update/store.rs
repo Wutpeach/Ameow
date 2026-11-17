@@ -92,9 +92,48 @@ pub(crate) fn exclusive(path: &Path) -> Result<File, String> {
         use std::os::windows::fs::OpenOptionsExt;
         options.share_mode(0);
     }
-    options
+    let file = options
         .open(path)
-        .map_err(|e| format!("E_APP_UPDATE_LOCK: {e}"))
+        .map_err(|e| format!("E_APP_UPDATE_LOCK: {e}"))?;
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::fd::AsRawFd;
+        unsafe extern "C" {
+            fn flock(fd: std::os::raw::c_int, operation: std::os::raw::c_int) -> std::os::raw::c_int;
+        }
+        if unsafe { flock(file.as_raw_fd(), 2 | 4) } != 0 {
+            return Err(format!("E_APP_UPDATE_LOCK: {}", std::io::Error::last_os_error()));
+        }
+    }
+    Ok(file)
+}
+
+fn extract_windows(mut file: File, archive: &Path, stage: &Path, manifest: &Manifest) -> Result<(), String> {
+    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|_| "E_APP_UPDATE_ZIP")?;
+    if zip.len() != 1 { return Err("E_APP_UPDATE_ZIP_MEMBERS".into()); }
+    let mut member = zip.by_index(0).map_err(|_| "E_APP_UPDATE_ZIP")?;
+    if member.name() != "Ameow.exe" || member.is_dir()
+        || member.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000)
+        || member.size() != manifest.exe_bytes {
+        return Err("E_APP_UPDATE_ZIP_MEMBER".into());
+    }
+    let exe = stage.join("Ameow.exe");
+    let mut output = OpenOptions::new().read(true).write(true).create_new(true).open(&exe)
+        .map_err(|e| e.to_string())?;
+    if std::io::copy(&mut member.by_ref().take(manifest.exe_bytes + 1), &mut output)
+        .map_err(|e| e.to_string())? != manifest.exe_bytes {
+        return Err("E_APP_UPDATE_EXECUTABLE_SIZE".into());
+    }
+    output.sync_all().map_err(|e| e.to_string())?;
+    output.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    if hash_reader(&mut output)?.1 != manifest.exe_sha256 {
+        return Err("E_APP_UPDATE_EXECUTABLE_HASH".into());
+    }
+    drop(output);
+    drop(member);
+    drop(zip);
+    fs::remove_file(archive).map_err(|e| e.to_string())
 }
 impl Install {
     pub fn trust(&self) -> &Trust {
@@ -107,11 +146,26 @@ impl Install {
     pub fn fixture(root: PathBuf) -> Result<Self, String> {
         Self::new(root, Trust::fixture())
     }
+    #[cfg(test)]
+    pub(super) fn unconfigured(root: PathBuf) -> Result<Self, String> {
+        Self::new(root, Trust::offline(&[])?)
+    }
     fn new(root: PathBuf, trust: Trust) -> Result<Self, String> {
         if !root.is_absolute() {
             return Err("E_APP_UPDATE_PATH".into());
         }
         plain(&root)?;
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+            unsafe extern "C" { fn geteuid() -> u32; }
+            fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+            let metadata = fs::symlink_metadata(&root).map_err(|e| e.to_string())?;
+            if !metadata.is_dir() || metadata.uid() != unsafe { geteuid() } || metadata.mode() & 0o022 != 0 {
+                return Err("E_APP_UPDATE_DATA_DIRECTORY".into());
+            }
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
+        }
         fs::create_dir_all(root.join("versions")).map_err(|e| e.to_string())?;
         fs::create_dir_all(root.join("staging")).map_err(|e| e.to_string())?;
         Ok(Self {
@@ -120,7 +174,23 @@ impl Install {
         })
     }
     pub(crate) fn lock(&self) -> Result<File, String> {
-        exclusive(&self.root.join("state.lock"))
+        let path = self.root.join("state.lock");
+        #[cfg(target_os = "macos")]
+        {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(250);
+            loop {
+                match exclusive(&path) {
+                    Ok(lock) => return Ok(lock),
+                    Err(error) if std::time::Instant::now() < deadline
+                        && error.starts_with("E_APP_UPDATE_LOCK:") => {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        exclusive(&path)
     }
     pub fn state(&self) -> Result<State, String> {
         let _lock = self.lock()?;
@@ -142,7 +212,7 @@ impl Install {
         plain(&path)?;
         Ok(path)
     }
-    pub fn verify_release(&self, release: &Release) -> Result<File, String> {
+    pub(crate) fn release_manifest(&self, release: &Release) -> Result<Manifest, String> {
         let dir = self.release_dir(&release.version)?;
         let envelope: SignedManifest = read_json(&dir.join("manifest.json"))?;
         let bytes = serde_json::to_vec(&envelope).map_err(|e| e.to_string())?;
@@ -152,6 +222,20 @@ impl Install {
             || hash(envelope.payload.as_bytes()) != release.manifest_hash
         {
             return Err("E_APP_UPDATE_RELEASE_IDENTITY".into());
+        }
+        Ok(manifest)
+    }
+    pub fn verify_release(&self, release: &Release) -> Result<File, String> {
+        let dir = self.release_dir(&release.version)?;
+        let manifest = self.release_manifest(release)?;
+        #[cfg(target_os = "macos")]
+        if manifest.target != super::package::WINDOWS_TARGET {
+            let path = dir.join("package.zip");
+            let mut archive = super::macos_fs::regular_file(&path)
+                .map_err(|e| format!("E_APP_UPDATE_PACKAGE: {e}"))?;
+            super::macos::verify(&mut archive, &dir, &manifest)?;
+            super::macos::verify_codesign(&dir.join("Ameow.app"), &manifest)?;
+            return Ok(archive);
         }
         let exe = dir.join("Ameow.exe");
         plain(&exe)?;
@@ -204,7 +288,8 @@ impl Install {
     fn authorize(&self, envelope: &[u8]) -> Result<(SignedManifest, Manifest), String> {
         let (signed, manifest) = self.trust.verify(envelope, Some(now()))?;
         let mut state = self.load()?;
-        manifest.newer_than(state.current.as_ref().map_or("0.0.0", |r| &r.version))?;
+        let baseline = if manifest.target == super::package::WINDOWS_TARGET { "0.0.0" } else { super::BUILD_VERSION };
+        manifest.newer_than(state.current.as_ref().map_or(baseline, |r| &r.version))?;
         let digest = hash(signed.payload.as_bytes());
         if state.trial.is_some() {
             return Err("E_APP_UPDATE_TRIAL_BUSY".into());
@@ -355,46 +440,16 @@ impl Install {
         {
             return Err("E_APP_UPDATE_PACKAGE_HASH".into());
         }
-        file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-        let mut zip = zip::ZipArchive::new(file).map_err(|_| "E_APP_UPDATE_ZIP")?;
-        if zip.len() != 1 {
-            return Err("E_APP_UPDATE_ZIP_MEMBERS".into());
+        #[cfg(target_os = "macos")]
+        if manifest.target != super::package::WINDOWS_TARGET {
+            super::macos::extract(&mut file, stage.path(), &manifest, cancel.map(|(flag, _)| flag))?;
+            super::macos::verify_codesign(&stage.path().join("Ameow.app"), &manifest)?;
+            drop(file);
+        } else {
+            extract_windows(file, &archive, stage.path(), &manifest)?;
         }
-        let mut member = zip.by_index(0).map_err(|_| "E_APP_UPDATE_ZIP")?;
-        if member.name() != "Ameow.exe"
-            || member.is_dir()
-            || member
-                .unix_mode()
-                .is_some_and(|mode| mode & 0o170000 == 0o120000)
-            || member.size() != manifest.exe_bytes
-        {
-            return Err("E_APP_UPDATE_ZIP_MEMBER".into());
-        }
-        let exe = stage.path().join("Ameow.exe");
-        let mut output = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .open(&exe)
-            .map_err(|e| e.to_string())?;
-        if std::io::copy(
-            &mut member.by_ref().take(manifest.exe_bytes + 1),
-            &mut output,
-        )
-        .map_err(|e| e.to_string())?
-            != manifest.exe_bytes
-        {
-            return Err("E_APP_UPDATE_EXECUTABLE_SIZE".into());
-        }
-        output.sync_all().map_err(|e| e.to_string())?;
-        output.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-        if hash_reader(&mut output)?.1 != manifest.exe_sha256 {
-            return Err("E_APP_UPDATE_EXECUTABLE_HASH".into());
-        }
-        drop(output);
-        drop(member);
-        drop(zip);
-        fs::remove_file(&archive).map_err(|e| e.to_string())?;
+        #[cfg(not(target_os = "macos"))]
+        extract_windows(file, &archive, stage.path(), &manifest)?;
         atomic_json(&stage.path().join("manifest.json"), &signed)?;
         let release = Release {
             version: manifest.version.clone(),
@@ -418,5 +473,82 @@ impl Install {
         self.save(&state)?;
         progress(Phase::Ready, manifest.version);
         Ok(())
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod macos_tests {
+    use super::*;
+    use crate::app_update::package::{MACOS_ARM_TARGET, fixture_envelope};
+    use std::io::{Cursor, Write};
+
+    #[test]
+    fn update_locks_exclude_another_owner_until_closed() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().canonicalize().unwrap().join("state.lock");
+        let first = exclusive(&path).unwrap();
+        assert!(exclusive(&path).is_err());
+        drop(first);
+        assert!(exclusive(&path).is_ok());
+    }
+
+    #[test]
+    fn state_lock_tolerates_short_lived_contention() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().canonicalize().unwrap().join("install")).unwrap();
+        let lock = install.lock().unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            drop(lock);
+        });
+        assert!(install.state().is_ok());
+        release.join().unwrap();
+    }
+
+    #[test]
+    fn an_unusable_macos_candidate_never_becomes_pending() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path().canonicalize().unwrap().join("install");
+        let install = Install::new(root, Trust::fixture_for_target(MACOS_ARM_TARGET)).unwrap();
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, bytes) in [
+            ("Ameow.app/Contents/MacOS/ameow", &b"executable"[..]),
+            ("Ameow.app/Contents/MacOS/ameow-updater", &b"helper"[..]),
+            ("Ameow.app/Contents/Info.plist", &b"plist"[..]),
+        ] {
+            writer.start_file(name, zip::write::SimpleFileOptions::default().unix_permissions(0o755)).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        let archive = writer.finish().unwrap().into_inner();
+        let manifest = Manifest {
+            schema: 1, product: "Ameow".into(), channel: "stable".into(),
+            target: MACOS_ARM_TARGET.into(), version: "9.0.0".into(), sequence: 1, issued: 1,
+            url: "https://github.com/Wutpeach/Ameow/releases/download/v9.0.0/Ameow-9.0.0-macos-arm64.zip".into(),
+            package_bytes: archive.len() as u64, package_sha256: hash(&archive),
+            exe_bytes: 10, exe_sha256: hash(b"executable"),
+        };
+        let error = install.prepare_fixture(&fixture_envelope(&manifest), &mut Cursor::new(archive)).unwrap_err();
+        assert!(error.contains("BUNDLE_IDENTITY") || error.contains("CODESIGN"));
+        assert!(install.state().unwrap().pending.is_none());
+        assert!(!install.root.join("versions/9.0.0").exists());
+    }
+
+    #[test]
+    fn macos_rejects_the_running_version_and_replayed_sequences() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path().canonicalize().unwrap().join("install");
+        let install = Install::new(root, Trust::fixture_for_target(MACOS_ARM_TARGET)).unwrap();
+        let mut manifest = Manifest {
+            schema: 1, product: "Ameow".into(), channel: "stable".into(),
+            target: MACOS_ARM_TARGET.into(), version: super::super::BUILD_VERSION.into(), sequence: 1, issued: 1,
+            url: format!("https://github.com/Wutpeach/Ameow/releases/download/v{0}/Ameow-{0}-macos-arm64.zip", super::super::BUILD_VERSION),
+            package_bytes: 1, package_sha256: hash(b"a"), exe_bytes: 1, exe_sha256: hash(b"b"),
+        };
+        assert_eq!(install.authorize(&fixture_envelope(&manifest)).unwrap_err(), "E_APP_UPDATE_DOWNGRADE");
+        manifest.version = "9.0.0".into();
+        manifest.url = "https://github.com/Wutpeach/Ameow/releases/download/v9.0.0/Ameow-9.0.0-macos-arm64.zip".into();
+        install.authorize(&fixture_envelope(&manifest)).unwrap();
+        manifest.package_sha256 = hash(b"different");
+        assert_eq!(install.authorize(&fixture_envelope(&manifest)).unwrap_err(), "E_APP_UPDATE_REPLAY");
     }
 }

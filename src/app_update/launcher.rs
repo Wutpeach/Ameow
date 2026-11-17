@@ -18,6 +18,12 @@ pub(crate) struct Ticket {
     pub nonce: String,
     pub version: String,
     pub install: std::path::PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<std::path::PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supervisor: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privileged: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -170,6 +176,9 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
             nonce: random.iter().map(|b| format!("{b:02x}")).collect(),
             version: release.version.clone(),
             install: install.root.clone(),
+            bundle: None,
+            supervisor: None,
+            privileged: None,
         };
         atomic_json(&boot.path().join("ticket.json"), &ticket)?;
         let mut command = Command::new(install.release_dir(&release.version)?.join("Ameow.exe"));
@@ -268,6 +277,14 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
 mod tests {
     use super::*;
     use crate::app_update::{Coordinator, Phase, tests::prepare};
+    #[test]
+    fn windows_ticket_does_not_add_a_bundle_field() {
+        let ticket = Ticket {
+            nonce: "nonce".into(), version: "1.0.0".into(),
+            install: std::path::PathBuf::from("install"), bundle: None, supervisor: None, privileged: None,
+        };
+        assert!(serde_json::to_value(&ticket).unwrap().get("bundle").is_none());
+    }
     #[test]
     fn interrupted_trial_rolls_back_once_without_changing_current_or_user_data() {
         let root = tempfile::tempdir().unwrap();

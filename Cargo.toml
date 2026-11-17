@@ -18,7 +18,6 @@ url = "2"
 tempfile = "3"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_Threading", "Win32_System_IO", "Win32_Networking_WinHttp", "Win32_System_Memory", "Win32_System_Registry", "Win32_Globalization"] }
 # GPUI Kit 0.9.0 snapshot: zed f816e1f9263e3a8ef63c4baaa02e1441ce1c6038.
 gpui = { package = "gpui-pre", version = "=0.3.11", default-features = false, features = ["windows-manifest"] }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", default-features = false }
@@ -26,7 +25,19 @@ gpui-base = "=0.9.0"
 gpui-component = { version = "=0.9.0", default-features = false }
 gpui-kit-assets = "=0.9.0"
 raw-window-handle = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Pipes", "Win32_System_Threading", "Win32_System_IO", "Win32_Networking_WinHttp", "Win32_System_Memory", "Win32_System_Registry", "Win32_Globalization"] }
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_LibraryLoader", "Win32_System_Com"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", default-features = false, features = ["runtime_shaders", "font-kit"] }
+flate2 = "1"
+libc = "0.2"
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSAccessibility", "NSApplication", "NSBitmapImageRep", "NSButton", "NSControl", "NSEvent", "NSGraphics", "NSImage", "NSImageRep", "NSPasteboard", "NSResponder", "NSScreen", "NSStatusBar", "NSStatusBarButton", "NSStatusItem", "NSView", "NSWindow", "NSWorkspace", "objc2-core-foundation"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSData", "NSGeometry", "NSLocale", "NSObject", "NSString", "NSThread", "NSUserDefaults"] }
+tar = "0.4"
 
 [profile.dev]
 debug = 0

@@ -3,7 +3,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{cmp::Ordering, io::Read};
 
-pub const TARGET: &str = "x86_64-pc-windows-msvc";
+pub(crate) const WINDOWS_TARGET: &str = "x86_64-pc-windows-msvc";
+pub(crate) const MACOS_ARM_TARGET: &str = "aarch64-apple-darwin";
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const TARGET: &str = MACOS_ARM_TARGET;
+#[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+pub const TARGET: &str = "unsupported-macos";
+#[cfg(not(target_os = "macos"))]
+pub const TARGET: &str = WINDOWS_TARGET;
 pub const BUILD_VERSION: &str = match option_env!("AMEOW_FIXTURE_BUILD_VERSION") {
     Some(version) if cfg!(all(feature = "app-update-fixture", debug_assertions)) => version,
     _ => env!("CARGO_PKG_VERSION"),
@@ -59,14 +66,18 @@ pub struct SignedManifest {
 #[derive(Clone)]
 pub struct Trust {
     keys: Vec<Vec<u8>>,
+    target: &'static str,
 }
 impl Trust {
     // Offline release tooling supplies explicit public roots; application roots stay embedded.
     pub(crate) fn offline(keys: &[String]) -> Result<Self, String> {
-        Ok(Self { keys: keys.iter().map(|key| unhex(key, 32)).collect::<Result<_, _>>()? })
+        Ok(Self { keys: keys.iter().map(|key| unhex(key, 32)).collect::<Result<_, _>>()?, target: WINDOWS_TARGET })
     }
     pub fn configured(&self) -> bool {
         !self.keys.is_empty()
+    }
+    pub(crate) fn target(&self) -> &'static str {
+        self.target
     }
     pub fn production() -> Result<Self, String> {
         #[derive(Deserialize)]
@@ -86,10 +97,14 @@ impl Trust {
             .iter()
             .map(|k| unhex(k, 32))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { keys })
+        Ok(Self { keys, target: TARGET })
     }
     #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     pub fn fixture() -> Self {
+        #[cfg(test)]
+        let target = WINDOWS_TARGET;
+        #[cfg(not(test))]
+        let target = TARGET;
         // RFC 8032 public test vector, deliberately absent from production roots.
         Self {
             keys: vec![
@@ -99,7 +114,12 @@ impl Trust {
                 )
                 .unwrap(),
             ],
+            target,
         }
+    }
+    #[cfg(test)]
+    pub(crate) fn fixture_for_target(target: &'static str) -> Self {
+        Self { target, ..Self::fixture() }
     }
     pub fn verify(
         &self,
@@ -125,22 +145,30 @@ impl Trust {
         }
         let manifest: Manifest =
             serde_json::from_str(&envelope.payload).map_err(|_| "E_APP_UPDATE_MANIFEST")?;
-        manifest.validate(acquisition_time)?;
+        manifest.validate_for_target(acquisition_time, self.target)?;
         Ok((envelope, manifest))
     }
 }
 impl Manifest {
     pub(crate) fn validate(&self, now: Option<u64>) -> Result<(), String> {
+        self.validate_for_target(now, WINDOWS_TARGET)
+    }
+    pub(crate) fn validate_for_target(&self, now: Option<u64>, target: &str) -> Result<(), String> {
         Version::parse(&self.version)?;
         if self.schema != 1
             || self.product != "Ameow"
             || self.channel != "stable"
-            || self.target != TARGET
+            || self.target != target
         {
             return Err("E_APP_UPDATE_IDENTITY".into());
         }
+        let platform = match target {
+            WINDOWS_TARGET => "windows-x64",
+            MACOS_ARM_TARGET => "macos-arm64",
+            _ => return Err("E_APP_UPDATE_IDENTITY".into()),
+        };
         let expected = format!(
-            "https://github.com/Wutpeach/Ameow/releases/download/v{}/Ameow-{}-windows-x64.zip",
+            "https://github.com/Wutpeach/Ameow/releases/download/v{}/Ameow-{}-{platform}.zip",
             self.version, self.version
         );
         if self.url != expected {
@@ -219,4 +247,35 @@ pub fn fixture_envelope(manifest: &Manifest) -> Vec<u8> {
         signature: sig.as_ref().iter().map(|b| format!("{b:02x}")).collect(),
     };
     serde_json::to_vec(&envelope).unwrap()
+}
+
+#[cfg(test)]
+mod platform_tests {
+    use super::*;
+
+    fn manifest(target: &str, platform: &str) -> Manifest {
+        Manifest {
+            schema: 1, product: "Ameow".into(), channel: "stable".into(),
+            target: target.into(), version: "1.2.3".into(), sequence: 1, issued: 1,
+            url: format!("https://github.com/Wutpeach/Ameow/releases/download/v1.2.3/Ameow-1.2.3-{platform}.zip"),
+            package_bytes: 10, package_sha256: hash(b"package"),
+            exe_bytes: 5, exe_sha256: hash(b"exe"),
+        }
+    }
+
+    #[test]
+    fn platform_signatures_cannot_cross_architectures_or_origins() {
+        for (target, platform) in [(WINDOWS_TARGET, "windows-x64"),
+            (MACOS_ARM_TARGET, "macos-arm64")] {
+            let signed = fixture_envelope(&manifest(target, platform));
+            assert!(Trust::fixture_for_target(target).verify(&signed, None).is_ok());
+            for other in [WINDOWS_TARGET, MACOS_ARM_TARGET, "x86_64-apple-darwin"] {
+                if other != target {
+                    assert!(Trust::fixture_for_target(other).verify(&signed, None).is_err());
+                }
+            }
+            let wrong = fixture_envelope(&manifest(target, "windows-x64-bad"));
+            assert_eq!(Trust::fixture_for_target(target).verify(&wrong, None).unwrap_err(), "E_APP_UPDATE_ORIGIN");
+        }
+    }
 }

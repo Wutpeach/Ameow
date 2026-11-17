@@ -6,6 +6,12 @@ use std::{collections::BTreeSet, fs, path::Path};
 pub const SOURCE: &str = "THIRD_PARTY_NOTICES.md";
 pub const INVENTORY: &str = "distribution/license-inputs.json";
 pub const PACKAGES: &str = "distribution/notices/rust-dependency-inventory.json";
+pub const MACOS_INVENTORY: &str = "distribution/macos-license-inputs.json";
+pub const MACOS_TEXTS: &[&str] = &[
+    "src/download/macos-runtime-notice-inputs.md",
+    "src/download/macos-runtime-licenses.txt",
+    "assets/runtime-GPL-3.0.txt",
+];
 pub const TEXTS: &[&str] = &[
     "LICENSE",
     "assets/fonts/OFL.txt",
@@ -145,6 +151,15 @@ pub fn standard_library_text(html: &str) -> Result<String, String> {
 }
 
 pub fn assemble(root: &Path, version: &str) -> Result<String, String> {
+    let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_else(|_| std::env::consts::OS.into());
+    if target == "macos" {
+        println!("cargo:rerun-if-changed={MACOS_INVENTORY}");
+        for path in MACOS_TEXTS { println!("cargo:rerun-if-changed={path}"); }
+    }
+    assemble_for_target(root, version, &target)
+}
+
+pub fn assemble_for_target(root: &Path, version: &str, target: &str) -> Result<String, String> {
     let inventory: Value = serde_json::from_slice(
         &fs::read(root.join(INVENTORY)).map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?,
     )
@@ -214,6 +229,20 @@ pub fn assemble(root: &Path, version: &str) -> Result<String, String> {
     }
     if included.len() != TEXTS.len() || !mapped {
         return Err("E_NOTICES_INCOMPLETE".into());
+    }
+    if target == "macos" {
+        let inventory: Value = serde_json::from_slice(
+            &fs::read(root.join(MACOS_INVENTORY)).map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?,
+        ).map_err(|e| format!("E_NOTICES_INVENTORY: {e}"))?;
+        let mut extra = String::new();
+        for path in MACOS_TEXTS {
+            extra.push_str(&checked(root, &inventory, path)?);
+            if !extra.ends_with('\n') { extra.push('\n'); }
+            extra.push('\n');
+        }
+        let end = format!("End of third-party notices for Ameow {version}.\n");
+        if !result.ends_with(&end) { return Err("E_NOTICES_END".into()); }
+        result.insert_str(result.len() - end.len(), &extra);
     }
     Ok(result)
 }

@@ -2,6 +2,8 @@
 
 These are real Windows Rust / GPUI captures reused from existing acceptance evidence, not new #19 captures or generated UI. / 以下均为既有验收的真实截图，不是 #19 新截图或生成界面。
 
+The former local docs/evidence/ backups and #19 receipt copy were removed at the user's request; see [historical-source status](../../../../docs/README.md#历史资料) for remaining availability. Original paths below are provenance only; published image files remain here. / 原本机证据备份和回执副本已按用户要求移除，以下原路径仅用于追溯；本站图片继续保留。
+
 | Asset | Provenance and use / 来源与用途 | Processing / 处理 |
 | --- | --- | --- |
 | rust-compact-themes.png | #18 repair, final evidence commit 5a76c480; Compact light/dark theme persistence only / 仅 Compact 明暗主题 | Byte-for-byte copy of docs/evidence/issue18-repair-native.png; withdrawn from user pages in #19 Repair because its small size and captured purple pointer obscure the product / 因尺寸小且带紫色指针，已从用户页面撤下 |

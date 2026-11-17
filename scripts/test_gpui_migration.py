@@ -151,7 +151,7 @@ def run(exe, out):
             check('settings titlebar supports real mouse drag', abs(after[0]-before[0]) > 30*scale and abs(after[1]-before[1]) > 15*scale, dict(before=before, after=after))
             # The production theme trigger is shared with the preview; it must
             # respond once per Enter, retain its focused handle, and close on Esc.
-            u.SetCursorPos(round(after[0]+460*scale), round(after[1]+172*scale))
+            u.SetCursorPos(round(after[0]+460*scale), round(after[1]+132*scale))
             u.mouse_event(2,0,0,0,0); u.mouse_event(4,0,0,0,0)
             time.sleep(.2)
             key(0x1B)
@@ -167,7 +167,7 @@ def run(exe, out):
             time.sleep(.15)
             opened = shot()
             opened.save(out/'settings-keyboard-menu.png')
-            area = tuple(round(v*scale) for v in (400, 196, 550, 280))
+            area = tuple(round(v*scale) for v in (400, 156, 550, 240))
             changed = sum(max(p) > 12 for p in ImageChops.difference(closed, opened).crop(area).get_flattened_data())
             check('one Enter visibly opens theme options', changed > 250*scale*scale, dict(changed_menu_pixels=changed))
             key(0x1B)

@@ -28,7 +28,7 @@ impl RuntimeComponent {
             "yt-dlp" => Self::YtDlp,
             "gallery-dl" => Self::GalleryDl,
             "deno" => Self::Deno,
-            "ffmpeg" => Self::Ffmpeg,
+            "ffmpeg" | "ffprobe" => Self::Ffmpeg,
             _ => Self::Runtime,
         }
     }

@@ -1,12 +1,14 @@
 pub mod bridge_commands;
 pub mod diagnostics;
 pub mod network;
+#[cfg_attr(target_os = "macos", path = "output_macos.rs")]
 pub mod output;
 pub mod contract;
 pub mod adapter;
 pub mod adapters;
 pub mod composition;
 pub mod verification;
+#[cfg_attr(target_os = "macos", path = "process_supervisor_macos.rs")]
 pub mod process_supervisor;
 pub mod progress;
 pub mod preparation;
@@ -14,6 +16,8 @@ pub mod upstream;
 pub mod queue;
 pub mod request;
 pub mod runtime;
+#[cfg(target_os = "macos")]
+mod macos_gallery;
 pub mod runtime_update;
 mod runtime_update_trust;
 mod release_signature;
@@ -23,6 +27,8 @@ pub mod preferences;
 mod neutral_tests;
 #[cfg(test)]
 mod collection_tests;
+#[cfg(all(test, target_os = "macos"))]
+mod runtime_macos_tests;
 // Existing supervisor regression fixtures keep their original bytes; never a production path.
 #[cfg(test)]
 use adapters::yt_dlp::{parse_final_record, validate_engine_outcome};
@@ -31,7 +37,7 @@ use process_supervisor::{Control, ProcessObservation};
 #[cfg(test)]
 use process_supervisor::ProcessSpec;
 use adapter::{DownloadServices, ExecutionContext, IdentityAdmission};
-use contract::{AdapterEvent, ExecutionRequest, VerificationRequirements};
+use contract::{AdapterEvent, ExecutionRequest};
 #[cfg(test)]
 use contract::MediaKind;
 use request::{Accepted, DownloadIntent, Identity};
@@ -39,12 +45,26 @@ use runtime::RuntimeLease;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    os::windows::fs::MetadataExt,
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
     thread,
     time::Duration,
 };
+
+pub(crate) fn is_plain_file(metadata: &fs::Metadata) -> bool {
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 == 0
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Phase {
@@ -364,6 +384,8 @@ fn execute(
     let mut lease = None;
     let mut destination_stage = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        runtime::check_data_location(&manager.root)?;
+        runtime::check_data_location(&accepted.intent.output_dir)?;
         if !accepted.intent.output_dir.is_dir() {
             adapter_failure = Some(diagnostics::Failure::new(
                 diagnostics::FailureCode::Storage,
@@ -591,6 +613,7 @@ fn execute(
             })?;
         if batch.collection {
             let failure = batch.failure.clone();
+            adapter_failure = failure.clone();
             deliver_collection(&state, &services, &context, &accepted, job, attempt, batch, &mut destination_stage)?;
             if let Some(failure) = failure {
                 let message = format!("{}: {}", failure.code, failure.reason);
@@ -610,8 +633,7 @@ fn execute(
         {
             return Err("Artifact kind or admitted identity mismatch".into());
         }
-        if let VerificationRequirements::Video(expected) = &artifact.verification
-            && (expected.height_cap != accepted.intent.quality.cap() || !expected.requires_audio)
+        if artifact.verification.height_cap().is_some_and(|cap| cap != accepted.intent.quality.cap())
         {
             return Err("Artifact verification changed frozen video requirements".into());
         }
@@ -639,20 +661,21 @@ fn execute(
             .ok_or("Owned destination stage missing")?;
         {
             let mut state = lock(&state);
-            state.snapshot.destination_stage = Some(staged.path.clone());
+            state.snapshot.destination_stage = staged.owned_path().map(PathBuf::from);
             state.snapshot.revision += 1;
             state.publish();
         }
         staged
             .fill(&media)
             .map_err(|error| format!("E_STORAGE: {error}"))?;
+        let name = output::media_basename(&identity.title, &identity.id, &media.facts);
         commit_delivery(
             &state,
             job,
             attempt,
             staged,
             &accepted.intent.output_dir,
-            &identity.id,
+            &name,
             media,
         )?;
         Ok::<(), String>(())
@@ -691,7 +714,7 @@ fn execute(
         }
     };
     let failure = if matches!(phase, Phase::Failure | Phase::Partial) {
-        Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::local(&error_phase)))
+        Some(adapter_failure.unwrap_or_else(|| diagnostics::Failure::from_error(&error_phase, &message)))
     } else if phase == Phase::Cancelled {
         Some(diagnostics::cancelled())
     } else {
@@ -790,6 +813,7 @@ fn deliver_collection(
         saved.directory = Some(output::collection_directory(&accepted.intent.output_dir, &identity.title)?);
     }
     let destination = saved.directory.as_deref().unwrap_or(&accepted.intent.output_dir);
+    runtime::check_data_location(destination)?;
     runtime::safe_dir(destination)?;
     if !destination.canonicalize().map_err(|e| e.to_string())?
         .starts_with(&accepted.intent.output_dir) {
@@ -803,6 +827,10 @@ fn deliver_collection(
     let mut invalid = None;
     let verification_started = std::time::Instant::now();
     for artifact in batch.artifacts {
+        if artifact.verification.height_cap().is_some_and(|cap| cap != accepted.intent.quality.cap()) {
+            invalid = Some("Artifact verification changed frozen quality requirements".into());
+            continue;
+        }
         // Best-effort salvage is bounded; cancellation must not decode an entire large album.
         if context.cancelled() && verification_started.elapsed() >= Duration::from_secs(2) { break; }
         update(state, job, attempt, Phase::Validating, String::new());
@@ -820,14 +848,15 @@ fn deliver_collection(
         let staged = destination_stage.as_mut().ok_or("Collection stage missing")?;
         {
             let mut state = lock(state);
-            state.snapshot.destination_stage = Some(staged.path.clone());
+            state.snapshot.destination_stage = staged.owned_path().map(PathBuf::from);
             state.publish();
         }
         staged.fill(&media)?;
-        let base = artifact.relative_path.file_stem().and_then(|s| s.to_str()).ok_or("Missing collection filename")?;
+        let fallback = artifact.relative_path.file_stem().and_then(|s| s.to_str()).ok_or("Missing collection filename")?;
+        let name = output::media_basename(&artifact.identity.title, fallback, &media.facts);
         // Completed collection files survive cancellation; no transfer is running at this point.
         let mut delivered = media;
-        delivered.path = staged.publish(destination, base)?;
+        delivered.path = staged.publish(destination, &name)?;
         delivered.identity_guard = None;
         saved.files.retain(|f| f.relative_path != artifact.relative_path);
         saved.files.push(contract::CollectionFile { relative_path: artifact.relative_path, delivered });
@@ -850,7 +879,7 @@ fn commit_delivery(
     attempt: u64,
     staged: &mut output::DestinationStage,
     destination: &std::path::Path,
-    identity: &str,
+    name: &str,
     mut media: output::VerifiedMedia,
 ) -> Result<(), String> {
     let mut authority = lock(state);
@@ -865,7 +894,7 @@ fn commit_delivery(
         return Err("Cancelled before atomic publication".into());
     }
     media.path = staged
-        .publish(destination, identity)
+        .publish(destination, name)
         .map_err(|error| format!("E_STORAGE: {error}"))?;
     media.identity_guard = None;
     authority.snapshot.delivered = Some(media);
@@ -927,7 +956,7 @@ fn preserve_diagnostics(
         }
         let source = working.join(name);
         match fs::symlink_metadata(&source) {
-            Ok(meta) if meta.is_file() && meta.file_attributes() & 0x400 == 0 => {
+            Ok(meta) if is_plain_file(&meta) => {
                 if meta.len() <= limit
                     && archived_bytes.saturating_add(meta.len()) <= 64 * 1024 * 1024
                 {

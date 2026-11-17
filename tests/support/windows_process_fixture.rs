@@ -17,7 +17,7 @@ static FIXTURE: OnceLock<PathBuf> = OnceLock::new();
 static CASE: AtomicU64 = AtomicU64::new(0);
 pub fn session_root() -> PathBuf {
     std::env::var_os("AMEOW_PROCESS_EVIDENCE_ROOT").map(PathBuf::from).unwrap_or_else(||
-        PathBuf::from("D:/Ameow/.trellis/tasks/10-10-tra23-r1-stage-a-rust-download-kernel/research/stage-a-process"))
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("evidence/windows-process"))
         .join(format!("run-{}", std::process::id()))
         // This helper is included by several modules, each with its own OnceLock.
         // Keep their compiler outputs and case counters independent under parallel tests.

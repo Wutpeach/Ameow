@@ -8,13 +8,40 @@ use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
     io::{Read, Write},
-    os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
     time::Duration,
 };
+#[cfg(windows)]
+use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+#[cfg(target_os = "macos")]
+use std::os::unix::{fs::{MetadataExt, OpenOptionsExt, PermissionsExt}, io::AsRawFd};
 
+#[cfg(not(target_os = "macos"))]
 const MANIFEST: &str = include_str!("../../assets/runtime-manifest.json");
+#[cfg(target_os = "macos")]
+const MANIFEST: &str = include_str!("macos-runtime-manifest.json");
+
+fn native_tool_name(name: &str) -> &str {
+    #[cfg(target_os = "macos")]
+    {
+        name.strip_suffix(".exe").unwrap_or(name)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        name
+    }
+}
+#[cfg(target_os = "macos")]
+pub(crate) const PYTHON_TOOL: &str = "python/bin/python3.13";
+
+#[cfg(target_os = "macos")]
+pub(crate) fn python_zipapp(python: PathBuf, archive: &Path, args: Vec<String>) -> Result<(PathBuf, Vec<String>), String> {
+    let archive = archive.to_str().ok_or("Runtime zipapp path is not valid UTF-8")?;
+    let mut command = vec!["-I".into(), "-B".into(), archive.into()];
+    command.extend(args);
+    Ok((python, command))
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Manifest {
     pub schema: u32,
@@ -41,6 +68,8 @@ pub struct RuntimeFile {
     pub version_contains: String,
 }
 pub fn manifest() -> Result<Manifest, String> {
+    #[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+    return Err("Managed macOS runtime requires Apple Silicon".into());
     serde_json::from_str(MANIFEST).map_err(|e| format!("Embedded runtime manifest: {e}"))
 }
 pub fn hash(mut input: impl Read) -> Result<String, String> {
@@ -60,16 +89,13 @@ pub fn hash(mut input: impl Read) -> Result<String, String> {
 pub fn check_file(path: &Path, expected: &str) -> Result<File, String> {
     let metadata = fs::symlink_metadata(path)
         .map_err(|e| format!("Runtime identity {}: {e}", path.display()))?;
-    if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 {
+    if !super::is_plain_file(&metadata) {
         return Err(format!(
             "Runtime identity is not a regular non-reparse file: {}",
             path.display()
         ));
     }
-    let mut file = OpenOptions::new()
-        .read(true)
-        .share_mode(1)
-        .open(path)
+    let mut file = open_identity_file(path)
         .map_err(|e| format!("Runtime read-only lease: {e}"))?;
     let actual = hash(&mut file)?;
     if actual != expected {
@@ -80,11 +106,151 @@ pub fn check_file(path: &Path, expected: &str) -> Result<File, String> {
     }
     Ok(file)
 }
+pub(crate) fn open_identity_file(path: &Path) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    options.share_mode(1);
+    #[cfg(target_os = "macos")]
+    options.custom_flags(libc::O_NOFOLLOW);
+    let file = options.open(path)?;
+    #[cfg(target_os = "macos")]
+    {
+        let path_metadata = fs::symlink_metadata(path)?;
+        let opened = file.metadata()?;
+        if !super::is_plain_file(&path_metadata) || !opened.is_file()
+            || path_metadata.dev() != opened.dev() || path_metadata.ino() != opened.ino()
+        {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "runtime file identity changed"));
+        }
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_SH | libc::LOCK_NB) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    Ok(file)
+}
+
+fn is_link(metadata: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    { metadata.file_attributes() & 0x400 != 0 }
+    #[cfg(target_os = "macos")]
+    { metadata.file_type().is_symlink() }
+}
+
+fn lock_preparation(root: &Path) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(false);
+    #[cfg(windows)]
+    options.share_mode(0);
+    #[cfg(target_os = "macos")]
+    options.custom_flags(libc::O_NOFOLLOW);
+    let file = options.open(root.join("prepare.lock"))?;
+    #[cfg(target_os = "macos")]
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(file)
+}
+
+#[cfg(target_os = "macos")]
+fn absolute_normalized(path: &Path) -> Result<PathBuf, String> {
+    use std::path::Component;
+    let absolute = if path.is_absolute() { path.to_path_buf() } else {
+        std::env::current_dir().map_err(|error| error.to_string())?.join(path)
+    };
+    let mut result = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::RootDir => result.push("/"),
+            Component::Normal(name) => result.push(name),
+            Component::CurDir => {}
+            Component::ParentDir if result.pop() => {}
+            _ => return Err("Invalid managed storage path".into()),
+        }
+    }
+    Ok(result)
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_existing_ancestor(path: &Path) -> Result<PathBuf, String> {
+    let mut ancestor = path;
+    loop {
+        match fs::symlink_metadata(ancestor) {
+            Ok(_) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                ancestor = ancestor.parent().ok_or("Managed storage has no existing ancestor")?;
+            }
+            Err(error) => return Err(format!("Managed storage identity: {error}")),
+        }
+    }
+    let resolved = ancestor.canonicalize().map_err(|error| error.to_string())?;
+    let suffix = path.strip_prefix(ancestor).map_err(|error| error.to_string())?;
+    absolute_normalized(&resolved.join(suffix))
+}
+
+#[cfg(target_os = "macos")]
+fn check_storage_for_home(path: &Path, home: &Path) -> Result<(), String> {
+    let target = if path.is_absolute() { path.to_path_buf() } else {
+        std::env::current_dir().map_err(|error| error.to_string())?.join(path)
+    };
+    let legacy = absolute_normalized(&home.join("Library/Application Support/Ameow"))?;
+    if absolute_normalized(&target)?.starts_with(&legacy) {
+        return Err("E_LEGACY_STORAGE: Native Ameow does not use legacy data".into());
+    }
+    let resolved_target = resolve_existing_ancestor(&target)?;
+    let resolved_legacy = resolve_existing_ancestor(&legacy)?;
+    if resolved_target.starts_with(&resolved_legacy) {
+        return Err("E_LEGACY_STORAGE: Native Ameow does not use legacy data".into());
+    }
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+thread_local! {
+    static TEST_DATA_HOME: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(all(test, target_os = "macos"))]
+pub(super) fn with_test_data_home<T>(home: &Path, action: impl FnOnce() -> T) -> T {
+    struct Restore(Option<PathBuf>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            TEST_DATA_HOME.with(|slot| { slot.replace(self.0.take()); });
+        }
+    }
+    let previous = TEST_DATA_HOME.with(|slot| slot.replace(Some(home.to_path_buf())));
+    let _restore = Restore(previous);
+    action()
+}
+
+pub(crate) fn check_data_location(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        #[cfg(test)]
+        if let Some(home) = TEST_DATA_HOME.with(|slot| slot.borrow().clone()) {
+            return check_storage_for_home(path, &home);
+        }
+        let home = std::env::var_os("HOME").ok_or("Managed home directory unavailable")?;
+        check_storage_for_home(path, Path::new(&home))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
 pub(crate) fn safe_dir(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| format!("App-owned directory: {e}"))?;
-    for ancestor in path.ancestors() {
+    if is_link(&fs::symlink_metadata(path).map_err(|e| e.to_string())?) {
+        return Err("Managed directory is a symlink".into());
+    }
+    #[cfg(target_os = "macos")]
+    let checked = path.canonicalize().map_err(|e| e.to_string())?;
+    #[cfg(not(target_os = "macos"))]
+    let checked = path.to_path_buf();
+    for ancestor in checked.ancestors() {
         let metadata = fs::symlink_metadata(ancestor).map_err(|e| e.to_string())?;
-        if metadata.file_attributes() & 0x400 != 0 {
+        if is_link(&metadata) {
             return Err(format!(
                 "Managed path crosses reparse point {}",
                 ancestor.display()
@@ -97,6 +263,7 @@ pub fn child_environment(workspace: &Path) -> Result<Vec<(String, String)>, Stri
     for dir in ["home", "temp", "appdata", "localappdata"] {
         fs::create_dir_all(workspace.join(dir)).map_err(|e| e.to_string())?;
     }
+    #[cfg(windows)]
     let mut environment: Vec<(String, String)> = vec![
         (
             "SystemRoot".into(),
@@ -118,6 +285,16 @@ pub fn child_environment(workspace: &Path) -> Result<Vec<(String, String)>, Stri
         ("TEMP".into(), workspace.join("temp").display().to_string()),
         ("TMP".into(), workspace.join("temp").display().to_string()),
     ];
+    #[cfg(target_os = "macos")]
+    let mut environment: Vec<(String, String)> = vec![
+        ("PATH".into(), String::new()),
+        ("TMPDIR".into(), workspace.join("temp").display().to_string()),
+        ("TMP".into(), workspace.join("temp").display().to_string()),
+        ("XDG_CONFIG_HOME".into(), workspace.join("appdata").display().to_string()),
+        ("XDG_CACHE_HOME".into(), workspace.join("localappdata").display().to_string()),
+        ("SSL_CERT_FILE".into(), "/etc/ssl/cert.pem".into()),
+        ("LANG".into(), "en_US.UTF-8".into()),
+    ];
     environment.sort_by_key(|(key, _)| key.to_uppercase());
     Ok(environment)
 }
@@ -129,11 +306,16 @@ pub struct TrustedRuntimeRequirements {
 }
 impl TrustedRuntimeRequirements {
     pub(crate) fn compiled(probes: &[(&str, &[&str])], additions: &[(&str, &str, bool)]) -> Self {
+        #[allow(unused_mut)]
+        let mut probes: BTreeMap<String, Vec<String>> = probes.iter()
+            .map(|(name, args)| (native_tool_name(name).into(), args.iter().map(|s| (*s).into()).collect()))
+            .collect();
+        #[cfg(target_os = "macos")]
+        if probes.contains_key("yt-dlp") || probes.contains_key("gallery-dl") {
+            probes.entry(PYTHON_TOOL.into()).or_insert_with(|| vec!["--version".into()]);
+        }
         Self {
-            probes: probes
-                .iter()
-                .map(|(name, args)| ((*name).into(), args.iter().map(|s| (*s).into()).collect()))
-                .collect(),
+            probes,
             additions: additions
                 .iter()
                 .map(|(key, value, dir)| ((*key).into(), (*value).into(), *dir))
@@ -150,7 +332,7 @@ impl TrustedRuntimeRequirements {
         }
     }
     pub fn contains(&self, file: &str) -> bool {
-        self.probes.contains_key(file)
+        self.probes.contains_key(native_tool_name(file))
     }
     pub fn versions(&self) -> Vec<(String, String)> {
         if self.empty {
@@ -208,6 +390,9 @@ impl TrustedRuntimeRequirements {
                         | "TEMP"
                         | "TMP"
                 )
+                || (cfg!(target_os = "macos") && matches!(key.as_str(),
+                    "HOME" | "CODEX_HOME" | "TMPDIR" | "XDG_CONFIG_HOME" | "XDG_CACHE_HOME"
+                    | "SSL_CERT_FILE" | "SSL_CERT_DIR"))
             {
                 return Err("Runtime environment cannot override base isolation".into());
             }
@@ -263,16 +448,27 @@ pub struct RuntimeLease {
     requirement_id: String,
     marker_bytes: u64,
     pub files: BTreeMap<String, PathBuf>,
+    #[cfg(target_os = "macos")]
+    hashes: BTreeMap<String, String>,
     pub versions: Vec<(String, String)>,
     pub digest: String,
     _guards: Vec<File>,
 }
 impl RuntimeLease {
     pub fn file(&self, name: &str) -> Result<PathBuf, String> {
-        self.files
-            .get(name)
-            .cloned()
-            .ok_or_else(|| format!("Manifest executable missing: {name}"))
+        let name = native_tool_name(name);
+        let path = self.files.get(name).cloned()
+            .ok_or_else(|| format!("Manifest executable missing: {name}"))?;
+        #[cfg(target_os = "macos")]
+        {
+            let expected = self.hashes.get(name).ok_or("Runtime executable hash missing")?;
+            check_file(&path, expected)?;
+            if matches!(name, "yt-dlp" | "gallery-dl" | PYTHON_TOOL) {
+                super::macos_gallery::verify_python(&self.directory)?;
+            }
+            if name == "gallery-dl" { super::macos_gallery::verify_gallery(&self.directory)?; }
+        }
+        Ok(path)
     }
 }
 pub struct RuntimeManager {
@@ -324,10 +520,18 @@ impl RuntimeManager {
         manager
     }
     pub fn default_root() -> Result<PathBuf, String> {
+        #[cfg(windows)]
+        {
         Ok(PathBuf::from(
             std::env::var("LOCALAPPDATA").map_err(|e| format!("Managed local data path: {e}"))?,
         )
         .join("Ameow"))
+        }
+        #[cfg(target_os = "macos")]
+        {
+            Ok(PathBuf::from(std::env::var_os("HOME").ok_or("Managed home directory unavailable")?)
+                .join("Library/Application Support/AmeowNative"))
+        }
     }
     pub fn prepare(
         &self,
@@ -360,6 +564,7 @@ impl RuntimeManager {
             PreparationSnapshot, PreparationStage as S, RuntimeComponent as C,
         };
         let fail = |stage, category| F::new(C::Runtime, stage, category);
+        check_data_location(&self.root).map_err(|_| fail(S::Cache, E::Storage))?;
         requirements
             .validate()
             .map_err(|_| fail(S::Cache, E::Unknown))?;
@@ -379,6 +584,8 @@ impl RuntimeManager {
                 requirement_id,
                 marker_bytes: 0,
                 files: BTreeMap::new(),
+                #[cfg(target_os = "macos")]
+                hashes: BTreeMap::new(),
                 versions: Vec::new(),
                 digest: hash(b"empty-trusted-set".as_slice())
                     .map_err(|_| fail(S::Cache, E::Unknown))?,
@@ -428,15 +635,11 @@ impl RuntimeManager {
                     )?;
                 }
             }
+            verify_bundles(&lease.directory, &manifest, S::Cache)?;
             return Ok(lease);
         }
         typed_safe_dir(&self.root, C::Runtime, S::Cache)?;
-        let _exclusive = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .share_mode(0)
-            .open(self.root.join("prepare.lock"))
+        let _exclusive = lock_preparation(&self.root)
             .map_err(|e| F::io(C::Runtime, S::Cache, e))?;
         // Search only bounded application-owned immutable candidates; never mutate a rejected cache.
         let primary = self.root.join(format!("runtime-{digest}"));
@@ -475,6 +678,7 @@ impl RuntimeManager {
                         )?);
                     }
                 }
+                verify_bundles(&target, &manifest, S::Cache)?;
                 Ok::<_, F>((marker, guards))
             })();
             match candidate {
@@ -552,6 +756,22 @@ impl RuntimeManager {
                         })
                         .collect();
                     if let Ok(_guards) = guards {
+                        #[cfg(target_os = "macos")]
+                        if matches!(component.name.as_str(), "python" | "gallery-dl") {
+                            let verified = if component.name == "python" {
+                                super::macos_gallery::verify_python(&entry.path())
+                            } else {
+                                super::macos_gallery::verify_gallery(&entry.path())
+                            };
+                            if verified.is_err() { continue; }
+                            let copied = if component.name == "python" {
+                                super::macos_gallery::copy_python(&entry.path(), stage.path())
+                            } else {
+                                super::macos_gallery::copy_gallery(&entry.path(), stage.path())
+                            };
+                            copied.map_err(|_| F::new(component_id, S::Extract, E::Hash))?;
+                            reused = true; break;
+                        }
                         for file in &component.files {
                             fs::copy(entry.path().join(&file.name), stage.path().join(&file.name))
                                 .map_err(|e| F::io(component_id, S::Extract, e))?;
@@ -611,7 +831,27 @@ impl RuntimeManager {
             )?);
             state.observe(P::Verifying, Some(component_id), S::Extract, 0, None, None);
             observed(state.clone());
-            if component.files.iter().all(|f| f.archive_path.is_none()) {
+            #[cfg(target_os = "macos")]
+            let bundled_gallery = match component.name.as_str() {
+                "python" => { super::macos_gallery::extract_python(&archive, stage.path(), control)?; true }
+                "gallery-dl" => { super::macos_gallery::extract_gallery(&archive, stage.path(), control)?; true }
+                _ => false,
+            };
+            #[cfg(not(target_os = "macos"))]
+            let bundled_gallery = false;
+            #[cfg(target_os = "macos")]
+            let tar_file = if !bundled_gallery && component.url.ends_with(".tgz") {
+                for file in &component.files {
+                    let member = file.archive_path.as_deref().ok_or_else(|| F::new(component_id, S::Extract, E::Extract))?;
+                    super::macos_gallery::extract_tar_file(&archive, member, &stage.path().join(&file.name))
+                        .map_err(|_| F::new(component_id, S::Extract, E::Extract))?;
+                }
+                true
+            } else { false };
+            #[cfg(not(target_os = "macos"))]
+            let tar_file = false;
+            if bundled_gallery || tar_file {
+            } else if component.files.iter().all(|f| f.archive_path.is_none()) {
                 fs::copy(&archive, stage.path().join(&component.files[0].name))
                     .map_err(|e| F::io(component_id, S::Extract, e))?;
             } else {
@@ -647,6 +887,14 @@ impl RuntimeManager {
             }
             fs::remove_file(archive).map_err(|e| F::io(component_id, S::Extract, e))?;
         }
+        #[cfg(target_os = "macos")]
+        for component in &manifest.components {
+            for file in &component.files {
+                fs::set_permissions(stage.path().join(&file.name), fs::Permissions::from_mode(0o555))
+                    .map_err(|e| F::io(C::from_name(&component.name), S::Extract, e))?;
+            }
+        }
+        verify_bundles(stage.path(), &manifest, S::Verify)?;
         self.probe(
             stage.path(),
             &manifest,
@@ -769,6 +1017,13 @@ impl RuntimeManager {
                 }
                 let executable = path.join(&file.name);
                 let _guard = typed_check_file(&executable, &file.sha256, component_id, S::Verify)?;
+                let args = requirements.probes.get(&file.name)
+                    .ok_or_else(|| F::new(component_id, S::Probe, E::Probe))?.clone();
+                #[cfg(target_os = "macos")]
+                let (executable, args) = if file.name == "yt-dlp" {
+                    python_zipapp(path.join(PYTHON_TOOL), &executable, args)
+                        .map_err(|_| F::new(component_id, S::Probe, E::Probe))?
+                } else { (executable, args) };
                 let probe = tempfile::Builder::new()
                     .prefix("probe-")
                     .tempdir_in(&self.root)
@@ -776,11 +1031,7 @@ impl RuntimeManager {
                 let outcome = process_supervisor::run(
                     ProcessSpec {
                         executable,
-                        args: requirements
-                            .probes
-                            .get(&file.name)
-                            .ok_or_else(|| F::new(component_id, S::Probe, E::Probe))?
-                            .clone(),
+                        args,
                         cwd: probe.path().into(),
                         env: requirements
                             .environment(probe.path())
@@ -830,6 +1081,25 @@ fn probe_matches(exact: bool, expected: &str, stdout: &[u8], stderr: &[u8]) -> b
         .contains(expected)
     }
 }
+fn verify_bundles(
+    directory: &Path,
+    manifest: &Manifest,
+    stage: super::preparation::PreparationStage,
+) -> Result<(), super::preparation::PreparationFailure> {
+    #[cfg(target_os = "macos")]
+    if manifest.components.iter().any(|component| component.name == "python") {
+        super::macos_gallery::verify_python(directory).map_err(|_| super::preparation::PreparationFailure::new(
+            super::preparation::RuntimeComponent::Runtime, stage, super::preparation::ErrorCategory::Hash))?;
+    }
+    #[cfg(target_os = "macos")]
+    if manifest.components.iter().any(|component| component.name == "gallery-dl") {
+        super::macos_gallery::verify_gallery(directory).map_err(|_| super::preparation::PreparationFailure::new(
+            super::preparation::RuntimeComponent::GalleryDl, stage, super::preparation::ErrorCategory::Hash))?;
+    }
+    let _ = (directory, manifest, stage);
+    Ok(())
+}
+
 fn runtime_lease(
     target: PathBuf,
     requirement_id: String,
@@ -851,6 +1121,9 @@ fn runtime_lease(
                     .map(|f| (f.name.clone(), target.join(&f.name)))
             })
             .collect(),
+        #[cfg(target_os = "macos")]
+        hashes: manifest.components.iter().flat_map(|component| component.files.iter()
+            .map(|file| (file.name.clone(), file.sha256.clone()))).collect(),
         versions: manifest
             .components
             .iter()
@@ -866,10 +1139,18 @@ pub(crate) fn typed_safe_existing_dir(
     use super::preparation::{
         ErrorCategory as E, PreparationFailure as F, PreparationStage as S, RuntimeComponent as C,
     };
-    for ancestor in path.ancestors() {
+    let metadata = fs::symlink_metadata(path).map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+    if is_link(&metadata) || !metadata.is_dir() {
+        return Err(F::new(C::Runtime, S::Cache, E::Storage));
+    }
+    #[cfg(target_os = "macos")]
+    let checked = path.canonicalize().map_err(|e| F::io(C::Runtime, S::Cache, e))?;
+    #[cfg(not(target_os = "macos"))]
+    let checked = path.to_path_buf();
+    for ancestor in checked.ancestors() {
         let metadata =
             fs::symlink_metadata(ancestor).map_err(|e| F::io(C::Runtime, S::Cache, e))?;
-        if metadata.file_attributes() & 0x400 != 0 || !metadata.is_dir() {
+        if is_link(&metadata) || !metadata.is_dir() {
             return Err(F::new(C::Runtime, S::Cache, E::Storage));
         }
     }
@@ -895,13 +1176,10 @@ fn typed_check_file(
 ) -> Result<File, super::preparation::PreparationFailure> {
     use super::preparation::{ErrorCategory as E, PreparationFailure as F};
     let metadata = fs::symlink_metadata(path).map_err(|e| F::io(component, stage, e))?;
-    if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 {
+    if !super::is_plain_file(&metadata) {
         return Err(F::new(component, stage, E::Hash));
     }
-    let mut file = OpenOptions::new()
-        .read(true)
-        .share_mode(1)
-        .open(path)
+    let mut file = open_identity_file(path)
         .map_err(|e| F::io(component, stage, e))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 65536];
@@ -940,11 +1218,12 @@ fn typed_marker_guard(
     Ok(file)
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 #[path = "../../tests/support/windows_process_fixture.rs"]
 mod runtime_fixture;
 #[cfg(test)]
 mod requirement_tests {
+    #[cfg(windows)]
     use super::runtime_fixture as fixture;
     use super::*;
     #[test]
@@ -973,6 +1252,7 @@ mod requirement_tests {
         let candidate_digest = hash(serde_json::to_vec(&candidate).unwrap().as_slice()).unwrap();
         assert_ne!(baseline, candidate_digest);
     }
+    #[cfg(windows)]
     fn fixture_catalog(root: &Path) -> (Manifest, TrustedRuntimeRequirements, PathBuf) {
         let executable = fixture::fixture();
         let file_hash = hash(File::open(&executable).unwrap()).unwrap();
@@ -1004,6 +1284,7 @@ mod requirement_tests {
         (catalog, requirements, executable)
     }
     #[test]
+    #[cfg(windows)]
     fn candidate_resume_missing_dependency_fails_without_acquisition_or_download_status() {
         use super::super::preparation::{ErrorCategory, PreparationPhase};
         let root = tempfile::tempdir().unwrap();
@@ -1016,6 +1297,7 @@ mod requirement_tests {
         assert!(events.iter().all(|s| s.phase != PreparationPhase::Downloading));
     }
     #[test]
+    #[cfg(windows)]
     fn r12_verified_cache_works_with_failing_acquisition_and_keeps_native_leases() {
         use super::super::preparation::{ErrorCategory as E, PreparationPhase};
         let root = tempfile::tempdir().unwrap();
@@ -1064,6 +1346,7 @@ mod requirement_tests {
         );
     }
     #[test]
+    #[cfg(windows)]
     fn catalog_extension_reuses_hash_verified_components_before_acquisition() {
         let root = tempfile::tempdir().unwrap();
         let (catalog, requirements, executable) = fixture_catalog(root.path());
@@ -1079,6 +1362,7 @@ mod requirement_tests {
         assert!(previous.join("ffprobe.exe").is_file());
     }
     #[test]
+    #[cfg(windows)]
     fn r12_corrupt_cache_is_preserved_and_recovered_into_a_verified_immutable_sibling() {
         use super::super::preparation::{ErrorCategory as E, PreparationStage as S};
         let root = tempfile::tempdir().unwrap();
@@ -1145,7 +1429,7 @@ mod requirement_tests {
                 .flat_map(|c| &c.files)
                 .map(|f| f.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["ffprobe.exe"]
+            vec![native_tool_name("ffprobe.exe")]
         );
         assert_eq!(
             subset.versions(),

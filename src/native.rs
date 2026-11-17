@@ -182,11 +182,9 @@ impl Native {
     pub fn scale(&self) -> f32 {
         unsafe { GetDpiForWindow(self.hwnd) as f32 / 96. }
     }
-    pub fn show_without_activation(&self) {
-        // SAFETY: the owned HWND is accessed on the GPUI foreground thread.
-        unsafe {
-            let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
-        }
+    pub fn visible(&self) -> bool {
+        // The toolkit visibility cache can lag an externally hidden/restored popup.
+        unsafe { IsWindowVisible(self.hwnd).as_bool() && !IsIconic(self.hwnd).as_bool() }
     }
     pub fn apply(&mut self, anchor: [f32; 2], surface: f32, gutter: f32, cx: &App) -> Result<()> {
         let scale = self.scale();

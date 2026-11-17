@@ -8,9 +8,8 @@ use super::{
 };
 use sha2::{Digest, Sha256};
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     io::{Read, Write},
-    os::windows::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -21,6 +20,14 @@ const MAX_SUMS: u64 = 1024 * 1024;
 const MAX_EXECUTABLE: u64 = 128 * 1024 * 1024;
 const MAX_SIGNATURE: u64 = 4096;
 const PROOF_MAGIC: &[u8; 8] = b"AMEOWSG1";
+#[cfg(windows)]
+const YT_ASSET: &str = "yt-dlp.exe";
+#[cfg(target_os = "macos")]
+const YT_ASSET: &str = "yt-dlp";
+#[cfg(windows)]
+const YT_FILE: &str = "yt-dlp.exe";
+#[cfg(target_os = "macos")]
+const YT_FILE: &str = "yt-dlp";
 
 struct ReleaseProof {
     sums: Vec<u8>,
@@ -80,11 +87,11 @@ fn signed_release(
     let path = dir.join(format!("{version}.proof"));
     match fs::symlink_metadata(&path) {
         Ok(meta) => {
-            if !meta.is_file() || meta.file_attributes() & 0x400 != 0
+            if !super::is_plain_file(&meta)
                 || meta.len() > MAX_SUMS + MAX_SIGNATURE + 16 {
                 return Err("E_UPDATE_SIGNATURE".into());
             }
-            let file = OpenOptions::new().read(true).share_mode(1).open(&path)
+            let file = runtime::open_identity_file(&path)
                 .map_err(|_| "E_UPDATE_STORAGE")?;
             let mut bytes = Vec::new();
             file.take(MAX_SUMS + MAX_SIGNATURE + 17).read_to_end(&mut bytes)
@@ -164,7 +171,7 @@ fn checksum(bytes: &[u8]) -> Result<String, String> {
         let Some((digest, name)) = line.split_once("  ") else {
             continue;
         };
-        if name != "yt-dlp.exe" {
+        if name != YT_ASSET {
             continue;
         }
         if found.is_some() || digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -233,7 +240,7 @@ fn cached_artifact(
         {
             continue;
         }
-        let path = entry.path().join("yt-dlp.exe");
+        let path = entry.path().join(YT_FILE);
         let Ok(metadata) = fs::symlink_metadata(&path) else {
             continue;
         };
@@ -259,8 +266,9 @@ pub(crate) fn prepare_candidate(
     observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
     mut progress: impl FnMut(PreparationSnapshot),
 ) -> Result<Arc<RuntimeLease>, String> {
+    runtime::check_data_location(&root)?;
     let version = normalize_stable_version(version).ok_or("E_UPDATE_VERSION")?;
-    if !requirements.contains("yt-dlp.exe") {
+    if !requirements.contains(YT_FILE) {
         return Err("E_UPDATE_REQUIREMENTS".into());
     }
     let mut snapshot = PreparationSnapshot::default();
@@ -300,7 +308,7 @@ pub(crate) fn prepare_candidate(
         (path, size, Some(guard))
     } else {
         if !allow_acquire { return Err("E_UPDATE_CACHE".into()); }
-        let artifact = temp.path().join("yt-dlp.exe");
+        let artifact = temp.path().join(YT_FILE);
         let mut file = File::create(&artifact).map_err(|_| "E_UPDATE_STORAGE")?;
         snapshot.observe(
             PreparationPhase::Downloading,
@@ -311,7 +319,7 @@ pub(crate) fn prepare_candidate(
             None,
         );
         progress(snapshot.clone());
-        let response = get(&format!("{base}/yt-dlp.exe"), control)?;
+        let response = get(&format!("{base}/{YT_ASSET}"), control)?;
         let total = response
             .content_length()
             .filter(|n| *n > 0 && *n <= MAX_EXECUTABLE);
@@ -344,13 +352,13 @@ pub(crate) fn prepare_candidate(
     let mut matches = catalog.components.iter_mut().filter(|c| c.name == "yt-dlp");
     let component = matches.next().ok_or("E_UPDATE_MANIFEST")?;
     if component.files.len() != 1
-        || component.files[0].name != "yt-dlp.exe"
+        || component.files[0].name != YT_FILE
         || component.files[0].archive_path.is_some()
     {
         return Err("E_UPDATE_MANIFEST".into());
     }
     component.version = version.clone();
-    component.url = format!("{base}/yt-dlp.exe");
+    component.url = format!("{base}/{YT_ASSET}");
     component.source = format!("https://github.com/yt-dlp/yt-dlp/tree/{version}");
     component.bytes = size;
     component.sha256 = expected.clone();
@@ -359,7 +367,7 @@ pub(crate) fn prepare_candidate(
     if matches.next().is_some() {
         return Err("E_UPDATE_MANIFEST".into());
     }
-    let lease = RuntimeManager::candidate(root.clone(), catalog, artifact, "yt-dlp", "yt-dlp.exe", allow_acquire)
+    let lease = RuntimeManager::candidate(root.clone(), catalog, artifact, "yt-dlp", YT_FILE, allow_acquire)
         .prepare_observed(requirements, control, observer, progress)
         .map_err(|e| e.to_string())?;
     // The signed proof is durable only after the entire local runtime passes its probes.
@@ -384,7 +392,11 @@ mod tests {
         proof.persist(root.path(), "2026.10.26").unwrap();
         let (cached, new) = signed_release(root.path(), "2026.10.26", |_, _| panic!("offline cache must not fetch")).unwrap();
         assert!(!new);
-        assert_eq!(cached.checksum().unwrap(), "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D");
+        #[cfg(windows)]
+        let expected = "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D";
+        #[cfg(target_os = "macos")]
+        let expected = "E51E69E89489F199530F13D32A4342DA3DDB2CF34842F364603A066DB05AFBF3";
+        assert_eq!(cached.checksum().unwrap(), expected);
         let mut tampered = proof.encode();
         tampered[16] ^= 1;
         fs::write(root.path().join("release-proofs/2026.10.26.proof"), tampered).unwrap();
@@ -435,13 +447,13 @@ mod tests {
         }
         let hash = "a".repeat(64);
         assert_eq!(
-            checksum(format!("{hash}  yt-dlp.exe\n").as_bytes()).unwrap(),
+            checksum(format!("{hash}  {YT_ASSET}\n").as_bytes()).unwrap(),
             hash.to_ascii_uppercase()
         );
         for s in [
             format!("{hash}  other.exe"),
-            format!("{hash}  yt-dlp.exe\n{hash}  yt-dlp.exe"),
-            "xyz  yt-dlp.exe".into(),
+            format!("{hash}  {YT_ASSET}\n{hash}  {YT_ASSET}"),
+            format!("xyz  {YT_ASSET}"),
         ] {
             assert!(checksum(s.as_bytes()).is_err());
         }
@@ -463,6 +475,7 @@ mod tests {
         );
         assert!(read_bounded(&b"abcd"[..], 3, &control, Vec::new(), |_| {}).is_err());
     }
+    #[cfg(windows)]
     #[test]
     fn cached_artifact_requires_official_hash_and_retains_read_only_guard() {
         let root = tempfile::tempdir().unwrap();
@@ -486,5 +499,23 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cached_zipapp_is_rechecked_against_the_expected_hash() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("runtime-test");
+        fs::create_dir(&directory).unwrap();
+        let artifact = directory.join(YT_FILE);
+        fs::write(&artifact, b"verified").unwrap();
+        let expected = runtime::hash(&b"verified"[..]).unwrap();
+        let (path, size, guard) = cached_artifact(root.path(), &expected, &Control::default())
+            .unwrap().unwrap();
+        assert_eq!(path, artifact);
+        assert_eq!(size, 8);
+        drop(guard);
+        fs::write(&artifact, b"tampered").unwrap();
+        assert!(cached_artifact(root.path(), &expected, &Control::default()).unwrap().is_none());
     }
 }

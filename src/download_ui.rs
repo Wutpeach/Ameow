@@ -1,4 +1,5 @@
 //! Production GPUI command boundary. Initialization, persistence and polling stay off the UI.
+use crate::ui_tooltip::TooltipExt as _;
 #[cfg(test)]
 #[path = "native_settings_transport.rs"]
 mod native_settings_transport;
@@ -37,7 +38,11 @@ pub enum UiReply {
 enum ExitAction {
     Quit,
     Stop,
-    Confirm,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ExitIssue {
+    Cleanup,
+    OwnerLost,
 }
 #[derive(Default)]
 struct ExitIntent {
@@ -62,14 +67,8 @@ impl ExitIntent {
             let snapshot = snapshot?;
             if snapshot.stopped {
                 ExitAction::Quit
-            } else if snapshot.unfinished == 0
-                && !snapshot.preparing
-                && !snapshot.preparation_held
-                && !snapshot.preparation_owner_lost
-            {
-                ExitAction::Stop
             } else {
-                ExitAction::Confirm
+                ExitAction::Stop
             }
         };
         self.pending = false;
@@ -95,6 +94,7 @@ pub struct DownloadUi {
     pub queue_open: bool,
     pub exit_open: bool,
     pub exit_when_stopped: bool,
+    exit_issue: Option<ExitIssue>,
     exit_intent: ExitIntent,
     pub hidden: bool,
     pub selected_job: Option<u64>,
@@ -221,6 +221,8 @@ impl DownloadUi {
                     Err(mpsc::RecvTimeoutError::Disconnected) => { disconnected = true; coordinator.stop(); std::thread::sleep(Duration::from_millis(80)); }
                 }
                 for event in evidence_receiver.try_iter() { append_evidence(&mut evidence, &started, event); }
+                #[cfg(target_os = "macos")]
+                if let Some(session) = &worker_launch { session.attest_download_owner(!disconnected); }
                 updates.poll(&coordinator,worker_launch.as_deref());
                 if let Some(session) = &worker_launch && let Err(error) = session.poll(&coordinator) {
                     append_evidence(&mut evidence, &started, serde_json::json!({"type":"app-update-error","error":error}));
@@ -283,15 +285,18 @@ impl DownloadUi {
         self.selected_presentation = None;
         self.selected_job = None;
         self.queue_open = scene.surface == "queue";
-        self.exit_open = scene.name == "overlay.exit-confirm";
-        self.exit_when_stopped = false;
+        self.exit_open = false;
+        self.exit_issue = None;
+        self.exit_when_stopped = scene.surface == "overlay" && scene.state.starts_with("exit-");
+        self.sync_exit_issue();
         self.startup_error = None;
         self.settings_status = SettingsStatus::Idle;
-        self.settings_pending = false;
+        self.settings_pending = scene.surface == "menu" && scene.state == "saving";
         self.row_notices.clear();
         self.retry_pending.clear();
         self.preparation_status = None;
         self.preparation_copy_pending = false;
+        self.preparation_copied_at = None;
         self.engine_notice = None;
         self.engine_command_pending = false;
         self.queue_scroll.set_offset(point(px(0.), px(0.)));
@@ -300,6 +305,9 @@ impl DownloadUi {
         self.action_focus.clear();
     }
     pub fn hold_preview_feedback(&mut self, scene: &crate::preview::Scene, now: u64) {
+        if scene.state == "app-conflict-copied" {
+            self.preparation_copied_at = Some(now);
+        }
         if let Some(s) = &mut self.snapshot {
             for job in &mut Arc::make_mut(s).jobs {
                 if let Some(p) = &mut job.transfer_progress { p.observed_at_ms = ameow_next::download::progress::now_ms(); }
@@ -317,6 +325,16 @@ impl DownloadUi {
     }
     fn presentation_time(&self, now: u64) -> u64 { if self.named_preview.is_some() { 0 } else { now } }
     fn row_visible(&self, job: &JobSnapshot, now: u64) -> bool { self.presentation.visible(job, self.presentation_time(now)) }
+    fn queue_available(&self, now: u64) -> bool {
+        self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|job| self.row_visible(job, now)))
+    }
+    fn dismiss_empty_queue(&mut self, now: u64) -> bool {
+        if !self.queue_open || self.queue_available(now) { return false; }
+        self.queue_open = false;
+        self.title_browse = None;
+        self.presentation.close_queue();
+        true
+    }
     fn fixture_transport(path: Option<PathBuf>, preview: bool) -> Self {
         let (commands, receiver) = mpsc::sync_channel(64);
         let (evidence, evidence_receiver) = mpsc::sync_channel(64);
@@ -348,6 +366,7 @@ impl DownloadUi {
             queue_open: false,
             exit_open: false,
             exit_when_stopped: false,
+            exit_issue: None,
             exit_intent: ExitIntent::default(),
             hidden: false,
             selected_job: None,
@@ -439,7 +458,7 @@ impl DownloadUi {
     pub fn preparation_status_at(&self, now: u64) -> Option<(String, bool)> {
         self.preparation_status.as_ref().filter(|(message, danger)| {
             *danger || message == "正在复制组件诊断" || message == "正在请求重新准备组件"
-                || (message == "已复制组件诊断" && self.preparation_copied_at.is_some_and(|at| now.saturating_sub(at) < 2000))
+                || (message == "已复制组件诊断" && self.preparation_copied_at.is_some_and(|at| now.saturating_sub(at) < crate::ui_motion::COPY_FEEDBACK_MS))
         }).cloned()
     }
     pub fn request_upstream_check(&self) -> bool {
@@ -472,6 +491,8 @@ impl DownloadUi {
     }
     pub fn copy_preparation_diagnostic(&mut self, now: u64) {
         if self.preparation_copy_pending || self.snapshot.is_none() { return; }
+        self.preparation_copied_at = None;
+        if self.named_preview.is_some() { self.complete_diagnostic(0, Ok(()), now); return; }
         self.preparation_copy_pending = self.send(QueueCommand::CopyPreparationDiagnostic, now);
         self.preparation_status = Some((if self.preparation_copy_pending { "正在复制组件诊断" } else { "操作未受理，请稍后重试" }.into(), !self.preparation_copy_pending));
     }
@@ -528,6 +549,35 @@ impl DownloadUi {
         self.evidence(serde_json::json!({"type":"exit-request","source":"main-menu"}));
         self.exit_intent.request();
     }
+    fn request_exit_stop(&mut self, now: u64) -> bool {
+        if self.exit_when_stopped { return true; }
+        if !self.send(QueueCommand::Stop, now) {
+            self.exit_intent.request();
+            return false;
+        }
+        self.exit_when_stopped = true;
+        self.exit_open = false;
+        self.queue_open = false;
+        self.title_browse = None;
+        self.presentation.close_queue();
+        self.sync_exit_issue();
+        true
+    }
+    pub(super) fn exit_issue(&self) -> Option<ExitIssue> { self.exit_issue }
+    fn sync_exit_issue(&mut self) {
+        let issue = self.snapshot.as_deref()
+            .filter(|_| self.exit_when_stopped).and_then(exit_issue);
+        if issue.is_some() && issue != self.exit_issue {
+            self.exit_open = true;
+            self.queue_open = false;
+            self.title_browse = None;
+            self.presentation.close_queue();
+        } else if issue.is_none() {
+            self.exit_open = false;
+        }
+        self.exit_issue = issue;
+    }
+    fn dismiss_exit_issue(&mut self) { self.exit_open = false; }
     fn present(
         &mut self,
         model: &mut crate::model::Model,
@@ -643,6 +693,7 @@ impl DownloadUi {
                 true
             }
             Err(_) => {
+                if job == 0 { self.preparation_copied_at = None; }
                 if job != 0 { self.set_row_notice(job, "复制失败，请重试", now); }
                 false
             }
@@ -660,6 +711,10 @@ impl DownloadUi {
     }
     fn row_notice(&self, job: u64, now: u64) -> Option<&'static str> {
         self.row_notices.get(&job).filter(|(_, at)| now < at + 5000).map(|(text, _)| *text)
+    }
+    fn row_copied(&self, job: u64, now: u64) -> bool {
+        self.row_notices.get(&job).is_some_and(|(text, at)|
+            *text == "诊断已复制" && now.saturating_sub(*at) < crate::ui_motion::COPY_FEEDBACK_MS)
     }
     fn row_title(&self, job: &JobSnapshot, now: u64) -> String {
         self.row_notice(job.job_id, now).map(|text| local_text(self.language, text)).unwrap_or_else(||
@@ -804,10 +859,6 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "检查可用空间和目录权限后可重试。" => "Check available space and folder permissions.",
         "组件尚未准备完成。" => "Setup is incomplete.",
         "复制诊断以进一步检查，或手动重试。" => "Copy diagnostics for investigation or retry.",
-        "准备线程异常结束，清理未确认，暂不能安全退出。" => "Setup stopped unexpectedly. Cleanup is unconfirmed; cannot safely quit yet.",
-        "清理尚未确认，存活任务仍保留资源，可重试清理。" => "Cleanup is unconfirmed. Running tasks hold resources; retry cleanup.",
-        "正在等待下载进程与文件收束。" => "Waiting for download processes and files to settle.",
-        "继续运行，或停止所有任务后退出。" => "Continue, or stop all tasks and quit.",
         "保存失败，请重试" => "Save failed. Retry.",
         "正在保存画质…" => "Saving quality…",
         "暂时无法保存，请稍后重试" => "Cannot save yet. Retry later.",
@@ -934,15 +985,29 @@ fn preparation_visible(snapshot: &QueueSnapshot, now: u64) -> bool {
     if snapshot.stopping || snapshot.stopped {
         return false;
     }
+    let preparation = &snapshot.preparation;
+    // Local cache checks are quiet; only work from this attempt can earn a success hint.
+    let setup = preparation.phase == PreparationPhase::Downloading
+        || preparation.failure.is_some()
+        || matches!(preparation.stage, PreparationStage::Acquire | PreparationStage::Verify | PreparationStage::Extract)
+        || preparation.history.iter().any(|event| event.attempt == preparation.attempt
+            && (event.category.is_some()
+                || matches!(event.stage, PreparationStage::Acquire | PreparationStage::Verify | PreparationStage::Extract)));
     snapshot.preparation_held
         || snapshot.preparation_owner_lost
-        || match snapshot.preparation.phase {
+        || match preparation.phase {
             PreparationPhase::Idle => false,
+            PreparationPhase::Failed => true,
             PreparationPhase::Ready => {
-                now.saturating_sub(snapshot.preparation.updated_at_ms) < PREPARATION_SUCCESS_MS
+                setup && now.saturating_sub(preparation.updated_at_ms) < PREPARATION_SUCCESS_MS
             }
-            _ => true,
+            _ => setup,
         }
+}
+fn preparation_popup_visible(snapshot: &QueueSnapshot, now: u64, update_attention: bool) -> bool {
+    preparation_visible(snapshot, now)
+        && (!update_attention || snapshot.preparation.phase != PreparationPhase::Ready
+            || snapshot.preparation_held || snapshot.preparation_owner_lost)
 }
 fn preparation_fraction(preparation: &PreparationSnapshot) -> Option<f32> {
     if preparation.phase != PreparationPhase::Downloading {
@@ -1177,7 +1242,11 @@ impl DownloadUi {
             QueueIcon::Retry => {
                 if self.send(QueueCommand::Retry(id), now) { self.retry_pending.insert(id); }
             }
-            QueueIcon::Copy => { self.send(QueueCommand::CopyDiagnostic(id), now); }
+            QueueIcon::Copy => {
+                self.row_notices.remove(&id);
+                if self.named_preview.is_some() { self.complete_diagnostic(id, Ok(()), now); }
+                else { self.send(QueueCommand::CopyDiagnostic(id), now); }
+            }
             QueueIcon::Cancel => { self.send(QueueCommand::Cancel(id), now); }
             QueueIcon::Cleanup => {
                 let slot_owned = self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|j| j.job_id == id && j.slot_owned));
@@ -1297,27 +1366,35 @@ use crate::{
     tray::{self, TrayEvent},
 };
 use gpui::{prelude::*, *};
+
+fn queue_activity_summary(executing: usize, waiting: usize, l: crate::ui_text::Language) -> String {
+    match (executing, waiting) {
+        (0, 0) => String::new(),
+        (active, 0) => format!("{} {active}", l.text("进行中", "Active")),
+        (0, queued) => format!("{} {queued}", l.text("等待", "Waiting")),
+        (active, queued) => format!("{} {active} · {} {queued}", l.text("进行中", "Active"), l.text("等待", "Waiting")),
+    }
+}
+const FULL_CLOSE_HIT_SIZE: f32 = 28.;
+const FULL_CLOSE_TOP: f32 = 8.;
+const FULL_CLOSE_SIDE: f32 = 12.;
 #[derive(Clone, Copy)]
-enum MenuIcon { Empty, Back, Forward, Check, Quality, Hide, Settings, Exit }
+enum MenuIcon { Close, Hide, Settings, Exit }
 fn surface_menu_icon(icon: MenuIcon, color: Hsla) -> AnyElement {
     let asset = match icon {
+        MenuIcon::Close => Some("icons/x.svg"),
         MenuIcon::Hide => Some("icons/eye-off.svg"),
         MenuIcon::Settings => Some("icons/settings.svg"),
-        _ => None,
+        MenuIcon::Exit => None,
     };
     if let Some(asset) = asset {
         return svg().path(asset).size(px(16.)).text_color(color).flex_none().into_any_element();
     }
     canvas(|_, _, _| (), move |bounds, _, window, _| {
-        let paths: &[&[(f32, f32)]] = match icon {
-            MenuIcon::Empty => &[],
-            MenuIcon::Back => &[&[(9.5, 3.5), (5., 8.), (9.5, 12.5)]],
-            MenuIcon::Forward => &[&[(6., 4.), (10., 8.), (6., 12.)]],
-            MenuIcon::Check => &[&[(3., 8.), (6.5, 11.5), (13., 4.5)]],
-            MenuIcon::Quality => &[&[(2.5, 4.), (13.5, 4.)], &[(2.5, 8.), (13.5, 8.)], &[(2.5, 12.), (13.5, 12.)], &[(6., 2.5), (6., 5.5)], &[(10., 6.5), (10., 9.5)], &[(5., 10.5), (5., 13.5)]],
-            MenuIcon::Hide | MenuIcon::Settings => &[],
-            MenuIcon::Exit => &[&[(6., 3.), (2.5, 3.), (2.5, 13.), (6., 13.)], &[(6., 8.), (13.5, 8.)], &[(10., 4.5), (13.5, 8.), (10., 11.5)]],
-        };
+        let paths: &[&[(f32, f32)]] = &[
+            &[(6., 3.), (2.5, 3.), (2.5, 13.), (6., 13.)],
+            &[(6., 8.), (13.5, 8.)], &[(10., 4.5), (13.5, 8.), (10., 11.5)],
+        ];
         for points in paths {
             let mut path = PathBuilder::stroke(px(1.2));
             for (index, (x, y)) in points.iter().enumerate() {
@@ -1363,6 +1440,12 @@ impl Prototype {
         #[cfg(all(feature="app-update-fixture",debug_assertions))]
         self.poll_update_ui_fixture(cx);
         if let Some(session) = self.downloads.as_ref().and_then(|ui| ui.app_update.as_ref()) {
+            #[cfg(target_os = "macos")]
+            session.attest_native_window(
+                self.native.as_ref().is_some_and(|native| native.ready_for_update())
+                    && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()),
+            );
+            #[cfg(not(target_os = "macos"))]
             if self.native.is_some() && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()) {
                 session.native_ready.store(true, std::sync::atomic::Ordering::Release);
             }
@@ -1395,10 +1478,13 @@ impl Prototype {
         for action in actions {
             if let Some(ui) = &self.downloads { ui.evidence(serde_json::json!({"type":"tray-popup-action","action":format!("{action:?}")})); }
             match action {
-                crate::tray_popup::Action::Status => { self.restore_downloads(window, cx); self.open_queue(cx); }
+                crate::tray_popup::Action::Status => {
+                    self.restore_downloads(window, cx);
+                    if !self.show_exit_issue(cx) { self.open_queue(cx); }
+                }
                 crate::tray_popup::Action::Update => {
                     if self.downloads.as_ref().is_some_and(|u| {
-                        u.updates.snapshot().update.phase == ameow_next::app_update::Phase::Ready
+                        crate::app_update_ui::popup_restart_available(&u.updates.snapshot())
                     }) {
                         self.app_update_action(
                             ameow_next::app_update::service::Action::Restart,
@@ -1408,7 +1494,7 @@ impl Prototype {
                     self.open_update_settings(cx); }
                 crate::tray_popup::Action::Open => self.restore_downloads(window, cx),
                 crate::tray_popup::Action::Settings => self.open_or_focus_settings(cx),
-                crate::tray_popup::Action::Exit => { self.restore_downloads(window, cx); if let Some(ui) = &mut self.downloads { ui.request_menu_exit(); } }
+                crate::tray_popup::Action::Exit => { if let Some(ui) = &mut self.downloads { ui.request_menu_exit(); } }
                 crate::tray_popup::Action::Closed => {}
             }
         }
@@ -1474,6 +1560,13 @@ impl Prototype {
             }
             ui.present(&mut self.model, &mut self.indicator, now);
         }
+        let queue_closed = ui.dismiss_empty_queue(now);
+        let was_exit_open = ui.exit_open;
+        ui.sync_exit_issue();
+        if queue_closed || ui.exit_open != was_exit_open {
+            self.model.locks.menu = ui.exit_open || ui.queue_open || self.surface_menu.is_open();
+            self.model.locks_changed(now);
+        }
         if now >= ui.last_evidence_ms + if ui.fixture { 100 } else { 200 } {
             ui.last_evidence_ms = now;
             let upstream = ui.upstream.snapshot();
@@ -1494,7 +1587,7 @@ impl Prototype {
         // Hidden main windows do not render, but settings and tray projections still observe us.
         self.refresh_preferences();
         if menu_saved { self.close_menu(cx); }
-        self.process_exit_request(window, cx);
+        self.process_exit_request(cx);
         self.model.tick(now);
         cx.notify();
     }
@@ -1514,8 +1607,7 @@ impl Prototype {
         self.model.pointer(true, self.now());
         cx.notify();
     }
-    fn process_exit_request(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let now = self.now();
+    fn process_exit_request(&mut self, cx: &mut Context<Self>) {
         let action = self.downloads.as_mut().and_then(|ui| {
             ui.exit_intent.resolve(ui.snapshot.as_deref(), ui.startup_error.is_some())
         });
@@ -1525,31 +1617,6 @@ impl Prototype {
             }
             Some(ExitAction::Stop) => {
                 self.stop_and_exit(cx);
-                if let Some(ui) = &mut self.downloads
-                    && !ui.exit_when_stopped
-                {
-                    // Retain the request if the bounded command channel is temporarily full.
-                    ui.exit_intent.request();
-                }
-            }
-            Some(ExitAction::Confirm) => {
-                self.surface_menu.close(now);self.background_clicks.reset();
-                if let Some(ui) = &mut self.downloads {
-                    ui.queue_open = false;
-                    ui.title_browse = None;
-                    ui.presentation.close_queue();
-                    ui.exit_open = true;
-                    ui.hidden = false;
-                }
-                if let Some(native) = &self.native {
-                    native.show_without_activation();
-                }
-                // WM_CLOSE may be programmatic: never use GPUI's Windows activation
-                // path here, which synthesizes global Alt input before taking foreground.
-                window.focus(&self.focus, cx);
-                self.model.pointer(true, now);
-                self.model.locks.menu = true;
-                self.model.locks_changed(now);
             }
             None => return,
         }
@@ -1569,23 +1636,30 @@ impl Prototype {
                 cx.quit();
                 return;
             }
-            if ui.send(QueueCommand::Stop, now) {
-                ui.exit_when_stopped = true;
-                ui.exit_open = true;
-                ui.queue_open = false;
-                    ui.title_browse = None;
-                ui.presentation.close_queue();
+            if !ui.request_exit_stop(now) {
+                return;
             }
-            self.model.locks.menu = true;
-            self.model.locks_changed(now);
         }
+        self.hide_downloads(cx);
     }
-    fn continue_running(&mut self, cx: &mut Context<Self>) {
+    fn dismiss_exit_issue(&mut self, cx: &mut Context<Self>) {
         if let Some(ui) = &mut self.downloads {
-            ui.exit_open = false;
-            ui.exit_when_stopped = false;
+            ui.dismiss_exit_issue();
         }
         self.close_menu(cx);
+    }
+    fn show_exit_issue(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(ui) = &mut self.downloads else { return false; };
+        if ui.exit_issue().is_none() { return false; }
+        ui.exit_open = true;
+        ui.queue_open = false;
+        ui.title_browse = None;
+        ui.presentation.close_queue();
+        self.surface_menu.close(self.now());
+        self.model.locks.menu = true;
+        self.model.locks_changed(self.now());
+        cx.notify();
+        true
     }
     pub(super) fn production_key(&mut self, key: &str, cx: &mut Context<Self>) {
         match key {
@@ -1594,8 +1668,7 @@ impl Prototype {
                     ui.queue_open = false;
                     ui.title_browse = None;
                     ui.presentation.close_queue();
-                    ui.exit_open = false;
-                    ui.exit_when_stopped = false;
+                    ui.dismiss_exit_issue();
                 }
                 self.close_menu(cx);
             }
@@ -1643,17 +1716,21 @@ impl Prototype {
         if let Some(ui) = &mut self.downloads
             && let Some(job) = ui.selected_job
         {
-            ui.send(QueueCommand::CopyDiagnostic(job), now);
+            if self.preview.is_some() {
+                // The Full action is available while the queue is closed.
+                if ui.complete_diagnostic(job, Ok(()), now) { self.copied_at = Some(now); }
+            } else { ui.send(QueueCommand::CopyDiagnostic(job), now); }
         }
         cx.notify();
     }
     pub(super) fn open_queue(&mut self, cx: &mut Context<Self>) {
-        if let Some(ui) = &mut self.downloads {
-            ui.queue_open = true;
-            ui.exit_open = false;
-        }
+        let now = self.now();
+        let Some(ui) = &mut self.downloads else { return; };
+        if !ui.queue_available(now) { return; }
+        ui.queue_open = true;
+        ui.exit_open = false;
         self.model.locks.menu = true;
-        self.model.locks_changed(self.now());
+        self.model.locks_changed(now);
         cx.notify();
     }
     pub(super) fn live_label(&self) -> Option<String> {
@@ -1686,15 +1763,10 @@ impl Prototype {
         let now = self.now();
         self.background_clicks.reset();
         match action {
-            Action::Back => {
-                if self.surface_menu.back(now) { self.close_menu(cx); }
-            }
-            Action::OpenQuality => {
-                let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
-                self.surface_menu.quality(quality, now);
-            }
+            Action::Close => self.close_menu(cx),
             Action::Quality(quality) => {
                 if let Some(ui) = &mut self.downloads {
+                    if ui.settings_pending || ui.settings().is_some_and(|s| s.quality == quality) { return; }
                     if ui.request_quality(quality, now) {
                         self.menu_save_generation = Some(self.surface_menu.generation());
                         self.surface_menu.hint = Some("正在保存画质…".into());
@@ -1716,39 +1788,63 @@ impl Prototype {
         cx.notify();
     }
     pub(super) fn surface_menu_page(&self, cx: &mut Context<Self>) -> AnyElement {
-        use crate::context_menu::{Action, Page};
+        use crate::context_menu::Action;
         let p = Palette::new(self.night);
         let g = self.model.geometry();
         let now = self.now();
         let language = self.downloads.as_ref().map_or_else(Default::default, |ui| ui.language);
-        let quality_page = self.surface_menu.page == Some(Page::Quality);
-        let back = div().id("surface-menu-back").size(px(28.)).flex_none()
-            .flex().items_center().justify_center().rounded(px(5.)).cursor_pointer()
-            .hover(move |s| s.bg(p.badge))
-            .child(surface_menu_icon(MenuIcon::Back, p.neutral))
+        let saving = self.downloads.as_ref().is_some_and(|ui| ui.settings_pending);
+        let quality_help = self.surface_menu.hint.as_ref().map(|hint| local_text(language, hint))
+            .or_else(|| saving.then(|| language.text("正在保存设置…", "Saving settings…").to_owned()));
+        let quality_status = quality_help.map(|help| {
+            div().id("surface-menu-quality-status").size(px(20.)).flex_none()
+                .flex().items_center().justify_center().rounded(px(4.))
+                .child(svg().path(if saving { "icons/loader-circle.svg" } else { "icons/circle-alert.svg" })
+                    .size(px(12.)).text_color(if saving { p.neutral } else { p.red }))
+                .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                    text: help.clone(), night: p.night,
+                }).into())
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                    this.background_clicks.reset(); cx.stop_propagation();
+                }))
+        });
+        let close = div().id("surface-menu-close").size(px(FULL_CLOSE_HIT_SIZE)).flex_none()
+            .flex().items_center().justify_center().cursor_pointer()
+            .child(div().size(px(crate::tokens::FULL_CLOSE_DISC_SIZE)).flex_none().flex().items_center().justify_center().rounded_full()
+                .border_1().border_color(if self.surface_menu.keyboard_selected(6) { p.neutral } else { transparent_black() })
+                .bg(p.badge.opacity(self.surface_menu.highlight(6, now, self.model.reduced)))
+                .child(surface_menu_icon(MenuIcon::Close, p.neutral)))
             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                 this.background_clicks.reset(); cx.stop_propagation();
             }))
-            .on_click(cx.listener(|this, _, _, cx| this.surface_menu_action(Action::Back, cx)));
-        let header = div().absolute().left(px(12.)).top(px(12.)).w(px(176.)).h(px(28.))
-            .flex().items_center().gap(px(6.)).child(back)
-            .child(div().id("surface-menu-header-drag").h_full().flex_1().flex().items_center()
-                .text_size(px(12.)).text_color(p.neutral).child(if quality_page { language.text("画质", "Quality") } else { "" })
+            .on_hover(cx.listener(|this, inside, _, cx| {
+                this.surface_menu.hover(6, *inside, this.now()); cx.notify();
+            }))
+            .on_click(cx.listener(|this, _, _, cx| this.surface_menu_action(Action::Close, cx)));
+        let header = div().absolute().left(px(FULL_CLOSE_SIDE)).right(px(FULL_CLOSE_SIDE))
+            .top(px(FULL_CLOSE_TOP)).h(px(FULL_CLOSE_HIT_SIZE))
+            .flex().items_center().gap(px(6.))
+            .child(div().id("surface-menu-header-drag").h_full().flex_1().pl(px(8.)).flex().items_center().gap(px(4.))
+                .text_size(px(12.)).text_color(p.neutral).child(language.text("画质", "Quality"))
+                .when_some(quality_status, |header, status| header.child(status))
                 .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
                     this.background_clicks.reset(); window.focus(&this.focus, cx);
                     this.drag = Some((crate::native::Native::cursor(), this.anchor));
                     this.model.locks.drag = true; this.model.locks_changed(this.now());
                     cx.stop_propagation(); cx.notify();
-                })));
-        let list = div().absolute().left(px(12.)).top(px(44.)).w(px(176.)).h(px(152.))
-            .overflow_hidden()
-            .children(self.surface_menu.pages(now, self.model.reduced).into_iter().map(|(page, x, interactive)| {
-                self.surface_menu_rows(page, x, interactive, cx)
-            }));
+                })))
+            .child(close);
         div().id("surface-menu-page").absolute().left(px(g.gutter)).top(px(g.gutter))
             .size(px(200.)).rounded(px(20.)).overflow_hidden()
-            .opacity(self.surface_menu.content_alpha(now, self.model.reduced))
-            // The whole page consumes background presses; only the header above starts dragging.
+            .top(px(g.gutter + (1. - self.surface_menu.menu_alpha(now, self.model.reduced)) * 4.))
+            .opacity(self.surface_menu.menu_alpha(now, self.model.reduced))
+            .when(!self.surface_menu.is_open(), |s| s
+                .capture_any_mouse_down(cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                    if event.button == MouseButton::Right { this.show_context_menu(cx); }
+                    cx.stop_propagation();
+                }))
+                .capture_key_down(|_, _, cx| cx.stop_propagation()))
+            // Only the nonbutton header starts dragging; all other menu presses stay local.
             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                 this.background_clicks.reset(); cx.stop_propagation();
             }))
@@ -1758,56 +1854,86 @@ impl Prototype {
                     this.model.locks.drag = false; this.model.locks_changed(this.now()); cx.notify();
                 }
             }))
-            .child(header).child(list).into_any_element()
+            .child(header).child(self.surface_menu_rows(cx)).into_any_element()
     }
-    fn surface_menu_rows(&self, page: crate::context_menu::Page, x: f32, interactive: bool, cx: &mut Context<Self>) -> AnyElement {
-        use crate::context_menu::{Menu, Page};
+    fn surface_menu_rows(&self, cx: &mut Context<Self>) -> AnyElement {
+        use crate::context_menu::Menu;
         let p = Palette::new(self.night);
         let now = self.now();
         let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
         let busy = self.downloads.as_ref().is_none_or(|ui| ui.settings_pending || ui.settings().is_none());
         let language = self.downloads.as_ref().map_or_else(Default::default, |ui| ui.language);
-        let labels: &[(&str, &str, MenuIcon)] = if page == Page::Primary {
-            &[(language.text("画质", "Quality"), "", MenuIcon::Quality), (language.text("隐藏到托盘", "Hide to tray"), "", MenuIcon::Hide), (language.text("设置", "Settings"), "", MenuIcon::Settings), (language.text("退出 Ameow", "Quit Ameow"), "", MenuIcon::Exit)]
-        } else {
-            &[("Highest", language.text("最高可得", "Best available"), MenuIcon::Empty), ("Balanced", "≤1080p", MenuIcon::Empty), ("Saver", "≤480p", MenuIcon::Empty)]
-        };
-        let (stride, height) = Menu::row_metrics(page);
-        let mut rows = div().absolute().left(px(x)).top(px(0.)).w(px(176.)).h(px(152.));
-        for (index, &(label, detail, icon)) in labels.iter().enumerate() {
-            let marker = page == Page::Quality && quality == Some([Quality::Highest, Quality::Balanced, Quality::Saver][index]);
-            let highlight = if interactive { self.surface_menu.highlight(index, now, self.model.reduced) } else { 0. };
-            let disabled = page == Page::Quality && busy;
-            let color = if page == Page::Primary && index == 3 { p.red } else { p.neutral };
-            let row = div().id(SharedString::from(format!("surface-menu-{}-{index}", if page == Page::Primary { "primary" } else { "quality" })))
-                .absolute().left(px(0.)).top(px(index as f32 * stride)).w(px(176.)).h(px(height))
+        let selected = quality.map(|q| match q { Quality::Highest => 0., Quality::Balanced => 1., Quality::Saver => 2. });
+        let segment_x = self.ui_motion.value("menu-quality-position", selected.unwrap_or(1.));
+        let mut segments = div().absolute().left(px(12.)).top(px(0.)).w(px(176.)).h(px(32.))
+            .flex().items_center().gap(px(2.)).p(px(2.)).rounded(px(7.))
+            .border_1().border_color(p.border)
+            .when(selected.is_some(), |s| s.child(div().absolute().left(px(2. + segment_x * (170. / 3.)))
+                .top(px(2.)).w(px(164. / 3.)).h(px(26.)).rounded(px(4.)).bg(p.badge)));
+        for (index, (value, label, help)) in [
+            (Quality::Highest, language.text("最高", "Best"), language.text("最高可得", "Best available")),
+            (Quality::Balanced, language.text("均衡", "Balanced"), language.text("最高 1080p", "Up to 1080p")),
+            (Quality::Saver, language.text("省流", "Saver"), language.text("最高 480p", "Up to 480p")),
+        ].into_iter().enumerate() {
+            let checked = quality == Some(value);
+            let highlight = self.surface_menu.highlight(index, now, self.model.reduced);
+            let button = div().id(SharedString::from(format!("surface-menu-quality-{index}")))
+                .h_full().flex_1().min_w(px(0.)).flex().items_center().justify_center()
+                .rounded(px(4.)).border_1()
+                .border_color(if self.surface_menu.keyboard_selected(index) { p.neutral.opacity(0.6) } else { transparent_black() })
+                .bg(p.neutral.opacity(highlight * if p.night { 0.1 } else { 0.04 }))
+                .text_size(px(12.)).text_color(p.primary_text())
+                .font_weight(if checked { FontWeight::MEDIUM } else { FontWeight::NORMAL })
+                .opacity(if busy { 0.5 } else { 1. })
+                .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip { text: help.into(), night: p.night }).into())
+                .when(!busy, |button| button.cursor_pointer())
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                    this.background_clicks.reset(); cx.stop_propagation();
+                }))
+                .on_hover(cx.listener(move |this, inside, _, cx| {
+                    this.surface_menu.hover(index, *inside, this.now()); cx.notify();
+                }))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if this.surface_menu.is_open() && !busy
+                        && let Some(action) = Menu::action(index) { this.surface_menu_action(action, cx); }
+                }))
+                .child(label);
+            segments = segments.child(button);
+        }
+        let mut content = div().absolute().left(px(0.)).top(px(40.)).w(px(200.)).h(px(160.)).child(segments)
+            .child(div().absolute().left(px(12.)).top(px(105.)).w(px(176.)).h(px(1.)).bg(p.border));
+        let hovered = self.surface_menu.active_item().filter(|i| (3..=5).contains(i));
+        let hover_y = self.ui_motion.value("menu-row-position", match hovered { Some(4) => 70., Some(5) => 110., _ => 38. });
+        let hover_alpha = self.ui_motion.presence("menu-row-highlight", hovered.is_some()).alpha;
+        content = content.child(div().absolute().left(px(12.)).top(px(hover_y)).w(px(176.)).h(px(30.))
+            .rounded(px(6.)).bg(p.neutral.opacity(hover_alpha * if p.night { 0.12 } else { 0.06 })));
+        for (index, top, label, icon) in [
+            (3, 38., language.text("设置", "Settings"), MenuIcon::Settings),
+            (4, 70., language.text("隐藏到托盘", "Hide to tray"), MenuIcon::Hide),
+            (5, 110., language.text("退出", "Quit"), MenuIcon::Exit),
+        ] {
+            let highlight = self.surface_menu.highlight(index, now, self.model.reduced);
+            let color = if index == 5 && highlight > 0. { p.red } else { p.neutral };
+            let row = div().id(SharedString::from(format!("surface-menu-action-{index}")))
+                .absolute().left(px(12.)).top(px(top)).w(px(176.)).h(px(30.))
                 .px(px(8.)).flex().items_center().gap(px(10.)).rounded(px(6.))
-                .bg(p.neutral.opacity(highlight * if p.night { 0.12 } else { 0.06 }))
-                .text_color(color).opacity(if disabled { 0.5 } else { 1. })
-                .when(!disabled, |row| row.cursor_pointer())
-                .child(surface_menu_icon(if marker { MenuIcon::Check } else { icon }, if marker { p.blue } else { color }))
-                .child(div().flex_1().min_w(px(0.)).flex().flex_col().justify_center()
-                    .text_size(px(12.)).line_height(px(17.)).child(label)
-                    .when(!detail.is_empty(), |s| s.child(div().text_size(px(10.)).line_height(px(13.)).opacity(0.75).child(detail))))
-                .when(page == Page::Primary && index == 0, |s| s.child(surface_menu_icon(MenuIcon::Forward, p.neutral)))
-                .when(interactive, |row| row
-                    .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                        this.background_clicks.reset(); cx.stop_propagation();
-                    }))
-                    .on_hover(cx.listener(move |this, inside, _, cx| {
-                        this.surface_menu.hover(index, *inside, this.now()); cx.notify();
-                    }))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if this.surface_menu.page == Some(page) && !disabled
-                            && let Some(action) = Menu::action(page, index) { this.surface_menu_action(action, cx); }
-                    })));
-            rows = rows.child(row);
+                .border_1().border_color(if self.surface_menu.keyboard_selected(index) { color.opacity(0.5) } else { transparent_black() })
+                .when(index == 5, |s| s.bg(p.red.opacity(highlight * if p.night { 0.05 } else { 0.025 })))
+                .text_size(px(12.)).text_color(color).cursor_pointer()
+                .child(surface_menu_icon(icon, color)).child(label)
+                .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                    this.background_clicks.reset(); cx.stop_propagation();
+                }))
+                .on_hover(cx.listener(move |this, inside, _, cx| {
+                    this.surface_menu.hover(index, *inside, this.now()); cx.notify();
+                }))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if this.surface_menu.is_open()
+                        && let Some(action) = Menu::action(index) { this.surface_menu_action(action, cx); }
+                }));
+            content = content.child(row);
         }
-        if interactive && let Some(hint) = &self.surface_menu.hint {
-            rows = rows.child(div().absolute().top(px(132.)).w(px(176.)).h(px(20.)).px(px(3.))
-                .flex().items_center().text_size(px(10.)).text_color(p.neutral).truncate().child(local_text(language, hint)));
-        }
-        rows.into_any_element()
+        content.into_any_element()
     }
     fn hide_downloads(&mut self,cx:&mut Context<Self>) {
         self.close_menu(cx);
@@ -1817,8 +1943,19 @@ impl Prototype {
         if self.preview.is_some() { return; }
         let Some(path)=self.downloads.as_ref().and_then(|ui|ui.settings()).map(|s|s.output_dir) else{return;};
         let task=cx.background_executor().spawn(async move {
+            #[cfg(target_os = "windows")]
+            {
             let explorer=std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("explorer.exe");
             std::process::Command::new(explorer).arg(path).spawn().is_ok()
+            }
+            #[cfg(target_os = "macos")]
+            {
+                std::process::Command::new("/usr/bin/open")
+                    .arg("--")
+                    .arg(path)
+                    .status()
+                    .is_ok_and(|status| status.success())
+            }
         });
         cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));}cx.notify();});}).detach();
     }
@@ -1830,46 +1967,33 @@ impl Prototype {
         ui.request_output_directory(path,now);
         self.close_menu(cx);
     }
-    fn row_action(
-        &self,
-        id: String,
-        label: &'static str,
-        danger: bool,
-        cx: &mut Context<Self>,
-        action: impl Fn(&mut Self, &mut Context<Self>) + 'static,
-    ) -> AnyElement {
-        let p = Palette::new(self.night);
-        div()
-            .id(SharedString::from(id))
-            .h(px(20.))
-            .px(px(5.))
-            .flex()
-            .items_center()
-            .rounded(px(5.))
-            .bg(p.badge)
-            .text_color(if danger { p.red } else { p.neutral })
-            .text_size(px(9.))
-            .cursor_pointer()
-            .hover(move |s| s.bg(p.border))
-            .child(label)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|_, _, _, cx| cx.stop_propagation()),
-            )
-            .on_click(cx.listener(move |this, _, _, cx| action(this, cx)))
-            .into_any_element()
-    }
     fn queue_icon(&self, id: u64, icon: QueueIcon, enabled: bool, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.night);
+        let copied = icon == QueueIcon::Copy && self.downloads.as_ref().is_some_and(|ui| ui.row_copied(id, self.now()));
         let enabled = enabled && self.downloads.as_ref().is_some_and(|ui| ui.row_action_allowed(id, icon, self.now()));
         let focus = self.downloads.as_ref().and_then(|ui| ui.action_focus.iter()
             .find(|entry| entry.action.job == id && entry.action.icon == icon))
             .map(|entry| (entry.action.clone(), entry.handle.clone()));
         let color = if icon == QueueIcon::Clear { p.red.opacity(0.8) } else { p.neutral };
-        div().id(SharedString::from(format!("{}-{id}", icon.name())))
+        let drawing = if icon == QueueIcon::Copy {
+            let arrival = self.ui_motion.change(format!("queue-copy-icon:{id}"), copied);
+            svg().path(if copied { "icons/check.svg" } else { "icons/copy.svg" })
+                .size(px(14.)).opacity(0.4 + 0.6 * arrival).text_color(color.opacity(if enabled { 1. } else { 0.35 })).into_any_element()
+        } else { queue_icon_drawing(icon, color.opacity(if enabled { 1. } else { 0.35 })).into_any_element() };
+        let button_id = SharedString::from(format!("{}-{id}", icon.name()));
+        let cancel = icon == QueueIcon::Cancel;
+        div().id(button_id.clone()).group(button_id.clone())
             .size(px(QUEUE_ICON_SIZE)).flex_none().flex().items_center().justify_center()
-            .rounded(px(4.)).border_1().border_color(transparent_black())
-            .child(queue_icon_drawing(icon, color.opacity(if enabled { 1. } else { 0.35 })))
+            .rounded_full().border_1().border_color(transparent_black())
+            .role(Role::Button).aria_label(local_text(self.language, if copied { "已复制" } else { icon.label() }))
+            .child(if cancel {
+                div().id("queue-cancel-disc").size(px(crate::tokens::FULL_CLOSE_DISC_SIZE)).flex_none()
+                    .flex().items_center().justify_center().rounded_full()
+                    .when(enabled, |circle| circle
+                        .group_hover(button_id.clone(), move |s| crate::tokens::icon_hover(s, p))
+                        .group_active(button_id, move |s| s.bg(p.border)))
+                    .child(drawing).into_any_element()
+            } else { drawing })
             .when(enabled, |button| button
                 .focusable().tab_index(0).cursor_pointer()
                 .when_some(focus, |button, (action, handle)| button
@@ -1879,8 +2003,9 @@ impl Prototype {
                         if let Some(ui) = &mut this.downloads { ui.hover_action(&action, *hovered, now); }
                         cx.notify();
                     })))
-                .hover(move |s| s.bg(p.badge))
-                .active(move |s| s.bg(p.border))
+                .when(!cancel, |button| button
+                    .hover(move |s| crate::tokens::icon_hover(s, p))
+                    .active(move |s| s.bg(p.border)))
                 .focus(move |s| s.border_color(p.blue))
                 .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
                 // GPUI sends focused Enter/Space key-up through this same click handler.
@@ -1928,6 +2053,14 @@ impl Prototype {
         let now = self.now();
         let transfer_now = ameow_next::download::progress::now_ms();
         if let Some(ui) = &mut self.downloads { ui.prepare_action_focus(now, cx); }
+        let mut row_jobs = self.downloads.as_ref().and_then(|ui| ui.snapshot.as_ref()).map_or_else(Vec::new, |s| s.jobs.clone());
+        for (index, old) in self.queue_motion_rows.iter().enumerate() {
+            if !row_jobs.iter().any(|job| job.job_id == old.job_id)
+                && self.ui_motion.presence(format!("queue-row:{}", old.job_id), false).visible() {
+                row_jobs.insert(index.min(row_jobs.len()), old.clone());
+            }
+        }
+        self.queue_motion_rows = row_jobs.clone();
         let ui = self.downloads.as_ref().unwrap();
         let focused = ui.action_focus.iter().find(|entry| entry.handle.is_focused(window)).map(|entry| &entry.action);
         let snapshot = ui.snapshot.as_ref();
@@ -1938,13 +2071,13 @@ impl Prototype {
                 .count()
         });
         let waiting = snapshot.map_or(0, |s| s.unfinished.saturating_sub(executing));
+        let summary = queue_activity_summary(executing, waiting, ui.language);
         let preparation_held = snapshot.is_some_and(|s| s.preparation_held);
-        let rows: Vec<_> = snapshot
-            .into_iter()
-            .flat_map(|s| &s.jobs)
-            .filter(|job| ui.row_visible(job, now))
-            .map(|job| {
+        let rows: Vec<_> = row_jobs.iter().filter_map(|job| {
                 let id = job.job_id;
+                let visible = snapshot.is_some_and(|s| s.jobs.iter().any(|j| j.job_id == id)) && ui.row_visible(job, now);
+                let presence = self.ui_motion.presence(format!("queue-row:{id}"), visible);
+                if !presence.visible() { return None; }
                 let failure = matches!(job.phase, JobPhase::Failure | JobPhase::Partial);
                 let success = job.phase == JobPhase::Success;
                 let held = job.phase == JobPhase::Held && (job.slot_owned || preparation_held);
@@ -1969,7 +2102,7 @@ impl Prototype {
                 // Hints replace only text in a fixed slot; the fill still uses current snapshot facts.
                 // Actual command outcomes remain in the separate first-line title viewport.
                 let row_status = local_text(ui.language, &ui.row_action_label(id, focused, now).map(str::to_owned)
-                    .unwrap_or_else(|| queue_row_status(job, snapshot.unwrap(), fraction, transfer_now)));
+                    .unwrap_or_else(|| snapshot.map_or_else(String::new, |snapshot| queue_row_status(job, snapshot, fraction, transfer_now))));
                 let icons = queue_row_icons(job, preparation_held);
                 let title_width = queue_title_width(icons.len());
                 let mut first_line = div().h(px(24.)).w_full().flex_none().flex().items_center().gap(px(QUEUE_LINE_GAP))
@@ -1977,13 +2110,14 @@ impl Prototype {
                 if !icons.is_empty() {
                     let mut actions = div().w(px(queue_action_width(icons.len()))).flex_none().flex().items_center().gap(px(QUEUE_ICON_GAP));
                     for &icon in icons {
-                        actions = actions.child(self.queue_icon(id, icon, true, cx));
+                        actions = actions.child(self.queue_icon(id, icon, visible, cx));
                     }
                     first_line = first_line.child(actions);
                 }
-                div()
+                Some(div()
                     .id(SharedString::from(format!("job-{id}")))
-                    .h(px(QUEUE_ROW_HEIGHT)).min_h(px(QUEUE_ROW_HEIGHT)).flex_shrink_0()
+                    .h(px(QUEUE_ROW_HEIGHT * presence.alpha)).min_h(px(QUEUE_ROW_HEIGHT * presence.alpha)).flex_shrink_0()
+                    .overflow_hidden().opacity(presence.alpha)
                     .w_full().flex().flex_col().justify_center().gap(px(QUEUE_LINE_GAP))
                     .border_b_1().border_color(p.border)
                     .hover(move |s| s.bg(p.badge.opacity(0.45)))
@@ -1995,11 +2129,10 @@ impl Prototype {
                             .text_right()
                             .text_size(px(8.)).line_height(px(14.)).font_weight(FontWeight::NORMAL)
                             .text_color(color)
-                            .child(row_status)))
+                            .child(row_status))))
 
             })
             .collect();
-        let empty = rows.is_empty();
         div()
             .absolute()
             .left(px(g.gutter + 10.))
@@ -2014,33 +2147,47 @@ impl Prototype {
             )
             .child(
                 div()
-                    .h(px(24.))
+                    .h(px(40.))
                     .flex()
                     .items_center()
-                    .justify_between()
+                    .gap(px(6.))
                     .text_size(px(10.))
                     .font_weight(FontWeight::MEDIUM)
-                    .child(if ui.fixture { ui.language.text("队列 · Fixture", "Queue · Fixture") } else { ui.language.text("下载队列", "Downloads") })
-                    .child(self.row_action(
-                        "queue-back".into(),
-                        ui.language.text("返回", "Back"),
-                        false,
-                        cx,
-                        |this, cx| {
+                    .child(gpui_base::Button::new("queue-back")
+                        .accessibility_label(ui.language.text("返回", "Back"))
+                        .size(px(24.)).flex_none().flex().items_center().justify_center()
+                        .rounded_full().border_1().border_color(transparent_black()).text_color(p.neutral)
+                        .cursor_pointer().hover(move |s| crate::tokens::icon_hover(s, p)).focus(move |s| s.border_color(p.neutral))
+                        .tooltip_above(&self.tooltips, {
+                            let label = ui.language.text("返回", "Back");
+                            move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip { text: label.into(), night: p.night }).into()
+                        })
+                        .child(svg().path("icons/arrow-left.svg").size(px(14.)).text_color(p.neutral))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|this, _, window, cx| {
                             if let Some(ui) = &mut this.downloads {
                                 ui.queue_open = false;
-                    ui.title_browse = None;
+                                ui.title_browse = None;
                                 ui.presentation.close_queue();
                             }
                             this.close_menu(cx);
-                        },
-                    )),
-            )
-            .child(
-                div()
-                    .h(px(16.))
-                    .text_size(px(9.))
-                    .child(format!("{} {executing} · {} {waiting}", ui.language.text("执行", "Active"), ui.language.text("等待", "Waiting"))),
+                            window.focus(&this.focus, cx);
+                        })))
+                    .child(div().flex_1().min_w(px(0.)).child(ui.language.text("队列", "Queue")))
+                    .when(!summary.is_empty(), |header| header.child(
+                        div().id("queue-activity").flex_none().h(px(22.)).px(px(6.))
+                            .flex().items_center().gap(px(8.)).rounded(px(6.)).bg(p.badge)
+                            .text_size(px(10.)).font_weight(FontWeight::NORMAL)
+                            .aria_label(summary.clone())
+                            .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                                text: summary.clone(), night: p.night,
+                            }).into())
+                            .when(executing > 0, |badge| badge.child(div().flex().items_center().gap(px(4.))
+                                .child(svg().path("icons/download.svg").size(px(12.)).text_color(p.blue))
+                                .child(executing.to_string())))
+                            .when(waiting > 0, |badge| badge.child(div().flex().items_center().gap(px(4.))
+                                .child(svg().path("icons/clock.svg").size(px(12.)).text_color(p.neutral))
+                                .child(waiting.to_string()))))),
             )
             .child(
                 div()
@@ -2052,14 +2199,6 @@ impl Prototype {
                         if let Some(ui) = &mut this.downloads { ui.title_browse = None; }
                         cx.notify();
                     }))
-                    .when(empty, |list| {
-                        list.child(
-                            div()
-                                .pt(px(20.))
-                                .text_size(px(10.))
-                                .child(if ui.fixture { ui.language.text("Fixture · 终端切换场景", "Fixture · terminal scenes") } else { ui.language.text("队列为空，Ctrl+V 粘贴视频链接", "Empty · Ctrl+V to paste a link") }),
-                        )
-                    })
                     .children(rows),
             )
             .into_any_element()
@@ -2067,98 +2206,101 @@ impl Prototype {
     pub(super) fn exit_panel(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.night);
         let g = self.model.geometry();
-        let stopping = self.downloads.as_ref().is_some_and(|ui| {
-            ui.exit_when_stopped
-                || ui
-                    .snapshot
-                    .as_ref()
-                    .is_some_and(|snapshot| snapshot.stopping)
+        let Some(ui) = &self.downloads else { return div().into_any_element(); };
+        let Some(issue) = ui.exit_issue() else { return div().into_any_element(); };
+        let language = ui.language;
+        let targets = ui.snapshot.as_deref().map_or_else(Vec::new, cleanup_targets);
+        let retry_notice = targets.iter().find_map(|job| {
+            if *job == 0 {
+                ui.preparation_status.as_ref().filter(|(_, danger)| *danger).map(|(text, _)| text.as_str())
+            } else { ui.row_notice(*job, self.now()) }
         });
-        let snapshot = self.downloads.as_ref().and_then(|ui| ui.snapshot.clone());
-        let language = self.downloads.as_ref().map_or_else(Default::default, |ui| ui.language);
-        let targets = snapshot
-            .as_ref()
-            .map_or_else(Vec::new, |snapshot| cleanup_targets(snapshot));
-        let unresolved = snapshot
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.preparation_owner_lost);
+        let message = retry_notice.map_or_else(|| issue.message(language).to_owned(), |text| local_text(language, text));
+        let task_details = issue != ExitIssue::OwnerLost && targets.iter().any(|job| *job != 0);
+        let details_label = if task_details {
+            language.text("查看队列", "View queue")
+        } else { language.text("查看诊断", "View diagnostics") };
+        let status_label = if retry_notice.is_some() { language.text("请查看详情", "See details") }
+            else { issue.label(language) };
+        let icon_button = |id: &'static str, icon: &'static str, label: String| {
+            let dismiss = icon == "icons/x.svg";
+            let retry = icon == "icons/rotate-cw.svg";
+            gpui_base::Button::new(id).accessibility_label(label.clone())
+                .group(id).size(px(if dismiss { FULL_CLOSE_HIT_SIZE } else { crate::tokens::SMALL_ICON_BUTTON_SIZE })).flex_none()
+                .flex().items_center().justify_center()
+                .rounded_full().border_1().border_color(transparent_black())
+                .cursor_pointer()
+                .when(!dismiss && !retry, |button| button.bg(p.badge)
+                    .hover(move |s| crate::tokens::icon_hover(s, p)).active(move |s| s.bg(p.border)))
+                .focus(move |s| s.border_color(p.neutral))
+                .when(!dismiss, |button| button.tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                    text: label.clone(), night: p.night,
+                }).into()))
+                .child(div().size(px(if dismiss { crate::tokens::FULL_CLOSE_DISC_SIZE } else if retry { crate::tokens::FULL_ACTION_SIZE } else { crate::tokens::ICON_SIZE })).flex_none()
+                    .flex().items_center().justify_center()
+                    .rounded_full()
+                    .when(dismiss, |circle| circle.group_hover(id, move |s| crate::tokens::icon_hover(s, p)))
+                    .when(retry, |circle| circle.group_hover(id, move |s| crate::tokens::icon_hover(s, p)))
+                    .child(svg().path(icon).size(px(if retry { 12. } else { crate::tokens::ICON_SIZE })).text_color(p.neutral)))
+        };
         div()
-            .absolute()
-            .left(px(g.gutter + 14.))
-            .top(px(g.gutter + 58.))
-            .w(px(172.))
-            .flex()
-            .flex_col()
-            .gap(px(8.))
-            .text_color(p.neutral)
-            .text_size(px(11.))
-            .child(if unresolved {
-                language.text("清理未确认", "Cleanup unconfirmed")
-            } else if stopping {
-                language.text("正在安全停止", "Stopping safely")
-            } else {
-                language.text("下载仍在进行", "Downloads in progress")
-            })
-            .child(div().text_size(px(10.)).child(local_text(language, exit_cleanup_message(
-                unresolved,
-                !targets.is_empty(),
-                stopping,
-            ))))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(5.))
-                    .child(self.row_action(
-                        "exit-continue".into(),
-                        if stopping {
-                            language.text("返回队列", "Queue")
-                        } else {
-                            language.text("继续运行", "Continue")
-                        },
-                        false,
-                        cx,
-                        move |this, cx| {
-                            this.continue_running(cx);
-                            if stopping {
-                                this.open_queue(cx);
+            .absolute().left(px(g.gutter)).top(px(g.gutter)).size(px(g.surface))
+            .text_color(p.primary_text()).text_size(px(10.)).line_height(px(14.))
+            .child(div().absolute().left(px(52.)).top(px(61.)).w(px(96.)).h(px(103.))
+                .child(crate::indicator::cleanup_attention(p, status_label))
+                .when(!targets.is_empty(), |content| content.child(
+                    icon_button("exit-retry-cleanup", "icons/rotate-cw.svg", language.text("重试清理", "Retry cleanup").into())
+                        .absolute().left(px(36.)).top(px(79.))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            let now = this.now();
+                            if let Some(ui) = &mut this.downloads {
+                                let targets = ui.snapshot.as_deref().map_or_else(Vec::new, cleanup_targets);
+                                for job in targets { ui.send(QueueCommand::RetryCleanup(job), now); }
                             }
-                        },
-                    ))
-                    .when(!stopping, |actions| {
-                        actions.child(self.row_action(
-                            "stop-exit".into(),
-                            language.text("停止并退出", "Stop & quit"),
-                            true,
-                            cx,
-                            |this, cx| this.stop_and_exit(cx),
-                        ))
-                    })
-                    .when(!targets.is_empty(), |actions| {
-                        actions.child(self.row_action(
-                            "exit-retry-cleanup".into(),
-                            language.text("重试清理", "Retry cleanup"),
-                            false,
-                            cx,
-                            |this, cx| {
-                                let now = this.now();
-                                if let Some(ui) = &mut this.downloads {
-                                    let snapshot = ui.snapshot.clone();
-                                    if let Some(snapshot) = snapshot {
-                                        for job in cleanup_targets(&snapshot) {
-                                            ui.send(QueueCommand::RetryCleanup(job), now);
-                                        }
-                                    }
-                                }
-                                cx.notify();
-                            },
-                        ))
-                    }),
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|_, _, _, cx| cx.stop_propagation()),
-            )
+                            cx.notify();
+                        })))))
+            .child(icon_button("exit-details", "icons/info.svg", format!("{message} · {details_label}"))
+                .absolute().left(px(12.)).bottom(px(12.))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.dismiss_exit_issue(cx);
+                    if task_details { this.open_queue(cx); } else { this.open_component_settings(cx); }
+                })))
+            .child(icon_button("exit-dismiss", "icons/x.svg", language.text("收起提示", "Dismiss").into())
+                .absolute().right(px(FULL_CLOSE_SIDE)).top(px(FULL_CLOSE_TOP))
+                .on_click(cx.listener(|this, _, _, cx| this.dismiss_exit_issue(cx))))
+            .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+            .into_any_element()
+    }
+    fn application_update_button(
+        &self,
+        update: &ameow_next::app_update::service::View,
+        language: crate::ui_text::Language,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = Palette::new(self.night);
+        let restart = crate::app_update_ui::popup_restart_available(update);
+        let label = crate::app_update_ui::popup_label(update, language);
+        gpui_base::Button::new("application-update")
+            .accessibility_label(format!("{}，{label}", crate::app_update_ui::headline(update, language)))
+            .w_full().min_h(px(36.)).h_auto().px(px(10.)).py(px(8.))
+            .flex().items_center().gap(px(5.))
+            .rounded(px(8.)).border_1().border_color(transparent_black())
+            .text_color(p.primary_text()).text_size(px(10.)).line_height(px(14.))
+            .cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border))
+            .focus(move |s| s.border_color(p.neutral))
+            .child(svg().path(crate::app_update_ui::popup_icon(update)).size(px(12.)).flex_none().text_color(p.neutral))
+            .when(restart, |button| button.child(
+                div().flex_1().min_w(px(0.)).text_color(p.neutral).truncate()
+                    .child(update.update.version.clone().unwrap_or_else(|| language.text("新版本", "New version").into()))))
+            .child(div().when(restart, |s| s.flex_none()).when(!restart, |s| s.flex_1().min_w(px(0.)))
+                .font_weight(FontWeight::MEDIUM).child(label))
+            .when(!restart, |button| button.child(
+                svg().path("icons/chevron-right.svg").size(px(10.)).flex_none().text_color(p.neutral)))
+            .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if restart { this.app_update_action(ameow_next::app_update::service::Action::Restart, cx); }
+                this.open_update_settings(cx);
+            }))
             .into_any_element()
     }
     pub(super) fn preparation_indicator_visible(&self) -> bool {
@@ -2179,8 +2321,10 @@ impl Prototype {
                 })
     }
     pub(super) fn preparation_animation_delay(&self) -> Option<u64> {
-        let preparation = &self.downloads.as_ref()?.snapshot.as_ref()?.preparation;
+        let snapshot = self.downloads.as_ref()?.snapshot.as_ref()?;
+        let preparation = &snapshot.preparation;
         (self.preparation_indicator_visible()
+            && preparation_visible(snapshot, ameow_next::download::progress::now_ms())
             && !self.model.reduced
             && matches!(
                 preparation.phase,
@@ -2206,15 +2350,15 @@ impl Prototype {
         let failed = preparation.phase == PreparationPhase::Failed
             || snapshot.preparation_held
             || snapshot.preparation_owner_lost;
-        let ready = (preparation.phase == PreparationPhase::Ready || update_attention) && !failed;
+        let ready = preparation.phase == PreparationPhase::Ready && !failed;
+        let component_visible = preparation_popup_visible(snapshot, ameow_next::download::progress::now_ms(), update_attention);
+        let update_only = update_attention && !component_visible;
+        let popup = self.ui_motion.presence("full-preparation-popup", ui.preparation_hovered && (!ready || update_attention));
         let fraction = preparation_fraction(preparation);
         let now = self.now();
         let can_retry = ui.preparation_retry_available();
-        let (headline, message) = preparation_popup_copy(snapshot, ui.language);
         let color = if failed {
             p.red
-        } else if update_attention {
-            p.blue
         } else if ready {
             p.green
         } else {
@@ -2225,112 +2369,100 @@ impl Prototype {
             .w(px(176.))
             .max_h(px(142.))
             .overflow_y_scroll()
-            .p(px(9.))
             .flex()
             .flex_col()
-            .gap(px(5.))
             .rounded(px(9.))
             .bg(p.surface)
             .border_1()
             .border_color(p.border)
             .text_color(p.neutral)
-            .text_size(px(9.))
-            .child(
-                div()
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_size(px(10.))
-                    .text_color(color)
-                    .child(headline),
-            );
-        if preparation.phase == PreparationPhase::Downloading && !failed {
-            let bytes = preparation_bytes(preparation.downloaded_bytes);
-            details = details.child(if let Some(fraction) = fraction {
-                format!(
-                    "{bytes} / {} · {:.0}%",
-                    preparation_bytes(preparation.total_bytes.unwrap()),
-                    (fraction * 100.).floor()
-                )
+            .text_size(px(9.));
+        if component_visible {
+            let mut component_details = div().p(px(9.)).flex().flex_col().gap(px(5.));
+            let (headline, message) = preparation_popup_copy(snapshot, ui.language);
+            let copied = ui.preparation_copied_at
+                .is_some_and(|at| now.saturating_sub(at) < crate::ui_motion::COPY_FEEDBACK_MS);
+            let copy_arrival = self.ui_motion.change("preparation-copy-icon", copied);
+            let copy_label = if ui.preparation_copy_pending {
+                ui.language.text("正在复制…", "Copying…")
+            } else if copied {
+                ui.language.text("已复制", "Copied")
             } else {
-                format!("{} {bytes}", ui.language.text("已下载", "Downloaded"))
-            });
-        }
-        if let Some(message) = message {
-            details = details.child(div().child(message));
-        }
-        if failed {
-            let copied = ui
-                .preparation_copied_at
-                .is_some_and(|at| now.saturating_sub(at) < 2000);
-            let mut actions = div().flex().gap(px(5.));
-            if can_retry {
-                actions = actions.child(self.row_action(
-                    "preparation-retry".into(),
-                    ui.language.text("重试", "Retry"),
-                    false,
-                    cx,
-                    |this, cx| {
-                        let now = this.now();
-                        if let Some(ui) = &mut this.downloads {
-                            ui.retry_preparation(now);
-                        }
-                        cx.notify();
-                    },
+                ui.language.text("复制诊断", "Copy diagnostic")
+            };
+            let mut title = div().flex_1().flex().items_center().gap(px(6.)).min_w(px(0.))
+                .child(div().flex_1().min_w(px(0.)).font_weight(FontWeight::MEDIUM)
+                    .text_size(px(10.)).line_height(px(14.)).text_color(p.primary_text()).child(headline));
+            if failed {
+                title = title.child(gpui_base::Button::new("preparation-copy")
+                        .accessibility_label(copy_label).disabled(ui.preparation_copy_pending)
+                        .size(px(24.)).flex_none().flex().items_center().justify_center()
+                        .rounded(px(4.)).border_1().border_color(transparent_black())
+                        .cursor_pointer().hover(move |s| crate::tokens::icon_hover(s, p)).active(move |s| s.bg(p.border))
+                        .focus(move |s| s.border_color(p.neutral))
+                        .opacity(if ui.preparation_copy_pending { 0.5 } else { 1. })
+                        .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| crate::settings_window::HelpTooltip {
+                            text: copy_label.into(), night: p.night,
+                        }).into())
+                        .child(svg().path(if copied { "icons/check.svg" } else { "icons/copy.svg" })
+                            .size(px(crate::tokens::ICON_SIZE)).opacity(0.4 + 0.6 * copy_arrival).text_color(p.neutral))
+                        .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            let now = this.now();
+                            if let Some(ui) = &mut this.downloads { ui.copy_preparation_diagnostic(now); }
+                            cx.notify();
+                        })));
+            }
+            component_details = component_details.child(div().flex().items_center().gap(px(4.))
+                .child(div().size(px(4.)).flex_none().rounded_full().bg(color)).child(title));
+            if preparation.phase == PreparationPhase::Downloading && !failed {
+                let bytes = preparation_bytes(preparation.downloaded_bytes);
+                let progress = if let Some(fraction) = fraction {
+                    format!(
+                        "{bytes} / {} · {:.0}%",
+                        preparation_bytes(preparation.total_bytes.unwrap()),
+                        (fraction * 100.).floor()
+                    )
+                } else {
+                    format!("{} {bytes}", ui.language.text("已下载", "Downloaded"))
+                };
+                component_details = component_details.child(div().pl(px(8.)).child(progress));
+            }
+            if let Some(message) = message {
+                component_details = component_details.child(div().pl(px(8.)).child(message));
+            }
+            if failed && can_retry {
+                component_details = component_details.child(div().flex().justify_end().child(
+                    gpui_base::Button::new("preparation-retry")
+                        .accessibility_label(ui.language.text("重试准备组件", "Retry component setup"))
+                        .min_h(px(24.)).px(px(8.)).flex().items_center().rounded(px(5.))
+                        .border_1().border_color(transparent_black()).bg(p.badge)
+                        .text_size(px(10.)).text_color(p.primary_text()).cursor_pointer()
+                        .hover(move |s| s.bg(p.border)).focus(move |s| s.border_color(p.neutral))
+                        .child(ui.language.text("重试", "Retry"))
+                        .on_mouse_down(MouseButton::Left, cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            let now = this.now();
+                            if let Some(ui) = &mut this.downloads {
+                                ui.retry_preparation(now);
+                            }
+                            cx.notify();
+                        })),
                 ));
             }
-            details = details.child(actions.child(self.row_action(
-                "preparation-copy".into(),
-                if copied { ui.language.text("已复制", "Copied") } else { ui.language.text("复制诊断", "Copy diagnostic") },
-                false,
-                cx,
-                |this, cx| {
-                    let now = this.now();
-                    if let Some(ui) = &mut this.downloads {
-                        ui.copy_preparation_diagnostic(now);
-                    }
-                    cx.notify();
-                },
-            )));
+            details = details.child(component_details);
         }
         if update_attention {
-            details = details
-                .child(
-                    div()
-                        .mt(px(5.))
-                        .border_t_1()
-                        .border_color(p.border)
-                        .pt(px(6.))
-                        .text_color(p.primary_text())
-                        .child(crate::app_update_ui::headline(&update, ui.language)),
-                )
-                .child(self.row_action(
-                    "application-update-open".into(),
-                    ui.language.text("查看应用更新", "View app update"),
-                    false,
-                    cx,
-                    |this, cx| this.open_update_settings(cx),
-                ));
-            if update.update.phase == ameow_next::app_update::Phase::Ready && update.launcher {
-                details = details.child(self.row_action(
-                    "application-update-restart".into(),
-                    ui.language.text("重启并更新", "Restart and update"),
-                    false,
-                    cx,
-                    |this, cx| {
-                        this.app_update_action(
-                            ameow_next::app_update::service::Action::Restart,
-                            cx,
-                        );
-                        this.open_update_settings(cx);
-                    },
-                ));
-            }
+            details = details.child(div()
+                .when(component_visible, |s| s.border_t_1().border_color(p.border))
+                .child(self.application_update_button(&update, ui.language, cx)));
         }
         div()
             .id("component-preparation-indicator")
             .absolute()
             .left(px(g.gutter + 12.))
             .bottom(px(g.gutter + 12.))
-            .w(px(if ui.preparation_hovered && (!ready || update_attention) { 176. } else { 24. },
+            .w(px(if popup.visible() { 176. } else { 24. },
             ))
             .flex()
             .flex_col()
@@ -2345,27 +2477,34 @@ impl Prototype {
                 MouseButton::Left,
                 cx.listener(|_, _, _, cx| cx.stop_propagation()),
             )
-            .when(ui.preparation_hovered && (!ready || update_attention), |indicator| {
+            .when(popup.visible(), |indicator| {
                 // Keep the popover, bridge and ring inside one real hover hitbox.
-                indicator.child(div().pb(px(6.)).child(details))
+                indicator.child(div().relative().top(px(popup.travel(4.))).opacity(popup.alpha).pb(px(6.))
+                    .when(!popup.open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
+                        .capture_key_down(|_, _, cx| cx.stop_propagation())).child(details))
             },
             )
             .child(
                 div()
                     .relative()
-                    .size(px(24.))
+                    .size(px(crate::tokens::SMALL_ICON_BUTTON_SIZE))
                     .flex_none()
                     .rounded_full()
                     .bg(p.badge)
-                    .child(indicator::preparation_ring(
+                    .hover(move |s| crate::tokens::icon_hover(s, p))
+                    .when(!update_only, |ring| ring.child(indicator::preparation_ring(
                         p,
                         fraction,
                         failed,
                         ready,
                         now,
                         self.model.reduced,
-                    ))
-                    .when(failed, |ring| {
+                    )))
+                    .when(update_only, |ring| ring.child(
+                        svg().path(crate::app_update_ui::popup_icon(&update))
+                            .absolute().left(px(4.)).top(px(4.)).size(px(crate::tokens::ICON_SIZE))
+                            .text_color(p.neutral)))
+                    .when(failed && !update_only, |ring| {
                         ring.child(
                             div()
                                 .absolute()
@@ -2378,7 +2517,7 @@ impl Prototype {
                                 .child("!"),
                         )
                     })
-                    .when(ready, |ring| {
+                    .when(ready && !update_only, |ring| {
                         ring.child(
                             svg()
                                 .path("icons/check.svg")
@@ -2386,7 +2525,7 @@ impl Prototype {
                                 .left(px(7.))
                                 .top(px(7.))
                                 .size(px(10.))
-                                .text_color(if update_attention { p.blue } else { p.green }),
+                                .text_color(p.green),
                         )
                     }),
             )
@@ -2407,19 +2546,30 @@ fn cleanup_targets(snapshot: &QueueSnapshot) -> Vec<u64> {
     );
     targets
 }
-fn exit_cleanup_message(unresolved: bool, cleanup_available: bool, stopping: bool) -> &'static str {
-    if unresolved {
-        "准备线程异常结束，清理未确认，暂不能安全退出。"
-    } else if cleanup_available {
-        "清理尚未确认，存活任务仍保留资源，可重试清理。"
-    } else if stopping {
-        "正在等待下载进程与文件收束。"
-    } else {
-        "继续运行，或停止所有任务后退出。"
+pub(super) fn exit_issue(snapshot: &QueueSnapshot) -> Option<ExitIssue> {
+    if snapshot.stopped { None }
+    else if snapshot.preparation_owner_lost { Some(ExitIssue::OwnerLost) }
+    else if !cleanup_targets(snapshot).is_empty() { Some(ExitIssue::Cleanup) }
+    else { None }
+}
+impl ExitIssue {
+    fn label(self, language: crate::ui_text::Language) -> &'static str {
+        match self {
+            Self::OwnerLost => language.text("清理未确认", "Cleanup unconfirmed"),
+            Self::Cleanup => language.text("等待清理", "Cleanup pending"),
+        }
+    }
+    fn message(self, language: crate::ui_text::Language) -> &'static str {
+        match self {
+            Self::OwnerLost => language.text("组件清理未确认", "Component cleanup is unconfirmed"),
+            Self::Cleanup => language.text("任务资源尚未释放", "Task resources are still in use"),
+        }
     }
 }
 #[cfg(test)]
 mod tests {
+    use super::{ErrorCategory, PreparationPhase, PreparationStage};
+
     #[test]
     fn partial_rows_show_verified_counts_and_failure_actions() {
         use super::*;
@@ -2607,8 +2757,7 @@ mod tests {
         use super::*;
         let (mut ui, _) = row_ui(JobPhase::Downloading, true);
         ui.request_menu_exit();
-        assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), Some(ExitAction::Confirm));
-        // Continue consumes the intent without requesting a stop.
+        assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), Some(ExitAction::Stop));
         assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), None);
         let mut idle = crate::queue_fixture::snapshot(Vec::new());
         idle.preparing = false; idle.preparation_held = false; idle.preparation_owner_lost = false;
@@ -2619,6 +2768,94 @@ mod tests {
         let mut stopped = (**ui.snapshot.as_ref().unwrap()).clone(); stopped.stopped = true;
         ui.snapshot = Some(Arc::new(stopped)); ui.request_menu_exit();
         assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), Some(ExitAction::Quit));
+    }
+    #[test]
+    fn ordinary_exit_stops_once_without_opening_a_panel() {
+        use super::*;
+        for phase in [JobPhase::Downloading, JobPhase::Queued, JobPhase::Preparing, JobPhase::Failure] {
+            let (mut ui, receiver) = row_ui(phase, false);
+            assert!(ui.request_exit_stop(100));
+            assert!(ui.exit_when_stopped);
+            assert!(!ui.exit_open);
+            assert_eq!(ui.exit_issue(), None);
+            assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Stop)));
+            assert!(ui.request_exit_stop(101));
+            assert!(receiver.try_recv().is_err());
+            Arc::make_mut(ui.snapshot.as_mut().unwrap()).stopping = true;
+            ui.sync_exit_issue();
+            assert!(!ui.exit_open, "ordinary stopping is not an exit error");
+        }
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        ui.snapshot = Some(Arc::new(exit_snapshot()));
+        assert!(ui.request_exit_stop(100));
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Stop)));
+        assert!(!ui.exit_open);
+    }
+    #[test]
+    fn a_full_stop_channel_keeps_the_exit_request_until_it_can_be_sent() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+        for _ in 0..8 { ui.commands.try_send(QueueCommand::Cancel(99)).unwrap(); }
+        assert!(!ui.request_exit_stop(100));
+        assert!(!ui.exit_when_stopped);
+        assert!(!ui.exit_open);
+        assert_eq!(ui.exit_intent.resolve(ui.snapshot.as_deref(), false), Some(ExitAction::Stop));
+        for _ in 0..8 { receiver.try_recv().unwrap(); }
+        assert!(ui.request_exit_stop(101));
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Stop)));
+        assert!(ui.exit_when_stopped);
+        assert!(!ui.exit_open);
+    }
+    #[test]
+    fn dismissing_an_exit_issue_keeps_shutdown_pending_and_does_not_reopen_it() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Held, true);
+        ui.sync_exit_issue();
+        assert!(!ui.exit_open, "a running task is not an exit request");
+        assert!(ui.request_exit_stop(100));
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Stop)));
+        assert_eq!(ui.exit_issue(), Some(ExitIssue::Cleanup));
+        assert!(ui.exit_open);
+        ui.dismiss_exit_issue();
+        ui.sync_exit_issue();
+        assert!(!ui.exit_open);
+        assert!(ui.exit_when_stopped);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).preparation_owner_lost = true;
+        ui.sync_exit_issue();
+        assert_eq!(ui.exit_issue(), Some(ExitIssue::OwnerLost));
+        assert!(ui.exit_open, "a different cleanup issue remains discoverable");
+        let snapshot = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+        snapshot.preparation_owner_lost = false;
+        snapshot.jobs[0].phase = JobPhase::Cancelled;
+        snapshot.jobs[0].slot_owned = false;
+        snapshot.jobs[0].resources_released = true;
+        snapshot.stopping = true;
+        ui.sync_exit_issue();
+        assert_eq!(ui.exit_issue(), None);
+        assert!(!ui.exit_open);
+        assert!(ui.exit_when_stopped);
+        assert!(!ui.snapshot.as_ref().unwrap().stopped, "only the backend confirms completion");
+    }
+    #[test]
+    fn exit_previews_show_only_real_cleanup_issues_and_reset_between_scenes() {
+        use super::*;
+        let mut ui = DownloadUi::controlled_preview();
+        for (name, expected, targets) in [
+            ("overlay.exit-cleanup", ExitIssue::Cleanup, vec![1]),
+            ("overlay.exit-unconfirmed", ExitIssue::OwnerLost, vec![]),
+        ] {
+            ui.set_preview_scene(&crate::preview::find(name).unwrap());
+            assert!(ui.exit_open);
+            assert!(ui.exit_when_stopped);
+            assert_eq!(ui.exit_issue(), Some(expected));
+            assert_eq!(cleanup_targets(ui.snapshot.as_deref().unwrap()), targets);
+            assert!(!ui.send(QueueCommand::Stop, 100));
+            assert!(!ui.send(QueueCommand::RetryCleanup(1), 100));
+        }
+        ui.set_preview_scene(&crate::preview::find("full.downloading").unwrap());
+        assert!(!ui.exit_open);
+        assert!(!ui.exit_when_stopped);
+        assert_eq!(ui.exit_issue(), None);
     }
     #[test]
     fn background_directory_open_waits_for_settings_ack_and_recovers_on_failure() {
@@ -2661,6 +2898,24 @@ mod tests {
         ui.queue_open = true;
         ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(5, phase, slot.then_some(5), None)])));
         (ui, receiver)
+    }
+    #[test]
+    fn queue_returns_to_full_after_last_visible_row_is_cleared() {
+        use super::*;
+        let (mut ui, _) = row_ui(JobPhase::Failure, false);
+        assert!(ui.queue_available(100));
+        assert!(!ui.dismiss_empty_queue(100));
+        ui.presentation.clear(5);
+        assert!(ui.dismiss_empty_queue(101));
+        assert!(!ui.queue_open);
+        assert!(!ui.queue_available(101));
+        assert_eq!(ui.snapshot.as_ref().unwrap().jobs.len(), 1);
+        let (mut ui, _) = row_ui(JobPhase::Queued, false);
+        assert!(!ui.dismiss_empty_queue(100));
+        assert!(ui.queue_open);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs.clear();
+        assert!(ui.dismiss_empty_queue(101));
+        assert!(!ui.queue_open);
     }
     #[test]
     fn title_browse_is_overflow_only_delayed_slow_bounded_and_has_no_idle_loop() {
@@ -2975,16 +3230,39 @@ mod tests {
         assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Cancel(5))));
     }
     #[test]
+    fn gallery_copy_feedback_is_local_and_repeatable_without_backend_commands() {
+        use super::*;
+        let mut ui = DownloadUi::controlled_preview();
+        let (commands, receive) = mpsc::sync_channel(8);
+        ui.commands = commands;
+        ui.set_preview_scene(&crate::preview::find("queue.failure").unwrap());
+        ui.activate_row_action(5, QueueIcon::Copy, 100);
+        assert!(ui.row_copied(5, 100));
+        ui.activate_row_action(5, QueueIcon::Copy, 1900);
+        assert!(ui.row_copied(5, 2100), "a repeated copy renews the visible feedback");
+        assert!(!ui.row_copied(5, 3900));
+        ui.copy_preparation_diagnostic(4000);
+        assert_eq!(ui.preparation_status_at(4000), Some(("已复制组件诊断".into(), false)));
+        assert_eq!(ui.preparation_status_at(6000), None);
+        assert!(receive.try_recv().is_err(), "Gallery must not reach the backend or clipboard");
+        assert!(!ui.complete_diagnostic(0, Err("clipboard busy".into()), 6100));
+        assert_eq!(ui.preparation_copied_at, None, "failure cannot leave an earlier success icon");
+    }
+    #[test]
     fn copy_acknowledges_real_result_and_clear_only_changes_session_presentation() {
         use super::*;
         let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
         ui.activate_row_action(5, QueueIcon::Copy, 100);
         assert!(matches!(receiver.try_recv(), Ok(QueueCommand::CopyDiagnostic(5))));
         assert_eq!(ui.row_notice(5, 100), None);
+        assert!(!ui.row_copied(5, 100));
         assert!(!ui.complete_diagnostic(5, Err("OS clipboard busy".into()), 101));
         assert_eq!(ui.row_notice(5, 101), Some("复制失败，请重试"));
+        assert!(!ui.row_copied(5, 101));
         assert!(ui.complete_diagnostic(5, Ok(()), 102));
         assert_eq!(ui.row_notice(5, 102), Some("诊断已复制"));
+        assert!(ui.row_copied(5, 102));
+        assert!(!ui.row_copied(5, 102 + crate::ui_motion::COPY_FEEDBACK_MS));
         ui.activate_row_action(5, QueueIcon::Clear, 103);
         assert_eq!(ui.badge(), None);
         assert!(ui.snapshot.as_ref().unwrap().jobs[0].failure.is_some());
@@ -3155,7 +3433,7 @@ mod tests {
         assert_eq!(model.stage, Stage::Idle);
     }
     use super::badge_counts;
-    use super::{ExitAction, ExitIntent, cleanup_targets, exit_cleanup_message};
+    use super::{ExitAction, ExitIntent, ExitIssue, cleanup_targets, exit_issue};
     use ameow_next::download::{
         queue::{JobPhase, JobSnapshot, QueueSnapshot},
         request::{Accepted, DownloadIntent, Quality},
@@ -3229,11 +3507,12 @@ mod tests {
         use ameow_next::download::preparation::PreparationPhase;
         let mut snapshot = exit_snapshot();
         assert!(!super::preparation_visible(&snapshot, 100));
-        snapshot.preparation.phase = PreparationPhase::Downloading;
+        snapshot.preparation = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap()).preparation;
         assert!(super::preparation_visible(&snapshot, 100));
         // Component preparation never contributes to media counts.
         assert_eq!(badge_counts(snapshot.unfinished, snapshot.failures), None);
         snapshot.preparation.phase = PreparationPhase::Ready;
+        snapshot.preparation.stage = PreparationStage::Publish;
         snapshot.preparation.updated_at_ms = 100;
         assert!(super::preparation_visible(&snapshot, 1899));
         assert!(!super::preparation_visible(&snapshot, 1900));
@@ -3244,6 +3523,77 @@ mod tests {
         assert!(super::preparation_visible(&snapshot, 50_000));
         snapshot.stopping = true;
         assert!(!super::preparation_visible(&snapshot, 50_000));
+    }
+    #[test]
+    fn cached_startup_checks_and_success_stay_quiet_despite_earlier_downloads() {
+        let mut snapshot = crate::preview::snapshot(&crate::preview::find("full.components-checking").unwrap());
+        assert!(!snapshot.preparation.history.is_empty());
+        for (phase, stage) in [
+            (PreparationPhase::Preparing, PreparationStage::Cache),
+            (PreparationPhase::Verifying, PreparationStage::Probe),
+            (PreparationPhase::Ready, PreparationStage::Publish),
+        ] {
+            snapshot.preparation.phase = phase;
+            snapshot.preparation.stage = stage;
+            snapshot.preparation.updated_at_ms = 100;
+            assert!(!super::preparation_visible(&snapshot, 100));
+            assert!(!super::preparation_popup_visible(&snapshot, 100, true));
+        }
+        snapshot.preparation.phase = PreparationPhase::Verifying;
+        snapshot.preparation.stage = PreparationStage::Probe;
+        snapshot.preparation_held = true;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation_held = false;
+        snapshot.preparation_owner_lost = true;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation_owner_lost = false;
+        snapshot.preparation.phase = PreparationPhase::Failed;
+        assert!(super::preparation_visible(&snapshot, 100));
+    }
+    #[test]
+    fn actual_setup_remains_visible_through_local_probes_and_repair() {
+        let mut snapshot = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap());
+        snapshot.preparation.phase = PreparationPhase::Verifying;
+        snapshot.preparation.stage = PreparationStage::Probe;
+        assert!(super::preparation_visible(&snapshot, 100));
+        snapshot.preparation.history.clear();
+        assert!(!super::preparation_visible(&snapshot, 100));
+        snapshot.preparation.stage = PreparationStage::Extract;
+        assert!(super::preparation_visible(&snapshot, 100));
+        let mut event = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap())
+            .preparation.history.remove(0);
+        event.stage = PreparationStage::Cache;
+        event.phase = PreparationPhase::Preparing;
+        event.category = Some(ErrorCategory::Hash);
+        snapshot.preparation.stage = PreparationStage::Probe;
+        snapshot.preparation.history.push(event);
+        assert!(super::preparation_visible(&snapshot, 100));
+    }
+    #[test]
+    fn update_popup_only_includes_components_that_need_attention() {
+        use super::preparation_popup_visible;
+        use ameow_next::download::preparation::PreparationPhase;
+        let mut snapshot = exit_snapshot();
+        assert!(!preparation_popup_visible(&snapshot, 100, true));
+        snapshot.preparation = crate::preview::snapshot(&crate::preview::find("full.components-downloading").unwrap()).preparation;
+        for phase in [PreparationPhase::Preparing, PreparationPhase::Downloading,
+            PreparationPhase::Verifying, PreparationPhase::Failed] {
+            snapshot.preparation.phase = phase;
+            assert!(preparation_popup_visible(&snapshot, 100, true));
+        }
+        snapshot.preparation.phase = PreparationPhase::Ready;
+        snapshot.preparation.stage = PreparationStage::Publish;
+        snapshot.preparation.updated_at_ms = 100;
+        assert!(preparation_popup_visible(&snapshot, 100, false));
+        assert!(!preparation_popup_visible(&snapshot, 1900, false));
+        assert!(!preparation_popup_visible(&snapshot, 100, true));
+        snapshot.preparation_held = true;
+        assert!(preparation_popup_visible(&snapshot, 100, true));
+        snapshot.preparation_held = false;
+        snapshot.preparation_owner_lost = true;
+        assert!(preparation_popup_visible(&snapshot, 100, true));
+        snapshot.stopping = true;
+        assert!(!preparation_popup_visible(&snapshot, 100, true));
     }
     #[test]
     fn preparation_popup_uses_plain_causes_for_each_component_and_http_failure() {
@@ -3302,6 +3652,14 @@ mod tests {
                 assert!(!preparation_failure_copy(category, None, language).is_empty());
             }
         }
+    }
+    #[test]
+    fn queue_summary_only_reports_nonzero_work() {
+        use crate::ui_text::Language;
+        assert!(super::queue_activity_summary(0, 0, Language::Chinese).is_empty());
+        assert_eq!(super::queue_activity_summary(3, 1, Language::Chinese), "进行中 3 · 等待 1");
+        assert_eq!(super::queue_activity_summary(0, 2, Language::Chinese), "等待 2");
+        assert_eq!(super::queue_activity_summary(1, 0, Language::English), "Active 1");
     }
     #[test]
     fn component_percentage_requires_real_download_bytes_and_known_total() {
@@ -3384,7 +3742,7 @@ mod tests {
         assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Quit));
     }
     #[test]
-    fn early_close_requires_confirmation_for_work_and_uncertain_owners() {
+    fn early_close_requests_safe_stop_for_work_and_uncertain_owners() {
         let idle = exit_snapshot();
         let mut unfinished = idle.clone();
         unfinished.unfinished = 1;
@@ -3401,8 +3759,7 @@ mod tests {
             let mut exit = ExitIntent::default();
             exit.request();
             assert_eq!(exit.resolve(None, false), None);
-            assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Confirm));
-            // Continuing does not reopen the confirmation when the next projection arrives.
+            assert_eq!(exit.resolve(Some(&snapshot), false), Some(ExitAction::Stop));
             assert_eq!(exit.resolve(Some(&snapshot), false), None);
         }
     }
@@ -3476,9 +3833,9 @@ mod tests {
             preparation: Default::default(),
         };
         assert!(cleanup_targets(&snapshot).is_empty());
-        let message = exit_cleanup_message(true, false, true);
+        assert_eq!(exit_issue(&snapshot), Some(ExitIssue::OwnerLost));
+        let message = ExitIssue::OwnerLost.message(crate::ui_text::Language::Chinese);
         assert!(message.contains("清理未确认"));
-        assert!(message.contains("暂不能安全退出"));
         assert!(!message.contains("保留资源"));
         assert!(!message.contains("重试"));
         snapshot.jobs.push(JobSnapshot {
@@ -3515,6 +3872,6 @@ mod tests {
         );
         snapshot.preparation_owner_lost = false;
         assert_eq!(cleanup_targets(&snapshot), vec![0]);
-        assert!(exit_cleanup_message(false, true, true).contains("可重试清理"));
+        assert_eq!(exit_issue(&snapshot), Some(ExitIssue::Cleanup));
     }
 }

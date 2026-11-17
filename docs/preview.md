@@ -13,7 +13,7 @@ Gallery 内查看结果；预览窗口本身可用于定向交互检查。预览
 关闭 Gallery 只结束它拥有的预览和截图进程。
 
 **真实窗口验证会占用桌面。局部修改只检查受影响场景，复用已有开发 EXE 与证据。**
-“全部截图”会连续切换整个目录和双主题，当前 94 场景约 188 张图，约需 3–5 分钟；
+“全部截图”会连续切换整个目录和双主题，随场景增加可能持续数分钟；
 只在桌面空闲且确有里程碑验证需要时使用，不在每次修改后自动执行。
 “本分类截图”仅生成所选分类的双主题总览。批量期间显示进度，可点击“取消截图”，
 保留已完成证据并关闭本轮批量预览；Gallery 自身和原先浏览的预览继续可用。
@@ -57,8 +57,7 @@ JSON 明确标注此行为，所以它不能证明自然置顶。自然置顶/�
 ## 目录和维护
 
 scripts/preview-scenes.json 是名称、分类和说明的唯一目录，编译进程序。
-当前基线有 94 场景/9 类：Compact 11、Full 12、队列 26、设置 18、组件管理 13、
-诊断 5、托盘 7、菜单 1、退出确认 1；以指定 EXE 导出的实际目录为准。
+本轮目录为 123 场景/9 类，其中 Compact 4 场景；以指定 EXE 导出的实际目录为准。
 新增场景后重新编译即可，不维护另一份 Gallery 场景表。
 
 src/preview.rs 负责队列/主界面，settings_window.rs 负责设置和组件，
@@ -73,22 +72,28 @@ tray_popup.rs 负责托盘摘要。复用真实渲染与局部状态注入；不
 目录、版本和错误反馈是合成值，采用真实产品布局和 Kit Base 控件绘制。
 Compact 本来隐藏状态详情和 Badge，多个折叠场景外观相同是产品行为。
 
+`compact.idle` 使用产品原生低频猫咪行为，启动时省略 `--reduced` 可观察动态。
+`compact.blink`、`compact.observe`、`compact.ears` 固定在相应姿态，便于检查两主题、
+60px 轮廓、支点和裁剪；固定姿态截图不能证明动画流畅性。
+
 Gallery 不替代实际设置 ACK/持久化、系统通知区域、更新/重启、拖动、焦点/自然置顶、
 下载/OLE drop/native picker 或其他 DPI/跨屏验收。单屏 96 DPI 的证据不升级为全 DPI PASS。
 
 scripts/test_gallery.py 定向验证双实例隔离、错误回执、空场景重置、截图身份、防覆盖、
 总览链接和退出清理；scripts/test_gpui_migration.py 验证引擎/控件的原生键鼠窗口行为。
 两者都会打开真实窗口，只在受影响行为需要复验且桌面可用时执行。
+`scripts/test_mascot_native.py` 只检查猫咪相关的可见性、减少动态、主题和窗口/下载快照切换，
+同时采集 30fps 原生录像；`--skip-record` 可只重跑流程及收起短片。
 
 scripts/test_gallery_native.py 对 Gallery 的截图按钮、分类双主题总览、完整批次启动后取消、
 截图失败重试、预览退出恢复和关闭清理做有限验证；它将 Win32 鼠标消息定向到所属 HWND，
-不是物理鼠标覆盖测试，额外使用已安装的 psutil。它不会完成 94×2 矩阵。
+不是物理鼠标覆盖测试，额外使用已安装的 psutil。它不会完成全目录的双主题矩阵。
 scripts/test_gpui_compatibility.py 不保存截图，仅做短时普通/reduced 动画和真实 Shell
 托盘图标注册、所属窗口回调与退出清理；不证明其他 DPI、跨屏、真实 Shell 点击或合成帧节奏。
 scripts/test_gallery_tools.py 不打开窗口，检查防覆盖、回执边界、取消/失败标记及控制器崩溃清理。
 
 旧 preview.ps1 / preview-menu.ps1 / preview-console.cs / start-preview.bat 和对应的
 test_preview_menu.ps1 已在职责对照后移除。替代证据与保留工具见
-[Gallery 职责覆盖](evidence/issue32/gallery-coverage.md)。preview_capture.py、
+[Gallery 职责覆盖的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue32/gallery-coverage.md`）。preview_capture.py、
 repair_a_runtime.py、windows_validate.py 及专门的 DPI/跨屏/阴影验证工具继续保留。
-旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录](evidence/issue20/README.md) 回溯。
+旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue20/README.md`）回溯。

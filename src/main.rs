@@ -6,23 +6,35 @@ mod queue_presentation;
 mod queue_fixture;
 mod preview;
 mod gallery;
+#[cfg(target_os = "windows")]
+mod tray;
+#[cfg(target_os = "macos")]
+#[path = "tray_macos.rs"]
 mod tray;
 mod tray_popup;
 mod indicator;
+mod mascot;
+mod mascot_motion;
 mod magnetic_spring;
 mod model;
+#[cfg(target_os = "windows")]
+mod native;
+#[cfg(target_os = "macos")]
+#[path = "native_macos.rs"]
 mod native;
 mod repair_motion;
 mod ring_glow;
 mod tokens;
 mod context_menu;
+mod ui_motion;
+mod ui_tooltip;
 mod surface_actions;
 mod settings_window;
 use ameow_next::login_startup;
 mod app_update_ui;
 mod ui_text;
 mod brand_icons;
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod native_acceptance;
 
 use gpui::{prelude::*, *};
@@ -36,6 +48,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokens::Palette;
+use ui_tooltip::TooltipExt as _;
 
 const DIAGNOSTIC: &str = "Ameow · Phase 1 mock diagnostic\nE_MOCK_DOWNLOAD: simulated download failure\nNo backend request was made.";
 #[derive(Clone, Copy, Default)]
@@ -68,6 +81,9 @@ impl AssetSource for Assets {
             "icons/circle-alert.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-alert.svg"))),
             "icons/chevron-right.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-right.svg"))),
             "icons/chevron-down.svg" => Some(Cow::Borrowed(include_bytes!("../assets/chevron-down.svg"))),
+            "icons/circle-arrow-up.svg" => Some(Cow::Borrowed(include_bytes!("../assets/circle-arrow-up.svg"))),
+            "icons/clock.svg" => Some(Cow::Borrowed(include_bytes!("../assets/clock.svg"))),
+            "icons/rotate-ccw.svg" => Some(Cow::Borrowed(include_bytes!("../assets/rotate-ccw.svg"))),
             // Preserve Ameow's existing aliases; other component icons use the official bundle.
             _ => match ring_glow::load(path) {
                 Some(bytes) => Some(Cow::Owned(bytes)),
@@ -79,7 +95,8 @@ impl AssetSource for Assets {
         let mut paths: Vec<SharedString> = ["icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
             "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",
             "icons/blocks.svg", "icons/info.svg", "icons/circle-alert.svg",
-            "icons/chevron-right.svg", "icons/chevron-down.svg"]
+            "icons/chevron-right.svg", "icons/chevron-down.svg",
+            "icons/circle-arrow-up.svg", "icons/clock.svg", "icons/rotate-ccw.svg"]
             .into_iter()
             .map(Into::into)
             .chain(ring_glow::asset_paths())
@@ -230,6 +247,8 @@ struct Prototype {
     focus: FocusHandle,
     night: bool,
     indicator: indicator::Indicator,
+    mascot: mascot::Mascot,
+    _mascot_visibility: Subscription,
     drag: Option<([f32; 2], [f32; 2])>,
     copied_at: Option<u64>,
     demo: bool,
@@ -248,6 +267,9 @@ struct Prototype {
     hover: edge_hover::Hover,
     magnetic: Magnetic,
     spring_hover: magnetic_spring::Hover,
+    ui_motion: ui_motion::Motion,
+    tooltips: ui_tooltip::Host,
+    queue_motion_rows: Vec<ameow_next::download::queue::JobSnapshot>,
 }
 impl Prototype {
     fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -278,6 +300,13 @@ impl Prototype {
                 false
             });
         }
+        let mascot_entity = cx.entity().downgrade();
+        let mascot_visibility = window.observe_window_visibility(move |_, _, cx| {
+            let _ = mascot_entity.update(cx, |this, cx| {
+                this.mascot.sample(this.now(), false, this.model.reduced);
+                cx.notify();
+            });
+        });
         let downloads = if options.preview { Some(download_ui::DownloadUi::controlled_preview()) } else if let Some(path) = options.queue_fixture {
             Some(download_ui::DownloadUi::fixture(path))
         } else { (!options.fixture).then(download_ui::DownloadUi::start) };
@@ -327,6 +356,8 @@ impl Prototype {
             focus,
             night: options.night,
             indicator: indicator::Indicator::default(),
+            mascot: mascot::Mascot::new(std::process::id() as u64),
+            _mascot_visibility: mascot_visibility,
             drag: None,
             copied_at: None,
             demo: options.demo,
@@ -345,6 +376,9 @@ impl Prototype {
             hover: edge_hover::Hover::default(),
             magnetic: options.magnetic,
             spring_hover: magnetic_spring::Hover::default(),
+            ui_motion: ui_motion::Motion::default(),
+            tooltips: ui_tooltip::Host::new(cx),
+            queue_motion_rows: Vec::new(),
         }
     }
     fn now(&self) -> u64 {
@@ -401,7 +435,8 @@ impl Prototype {
         if self.surface_menu.is_open() { return; }
         if !self.model.target_full || self.model.fullness < 0.999 { return; }
         if self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open) { return; }
-        self.surface_menu.open(self.now());
+        let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
+        self.surface_menu.open(quality, self.now());
         self.model.locks.menu = true;
         self.background_clicks.reset();
         self.drag=None;self.model.locks.drag=false;
@@ -506,7 +541,7 @@ impl Prototype {
             self.exit_after_ms = None;
             if self.downloads.is_some() { self.stop_and_exit(cx); } else { cx.quit(); }
         }
-        if self.copied_at.is_some_and(|at| now >= at + 900) {
+        if self.copied_at.is_some_and(|at| now >= at + ui_motion::COPY_FEEDBACK_MS) {
             self.copied_at = None;
         }
         if self.native.is_none() {
@@ -583,6 +618,8 @@ impl Prototype {
             );
         }
         let g = self.model.geometry();
+        #[cfg(target_os = "macos")]
+        self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
         self.native
             .as_mut()
             .unwrap()
@@ -672,6 +709,11 @@ impl Prototype {
 }
 impl Render for Prototype {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.ui_motion.begin(self.model.reduced);
+        let queue_presence = self.ui_motion.presence("full-queue", self.downloads.as_ref().is_some_and(|ui| ui.queue_open));
+        let exit_presence = self.ui_motion.presence("full-exit", self.downloads.as_ref().is_some_and(|ui| ui.exit_open));
+        let held = queue_presence.visible() || exit_presence.visible() || self.surface_menu.visible(self.now(), self.model.reduced);
+        if held != self.model.locks.menu { self.model.locks.menu = held; self.model.locks_changed(self.now()); }
         let render_start = Instant::now();
         let timestamp_us = self.clock.elapsed().as_micros();
         let dt_actual_ms = timestamp_us.saturating_sub(self.last_frame_us) as f64 / 1000.;
@@ -682,10 +724,31 @@ impl Render for Prototype {
         let cpu_advance_us = render_start.elapsed().as_micros();
         let now = self.now();
         let g = self.model.geometry();
+        #[cfg(target_os = "macos")]
+        let g = native::presented_geometry(g, [window.viewport_size().width.into(), window.viewport_size().height.into()]);
         let p = Palette::new(self.night);
         let native = self.native.as_ref().unwrap();
         let cursor = Native::cursor();
         let scale = native.scale();
+        let mascot_visible = native.visible() && !self.model.target_full && self.model.fullness <= 0.001;
+        let mut mascot_delay = self.mascot.sample(now, mascot_visible, self.model.reduced);
+        if let Some(pose) = self.preview.as_ref().and_then(|p| mascot::preview_pose(&p.scene().state)) {
+            self.mascot.pose = pose;
+            mascot_delay = None;
+        }
+        let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
+        let mascot_diameter = g.surface.min(60.);
+        let mascot_image = (mascot_alpha > 0.).then(|| self.mascot.image(self.night, window, cx));
+        if let Some(log) = &mut self.telemetry {
+            let pose = self.mascot.pose;
+            let _ = writeln!(log, "{}", serde_json::json!({
+                "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
+                "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
+                "raster_us":if mascot_image.is_some() {self.mascot.raster_us} else {0},
+                "scale":scale, "night":self.night, "reduced":self.model.reduced
+            }));
+            let _ = log.flush();
+        }
         let rest_pointer = [
             (cursor[0] - self.anchor[0]) / scale,
             (cursor[1] - self.anchor[1]) / scale,
@@ -774,7 +837,10 @@ impl Render for Prototype {
                 )
             }
         };
+        #[cfg(not(target_os = "macos"))]
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
+        #[cfg(target_os = "macos")]
+        let alpha = ((((g.gutter - 10.) / 4.) - 0.72) / 0.28).clamp(0., 1.);
         self.visual_offset = visual_offset;
         let frame = self.indicator.sample(&self.model, p, now);
         let indeterminate = self.unknown_downloading || self
@@ -787,7 +853,7 @@ impl Render for Prototype {
             frame
         };
         let stage = self.model.stage;
-        let copied = self.copied_at.is_some_and(|t| now < t + 900);
+        let copied = self.copied_at.is_some_and(|t| now < t + ui_motion::COPY_FEEDBACK_MS);
         self.wake = None;
         let motion_delay = if self.demo || self.probe_period_ms.is_some()
             || self.model.indeterminate_animation(indeterminate) {
@@ -797,12 +863,12 @@ impl Render for Prototype {
         };
         let copy_delay = self
             .copied_at
-            .map(|at| (at + 900).saturating_sub(now).max(1));
+            .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay]
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay]
             .into_iter()
             .flatten()
             .min();
@@ -823,6 +889,12 @@ impl Render for Prototype {
         } else {
             p.border
         };
+        // Keep the small Compact compression centered inside the legal native bounds.
+        let surface_origin = g.gutter + if self.model.window_motion.candidate == Candidate::Converged {
+            (g.native - 2. * g.gutter - g.surface) * 0.5
+        } else {
+            0.
+        };
         // GPUI's style path paints fill/border separately. Combine them before outer AA
         // coverage here, while the original div retains its 1px layout inset and hitbox.
         let surface_paint = canvas(
@@ -839,16 +911,16 @@ impl Render for Prototype {
             },
         )
         .absolute()
-        .left(px(g.gutter))
-        .top(px(g.gutter))
+        .left(px(surface_origin))
+        .top(px(surface_origin))
         .size(px(g.surface));
         let surface = div()
             .id("surface")
             .absolute()
-            .left(px(g.gutter))
-            .top(px(g.gutter))
+            .left(px(surface_origin))
+            .top(px(surface_origin))
             .size(px(g.surface))
-            .rounded(px(g.radius))
+            .rounded(px(g.radius.min(g.surface * 0.5)))
             .border_1()
             .border_color(gpui::transparent_black())
             .on_mouse_down(
@@ -895,6 +967,7 @@ impl Render for Prototype {
             .child(indicator::center(frame))
             .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() })
             .when(stage.active() || matches!(stage, Stage::Failure | Stage::Partial), |s| {
+                let copy = matches!(stage, Stage::Failure | Stage::Partial);
                 s.child(
                     div()
                         .id("state-action")
@@ -902,7 +975,7 @@ impl Render for Prototype {
                         .absolute()
                         .left(px(41.))
                         .top(px(83.))
-                        .size(px(16.))
+                        .size(px(tokens::FULL_ACTION_SIZE))
                         .rounded_full()
                         .cursor_pointer()
                         .flex()
@@ -910,14 +983,9 @@ impl Render for Prototype {
                         .justify_center()
                         .text_color(p.neutral)
                         .hover(move |s| {
-                            s.bg(p.red)
-                                .text_color(gpui::white())
-                                .shadow(vec![BoxShadow { inset: false,
-                                    color: p.red.opacity(0.3),
-                                    offset: point(px(0.), px(2.4)),
-                                    blur_radius: px(4.8),
-                                    spread_radius: px(0.),
-                                }])
+                            if copy { tokens::icon_hover(s, p).shadow(tokens::state_action_shadow(p.neutral)) } else {
+                                s.bg(p.red).text_color(gpui::white()).shadow(tokens::state_action_shadow(p.red))
+                            }
                         })
                         .child(
                             svg()
@@ -932,7 +1000,7 @@ impl Render for Prototype {
                                 })
                                 .size(px(if matches!(stage, Stage::Failure | Stage::Partial) { 10. } else { 16. }))
                                 .text_color(p.neutral)
-                                .group_hover("state-action", move |s| s.text_color(gpui::white())),
+                                .group_hover("state-action", move |s| s.text_color(if copy { p.neutral } else { gpui::white() })),
                         )
                         .on_mouse_down(
                             MouseButton::Left,
@@ -1009,10 +1077,13 @@ impl Render for Prototype {
         )
         .absolute()
         .size_full();
-        let menu_open = self.surface_menu.is_open();
-        let content_alpha = self.surface_menu.content_alpha(now, self.model.reduced);
+        let menu_open = self.surface_menu.visible(now, self.model.reduced);
+        let menu_alpha = self.surface_menu.menu_alpha(now, self.model.reduced);
+        let queue_presence = self.ui_motion.presence("full-queue", self.downloads.as_ref().is_some_and(|ui| ui.queue_open));
+        let exit_presence = self.ui_motion.presence("full-exit", self.downloads.as_ref().is_some_and(|ui| ui.exit_open));
+        let content_alpha = (1. - menu_alpha) * (1. - queue_presence.alpha) * (1. - exit_presence.alpha);
         let main_content = div().absolute().size(px(g.native)).opacity(content_alpha)
-            .when(!self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open), |group| group.child(slot))
+            .child(slot)
             .when(badge_visible, |group| group.child(badge))
             .when(self.preparation_indicator_visible(), |group| group.child(self.preparation_indicator(cx)));
         let visual_group = div()
@@ -1024,11 +1095,20 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .when(!menu_open, |group| group.child(main_content))
+            .when_some(mascot_image, |group, image| group.child(
+                div().absolute().left(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
+                    .top(px(surface_origin + (g.surface - mascot_diameter) * 0.5))
+                    .size(px(mascot_diameter)).opacity(mascot_alpha).child(mascot::element(image, mascot_diameter))))
+            .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
-            .when(self.downloads.as_ref().is_some_and(|ui|ui.queue_open),|s|s.child(self.queue_panel(window,cx)))
-            .when(self.downloads.as_ref().is_some_and(|ui|ui.exit_open),|s|s.child(self.exit_panel(cx)));
+            .when(queue_presence.visible(), |s| s.child(div().absolute().inset_0().left(px(queue_presence.travel(5.))).opacity(queue_presence.alpha)
+                .when(!queue_presence.open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation()).capture_key_down(|_, _, cx| cx.stop_propagation()))
+                .child(self.queue_panel(window, cx))))
+            .when(exit_presence.visible(), |s| s.child(div().absolute().inset_0().opacity(exit_presence.alpha)
+                .when(!exit_presence.open, |s| s.capture_any_mouse_down(|_, _, cx| cx.stop_propagation()).capture_key_down(|_, _, cx| cx.stop_propagation()))
+                .child(self.exit_panel(cx))));
+        self.ui_motion.finish(window);
         let result = div()
             .id("ameow-root")
             .track_focus(&self.focus)
@@ -1052,7 +1132,10 @@ impl Render for Prototype {
                 }
                 // GPUI registers tab stops but requires the application to move focus.
                 if this.surface_menu.is_open() {
-                    this.key(event.keystroke.key.as_str(), cx);
+                    let key = if event.keystroke.key == "tab" && event.keystroke.modifiers.shift {
+                        "shift-tab"
+                    } else { event.keystroke.key.as_str() };
+                    this.key(key, cx);
                     cx.stop_propagation();
                 } else if event.keystroke.key == "tab"
                     && this.downloads.as_ref().is_some_and(|ui| ui.queue_open)
@@ -1061,7 +1144,7 @@ impl Render for Prototype {
                     else { window.focus_next(cx); }
                     cx.stop_propagation();
                     cx.notify();
-                } else if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
+                } else if this.downloads.is_some() && event.keystroke.modifiers.secondary(cx) && event.keystroke.key.eq_ignore_ascii_case("v") {
                     this.paste_download(cx);
                     cx.stop_propagation();
                 } else {
@@ -1088,16 +1171,17 @@ impl Render for Prototype {
             .child(overlays)
             .when(self.downloads.is_none() && self.model.locks.menu, |s| {
                 s.child(self.menu(cx))
-            });
+            }).tooltip_root(&self.tooltips);
         if let Some(writer) = &mut self.measure {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();
             let viewport = window.viewport_size();
+            let requested = self.model.geometry();
             let native_request = [
-                (self.anchor[0] - g.gutter * scale).round() as i32,
-                (self.anchor[1] - g.gutter * scale).round() as i32,
-                (g.native * scale).round() as i32,
-                (g.native * scale).round() as i32,
+                (self.anchor[0] - requested.gutter * scale).round() as i32,
+                (self.anchor[1] - requested.gutter * scale).round() as i32,
+                (requested.native * scale).round() as i32,
+                (requested.native * scale).round() as i32,
             ];
             let cpu_render_us = render_start.elapsed().as_micros();
             let phase = if self.model.window_motion.candidate == Candidate::Baseline {
@@ -1199,8 +1283,13 @@ fn main() {
             Err(error) => {
                 // Fail closed rather than create a second queue/runtime owner.
                 let message = ui_text::SystemPreferences::read().language.message(&error);
-                let wide: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
-                unsafe { windows::Win32::UI::WindowsAndMessaging::MessageBoxW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::w!("Ameow"), windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR); }
+                #[cfg(target_os = "windows")]
+                {
+                    let wide: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
+                    unsafe { windows::Win32::UI::WindowsAndMessaging::MessageBoxW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::w!("Ameow"), windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR); }
+                }
+                #[cfg(target_os = "macos")]
+                eprintln!("Ameow: {message}");
                 return;
             }
         }
@@ -1209,6 +1298,8 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
+            #[cfg(target_os = "macos")]
+            cx.set_activation_policy(ActivationPolicy::Accessory);
             gpui_component::init(cx);
             cx.text_system()
                 .add_fonts(
@@ -1232,8 +1323,9 @@ fn main() {
                     kind: WindowKind::PopUp,
                     // Native completes first geometry and TOPMOST on the foreground
                     // executor before showing this Windows popup without activation.
-                    show: !cfg!(target_os = "windows"),
-                    focus: !cfg!(target_os = "windows"),
+                    show: false,
+                    focus: false,
+                    inactive_frame_interval: None,
                     window_background: WindowBackgroundAppearance::Transparent,
                     is_resizable: false,
                     is_minimizable: false,

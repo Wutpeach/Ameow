@@ -55,6 +55,12 @@ impl Failure {
         };
         Self::new(code, stage)
     }
+    pub fn from_error(phase: &Phase, error: &str) -> Self {
+        if error.starts_with("E_MEDIA_UNVERIFIED:") { known("E_MEDIA_UNVERIFIED", "verify") }
+        else if error.starts_with("E_MEDIA_INVALID:") { known("E_MEDIA", "verify") }
+        else if error.starts_with("E_OBJECT_UNSUPPORTED:") { known("E_OBJECT_UNSUPPORTED", "verify") }
+        else { Self::local(phase) }
+    }
 }
 pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let (reason, suggestion) = match code {
@@ -77,6 +83,10 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
         "E_MEDIA" => (
             "The delivered media failed verification",
             "Copy the safe diagnostics before retrying",
+        ),
+        "E_MEDIA_UNVERIFIED" => (
+            "The delivered media could not be verified from available evidence",
+            "Copy the safe diagnostics; the file has not been confirmed damaged",
         ),
         "E_RATE_LIMIT" => (
             "The site temporarily limited requests",
@@ -146,6 +156,7 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
     let code = if matches!(
         code,
         "E_MEDIA"
+            | "E_MEDIA_UNVERIFIED"
             | "E_OBJECT_UNSUPPORTED"
             | "E_URL_UNSAFE"
             | "E_UNSUPPORTED_URL"
@@ -197,6 +208,15 @@ pub fn identity_failure() -> Failure {
 #[cfg(test)]
 mod resolve_regressions {
     use super::*;
+    #[test]
+    fn native_failure_bad_media_and_missing_evidence_remain_distinct() {
+        assert_eq!(Failure::from_error(&Phase::Validating, "E_MEDIA_UNVERIFIED: missing timing").code, "E_MEDIA_UNVERIFIED");
+        assert_eq!(Failure::from_error(&Phase::Validating, "E_MEDIA_INVALID: decoding failed").code, "E_MEDIA");
+        let native = crate::download::adapters::yt_dlp::diagnostics::classify(&Phase::Resolving, "resolve engine exit 1: ERROR: opaque native failure");
+        assert_eq!(native.code, "E_ENGINE_FAILED");
+        let copy = copy_text(1, "unknown", &[Failure::from_error(&Phase::Validating, "E_MEDIA_UNVERIFIED: https://private.example/token=SECRET")]);
+        assert!(copy.contains("E_MEDIA_UNVERIFIED [verify]")); assert!(!copy.contains("SECRET"));
+    }
     #[test]
     fn truncated_and_invalid_metadata_have_distinct_safe_diagnostics() {
         let overflow = crate::download::adapters::yt_dlp::diagnostics::classify(
