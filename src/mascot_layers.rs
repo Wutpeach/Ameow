@@ -36,10 +36,11 @@ fn group_end(source: &str, start: usize) -> usize {
 pub fn composed(source: &str, scene: crate::mascot_reveal::Scene) -> String {
     let p = Parts::new(source);
     let clip = if source == NIGHT { "clip0_5_277" } else { "clip0_5_276" };
-    let paws = if scene.paws_y == 0. { p.paws.to_owned() } else {
-        format!(r#"<g clip-path="url(#reveal-paws)"><g transform="translate(0 {})">{}</g></g>"#, scene.paws_y, p.paws)
+    let paws = if scene.paws_y >= 8. { String::new() }
+    else if scene.paws_y == 0. && scene.perch_y == 0. { p.paws.to_owned() } else {
+        format!(r#"<g clip-path="url(#reveal-paws)"><g transform="translate(0 {})">{}</g></g>"#, scene.perch_y + scene.paws_y, p.paws)
     };
-    let body = format!(r#"<defs><clipPath id="reveal-paws"><rect width="60" height="41"/></clipPath></defs><g clip-path="url(#{clip})"><g opacity="{}" transform="translate(0 {})">{}</g><g transform="translate(0 {})">{}</g>{paws}</g>"#,
-        scene.head_alpha, scene.head_y, p.head, scene.perch_y, p.perch);
+    let body = format!(r#"<defs><clipPath id="reveal-paws"><rect width="60" height="{}"/></clipPath></defs><g clip-path="url(#{clip})"><g opacity="{}" transform="translate(0 {})">{}</g><g transform="translate(0 {})">{}</g>{paws}</g>"#,
+        41. + scene.perch_y, scene.head_alpha, scene.head_y, p.head, scene.perch_y, p.perch);
     p.document(&body)
 }

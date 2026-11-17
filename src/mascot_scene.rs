@@ -70,12 +70,12 @@ impl Prepared {
         let mut paws_mask = None;
         if scene.paws_y != 0. {
             let mut mask = local_circle.clone().unwrap_or_else(|| tiny_skia::Mask::new(target.width(), target.height()).expect("local paws mask"));
-            let rect = tiny_skia::Rect::from_xywh(0., 0., target.width() as f32, origin + 41. * unit).expect("local contact line");
+            let rect = tiny_skia::Rect::from_xywh(0., 0., target.width() as f32, origin + (41. + scene.perch_y) * unit).expect("local contact line");
             if local_circle.is_some() { mask.intersect_path(&tiny_skia::PathBuilder::from_rect(rect), tiny_skia::FillRule::Winding, true, Transform::identity()); }
             else { mask.fill_path(&tiny_skia::PathBuilder::from_rect(rect), tiny_skia::FillRule::Winding, true, Transform::identity()); }
             paws_mask = Some(mask);
         }
-        paint(target, &self.paws, scene.paws_y, 1., paws_mask.as_ref().or(local_circle.as_ref()));
+        paint(target, &self.paws, scene.perch_y + scene.paws_y, 1., paws_mask.as_ref().or(local_circle.as_ref()));
     }
 }
 

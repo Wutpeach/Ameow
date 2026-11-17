@@ -55,39 +55,80 @@ fn cached_layers_preserve_the_surface_mask_rest_and_hidden_endpoints() {
         let hidden = mascot::straight_bgra(render(0.));
         let empty = mascot::straight_bgra(surface.compose(None, 0., night, scale));
         assert!(hidden == empty, "no hidden head, paws or sill may leak into the surface");
-        let peek = mascot::straight_bgra(render(220. / mascot_reveal::ENTER_MS));
-        let pause = mascot::straight_bgra(render(235. / mascot_reveal::ENTER_MS));
-        assert!(peek == pause, "the authored peek has a quiet pause");
     }
 }
 
 #[test]
-fn visible_head_follows_the_sill_while_both_are_still_rising() {
+fn visible_paws_grip_the_rising_sill_before_any_readable_head() {
     let renderer = SvgRenderer::new(Arc::new(()));
     for night in [false, true] {
         for scale in [1., 2.] {
             let mut mascot = mascot::Mascot::new(0);
             let surface = mascot::SurfaceFrame::new(model::Geometry::at(0.));
             let empty = mascot::straight_bgra(surface.compose(None, 0., night, scale));
-            // Ignore a few AA crumbs: require four logical pixels with readable contrast.
-            let visible = |a: &[u8], b: &[u8]| a.chunks_exact(4).zip(b.chunks_exact(4))
-                .filter(|(a, b)| a[..3].iter().zip(&b[..3]).any(|(a, b)| a.abs_diff(*b) >= 8))
+            let width = (surface.side(scale) * scale).round() as usize;
+            // Require readable contrast in each paw, not just an AA crumb or a channel start.
+            let visible = |a: &[u8], b: &[u8], half: Option<bool>| a.chunks_exact(4).zip(b.chunks_exact(4)).enumerate()
+                .filter(|(i, (a, b))| half.is_none_or(|left| (*i % width < width / 2) == left)
+                    && a[..3].iter().zip(&b[..3]).any(|(a, b)| a.abs_diff(*b) >= 8))
                 .count() >= (4. * scale * scale) as usize;
-            let (mut first_sill, mut first_head) = (None, None);
-            for ms in (0..=144).step_by(8) {
+            let (mut first_sill, mut first_paws, mut first_head) = (None, None, None);
+            for ms in (0..=400).step_by(8) {
                 let scene = mascot_reveal::scene(ms as f64 / mascot_reveal::ENTER_MS);
-                let sill = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., ..scene }, scale, &renderer));
+                let sill = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., paws_y: 10., ..scene }, scale, &renderer));
+                let paws = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., ..scene }, scale, &renderer));
                 let role = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., scene, scale, &renderer));
-                if first_sill.is_none() && visible(&sill, &empty) { first_sill = Some(ms); }
-                if first_head.is_none() && visible(&role, &sill) { first_head = Some(ms); }
+                if first_sill.is_none() && visible(&sill, &empty, None) { first_sill = Some(ms); }
+                let both_paws = visible(&paws, &sill, Some(true)) && visible(&paws, &sill, Some(false));
+                if first_paws.is_none() && both_paws { first_paws = Some(ms); }
+                if first_head.is_none() && visible(&role, &paws, None) { first_head = Some(ms); }
+                if (96..=128).contains(&ms) {
+                    assert!(both_paws && role == paws, "the load phase must show both gripping paws and no head");
+                }
             }
             let sill = first_sill.expect("the sill must visibly lead");
-            let head = first_head.expect("the head must emerge during the sill rise");
-            let at_head = mascot_reveal::scene(head as f64 / mascot_reveal::ENTER_MS);
-            let later = mascot_reveal::scene((head + 32) as f64 / mascot_reveal::ENTER_MS);
-            eprintln!("visible overlap night={night} scale={scale}: sill={sill}ms head={head}ms sill_remaining={}px", at_head.perch_y);
-            assert!(head > sill && head - sill <= 48, "only a short visible lead, not two separate acts");
-            assert!(at_head.perch_y >= 3. && later.perch_y >= 0.5 && later.perch_y < at_head.perch_y, "readable head and sill movement must overlap");
+            let paws = first_paws.expect("both paws must become visible");
+            let head = first_head.expect("the pull must reveal the head");
+            let at_paws = mascot_reveal::scene(paws as f64 / mascot_reveal::ENTER_MS);
+            eprintln!("visible grip night={night} scale={scale}: sill={sill}ms paws={paws}ms head={head}ms sill_remaining={}px", at_paws.perch_y);
+            assert!(sill < paws && paws - sill <= 64 && paws + 32 <= head, "visible sill, paws, load, then head");
+            assert!(at_paws.perch_y >= 3., "paws must reach while the sill is still rising");
+        }
+    }
+}
+
+#[test]
+fn gripping_paws_keep_their_pixel_contact_with_the_sill_through_the_pull() {
+    let renderer = SvgRenderer::new(Arc::new(()));
+    for night in [false, true] {
+        for scale in [1., 2.] {
+            let mut mascot = mascot::Mascot::new(0);
+            let surface = mascot::SurfaceFrame::new(model::Geometry::at(0.));
+            let width = (surface.side(scale) * scale).round() as usize;
+            let origin = mascot_reveal::local_origin(surface.native, surface.surface) * scale;
+            let unit = mascot_reveal::local_side(surface.surface) / 60. * scale;
+            let mut contacts = [Vec::new(), Vec::new()];
+            for ms in [88, 112, 160, 224, 320] {
+                let scene = mascot_reveal::scene(ms as f64 / mascot_reveal::ENTER_MS);
+                let sill = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., paws_y: 10., ..scene }, scale, &renderer));
+                let paws = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., ..scene }, scale, &renderer));
+                for (half, points) in contacts.iter_mut().enumerate() {
+                    let ys: Vec<f32> = paws.chunks_exact(4).zip(sill.chunks_exact(4)).enumerate()
+                        .filter(|(i, (a, b))| (*i % width >= width / 2) == (half == 1)
+                            && a[..3].iter().zip(&b[..3]).any(|(a, b)| a.abs_diff(*b) >= 8))
+                        .map(|(i, _)| (i / width) as f32 + 0.5).collect();
+                    assert!(ys.len() >= (4. * scale * scale) as usize, "both paws must grip throughout the pull");
+                    let local_contact = (ys.iter().sum::<f32>() / ys.len() as f32 - origin) / unit - scene.perch_y;
+                    assert!((35. ..40.).contains(&local_contact), "paw contact must stay at the authored sill edge");
+                    points.push(local_contact);
+                }
+            }
+            for contact in contacts {
+                let low = contact.iter().copied().fold(f32::INFINITY, f32::min);
+                let high = contact.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                eprintln!("contact night={night} scale={scale}: drift={} source px", high - low);
+                assert!(high - low < 0.5, "the paw must follow the rising sill, not float in window coordinates");
+            }
         }
     }
 }

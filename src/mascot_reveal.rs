@@ -14,6 +14,7 @@ pub fn local_origin(native: f32, surface: f32) -> f32 {
 pub struct Scene {
     pub perch_y: f32,
     pub head_y: f32,
+    /// Reach below the moving sill; zero means both paws have gripped it.
     pub paws_y: f32,
     pub idle_weight: f32,
     pub head_alpha: f32,
@@ -21,18 +22,16 @@ pub struct Scene {
 
 pub fn scene(progress: f64) -> Scene {
     let t = (progress.clamp(0., 1.) * ENTER_MS) as f32;
-    // Start under the moving sill: visible emergence follows it by a few frames,
-    // rather than spending its entire rise behind the compositor's 24px head gate.
-    let head_y = if t < 215. { 26. - 21. * smooth(t / 215.) }
-        else if t < 240. { 5. }
-        else if t < 405. { 5. - 6.2 * smooth((t - 240.) / 165.) }
-        else { -1.2 * (1. - smooth((t - 405.) / 75.)) };
+    // The paws grip at 88ms, bear the load, then pull the hidden head up.
+    let head_y = if t < 128. { 26. }
+        else if t < 365. { 26. - 27.2 * ease_out((t - 128.) / 237.) }
+        else { -1.2 * (1. - smooth((t - 365.) / 115.)) };
     Scene {
         perch_y: 24. * (1. - ease_out(t / 145.)),
         head_y,
-        paws_y: 10. * (1. - smooth((t - 300.) / 125.)),
+        paws_y: 10. * (1. - smooth((t - 12.) / 76.)),
         idle_weight: smooth((t - 405.) / 75.),
-        head_alpha: smooth((t - 36.) / 32.),
+        head_alpha: smooth((t - 128.) / 24.),
     }
 }
 fn smooth(t: f32) -> f32 { let t = t.clamp(0., 1.); t * t * (3. - 2. * t) }
@@ -160,12 +159,14 @@ mod tests {
         assert_eq!(r.progress, 0.); assert!(!r.idle_ready());
     }
     #[test]
-    fn stage_order_and_short_pause_preserve_the_approved_rest() {
-        let early = scene(32. / ENTER_MS);
-        assert!(early.perch_y < 24.); assert_eq!(early.head_alpha, 0.);
-        assert_eq!(scene(220. / ENTER_MS).head_y, scene(235. / ENTER_MS).head_y);
-        assert_ne!(scene(210. / ENTER_MS).head_y, scene(245. / ENTER_MS).head_y);
-        assert!(scene(405. / ENTER_MS).head_y < 0.);
+    fn grip_load_pull_and_settle_preserve_the_approved_rest() {
+        let reach = scene(48. / ENTER_MS);
+        assert!(reach.perch_y > 3. && reach.paws_y < 8.);
+        assert_eq!((reach.head_y, reach.head_alpha), (26., 0.));
+        let loaded = scene(112. / ENTER_MS);
+        assert_eq!((loaded.paws_y, loaded.head_y, loaded.head_alpha), (0., 26., 0.));
+        assert!(scene(240. / ENTER_MS).head_y < scene(160. / ENTER_MS).head_y);
+        assert!(scene(365. / ENTER_MS).head_y < 0.);
         assert_eq!(scene(1.), Scene { perch_y: 0., head_y: -0., paws_y: 0., idle_weight: 1., head_alpha: 1. });
         assert_eq!(local_side(140.), 60.);
         assert_eq!(local_side(57.), 57.);
