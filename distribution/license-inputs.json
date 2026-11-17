@@ -76,7 +76,7 @@
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "2EA561EDC76D9E48AB7C447225D5BFD2E4E1BB7720E1D92F6332487ACBE6BB0B"
+      "sha256": "438A849B30F176B1F88C883283286A9755963DE775B68435D7A117FEDF227A7A"
     },
     {
       "kind": "on-demand GPL context",
@@ -90,7 +90,7 @@
       "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
       "source": "distribution/notices/msvc-build-context.md",
       "destination": "licenses/msvc-build-context.md",
-      "sha256": "1F10BAF386424B926C420B8045DEC55041F96D1B78929745571F79274C78B9E3"
+      "sha256": "68C98CBC0EEAAD5F1822143973D1CA02F88F2DC25289468ED5B828528E08FAA3"
     }
   ],
   "notes": [
