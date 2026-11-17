@@ -3,10 +3,18 @@ use crate::{preview, tokens};
 use gpui::{prelude::*, *};
 use gpui_base::{Button, Root};
 use std::{fs, path::PathBuf, process::{Child, Command, Stdio}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 const SOURCE: &str = env!("CARGO_MANIFEST_DIR");
+#[cfg(target_os = "windows")]
 const HIDDEN: u32 = 0x08000000;
+
+fn hide_console(command: &mut Command) -> &mut Command {
+    #[cfg(target_os = "windows")]
+    command.creation_flags(HIDDEN);
+    command
+}
 
 struct PreviewProcess {
     child: Child,
@@ -20,11 +28,10 @@ impl PreviewProcess {
         let directory = tempfile::Builder::new().prefix("ameow-gallery-").tempdir()?;
         let control = directory.path().join("control.json");
         let log = fs::File::create(directory.path().join("stderr.log"))?;
-        let child = Command::new(std::env::current_exe()?)
+        let child = hide_console(Command::new(std::env::current_exe()?)
             .args(["--preview", "--preview-scene", "compact.idle", "--preview-control"])
             .arg(&control).arg("--reduced").current_dir(SOURCE)
-            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(log)
-            .creation_flags(HIDDEN).spawn()?;
+            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(log)).spawn()?;
         Ok(Self { child, _directory: directory, control, step: 0, pending: None })
     }
     fn select(&mut self, scene: &str, night: bool) -> anyhow::Result<()> {
@@ -182,13 +189,12 @@ impl Gallery {
         let spawn = (|| -> anyhow::Result<Child> {
             fs::create_dir_all(&self.output)?;
             let file = fs::File::create(&log)?;
-            Ok(Command::new("python").arg(PathBuf::from(SOURCE).join("scripts/preview_capture.py"))
+            Ok(hide_console(Command::new("python").arg(PathBuf::from(SOURCE).join("scripts/preview_capture.py"))
                 .arg("--pid").arg(session.child.id().to_string())
                 .arg("--scene").arg(&self.scenes[self.selected].name)
                 .arg("--exe").arg(std::env::current_exe()?).arg("--output").arg(&path)
                 .arg("--receipt").arg(session.control.with_extension("ack.json")).arg("--present")
-                .current_dir(SOURCE).stdin(Stdio::null()).stdout(Stdio::null()).stderr(file)
-                .creation_flags(HIDDEN).spawn()?)
+                .current_dir(SOURCE).stdin(Stdio::null()).stdout(Stdio::null()).stderr(file)).spawn()?)
         })();
         match spawn {
             Ok(child) => { self.notice = "正在截取真实窗口…".into(); self.capture = Some((child, path, log)); }
@@ -211,8 +217,8 @@ impl Gallery {
             command.arg(PathBuf::from(SOURCE).join("scripts/gallery.py"))
                 .arg("--exe").arg(std::env::current_exe()?).args(["--all","--theme","both","--settle","0.8"])
                 .arg("--output").arg(&output).arg("--cancel-file").arg(&cancel)
-                .current_dir(SOURCE).stdin(Stdio::null()).stdout(file.try_clone()?).stderr(file)
-                .creation_flags(HIDDEN);
+                .current_dir(SOURCE).stdin(Stdio::null()).stdout(file.try_clone()?).stderr(file);
+            hide_console(&mut command);
             if current_group { command.arg("--surface").arg(&self.surface); }
             Ok(command.spawn()?)
         })();

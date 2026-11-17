@@ -6,13 +6,15 @@ use crate::{
 use ameow_next::download::preparation::PreparationPhase;
 use ameow_next::download::queue::{JobPhase, QueueSnapshot};
 use gpui::{prelude::*, *};
+#[cfg(target_os = "windows")]
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{cell::RefCell, rc::Rc, time::Duration};
+#[cfg(target_os = "windows")]
 use windows::Win32::{
-    Foundation::{HWND, POINT, RECT},
+    Foundation::{HWND, RECT},
     Graphics::Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
     UI::WindowsAndMessaging::{
-        GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
+        GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOPMOST, SWP_NOOWNERZORDER, SWP_SHOWWINDOW, SetForegroundWindow,
         SetWindowPos,
     },
 };
@@ -259,12 +261,11 @@ impl TrayPopup {
         let activation = cx.observe_window_activation(window, move |_, window, _| {
             if preview { return; }
             if !window.is_window_active() {
-                let mut cursor = POINT::default();
-                let on_icon = unsafe { GetCursorPos(&mut cursor).is_ok() }
-                    && cursor.x >= icon.left
-                    && cursor.x < icon.right
-                    && cursor.y >= icon.top
-                    && cursor.y < icon.bottom;
+                let cursor = crate::native::Native::cursor();
+                let on_icon = cursor[0] >= icon.left as f32
+                    && cursor[0] < icon.right as f32
+                    && cursor[1] >= icon.top as f32
+                    && cursor[1] < icon.bottom as f32;
                 if !on_icon {
                     activation_actions.borrow_mut().push(Action::Closed);
                     window.remove_window();
@@ -354,7 +355,10 @@ impl Render for TrayPopup {
         let summary = self.projection.summary.clone();
         let attention = self.projection.update.attention();
         let (update_label,update_action)=match self.projection.update.update.phase {
-            ameow_next::app_update::Phase::Ready=>(l.text("更新已就绪","Update ready"),l.text("重启并更新","Restart & update")),
+            ameow_next::app_update::Phase::Ready=>(
+                crate::app_update_ui::ready_error_headline(&self.projection.update, l)
+                    .unwrap_or_else(|| l.text("更新已就绪", "Update ready")),
+                crate::app_update_ui::restart_label(&self.projection.update, l)),
             ameow_next::app_update::Phase::RolledBack=>(l.text("已恢复原版本","Version restored"),l.text("查看","View")),
             _=>(l.text("等待安全更新","Waiting to update"),l.text("查看","View")),
         };
@@ -365,9 +369,20 @@ impl Render for TrayPopup {
             let width=WIDTH.min((self.anchor.work.right-self.anchor.work.left).max(1)as f32/scale);
             let height=expected.min((self.anchor.work.bottom-self.anchor.work.top).max(1)as f32/scale);
             let pos=self.anchor.place(width,height);
-            let RawWindowHandle::Win32(raw)=HasWindowHandle::window_handle(window).expect("tray HWND").as_raw() else {unreachable!()};
-            let target=HWND(raw.hwnd.get()as *mut _);
-            cx.foreground_executor().spawn(async move {unsafe {let _=SetWindowPos(target,Some(HWND_TOPMOST),pos.x,pos.y,(width*scale).round()as i32,(height*scale).round()as i32,SWP_SHOWWINDOW|SWP_NOOWNERZORDER);}}).detach();
+            #[cfg(target_os = "windows")]
+            {
+                let RawWindowHandle::Win32(raw)=HasWindowHandle::window_handle(window).expect("tray HWND").as_raw() else {unreachable!()};
+                let target=HWND(raw.hwnd.get()as *mut _);
+                cx.foreground_executor().spawn(async move {unsafe {let _=SetWindowPos(target,Some(HWND_TOPMOST),pos.x,pos.y,(width*scale).round()as i32,(height*scale).round()as i32,SWP_SHOWWINDOW|SWP_NOOWNERZORDER);}}).detach();
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let native = crate::native::handle(window);
+                let Some(target) = native.window() else { return div().into_any_element(); };
+                cx.foreground_executor().spawn(async move {
+                    crate::native::set_bounds(&target, [pos.x, pos.y, width.round() as i32, height.round() as i32]);
+                }).detach();
+            }
         }
         let panel = div()
             .size_full()
@@ -511,6 +526,7 @@ impl Render for TrayPopup {
                         .h(px(40.))
                         .w_full()
                         .px(px(12.))
+                        .gap(px(8.))
                         .rounded(px(4.))
                         .flex()
                         .items_center()
@@ -590,8 +606,13 @@ impl Prototype {
         #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
         let fixture_anchor = false;
         let anchor = if self.preview.is_some() || fixture_anchor {
+            #[cfg(target_os = "windows")]
+            {
             let (width, height) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
             crate::tray::PopupAnchor { icon: RECT { left: width - 50, top: height - 50, right: width - 20, bottom: height - 20 }, work: RECT { left: 0, top: 0, right: width, bottom: height }, dpi: 96, edge: crate::tray::TaskbarEdge::Bottom }
+            }
+            #[cfg(target_os = "macos")]
+            { crate::tray::PopupAnchor::preview() }
         } else if let Some(anchor) = self.tray.as_ref().map(|tray| tray.popup_anchor()) { anchor } else {
             return;
         };
@@ -641,6 +662,7 @@ impl Prototype {
                 ui.evidence(summary_evidence);
             }
             self.tray_popup = Some(handle);
+            #[cfg(target_os = "windows")]
             cx.defer(move |cx| {
                 let Ok(hwnd) = handle.update(cx, |view, window, cx| {
                     window.focus(&view.focus, cx);
@@ -678,6 +700,21 @@ impl Prototype {
                         }
                     })
                     .detach();
+            });
+            #[cfg(target_os = "macos")]
+            cx.defer(move |cx| {
+                let Ok(target) = handle.update(cx, |view, window, cx| {
+                    window.focus(&view.focus, cx);
+                    let native = crate::native::handle(window);
+                    native.window()
+                }) else { return; };
+                let Some(target) = target else { return; };
+                cx.foreground_executor().spawn(async move {
+                    target.setStyleMask(objc2_app_kit::NSWindowStyleMask::Borderless);
+                    crate::native::configure_overlay(&target);
+                    crate::native::set_bounds(&target, [pos.x, pos.y, width.round() as i32, height.round() as i32]);
+                    target.makeKeyAndOrderFront(None);
+                }).detach();
             });
         } else if let Some(ui) = &mut self.downloads {
             ui.evidence(serde_json::json!({"type":"tray-popup-error"}));

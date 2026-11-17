@@ -1,7 +1,9 @@
 //! Opt-in presentation fixtures. This module never constructs a production service.
 use ameow_next::download::{queue::{JobPhase, QueueSnapshot}, progress::TransferPhase};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Read, path::PathBuf, os::windows::fs::OpenOptionsExt};
+use std::{fs, io::Read, path::PathBuf};
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
 
 pub const CATALOG: &str = include_str!("../scripts/preview-scenes.json");
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -27,7 +29,11 @@ impl Session {
         let path = self.control.as_ref()?;
         let mut bytes = Vec::new();
         // The launcher atomically replaces this file while the UI polls it.
-        fs::OpenOptions::new().read(true).share_mode(7).open(path).ok()?.take(8193).read_to_end(&mut bytes).ok()?;
+        let mut options = fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(windows)]
+        options.share_mode(7);
+        options.open(path).ok()?.take(8193).read_to_end(&mut bytes).ok()?;
         if bytes.len() > 8192 { self.ack(Some("预览请求超过 8192 字节")); return None; }
         // The launcher replaces complete requests atomically; tolerate an interrupted writer.
         let request: Request = match serde_json::from_slice(&bytes) {

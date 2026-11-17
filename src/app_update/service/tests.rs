@@ -108,6 +108,61 @@ fn restart_fixture(root:&Path)->(Handle,Session,DownloadCoordinator){
     *h.shared.coordinator.lock().unwrap()=Some(session.coordinator.clone());
     (h,session,DownloadCoordinator::update_test_queue(root))
 }
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_restart_failure_is_persisted_without_changing_the_release_or_queue() {
+    let root = tempfile::tempdir().unwrap();
+    let (handle, session, queue) = restart_fixture(&root.path().canonicalize().unwrap());
+    let install = session.coordinator.install();
+    let before = serde_json::to_value(install.state().unwrap()).unwrap();
+    handle.restart_failed(&queue, &session, "E_APP_UPDATE_PATH_OPEN: missing supervisor".into());
+    let mut after = serde_json::to_value(install.state().unwrap()).unwrap();
+    assert_eq!(after["last_error"], "E_APP_UPDATE_PATH_OPEN: missing supervisor");
+    after["last_error"] = before["last_error"].clone();
+    assert_eq!(after, before);
+    let reopened = Coordinator::new(install.clone()).snapshot();
+    assert_eq!(reopened.phase, Phase::Failed);
+    assert_eq!(reopened.error.as_deref(), Some("E_APP_UPDATE_PATH_OPEN: missing supervisor"));
+    assert!(queue.submit("https://youtu.be/00000000001".into()).is_ok());
+}
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_cancelled_authorization_preserves_existing_diagnostics_and_allows_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let (handle, session, queue) = restart_fixture(&root.path().canonicalize().unwrap());
+    let install = session.coordinator.install();
+    super::super::macos_helper::record_result(install, Err("previous failure".into())).unwrap_err();
+    let before = serde_json::to_value(install.state().unwrap()).unwrap();
+    handle.restart_failed(&queue, &session, "E_APP_UPDATE_AUTHORIZATION_CANCELLED".into());
+    assert_eq!(serde_json::to_value(install.state().unwrap()).unwrap(), before);
+    let view = handle.snapshot();
+    assert_eq!(view.update.phase, Phase::Ready);
+    assert_eq!(view.update.error.as_deref(), Some("E_APP_UPDATE_AUTHORIZATION_CANCELLED"));
+    handle.poll(&queue, Some(&session));
+    assert!(!queue.snapshot().stopping);
+    assert!(!handle.shared.closing.load(Ordering::Acquire));
+    assert!(handle.send(Action::Restart));
+    handle.poll(&queue, Some(&session));
+    assert!(handle.shared.closing.load(Ordering::Acquire));
+    assert!(queue.submit("https://youtu.be/00000000001".into()).is_ok());
+}
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_failed_authorization_persists_error_and_requires_manual_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let (handle, session, queue) = restart_fixture(&root.path().canonicalize().unwrap());
+    let error = "E_APP_UPDATE_AUTHORIZATION_WORKER: missing supervisor";
+    handle.restart_failed(&queue, &session, error.into());
+    assert_eq!(session.coordinator.install().state().unwrap().last_error.as_deref(), Some(error));
+    assert_eq!(handle.snapshot().update.phase, Phase::Ready);
+    assert_eq!(handle.snapshot().update.error.as_deref(), Some(error));
+    handle.poll(&queue, Some(&session));
+    assert!(!handle.shared.closing.load(Ordering::Acquire));
+    assert!(!queue.snapshot().stopping);
+    assert!(handle.send(Action::Restart));
+    handle.poll(&queue, Some(&session));
+    assert!(handle.shared.closing.load(Ordering::Acquire));
+}
 #[test]
 fn manual_tasks_require_a_choice_repeated_actions_share_one_drain_and_later_reopens_admission(){
     let root=tempfile::tempdir().unwrap();let(h,s,q)=restart_fixture(root.path());

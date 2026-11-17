@@ -1,7 +1,7 @@
 //! Offline release preparation. No publishing or production key activation.
-use super::package::{DOMAIN, MAX_PACKAGE, hash, unhex};
+use super::package::{DOMAIN, MAX_PACKAGE, WINDOWS_TARGET as TARGET, hash, unhex};
 use super::store::plain;
-use super::{Manifest, Release, SignedManifest, State, TARGET, Trust, Version};
+use super::{Manifest, Release, SignedManifest, State, Trust, Version};
 use ring::signature::{ED25519, Ed25519KeyPair, KeyPair, UnparsedPublicKey};
 use serde::{Deserialize, Serialize};
 use std::{

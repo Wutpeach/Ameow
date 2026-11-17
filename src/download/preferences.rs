@@ -1,7 +1,7 @@
 //! Bounded local hostname hints, learned only after verified delivery.
 use super::{contract::Downloader, request::{Accepted, Object, validate_public_url}};
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, BTreeSet}, fs, io::{Read, Write}, os::windows::{ffi::OsStrExt, fs::MetadataExt}, path::{Path, PathBuf}};
+use std::{collections::{BTreeMap, BTreeSet}, fs, io::{Read, Write}, path::{Path, PathBuf}};
 
 const MAX_HOSTS: usize = 128;
 const MAX_BYTES: u64 = 65_536;
@@ -61,12 +61,13 @@ impl Preferences {
         true
     }
     fn read(path: &Path) -> Result<Self, ReadError> {
+        super::runtime::check_data_location(path).map_err(|_| ReadError::Io)?;
         let metadata = match fs::symlink_metadata(path) {
             Ok(metadata) => metadata,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(_) => return Err(ReadError::Io),
         };
-        if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 { return Err(ReadError::Io); }
+        if !super::is_plain_file(&metadata) { return Err(ReadError::Io); }
         let file = fs::File::open(path).map_err(|_| ReadError::Io)?;
         let mut bytes = Vec::new();
         file.take(MAX_BYTES + 1).read_to_end(&mut bytes).map_err(|_| ReadError::Io)?;
@@ -91,11 +92,8 @@ impl Preferences {
                 // One same-directory slot, <=1 MiB, no overwrite or deletion of evidence.
                 let preserve = || -> Result<(), ()> {
                     let metadata = fs::symlink_metadata(path).map_err(|_| ())?;
-                    if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 || metadata.len() > MAX_QUARANTINE_BYTES { return Err(()); }
-                    let from: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-                    let to: Vec<u16> = quarantine_path(path).as_os_str().encode_wide().chain(Some(0)).collect();
-                    // Flags=0: same-volume atomic rename, never replace an existing slot.
-                    if unsafe { windows_sys::Win32::Storage::FileSystem::MoveFileExW(from.as_ptr(), to.as_ptr(), 0) } == 0 { return Err(()); }
+                    if !super::is_plain_file(&metadata) || metadata.len() > MAX_QUARANTINE_BYTES { return Err(()); }
+                    super::output::move_no_replace(path, &quarantine_path(path)).map_err(|_| ())?;
                     Ok(())
                 };
                 if preserve().is_ok() {
@@ -105,6 +103,7 @@ impl Preferences {
         }
     }
     pub fn persist(&self, path: &Path) -> Result<(), String> {
+        super::runtime::check_data_location(path)?;
         let save = || -> Result<(), Box<dyn std::error::Error>> {
             let parent = path.parent().ok_or("Missing cache directory")?;
             fs::create_dir_all(parent)?;
@@ -122,6 +121,7 @@ impl Preferences {
 mod tests {
     use super::*;
     use crate::download::request::{DownloadIntent, Quality};
+    #[cfg(windows)]
     use std::os::windows::fs::OpenOptionsExt;
 
     fn accepted(url: &str) -> Accepted {
@@ -214,6 +214,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn preservation_and_atomic_write_failures_keep_existing_bytes() {
         let root = tempfile::tempdir().unwrap();
@@ -241,6 +242,7 @@ mod tests {
         assert!(!quarantine.exists());
     }
 
+    #[cfg(windows)]
     #[test]
     fn read_io_failure_does_not_quarantine_valid_cache() {
         let root = tempfile::tempdir().unwrap();

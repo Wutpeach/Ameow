@@ -1,35 +1,20 @@
-use crate::download::{request::{Accepted, Identity, Site, Object, valid_bv, validate_public_url}, contract::IdentityAttestation};
+use crate::download::{request::{Accepted, Identity, Site, Object, valid_bv}, contract::IdentityAttestation};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String> {
         if let Object::Generic { url } = &accepted.object {
-            if metadata.get("entries").is_some()
-                || metadata.get("_type").is_some_and(|v| v.as_str() != Some("video"))
-                || ["playlist_id", "playlist_count", "playlist_index", "n_entries"].iter().any(|key| metadata.get(*key).is_some_and(|v| !v.is_null()))
+            if is_collection(metadata)
             { return Err("Metadata is a playlist/multiple/indirect object".into()); }
-            let field = |name: &str, max: usize| -> Result<&str, String> {
-                let value = metadata.get(name).and_then(Value::as_str).ok_or_else(|| format!("Metadata missing {name}"))?;
-                if value.trim().is_empty() || value.len() > max || !value.bytes().all(|b| (0x20..=0x7e).contains(&b)) {
-                    return Err(format!("Invalid metadata {name}"));
-                }
-                Ok(value)
-            };
-            let id = field("id", 256)?;
-            let extractor = field("extractor_key", 128)?;
-            let webpage = metadata.get("webpage_url").and_then(Value::as_str).ok_or("Metadata webpage URL missing")?;
-            if validate_public_url(webpage)?.as_str() != url { return Err("Metadata webpage URL mismatch".into()); }
-            let tuple = serde_json::to_vec(&(url, extractor, id)).map_err(|_| "Metadata identity serialization failed")?;
+            let frozen = format!("{:x}", Sha256::digest(url.as_bytes()));
+            let id = metadata["id"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(&frozen);
+            let title = crate::download::diagnostics::safe_title(metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id));
             return Ok(Identity {
-                id: format!("{:x}", Sha256::digest(tuple)),
-                title: crate::download::diagnostics::safe_title(metadata["title"].as_str().ok_or("Metadata title missing")?),
+                id: frozen,
+                title,
                 site: Site::Generic, part: None,
             });
         }
-        if metadata.get("entries").is_some()
-            || metadata
-                .get("_type")
-                .and_then(Value::as_str)
-                .is_some_and(|s| s != "video")
+        if is_collection(metadata)
         {
             return Err("Metadata is a playlist/multiple/indirect object".into());
         }
@@ -94,7 +79,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
             }.into(),
             part: if extractor == "BiliBili" { Some(id.rsplit_once("_p").and_then(|(_, p)| p.parse().ok()).unwrap_or(1)) } else { None },
             title: crate::download::diagnostics::safe_title(
-                metadata["title"].as_str().ok_or("Metadata title missing")?,
+                metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id),
             ),
             site: if extractor == "Youtube" { Site::Youtube } else { Site::Bilibili },
         })
@@ -102,7 +87,13 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
 pub fn proof(accepted: &Accepted, metadata: &Value) -> Result<IdentityAttestation, String> {
     let identity = attest(accepted, metadata)?;
     let mut aliases = vec![identity.canonical_key()];
-    if identity.site == Site::Generic { aliases.push(accepted.object.provisional_key()); }
+    if identity.site == Site::Generic {
+        aliases.push(accepted.object.provisional_key());
+        if let (Some(extractor), Some(id)) = (metadata["extractor_key"].as_str().filter(|s| !s.is_empty()), metadata["id"].as_str().filter(|s| !s.is_empty())) {
+            let tuple = serde_json::to_vec(&(extractor, id)).map_err(|_| "Native identity serialization failed")?;
+            aliases.push(format!("generic-native:{:x}", Sha256::digest(tuple)));
+        }
+    }
     if identity.site == Site::Bilibili {
         if !metadata["id"].as_str().unwrap_or("").contains("_p") {
             aliases.push(format!("bilibili:{}:single", identity.id));
@@ -126,6 +117,16 @@ pub fn proof(accepted: &Accepted, metadata: &Value) -> Result<IdentityAttestatio
     aliases.truncate(16);
     Ok(IdentityAttestation { identity, aliases })
 }
+pub fn consistent(left: &Value, right: &Value) -> bool {
+    ["extractor_key", "id"].iter().all(|key| {
+        left[*key].as_str().filter(|s| !s.is_empty())
+            .zip(right[*key].as_str().filter(|s| !s.is_empty()))
+            .is_none_or(|(a, b)| a == b)
+    })
+}
+pub(super) fn is_collection(metadata: &Value) -> bool {
+    metadata["entries"].is_array() || matches!(metadata["_type"].as_str(), Some("playlist" | "multi_video"))
+}
 pub fn canonical_url(accepted: &Accepted, identity: &Identity) -> String {
     match identity.site {
         Site::Youtube => format!("https://www.youtube.com/watch?v={}", identity.id),
@@ -148,21 +149,21 @@ mod tests {
         Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
     #[test]
-    fn generic_identity_requires_same_single_object_and_binds_all_identity_parts() {
+    fn generic_identity_allows_native_normalization_and_optional_labels() {
         let a = generic("https://example.com/media?x=1#fragment");
-        let base = json!({"id": "123", "extractor_key": "Example", "title": "Title", "webpage_url": "https://example.com/media?x=1#other"});
+        let base = json!({"id":"标识 123","extractor_key":"Example","webpage_url":"https://other.example/canonical"});
         let p = proof(&a, &base).unwrap();
         assert_eq!(canonical_url(&a, &p.identity), "https://example.com/media?x=1");
+        assert_eq!(p.identity.title, "标识 123");
         assert!(p.aliases.contains(&a.object.provisional_key()));
-        for (key, value) in [("id", json!(null)), ("id", json!("")), ("extractor_key", json!("bad\nname")), ("_type", json!(1)), ("_type", json!("url")), ("entries", json!([])), ("playlist_id", json!("x")), ("playlist_count", json!(1)), ("playlist_index", json!(1)), ("n_entries", json!(1)), ("webpage_url", json!(null)), ("webpage_url", json!("https://other.example/media"))] {
-            let mut m = base.clone(); m[key] = value; assert!(attest(&a, &m).is_err(), "{key}: {m}");
-        }
-        for (key, value) in [("id", "456"), ("extractor_key", "Other")] {
-            let mut m = base.clone(); m[key] = json!(value); assert_ne!(p.identity.id, attest(&a, &m).unwrap().id);
-        }
-        let b = generic("https://other.example/media?x=1");
-        let mut m = base.clone(); m["webpage_url"] = json!("https://other.example/media?x=1");
-        assert_ne!(p.identity.id, attest(&b, &m).unwrap().id);
+        assert_eq!(p.identity.id, attest(&a, &json!({})).unwrap().id);
+        for m in [json!({"entries":[]}), json!({"_type":"playlist"}), json!({"_type":"multi_video"})] { assert!(attest(&a, &m).is_err()); }
+        let mut other = base.clone(); other["id"] = json!("different");
+        assert!(!consistent(&base, &other));
+        assert!(consistent(&base, &json!({})));
+        let same = generic("https://example.com/short");
+        let alias = proof(&same, &base).unwrap();
+        assert!(p.aliases.iter().any(|key| key.starts_with("generic-native:") && alias.aliases.contains(key)));
     }
 
     #[test]

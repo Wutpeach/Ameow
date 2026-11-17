@@ -3,6 +3,20 @@
 pub mod launcher;
 pub mod release;
 mod package;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+mod macos_authorization;
+#[cfg(target_os = "macos")]
+mod macos_privileged;
+#[cfg(target_os = "macos")]
+mod macos_fs;
+#[cfg(target_os = "macos")]
+mod macos_lease;
+#[cfg(target_os = "macos")]
+pub mod macos_helper;
+#[cfg(target_os = "macos")]
+mod macos_transaction;
 pub mod service;
 pub mod session;
 mod store;
@@ -55,7 +69,10 @@ impl Coordinator {
     pub fn new(install: Install) -> Self {
         let view = match install.state() {
             Ok(state) if state.last_error.is_some() => Snapshot {
-                phase: Phase::RolledBack,
+                phase: if cfg!(target_os = "macos") && !state.last_error.as_ref()
+                    .is_some_and(|error| error.starts_with("E_APP_UPDATE_ROLLED_BACK:")) {
+                    Phase::Failed
+                } else { Phase::RolledBack },
                 version: state.current.map(|r| r.version),
                 error: state.last_error,
                 ..Default::default()
@@ -149,6 +166,16 @@ impl Coordinator {
 }
 
 pub fn default_install_root() -> Result<PathBuf, String> {
+    #[cfg(all(target_os = "macos", feature = "app-update-fixture", debug_assertions))]
+    if let Some(root) = std::env::var_os("AMEOW_UPDATE_FIXTURE_ROOT") {
+        let root = PathBuf::from(root);
+        if !root.is_absolute() { return Err("E_APP_UPDATE_PATH".into()); }
+        return Ok(root);
+    }
+    #[cfg(target_os = "macos")]
+    return Ok(PathBuf::from(std::env::var_os("HOME").ok_or("E_APP_UPDATE_HOME")?)
+        .join("Library/Application Support/AmeowNative/Updates"));
+    #[cfg(not(target_os = "macos"))]
     Ok(
         PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("E_APP_UPDATE_LOCALAPPDATA")?)
             .join("Programs/Ameow"),

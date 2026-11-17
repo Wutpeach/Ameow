@@ -30,7 +30,7 @@ pub(super) fn fixture_issued(
         schema: 1,
         product: "Ameow".into(),
         channel: "stable".into(),
-        target: TARGET.into(),
+        target: package::WINDOWS_TARGET.into(),
         version: version.into(),
         sequence,
         issued,
@@ -310,12 +310,18 @@ fn program_switch_does_not_touch_settings_cache_outputs_or_old_identity() {
 }
 #[test]
 fn identity_uses_new_data_root_without_inspecting_the_old_tree() {
+    #[cfg(windows)]
     let expected =
         std::path::PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap()).join("Ameow");
+    #[cfg(target_os = "macos")]
+    let expected = std::path::PathBuf::from(std::env::var_os("HOME").unwrap())
+        .join("Library/Application Support/AmeowNative");
     assert_eq!(
         crate::download::runtime::RuntimeManager::default_root().unwrap(),
         expected
     );
+    #[cfg(target_os = "macos")]
+    assert_eq!(super::default_install_root().unwrap(), expected.join("Updates"));
 }
 
 fn installed_files(install: &Install, version: &str, sequence: u64) {

@@ -221,6 +221,8 @@ impl DownloadUi {
                     Err(mpsc::RecvTimeoutError::Disconnected) => { disconnected = true; coordinator.stop(); std::thread::sleep(Duration::from_millis(80)); }
                 }
                 for event in evidence_receiver.try_iter() { append_evidence(&mut evidence, &started, event); }
+                #[cfg(target_os = "macos")]
+                if let Some(session) = &worker_launch { session.attest_download_owner(!disconnected); }
                 updates.poll(&coordinator,worker_launch.as_deref());
                 if let Some(session) = &worker_launch && let Err(error) = session.poll(&coordinator) {
                     append_evidence(&mut evidence, &started, serde_json::json!({"type":"app-update-error","error":error}));
@@ -1363,6 +1365,12 @@ impl Prototype {
         #[cfg(all(feature="app-update-fixture",debug_assertions))]
         self.poll_update_ui_fixture(cx);
         if let Some(session) = self.downloads.as_ref().and_then(|ui| ui.app_update.as_ref()) {
+            #[cfg(target_os = "macos")]
+            session.attest_native_window(
+                self.native.as_ref().is_some_and(|native| native.ready_for_update())
+                    && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()),
+            );
+            #[cfg(not(target_os = "macos"))]
             if self.native.is_some() && self.downloads.as_ref().is_some_and(|ui| ui.snapshot.is_some()) {
                 session.native_ready.store(true, std::sync::atomic::Ordering::Release);
             }
@@ -2057,7 +2065,7 @@ impl Prototype {
                             div()
                                 .pt(px(20.))
                                 .text_size(px(10.))
-                                .child(if ui.fixture { ui.language.text("Fixture · 终端切换场景", "Fixture · terminal scenes") } else { ui.language.text("队列为空，Ctrl+V 粘贴视频链接", "Empty · Ctrl+V to paste a link") }),
+                                .child(if ui.fixture { ui.language.text("Fixture · 终端切换场景", "Fixture · terminal scenes") } else if cfg!(target_os = "macos") { ui.language.text("队列为空，⌘V 粘贴视频链接", "Empty · ⌘V to paste a link") } else { ui.language.text("队列为空，Ctrl+V 粘贴视频链接", "Empty · Ctrl+V to paste a link") }),
                         )
                     })
                     .children(rows),
@@ -2312,7 +2320,7 @@ impl Prototype {
             if update.update.phase == ameow_next::app_update::Phase::Ready && update.launcher {
                 details = details.child(self.row_action(
                     "application-update-restart".into(),
-                    ui.language.text("重启并更新", "Restart and update"),
+                    crate::app_update_ui::restart_label(&update, ui.language),
                     false,
                     cx,
                     |this, cx| {

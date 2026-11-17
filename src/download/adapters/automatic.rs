@@ -7,7 +7,7 @@ use crate::download::{
     request::Object,
     runtime::TrustedRuntimeRequirements,
 };
-use std::{fs, io::Read, os::windows::fs::MetadataExt, path::Path, sync::{Arc, atomic::{AtomicBool, Ordering}}};
+use std::{fs, io::Read, path::Path, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
 pub struct AutomaticAdapter {
     requirements: TrustedRuntimeRequirements,
@@ -94,7 +94,7 @@ fn preserve_primary(source: &Path, target: &Path, files: &[(&str, u64)]) -> Resu
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.to_string()),
         };
-        if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 { return Err("Unsafe primary evidence".into()); }
+        if !super::super::is_plain_file(&metadata) { return Err("Unsafe primary evidence".into()); }
         let destination = target.join(format!("primary-{name}"));
         if metadata.len() > limit {
             fs::write(destination.with_extension("omitted.txt"), b"Primary diagnostic exceeded its bound").map_err(|e| e.to_string())?;

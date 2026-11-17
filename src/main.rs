@@ -6,11 +6,19 @@ mod queue_presentation;
 mod queue_fixture;
 mod preview;
 mod gallery;
+#[cfg(target_os = "windows")]
+mod tray;
+#[cfg(target_os = "macos")]
+#[path = "tray_macos.rs"]
 mod tray;
 mod tray_popup;
 mod indicator;
 mod magnetic_spring;
 mod model;
+#[cfg(target_os = "windows")]
+mod native;
+#[cfg(target_os = "macos")]
+#[path = "native_macos.rs"]
 mod native;
 mod repair_motion;
 mod ring_glow;
@@ -22,7 +30,7 @@ use ameow_next::login_startup;
 mod app_update_ui;
 mod ui_text;
 mod brand_icons;
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod native_acceptance;
 
 use gpui::{prelude::*, *};
@@ -583,6 +591,8 @@ impl Prototype {
             );
         }
         let g = self.model.geometry();
+        #[cfg(target_os = "macos")]
+        self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
         self.native
             .as_mut()
             .unwrap()
@@ -1061,7 +1071,7 @@ impl Render for Prototype {
                     else { window.focus_next(cx); }
                     cx.stop_propagation();
                     cx.notify();
-                } else if this.downloads.is_some() && event.keystroke.modifiers.control && event.keystroke.key.eq_ignore_ascii_case("v") {
+                } else if this.downloads.is_some() && event.keystroke.modifiers.secondary(cx) && event.keystroke.key.eq_ignore_ascii_case("v") {
                     this.paste_download(cx);
                     cx.stop_propagation();
                 } else {
@@ -1199,8 +1209,13 @@ fn main() {
             Err(error) => {
                 // Fail closed rather than create a second queue/runtime owner.
                 let message = ui_text::SystemPreferences::read().language.message(&error);
-                let wide: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
-                unsafe { windows::Win32::UI::WindowsAndMessaging::MessageBoxW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::w!("Ameow"), windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR); }
+                #[cfg(target_os = "windows")]
+                {
+                    let wide: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
+                    unsafe { windows::Win32::UI::WindowsAndMessaging::MessageBoxW(None, windows::core::PCWSTR(wide.as_ptr()), windows::core::w!("Ameow"), windows::Win32::UI::WindowsAndMessaging::MB_OK | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR); }
+                }
+                #[cfg(target_os = "macos")]
+                eprintln!("Ameow: {message}");
                 return;
             }
         }
@@ -1209,6 +1224,8 @@ fn main() {
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
+            #[cfg(target_os = "macos")]
+            cx.set_activation_policy(ActivationPolicy::Accessory);
             gpui_component::init(cx);
             cx.text_system()
                 .add_fonts(
@@ -1232,8 +1249,8 @@ fn main() {
                     kind: WindowKind::PopUp,
                     // Native completes first geometry and TOPMOST on the foreground
                     // executor before showing this Windows popup without activation.
-                    show: !cfg!(target_os = "windows"),
-                    focus: !cfg!(target_os = "windows"),
+                    show: false,
+                    focus: false,
                     window_background: WindowBackgroundAppearance::Transparent,
                     is_resizable: false,
                     is_minimizable: false,

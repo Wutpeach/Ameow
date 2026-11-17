@@ -113,6 +113,7 @@ mod tests {
 
 impl Settings {
     pub fn load(path: &Path, defaults: Self) -> Result<Self, String> {
+        super::runtime::check_data_location(path)?;
         match fs::read(path) {
             Ok(bytes) if bytes.len() <= 16_384 => serde_json::from_slice(&bytes)
                 .map_err(|_| "E_SETTINGS_READ: Saved defaults are invalid".into()),
@@ -122,10 +123,12 @@ impl Settings {
         }
     }
     pub fn persist(&self, path: &Path) -> Result<Self, String> {
+        super::runtime::check_data_location(path)?;
         let output_dir = self
             .output_dir
             .canonicalize()
             .map_err(|_| "E_SETTINGS_SAVE: Choose an existing output directory")?;
+        super::runtime::check_data_location(&output_dir)?;
         if !output_dir.is_dir() {
             return Err("E_SETTINGS_SAVE: Output must be a directory".into());
         }
@@ -147,6 +150,7 @@ impl Settings {
     }
 
     pub(super) fn persist_preferences(&self, path: &Path) -> Result<Self, String> {
+        super::runtime::check_data_location(path)?;
         let parent = path
             .parent()
             .ok_or("E_SETTINGS_SAVE: Missing settings directory")?;
