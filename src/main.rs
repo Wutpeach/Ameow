@@ -1,6 +1,5 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod edge_hover;
-mod download_bridge;
 mod download_ui;
 mod queue_presentation;
 mod queue_fixture;
@@ -1245,19 +1244,17 @@ impl Render for Prototype {
     }
 }
 fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|argument| argument == "--download-test-bridge") {
+        eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
+        std::process::exit(2);
+    }
     if let Err(error) = ameow_next::app_update::session::Session::from_env() {
         eprintln!("Ameow Launcher session: {error}");
         std::process::exit(2);
     }
-    let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|a| a == "--gallery") {
         if let Err(error) = gallery::run() { eprintln!("Gallery 无法启动：{error}"); std::process::exit(1); }
-        return;
-    }
-    if !args.iter().any(|argument| argument == "--preview")
-        && args.iter().any(|argument| argument == "--download-test-bridge")
-    {
-        if let Err(error) = download_bridge::run() { eprintln!(">>> Download bridge: {error}"); }
         return;
     }
     if let Some(at) = args.iter().position(|a| a == "--preview-catalog-out") {

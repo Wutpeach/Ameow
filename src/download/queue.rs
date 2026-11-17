@@ -579,7 +579,7 @@ mod tests {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let backend = fake_backend(root.path());
         let mut job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
-        let runner = Arc::new(composition::coordinator(root.path().into()));
+        let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
         let sample = super::super::progress::TransferProgress {
             downloaded_bytes: 25,
             exact_total_bytes: Some(100),
@@ -1116,7 +1116,7 @@ mod tests {
             (model.launch(), model.launch(), model.launch()),
             (Some(1), Some(2), Some(3))
         );
-        let runner = Arc::new(composition::coordinator(root.path().into()));
+        let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
         let (release, wait) = std::sync::mpsc::channel();
         model.records.get_mut(&1).unwrap().running = Some(RunningAttempt {
             runner,
@@ -1809,6 +1809,119 @@ mod tests {
             "facts.txt",
             format!("{settled:#?}\nfinal={:#?}", backend.snapshot()),
         );
+        Ok(())
+    }
+    #[cfg(windows)]
+    fn run_attempt_retention(owner_panic: bool) -> Result<(), String> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let root = PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
+        let output = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = composition::download_coordinator(
+            root.clone(), output.path().join("settings.json"), defaults(output.path()),
+        )?;
+        let query_failure = Arc::new(AtomicBool::new(true));
+        *lock(&backend.shared.probe) = Some(Arc::new(super::super::TestProbe {
+            query_failure: query_failure.clone(), owner_panic, stage_cleanup: false,
+        }));
+        let url = "https://youtu.be/jNQXAC9IVRw";
+        let job = backend.submit(url.into())?;
+        let held = wait_until(&backend, |v| v.jobs[0].phase == JobPhase::Held)?;
+        assert_eq!(held.active_slots, 1);
+        assert_eq!(held.jobs[0].terminal_count, 0);
+        assert!(!held.jobs[0].resources_released);
+        let runner = lock(&backend.shared.model).records[&job].running.as_ref().unwrap().runner.clone();
+        let retained = runner.snapshot();
+        let workspace = retained.workspace.ok_or("Held lost workspace")?;
+        let deno = root.join(format!("runtime-{}", retained.runtime_digest.ok_or("Held lost lease")?)).join("deno.exe");
+        assert!(workspace.is_dir());
+        assert!(fs::OpenOptions::new().write(true).open(&deno).is_err());
+        assert!(backend.submit(url.into()).is_err(), "Held object remains admitted");
+        assert!(!backend.retry_cleanup(job + 1));
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(backend.snapshot().jobs[0].phase, JobPhase::Held);
+        assert!(workspace.is_dir());
+        query_failure.store(false, Ordering::Release);
+        assert!(backend.retry_cleanup(job));
+        let terminal = wait_until(&backend, |v| v.jobs[0].phase == JobPhase::Failure)?;
+        assert!(terminal.jobs[0].resources_released);
+        assert_eq!(terminal.jobs[0].terminal_count, 1);
+        assert_eq!(terminal.active_slots, 0);
+        assert!(terminal.jobs[0].events.iter().any(|event| event.kind == "attempt-joined-slot-release"));
+        assert!(!workspace.exists());
+        assert!(runner.snapshot().workspace.is_none());
+        assert!(!backend.cancel(job));
+        // The shared queue lease remains live until Stop joins all owners.
+        assert!(fs::OpenOptions::new().write(true).open(&deno).is_err());
+        backend.stop();
+        wait_until(&backend, |v| v.stopped)?;
+        assert!(fs::OpenOptions::new().write(true).open(deno).is_ok());
+        Ok(())
+    }
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
+    fn coordinator_retains_real_runtime_and_workspace_while_process_held() -> Result<(), String> {
+        run_attempt_retention(false)
+    }
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
+    fn coordinator_owner_unwind_retains_real_runtime_until_explicit_cleanup() -> Result<(), String> {
+        run_attempt_retention(true)
+    }
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
+    fn destination_cleanup_failure_retains_stage_runtime_workspace_and_requires_retry() -> Result<(), String> {
+        let root = PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
+        let output = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = composition::download_coordinator(
+            root.clone(), output.path().join("settings.json"), defaults(output.path()),
+        )?;
+        *lock(&backend.shared.probe) = Some(Arc::new(super::super::TestProbe {
+            query_failure: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            owner_panic: false, stage_cleanup: true,
+        }));
+        let url = "https://youtu.be/jNQXAC9IVRw";
+        let job = backend.submit(url.into())?;
+        let held = wait_until(&backend, |v| v.jobs[0].phase == JobPhase::Held)?;
+        let runner = lock(&backend.shared.model).records[&job].running.as_ref().unwrap().runner.clone();
+        let retained = runner.snapshot();
+        let partial = retained.destination_stage.ok_or("Held lost exact partial")?;
+        let workspace = retained.workspace.ok_or("Held lost workspace")?;
+        let deno = root.join(format!("runtime-{}", retained.runtime_digest.ok_or("Held lost lease")?)).join("deno.exe");
+        assert_eq!(held.active_slots, 1);
+        assert_eq!(held.jobs[0].terminal_count, 0);
+        assert!(!held.jobs[0].resources_released);
+        assert!(partial.is_file());
+        assert!(workspace.is_dir());
+        assert!(backend.submit(url.into()).is_err());
+        assert!(fs::OpenOptions::new().write(true).open(&deno).is_err());
+        backend.stop();
+        assert!(backend.submit(url.into()).is_err());
+        assert!(backend.retry_cleanup(job));
+        thread::sleep(Duration::from_millis(100));
+        let stopping = backend.snapshot();
+        assert!(!stopping.stopped);
+        assert_eq!(stopping.jobs[0].phase, JobPhase::Held);
+        assert_eq!(stopping.active_slots, 1);
+        assert!(partial.exists());
+        clear_fixture_readonly(&partial)?;
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(backend.snapshot().jobs[0].phase, JobPhase::Held);
+        assert!(partial.exists(), "clearing the obstruction alone must not retry cleanup");
+        assert!(backend.retry_cleanup(job));
+        let stopped = wait_until(&backend, |v| v.stopped)?;
+        assert_eq!(stopped.jobs[0].phase, JobPhase::Cancelled);
+        assert_eq!(stopped.jobs[0].terminal_count, 1);
+        assert!(stopped.jobs[0].resources_released);
+        assert_eq!(stopped.active_slots, 0);
+        assert!(stopped.jobs[0].events.iter().any(|event| event.kind == "attempt-joined-slot-release"));
+        assert!(runner.snapshot().destination_stage.is_none());
+        assert!(!partial.exists());
+        assert!(!workspace.exists());
+        assert!(fs::OpenOptions::new().write(true).open(deno).is_ok());
+        assert!(!backend.retry_cleanup(job));
         Ok(())
     }
     #[cfg(windows)]
@@ -2841,7 +2954,7 @@ fn stop_shared(shared: &Shared) {
                 continue;
             }
             if let Some(attempt) = &record.running {
-                // Publication arbitration stays with Stage A; committed success survives stop/cancel.
+                // Publication arbitration stays with the attempt owner; committed success survives stop/cancel.
                 if attempt.runner.cancel(job) {
                     record.cancelled = true;
                 }
