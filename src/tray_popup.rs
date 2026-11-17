@@ -591,6 +591,8 @@ impl Prototype {
         }
     }
     pub(super) fn toggle_tray_popup(&mut self, cx: &mut Context<Self>) {
+        #[cfg(target_os = "macos")]
+        if self.preview.is_none() { return; }
         if let Some(handle) = self.tray_popup {
             if handle
                 .update(cx, |view, _, cx| {

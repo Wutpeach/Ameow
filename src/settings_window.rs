@@ -1975,17 +1975,25 @@ fn anchor(main: crate::native::NativeHandle) -> Anchor {
 #[cfg(target_os = "macos")]
 fn show(handle: WindowHandle<Root>, _first: Option<Anchor>, cx: &mut App) {
     cx.defer(move |cx| {
-        let _ = handle.update(cx, |root, window, cx| {
-            let native = crate::native::handle(window);
-            let Some(native) = native.window() else { return; };
-            native.setCollectionBehavior(objc2_app_kit::NSWindowCollectionBehavior::FullScreenNone);
+        let Ok(native) = handle.update(cx, |root, window, cx| {
             let view = root.view().clone().downcast::<SettingsWindow>().expect("settings content");
             view.update(cx, |view, cx| {
                 window.focus(&view.focus, cx);
                 view.refresh_health(true, cx);
             });
-            window.activate_window();
-        });
+            crate::native::handle(window)
+        }) else { return; };
+        cx.foreground_executor().spawn(async move {
+            let Some(window) = native.window() else { return; };
+            window.setCollectionBehavior(objc2_app_kit::NSWindowCollectionBehavior::FullScreenNone);
+            if !window.isVisible() && let Some(view) = window.contentView() {
+                view.setNeedsDisplay(true);
+            }
+            #[allow(deprecated)]
+            objc2_app_kit::NSApplication::sharedApplication(crate::native::marker()).activateIgnoringOtherApps(true);
+            if window.isMiniaturized() { window.deminiaturize(None); }
+            window.makeKeyAndOrderFront(None);
+        }).detach();
     });
 }
 

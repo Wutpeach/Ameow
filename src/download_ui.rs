@@ -1470,8 +1470,14 @@ impl Prototype {
             .unwrap_or_default();
         for event in events {
             match event {
+                #[cfg(target_os = "windows")]
                 TrayEvent::Restore => { self.close_tray_popup(cx); self.restore_downloads(window, cx); }
+                #[cfg(target_os = "windows")]
                 TrayEvent::TogglePopup => self.toggle_tray_popup(cx),
+                #[cfg(target_os = "macos")]
+                TrayEvent::Menu(action) => self.tray_actions.borrow_mut().push(action),
+                #[cfg(target_os = "macos")]
+                TrayEvent::Context(action) => self.surface_menu_action(action, cx),
             }
         }
         let actions = std::mem::take(&mut *self.tray_actions.borrow_mut());

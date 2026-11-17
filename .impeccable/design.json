@@ -455,6 +455,11 @@
         "section": "components"
       },
       {
+        "name": "The Native Mac Menu Rule",
+        "body": "macOS 菜单栏与 Full 右键使用真实 AppKit NSMenu，不显示应用状态摘要。保留打开、设置、退出、条件更新及右键画质和隐藏动作；选中、禁用、键盘、字体与明暗外观交系统。画质只按 owner 已确认值勾选，保存待确认时禁用；设置主线程激活所属窗口并支持原生关闭后重开。Windows 自绘菜单与获批 template 图标不变。",
+        "section": "components"
+      },
+      {
         "name": "The Signature Motion Rule",
         "body": "磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。",
         "section": "components"
