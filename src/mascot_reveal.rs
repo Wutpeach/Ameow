@@ -21,7 +21,9 @@ pub struct Scene {
 
 pub fn scene(progress: f64) -> Scene {
     let t = (progress.clamp(0., 1.) * ENTER_MS) as f32;
-    let head_y = if t < 215. { 26. - 21. * smooth((t - 90.) / 125.) }
+    // Start under the moving sill: visible emergence follows it by a few frames,
+    // rather than spending its entire rise behind the compositor's 24px head gate.
+    let head_y = if t < 215. { 26. - 21. * smooth(t / 215.) }
         else if t < 240. { 5. }
         else if t < 405. { 5. - 6.2 * smooth((t - 240.) / 165.) }
         else { -1.2 * (1. - smooth((t - 405.) / 75.)) };
@@ -30,7 +32,7 @@ pub fn scene(progress: f64) -> Scene {
         head_y,
         paws_y: 10. * (1. - smooth((t - 300.) / 125.)),
         idle_weight: smooth((t - 405.) / 75.),
-        head_alpha: smooth((t - 75.) / 15.),
+        head_alpha: smooth((t - 36.) / 32.),
     }
 }
 fn smooth(t: f32) -> f32 { let t = t.clamp(0., 1.); t * t * (3. - 2. * t) }
@@ -159,8 +161,8 @@ mod tests {
     }
     #[test]
     fn stage_order_and_short_pause_preserve_the_approved_rest() {
-        let early = scene(80. / ENTER_MS);
-        assert!(early.perch_y < 3.); assert_eq!(early.head_y, 26.);
+        let early = scene(32. / ENTER_MS);
+        assert!(early.perch_y < 24.); assert_eq!(early.head_alpha, 0.);
         assert_eq!(scene(220. / ENTER_MS).head_y, scene(235. / ENTER_MS).head_y);
         assert_ne!(scene(210. / ENTER_MS).head_y, scene(245. / ENTER_MS).head_y);
         assert!(scene(405. / ENTER_MS).head_y < 0.);

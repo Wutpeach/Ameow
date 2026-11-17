@@ -62,6 +62,37 @@ fn cached_layers_preserve_the_surface_mask_rest_and_hidden_endpoints() {
 }
 
 #[test]
+fn visible_head_follows_the_sill_while_both_are_still_rising() {
+    let renderer = SvgRenderer::new(Arc::new(()));
+    for night in [false, true] {
+        for scale in [1., 2.] {
+            let mut mascot = mascot::Mascot::new(0);
+            let surface = mascot::SurfaceFrame::new(model::Geometry::at(0.));
+            let empty = mascot::straight_bgra(surface.compose(None, 0., night, scale));
+            // Ignore a few AA crumbs: require four logical pixels with readable contrast.
+            let visible = |a: &[u8], b: &[u8]| a.chunks_exact(4).zip(b.chunks_exact(4))
+                .filter(|(a, b)| a[..3].iter().zip(&b[..3]).any(|(a, b)| a.abs_diff(*b) >= 8))
+                .count() >= (4. * scale * scale) as usize;
+            let (mut first_sill, mut first_head) = (None, None);
+            for ms in (0..=144).step_by(8) {
+                let scene = mascot_reveal::scene(ms as f64 / mascot_reveal::ENTER_MS);
+                let sill = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., mascot_reveal::Scene { head_alpha: 0., ..scene }, scale, &renderer));
+                let role = mascot::straight_bgra(mascot.compose_frame(night, surface, 1., scene, scale, &renderer));
+                if first_sill.is_none() && visible(&sill, &empty) { first_sill = Some(ms); }
+                if first_head.is_none() && visible(&role, &sill) { first_head = Some(ms); }
+            }
+            let sill = first_sill.expect("the sill must visibly lead");
+            let head = first_head.expect("the head must emerge during the sill rise");
+            let at_head = mascot_reveal::scene(head as f64 / mascot_reveal::ENTER_MS);
+            let later = mascot_reveal::scene((head + 32) as f64 / mascot_reveal::ENTER_MS);
+            eprintln!("visible overlap night={night} scale={scale}: sill={sill}ms head={head}ms sill_remaining={}px", at_head.perch_y);
+            assert!(head > sill && head - sill <= 48, "only a short visible lead, not two separate acts");
+            assert!(at_head.perch_y >= 3. && later.perch_y >= 0.5 && later.perch_y < at_head.perch_y, "readable head and sill movement must overlap");
+        }
+    }
+}
+
+#[test]
 fn entrance_blends_back_into_the_frozen_idle_without_chasing_hidden_time() {
     let mut idle = mascot_motion::Idle::new(4);
     idle.sample(0, true, false);
@@ -163,7 +194,13 @@ fn export_authored_motion_preview() {
     fs::create_dir_all(&directory).unwrap();
     let renderer = SvgRenderer::new(Arc::new(()));
     for (theme, night) in [("light", false), ("night", true)] {
-        let mut output = fs::File::create(directory.join(format!("{theme}.bgra"))).unwrap();
+        // Stream to the existing external preview encoder; never archive raw frame dumps.
+        let background = if night { "color=c=0x111214:s=560x560:r=60" } else { "color=c=0xe5e6e8:s=560x560:r=60" };
+        let mut encoder = std::process::Command::new("ffmpeg")
+            .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pixel_format", "bgra", "-video_size", "560x560", "-framerate", "60", "-i", "pipe:0", "-f", "lavfi", "-i", background, "-filter_complex", "[1:v][0:v]overlay=shortest=1:format=auto,format=yuv420p", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-movflags", "+faststart"])
+            .arg(directory.join(format!("{theme}.mp4")))
+            .stdin(std::process::Stdio::piped()).spawn().expect("ffmpeg for explicit offline preview");
+        let mut output = encoder.stdin.take().unwrap();
         let mut trace = fs::File::create(directory.join(format!("{theme}.csv"))).unwrap();
         writeln!(trace, "ms,target_full,fullness,surface,progress,alpha,reveal_delay,perch_y,head_y,paws_y").unwrap();
         let mut motion = repair_motion::Motion::new(0);
@@ -195,5 +232,7 @@ fn export_authored_motion_preview() {
             output.write_all(&canvas).unwrap();
             writeln!(trace, "{now},{full},{},{},{},{},{},{},{},{}", motion.x, g.surface, reveal.progress, opacity, delay.map(|value| value.to_string()).unwrap_or_default(), s.perch_y, s.head_y, s.paws_y).unwrap();
         }
+        drop(output);
+        assert!(encoder.wait().unwrap().success(), "offline preview encoding");
     }
 }
