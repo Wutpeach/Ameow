@@ -1,6 +1,5 @@
 use crate::native::{self, NativeHandle};
-use crate::{context_menu, tray_popup, ui_text::Language};
-use ameow_next::download::request::Quality;
+use crate::{tray_popup, ui_text::Language};
 use ameow_next::download::settings::TrayIconPreference;
 use objc2::{AnyThread, DefinedClass, MainThreadOnly, define_class, msg_send, rc::Retained, sel};
 use objc2_app_kit::{NSBitmapImageRep, NSImage, NSMenu, NSMenuItem, NSPasteboard, NSPasteboardTypeString, NSStatusBar, NSStatusItem};
@@ -13,7 +12,6 @@ use std::{
 #[derive(Clone, Copy)]
 pub enum TrayEvent {
     Menu(tray_popup::Action),
-    Context(context_menu::Action),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,10 +20,6 @@ enum MenuCommand {
     Settings,
     Exit,
     Update,
-    Quality(Quality),
-    ContextSettings,
-    Hide,
-    ContextExit,
 }
 
 impl MenuCommand {
@@ -35,12 +29,6 @@ impl MenuCommand {
             Self::Settings => 2,
             Self::Exit => 3,
             Self::Update => 4,
-            Self::Quality(Quality::Highest) => 5,
-            Self::Quality(Quality::Balanced) => 6,
-            Self::Quality(Quality::Saver) => 7,
-            Self::ContextSettings => 8,
-            Self::Hide => 9,
-            Self::ContextExit => 10,
         }
     }
 
@@ -50,12 +38,6 @@ impl MenuCommand {
             2 => Self::Settings,
             3 => Self::Exit,
             4 => Self::Update,
-            5 => Self::Quality(Quality::Highest),
-            6 => Self::Quality(Quality::Balanced),
-            7 => Self::Quality(Quality::Saver),
-            8 => Self::ContextSettings,
-            9 => Self::Hide,
-            10 => Self::ContextExit,
             _ => return None,
         })
     }
@@ -66,10 +48,6 @@ impl MenuCommand {
             Self::Settings => TrayEvent::Menu(tray_popup::Action::Settings),
             Self::Exit => TrayEvent::Menu(tray_popup::Action::Exit),
             Self::Update => TrayEvent::Menu(tray_popup::Action::Update),
-            Self::Quality(quality) => TrayEvent::Context(context_menu::Action::Quality(quality)),
-            Self::ContextSettings => TrayEvent::Context(context_menu::Action::Settings),
-            Self::Hide => TrayEvent::Context(context_menu::Action::Hide),
-            Self::ContextExit => TrayEvent::Context(context_menu::Action::Exit),
         }
     }
 }
@@ -77,15 +55,12 @@ impl MenuCommand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MenuEntry {
     title: &'static str,
-    help: Option<&'static str>,
     command: MenuCommand,
-    enabled: bool,
-    checked: bool,
 }
 
 impl MenuEntry {
     fn action(title: &'static str, command: MenuCommand) -> Self {
-        Self { title, help: None, command, enabled: true, checked: false }
+        Self { title, command }
     }
 }
 
@@ -98,28 +73,6 @@ fn status_entries(language: Language, update: Option<&'static str>) -> Vec<Optio
         entries.push(Some(MenuEntry::action(label, MenuCommand::Update)));
     }
     entries.extend([None, Some(MenuEntry::action(language.text("退出", "Exit"), MenuCommand::Exit))]);
-    entries
-}
-
-fn context_entries(language: Language, quality: Option<Quality>, pending: bool) -> Vec<Option<MenuEntry>> {
-    let mut entries = [
-        (Quality::Highest, language.text("最高", "Best"), language.text("最高可得", "Best available")),
-        (Quality::Balanced, language.text("均衡", "Balanced"), language.text("最高 1080p", "Up to 1080p")),
-        (Quality::Saver, language.text("省流", "Saver"), language.text("最高 480p", "Up to 480p")),
-    ].into_iter().map(|(value, title, help)| Some(MenuEntry {
-        title,
-        help: Some(help),
-        command: MenuCommand::Quality(value),
-        enabled: quality.is_some() && !pending,
-        checked: quality == Some(value),
-    })).collect::<Vec<_>>();
-    entries.extend([
-        None,
-        Some(MenuEntry::action(language.text("设置", "Settings"), MenuCommand::ContextSettings)),
-        Some(MenuEntry::action(language.text("隐藏到托盘", "Hide to tray"), MenuCommand::Hide)),
-        None,
-        Some(MenuEntry::action(language.text("退出", "Exit"), MenuCommand::ContextExit)),
-    ]);
     entries
 }
 
@@ -232,9 +185,6 @@ fn build_menu(target: &TrayTarget, entries: &[Option<MenuEntry>]) -> Retained<NS
             };
             unsafe { item.setTarget(Some(target)); }
             item.setTag(entry.command.tag());
-            item.setEnabled(entry.enabled);
-            item.setState(if entry.checked { 1 } else { 0 });
-            item.setToolTip(entry.help.map(NSString::from_str).as_deref());
             item
         } else {
             NSMenuItem::separatorItem(native::marker())
@@ -283,17 +233,6 @@ impl Tray {
         if *self.menu_entries.borrow() == entries { return; }
         self.item.setMenu(Some(&build_menu(&self.target, &entries)));
         *self.menu_entries.borrow_mut() = entries;
-    }
-    pub fn show_context_menu(&self, handle: NativeHandle, language: Language, quality: Option<Quality>, pending: bool, cx: &gpui::App) {
-        let menu = build_menu(&self.target, &context_entries(language, quality, pending));
-        let target = self.target.clone();
-        let position = objc2_app_kit::NSEvent::mouseLocation();
-        cx.foreground_executor().spawn(async move {
-            if handle.window().is_some() {
-                menu.popUpMenuPositioningItem_atLocation_inView(None, position, None);
-            }
-            target.ivars().borrow_mut().push(TrayEvent::Context(context_menu::Action::Close));
-        }).detach();
     }
     fn set_image(&self, preference: TrayIconPreference, night: bool) -> Result<(), String> {
         let resource = crate::brand_icons::tray_resource(preference,
@@ -455,8 +394,6 @@ mod tests {
     fn status_menu_keeps_actions_without_a_status_summary() {
         for language in [Language::Chinese, Language::English] {
             let commands = |entries: Vec<Option<MenuEntry>>| entries.into_iter().flatten().map(|entry| {
-                assert!(entry.enabled);
-                assert!(!entry.checked);
                 entry.command
             }).collect::<Vec<_>>();
             assert_eq!(commands(status_entries(language, None)), vec![MenuCommand::Open, MenuCommand::Settings, MenuCommand::Exit]);
@@ -467,39 +404,15 @@ mod tests {
     }
 
     #[test]
-    fn context_menu_uses_acknowledged_quality_and_disables_unavailable_saves() {
-        for quality in [None, Some(Quality::Highest), Some(Quality::Balanced), Some(Quality::Saver)] {
-            for pending in [false, true] {
-                let entries = context_entries(Language::English, quality, pending).into_iter().flatten().collect::<Vec<_>>();
-                for (entry, value) in entries[..3].iter().zip([Quality::Highest, Quality::Balanced, Quality::Saver]) {
-                    assert_eq!(entry.command, MenuCommand::Quality(value));
-                    assert_eq!(entry.enabled, quality.is_some() && !pending);
-                    assert_eq!(entry.checked, quality == Some(value));
-                    assert!(entry.help.is_some());
-                }
-                assert_eq!(entries[3..].iter().map(|entry| entry.command).collect::<Vec<_>>(),
-                    vec![MenuCommand::ContextSettings, MenuCommand::Hide, MenuCommand::ContextExit]);
-                assert!(entries[3..].iter().all(|entry| entry.enabled));
-            }
-        }
-    }
-
-    #[test]
-    fn native_commands_return_to_the_existing_business_actions() {
-        for command in [MenuCommand::Open, MenuCommand::Settings, MenuCommand::Exit, MenuCommand::Update,
-            MenuCommand::Quality(Quality::Highest), MenuCommand::Quality(Quality::Balanced), MenuCommand::Quality(Quality::Saver),
-            MenuCommand::ContextSettings, MenuCommand::Hide, MenuCommand::ContextExit] {
+    fn native_tray_commands_return_to_the_existing_business_actions() {
+        for command in [MenuCommand::Open, MenuCommand::Settings, MenuCommand::Exit, MenuCommand::Update] {
             assert_eq!(MenuCommand::from_tag(command.tag()), Some(command));
         }
-        for tag in [-1, 0, 11, isize::MAX] { assert_eq!(MenuCommand::from_tag(tag), None); }
+        for tag in [-1, 0, 5, 6, 7, 8, 9, 10, 11, isize::MAX] { assert_eq!(MenuCommand::from_tag(tag), None); }
         assert!(matches!(MenuCommand::Settings.event(), TrayEvent::Menu(tray_popup::Action::Settings)));
-        assert!(matches!(MenuCommand::ContextSettings.event(), TrayEvent::Context(context_menu::Action::Settings)));
         assert!(matches!(MenuCommand::Open.event(), TrayEvent::Menu(tray_popup::Action::Open)));
         assert!(matches!(MenuCommand::Exit.event(), TrayEvent::Menu(tray_popup::Action::Exit)));
         assert!(matches!(MenuCommand::Update.event(), TrayEvent::Menu(tray_popup::Action::Update)));
-        assert!(matches!(MenuCommand::Hide.event(), TrayEvent::Context(context_menu::Action::Hide)));
-        assert!(matches!(MenuCommand::ContextExit.event(), TrayEvent::Context(context_menu::Action::Exit)));
-        assert!(matches!(MenuCommand::Quality(Quality::Saver).event(), TrayEvent::Context(context_menu::Action::Quality(Quality::Saver))));
     }
 
     #[test]

@@ -400,13 +400,6 @@ impl Prototype {
         if !self.model.target_full || self.model.fullness < 0.999 { return; }
         if self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open) { return; }
         let quality = self.downloads.as_ref().and_then(|ui| ui.settings()).map(|s| s.quality);
-        #[cfg(target_os = "macos")]
-        {
-            let Some((tray, native)) = self.tray.as_ref().zip(self.native.as_ref()) else { return; };
-            let pending = self.downloads.as_ref().is_none_or(|ui| ui.settings_pending);
-            tray.show_context_menu(native.hwnd, self.language, quality, pending, cx);
-        }
-        #[cfg(not(target_os = "macos"))]
         self.surface_menu.open(quality, self.now());
         self.model.locks.menu = true;
         self.background_clicks.reset();

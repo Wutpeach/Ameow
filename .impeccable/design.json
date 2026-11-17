@@ -455,8 +455,8 @@
         "section": "components"
       },
       {
-        "name": "The Native Mac Menu Rule",
-        "body": "macOS 菜单栏与 Full 右键使用真实 AppKit NSMenu，不显示应用状态摘要。保留打开、设置、退出、条件更新及右键画质和隐藏动作；选中、禁用、键盘、字体与明暗外观交系统。画质只按 owner 已确认值勾选，保存待确认时禁用；设置主线程激活所属窗口并支持原生关闭后重开。Windows 自绘菜单与获批 template 图标不变。",
+        "name": "The Native Mac Tray Menu Rule",
+        "body": "macOS 只有菜单栏（系统托盘）使用真实 AppKit NSMenu，不显示应用状态摘要，保留打开、设置、退出和条件更新。Full 右键继续 GPUI 自绘画质分段、规格提示、设置、隐藏、退出和原关闭/菜单锁交互；画质按 owner 已确认值呈现，保存待确认时禁用。两个设置入口共用原 owner，主线程激活所属窗口并支持原生关闭后重开。Windows 行为与获批 template 图标不变。",
         "section": "components"
       },
       {
