@@ -16,40 +16,8 @@ import time
 import tkinter as tk
 from PIL import ImageChops
 
-from repair_a_runtime import CropCapture
-from windows_validate import u
-
-
-def owned_windows(pid):
-    found = {}
-    @c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
-    def visit(hwnd, _):
-        owner = w.DWORD()
-        u.GetWindowThreadProcessId(hwnd, c.byref(owner))
-        if owner.value == pid and u.IsWindowVisible(hwnd):
-            text = c.create_unicode_buffer(256)
-            u.GetWindowTextW(hwnd, text, 256)
-            found[text.value] = hwnd
-        return True
-    u.EnumWindows(visit, 0)
-    return found
-
-
-def bounds(hwnd):
-    r = w.RECT()
-    if not u.GetWindowRect(hwnd, c.byref(r)):
-        raise RuntimeError('无法读取本轮窗口边界')
-    return [r.left, r.top, r.right, r.bottom]
-
-
-def wait_for(predicate, seconds=10):
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        value = predicate()
-        if value:
-            return value
-        time.sleep(.025)
-    raise TimeoutError('等待本轮原生行为超时')
+from native_capture import CropCapture
+from native_capture import u, owned_windows, bounds, wait_for
 
 
 def key(code, shift=False):

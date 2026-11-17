@@ -9,10 +9,10 @@ import statistics
 import subprocess
 import time
 
-from repair_a_runtime import CropCapture
-from test_gpui_migration import owned_windows, bounds, wait_for
+from native_capture import CropCapture
+from native_capture import owned_windows, bounds, wait_for
 from gallery import OwnedJob
-from windows_validate import u
+from native_capture import u
 
 
 def rows(path):

@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import time
 import tkinter as tk
-from repair_a_runtime import RepairRuntime,CropCapture,refresh_metadata,read_jsonl,u
+from native_capture import MeasuredRuntime as RepairRuntime, CropCapture, refresh_metadata, read_jsonl, u
 
 
 class PolishRuntime(RepairRuntime):

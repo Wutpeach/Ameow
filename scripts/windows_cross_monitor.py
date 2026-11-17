@@ -4,7 +4,7 @@ from ctypes import wintypes as w
 import json
 from pathlib import Path
 import time
-from windows_validate import Runtime, u
+from native_capture import Runtime, u
 
 
 class MonitorInfo(c.Structure):
