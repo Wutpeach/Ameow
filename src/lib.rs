@@ -3,4 +3,6 @@ pub mod download;
 pub mod app_update;
 pub mod third_party_notices;
 #[cfg(any(target_os = "windows", target_os = "macos"))]
+pub mod file_manager;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod login_startup;

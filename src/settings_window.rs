@@ -917,28 +917,8 @@ impl SettingsWindow {
         self.notice = None;
         let task = cx.background_executor().spawn(async move {
             directory_health(&path)?;
-            #[cfg(target_os = "windows")]
-            {
-            let explorer = std::env::var_os("WINDIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("C:/Windows"))
-                .join("explorer.exe");
-            std::process::Command::new(explorer)
-                .arg(path)
-                .spawn()
-                .map(|_| ())
+            ameow_next::file_manager::open_directory(&path)
                 .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())
-            }
-            #[cfg(target_os = "macos")]
-            {
-                let status = std::process::Command::new("/usr/bin/open")
-                    .arg("--")
-                    .arg(path)
-                    .status()
-                    .map_err(|_| "无法打开文件夹，请检查目录后重试".to_string())?;
-                if status.success() { Ok(()) }
-                else { Err("无法打开文件夹，请检查目录后重试".to_string()) }
-            }
         });
         cx.spawn(async move |this, cx| {
             let result = task.await;
