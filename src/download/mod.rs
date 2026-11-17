@@ -3,6 +3,7 @@ pub mod diagnostics;
 pub mod network;
 #[cfg_attr(target_os = "macos", path = "output_macos.rs")]
 pub mod output;
+mod output_names;
 pub mod contract;
 pub mod adapter;
 pub mod adapters;
