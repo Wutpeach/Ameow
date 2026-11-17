@@ -724,6 +724,8 @@ impl Render for Prototype {
         let cpu_advance_us = render_start.elapsed().as_micros();
         let now = self.now();
         let g = self.model.geometry();
+        #[cfg(target_os = "macos")]
+        let g = native::presented_geometry(g, [window.viewport_size().width.into(), window.viewport_size().height.into()]);
         let p = Palette::new(self.night);
         let native = self.native.as_ref().unwrap();
         let cursor = Native::cursor();
@@ -835,7 +837,10 @@ impl Render for Prototype {
                 )
             }
         };
+        #[cfg(not(target_os = "macos"))]
         let alpha = ((self.model.fullness - 0.72) / 0.28).clamp(0., 1.);
+        #[cfg(target_os = "macos")]
+        let alpha = ((((g.gutter - 10.) / 4.) - 0.72) / 0.28).clamp(0., 1.);
         self.visual_offset = visual_offset;
         let frame = self.indicator.sample(&self.model, p, now);
         let indeterminate = self.unknown_downloading || self
@@ -1171,11 +1176,12 @@ impl Render for Prototype {
             let native = self.native.as_ref().unwrap();
             let scale = native.scale();
             let viewport = window.viewport_size();
+            let requested = self.model.geometry();
             let native_request = [
-                (self.anchor[0] - g.gutter * scale).round() as i32,
-                (self.anchor[1] - g.gutter * scale).round() as i32,
-                (g.native * scale).round() as i32,
-                (g.native * scale).round() as i32,
+                (self.anchor[0] - requested.gutter * scale).round() as i32,
+                (self.anchor[1] - requested.gutter * scale).round() as i32,
+                (requested.native * scale).round() as i32,
+                (requested.native * scale).round() as i32,
             ];
             let cpu_render_us = render_start.elapsed().as_micros();
             let phase = if self.model.window_motion.candidate == Candidate::Baseline {

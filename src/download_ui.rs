@@ -1943,8 +1943,19 @@ impl Prototype {
         if self.preview.is_some() { return; }
         let Some(path)=self.downloads.as_ref().and_then(|ui|ui.settings()).map(|s|s.output_dir) else{return;};
         let task=cx.background_executor().spawn(async move {
+            #[cfg(target_os = "windows")]
+            {
             let explorer=std::env::var_os("WINDIR").map(PathBuf::from).unwrap_or_else(||PathBuf::from("C:/Windows")).join("explorer.exe");
             std::process::Command::new(explorer).arg(path).spawn().is_ok()
+            }
+            #[cfg(target_os = "macos")]
+            {
+                std::process::Command::new("/usr/bin/open")
+                    .arg("--")
+                    .arg(path)
+                    .status()
+                    .is_ok_and(|status| status.success())
+            }
         });
         cx.spawn(async move |this,cx|{let success=task.await;let _=this.update(cx,|this,cx|{if let Some(ui)=&mut this.downloads{ui.evidence(serde_json::json!({"type":"open-output-directory","launched":success}));}cx.notify();});}).detach();
     }

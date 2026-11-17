@@ -8,6 +8,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSPoint, NSRect, NSSize};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use crate::model::Geometry;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -120,6 +121,16 @@ pub fn configure_overlay(window: &NSWindow) {
             | NSWindowCollectionBehavior::IgnoresCycle,
     );
     window.setHidesOnDeactivate(false);
+}
+
+pub fn presented_geometry(requested: Geometry, viewport: [f32; 2]) -> Geometry {
+    let available = viewport[0].min(viewport[1]);
+    if requested.native.round() <= available {
+        return requested;
+    }
+    let compact = Geometry::at(0.).native;
+    let full = Geometry::at(1.).native;
+    Geometry::at(((available - compact) / (full - compact)).clamp(0., 1.))
 }
 
 pub struct Native {
@@ -282,5 +293,37 @@ impl Drop for Native {
     fn drop(&mut self) {
         self.alive.set(false);
         WINDOWS.with(|windows| windows.borrow_mut().remove(&self.hwnd.0));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn presentation_fits_the_drawable_while_native_growth_is_pending() {
+        for (fullness, available) in [(0.0686, 80.), (0.2265, 90.), (0.5202, 115.), (0.76, 179.)] {
+            let requested = Geometry::at(fullness);
+            assert!(requested.native.round() > available);
+            let displayed = presented_geometry(requested, [available, available]);
+            assert!((displayed.native - available).abs() < 0.001);
+            assert!(displayed.gutter + displayed.surface < available);
+        }
+    }
+
+    #[test]
+    fn presentation_preserves_shrinking_and_endpoint_elasticity() {
+        for mut requested in [Geometry::at(0.), Geometry::at(0.4), Geometry::at(1.)] {
+            requested.surface += 0.7;
+            let displayed = presented_geometry(requested, [228., 228.]);
+            assert_eq!((displayed.surface, displayed.gutter, displayed.radius, displayed.native),
+                (requested.surface, requested.gutter, requested.radius, requested.native));
+        }
+    }
+
+    #[test]
+    fn presentation_fits_both_drawable_axes() {
+        let displayed = presented_geometry(Geometry::at(1.), [150., 100.]);
+        assert!((displayed.native - 100.).abs() < 0.001);
     }
 }
