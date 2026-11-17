@@ -1,13 +1,13 @@
+use super::adapters::yt_dlp::settlement_macos::ManagedCompletion;
 use std::{
     collections::BTreeSet,
     ffi::{CString, c_char, c_int, c_short, c_void},
-    fs::{self, File},
     io::{self, PipeReader, Read},
     os::{
         fd::{AsRawFd, FromRawFd, OwnedFd},
         unix::ffi::OsStrExt,
     },
-    path::{Path, PathBuf},
+    path::PathBuf,
     ptr,
     sync::{
         Arc, Mutex, MutexGuard,
@@ -22,7 +22,7 @@ pub const MAX_STDOUT_CAPTURE: usize = 16 * 1024 * 1024;
 const STDERR_CAP: usize = 1024 * 1024;
 type Callback = Arc<dyn Fn(ProcessObservation) + Send + Sync>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProcessSpec {
     pub executable: PathBuf,
     pub args: Vec<String>,
@@ -260,325 +260,6 @@ impl Launch {
     }
 }
 
-#[derive(Clone, Debug)]
-enum TrustedYtDlpPhase {
-    Resolve,
-    Transfer,
-    #[cfg(test)]
-    Fixture,
-}
-
-struct TrustedYtDlp {
-    phase: TrustedYtDlpPhase,
-    _guards: Vec<File>,
-}
-
-fn trusted_ytdlp_arguments(spec: &ProcessSpec) -> Option<(PathBuf, TrustedYtDlpPhase)> {
-    let python = spec.executable.parent()?.parent()?;
-    if python.file_name()? != "python" {
-        return None;
-    }
-    let runtime = python.parent()?.to_path_buf();
-    if spec.executable != runtime.join("python/bin/python3.13") {
-        return None;
-    }
-    let workspace = spec.cwd.to_str()?;
-    let runtime_text = runtime.to_str()?;
-    let environment = [
-        ("PATH", String::new()),
-        ("TMPDIR", spec.cwd.join("temp").to_str()?.to_owned()),
-        ("TMP", spec.cwd.join("temp").to_str()?.to_owned()),
-        (
-            "XDG_CONFIG_HOME",
-            spec.cwd.join("appdata").to_str()?.to_owned(),
-        ),
-        (
-            "XDG_CACHE_HOME",
-            spec.cwd.join("localappdata").to_str()?.to_owned(),
-        ),
-        ("SSL_CERT_FILE", "/etc/ssl/cert.pem".into()),
-        ("LANG", "en_US.UTF-8".into()),
-        ("DENO_DIR", spec.cwd.join("deno-cache").to_str()?.to_owned()),
-        ("DENO_NO_UPDATE_CHECK", "1".into()),
-        ("DENO_NO_PACKAGE_JSON", "1".into()),
-        ("PYTHONIOENCODING", "utf-8".into()),
-    ];
-    if spec.env.len() != environment.len()
-        || environment.iter().any(|(key, value)| {
-            spec.env
-                .iter()
-                .filter(|(name, actual)| name == key && actual == value)
-                .count()
-                != 1
-        })
-    {
-        return None;
-    }
-    let args = &spec.args;
-    let generic = args.get(10).is_some_and(|arg| arg == "--proxy");
-    let proxy = args.get(if generic { 11 } else { 12 })?;
-    let quality = args.get(if generic { 17 } else { 18 })?;
-    if proxy.starts_with('-')
-        || ![
-            super::request::Quality::Highest,
-            super::request::Quality::Balanced,
-            super::request::Quality::Saver,
-        ]
-        .into_iter()
-        .any(|preset| super::adapters::yt_dlp::selection::expression(preset) == quality)
-    {
-        return None;
-    }
-    let url = url::Url::parse(args.last()?).ok()?;
-    if !matches!(url.scheme(), "http" | "https")
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return None;
-    }
-    let mut common = vec![
-        "-I".into(),
-        "-B".into(),
-        runtime.join("yt-dlp").to_str()?.to_owned(),
-        "--ignore-config".into(),
-        "--no-plugin-dirs".into(),
-        "--no-js-runtimes".into(),
-        "--js-runtimes".into(),
-        format!("deno:{runtime_text}/deno"),
-        "--cache-dir".into(),
-        spec.cwd.join("engine-cache").to_str()?.to_owned(),
-    ];
-    if !generic {
-        common.push("--no-playlist".into());
-    }
-    common.extend([
-        "--proxy".into(),
-        proxy.clone(),
-        "--ffmpeg-location".into(),
-        runtime_text.into(),
-        "--abort-on-unavailable-fragments".into(),
-        "--verbose".into(),
-        "--format".into(),
-        quality.clone(),
-        "--format-sort".into(),
-        "height,+vcodec:avc".into(),
-        "--format-sort-force".into(),
-    ]);
-    if generic {
-        common.extend(["--yes-playlist".into(), "--playlist-end".into(), "2".into()]);
-    }
-    let mut resolve = common.clone();
-    if generic {
-        resolve.push("--flat-playlist".into());
-    }
-    resolve.extend([
-        "--dump-single-json".into(),
-        "--skip-download".into(),
-        "--".into(),
-        args.last()?.clone(),
-    ]);
-    if *args == resolve {
-        return Some((runtime, TrustedYtDlpPhase::Resolve));
-    }
-    common.extend([
-        "--no-simulate".into(),
-        "--merge-output-format".into(),
-        "mkv".into(),
-        "--remux-video".into(),
-        "mkv".into(),
-        "--output".into(),
-        format!("{workspace}/media.%(ext)s"),
-        "--write-info-json".into(),
-        "--no-overwrites".into(),
-        "--newline".into(),
-        "--progress".into(),
-        "--progress-delta".into(),
-        "0.2".into(),
-        "--output-na-placeholder".into(),
-        "null".into(),
-        "--progress-template".into(),
-        super::adapters::yt_dlp::progress::DOWNLOAD_TEMPLATE.into(),
-        "--progress-template".into(),
-        super::adapters::yt_dlp::progress::PP_TEMPLATE.into(),
-        "--print-to-file".into(),
-        "before_dl:AMEOW_SELECTION=%()j".into(),
-        spec.cwd.join("selection.txt").to_str()?.to_owned(),
-        "--print-to-file".into(),
-        "after_move:AMEOW_FINAL=%(filepath)j".into(),
-        spec.cwd.join("final-object.txt").to_str()?.to_owned(),
-        "--".into(),
-        args.last()?.clone(),
-    ]);
-    (*args == common).then_some((runtime, TrustedYtDlpPhase::Transfer))
-}
-
-fn verified_ytdlp_contract(spec: &ProcessSpec) -> Option<TrustedYtDlp> {
-    let (runtime, phase) = trusted_ytdlp_arguments(spec)?;
-    for name in ["rtmpdump", "phantomjs"] {
-        match fs::symlink_metadata(spec.cwd.join(name)) {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            _ => return None,
-        }
-    }
-    super::macos_gallery::verify_python(&runtime).ok()?;
-    let pinned = [
-        (
-            "python/bin/python3.13",
-            "5A1F8E0BAE93B411608B7EDAD162865EE66E28EF4D6075B14A0096E6A6BE8F4F",
-        ),
-        (
-            "yt-dlp",
-            "1FA6733C37EA6FB51C99AD8FE785E7B7E5F3246C9B980230329D4FB72ED8D4D6",
-        ),
-        (
-            "deno",
-            "B73737579D5A84C160E3316487594783FA5C15F4E13252A6A07050B755317F1A",
-        ),
-        (
-            "ffmpeg",
-            "2E11C6F90993CDB79FFF84D3F90044D28316B310E75B3E030CFC9A54F2C9D384",
-        ),
-        (
-            "ffprobe",
-            "2738AA46A7F9ACBC8AB09A6715554C90F7DE603171AC403726765685DF6A0059",
-        ),
-    ];
-    let guards = pinned
-        .iter()
-        .map(|(name, hash)| super::runtime::check_file(&runtime.join(name), hash))
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    if matches!(phase, TrustedYtDlpPhase::Transfer)
-        && !transfer_record(&spec.cwd.join("resolved.json"), None)
-            .is_some_and(|value| transfer_media_value(&value))
-    {
-        return None;
-    }
-    Some(TrustedYtDlp {
-        phase,
-        _guards: guards,
-    })
-}
-
-#[cfg(test)]
-fn transfer_media_metadata(bytes: &[u8]) -> bool {
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) else {
-        return false;
-    };
-    transfer_media_value(&value)
-}
-
-fn transfer_media_kind(value: &serde_json::Value) -> bool {
-    use serde_json::Value;
-    if !value.is_object()
-        || !matches!(
-            value.get("is_live"),
-            None | Some(Value::Null | Value::Bool(false))
-        )
-        || value.get("live_status").is_some_and(|status| {
-            !status.is_null() && !matches!(status.as_str(), Some("not_live" | "was_live"))
-        })
-        || value
-            .get("_type")
-            .is_some_and(|kind| !kind.is_null() && kind.as_str() != Some("video"))
-        || ["entries", "playlist", "playlist_id", "playlist_index"]
-            .iter()
-            .any(|key| value.get(key).is_some_and(|field| !field.is_null()))
-    {
-        return false;
-    }
-    let Some(protocol) = value.get("protocol").and_then(Value::as_str) else {
-        return false;
-    };
-    protocol.split('+').all(|part| {
-        matches!(
-            part,
-            "http" | "https" | "http_dash_segments" | "m3u8" | "m3u8_native" | "f4m" | "ism"
-        )
-    })
-}
-
-fn transfer_media_value(value: &serde_json::Value) -> bool {
-    use serde_json::Value;
-    if !transfer_media_kind(value) {
-        return false;
-    }
-    let protocol = value["protocol"].as_str().unwrap();
-    let mut has_selection = false;
-    for key in ["requested_formats", "requested_downloads"] {
-        match value.get(key) {
-            None | Some(Value::Null) => {}
-            Some(Value::Array(selected))
-                if !selected.is_empty()
-                    && selected.len() <= (if key == "requested_formats" { 2 } else { 1 })
-                    && selected.iter().all(transfer_media_value) =>
-            {
-                has_selection = true;
-            }
-            _ => return false,
-        }
-    }
-    if has_selection {
-        return true;
-    }
-    !protocol.contains('+')
-        && value
-            .get("url")
-            .and_then(Value::as_str)
-            .is_some_and(|input| {
-                url::Url::parse(input).is_ok_and(|url| {
-                    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
-                })
-            })
-}
-
-fn transfer_record(path: &Path, prefix: Option<&str>) -> Option<serde_json::Value> {
-    let metadata = fs::symlink_metadata(path).ok()?;
-    if !metadata.is_file()
-        || metadata.file_type().is_symlink()
-        || metadata.len() > MAX_STDOUT_CAPTURE as u64
-    {
-        return None;
-    }
-    let file = super::runtime::open_identity_file(path).ok()?;
-    let mut bytes = Vec::new();
-    file.take(MAX_STDOUT_CAPTURE as u64 + 1)
-        .read_to_end(&mut bytes)
-        .ok()?;
-    if bytes.len() > MAX_STDOUT_CAPTURE {
-        return None;
-    }
-    let record = if let Some(prefix) = prefix {
-        if !bytes.ends_with(b"\n") {
-            return None;
-        }
-        let mut lines = std::str::from_utf8(&bytes).ok()?.lines();
-        let record = lines.next()?.strip_prefix(prefix)?;
-        if lines.next().is_some() {
-            return None;
-        }
-        record.as_bytes()
-    } else {
-        &bytes
-    };
-    serde_json::from_slice(record).ok()
-}
-
-fn transfer_media_completion(workspace: &Path) -> bool {
-    let Some(selection) =
-        transfer_record(&workspace.join("selection.txt"), Some("AMEOW_SELECTION="))
-    else {
-        return false;
-    };
-    let Some(summary) = transfer_record(&workspace.join("media.info.json"), None) else {
-        return false;
-    };
-    transfer_media_value(&selection)
-        && transfer_media_kind(&summary)
-        && summary["protocol"] == selection["protocol"]
-}
-
 struct SpawnAttributes(*mut c_void);
 impl Drop for SpawnAttributes {
     fn drop(&mut self) {
@@ -636,7 +317,7 @@ struct Owner {
     root_exited: bool,
     descendants_unproven: bool,
     descendants_held_reported: bool,
-    trusted_contract: Option<TrustedYtDlp>,
+    trusted_contract: Option<ManagedCompletion>,
     trusted_exit_proven: bool,
     trusted_wait_status: Option<c_int>,
     trusted_completion: bool,
@@ -739,9 +420,7 @@ impl Owner {
         if control.is_cancelled() {
             return Err("Cancelled before process creation".into());
         }
-        if self.trusted_contract.is_none() {
-            self.trusted_contract = verified_ytdlp_contract(spec);
-        }
+
         let mut disposition = Sigaction {
             handler: 0,
             mask: 0,
@@ -1046,12 +725,8 @@ impl Owner {
         {
             return Ok(true);
         }
-        let ordinary_completion = self.trusted_contract.as_ref().is_some_and(|contract| {
-            matches!(
-                contract.phase,
-                TrustedYtDlpPhase::Resolve | TrustedYtDlpPhase::Transfer
-            )
-        });
+        let ordinary_completion = self.trusted_contract.as_ref()
+            .is_some_and(ManagedCompletion::accepts_nonzero_exit);
         if info.si_code != libc::CLD_EXITED || (info.si_status != 0 && !ordinary_completion) {
             self.trusted_rejected = true;
             return Err("trusted root did not complete with its expected normal exit".into());
@@ -1087,14 +762,8 @@ impl Owner {
         if self.root_wait_status.is_none() || self.root_wait_status != self.trusted_wait_status {
             return Err("owned root wait status disagreed with trusted normal exit".into());
         }
-        let metadata_valid = match &contract.phase {
-            TrustedYtDlpPhase::Resolve => true,
-            TrustedYtDlpPhase::Transfer => transfer_media_completion(&spec.cwd),
-            #[cfg(test)]
-            TrustedYtDlpPhase::Fixture => true,
-        };
-        if !metadata_valid {
-            return Err("trusted transfer media contract is missing or unsupported".into());
+        if !contract.complete(&spec.cwd) {
+            return Err("managed component completion evidence is missing or unsupported".into());
         }
         Ok(true)
     }
@@ -1407,15 +1076,29 @@ pub fn run(
         spec,
         control,
         callback,
+        None,
         #[cfg(test)]
         Arc::new(AtomicBool::new(false)),
     )
+}
+
+pub(crate) fn run_managed(
+    spec: ProcessSpec,
+    completion: Option<ManagedCompletion>,
+    control: &Control,
+    callback: Callback,
+) -> Result<ProcessOutcome, String> {
+    if completion.as_ref().is_some_and(|contract| !contract.matches_invocation(&spec)) {
+        return Err("Managed completion does not match the actual invocation".into());
+    }
+    run_internal(spec, control, callback, completion, #[cfg(test)] Arc::new(AtomicBool::new(false)))
 }
 
 fn run_internal(
     spec: ProcessSpec,
     control: &Control,
     callback: Callback,
+    completion: Option<ManagedCompletion>,
     #[cfg(test)] query_failure: Arc<AtomicBool>,
 ) -> Result<ProcessOutcome, String> {
     let launch = Arc::new(Launch::new(&spec)?);
@@ -1424,6 +1107,7 @@ fn run_internal(
         #[cfg(test)]
         query_failure,
     )));
+    lock(&owner).trusted_contract = completion;
     loop {
         let worker_owner = owner.clone();
         let worker_launch = launch.clone();
@@ -1490,12 +1174,13 @@ pub(crate) fn run_with_test_query_failure(
     callback: Callback,
     query_failure: Arc<AtomicBool>,
 ) -> Result<ProcessOutcome, String> {
-    run_internal(spec, control, callback, query_failure)
+    run_internal(spec, control, callback, None, query_failure)
 }
 
 #[cfg(test)]
 mod macos_tests {
     use super::*;
+    use super::super::adapters::yt_dlp::InvocationPhase;
     use std::{
         fs,
         io::Write,
@@ -1527,10 +1212,7 @@ mod macos_tests {
     }
 
     fn trust_fixture(owner: &mut Owner) {
-        owner.trusted_contract = Some(TrustedYtDlp {
-            phase: TrustedYtDlpPhase::Fixture,
-            _guards: Vec::new(),
-        });
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Fixture));
     }
 
     fn wait_for_unreaped_exit(owner: &Owner, deadline: Instant) {
@@ -1553,303 +1235,6 @@ mod macos_tests {
             }
             assert!(Instant::now() < deadline);
             thread::sleep(Duration::from_millis(5));
-        }
-    }
-
-    fn trusted_resolve_spec(url: &str) -> ProcessSpec {
-        let workspace = PathBuf::from("/tmp/ameow-trusted-arguments");
-        let runtime = PathBuf::from("/tmp/ameow-pinned-runtime");
-        let workspace_text = workspace.to_str().unwrap();
-        let runtime_text = runtime.to_str().unwrap();
-        ProcessSpec {
-            executable: runtime.join("python/bin/python3.13"),
-            args: vec![
-                "-I".into(),
-                "-B".into(),
-                format!("{runtime_text}/yt-dlp"),
-                "--ignore-config".into(),
-                "--no-plugin-dirs".into(),
-                "--no-js-runtimes".into(),
-                "--js-runtimes".into(),
-                format!("deno:{runtime_text}/deno"),
-                "--cache-dir".into(),
-                format!("{workspace_text}/engine-cache"),
-                "--no-playlist".into(),
-                "--proxy".into(),
-                "".into(),
-                "--ffmpeg-location".into(),
-                runtime_text.into(),
-                "--abort-on-unavailable-fragments".into(),
-                "--verbose".into(),
-                "--format".into(),
-                super::super::adapters::yt_dlp::selection::expression(super::super::request::Quality::Balanced).into(),
-                "--format-sort".into(),
-                "height,+vcodec:avc".into(),
-                "--format-sort-force".into(),
-                "--dump-single-json".into(),
-                "--skip-download".into(),
-                "--".into(),
-                url.into(),
-            ],
-            cwd: workspace.clone(),
-            env: vec![
-                ("PATH".into(), "".into()),
-                ("TMPDIR".into(), format!("{workspace_text}/temp")),
-                ("TMP".into(), format!("{workspace_text}/temp")),
-                (
-                    "XDG_CONFIG_HOME".into(),
-                    format!("{workspace_text}/appdata"),
-                ),
-                (
-                    "XDG_CACHE_HOME".into(),
-                    format!("{workspace_text}/localappdata"),
-                ),
-                ("SSL_CERT_FILE".into(), "/etc/ssl/cert.pem".into()),
-                ("LANG".into(), "en_US.UTF-8".into()),
-                ("DENO_DIR".into(), format!("{workspace_text}/deno-cache")),
-                ("DENO_NO_UPDATE_CHECK".into(), "1".into()),
-                ("DENO_NO_PACKAGE_JSON".into(), "1".into()),
-                ("PYTHONIOENCODING".into(), "utf-8".into()),
-            ],
-            stdout_limit: MAX_STDOUT_CAPTURE,
-            stderr_limit: STDERR_CAP,
-            timeout: None,
-        }
-    }
-
-    #[test]
-    fn trusted_resolve_arguments_accept_existing_url_forms_and_reject_overrides() {
-        for url in [
-            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-            "https://youtu.be/jNQXAC9IVRw?t=4",
-            "https://m.youtube.com/shorts/jNQXAC9IVRw",
-            "https://youtube.com/embed/jNQXAC9IVRw",
-            "https://www.bilibili.com/video/BV1xx411c7mD",
-        ] {
-            let spec = trusted_resolve_spec(url);
-            assert!(matches!(
-                trusted_ytdlp_arguments(&spec),
-                Some((_, TrustedYtDlpPhase::Resolve))
-            ));
-        }
-        let mut spec = trusted_resolve_spec("https://www.youtube.com/watch?v=jNQXAC9IVRw");
-        spec.args
-            .insert(22, "--exec=touch /tmp/should-not-run".into());
-        assert!(trusted_ytdlp_arguments(&spec).is_none());
-        let mut spec = trusted_resolve_spec("https://www.youtube.com/watch?v=jNQXAC9IVRw");
-        spec.env
-            .push(("DYLD_INSERT_LIBRARIES".into(), "/tmp/injected.dylib".into()));
-        assert!(trusted_ytdlp_arguments(&spec).is_none());
-        assert!(trusted_ytdlp_arguments(&trusted_resolve_spec("file:///tmp/untrusted")).is_none());
-    }
-
-    #[test]
-    fn trusted_environment_does_not_declare_home_and_rejects_extra_entries() {
-        let mut spec = trusted_resolve_spec("https://www.youtube.com/watch?v=jNQXAC9IVRw");
-        assert!(
-            spec.env
-                .iter()
-                .all(|(name, _)| !matches!(name.as_str(), "HOME" | "home" | "CODEX_HOME"))
-        );
-        assert!(trusted_ytdlp_arguments(&spec).is_some());
-        spec.env.push(("AMEOW_UNEXPECTED_ENV".into(), "1".into()));
-        assert!(trusted_ytdlp_arguments(&spec).is_none());
-    }
-
-    #[test]
-    fn trusted_resolve_accepts_existing_generic_arguments_and_rejects_execution_options() {
-        let mut spec = trusted_resolve_spec("https://example.invalid/video.mp4");
-        spec.args.remove(10);
-        let position = spec
-            .args
-            .iter()
-            .position(|arg| arg == "--dump-single-json")
-            .unwrap();
-        spec.args.splice(
-            position..position,
-            ["--yes-playlist", "--playlist-end", "2", "--flat-playlist"].map(String::from),
-        );
-        assert!(matches!(
-            trusted_ytdlp_arguments(&spec),
-            Some((_, TrustedYtDlpPhase::Resolve))
-        ));
-        for option in [
-            "--exec=touch /tmp/should-not-run",
-            "--remote-components=ejs:npm",
-            "--no-simulate",
-        ] {
-            let mut altered = spec.clone();
-            altered.args.insert(position, option.into());
-            assert!(trusted_ytdlp_arguments(&altered).is_none());
-        }
-        spec.args.retain(|arg| arg != "--skip-download");
-        assert!(trusted_ytdlp_arguments(&spec).is_none());
-    }
-
-    #[test]
-    fn transfer_media_accepts_combined_separate_and_nested_http_without_a_site_list() {
-        use serde_json::json;
-        let combined = json!({"id":"clip","extractor_key":"Generic","protocol":"https","url":"https://media.example/video.mp4"});
-        let separate = json!({
-            "id":"BV13x41117TL", "extractor_key":"BiliBili", "protocol":"https+https",
-            "requested_formats":[
-                {"protocol":"https","url":"https://media.example/video.mp4"},
-                {"protocol":"https","url":"https://media.example/audio.m4a"}
-            ]
-        });
-        let nested = json!({"protocol":"https+https","requested_downloads":[separate.clone()]});
-        for metadata in [combined, separate, nested] {
-            assert!(transfer_media_metadata(
-                &serde_json::to_vec(&metadata).unwrap()
-            ));
-        }
-        for protocol in [
-            "http",
-            "https",
-            "http_dash_segments",
-            "m3u8",
-            "m3u8_native",
-            "f4m",
-            "ism",
-        ] {
-            let metadata = json!({"protocol":protocol,"url":"https://media.example/stream"});
-            assert!(transfer_media_metadata(
-                &serde_json::to_vec(&metadata).unwrap()
-            ));
-        }
-    }
-
-    #[test]
-    fn transfer_media_rejects_live_collections_and_unreviewed_selected_protocols() {
-        use serde_json::json;
-        let valid = json!({"protocol":"https","url":"https://media.example/video.mp4"});
-        for (key, value) in [
-            ("is_live", json!(true)),
-            ("live_status", json!("is_live")),
-            ("_type", json!("playlist")),
-            ("entries", json!([])),
-            ("playlist_id", json!("collection")),
-            ("playlist_index", json!(1)),
-            ("protocol", json!("rtmp")),
-            ("url", json!("bluray:/disc")),
-            ("requested_formats", json!([])),
-            ("requested_downloads", json!([valid.clone(), valid.clone()])),
-        ] {
-            let mut metadata = valid.clone();
-            metadata[key] = value;
-            assert!(
-                !transfer_media_metadata(&serde_json::to_vec(&metadata).unwrap()),
-                "{key}"
-            );
-        }
-        let mut metadata =
-            json!({"protocol":"https+https","requested_formats":[valid.clone(), valid.clone()]});
-        metadata["requested_formats"][1]["protocol"] = json!("file");
-        assert!(!transfer_media_metadata(
-            &serde_json::to_vec(&metadata).unwrap()
-        ));
-        let mut metadata = valid;
-        metadata["formats"] = json!([{"protocol":"rtmp","url":"rtmp://unused.example/video"}]);
-        assert!(transfer_media_metadata(
-            &serde_json::to_vec(&metadata).unwrap()
-        ));
-    }
-
-    fn trusted_transfer_spec(url: &str, generic: bool) -> ProcessSpec {
-        let mut spec = trusted_resolve_spec(url);
-        let position = spec
-            .args
-            .iter()
-            .position(|arg| arg == "--dump-single-json")
-            .unwrap();
-        spec.args.truncate(position);
-        if generic {
-            spec.args.remove(10);
-            spec.args
-                .extend(["--yes-playlist".into(), "--playlist-end".into(), "2".into()]);
-        }
-        spec.args.extend([
-            "--no-simulate".into(),
-            "--merge-output-format".into(),
-            "mkv".into(),
-            "--remux-video".into(),
-            "mkv".into(),
-            "--output".into(),
-            format!("{}/media.%(ext)s", spec.cwd.display()),
-            "--write-info-json".into(),
-            "--no-overwrites".into(),
-            "--newline".into(),
-            "--progress".into(),
-            "--progress-delta".into(),
-            "0.2".into(),
-            "--output-na-placeholder".into(),
-            "null".into(),
-            "--progress-template".into(),
-            super::super::adapters::yt_dlp::progress::DOWNLOAD_TEMPLATE.into(),
-            "--progress-template".into(),
-            super::super::adapters::yt_dlp::progress::PP_TEMPLATE.into(),
-            "--print-to-file".into(),
-            "before_dl:AMEOW_SELECTION=%()j".into(),
-            spec.cwd
-                .join("selection.txt")
-                .to_string_lossy()
-                .into_owned(),
-            "--print-to-file".into(),
-            "after_move:AMEOW_FINAL=%(filepath)j".into(),
-            spec.cwd
-                .join("final-object.txt")
-                .to_string_lossy()
-                .into_owned(),
-            "--".into(),
-            url.into(),
-        ]);
-        spec
-    }
-
-    #[test]
-    fn production_selectors_match_controlled_resolve_and_transfer_arguments() {
-        for quality in [super::super::request::Quality::Highest, super::super::request::Quality::Balanced, super::super::request::Quality::Saver] {
-            for generic in [false, true] {
-                let url = "https://media.example/video.mp4";
-                let selector = super::super::adapters::yt_dlp::selection::expression(quality);
-                let mut resolve = trusted_resolve_spec(url);
-                let format = resolve.args.iter().position(|argument| argument == "--format").unwrap() + 1;
-                resolve.args[format] = selector.into();
-                if generic {
-                    resolve.args.remove(10);
-                    let position = resolve.args.iter().position(|argument| argument == "--dump-single-json").unwrap();
-                    resolve.args.splice(position..position, ["--yes-playlist", "--playlist-end", "2", "--flat-playlist"].map(str::to_string));
-                }
-                assert!(matches!(trusted_ytdlp_arguments(&resolve), Some((_, TrustedYtDlpPhase::Resolve))), "{quality:?}, generic={generic}");
-                let mut transfer = trusted_transfer_spec(url, generic);
-                let format = transfer.args.iter().position(|argument| argument == "--format").unwrap() + 1;
-                transfer.args[format] = selector.into();
-                assert!(matches!(trusted_ytdlp_arguments(&transfer), Some((_, TrustedYtDlpPhase::Transfer))), "{quality:?}, generic={generic}");
-            }
-        }
-    }
-
-    #[test]
-    fn trusted_transfer_arguments_accept_generic_and_bilibili_but_not_custom_execution() {
-        for (url, generic) in [
-            ("https://media.example/video.mp4", true),
-            ("https://www.bilibili.com/video/BV13x41117TL?p=1", false),
-        ] {
-            let spec = trusted_transfer_spec(url, generic);
-            assert!(matches!(
-                trusted_ytdlp_arguments(&spec),
-                Some((_, TrustedYtDlpPhase::Transfer))
-            ));
-            for option in [
-                "--exec=touch /tmp/should-not-run",
-                "--external-downloader=curl",
-                "--postprocessor-args=-i bluray:/disc",
-                "--remote-components=ejs:npm",
-            ] {
-                let mut altered = spec.clone();
-                altered.args.insert(3, option.into());
-                assert!(trusted_ytdlp_arguments(&altered).is_none());
-            }
         }
     }
 
@@ -2206,10 +1591,7 @@ mod macos_tests {
             }),
             Arc::new(AtomicBool::new(false)),
         );
-        owner.trusted_contract = Some(TrustedYtDlp {
-            phase: TrustedYtDlpPhase::Transfer,
-            _guards: Vec::new(),
-        });
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Transfer));
         owner
             .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
             .unwrap();
@@ -2378,10 +1760,7 @@ mod macos_tests {
         let spec = spec("fork-failure");
         let control = Control::default();
         let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
-        owner.trusted_contract = Some(TrustedYtDlp {
-            phase: TrustedYtDlpPhase::Resolve,
-            _guards: Vec::new(),
-        });
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Resolve));
         owner
             .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
             .unwrap();
@@ -2492,10 +1871,7 @@ mod macos_tests {
             spec.cwd = workspace.clone();
             let control = Control::default();
             let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
-            owner.trusted_contract = Some(TrustedYtDlp {
-                phase: TrustedYtDlpPhase::Transfer,
-                _guards: Vec::new(),
-            });
+            owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Transfer));
             owner
                 .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
                 .unwrap();
@@ -2537,14 +1913,11 @@ mod macos_tests {
 
     #[test]
     fn trusted_managed_call_cancelled_during_fork_reaps_and_joins_but_remains_held() {
-        for phase in [TrustedYtDlpPhase::Resolve, TrustedYtDlpPhase::Transfer] {
+        for phase in [InvocationPhase::Resolve, InvocationPhase::Transfer] {
             let spec = spec("fork");
             let control = Control::default();
             let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
-            owner.trusted_contract = Some(TrustedYtDlp {
-                phase,
-                _guards: Vec::new(),
-            });
+            owner.trusted_contract = Some(ManagedCompletion::fixture(phase));
             owner
                 .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
                 .unwrap();
@@ -2618,10 +1991,7 @@ mod macos_tests {
         ));
         let control = Control::default();
         let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
-        owner.trusted_contract = Some(TrustedYtDlp {
-            phase: TrustedYtDlpPhase::Resolve,
-            _guards: Vec::new(),
-        });
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Resolve));
         owner
             .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
             .unwrap();
@@ -2658,10 +2028,7 @@ mod macos_tests {
         let spec = spec("fork-short");
         let control = Control::default();
         let mut owner = Owner::new(Arc::new(|_| {}), Arc::new(AtomicBool::new(false)));
-        owner.trusted_contract = Some(TrustedYtDlp {
-            phase: TrustedYtDlpPhase::Transfer,
-            _guards: Vec::new(),
-        });
+        owner.trusted_contract = Some(ManagedCompletion::fixture(InvocationPhase::Transfer));
         owner
             .initialize(&Launch::new(&spec).unwrap(), &spec, &control)
             .unwrap();
