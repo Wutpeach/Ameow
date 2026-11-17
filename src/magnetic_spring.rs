@@ -528,9 +528,9 @@ mod tests {
     }
     #[test]
     fn real_expand_arrives_without_a_size_pulse_and_keeps_follow_continuous() {
-        use crate::repair_motion::{Candidate, Motion};
+        use crate::repair_motion::Motion;
         for cadence in [4, 16, 33] {
-            let mut motion = Motion::new(Candidate::Converged, false, 0);
+            let mut motion = Motion::new(0);
             motion.tick(0, true, false);
             let mut h = Hover::default();
             let mut i = input([30., 30.]);
@@ -601,10 +601,10 @@ mod tests {
     }
     #[test]
     fn window_collapse_fades_follow_to_rest_and_can_reverse_without_a_jump() {
-        use crate::repair_motion::{Candidate, Motion};
+        use crate::repair_motion::Motion;
         for cadence in [4, 16, 33] {
             for reverse in [false, true] {
-                let mut motion = Motion::new(Candidate::Converged, false, 0);
+                let mut motion = Motion::new(0);
                 let mut h = Hover::default();
                 let mut i = input([30., 30.]);
                 motion.tick(0, true, false);

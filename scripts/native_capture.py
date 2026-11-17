@@ -261,7 +261,7 @@ def refresh_metadata():
 
 
 class MeasuredRuntime(Runtime):
-    def __init__(self,exe,out,motion,dt='baseline',native_flags='always',lifetime=60000,extra_args=None):
+    def __init__(self,exe,out,lifetime=60000,extra_args=None):
         self.out=out;out.mkdir(parents=True,exist_ok=True)
         self.log=(out/'frames.jsonl').resolve();self.native_log=(out/'native.jsonl').resolve()
         self.stderr=(out/'stderr.log').open('w',encoding='utf-8')
@@ -270,7 +270,7 @@ class MeasuredRuntime(Runtime):
         self.backdrop.configure(background='#e8e8e8');self.backdrop.attributes('-topmost',True)
         self.backdrop.geometry(f'{u.GetSystemMetrics(0)}x{u.GetSystemMetrics(1)}+0+0');self.backdrop.update()
         u.SetCursorPos(200,100)
-        self.command=[str(exe.resolve()),'--motion',motion,'--dt',dt,'--native-flags',native_flags,'--measure',str(self.log),'--native-metrics',str(self.native_log),'--exit-after-ms',str(lifetime)]
+        self.command=[str(exe.resolve()),'--measure',str(self.log),'--native-metrics',str(self.native_log),'--exit-after-ms',str(lifetime)]
         self.command.extend(extra_args or [])
         self.proc=subprocess.Popen(self.command,cwd=exe.resolve().parents[2],creationflags=subprocess.CREATE_NO_WINDOW,stdout=self.stderr,stderr=self.stderr)
         self.hwnd=None

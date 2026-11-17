@@ -2,7 +2,7 @@
 pub const LEAVE_MS: u64 = 80;
 pub const PROGRESS_MS: u64 = 220;
 pub const ROTATION_MS: u64 = 1250;
-use crate::repair_motion::{Candidate, Motion};
+use crate::repair_motion::Motion;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -139,7 +139,6 @@ pub struct Model {
     terminal: Option<Deadline>,
     pending_transcode: Option<(Deadline, f32)>,
     pub blue_trace_at: Option<u64>,
-    last_tick: u64,
     pub window_motion: Motion,
     manual_compact: bool,
     compact_left: bool,
@@ -163,8 +162,7 @@ impl Model {
             terminal: None,
             pending_transcode: None,
             blue_trace_at: None,
-            last_tick: now,
-            window_motion: Motion::new(Candidate::default(), false, now),
+            window_motion: Motion::new(now),
             manual_compact: false,
             compact_left: false,
         }
@@ -190,23 +188,19 @@ impl Model {
         if self.target_full == full {
             return;
         }
-        if self.window_motion.candidate != Candidate::Baseline {
-            self.window_motion.tick(now, self.target_full, self.reduced);
-            self.window_motion.tick(now, full, self.reduced);
-            self.fullness = self.window_motion.x;
-            self.velocity = self.window_motion.v;
-        }
+        self.window_motion.tick(now, self.target_full, self.reduced);
+        self.window_motion.tick(now, full, self.reduced);
+        self.fullness = self.window_motion.x;
+        self.velocity = self.window_motion.v;
         self.target_full = full;
     }
     pub fn set_reduced(&mut self, reduced: bool, now: u64) {
-        if self.window_motion.candidate != Candidate::Baseline {
-            // Process due ownership under the old preference, then snap to the current owner.
-            self.tick(now);
-            self.window_motion.tick(now, self.target_full, self.reduced);
-            self.window_motion.tick(now, self.target_full, reduced);
-            self.fullness = self.window_motion.x;
-            self.velocity = self.window_motion.v;
-        }
+        // Process due ownership under the old preference, then snap to the current owner.
+        self.tick(now);
+        self.window_motion.tick(now, self.target_full, self.reduced);
+        self.window_motion.tick(now, self.target_full, reduced);
+        self.fullness = self.window_motion.x;
+        self.velocity = self.window_motion.v;
         self.reduced = reduced;
     }
     fn schedule_leave(&mut self, now: u64) {
@@ -241,9 +235,7 @@ impl Model {
             self.collapse = None;
         } else if !self.blocked()
             && self.target_full
-            && (self.fullness < 1.
-                || (self.window_motion.candidate != Candidate::Baseline
-                    && self.window_motion.moving()))
+            && (self.fullness < 1. || self.window_motion.moving())
         {
             // In-flight reversal has no settled-Full leave grace and preserves velocity.
             self.set_target(false, now);
@@ -347,44 +339,12 @@ impl Model {
                 self.set_target(false, deadline.at);
             }
         }
-        if self.window_motion.candidate != Candidate::Baseline {
-            self.window_motion.tick(now, self.target_full, self.reduced);
-            self.fullness = self.window_motion.x;
-            self.velocity = self.window_motion.v;
-            self.last_tick = now;
-            return;
-        }
-        let raw_dt = now.saturating_sub(self.last_tick) as f32 / 1000.;
-        let mut dt = if self.window_motion.uncapped {
-            raw_dt
-        } else {
-            raw_dt.min(0.05)
-        };
-        self.last_tick = now;
-        let target = if self.target_full { 1. } else { 0. };
-        if self.reduced {
-            self.fullness = target;
-            self.velocity = 0.;
-            return;
-        }
-        // Near-critical spring, integrated in small steps. Reversal preserves current velocity.
-        while dt > 0. {
-            let step = dt.min(0.004);
-            self.velocity += (520. * (target - self.fullness) - 42. * self.velocity) * step;
-            self.fullness += self.velocity * step;
-            dt -= step;
-        }
-        if (self.fullness - target).abs() < 0.0002 && self.velocity.abs() < 0.003 {
-            self.fullness = target;
-            self.velocity = 0.;
-        }
+        self.window_motion.tick(now, self.target_full, self.reduced);
+        self.fullness = self.window_motion.x;
+        self.velocity = self.window_motion.v;
     }
     pub fn geometry(&self) -> Geometry {
-        if self.window_motion.candidate == Candidate::Baseline {
-            Geometry::at(self.fullness)
-        } else {
-            self.window_motion.geometry()
-        }
+        self.window_motion.geometry()
     }
     pub fn indeterminate_animation(&self, unknown: bool) -> bool {
         unknown && self.stage == Stage::Downloading && !self.reduced
@@ -394,7 +354,7 @@ impl Model {
     pub fn next_wake_ms(&self, now: u64) -> Option<u64> {
         let target = if self.target_full { 1. } else { 0. };
         let changing = self.velocity != 0.
-            || (self.window_motion.candidate != Candidate::Baseline && self.window_motion.moving())
+            || self.window_motion.moving()
             || self.fullness != target
             || self.locks.drag
             || self.locks.drop
@@ -554,7 +514,6 @@ mod tests {
     #[test]
     fn chosen_default_starts_at_event_time_after_idle_and_leave_grace() {
         let mut m = Model::new(0, false);
-        assert_eq!(m.window_motion.candidate, Candidate::Converged);
         m.tick(0);
         m.pointer(true, 722);
         m.tick(722);
@@ -587,14 +546,14 @@ mod tests {
         m.pointer(true, 500);
         assert_eq!((m.fullness, m.velocity), (0., 0.));
         m.tick(516);
-        let mut expected = Motion::new(Candidate::Converged, false, 0);
+        let mut expected = Motion::new(0);
         expected.tick(500, true, false);
         expected.tick(516, true, false);
         assert_eq!((m.fullness, m.velocity), (expected.x, expected.v));
         let mut m = Model::new(0, false);
         m.pointer(true, 10);
         m.tick(26);
-        let mut expected = Motion::new(Candidate::Converged, false, 0);
+        let mut expected = Motion::new(0);
         expected.tick(10, true, false);
         expected.tick(26, true, false);
         assert_eq!((m.fullness, m.velocity), (expected.x, expected.v));
@@ -606,7 +565,7 @@ mod tests {
         m.tick(679);
         assert_eq!(m.geometry().native, 228.);
         m.tick(696);
-        let mut expected = Motion::new(Candidate::Converged, false, 0);
+        let mut expected = Motion::new(0);
         expected.tick(100, true, true);
         expected.tick(680, false, false);
         expected.tick(696, false, false);
@@ -631,39 +590,6 @@ mod tests {
         }
     }
     #[test]
-    fn explicit_historical_baseline_matches_frozen_r1_integration() {
-        let mut m = Model::new(0, false);
-        m.window_motion = Motion::new(Candidate::Baseline, false, 0);
-        let (mut x, mut v, mut last) = (0f32, 0f32, 0u64);
-        for now in [
-            0, 16, 32, 48, 96, 112, 190, 206, 222, 300, 350, 400, 470, 550, 630, 710, 790, 870,
-            950, 1030,
-        ] {
-            let target = if now < 350 || now >= 630 { 1. } else { 0. };
-            m.target_full = target == 1.;
-            m.tick(now);
-            let mut dt = (now.saturating_sub(last) as f32 / 1000.).min(0.05);
-            last = now;
-            while dt > 0. {
-                let h = dt.min(0.004);
-                v += (520. * (target - x) - 42. * v) * h;
-                x += v * h;
-                dt -= h;
-            }
-            if (x - target).abs() < 0.0002 && v.abs() < 0.003 {
-                x = target;
-                v = 0.;
-            }
-            assert_eq!((m.fullness, m.velocity), (x, v));
-            let actual = m.geometry();
-            let expected = Geometry::at(x);
-            assert_eq!(
-                (actual.surface, actual.gutter, actual.native),
-                (expected.surface, expected.gutter, expected.native)
-            );
-        }
-    }
-    #[test]
     fn geometry_shares_one_invariant_anchor() {
         let anchor = [514., 314.];
         for i in 0..=100 {
@@ -680,7 +606,6 @@ mod tests {
     #[test]
     fn leave_has_grace_and_reentry_reverses_without_waiting() {
         let mut m = Model::new(0, false);
-        m.window_motion = Motion::new(Candidate::Baseline, false, 0);
         m.pointer(true, 0);
         for t in (0..600).step_by(4) {
             m.tick(t);
@@ -690,14 +615,15 @@ mod tests {
         assert!(m.target_full);
         m.tick(700);
         assert!(!m.target_full);
-        let before = m.fullness;
+        m.tick(701);
+        let before = (m.fullness, m.velocity);
         m.pointer(true, 701);
         assert!(m.target_full);
-        assert_eq!(before, m.fullness);
+        assert_eq!(before, (m.fullness, m.velocity));
         for t in (704..1000).step_by(4) {
             m.tick(t);
         }
-        assert!(m.fullness > before);
+        assert!(m.fullness > before.0);
         m.tick(2000);
         assert!(m.target_full);
     }

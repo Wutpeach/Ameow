@@ -170,9 +170,6 @@ impl Native {
             alive: Rc::new(Cell::new(true)),
         }
     }
-    pub fn set_research(&mut self, enabled: bool) {
-        self.frame_changed_always = enabled;
-    }
     pub fn set_probe(&mut self, probe: &str) {
         assert!(matches!(probe, "normal" | "origin-only" | "resize-only"));
         self.probe = probe.into();

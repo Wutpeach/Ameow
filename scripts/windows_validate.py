@@ -87,7 +87,7 @@ def validate_ui_regression(exe, out, source):
     try:
         layout = current_ui_layout(source)
         result['layout'] = layout
-        app = MeasuredRuntime(exe, out, 'converged', lifetime=90000,
+        app = MeasuredRuntime(exe, out, lifetime=90000,
                             extra_args=['--stage', 'idle', '--reduced', '--hover', 'off', '--telemetry', str((out/'telemetry.jsonl').resolve())])
         result.update(pid=app.proc.pid, command=app.command, dpi=96*app.scale)
         app.inside(); app.wait(.35)
