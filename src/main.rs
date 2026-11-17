@@ -185,6 +185,44 @@ impl Options {
         }
     }
 }
+// Opt-in, one retained paint sample. The next render emits it with its originating
+// timestamp; it is not a GPU-present receipt or the current render's layout.
+#[derive(Clone, Copy, serde::Serialize)]
+struct SurfacePaint {
+    source_timestamp_us: u128,
+    paint_unix_us: u128,
+    native_rect_ltrb: [f32; 4],
+    native_coordinate_scale: f32,
+    backing_scale: f32,
+    viewport: [f32; 2],
+    carrier_paint_ltrb: [f32; 4],
+    source_surface_ltrb: [f32; 4],
+    expected_screen_center: [f32; 2],
+    mapped_screen_center: [f32; 2],
+    residual_device: [f32; 2],
+}
+impl SurfacePaint {
+    fn capture(timestamp: u128, window: &Window, actual: [f32; 4], carrier: Bounds<Pixels>, frame: mascot::SurfaceFrame, anchor: [f32; 2], gutter: f32, hover: [f32; 2], native_scale: f32) -> Self {
+        let backing = window.scale_factor();
+        let edges = |bounds: Bounds<Pixels>| [f32::from(bounds.left()), f32::from(bounds.top()), f32::from(bounds.right()), f32::from(bounds.bottom())];
+        let carrier_edges = edges(carrier);
+        let paint_edges = carrier_edges.map(|v| { let d = v * backing; (d.abs() - 0.5).ceil().copysign(d) / backing });
+        let surface = frame.bounds(carrier);
+        let center = surface.center();
+        let expected = std::array::from_fn(|i| anchor[i] + native_scale * (hover[i] + frame.native * 0.5 - gutter));
+        let painted = [actual[0] + f32::from(center.x) * native_scale, actual[1] + f32::from(center.y) * native_scale];
+        let viewport = window.viewport_size();
+        Self {
+            source_timestamp_us: timestamp,
+            paint_unix_us: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("paint clock").as_micros(),
+            native_rect_ltrb: actual, native_coordinate_scale: native_scale, backing_scale: backing,
+            viewport: [viewport.width.into(), viewport.height.into()],
+            carrier_paint_ltrb: paint_edges, source_surface_ltrb: edges(surface),
+            expected_screen_center: expected, mapped_screen_center: painted,
+            residual_device: std::array::from_fn(|i| (painted[i] - expected[i]) * backing / native_scale),
+        }
+    }
+}
 struct Prototype {
     instance: Option<login_startup::InstanceGuard>,
     production_preferences: bool,
@@ -224,6 +262,7 @@ struct Prototype {
     wake: Option<Task<()>>,
     measure: Option<BufWriter<File>>,
     last_frame_us: u128,
+    last_surface_paint: Option<std::rc::Rc<std::cell::Cell<Option<SurfacePaint>>>>,
     native_metrics: Option<String>,
     exit_after_ms: Option<u64>,
     native_probe: String,
@@ -327,6 +366,7 @@ impl Prototype {
             telemetry: options.telemetry,
             last_telemetry: 0,
             wake: None,
+            last_surface_paint: options.measure.as_ref().map(|_| Default::default()),
             measure: options.measure,
             last_frame_us: 0,
             native_metrics: options.native_metrics,
@@ -686,13 +726,14 @@ impl Render for Prototype {
             mascot_delay = None;
         }
         let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
-        let mascot_image = (mascot_alpha > 0.).then(|| self.mascot.image(self.night, window, cx));
+        let surface_frame = mascot::SurfaceFrame::new(g);
+        let surface_image = self.mascot.image(self.night, surface_frame, mascot_alpha, window, cx);
         if let Some(log) = &mut self.telemetry {
             let pose = self.mascot.pose;
             let _ = writeln!(log, "{}", serde_json::json!({
                 "type":"mascot", "ms":now, "visible":mascot_visible, "delay":mascot_delay,
                 "blink":pose.blink, "gaze":pose.gaze, "head":pose.head, "ears":pose.ears,
-                "raster_us":if mascot_image.is_some() {self.mascot.raster_us} else {0},
+                "raster_us":self.mascot.raster_us, "prepare_us":self.mascot.prepare_us,
                 "scale":scale, "night":self.night, "reduced":self.model.reduced
             }));
             let _ = log.flush();
@@ -792,35 +833,31 @@ impl Render for Prototype {
                 }));
             }
         }
-        let surface_border = if p.night {
-            gpui::white().opacity(0.15)
-        } else {
-            p.border
-        };
         // Keep the small Compact compression centered inside the legal native bounds.
         let surface_origin = g.gutter + (g.native - 2. * g.gutter - g.surface) * 0.5;
-        // GPUI's style path paints fill/border separately. Combine them before outer AA
-        // coverage here, while the original div retains its 1px layout inset and hitbox.
-        // Surface and artwork share one laid-out frame; only the artwork opacity is local.
-        let surface_paint = div()
-            .absolute()
-            .left(px(surface_origin))
-            .top(px(surface_origin))
-            .size(px(g.surface))
-            .child(canvas(
+        let paint_sample = self.last_surface_paint.clone();
+        let paint_anchor = self.anchor;
+        let native_scale = native.scale();
+        let native_handle = native.hwnd;
+        // Only the full-source carrier goes through layout/paint edge snapping.
+        // Circle, art and clip share the continuous transform inside its pixels.
+        let surface_paint = canvas(
                 |_, _, _| (),
                 move |bounds, _, window, _| {
-                    window.paint_quad(quad(
-                        bounds,
-                        Corners::all(px(g.radius)).clamp_radii_for_quad_size(bounds.size),
-                        p.surface,
-                        Edges::all(px(1.)),
-                        surface_border,
-                        BorderStyle::default(),
-                    ));
+                    let _ = window.paint_image(bounds, bounds, Corners::default(), surface_image, 0, false);
+                    if let Some(sample) = &paint_sample {
+                        #[cfg(target_os = "windows")]
+                        let actual = {
+                            let mut rect = windows::Win32::Foundation::RECT::default();
+                            unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(native_handle, &mut rect).expect("paint native bounds"); }
+                            [rect.left as f32, rect.top as f32, rect.right as f32, rect.bottom as f32]
+                        };
+                        #[cfg(target_os = "macos")]
+                        let actual = native::rect_edges(native_handle.window().expect("paint native window").frame());
+                        sample.set(Some(SurfacePaint::capture(timestamp_us, window, actual, bounds, surface_frame, paint_anchor, g.gutter, visual_offset, native_scale)));
+                    }
                 },
-            ).absolute().left(px(0.)).top(px(0.)).size_full())
-            .when_some(mascot_image, |frame, image| frame.child(mascot::element(image, g.radius, mascot_alpha)));
+            ).absolute().left(px(0.)).top(px(0.)).size(px(surface_frame.side(window.scale_factor())));
         let surface = div()
             .id("surface")
             .absolute()
@@ -1126,12 +1163,12 @@ impl Render for Prototype {
                 target_changed,
                 handoff_json
             );
-            writeln!(writer,"{{\"type\":\"frame\",\"timestamp_us\":{},\"ms\":{},\"dt_actual_ms\":{},\"rawfullness\":{},\"velocity\":{},\"target_full\":{},\"visualsurface\":{},\"gutter\":{},\"radius\":{},\"native_request\":{:?},\"viewport\":[{},{}],\"bounds\":{:?},\"anchor\":{:?},\"surface_extra\":{},\"extra_velocity\":{},\"settlephase\":\"{}\",\"candidate\":\"{}\",\"reduced\":{},\"cpu_advance_us\":{},\"cpu_render_us\":{},\"pointer\":{},\"native_probe\":\"{}\",\"dt\":\"{}\",\"native_flags\":\"{}\",\"shadow_surface\":{},\"shadow_blur\":{},\"shadow_offset\":{},\"shadow_alpha\":{},\"hover\":{}}}",
+            writeln!(writer,"{{\"type\":\"frame\",\"timestamp_us\":{},\"ms\":{},\"dt_actual_ms\":{},\"rawfullness\":{},\"velocity\":{},\"target_full\":{},\"visualsurface\":{},\"gutter\":{},\"radius\":{},\"native_request\":{:?},\"viewport\":[{},{}],\"bounds\":{:?},\"anchor\":{:?},\"surface_extra\":{},\"extra_velocity\":{},\"settlephase\":\"{}\",\"candidate\":\"{}\",\"reduced\":{},\"cpu_advance_us\":{},\"cpu_render_us\":{},\"pointer\":{},\"native_probe\":\"{}\",\"dt\":\"{}\",\"native_flags\":\"{}\",\"shadow_surface\":{},\"shadow_blur\":{},\"shadow_offset\":{},\"shadow_alpha\":{},\"hover\":{},\"previous_surface_paint\":{}}}",
                 timestamp_us,now,dt_actual_ms,self.model.fullness,self.model.velocity,self.model.target_full,g.surface,g.gutter,g.radius,native_request,
                 f32::from(viewport.width),f32::from(viewport.height),native.bounds(),self.anchor,surface_extra,self.model.window_motion.extra_v,
                 phase,"converged",self.model.reduced,cpu_advance_us,cpu_render_us,self.model.pointer,self.native_probe,
                 "baseline","always",
-                shadow_surface,shadow_blur,shadow_offset,shadow_alpha,hover_json).expect("buffer research frame");
+                shadow_surface,shadow_blur,shadow_offset,shadow_alpha,hover_json,serde_json::to_string(&self.last_surface_paint.as_ref().and_then(|sample| sample.get())).expect("paint sample")).expect("buffer research frame");
         }
         result
     }

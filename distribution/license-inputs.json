@@ -41,7 +41,7 @@
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-dependency-inventory.json",
       "destination": "licenses/rust-dependency-inventory.json",
-      "sha256": "993C72B459991742FA0BE16F93079CA025E28815D9EB115E2E72C14E5354CE9A"
+      "sha256": "6661353DBBAD5B763A9EB3F40CE334554853BD9A291FAD349045CFB85B795D6C"
     },
     {
       "kind": "Rust material/provenance",
