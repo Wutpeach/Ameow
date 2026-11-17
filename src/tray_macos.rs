@@ -14,6 +14,14 @@ pub enum TrayEvent {
     TogglePopup,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TaskbarEdge {
+    Left,
+    Top,
+    Right,
+    Bottom,
+}
+
 #[derive(Clone, Copy, Default)]
 pub struct Rect {
     pub left: i32,
@@ -31,6 +39,7 @@ pub struct PopupAnchor {
     pub icon: Rect,
     pub work: Rect,
     pub dpi: u32,
+    pub edge: TaskbarEdge,
 }
 
 impl PopupAnchor {
@@ -59,6 +68,7 @@ impl PopupAnchor {
             },
             work,
             dpi: 96,
+            edge: TaskbarEdge::Top,
         }
     }
 }
@@ -193,6 +203,7 @@ impl Tray {
             icon,
             work: rect(native::rect_edges(screen.visibleFrame())),
             dpi: 96,
+            edge: TaskbarEdge::Top,
         }
     }
     pub fn hide(handle: NativeHandle) {
@@ -305,6 +316,7 @@ mod tests {
                 bottom: 800,
             },
             dpi: 96,
+            edge: TaskbarEdge::Top,
         };
         let point = anchor.place(248., 172.);
         assert_eq!((point.x, point.y), (-252, 0));
