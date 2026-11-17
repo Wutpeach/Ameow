@@ -1,4 +1,3 @@
-pub mod bridge_commands;
 pub mod diagnostics;
 pub mod network;
 #[cfg_attr(target_os = "macos", path = "output_macos.rs")]
@@ -41,7 +40,7 @@ use adapter::{DownloadServices, ExecutionContext, IdentityAdmission};
 use contract::{AdapterEvent, ExecutionRequest};
 #[cfg(test)]
 use contract::MediaKind;
-use request::{Accepted, DownloadIntent, Identity};
+use request::{Accepted, Identity};
 use runtime::RuntimeLease;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -161,7 +160,7 @@ impl State {
         *lock(&self.published) = snapshot;
     }
 }
-pub struct Coordinator {
+struct Coordinator {
     state: Arc<Mutex<State>>,
     services: DownloadServices,
     published: Arc<Mutex<Arc<Snapshot>>>,
@@ -173,9 +172,6 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     }
 }
 impl Coordinator {
-    pub fn new(services: DownloadServices) -> Self {
-        Self::with_services(services)
-    }
     fn with_services(services: DownloadServices) -> Self {
         let published = Arc::new(Mutex::new(Arc::new(Snapshot::default())));
         Self {
@@ -190,59 +186,13 @@ impl Coordinator {
             published,
         }
     }
-    pub fn snapshot(&self) -> Snapshot {
+    fn snapshot(&self) -> Snapshot {
         // Projection lock never surrounds filesystem/process/authority operations. The full
         // previous authoritative snapshot remains readable during a slow atomic publication.
         let snapshot = { lock(&self.published).clone() };
         (*snapshot).clone()
     }
-    pub fn accept(&self, intent: DownloadIntent) -> Result<u64, String> {
-        // Filesystem and URL acceptance runs off the GPUI thread through the bridge command owner.
-        let accepted = Accepted::new(intent)?;
-        let mut state = lock(&self.state);
-        if state.snapshot.phase != Phase::Idle && !state.snapshot.phase.terminal() {
-            return Err("Busy: one active or Held job already owns resources".into());
-        }
-        let job = state
-            .snapshot
-            .job_id
-            .checked_add(1)
-            .ok_or("Job generation exhausted")?;
-        let attempt = state
-            .snapshot
-            .attempt
-            .checked_add(1)
-            .ok_or("Attempt generation exhausted")?;
-        let revision = state.snapshot.revision + 1;
-        state.control = Control::default();
-        state.snapshot = Snapshot {
-            job_id: job,
-            attempt,
-            revision,
-            phase: Phase::Accepted,
-            accepted: Some(accepted.clone()),
-            resources_released: false,
-            ..Default::default()
-        };
-        state.publish();
-        let shared = self.state.clone();
-        let services = self.services.clone();
-        let control = state.control.clone();
-        let spawn = thread::Builder::new()
-            .name(format!("download-job-{job}"))
-            .spawn(move || execute(shared, services, accepted, control, job, attempt, None));
-        if let Err(error) = spawn {
-            state.snapshot.phase = Phase::Failure;
-            state.snapshot.message = format!("Job owner creation: {error}");
-            state.snapshot.terminal_count = 1;
-            state.snapshot.resources_released = true;
-            state.snapshot.revision += 1;
-            state.publish();
-            return Err(state.snapshot.message.clone());
-        }
-        Ok(job)
-    }
-    // Stage B's outer logical authority owns this join; standalone Stage A API stays compatible.
+    // The logical queue owns admission, shared preparation and the actual attempt join.
     fn start_prepared(
         &self,
         accepted: Accepted,
@@ -279,12 +229,12 @@ impl Coordinator {
                     control,
                     job,
                     attempt,
-                    Some(prepared),
+                    prepared,
                 )
             })
             .map_err(|_| "E_RUNTIME: Cannot create attempt owner".into())
     }
-    pub fn cancel(&self, job: u64) -> bool {
+    fn cancel(&self, job: u64) -> bool {
         let mut state = lock(&self.state);
         if state.snapshot.job_id != job
             || state.snapshot.phase.terminal()
@@ -300,7 +250,7 @@ impl Coordinator {
         state.publish();
         true
     }
-    pub fn retry_cleanup(&self, job: u64) -> bool {
+    fn retry_cleanup(&self, job: u64) -> bool {
         let state = lock(&self.state);
         if state.snapshot.job_id != job || state.snapshot.phase != Phase::Held {
             return false;
@@ -376,7 +326,7 @@ fn execute(
     control: Control,
     job: u64,
     attempt: u64,
-    prepared: Option<PreparedAttempt>,
+    prepared: PreparedAttempt,
 ) {
     let manager = services.runtime.clone();
     let mut adapter_failure = None;
@@ -437,21 +387,7 @@ fn execute(
                 }
                 _ => {}
             });
-        lease = Some(if let Some(prepared) = &prepared {
-            prepared.lease.clone()
-        } else {
-            manager.prepare(services.adapter.requirements(), &control, observer.clone(), |message| {
-                use std::io::Write;
-                if let Ok(mut log) = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(working.join("runtime-events.log"))
-                {
-                    let _ = writeln!(log, "{message}");
-                }
-                update(&state, job, attempt, Phase::Preparing, "Preparing trusted download runtime".into())
-            })?
-        });
+        lease = Some(prepared.lease.clone());
         let runtime = lease.as_ref().ok_or("Runtime lease unavailable")?;
         {
             let mut state = lock(&state);
@@ -516,11 +452,9 @@ fn execute(
             return Err("Cancelled before media resolution".into());
         }
         let admitted_state = state.clone();
-        let admission = prepared.as_ref().map(|p| p.admit.clone());
+        let admission = prepared.admit.clone();
         let admit = Arc::new(move |proof: &contract::IdentityAttestation| {
-            if let Some(admission) = &admission {
-                admission(proof)?;
-            }
+            admission(proof)?;
             let mut state = lock(&admitted_state);
             if state.snapshot.job_id != job
                 || state.snapshot.attempt != attempt
@@ -586,7 +520,7 @@ fn execute(
             admission: admit,
             events,
         };
-        let mut resume = prepared.as_ref().and_then(|p| p.resume.clone());
+        let mut resume = prepared.resume.clone();
         if let Some(saved) = &mut resume {
             saved.files.retain(|entry| {
                 output::verify_data(&entry.delivered.path, &accepted.intent.output_dir)
@@ -977,11 +911,10 @@ fn preserve_diagnostics(
 #[cfg(test)]
 mod ownership_tests {
     use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
     #[test]
     fn progress_publication_rejects_other_identity_phase_cancel_and_terminal() {
         let root = tempfile::tempdir().unwrap();
-        let coordinator = composition::coordinator(root.path().into());
+        let coordinator = Coordinator::with_services(composition::services(root.path().into()));
         {
             let mut state = lock(&coordinator.state);
             state.snapshot.job_id = 1;
@@ -1021,7 +954,7 @@ mod ownership_tests {
     fn observation_messages_are_closed_phase_templates_not_metadata_or_private_logs()
     -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = composition::coordinator(root.path().into());
+        let coordinator = Coordinator::with_services(composition::services(root.path().into()));
         {
             let mut state = lock(&coordinator.state);
             state.snapshot.job_id = 1;
@@ -1070,7 +1003,7 @@ mod ownership_tests {
             let mut stage = output::DestinationStage::create(&media, root.path(), 1)?;
             stage.fill(&media)?;
             let partial = stage.path.clone();
-            let coordinator = Arc::new(composition::coordinator(root.path().into()));
+            let coordinator = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
             {
                 let mut state = lock(&coordinator.state);
                 state.snapshot.job_id = 1;
@@ -1119,78 +1052,10 @@ mod ownership_tests {
         }
         Ok(())
     }
-    fn wait_phase(coordinator: &Coordinator, phase: Phase) -> Result<Snapshot, String> {
-        let start = std::time::Instant::now();
-        loop {
-            let snapshot = coordinator.snapshot();
-            if snapshot.phase == phase {
-                return Ok(snapshot);
-            }
-            if start.elapsed() > Duration::from_secs(30) {
-                return Err(format!("Expected {phase:?}, got {snapshot:?}"));
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-    }
-    fn run_retention(owner_panic: bool) -> Result<(), String> {
-        let root =
-            PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
-        let output = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = composition::coordinator(root.clone());
-        let query_failure = Arc::new(AtomicBool::new(true));
-        lock(&coordinator.state).probe = Some(Arc::new(TestProbe {
-            query_failure: query_failure.clone(),
-            owner_panic,
-            stage_cleanup: false,
-        }));
-        let intent = DownloadIntent {
-            url: "https://youtu.be/jNQXAC9IVRw".into(),
-            quality: request::Quality::Saver,
-            output_dir: output.path().into(),
-        };
-        let job = coordinator.accept(intent.clone())?;
-        let held = wait_phase(&coordinator, Phase::Held)?;
-        assert_eq!(held.terminal_count, 0);
-        assert!(!held.resources_released);
-        let workspace = held.workspace.ok_or("Held lost workspace")?;
-        assert!(workspace.is_dir());
-        let deno = root
-            .join(format!(
-                "runtime-{}",
-                held.runtime_digest.ok_or("Held lost runtime digest")?
-            ))
-            .join("deno.exe");
-        assert!(fs::OpenOptions::new().write(true).open(&deno).is_err());
-        assert!(coordinator.accept(intent).is_err());
-        assert!(!coordinator.retry_cleanup(job + 1));
-        thread::sleep(Duration::from_millis(100));
-        assert_eq!(coordinator.snapshot().phase, Phase::Held);
-        assert!(workspace.is_dir());
-        query_failure.store(false, Ordering::Release);
-        assert!(coordinator.retry_cleanup(job));
-        let terminal = wait_phase(&coordinator, Phase::Failure)?;
-        assert!(terminal.resources_released);
-        assert_eq!(terminal.terminal_count, 1);
-        assert!(!workspace.exists());
-        assert!(fs::OpenOptions::new().write(true).open(deno).is_ok());
-        assert!(!coordinator.cancel(job));
-        Ok(())
-    }
-    #[test]
-    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
-    fn coordinator_retains_real_runtime_and_workspace_while_process_held() -> Result<(), String> {
-        run_retention(false)
-    }
-    #[test]
-    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
-    fn coordinator_owner_unwind_retains_real_runtime_until_explicit_cleanup() -> Result<(), String>
-    {
-        run_retention(true)
-    }
     #[test]
     fn snapshot_remains_readable_during_publication_authority_checkpoint() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = Arc::new(composition::coordinator(root.path().into()));
+        let coordinator = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
         let mut held = lock(&coordinator.state);
         held.snapshot.job_id = 7;
         held.snapshot.attempt = 3;
@@ -1214,83 +1079,5 @@ mod ownership_tests {
         assert!(!snapshot.resources_released);
         Ok(())
     }
-    #[test]
-    #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
-    fn destination_cleanup_failure_retains_stage_runtime_workspace_and_requires_retry()
-    -> Result<(), String> {
-        let root =
-            PathBuf::from(std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?);
-        let output = tempfile::tempdir().map_err(|e| e.to_string())?;
-        let coordinator = Arc::new(composition::coordinator(root.clone()));
-        lock(&coordinator.state).probe = Some(Arc::new(TestProbe {
-            query_failure: Arc::new(AtomicBool::new(false)),
-            owner_panic: false,
-            stage_cleanup: true,
-        }));
-        let intent = DownloadIntent {
-            url: "https://youtu.be/jNQXAC9IVRw".into(),
-            quality: request::Quality::Saver,
-            output_dir: output.path().into(),
-        };
-        let job = coordinator.accept(intent.clone())?;
-        let held = wait_phase(&coordinator, Phase::Held)?;
-        println!(">>> Actual retained cleanup failure: {}", held.message);
-        let (commands, receiver) = std::sync::mpsc::sync_channel(8);
-        let stop = Arc::new(AtomicBool::new(true));
-        let acknowledged = Arc::new(AtomicBool::new(false));
-        let owner = coordinator.clone();
-        let status = acknowledged.clone();
-        let command_intent = intent.clone();
-        let command_owner = thread::spawn(move || {
-            bridge_commands::run(owner, command_intent, receiver, stop, status)
-        });
-        let partial = held.destination_stage.ok_or("Held lost exact partial")?;
-        let workspace = held.workspace.ok_or("Held lost workspace")?;
-        let deno = root
-            .join(format!(
-                "runtime-{}",
-                held.runtime_digest.ok_or("Lease missing")?
-            ))
-            .join("deno.exe");
-        assert!(partial.is_file());
-        assert!(workspace.is_dir());
-        assert_eq!(held.terminal_count, 0);
-        assert!(!held.resources_released);
-        assert!(coordinator.accept(intent).is_err());
-        assert!(fs::OpenOptions::new().write(true).open(&deno).is_err());
-        commands
-            .send(bridge_commands::Command::Start)
-            .map_err(|e| e.to_string())?;
-        commands
-            .send(bridge_commands::Command::Retry)
-            .map_err(|e| e.to_string())?;
-        thread::sleep(Duration::from_millis(100));
-        assert_eq!(coordinator.snapshot().phase, Phase::Held);
-        assert_eq!(coordinator.snapshot().job_id, job);
-        assert!(!acknowledged.load(Ordering::Acquire));
-        assert!(partial.exists());
-        let mut permissions = fs::metadata(&partial)
-            .map_err(|e| e.to_string())?
-            .permissions();
-        permissions.set_readonly(false);
-        fs::set_permissions(&partial, permissions).map_err(|e| e.to_string())?;
-        thread::sleep(Duration::from_millis(100));
-        assert_eq!(coordinator.snapshot().phase, Phase::Held);
-        assert!(partial.exists());
-        commands
-            .send(bridge_commands::Command::Retry)
-            .map_err(|e| e.to_string())?;
-        let terminal = wait_phase(&coordinator, Phase::Failure)?;
-        assert_eq!(terminal.terminal_count, 1);
-        assert!(terminal.resources_released);
-        assert!(terminal.destination_stage.is_none());
-        assert!(!partial.exists());
-        assert!(!workspace.exists());
-        assert!(fs::OpenOptions::new().write(true).open(deno).is_ok());
-        command_owner
-            .join()
-            .map_err(|_| "Bridge command owner panic")?;
-        assert!(acknowledged.load(Ordering::Acquire));
-        Ok(())
-    }
+
 }

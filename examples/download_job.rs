@@ -1,5 +1,8 @@
 use ameow_next::download::{
-    request::{DownloadIntent, Quality},
+    preparation::PreparationPhase,
+    queue::JobPhase,
+    request::Quality,
+    settings::Settings,
     runtime::RuntimeManager,
 };
 use std::{
@@ -23,35 +26,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("saver") => Quality::Saver,
         _ => return Err("invalid quality".into()),
     };
-    let coordinator = ameow_next::download::composition::coordinator(runtime);
-    let job = coordinator.accept(DownloadIntent {
-        url: value("--url").ok_or("--url required")?,
+    let url = value("--url").ok_or("--url required")?;
+    let settings = Settings {
         quality,
         output_dir: PathBuf::from(value("--output").ok_or("--output required")?),
-    })?;
+        theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+    };
     let cancel = value("--cancel-after-ms")
         .map(|s| s.parse::<u64>())
         .transpose()?;
-    let start = Instant::now();
-    let mut revision = 0;
-    let mut cancelled = false;
-    loop {
-        let snapshot = coordinator.snapshot();
-        if snapshot.revision != revision {
-            println!("{}", serde_json::to_string(&snapshot)?);
-            revision = snapshot.revision;
-        }
-        if snapshot.phase.terminal() {
-            if snapshot.phase != ameow_next::download::Phase::Success {
-                return Err(snapshot.message.into());
+    // Keep probe settings separate from both the user's defaults and the runtime cache.
+    let isolated = tempfile::tempdir()?;
+    let coordinator = ameow_next::download::composition::download_coordinator(
+        runtime, isolated.path().join("settings.json"), settings.clone(),
+    )?;
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        coordinator.save_settings(settings)?;
+        let job = coordinator.submit(url)?;
+        let start = Instant::now();
+        let mut revision = None;
+        let mut cancelled = false;
+        loop {
+            let snapshot = coordinator.snapshot();
+            if revision != Some(snapshot.revision) {
+                println!("{}", serde_json::to_string(&snapshot)?);
+                revision = Some(snapshot.revision);
             }
-            break;
+            let item = snapshot.jobs.iter().find(|item| item.job_id == job).ok_or("Job missing")?;
+            if item.phase.terminal() {
+                if item.phase != JobPhase::Success {
+                    return Err(item.message.clone().into());
+                }
+                return Ok(());
+            }
+            if snapshot.preparation.phase == PreparationPhase::Failed {
+                return Err("Shared runtime preparation failed; see queue snapshot".into());
+            }
+            if !cancelled && cancel.is_some_and(|ms| start.elapsed().as_millis() >= ms as u128) {
+                coordinator.cancel(job);
+                cancelled = true;
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
-        if !cancelled && cancel.is_some_and(|ms| start.elapsed().as_millis() >= ms as u128) {
-            coordinator.cancel(job);
-            cancelled = true;
-        }
+    })();
+    coordinator.stop();
+    while !coordinator.snapshot().stopped {
         std::thread::sleep(Duration::from_millis(50));
     }
-    Ok(())
+    println!("{}", serde_json::to_string(&coordinator.snapshot())?);
+    result
 }
