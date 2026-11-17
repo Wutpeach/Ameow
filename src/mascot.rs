@@ -61,28 +61,20 @@ fn rig(p: Pose, night: bool) -> String {
     svg
 }
 
-fn clip_bounds(
-    image_bounds: Bounds<Pixels>,
-    diameter: f32,
-    native_side: f32,
-    snap: impl Fn(Pixels) -> Pixels,
-) -> Bounds<Pixels> {
-    let image_origin = snap(px((native_side - 60.) * 0.5));
-    let surface_origin = snap(px((native_side - diameter) * 0.5));
-    let inset = surface_origin - image_origin;
-    let side = snap(px(diameter));
-    Bounds::new(image_bounds.origin + point(inset, inset), size(side, side))
+fn paint_geometry(
+    bounds: Bounds<Pixels>,
+    radius: f32,
+) -> (Bounds<Pixels>, Bounds<Pixels>, Corners<Pixels>) {
+    // The full source image follows the same post-layout frame as its surface.
+    let corners = Corners::all(px(radius)).clamp_radii_for_quad_size(bounds.size);
+    (bounds, bounds, corners)
 }
 
-pub fn element(image: Arc<RenderImage>, diameter: f32, native_side: f32, alpha: f32) -> impl IntoElement {
-    // Keep the authored image on a fixed layout box. Mixing its raw inset with
-    // the already snapped compression box makes atlas cropping move the artwork.
-    let origin = px((native_side - 60.) * 0.5);
-    canvas(|_, _, _| (), move |image_bounds, _, window, _| {
-        let clip = clip_bounds(image_bounds, diameter, native_side, |value| window.pixel_snap(value));
-        let radius = clip.size.width.min(clip.size.height) * 0.5;
-        let _ = window.paint_image(clip, image_bounds, Corners::all(radius), image, 0, false);
-    }).absolute().left(origin).top(origin).size(px(60.)).opacity(alpha)
+pub fn element(image: Arc<RenderImage>, radius: f32, alpha: f32) -> impl IntoElement {
+    canvas(|_, _, _| (), move |bounds, _, window, _| {
+        let (clip, image_bounds, corners) = paint_geometry(bounds, radius);
+        let _ = window.paint_image(clip, image_bounds, corners, image, 0, false);
+    }).absolute().left(px(0.)).top(px(0.)).size_full().opacity(alpha)
 }
 
 pub fn preview_pose(state: &str) -> Option<Pose> {
@@ -96,7 +88,7 @@ pub fn preview_pose(state: &str) -> Option<Pose> {
 
 #[cfg(test)]
 mod tests {
-    use super::{clip_bounds, rig, Pose};
+    use super::{paint_geometry, rig, Pose};
     use gpui::{point, px, Bounds, Pixels};
     use gpui::{DevicePixels, size, SvgRenderer, SvgSize};
     use std::sync::Arc;
@@ -107,29 +99,38 @@ mod tests {
         px((device.abs() - 0.5).ceil().copysign(device) / scale)
     }
 
-    fn artwork_bounds(native: f32, scale: f32) -> Bounds<Pixels> {
-        let origin = snap(px((native - 60.) * 0.5), scale);
-        let side = snap(px(60.), scale);
+    fn surface_bounds(g: crate::model::Geometry, scale: f32) -> Bounds<Pixels> {
+        let origin = snap(px(g.gutter + (g.native - 2. * g.gutter - g.surface) * 0.5), scale);
+        let side = snap(px(g.surface), scale);
         Bounds::new(point(origin, origin), gpui::size(side, side))
     }
 
-    fn atlas_origin(clip: Bounds<Pixels>, image: Bounds<Pixels>, scale: f32) -> [i32; 2] {
-        // paint_image rounds the cropped atlas offset separately from its destination.
+    fn assert_shared_frame(bounds: Bounds<Pixels>, radius: f32, scale: f32) {
+        let (clip, image, corners) = paint_geometry(bounds, radius);
+        assert_eq!(clip, bounds);
+        assert_eq!(image, bounds);
+        // Cat and sill landmarks use the same 60px source-to-surface transform.
+        for [x, y] in [[30., 33.3], [30., 45.], [17., 28.], [43., 28.]] {
+            let position = image.origin + point(image.size.width * (x / 60.), image.size.height * (y / 60.));
+            let expected = bounds.origin + point(bounds.size.width * (x / 60.), bounds.size.height * (y / 60.));
+            assert_eq!(position, expected);
+        }
+        // A full-source atlas rectangle has no independent cropped-pixel offset.
         let visible = clip.intersect(&image);
-        let source_width = (f32::from(image.size.width) * scale).round();
-        let source_height = (f32::from(image.size.height) * scale).round();
-        let cropped_x = (f32::from(visible.origin.x - image.origin.x)
-            / f32::from(image.size.width) * source_width).round() as i32;
-        let cropped_y = (f32::from(visible.origin.y - image.origin.y)
-            / f32::from(image.size.height) * source_height).round() as i32;
-        [
-            (f32::from(visible.origin.x) * scale).round() as i32 - cropped_x,
-            (f32::from(visible.origin.y) * scale).round() as i32 - cropped_y,
-        ]
+        let source_side = (60. * scale).round();
+        for (near, origin, visible_side, side) in [
+            (visible.origin.x, image.origin.x, visible.size.width, image.size.width),
+            (visible.origin.y, image.origin.y, visible.size.height, image.size.height),
+        ] {
+            assert_eq!((f32::from(near - origin) / f32::from(side) * source_side).round(), 0.);
+            assert_eq!((f32::from(visible_side) / f32::from(side) * source_side).round(), source_side);
+        }
+        assert!(corners.top_left <= bounds.size.width * 0.5);
+        assert!(corners.top_left <= bounds.size.height * 0.5);
     }
 
     #[test]
-    fn compression_keeps_artwork_stationary_on_recorded_callback_times() {
+    fn shared_frame_follows_compression_on_recorded_callback_times() {
         // One existing real Full→Compact run, 11813–12597ms; no desktop replay.
         let callbacks = [
             0, 18, 22, 25, 28, 31, 35, 39, 42, 45, 48, 52, 56, 59, 62, 65,
@@ -144,30 +145,28 @@ mod tests {
             let mut motion = crate::repair_motion::Motion::new(0);
             motion.tick(0, true, true);
             motion.tick(0, false, false);
-            let image = artwork_bounds(80., scale);
-            let expected = [
-                (f32::from(image.origin.x) * scale).round() as i32,
-                (f32::from(image.origin.y) * scale).round() as i32,
-            ];
+            let mut minimum_side = f32::MAX;
+            let mut maximum_side = 0f32;
             let mut compressed = 0;
             for now in callbacks {
                 motion.tick(now, false, false);
                 let g = motion.geometry();
-                if g.surface >= 60. { continue; }
-                compressed += 1;
-                assert_eq!(g.native, 80.);
-                let clip = clip_bounds(image, g.surface, g.native, |value| snap(value, scale));
-                assert_eq!(atlas_origin(clip, image, scale), expected, "{scale}x at {now}ms");
-                let origin = snap(px((g.native - g.surface) * 0.5), scale);
-                let side = snap(px(g.surface), scale);
-                assert_eq!(clip, Bounds::new(point(origin, origin), gpui::size(side, side)));
+                if motion.x >= 0.2 { continue; } // The existing Mascot fade is visible below here.
+                let bounds = surface_bounds(g, scale);
+                assert_shared_frame(bounds, g.radius, scale);
+                let side = f32::from(bounds.size.width);
+                minimum_side = minimum_side.min(side);
+                maximum_side = maximum_side.max(side);
+                compressed += usize::from(g.surface < 60.);
             }
+            assert!(minimum_side < 59.);
+            assert!(maximum_side > 60.);
             assert!(compressed > 10);
         }
     }
 
     #[test]
-    fn compression_clip_follows_reversal_and_reduced_endpoints() {
+    fn shared_frame_preserves_reversal_and_reduced_endpoints() {
         for scale in [1., 1.25, 1.5, 2.] {
             let mut motion = crate::repair_motion::Motion::new(0);
             motion.tick(0, true, true);
@@ -182,19 +181,12 @@ mod tests {
             for (now, reduced) in [(452, false), (469, false), (498, false), (527, false), (551, true)] {
                 motion.tick(now, true, reduced);
                 let g = motion.geometry();
-                let image = artwork_bounds(g.native, scale);
-                let clip = clip_bounds(image, g.surface.min(60.), g.native, |value| snap(value, scale));
-                let edges = |bounds: Bounds<Pixels>| [bounds.left(), bounds.top(), bounds.right(), bounds.bottom()]
-                    .map(|value| (f32::from(value) * scale).round() as i32);
-                assert_eq!(edges(clip.intersect(&image)), edges(clip));
-                assert_eq!(atlas_origin(clip, image, scale), [
-                    (f32::from(image.origin.x) * scale).round() as i32,
-                    (f32::from(image.origin.y) * scale).round() as i32,
-                ]);
+                assert_shared_frame(surface_bounds(g, scale), g.radius, scale);
             }
             motion.tick(551, false, true);
-            let image = artwork_bounds(80., scale);
-            assert_eq!(clip_bounds(image, 60., 80., |value| snap(value, scale)), image);
+            let compact = surface_bounds(motion.geometry(), scale);
+            assert_shared_frame(compact, 30., scale);
+            assert_eq!(compact.size.width, snap(px(60.), scale));
         }
     }
 
