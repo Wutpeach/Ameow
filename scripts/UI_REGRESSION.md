@@ -46,4 +46,5 @@ review grant product acceptance.
 The neutral owned backdrop and temporary TOPMOST calls protect screenshot privacy;
 they cannot prove natural startup z-order. Synthetic fixture controls do not verify
 real settings persistence, downloads, physical-user drag/drop, mixed-DPI displays,
-macOS or GPU/DWM frame pacing. TRA-23/TRA-26 acceptance gates remain open.
+macOS or GPU/DWM frame pacing. Current behavior requirements are in OpenSpec;
+this guide records the workflow and coverage, not live task or release status.

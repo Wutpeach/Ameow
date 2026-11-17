@@ -139,10 +139,6 @@ impl Accepted {
                 if segments.len()!=2 || segments[0]!="video" { return Err("This Stage A entry requires a canonical Bilibili video URL".into()); }
                 let id=segments[1];
                 if !((id.starts_with("BV") && id.len()==12 && id.bytes().all(|b| b.is_ascii_alphanumeric())) || (id.starts_with("av") && id[2..].parse::<u64>().is_ok())) { return Err("Invalid Bilibili video ID".into()); }
-                let parts: Vec<_> = query.iter().filter(|(k,_)| k=="p").collect();
-                if parts.len()>1 { return Err("Ambiguous Bilibili part".into()); }
-                let part = parts.first().map(|(_,v)| v.parse::<u64>().map_err(|_| "Invalid Bilibili part")).transpose()?;
-                if part==Some(0) { return Err("Bilibili part starts at 1".into()); }
                 Object::Bilibili{id:id.to_owned(),part}
             },
             "b23.tv" | "www.b23.tv" if segments.len() == 1 && !segments[0].is_empty() && segments[0].len() <= 64 && segments[0].bytes().all(|b| b.is_ascii_alphanumeric()) => Object::BilibiliShort { code: segments[0].into(), part },
@@ -249,5 +245,32 @@ mod generic_tests {
         assert!(accept("https://youtube.com/watch?v=jNQXAC9IVRw&v=dQw4w9WgXcQ").is_err());
         assert!(accept("https://youtu.be/abcdefghijk?p=not-a-number").is_ok());
         assert!(accept("https://b23.tv/abc?p=not-a-number").is_err());
+    }
+
+    #[test]
+    fn bilibili_parts_stay_host_scoped_and_reach_canonical_and_short_identities() {
+        for host in ["www.bilibili.com", "bilibili.com", "m.bilibili.com"] {
+            for (suffix, part) in [("", None), ("?p=2", Some(2))] {
+                for id in ["BV1vL411G7N7", "av42"] {
+                    let accepted = accept(&format!("https://{host}/video/{id}{suffix}")).unwrap();
+                    assert_eq!(accepted.object, Object::Bilibili { id: id.into(), part });
+                }
+            }
+        }
+        for host in ["b23.tv", "www.b23.tv"] {
+            let accepted = accept(&format!("https://{host}/Abc123?p=2")).unwrap();
+            assert_eq!(accepted.object, Object::BilibiliShort { code: "Abc123".into(), part: Some(2) });
+        }
+        for host in ["www.bilibili.com", "bilibili.com", "m.bilibili.com", "b23.tv", "www.b23.tv"] {
+            for query in ["p=0", "p=bad", "p=1&p=2"] {
+                assert!(accept(&format!("https://{host}/video/BV1vL411G7N7?{query}")).is_err());
+            }
+        }
+        for url in [
+            "https://youtube.com/watch?v=jNQXAC9IVRw&p=bad&p=2",
+            "https://example.com/video/BV1vL411G7N7?p=bad&p=2",
+        ] {
+            assert!(accept(url).is_ok(), "{url}");
+        }
     }
 }

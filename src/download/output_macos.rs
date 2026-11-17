@@ -1,3 +1,5 @@
+pub use super::output_names::{safe_filename, media_basename, collection_directory};
+use super::output_names::collision_suffix;
 use super::{
     contract::{MediaKind, VerifiedFacts},
     runtime::hash,
@@ -686,11 +688,7 @@ impl DestinationStage {
         let safe = safe_filename(base);
         let mut fallback = self.private.is_some();
         for collision in 0..10000 {
-            let suffix = if collision == 0 {
-                String::new()
-            } else {
-                format!(" ({collision})")
-            };
+            let suffix = collision_suffix(collision);
             let name = format!("{safe}{suffix}.{}", self.extension);
             let name_c =
                 CString::new(name.as_bytes()).map_err(|_| "Final filename contains NUL")?;
@@ -805,66 +803,6 @@ impl DestinationStage {
         }
         Err("Destination collision bound exceeded".into())
     }
-}
-
-pub fn safe_filename(name: &str) -> String {
-    let name: String = name
-        .chars()
-        .map(|character| {
-            if character.is_control()
-                || matches!(
-                    character,
-                    '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
-                )
-            {
-                '_'
-            } else {
-                character
-            }
-        })
-        .take(80)
-        .collect();
-    let name = name.trim().trim_end_matches(['.', ' ']);
-    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
-    if name.is_empty() {
-        "media".into()
-    } else if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || (stem.len() == 4
-            && (stem.starts_with("COM") || stem.starts_with("LPT"))
-            && stem.as_bytes()[3].is_ascii_digit())
-    {
-        format!("_{name}")
-    } else {
-        name.into()
-    }
-}
-
-pub fn media_basename(title: &str, fallback: &str, facts: &VerifiedFacts) -> String {
-    let title = title.trim().trim_end_matches(['.', ' ']);
-    let name = safe_filename(if title.is_empty() { fallback } else { title });
-    let resolution = match (facts.video_width, facts.video_height) {
-        (Some(width), Some(height)) if width > 0 && height > 0 => format!("[{width}x{height}]"),
-        _ => String::new(),
-    };
-    let name: String = name.chars().take(80 - resolution.len()).collect();
-    format!("{}{resolution}", name.trim_end_matches(['.', ' ']))
-}
-pub fn collection_directory(destination: &Path, title: &str) -> Result<PathBuf, String> {
-    let name = safe_filename(title);
-    for collision in 0..10000 {
-        let suffix = if collision == 0 {
-            String::new()
-        } else {
-            format!(" ({collision})")
-        };
-        let path = destination.join(format!("{name}{suffix}"));
-        match fs::create_dir(&path) {
-            Ok(()) => return Ok(path),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("E_STORAGE: Collection directory: {error}")),
-        }
-    }
-    Err("E_STORAGE: Collection directory collision bound exceeded".into())
 }
 
 #[cfg(test)]
