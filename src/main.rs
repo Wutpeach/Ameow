@@ -693,7 +693,6 @@ impl Render for Prototype {
             mascot_delay = None;
         }
         let mascot_alpha = (1. - self.model.fullness / 0.2).clamp(0., 1.);
-        let mascot_diameter = g.surface.min(60.);
         let mascot_image = (mascot_alpha > 0.).then(|| self.mascot.image(self.night, window, cx));
         if let Some(log) = &mut self.telemetry {
             let pose = self.mascot.pose;
@@ -809,23 +808,26 @@ impl Render for Prototype {
         let surface_origin = g.gutter + (g.native - 2. * g.gutter - g.surface) * 0.5;
         // GPUI's style path paints fill/border separately. Combine them before outer AA
         // coverage here, while the original div retains its 1px layout inset and hitbox.
-        let surface_paint = canvas(
-            |_, _, _| (),
-            move |bounds, _, window, _| {
-                window.paint_quad(quad(
-                    bounds,
-                    Corners::all(px(g.radius)).clamp_radii_for_quad_size(bounds.size),
-                    p.surface,
-                    Edges::all(px(1.)),
-                    surface_border,
-                    BorderStyle::default(),
-                ));
-            },
-        )
-        .absolute()
-        .left(px(surface_origin))
-        .top(px(surface_origin))
-        .size(px(g.surface));
+        // Surface and artwork share one laid-out frame; only the artwork opacity is local.
+        let surface_paint = div()
+            .absolute()
+            .left(px(surface_origin))
+            .top(px(surface_origin))
+            .size(px(g.surface))
+            .child(canvas(
+                |_, _, _| (),
+                move |bounds, _, window, _| {
+                    window.paint_quad(quad(
+                        bounds,
+                        Corners::all(px(g.radius)).clamp_radii_for_quad_size(bounds.size),
+                        p.surface,
+                        Edges::all(px(1.)),
+                        surface_border,
+                        BorderStyle::default(),
+                    ));
+                },
+            ).absolute().left(px(0.)).top(px(0.)).size_full())
+            .when_some(mascot_image, |frame, image| frame.child(mascot::element(image, g.radius, mascot_alpha)));
         let surface = div()
             .id("surface")
             .absolute()
@@ -1007,8 +1009,6 @@ impl Render for Prototype {
             .child(shadow)
             .child(surface_paint)
             .child(surface)
-            .when_some(mascot_image, |group, image| group.child(
-                mascot::element(image, mascot_diameter, g.native, mascot_alpha)))
             .when(content_alpha > 0.001, |group| group.child(main_content))
             .when(menu_open, |group| group.child(self.surface_menu_page(cx)));
         let overlays = div().absolute().left(px(visual_offset[0])).top(px(visual_offset[1])).size(px(g.native))
