@@ -9,8 +9,8 @@ import time
 
 from PIL import ImageChops
 from gallery import Session
-from repair_a_runtime import CropCapture
-from test_gpui_migration import owned_windows, u
+from native_capture import CropCapture
+from native_capture import owned_windows, u
 
 
 def run(exe, output):

@@ -71,8 +71,8 @@ def run_select_toggle(exe, output):
     import ctypes as c
     from ctypes import wintypes as w
     import hashlib
-    from repair_a_runtime import CropCapture
-    from test_gpui_migration import owned_windows, u
+    from native_capture import CropCapture
+    from native_capture import owned_windows, u
 
     output.mkdir(parents=True, exist_ok=False)
     u.PostMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]

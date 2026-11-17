@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 import subprocess
 import time
-from repair_a_runtime import CropCapture
-from windows_validate import u
+from native_capture import CropCapture
+from native_capture import u
 from contextlib import contextmanager
 
 

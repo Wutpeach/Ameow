@@ -16,26 +16,7 @@ import tkinter as tk
 
 from PIL import Image, ImageChops, ImageDraw, ImageGrab
 
-if sys.platform != "win32":
-    raise SystemExit("Windows runtime validation only; macOS NOT VERIFIED")
-u = c.windll.user32
-k = c.windll.kernel32
-u.SetProcessDPIAware()
-u.EnumWindows.argtypes = [c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM), w.LPARAM]
-u.GetWindowThreadProcessId.argtypes = [w.HWND, c.POINTER(w.DWORD)]
-u.GetWindowRect.argtypes = [w.HWND, c.POINTER(w.RECT)]
-u.WindowFromPoint.argtypes = [w.POINT]
-u.WindowFromPoint.restype = w.HWND
-u.SetForegroundWindow.argtypes = [w.HWND]
-u.GetForegroundWindow.restype = w.HWND
-u.SetWindowPos.argtypes = [w.HWND,w.HWND,c.c_int,c.c_int,c.c_int,c.c_int,w.UINT]
-u.PostMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
-u.GetDpiForWindow.argtypes = [w.HWND]
-u.GetClipboardData.restype = w.HANDLE
-k.GlobalLock.argtypes = [w.HANDLE]
-k.GlobalLock.restype = c.c_void_p
-k.GlobalUnlock.argtypes = [w.HANDLE]
-
+from native_capture import Runtime, MeasuredRuntime, CropCapture, read_jsonl, u
 
 def action_pixels(image):
     pixels = list(image.convert('RGB').getdata())
@@ -90,8 +71,6 @@ def radial_profile(image, center, radius, scale, background):
 
 
 def validate_ui_regression(exe, out, source):
-    # Import lazily: the shared native runtime itself imports Runtime from here.
-    from repair_a_runtime import RepairRuntime, CropCapture, read_jsonl
     out.mkdir(parents=True, exist_ok=False)
     result = {'checks': [], 'exe': str(exe.resolve()), 'exe_sha256': hashlib.sha256(exe.read_bytes()).hexdigest(),
               'source': str(source.resolve()), 'platform': 'Windows', 'macOS': 'NOT VERIFIED',
@@ -108,7 +87,7 @@ def validate_ui_regression(exe, out, source):
     try:
         layout = current_ui_layout(source)
         result['layout'] = layout
-        app = RepairRuntime(exe, out, 'converged', lifetime=90000,
+        app = MeasuredRuntime(exe, out, 'converged', lifetime=90000,
                             extra_args=['--stage', 'idle', '--reduced', '--hover', 'off', '--telemetry', str((out/'telemetry.jsonl').resolve())])
         result.update(pid=app.proc.pid, command=app.command, dpi=96*app.scale)
         app.inside(); app.wait(.35)
@@ -235,159 +214,6 @@ def validate_ui_regression(exe, out, source):
         result['overall']='PASS' if result['checks'] and all(x['status']=='PASS' for x in result['checks']) and 'error' not in result else 'FAIL'
         (out/'ui-regression.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
     return 0 if result['overall']=='PASS' else 1
-
-
-class Runtime:
-    def __init__(self, exe, out):
-        self.out = out
-        self.out.mkdir(parents=True, exist_ok=True)
-        self.log = (out / "native-frames.jsonl").resolve()
-        self.log.write_text("", encoding="utf-8")
-        self.stderr = (out / "native-stderr.log").open("w", encoding="utf-8")
-        self.original_cursor=w.POINT()
-        u.GetCursorPos(c.byref(self.original_cursor))
-        # Owned, ordinary (not topmost) neutral harness window. No desktop pixels
-        # or unrelated application content can enter the prototype's transparent corners.
-        self.backdrop=tk.Tk()
-        self.backdrop.overrideredirect(True)
-        self.backdrop.configure(background="#e8e8e8")
-        self.backdrop.attributes("-topmost",True)
-        self.backdrop.geometry(f"{u.GetSystemMetrics(0)}x{u.GetSystemMetrics(1)}+0+0")
-        self.backdrop.update()
-        u.SetCursorPos(200, 100)
-        self.proc = subprocess.Popen([str(exe.resolve()), "--telemetry", str(self.log)], cwd=exe.resolve().parents[2], creationflags=subprocess.CREATE_NO_WINDOW, stdout=self.stderr, stderr=self.stderr)
-        self.hwnd = None
-        callback = c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
-        def visit(hwnd, _):
-            pid = w.DWORD()
-            u.GetWindowThreadProcessId(hwnd, c.byref(pid))
-            if pid.value == self.proc.pid and u.IsWindowVisible(hwnd):
-                self.hwnd = hwnd
-                return False
-            return True
-        deadline = time.monotonic() + 20
-        while not self.hwnd and time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                raise RuntimeError(f"Prototype exited: {self.proc.returncode}")
-            u.EnumWindows(callback(visit), 0)
-            time.sleep(.05)
-        if not self.hwnd:
-            self.close()
-            raise RuntimeError("No visible HWND belonging to launched PID")
-        time.sleep(.8)
-        u.SetForegroundWindow(self.hwnd)
-        self.scale = u.GetDpiForWindow(self.hwnd) / 96
-
-    def rect(self):
-        r = w.RECT()
-        if not u.GetWindowRect(self.hwnd, c.byref(r)):
-            raise RuntimeError("Owned HWND unavailable")
-        return [r.left, r.top, r.right, r.bottom]
-
-    def size(self):
-        r = self.rect()
-        return [r[2] - r[0], r[3] - r[1]]
-
-    def move(self, x, y):
-        if not u.SetCursorPos(int(x), int(y)):
-            raise RuntimeError("SetCursorPos failed")
-
-    def inside(self):
-        r = self.rect()
-        self.move(r[0] + 30 * self.scale, r[1] + 30 * self.scale)
-
-    def outside(self):
-        r = self.rect()
-        self.move(max(0, r[0] - 35), max(0, r[1] - 35))
-
-    def key(self, char):
-        u.SetForegroundWindow(self.hwnd)
-        u.SetWindowPos(self.hwnd,w.HWND(-1),0,0,0,0,0x13)
-        code = {"+": 0xBB, "-": 0xBD, "ESC": 0x1B}.get(char, ord(char.upper()) if len(char) == 1 else 0)
-        u.keybd_event(code, 0, 0, 0)
-        time.sleep(.012)
-        u.keybd_event(code, 0, 2, 0)
-        time.sleep(.04)
-
-    def click(self, x, y, right=False):
-        r = self.rect()
-        self.move(r[0] + x*self.scale, r[1] + y*self.scale)
-        time.sleep(.03)
-        u.mouse_event(8 if right else 2, 0, 0, 0, 0)
-        time.sleep(.03)
-        u.mouse_event(16 if right else 4, 0, 0, 0, 0)
-        time.sleep(.05)
-
-    def frames(self):
-        items = []
-        for line in self.log.read_text(encoding="utf-8").splitlines():
-            try:
-                items.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass  # Writer may still own the last incomplete line.
-        return items
-
-    def snap(self, name):
-        self.backdrop.update()
-        u.SetWindowPos(self.hwnd,w.HWND(-1),0,0,0,0,0x13)
-        time.sleep(.03)
-        img = ImageGrab.grab(bbox=tuple(self.rect()), all_screens=True)
-        self.capture_guard(img)
-        img.save(self.out / f"{name}.png")
-        return img
-
-    @staticmethod
-    def capture_guard(img):
-        corners=[img.getpixel(p)[:3] for p in [(0,0),(img.width-1,0),(0,img.height-1),(img.width-1,img.height-1)]]
-        if not all(max(abs(v-232) for v in p)<14 for p in corners):
-            raise RuntimeError("Owned neutral backdrop not visible at native crop corners; capture suppressed")
-
-    def motion(self,name,duration,actions):
-        """A fixed 228px owned-backdrop crop preserves a readable surface anchor."""
-        bounds=tuple(self.rect())
-        start=time.monotonic();frames=[];times=[];pending=list(actions)
-        while time.monotonic()-start<duration:
-            self.backdrop.update()
-            u.SetWindowPos(self.hwnd,w.HWND(-1),0,0,0,0,0x13)
-            elapsed=time.monotonic()-start
-            while pending and elapsed>=pending[0][0]:
-                pending.pop(0)[1]()
-            captured=ImageGrab.grab(bbox=bounds,all_screens=True).convert("RGB")
-            self.capture_guard(captured)
-            frames.append(captured)
-            times.append(time.monotonic()-start)
-            time.sleep(.035)
-        delays=[max(20,round((times[i+1]-times[i])*1000)) for i in range(len(times)-1)]+[80]
-        frames[0].save(self.out/f"{name}.gif",save_all=True,append_images=frames[1:],duration=delays,loop=0)
-        return {"artifact":f"{name}.gif","crop":list(bounds),"frames":len(frames),"duration_s":times[-1]}
-
-    def clipboard(self):
-        if not u.OpenClipboard(self.hwnd):
-            raise RuntimeError("OpenClipboard failed")
-        try:
-            h = u.GetClipboardData(13)
-            if not h:
-                return None
-            p = k.GlobalLock(h)
-            try:
-                return c.wstring_at(p) if p else None
-            finally:
-                k.GlobalUnlock(h)
-        finally:
-            u.CloseClipboard()
-
-    def close(self):
-        if self.proc.poll() is None:
-            if self.hwnd:
-                u.PostMessageW(self.hwnd, 0x10, 0, 0)
-            try:
-                self.proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self.proc.terminate()
-                self.proc.wait(timeout=3)
-        self.stderr.close()
-        self.backdrop.destroy()
-        u.SetCursorPos(self.original_cursor.x,self.original_cursor.y)
 
 
 def validate(exe, out):
