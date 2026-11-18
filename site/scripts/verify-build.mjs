@@ -25,6 +25,31 @@ for (const route of ['docs', 'en/docs']) {
 for (const route of ['docs/downloads', 'en/docs/downloads']) {
   assert.match(pages.get(route + '/index.html'), /<ol\b[^>]*\bsl-steps\b/i, route + ' must render Steps');
 }
+const figures = [
+  ['', 'start'],
+  ['desktop/links-and-queue/', 'queue'],
+  ['desktop/output-folder/', 'folder'],
+  ['desktop/output-folder/', 'settings-download'],
+  ['desktop/settings/', 'settings-general'],
+  ['desktop/settings/', 'updates'],
+  ['troubleshooting/', 'mac'],
+];
+for (const locale of ['docs', 'en/docs']) for (const [route, kind] of figures) {
+  const name = locale + '/' + route + 'index.html';
+  const html = pages.get(name);
+  assert(html, 'Missing illustration page: ' + name);
+  const start = html.indexOf('data-figure="' + kind + '"');
+  assert(start >= 0, name + ' must render ' + kind);
+  const figure = html.slice(start, html.indexOf('</figure>', start));
+  assert.match(figure, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe ' + kind);
+  assert(figure.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label ' + kind);
+}
+for (const locale of ['docs', 'en/docs']) for (const route of [
+  'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',
+  'troubleshooting/extension-disconnected', 'advanced/ae-compatibility', 'releases',
+]) {
+  assert(!pages.has(locale + '/' + route + '/index.html'), 'Retired manual route returned: ' + route);
+}
 // Generated static HTML is the contract: check every local URL and fragment, not only source Markdown.
 const origin = 'https://wutpeach.github.io';
 const base = '/Ameow/';
@@ -44,6 +69,7 @@ assert.equal(targetFor(new URL(base + 'en/docs/', origin)), 'en/docs/index.html'
 assert.throws(() => targetFor(new URL(origin + '/docs/')));
 let checked = 0;
 for (const [name, html] of pages) {
+  assert.doesNotMatch(html, /rust-(?:settings|compact)[^" ]*[.]png/, name + ' must not reuse retired application screenshots');
   const route = name.endsWith('index.html') ? name.slice(0, -'index.html'.length) : name;
   const current = new URL(base + route, origin);
   for (const match of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
@@ -62,4 +88,5 @@ for (const [name, html] of pages) {
 const zh = [...pages.keys()].filter((name) => name.startsWith('docs/'));
 const en = [...pages.keys()].filter((name) => name.startsWith('en/docs/')).map((name) => name.slice(3));
 assert.deepEqual(zh.sort(), en.sort(), 'Chinese and English route coverage differs');
-console.log('Verified ' + pages.size + ' HTML pages, ' + zh.length + ' bilingual route pairs and ' + checked + ' local links/assets/fragments.');
+const contentPairs = zh.filter(name => pages.get(name).includes('data-pagefind-body')).length;
+console.log('Verified ' + pages.size + ' HTML pages, ' + contentPairs + ' bilingual content pairs, ' + (zh.length - contentPairs) + ' bilingual redirect pairs and ' + checked + ' local links/assets/fragments.');

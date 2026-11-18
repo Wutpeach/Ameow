@@ -1,24 +1,30 @@
 ---
-title: 下载 Ameow
-description: 下载 Ameow
+title: 下载与安装
+description: 安装 Windows x64 或 Apple Silicon Mac 版 Ameow 0.5.0。
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI 是唯一产品主线，尚未正式公开发行。Windows x64 安装版与便携 ZIP 的发行流程已准备，但当前没有正式公开的 Rust 下载包。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃、停止支持，仅保留历史记录。
+[下载 Ameow 0.5.0](https://github.com/Wutpeach/Ameow/releases)
+
+| 平台 | 选择的文件 |
+| --- | --- |
+| Windows x64 安装版 | `Ameow_0.5.0_windows_x64_installer.exe` |
+| Windows x64 便携版 | `Ameow_0.5.0_windows_x64_portable.zip` |
+| macOS Apple Silicon | macOS arm64 版本中的 `Ameow.app` |
+
+Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、Universal 和 Linux 不在此版本范围内；最低版本声明不代表较旧系统均已验证。
+
+## Windows
 
 <Steps>
-1. 当前可按以下步骤从 Rust 源码运行；请勿把历史 Electron 包当作当前版本。
-2. 如运行 Rust 源码，在 Windows x64 安装 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK。
-3. 仓库根目录执行 `cargo build --locked`，然后运行 `./target/debug/ameow.exe`。
+1. 运行安装程序并完成向导，随后从开始菜单打开 Ameow。使用便携版时，先完整解压，再运行 `AmeowLauncher.exe`。
+2. 按[快速上手](../)选择保存位置并提交链接。首次需要的下载组件由应用联网准备。
 </Steps>
 
-源码构建不等于公开发行。macOS 和 Linux 原生运行未验证。见[开发指南](../developer/)。
+便携版请保持目录完整。移动前先退出，之后核对快捷方式和开机启动。卸载默认保留用户数据。
 
-正式发行后，安装版将创建开始菜单入口并提供 Windows 卸载入口，可选择桌面快捷方式；便携版需完整解压并运行 `AmeowLauncher.exe`。两者共用应用与安全更新机制，卸载默认保留 `%LOCALAPPDATA%\Ameow` 用户数据。
+## Mac
 
-## 运行前后
-
-源码运行需要 Windows x64 / MSVC 工具链；应用本身不需要 Node、Python 或 Electron。准备组件可能需要网络，输出目录应存在且可写。完成构建后可按[快速上手](../getting-started/)提交公开单个视频链接。
-
-旧发行页的资产和旧扩展对应历史 Electron 版，不表示 Rust 功能或平台支持；历史变化见[发行记录](../releases/)。
+1. 将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`，从 Finder 打开。
+2. 从菜单栏猫咪图标选择打开或设置。默认不显示 Dock 图标；入口与启动问题见[Mac 帮助](../troubleshooting/#mac)。

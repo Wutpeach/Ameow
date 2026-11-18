@@ -1,0 +1,44 @@
+---
+title: Downloads and queue
+description: Follow download progress, cancel or retry tasks, and hide or restore the window.
+---
+
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
+Copy a [supported media link](../../supported-sites/) and paste it into Ameow. Select the count at Full's bottom-right to open the queue. Up to three tasks occupy execution slots; the rest wait.
+
+<ManualFigure kind="queue" lang="en" />
+
+| Stage | What you can do |
+| --- | --- |
+| Queued, preparing | Wait for execution or components; cancellation is available. |
+| Downloading, post-processing | Wait for saving to finish; a percentage may be unavailable. |
+| Completed | Open the folder selected when the task was submitted. |
+| Failed, partial | Read the message, copy diagnostics, or retry when offered. |
+| Cancelled | Submit again if needed. |
+
+The same unfinished video cannot be submitted twice. Tasks retain their submitted quality and folder. Clearing records does not delete files; the queue is not retained after exit.
+
+<details>
+<summary>Retrying galleries and short links</summary>
+
+- Image tasks created from Imgur image/album or Bluesky post entries retry in the same task, keeping verified files and attempting remaining content in the original work folder.
+- Manual retries for videos and other generic entries create a new task with the original link, quality, and folder. Direct image links from these sites may also use the generic entry.
+- An unidentified Bilibili short-link target cannot be retried. Submit the corresponding BV or av video link instead.
+
+</details>
+
+<span id="window"></span>
+
+## Window and cat
+
+The cat rests in Compact; download information appears in Full. Light theme shows a black cat, Dark a white cat. The cat stays still with the system's reduced-motion setting enabled.
+
+| Action | Result |
+| --- | --- |
+| Right-click Full | Choose [quality](../../supported-sites/#quality), open settings, hide, or quit. |
+| Double-click Full's empty background | Open the [confirmed destination](../output-folder/). |
+| Hide | Downloads continue; choose Open from the tray/Mac menu bar to restore the window. |
+| Quit | Stop tasks and wait for safe cleanup. Only cleanup problems display recovery actions; collapsing the view or pressing Esc does not cancel quitting. |
+
+For download or saving problems, see [Troubleshooting](../../troubleshooting/).
