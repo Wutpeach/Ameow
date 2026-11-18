@@ -27,6 +27,7 @@ use std::{
 pub const PROTOCOL_VERSION: u32 = 1;
 const MAX_REQUEST: usize = 16 * 1024;
 const MAX_RESPONSE: usize = 4 * 1024 * 1024;
+const MAX_CONNECTIONS: usize = 8;
 const MAX_MUTATIONS: usize = 1024;
 const DEADLINE: Duration = Duration::from_secs(10);
 
@@ -387,6 +388,92 @@ impl<T: Write> Write for StoppableStream<T> {
         self.stream.flush()
     }
 }
+fn serve_connection(
+    stream: impl Read + Write,
+    identity: &str,
+    sender: &mpsc::SyncSender<Envelope>,
+    stopping: Arc<AtomicBool>,
+) {
+    let mut stream = StoppableStream {
+        stream,
+        stop: stopping.clone(),
+    };
+    let deadline = Instant::now() + DEADLINE;
+    let bytes = match read_frame(&mut stream, MAX_REQUEST, deadline) {
+        Ok(bytes) => bytes,
+        Err(_) => return,
+    };
+    let request = match serde_json::from_slice::<Request>(&bytes) {
+        Ok(request) => request,
+        Err(_) => {
+            let response = Response {
+                protocol_version: PROTOCOL_VERSION,
+                request_id: String::new(),
+                instance_id: identity.into(),
+                ok: false,
+                result: None,
+                error: Some(ControlError::new("E_PROTOCOL", "Invalid control request")),
+            };
+            if let Ok(bytes) = serde_json::to_vec(&response) {
+                let _ = write_frame(&mut stream, &bytes, MAX_RESPONSE, deadline);
+            }
+            return;
+        }
+    };
+    let (reply, result) = mpsc::sync_channel(1);
+    let fallback = request.clone();
+    let response = match sender.try_send(Envelope {
+        request,
+        response: reply,
+    }) {
+        Ok(()) => loop {
+            match result.recv_timeout(Duration::from_millis(10)) {
+                Ok(response) => break response,
+                Err(mpsc::RecvTimeoutError::Timeout)
+                    if !stopping.load(Ordering::Acquire) && Instant::now() < deadline =>
+                {
+                    continue;
+                }
+                _ => {
+                    break Response::from_result(
+                        &fallback,
+                        identity,
+                        Err(ControlError::new(
+                            "E_DISCONNECTED",
+                            "Desktop command owner did not reply; request may have been accepted",
+                        )),
+                    );
+                }
+            }
+        },
+        Err(_) => Response::from_result(
+            &fallback,
+            identity,
+            Err(ControlError::new(
+                "E_BUSY",
+                "Desktop command boundary unavailable",
+            )),
+        ),
+    };
+    let mut bytes = serde_json::to_vec(&response).unwrap_or_default();
+    if bytes.len() > MAX_RESPONSE {
+        bytes = serde_json::to_vec(&Response::from_result(
+            &fallback,
+            identity,
+            Err(ControlError::new(
+                "E_RESULT_TOO_LARGE",
+                "Use show for individual tasks",
+            )),
+        ))
+        .unwrap();
+    }
+    let _ = write_frame(
+        &mut stream,
+        &bytes,
+        MAX_RESPONSE,
+        Instant::now() + Duration::from_secs(2),
+    );
+}
 pub struct Server {
     pub instance_id: String,
     receiver: mpsc::Receiver<Envelope>,
@@ -410,41 +497,50 @@ impl Server {
         let (sender, receiver) = mpsc::sync_channel::<Envelope>(16);
         let stop = Arc::new(AtomicBool::new(false));
         let stopping = stop.clone();
-        let worker = std::thread::Builder::new().name("desktop-local-control".into()).spawn(move || {
-            while !stopping.load(Ordering::Acquire) {
-                let stream = match listener.accept() {
-                    Ok(Some(stream)) => stream,
-                    Ok(None) => { std::thread::sleep(Duration::from_millis(10)); continue; },
-                    Err(_) => break,
-                };
-                let mut stream = StoppableStream { stream, stop:stopping.clone() };
-                let deadline = Instant::now() + DEADLINE;
-                let bytes = match read_frame(&mut stream, MAX_REQUEST, deadline) { Ok(v) => v, Err(_) => continue };
-                let request = match serde_json::from_slice::<Request>(&bytes) {
-                    Ok(v) => v,
-                    Err(_) => {
-                        let response = Response { protocol_version: PROTOCOL_VERSION, request_id: String::new(), instance_id: identity.clone(), ok: false, result: None, error: Some(ControlError::new("E_PROTOCOL", "Invalid control request")) };
-                        if let Ok(bytes) = serde_json::to_vec(&response) { let _ = write_frame(&mut stream, &bytes, MAX_RESPONSE, deadline); }
+        let worker = std::thread::Builder::new()
+            .name("desktop-local-control".into())
+            .spawn(move || {
+                let mut connections: Vec<std::thread::JoinHandle<()>> =
+                    Vec::with_capacity(MAX_CONNECTIONS);
+                while !stopping.load(Ordering::Acquire) {
+                    let mut index = 0;
+                    while index < connections.len() {
+                        if connections[index].is_finished() {
+                            let _ = connections.swap_remove(index).join();
+                        } else {
+                            index += 1;
+                        }
+                    }
+                    if connections.len() == MAX_CONNECTIONS {
+                        std::thread::sleep(Duration::from_millis(10));
                         continue;
                     }
-                };
-                let (reply, result) = mpsc::sync_channel(1);
-                let fallback = request.clone();
-                let response = match sender.try_send(Envelope { request, response: reply }) {
-                    Ok(()) => loop {
-                        match result.recv_timeout(Duration::from_millis(10)) {
-                            Ok(response) => break response,
-                            Err(mpsc::RecvTimeoutError::Timeout) if !stopping.load(Ordering::Acquire) && Instant::now()<deadline => continue,
-                            _ => break Response::from_result(&fallback, &identity, Err(ControlError::new("E_DISCONNECTED", "Desktop command owner did not reply; request may have been accepted"))),
+                    let stream = match listener.accept() {
+                        Ok(Some(stream)) => stream,
+                        Ok(None) => {
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
                         }
-                    },
-                    Err(_) => Response::from_result(&fallback, &identity, Err(ControlError::new("E_BUSY", "Desktop command boundary unavailable"))),
-                };
-                let mut bytes = serde_json::to_vec(&response).unwrap_or_default();
-                if bytes.len() > MAX_RESPONSE { bytes = serde_json::to_vec(&Response::from_result(&fallback, &identity, Err(ControlError::new("E_RESULT_TOO_LARGE", "Use show for individual tasks")))).unwrap(); }
-                let _ = write_frame(&mut stream, &bytes, MAX_RESPONSE, Instant::now() + Duration::from_secs(2));
-            }
-        }).map_err(io_error)?;
+                        Err(_) => break,
+                    };
+                    let connection_stop = stopping.clone();
+                    let identity = identity.clone();
+                    let requests = sender.clone();
+                    match std::thread::Builder::new()
+                        .name("desktop-control-connection".into())
+                        .spawn(move || {
+                            serve_connection(stream, &identity, &requests, connection_stop);
+                        }) {
+                        Ok(connection) => connections.push(connection),
+                        Err(_) => break,
+                    }
+                }
+                stopping.store(true, Ordering::Release);
+                for connection in connections {
+                    let _ = connection.join();
+                }
+            })
+            .map_err(io_error)?;
         Ok(Self {
             instance_id,
             receiver,

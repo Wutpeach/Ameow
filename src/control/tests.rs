@@ -206,11 +206,46 @@ fn simultaneous_clients_receive_their_own_responses() {
 }
 
 #[test]
+fn partial_frame_does_not_block_another_clients_submission() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    let queue = DownloadCoordinator::update_test_queue(&root);
+    let mut server = Server::start(&root).unwrap();
+    let mut stalled = transport::connect(&root).unwrap();
+    stalled.write_all(&[32, 0]).unwrap();
+    std::thread::sleep(Duration::from_millis(30));
+    let client_root = root.clone();
+    let instance = server.instance_id.clone();
+    let client = std::thread::spawn(move || {
+        rpc(
+            &client_root,
+            &request(&instance, "healthy_request_01", submit()),
+        )
+    });
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !client.is_finished() && Instant::now() < deadline {
+        server.poll(&queue, true, false);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let timely = client.is_finished();
+    drop(stalled);
+    drop(server);
+    let response = client.join().unwrap();
+    assert!(timely, "a partial frame blocked a healthy submission");
+    let response = response.unwrap();
+    assert!(response.ok);
+    assert_eq!(response.result.unwrap()["job_id"], 1);
+    assert_eq!(queue.snapshot().jobs.len(), 1);
+}
+
+#[test]
 fn dropping_server_with_idle_connected_client_releases_listener() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     let server = Server::start(&root).unwrap();
-    let _idle_client = transport::connect(&root).unwrap();
+    let _idle_clients: Vec<_> = (0..=MAX_CONNECTIONS)
+        .map(|_| transport::connect(&root).unwrap())
+        .collect();
     std::thread::sleep(Duration::from_millis(50));
     let dropper = std::thread::spawn(move || drop(server));
     let deadline = Instant::now() + Duration::from_secs(3);

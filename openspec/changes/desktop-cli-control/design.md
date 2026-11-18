@@ -11,7 +11,7 @@
 ## Decisions
 
 - Windows 使用当前用户 DACL 的本机 named pipe；macOS 使用私有目录的 Unix socket 并验证 peer uid。根路径散列决定实例命名空间，隔离验证使用显式 instance-root；生产继续现有唯一实例仲裁。相比 TCP 无监听端口与远程接口。
-- IPC 使用有界长度前缀 JSON，每次连接一请求；版本 1 envelope 固定 protocol_version/request_id/instance_id/ok/result/error。传输线程只解帧并提交有界命令信封；桌面命令线程处理请求并复用同一个 coordinator 和更新权限门槛。
+- IPC 使用有界长度前缀 JSON，每次连接一请求；版本 1 envelope 固定 protocol_version/request_id/instance_id/ok/result/error。最多 8 个连接 worker 独立收发有界帧并提交有界命令信封，使半帧停滞连接不阻塞其他请求；桌面命令线程仍串行处理请求并复用同一个 coordinator 和更新权限门槛。退出时停止收发并 join 全部连接 worker，再释放监听端点。
 - 任务 ID 为随机实例 nonce 与原 job_id 的组合。写请求缓存请求内容及原回执，有界且不淘汰；达到上限明确拒绝新写操作，读取仍可用。不会跨实例自动重放未确认写请求。
 - SubmitWithOptions 在原 command_gate 中合并默认；JobSnapshot.accepted.intent 直接作为冻结快照。相对输出目录由 CLI 按调用者 cwd 转绝对路径，队列完成最终验证。
 - CLI 重试结果也进入 GUI 现有 UiReply::Retry，使原失败行退役语义一致。终态由原 JobPhase 与 resources_released 确认，返回全部真实交付文件。
