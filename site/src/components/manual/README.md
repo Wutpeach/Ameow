@@ -25,8 +25,10 @@ use the existing application tokens. Figure labels outside the app surface expla
 gestures without adding controls to the app.
 
 Directory labels match the native source: 松开设为目录 / Drop to set folder,
-then 目录已更新 / Folder updated. Saved feedback follows SettingsSaved for
-2000ms. Folder and ring glow use 4px blur and 0.3 alpha; foreground neutral
+then 目录已更新 / Folder updated. Timing follows PR42 commit
+7d3bb8ef5bd1cd2899df93ed15b99d1b18e54f3d: normal Success retention (1500ms),
+then normal window logic with the existing 80ms leave grace. The static geometry
+source above remains valid. Folder and ring glow use 4px blur and 0.3 alpha; foreground neutral
 uses 0.8 alpha in Light and 1 in Dark. Pill backgrounds follow Palette::pill.
 This source comparison does not assert native Mac validation or user visual approval.
 
