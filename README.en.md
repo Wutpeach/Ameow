@@ -1,37 +1,51 @@
 # Ameow
 
-Ameow is a Rust / GPUI floating download application for Windows. This repository maintains the Rust development baseline; [#18](https://github.com/Wutpeach/Ameow/issues/18) records the main-branch takeover.
+Ameow is a Rust / GPUI floating download app for Windows x64 and Apple Silicon Mac. Paste a public media link, manage the queue, and choose quality and a save folder. When idle, the cat returns to the Compact window.
 
-**Rust has not been officially released.** A default light Inno Setup installer and Launcher-based portable ZIP for Windows x64 are under controlled validation; production signing and public-release restrictions remain in place. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is an unsupported historical release, with no maintenance, upgrades or compatibility support.
+[简体中文](README.md) · [User manual](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
 
-[简体中文](README.md) · [Documentation](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
+## Download and install
+
+| Ameow 0.5.0 | Download |
+| --- | --- |
+| Windows x64 installer | [Installer](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe) |
+| Windows x64 portable | [Portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
+| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
+
+On Windows, finish the installer and launch from the Start menu, or extract the entire portable ZIP and run `AmeowLauncher.exe`. On Mac, extract the ZIP, move `Ameow.app` to `/Applications` or `~/Applications`, and open it from Finder. macOS 13 is the declared minimum; testing covers macOS 26.3 / arm64. Intel Macs, Universal, and Linux are outside this release's distribution scope.
+
+See [download and installation instructions](https://wutpeach.github.io/Ameow/en/docs/downloads/) and the [0.5.0 release notes](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0). First use requires a network connection to prepare download components. Mac users do not need to install Homebrew or Python separately.
+
+## Downloads and updates
+
+Supported inputs include public single videos on YouTube and Bilibili, Imgur images and albums, and images in a single Bluesky post. Other public HTTP(S) media links can be passed to the downloader to try. Choose from three quality presets, run up to three tasks at once, retry failed downloads, or copy diagnostics. Drop a folder onto Full to change the save location. Website, login, and regional restrictions can affect availability; this version does not import browser login sessions.
+
+Check application updates in About. Download components are managed separately in Components. Windows launches new versions through the Launcher; Mac updates the complete `Ameow.app`. Updates use signature and integrity checks, and user data is stored separately from program files:
+
+| Platform | User data directory |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\Ameow` |
+| macOS | `~/Library/Application Support/AmeowNative` |
+
+The Rust app keeps its data separate from the old Electron app. It does not automatically migrate old settings, caches, or history, and automatic upgrades from Electron to Rust are not promised. Install the package for your platform above, then choose your save folder and preferences again. Historical Electron v0.3.1 is no longer maintained or supported. Early Rust `AmeowNext\stage-a` data is neither automatically migrated nor cleaned.
 
 ## Build and run
 
-Windows x64/MSVC is the current native target. Install Rust 1.93.0, Visual Studio C++ Build Tools and the Windows SDK. Node, Python and Electron are not application dependencies.
+`rust-toolchain.toml` pins Rust 1.98.1. Windows x64 uses MSVC and needs Visual Studio C++ Build Tools plus the Windows SDK. Apple Silicon Macs need Xcode development tools. From the repository root:
 
-```powershell
-cargo build --locked
-./target/debug/ameow.exe
+```sh
+cargo build --locked --bin ameow
 ```
 
-The accepted Rust baseline provides single-video YouTube/Bilibili input, a queue, settings and a tray. Download components are prepared and verified against the embedded manifest; yt-dlp updates require explicit discovery and selection. Refer to the original Issue evidence for verified behavior and remaining limitations; the Rust application does not claim every historical Electron feature.
-
-## Existing data and startup
-
-Current settings, runtime selection and cache use `%LOCALAPPDATA%\Ameow`, separately from program files. Old `AmeowNext\stage-a` data is neither migrated nor cleaned, and Electron settings are not imported. Current single-instance and startup identities use `Ameow`; recognized early Rust `AmeowNext` startup entries are retired only when the user changes the startup option.
-
-The distribution entry is the stable `AmeowLauncher.exe`, with the app in `versions/<version>/Ameow.exe`. The installer defaults to `%LOCALAPPDATA%\Programs\Ameow`; extract the entire portable ZIP before use. Source builds may still run Cargo's `ameow.exe` directly. Exit normally before installing, updating or moving the app. Startup is opt-in; external shortcuts are not migrated. Actual sign-out/sign-in startup remains unverified.
+Run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. Finder startup, system login items, and full-app updates use the packaged `Ameow.app`. Users do not need to configure Node, Python, or Electron separately. See [CONTRIBUTING](CONTRIBUTING.md) for development and packaging details.
 
 ## Documentation and distribution
 
 The site has its own Node >=22.19.0 dependencies:
 
-```powershell
+```sh
 npm ci --prefix site
 npm --prefix site run build
 ```
 
-The existing Pages address is retained. The site documents current Rust source; historical Electron v0.3.1 is no longer supported. [#19](https://github.com/Wutpeach/Ameow/issues/19) tracks documentation maintenance. Future page-selection research belongs to [#22](https://github.com/Wutpeach/Ameow/issues/22).
-
-Application code is [MIT](LICENSE); third-party materials retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). A successful build does not authorize redistribution. Private packaging needs a review bound to the current inputs; public Gate B remains blocked. See [Windows delivery](distribution/windows-delivery.md) for controlled dual-asset builds and the manual release handoff. CI uploads no EXE/ZIP and does not publish releases.
+Application code is [MIT](LICENSE); third-party code, fonts, icons, and runtimes retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). Use [Windows delivery](distribution/windows-delivery.md) for installer and portable packaging, and [package_macos.sh](scripts/package_macos.sh) for Mac. Building, offline signing, and public release are separate operations. CI does not upload application assets or automatically create releases.
