@@ -39,6 +39,20 @@ for (const locale of ['docs', 'en/docs']) for (const [route, kind] of Object.ent
   assert.match(html, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe the illustration');
   assert(html.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label the illustration in its locale');
 }
+const settingsFigures = {
+  '': 'settings-general',
+  'desktop/settings/': 'settings-general',
+  'desktop/output-folder/': 'settings-download',
+};
+for (const locale of ['docs', 'en/docs']) for (const [route, kind] of Object.entries(settingsFigures)) {
+  const name = locale + '/' + route + 'index.html';
+  const html = pages.get(name);
+  const start = html.indexOf('data-figure="' + kind + '"');
+  assert(start >= 0, name + ' must replace the settings screenshot with an illustration');
+  const figure = html.slice(start, html.indexOf('</figure>', start));
+  assert.match(figure, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe its settings illustration');
+  assert(figure.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label its settings illustration');
+}
 // Generated static HTML is the contract: check every local URL and fragment, not only source Markdown.
 const origin = 'https://wutpeach.github.io';
 const base = '/Ameow/';
@@ -58,6 +72,7 @@ assert.equal(targetFor(new URL(base + 'en/docs/', origin)), 'en/docs/index.html'
 assert.throws(() => targetFor(new URL(origin + '/docs/')));
 let checked = 0;
 for (const [name, html] of pages) {
+  assert.doesNotMatch(html, /rust-(?:settings|compact)[^" ]*[.]png/, name + ' must not reuse retired application screenshots');
   const route = name.endsWith('index.html') ? name.slice(0, -'index.html'.length) : name;
   const current = new URL(base + route, origin);
   for (const match of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {

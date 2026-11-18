@@ -3,11 +3,14 @@ import lightCat from '../../../../assets/mascot/light.svg?raw';
 import nightCat from '../../../../assets/mascot/night.svg?raw';
 import AppIcon from './AppIcon.astro';
 import FullSurface from './FullSurface.astro';
-interface Props { kind: 'start' | 'queue' | 'folder' | 'updates' | 'mac'; lang?: 'zh' | 'en'; }
+import SettingsPanel from './SettingsPanel.astro';
+interface Props { kind: 'start' | 'queue' | 'folder' | 'updates' | 'mac' | 'settings-general' | 'settings-download'; lang?: 'zh' | 'en'; }
 const { kind, lang = 'zh' } = Astro.props;
 const en = lang === 'en';
 const text = (zh: string, english: string) => en ? english : zh;
 const descriptions = {
+  'settings-general': text('常规侧栏选中。上方为开机启动开关，下方为主题、语言和托盘图标的选择；框选的偏好选择后自动保存。', 'General is selected in the sidebar. Launch at login is above the Theme, Language, and Tray icon selectors. The highlighted preferences save automatically.'),
+  'settings-download': text('下载侧栏选中。标注1对应更改按钮，用来选择保存文件夹；标注2对应路径右侧的复制按钮。C盘Downloads为示例路径。', 'Download is selected in the sidebar. Annotation 1 marks Change, which selects a destination folder. Annotation 2 marks Copy beside the path. C drive Downloads is an example path.'),
   start: text('指针靠近猫咪所在的 Compact 后展开 Full；在 Full 按 Ctrl+V 或 Command+V 提交复制的链接。', 'Move the pointer near the Compact cat to expand Full, then press Ctrl+V or Command+V to submit a copied link.'),
   queue: text('Full 显示下载进度；右下角数字打开队列，可分别查看下载中、等待与失败任务。', 'Full shows download progress. The bottom-right count opens the queue with downloading, waiting, and failed tasks.'),
   folder: text('将一个可写文件夹拖到 Full，浅灰文件夹和光晕表示可以松开；成功后彩色文件夹、圆环和信息胶囊确认目录已更新。', 'Drag one writable folder onto Full. A pale-gray folder and glow show where to release; a colored folder, ring, and status pill confirm the saved destination.'),
@@ -17,6 +20,8 @@ const descriptions = {
 ---
 <figure class="manual-figure" data-figure={kind}>
   <div class="figure-content" role="img" aria-label={descriptions[kind]}>
+    {kind === 'settings-general' && <SettingsPanel page="general" en={en} />}
+    {kind === 'settings-download' && <SettingsPanel page="download" en={en} />}
     {kind === 'start' && <div class="flow">
       <div class="step">
         <div class="compact-area">
@@ -61,7 +66,7 @@ const descriptions = {
       </div>
     </div>}
   </div>
-  <figcaption>{text('操作示意', 'Workflow illustration')}</figcaption>
+  <figcaption>{kind === 'settings-download' ? text('操作示意 · 路径为示例', 'Workflow illustration · example path') : text('操作示意', 'Workflow illustration')}</figcaption>
 </figure>
 <style>
   .manual-figure { --fig-surface: #232427; --fig-text: #e6e7e9; --fig-muted: #a5a8ad; --fig-badge: #2b2c2f; --fig-border: #424348; --fig-blue: #3d9aff; --fig-green: #3cbb72; margin: 1.75rem 0 2rem; }
