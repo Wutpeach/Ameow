@@ -11,4 +11,4 @@ The app prepares and verifies components; version selection requires confirmatio
 
 The submitted link, quality, and folder form a task's intent. Changing settings does not alter a queued task; submit a new task to use a new folder. Retrying a failure retains the original intent.
 
-Hiding changes window visibility and tasks continue; quitting is an application lifecycle action that requires confirmation and cleanup for active tasks. Component preparation is distinct from task execution: a preparation failure does not mean a video file was downloaded.
+Hiding changes window visibility and tasks continue; quitting stops tasks and waits for safe cleanup, normally without a dialog. Only an actual cleanup problem displays recovery actions. Component preparation is distinct from task execution: a preparation failure does not mean a video file was downloaded.

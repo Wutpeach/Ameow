@@ -5,6 +5,8 @@ description: 输出目录
 
 在设置的下载页面查看、打开、更改或复制输出目录。选择存在且可写的文件夹。
 
+也可双击 Full 的空白背景，在 Windows 资源管理器或 macOS Finder 打开当前已确认的目录。目录保存尚未完成时，该操作不会打开旧目录。
+
 ![下载设置的输出目录](/Ameow/images/docs/rust-settings-zh-download.png)
 
 图中的个人路径已遮盖。任务固定提交时的目录；后续更改只影响新任务。原目录不可用时任务可能失败，不会悄悄切换目录。见[找不到文件](../../troubleshooting/missing-files/)。

@@ -12,7 +12,7 @@ export default defineConfig({
 			plugins: [starlightThemeBlack({})],
 			customCss: ['./src/styles/pagination.css'],
 			title: 'Ameow',
-			description: 'Ameow Rust / GPUI · Windows floating video downloader · Rust 源码与使用指南。',
+			description: 'Ameow Rust / GPUI · Windows and macOS floating downloads · Rust 源码与使用指南。',
 			favicon: '/ameow.ico',
 			locales: {
 				root: {
@@ -73,6 +73,7 @@ export default defineConfig({
         },
         "items": [
             "docs/troubleshooting",
+            "docs/troubleshooting/macos-first-run",
             "docs/troubleshooting/error-messages",
             "docs/troubleshooting/download-failures",
             "docs/troubleshooting/missing-files"
@@ -92,7 +93,6 @@ export default defineConfig({
             "docs/extension/cookies-and-login",
             "docs/desktop/files-and-folders",
             "docs/advanced/ae-compatibility",
-            "docs/troubleshooting/macos-first-run",
             "docs/troubleshooting/extension-disconnected"
         ]
     },

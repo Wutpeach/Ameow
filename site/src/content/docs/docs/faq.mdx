@@ -5,15 +5,19 @@ description: 常见问题
 
 ## 有 Rust 安装包吗？
 
-Rust 尚未正式公开发行；安装版与便携版的发行流程已准备。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且不再支持。见[下载](../downloads/)。
+Rust 尚未正式公开发行，当前 0.5.0 仍是源码版本，没有公开安装包或签名更新源。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且不再支持。见[下载](../downloads/)。
 
 ## 支持什么？
 
-当前源码支持公开单视频和部分图片链接，也可尝试有限的通用链接；不支持旧扩展或登录态导入。见[链接与队列](../desktop/links-and-queue/)。macOS 原生运行未验证。
+当前源码支持公开单视频和部分图片链接，也可尝试有限的通用链接；不支持旧扩展或登录态导入。见[链接与队列](../desktop/links-and-queue/)。Windows x64 和 Apple Silicon Mac 已有原生验证；Mac 仅在 macOS 26.3 实测，声明最低 macOS 13 不代表旧系统已验证。见[macOS 首次启动](../troubleshooting/macos-first-run/)。
 
 ## 隐藏后任务会停止吗？
 
-不会；退出时若有活动任务会要求确认。文件保存在提交任务时的目录，见[找不到文件](../troubleshooting/missing-files/)。
+不会；隐藏后下载继续，可从 Windows 托盘或 Mac 菜单栏恢复。退出会停止任务并等待安全清理，只有清理异常才显示恢复操作。文件保存在提交任务时的目录，见[找不到文件](../troubleshooting/missing-files/)。
+
+## 猫咪会显示下载进度吗？
+
+不会。Compact 猫咪用于安静待机；任务、进度和队列集中在 Full。浅色主题是黑猫，深色主题是白猫，减少动态时保持静止。见[悬浮窗口](../desktop/floating-window/)。
 
 ## 质量和保存目录什么时候生效？
 

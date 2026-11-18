@@ -3,7 +3,7 @@ title: Developer guide
 description: Rust / GPUI development and project contracts.
 ---
 
-The current source is the Rust / GPUI application at the repository root, verified on Windows x64 / MSVC. Rust has not been officially released; the release process for the installer and portable ZIP has been prepared. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported.
+The current source is the Rust / GPUI application at the repository root, with native verification on Windows x64 / MSVC and macOS Apple Silicon. Mac testing covers macOS 26.3 only; the declared macOS 13 minimum does not establish verification on older systems. Intel, Universal, and Linux are outside the currently verified scope. Rust 0.5.0 has not been officially released, with no public installer or signed update feed. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported.
 
 - [Local development](./local-development/): toolchain and launch.
 - [Environment variables](./environment-variables/): data path and test inputs.

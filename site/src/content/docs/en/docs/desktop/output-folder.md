@@ -5,6 +5,8 @@ description: Output folder
 
 In download settings, view, open, change, or copy the output folder. Choose an existing writable folder.
 
+You can also double-click Full's empty background to open the current confirmed folder in Windows Explorer or macOS Finder. While a folder change is still being saved, this action does not open the old folder.
+
 ![Output folder in download settings](/Ameow/images/docs/rust-settings-en-download.png)
 
 The personal path in the image is hidden. A task retains its folder at submission; changes affect new tasks. If the original folder is unavailable the task may fail rather than silently switch folders. See [missing files](../../troubleshooting/missing-files/).

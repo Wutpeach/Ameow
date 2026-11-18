@@ -1,24 +1,36 @@
 ---
 title: Download Ameow
-description: Download Ameow
+description: Rust release status and how to run on Windows and macOS.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI is the only product line and has not been officially released. The Windows x64 installer and portable ZIP release process has been prepared, but no Rust download has been officially published yet. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history.
+Rust / GPUI is the only product line and has not been officially released. The source version is 0.5.0, but there is no official `v0.5.0` tag, Release, public installer, or signed update feed yet. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history.
+
+## Current platform scope
+
+| Platform | Current status |
+| --- | --- |
+| Windows x64 / MSVC | Verified; can run from source. The installer and Launcher portable ZIP release process is prepared, with no public download yet. |
+| macOS Apple Silicon / arm64 | Tested on macOS 26.3. The app declares macOS 13 as its minimum; this does not establish verification on older systems. No public Rust package yet. |
+| macOS Intel, Universal, and Linux | Outside the currently verified scope. |
 
 <Steps>
-1. Use the source-build steps below; historical Electron packages are not the current product.
-2. To run Rust source on Windows x64, install Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK.
-3. Run `cargo build --locked` at the repository root, then run `./target/debug/ameow.exe`.
+1. Check the platform scope above; historical Electron packages do not provide current Rust features.
+2. Follow [local development](../developer/local-development/) to install the toolchain and run from source. If you already have a test build, use its accompanying startup instructions.
+3. Follow [Get started](../getting-started/) to choose a destination and submit a public media link.
 </Steps>
 
-A source build is not a public release. Native macOS and Linux operation is unverified. See the [developer guide](../developer/).
+## Running on Windows
 
-After an official release, the installer will provide a Start menu entry, Windows uninstall registration and an optional desktop shortcut. The portable ZIP must be fully extracted and started with `AmeowLauncher.exe`. Both use the same app and secure updater. Uninstall retains `%LOCALAPPDATA%\Ameow` user data by default.
+Source builds require Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK. Run `cargo build --locked --bin ameow` at the repository root, then `./target/debug/ameow.exe`.
 
-## Before and after running
+After an official release, the installer will provide a Start menu entry, Windows uninstall registration, and an optional desktop shortcut. Fully extract the portable ZIP and start `AmeowLauncher.exe`. Both use the same app and secure updater. Uninstall retains `%LOCALAPPDATA%\Ameow` user data by default.
 
-Running source requires the Windows x64 / MSVC toolchain; the app itself does not require Node, Python, or Electron. Component preparation may need network access, and the output folder should exist and be writable. After building, follow [Get started](../getting-started/) to submit a public single-video link.
+## Running on macOS
 
-Assets and the old extension on the historical release page belong to Electron and do not establish Rust features or platform support. See [release history](../releases/).
+Apple Silicon Macs can run from source; see [local development](../developer/local-development/) for the toolchain. If you already have a Rust test build of `Ameow.app`, place it in `/Applications` or `~/Applications`, then open it from Finder. The menu bar provides open, settings, and quit; no Dock icon appears by default. See [first launch on macOS](../troubleshooting/macos-first-run/).
+
+The app prepares and manages its download components; using it does not require a separate Node, Homebrew, or Python installation. First-time component preparation may need network access, and the output folder should exist and be writable. App updates and component updates are separate; see [settings and updates](../desktop/settings/).
+
+Assets and the old extension on historical release pages belong to older versions and do not establish current Rust features or platform support. See [release history](../releases/).

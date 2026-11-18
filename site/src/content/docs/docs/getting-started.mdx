@@ -1,24 +1,21 @@
 ---
 title: 快速上手
-description: 快速上手
+description: 在 Windows 或 Apple Silicon Mac 启动并完成第一次下载。
 ---
 
-在 Windows x64 安装 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK，然后在仓库根目录运行：
+Rust 尚无公开安装包。先查看[下载与运行](../downloads/)确认平台范围；从源码运行的工具链与命令见[本地开发](../developer/local-development/)。已有 Windows 测试版从 `AmeowLauncher.exe` 启动；已有 macOS 测试版从 Finder 打开 `Ameow.app`。
 
-```powershell
-cargo build --locked
-./target/debug/ameow.exe
-```
-
-Rust 尚无公开安装包。完整前置条件见[本地开发](../developer/local-development/)。
-
-将指针移近紧凑窗口展开主窗口，检查设置中的输出目录，粘贴 YouTube 或 Bilibili 公开单个视频链接。查看队列，完成后打开输出目录。首次运行可能需要联网准备组件。见[链接与队列](../desktop/links-and-queue/)和[排查指南](../troubleshooting/)。
+启动后会看到猫咪所在的紧凑窗口（Compact）。将指针移近它即可展开完整窗口（Full）。Windows 可通过系统托盘恢复隐藏的窗口；Mac 使用菜单栏入口，默认不显示 Dock 图标。
 
 ## 第一次下载
 
-1. 在设置的下载页面确认输出文件夹存在且可写；需要时更改并打开它确认位置。
-2. 在浏览器复制支持的公开视频地址，在 Ameow 输入入口按 `Ctrl+V` 提交。
-3. 等待组件准备和队列处理。若提示组件问题，打开组件管理查看状态，按提示操作。
-4. 任务显示完成后，在提交时选定的输出目录打开文件。
+1. 从 Full 右键菜单或托盘／菜单栏打开设置，在下载页面确认输出文件夹存在且可写；需要时更改并打开它确认位置。
+2. 在浏览器复制支持的公开视频地址，例如 YouTube 或 Bilibili 单视频链接。在 Ameow 按 Windows 的 `Ctrl+V` 或 macOS 的 `Command+V` 提交。
+3. 等待组件准备和队列处理。首次准备可能需要网络；若提示组件问题，打开组件管理查看状态，按提示操作。
+4. 任务显示完成后，在提交时选定的输出目录打开文件。可从设置打开目录，也可双击 Full 的空白背景。
 
-指针移近紧凑窗口可展开操作界面；隐藏后下载继续，可通过托盘恢复。退出时若仍有活动任务，选择继续或停止并退出；后者等待清理。详见[悬浮窗口](../desktop/floating-window/)和[下载组件](../advanced/download-dependencies/)。
+其他公开图片与通用链接的范围见[支持站点](../extension/supported-sites/)。质量和输出目录在提交时固定，后续设置更改只影响新任务。详见[链接与队列](../desktop/links-and-queue/)。
+
+## 隐藏与退出
+
+隐藏后下载继续，可从托盘或菜单栏选择打开恢复窗口。退出会停止任务并等待安全清理，正常退出不再要求确认；只有清理异常才显示原因与可用的恢复操作。详见[悬浮窗口](../desktop/floating-window/)和[下载组件](../advanced/download-dependencies/)。

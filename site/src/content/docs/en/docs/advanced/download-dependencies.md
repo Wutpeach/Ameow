@@ -5,6 +5,8 @@ description: Download components
 
 Initial preparation of managed components may need network access. Components management can manually query stable yt-dlp versions on PyPI; discovery does not switch versions, and selection starts after user confirmation.
 
+The app downloads, verifies, and manages the applicable components for Windows x64 and macOS arm64. Mac users do not need to install Homebrew or Python themselves. With a healthy cache, normal startup checks stay quiet; component prompts appear for actual downloads, repairs, or problems. App updates are handled separately in [About](../../desktop/settings/#app-updates).
+
 The application verifies the official signature, hash, and actual version, activating only when verified and safe. A healthy old component remains while tasks hold it. Failure preserves the previous selection and never treats an unverified component as usable.
 
 Offline recovery requires a healthy cache with signed proof; older caches without proof need online bootstrap. Restore connectivity and explicitly retry in components management on failure; see [download failures](../../troubleshooting/download-failures/). Component updates are not app auto-updates.

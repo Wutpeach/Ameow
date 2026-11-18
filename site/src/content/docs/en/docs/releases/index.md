@@ -1,17 +1,23 @@
 ---
-title: Release Notes
-description: In-site release history for Ameow stable releases and prerelease builds.
+title: Release status and history
+description: Current Rust source status and historical release notes.
 ---
 
 ## Current Rust source checkpoint
 
-The current development baseline is the repository-root Rust / GPUI application, verified on Windows x64 / MSVC. There is no public Rust installer. This is a source checkpoint, not a release. See the [README](https://github.com/Wutpeach/Ameow/blob/main/README.en.md).
+The source version is 0.5.0. Windows x64 / MSVC and macOS Apple Silicon adaptations are merged into main. Mac testing covers macOS 26.3; the app declares macOS 13 as its minimum, without a verified matrix for older systems.
+
+- Both platforms provide the Full download interface, settings, and queue. Mac uses a native menu bar menu while Full retains its app-styled right-click menu.
+- Compact now includes a themed cat, basic idle behavior, and an entrance with paws gripping the sill before pulling the head up, also used at normal startup.
+- A production public key and platform-specific update addresses are configured. App updates remain independent from download-component updates.
+
+These are merged source capabilities, not a published release. There is no official `v0.5.0` tag, Release, public installer, or signed update feed yet. See [downloads and startup](../downloads/) for current entry points and [settings and updates](../desktop/settings/) for in-app actions.
 
 ## Historical release history
 
 All release notes below describe historical Ameow / FlowSelect releases, not current Rust features. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history; Rust has not been officially released.
 
-This page tracks user-visible Ameow / FlowSelect changes across stable releases and prerelease builds. Stable releases are the right reference for most users. Prerelease notes are mainly for understanding what a test build was validating.
+Historical stable and prerelease notes are retained to trace older behavior. They are not installation or upgrade recommendations for current Rust.
 
 ## Stable Releases
 

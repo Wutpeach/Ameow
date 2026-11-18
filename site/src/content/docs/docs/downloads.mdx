@@ -1,24 +1,36 @@
 ---
 title: 下载 Ameow
-description: 下载 Ameow
+description: Rust 发行状态与 Windows、macOS 运行方式。
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI 是唯一产品主线，尚未正式公开发行。Windows x64 安装版与便携 ZIP 的发行流程已准备，但当前没有正式公开的 Rust 下载包。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃、停止支持，仅保留历史记录。
+Rust / GPUI 是唯一产品主线，尚未正式公开发行。当前源码版本为 0.5.0，但还没有正式的 `v0.5.0` Tag、Release、公开安装包或签名更新源。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃、停止支持，仅保留历史记录。
+
+## 当前平台范围
+
+| 平台 | 当前状态 |
+| --- | --- |
+| Windows x64 / MSVC | 已验证；可从源码运行。安装版与 Launcher 便携 ZIP 的发行流程已准备，尚无公开下载。 |
+| macOS Apple Silicon / arm64 | 已在 macOS 26.3 实测；应用声明最低 macOS 13，不代表较旧系统均已验证。尚无公开 Rust 安装包。 |
+| macOS Intel、Universal 与 Linux | 不在当前已验证范围。 |
 
 <Steps>
-1. 当前可按以下步骤从 Rust 源码运行；请勿把历史 Electron 包当作当前版本。
-2. 如运行 Rust 源码，在 Windows x64 安装 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK。
-3. 仓库根目录执行 `cargo build --locked`，然后运行 `./target/debug/ameow.exe`。
+1. 先核对上表中的平台范围；历史 Electron 包不对应当前 Rust 功能。
+2. 当前可按[本地开发](../developer/local-development/)安装工具链并从源码运行；若已有测试版，使用该测试版附带的启动说明。
+3. 启动后按[快速上手](../getting-started/)选择保存目录并提交公开媒体链接。
 </Steps>
 
-源码构建不等于公开发行。macOS 和 Linux 原生运行未验证。见[开发指南](../developer/)。
+## Windows 运行入口
+
+源码运行需要 Rust 1.98.1、Visual Studio C++ Build Tools 和 Windows SDK。仓库根目录执行 `cargo build --locked --bin ameow`，然后运行 `./target/debug/ameow.exe`。
 
 正式发行后，安装版将创建开始菜单入口并提供 Windows 卸载入口，可选择桌面快捷方式；便携版需完整解压并运行 `AmeowLauncher.exe`。两者共用应用与安全更新机制，卸载默认保留 `%LOCALAPPDATA%\Ameow` 用户数据。
 
-## 运行前后
+## macOS 运行入口
 
-源码运行需要 Windows x64 / MSVC 工具链；应用本身不需要 Node、Python 或 Electron。准备组件可能需要网络，输出目录应存在且可写。完成构建后可按[快速上手](../getting-started/)提交公开单个视频链接。
+Apple Silicon Mac 可从源码运行，完整工具链说明见[本地开发](../developer/local-development/)。若已取得 Rust 测试版 `Ameow.app`，放在 `/Applications` 或 `~/Applications`，再从 Finder 打开。菜单栏提供打开、设置和退出，默认不显示 Dock 图标。详见[macOS 首次启动](../troubleshooting/macos-first-run/)。
 
-旧发行页的资产和旧扩展对应历史 Electron 版，不表示 Rust 功能或平台支持；历史变化见[发行记录](../releases/)。
+应用会准备和管理所需下载组件；使用应用不需要另装 Node、Homebrew 或 Python。首次组件准备可能需要网络，输出目录应存在且可写。应用自身更新与组件更新分开，见[设置与更新](../desktop/settings/)。
+
+旧发行页的资产和旧扩展对应历史版本，不表示当前 Rust 功能或平台支持；历史变化见[发行记录](../releases/)。

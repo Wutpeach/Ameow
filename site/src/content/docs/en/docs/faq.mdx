@@ -5,15 +5,19 @@ description: Frequently asked questions
 
 ## Is there a Rust installer?
 
-Rust has not been officially released; the release process for its installer and portable ZIP has been prepared. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported. See [downloads](../downloads/).
+Rust has not been officially released. Version 0.5.0 is still a source version, with no public installer or signed update feed. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported. See [downloads](../downloads/).
 
 ## What is supported?
 
-Current Rust source supports public single videos and some image links, and can attempt limited generic links, without the old extension or session import. See [links and queue](../desktop/links-and-queue/). Native macOS operation is unverified.
+Current Rust source supports public single videos and some image links, and can attempt limited generic links, without the old extension or session import. See [links and queue](../desktop/links-and-queue/). Windows x64 and Apple Silicon Macs have native verification. Mac testing covers macOS 26.3 only; the declared macOS 13 minimum does not establish verification on older systems. See [first launch on macOS](../troubleshooting/macos-first-run/).
 
 ## Does hiding stop tasks?
 
-No; quitting with active tasks asks for confirmation. Files use the folder captured at submission; see [missing files](../troubleshooting/missing-files/).
+No. Downloads continue while hidden; restore the window from the Windows tray or Mac menu bar. Quitting stops tasks and waits for safe cleanup; recovery actions appear only for cleanup problems. Files use the folder captured at submission; see [missing files](../troubleshooting/missing-files/).
+
+## Does the cat show download progress?
+
+No. The Compact cat is a quiet idle view; tasks, progress, and the queue appear in Full. Light theme shows a black cat, Dark a white cat, and reduced motion keeps it still. See [floating window](../desktop/floating-window/).
 
 ## When do quality and destination apply?
 

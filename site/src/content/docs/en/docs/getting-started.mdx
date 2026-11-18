@@ -1,24 +1,21 @@
 ---
 title: Get started
-description: Get started
+description: Start Ameow on Windows or Apple Silicon Mac and complete your first download.
 ---
 
-Install Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK on Windows x64, then run at the repository root:
+There is no public Rust installer yet. Check [downloads and startup](../downloads/) for platform scope and [local development](../developer/local-development/) for source-build prerequisites and commands. Start an existing Windows test distribution through `AmeowLauncher.exe`; open an existing macOS test build of `Ameow.app` from Finder.
 
-```powershell
-cargo build --locked
-./target/debug/ameow.exe
-```
-
-There is no public Rust installer. See [local development](../developer/local-development/) for the full prerequisites.
-
-Move the pointer near the compact window to expand it, check the output folder in settings, and paste a public single-video YouTube or Bilibili link. Watch the queue and open the folder after completion. First run may need network access to prepare components. See [links and queue](../desktop/links-and-queue/) and [troubleshooting](../troubleshooting/).
+The app starts with the cat in the compact window (Compact). Move the pointer near it to expand the full window (Full). Restore a hidden window from the Windows system tray or the Mac menu bar. No Dock icon appears by default on Mac.
 
 ## Your first download
 
-1. In download settings, confirm the output folder exists and is writable; change it if needed and open it to check the location.
-2. Copy a supported public video URL in the browser and press `Ctrl+V` in Ameow's input entry to submit it.
-3. Wait for component preparation and queue processing. If components need attention, open components management and follow its prompt.
-4. Once the task shows completion, open the file in the folder selected at submission.
+1. Open settings from the Full window's right-click menu or the tray/menu bar. In Download, confirm the output folder exists and is writable; change it if needed and open it to check the location.
+2. Copy a supported public video URL in your browser, such as a single YouTube or Bilibili video. In Ameow, press `Ctrl+V` on Windows or `Command+V` on macOS to submit it.
+3. Wait for component preparation and queue processing. First-time preparation may need network access. If components need attention, open Components management and follow its prompt.
+4. Once the task shows completion, open the file in the folder selected at submission. Open that folder from settings or by double-clicking the Full window's empty background.
 
-Move the pointer near the compact window to expand it. Downloads continue while hidden; restore it from the tray. When quitting with active tasks, choose continue or stop and exit; the latter waits for cleanup. See [floating window](../desktop/floating-window/) and [download components](../advanced/download-dependencies/).
+See [supported sites](../extension/supported-sites/) for other public image and generic-link scope. Quality and output folder are captured at submission; later setting changes affect new tasks. See [links and queue](../desktop/links-and-queue/).
+
+## Hide and quit
+
+Downloads continue while hidden. Choose open from the tray or menu bar to restore the window. Quitting stops tasks and waits for safe cleanup, without a routine confirmation dialog. Only a cleanup problem displays its cause and available recovery actions. See [floating window](../desktop/floating-window/) and [download components](../advanced/download-dependencies/).
