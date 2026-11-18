@@ -4,29 +4,9 @@ use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc, time::Instant};
 use gpui::{prelude::*, *};
 
 pub const FEEDBACK_MS: u64 = 150;
-pub const ENTER_MS: u64 = 180;
-pub const EXIT_MS: u64 = 110;
+pub use crate::model::{Scalar, ENTER_MS, EXIT_MS};
 pub const COPY_FEEDBACK_MS: u64 = 2000;
 
-#[derive(Clone, Copy, Debug)]
-pub struct Scalar { from: f32, target: f32, at: u64, duration: u64 }
-impl Default for Scalar { fn default() -> Self { Self::new(0.) } }
-impl Scalar {
-    pub fn new(value: f32) -> Self { Self { from: value, target: value, at: 0, duration: 0 } }
-    pub fn sample(&self, now: u64) -> f32 {
-        let t = if self.duration == 0 { 1. } else { (now.saturating_sub(self.at) as f32 / self.duration as f32).clamp(0., 1.) };
-        // A bounded ease-out: no overshoot at the ends of a small control.
-        let eased = 1. - (1. - t).powi(3);
-        self.from + (self.target - self.from) * eased
-    }
-    pub fn set(&mut self, target: f32, now: u64, duration: u64, reduced: bool) {
-        if reduced { *self = Self::new(target); }
-        else if self.target != target {
-            self.from = self.sample(now); self.target = target; self.at = now; self.duration = duration;
-        }
-    }
-    pub fn moving(&self, now: u64) -> bool { self.from != self.target && now < self.at.saturating_add(self.duration) }
-}
 #[derive(Clone, Copy)]
 pub struct Presence { pub alpha: f32, pub open: bool }
 impl Presence {

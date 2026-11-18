@@ -42,6 +42,26 @@ Full SHALL 对健康 warm-cache 自检保持安静，不闪“组件已就绪”
 - **WHEN** 新目录尚未确认
 - **THEN** 不打开旧 acknowledged 目录；成功或失败后按当前权限恢复正常入口。
 
+#### Scenario: 文件夹拖入 Full
+
+- **WHEN** 单个现有文件夹拖入 Full，且当前目录设置可操作
+- **THEN** 复用 Full 原状态槽与信息胶囊，以浅灰文件夹图标及柔和光晕提示“松开设为目录”，悬浮态不加圆环，并给出轻量表面高亮；候选检查只供展示，实际可写校验、接受和持久化仍交原设置 owner。只有该次拖入收到 SettingsSaved 后才以成功语义色文件夹、成功圆环及光晕短暂显示“目录已更新”；主体仍为文件夹，不冒充下载完成或百分比，失败沿原设置错误路径处理。
+
+#### Scenario: 拖离或取消目录拖入
+
+- **WHEN** 拖拽离开窗口、Esc、取消、结束或放下
+- **THEN** 清理候选、高亮和原 drop 锁，悬浮表现按原普通 UI 退出收尾；异步候选检查不得恢复已清理的拖入态，取消不得进入成功停留。目录表现不新增全局交互锁、窗口动画或底部 toast。
+
+#### Scenario: 目录 ACK 后立即移出 Full
+
+- **WHEN** 该次 SettingsSaved 已触发目录成功表现，指针随后离开
+- **THEN** 使用与下载 Success 相同的补环、转色、标签与图形收尾时钟及 1500ms retention；反馈播放与停留期间由现有 Model 保持 Full，到期撤下目录表现，再按原 80ms 离开宽限和其他 owner 决定自动收起。目录事件不得把下载业务状态伪改为 Success；新反馈替换旧时钟，新业务阶段或主动隐藏/Compact 清理旧表现，旧截止不能清理新状态或强制收起。Reduced 直接呈现终态，生产停留不跳过。
+
+#### Scenario: Gallery 查看目录反馈
+
+- **WHEN** 选择 full.directory-hover 或 full.directory-saved
+- **THEN** 使用与真实 Full 相同的绘制和动画生命周期，支持主题与语言；Reduced 稳定保留终态，动态预览重播真实入场、成功停留及自动收起，再次选择重播。仅投影视觉，不读候选目录、不触发保存、不写用户设置或连接生产服务，不能将预览投影当作 SettingsSaved，生产使用现有 Success retention，不再使用目录旧版独立 2000ms。
+
 ### Requirement: 原生窗口与安全退出
 
 关闭请求 SHALL 在首个 snapshot 前保留意图，后续按真实 owner 状态处理。普通退出静默执行安全停止；只有真实清理异常呈现恢复界面，收起/Esc/查看详情不得撤销退出意图或强制释放。程序化显示避免合成 Alt 的 activation 路径；设置首次显示/显式复用以既有非激活方式建立 TOPMOST，自动 focus 限于标题下方内容，保留真实 title drag 与关闭/Tab 行为。不得用定时置顶、全局 hook、手动 move loop 或 toolkit fork 恢复历史失败候选。

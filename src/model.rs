@@ -2,7 +2,60 @@
 pub const LEAVE_MS: u64 = 80;
 pub const PROGRESS_MS: u64 = 220;
 pub const ROTATION_MS: u64 = 1250;
+pub const STATUS_ANIMATION_MS: u64 = 700;
+pub fn label_mix_at(stage:Stage, at:u64, now:u64, reduced:bool) -> f32 {
+    if reduced { return 1.; }
+    let delay = if stage == Stage::Success { 50 } else { 0 };
+    (now.saturating_sub(at + delay) as f32 / 160.).clamp(0., 1.)
+}
 use crate::repair_motion::Motion;
+pub const ENTER_MS: u64 = 180;
+pub const EXIT_MS: u64 = 110;
+
+#[derive(Clone, Copy, Debug)]
+pub struct Scalar { from: f32, target: f32, at: u64, duration: u64 }
+impl Default for Scalar { fn default() -> Self { Self::new(0.) } }
+impl Scalar {
+    pub fn new(value: f32) -> Self { Self { from: value, target: value, at: 0, duration: 0 } }
+    pub fn sample(&self, now: u64) -> f32 {
+        let t = if self.duration == 0 { 1. } else { (now.saturating_sub(self.at) as f32 / self.duration as f32).clamp(0., 1.) };
+        // A bounded ease-out: no overshoot at the ends of a small control.
+        let eased = 1. - (1. - t).powi(3);
+        self.from + (self.target - self.from) * eased
+    }
+    pub fn set(&mut self, target: f32, now: u64, duration: u64, reduced: bool) {
+        if reduced { *self = Self::new(target); }
+        else if self.target != target {
+            self.from = self.sample(now); self.target = target; self.at = now; self.duration = duration;
+        }
+    }
+    pub fn moving(&self, now: u64) -> bool { self.from != self.target && now < self.at.saturating_add(self.duration) }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DirectoryFeedback { Receiving, Saved }
+#[derive(Clone, Copy, Debug)]
+pub struct DirectoryPresentation {
+    pub feedback: DirectoryFeedback,
+    pub at: u64,
+    opacity: Scalar,
+    exit_at: Option<u64>,
+    latched: bool,
+}
+impl DirectoryPresentation {
+    pub fn alpha(self, now:u64, reduced:bool) -> f32 {
+        if reduced { if self.exit_at.is_some() { 0. } else { 1. } } else { self.opacity.sample(now) }
+    }
+    pub fn receiving(self) -> bool { self.feedback == DirectoryFeedback::Receiving && self.exit_at.is_none() }
+    fn deadline(self) -> Option<u64> {
+        if self.latched { None } else if let Some(at) = self.exit_at { Some(at + EXIT_MS) }
+        else if self.feedback == DirectoryFeedback::Saved { Some(self.at + Stage::Success.retention()) }
+        else { None }
+    }
+    fn animating(self, now:u64, reduced:bool) -> bool {
+        !reduced && (self.opacity.moving(now) || (self.feedback == DirectoryFeedback::Saved && now < self.at + STATUS_ANIMATION_MS))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -142,6 +195,7 @@ pub struct Model {
     pub window_motion: Motion,
     manual_compact: bool,
     compact_left: bool,
+    pub directory: Option<DirectoryPresentation>,
 }
 impl Model {
     pub fn new(now: u64, reduced: bool) -> Self {
@@ -165,6 +219,7 @@ impl Model {
             window_motion: Motion::new(now),
             manual_compact: false,
             compact_left: false,
+            directory: None,
         }
     }
     pub fn blocked(&self) -> bool {
@@ -174,14 +229,45 @@ impl Model {
             || (!self.manual_compact
                 && (self.stage.active()
                     || self.terminal.is_some()
-                    || self.pending_transcode.is_some()))
+                    || self.pending_transcode.is_some()
+                    || self.directory.is_some()))
     }
     /// Explicit Compact affects presentation only. A real leave/re-entry retires the override.
     pub fn request_compact(&mut self, now: u64) {
+        self.directory = None;
         self.manual_compact = true;
         self.compact_left = !self.pointer;
         self.collapse = None;
         self.set_target(false, now);
+    }
+    pub fn clear_directory(&mut self, now:u64) {
+        if self.directory.take().is_some() { self.schedule_leave(now); }
+    }
+    pub fn directory_hover(&mut self, ready:bool, now:u64) {
+        if ready {
+            if self.directory.is_some_and(|d| d.receiving()) { return; }
+            self.start_directory(DirectoryFeedback::Receiving, now);
+        } else if let Some(d) = &mut self.directory
+            && d.receiving() && !d.latched {
+            d.opacity.set(0., now, EXIT_MS, self.reduced);
+            d.exit_at = Some(now);
+            if self.reduced { self.clear_directory(now); }
+        }
+    }
+    pub fn directory_saved(&mut self, now:u64) { self.start_directory(DirectoryFeedback::Saved, now); }
+    fn start_directory(&mut self, feedback:DirectoryFeedback, now:u64) {
+        let mut opacity = self.directory.map_or(Scalar::new(0.), |d| Scalar::new(d.alpha(now, self.reduced)));
+        opacity.set(1., now, ENTER_MS, self.reduced);
+        self.directory = Some(DirectoryPresentation { feedback, at:now, opacity, exit_at:None, latched:false });
+        self.collapse = None;
+        if !self.manual_compact { self.set_target(true, now); }
+    }
+    pub fn preview_directory(&mut self, feedback:DirectoryFeedback, now:u64) {
+        self.directory = None;
+        self.manual_compact = false;
+        self.compact_left = false;
+        self.start_directory(feedback, now);
+        self.directory.as_mut().unwrap().latched = self.reduced;
     }
     /// Transfer at the input/deadline timestamp; previous idle time belongs to the old target.
     pub fn set_target(&mut self, full: bool, now: u64) {
@@ -265,6 +351,7 @@ impl Model {
             self.progress.update(percent, now);
             return;
         }
+        if stage != Stage::Idle { self.directory = None; }
         self.epoch += 1;
         self.collapse = None;
         self.terminal = None;
@@ -310,11 +397,15 @@ impl Model {
         }
     }
     pub fn tick(&mut self, now: u64) {
+        if self.directory.and_then(DirectoryPresentation::deadline).is_some_and(|at| now >= at) {
+            self.clear_directory(now);
+        }
         if let Some((deadline, percent)) = self.pending_transcode
             && now >= deadline.at
             && deadline.epoch == self.epoch
         {
             self.pending_transcode = None;
+            self.directory = None;
             self.previous = Stage::Downloading;
             self.stage = Stage::Transcoding;
             self.stage_at = now;
@@ -358,10 +449,11 @@ impl Model {
             || self.fullness != target
             || self.locks.drag
             || self.locks.drop
+            || (self.target_full && self.directory.is_some_and(|d| d.animating(now, self.reduced)))
             || (!self.reduced && self.progress.moving(now))
             || (!self.reduced
                 && (self.stage == Stage::Resolving
-                    || (self.stage != Stage::Idle && now < self.stage_at + 700)
+                    || (self.stage != Stage::Idle && now < self.stage_at + STATUS_ANIMATION_MS)
                     || self.blue_trace(now) > 0.));
         if changing {
             return Some(16);
@@ -370,6 +462,7 @@ impl Model {
             self.collapse,
             self.terminal,
             self.pending_transcode.map(|p| p.0),
+            self.directory.and_then(DirectoryPresentation::deadline).map(|at| Deadline { at, epoch:self.epoch }),
         ]
         .into_iter()
         .flatten()
@@ -436,11 +529,7 @@ impl Model {
         (now.saturating_sub(self.stage_at + delay) as f32 / 180.).clamp(0., 1.)
     }
     pub fn label_mix(&self, now: u64) -> f32 {
-        if self.reduced {
-            return 1.;
-        }
-        let delay = if self.stage == Stage::Success { 50 } else { 0 };
-        (now.saturating_sub(self.stage_at + delay) as f32 / 160.).clamp(0., 1.)
+        label_mix_at(self.stage, self.stage_at, now, self.reduced)
     }
 }
 
@@ -455,6 +544,124 @@ pub fn reachable_anchor(anchor: [f32; 2], geometry: Geometry, work: [f32; 4]) ->
 
 #[cfg(test)]
 mod tests {
+    fn directory_full(reduced:bool) -> super::Model {
+        let mut model = super::Model::new(0, reduced);
+        model.pointer(true, 0);
+        for now in (0..=600).step_by(16) { model.tick(now); }
+        model.tick(600);
+        model
+    }
+    #[test]
+    fn directory_ack_then_immediate_leave_uses_success_retention_and_leave_grace() {
+        for reduced in [false, true] {
+            let mut model = directory_full(reduced);
+            model.directory_saved(600);
+            model.pointer(false, 601);
+            for now in (601..1200).step_by(16) { model.tick(now); assert!(model.target_full); }
+            model.pointer(true, 1200); model.pointer(false, 1201);
+            for now in (1201..2100).step_by(16) { model.tick(now); assert!(model.target_full); }
+            assert_eq!(model.stage, super::Stage::Idle, "directory ACK is not download success");
+            assert!(model.directory.is_some());
+            assert_eq!(model.next_wake_ms(2099), Some(1));
+            model.tick(2100);
+            assert!(model.directory.is_none());
+            assert!(model.target_full);
+            assert_eq!(model.next_wake_ms(2100), Some(super::LEAVE_MS));
+            model.tick(2180);
+            assert!(!model.target_full);
+        }
+    }
+    #[test]
+    fn directory_cancel_reversal_and_replacement_do_not_reuse_old_deadlines() {
+        let mut model = directory_full(false);
+        model.directory_hover(true, 600);
+        model.pointer(false, 680);
+        let alpha = model.directory.unwrap().alpha(700, false);
+        model.directory_hover(false, 700);
+        assert_eq!(model.directory.unwrap().alpha(700, false), alpha);
+        let reversing = model.directory.unwrap().alpha(720, false);
+        model.directory_hover(true, 720);
+        assert_eq!(model.directory.unwrap().alpha(720, false), reversing);
+        model.tick(810);
+        assert!(model.directory.unwrap().receiving());
+        model.directory_saved(900);
+        model.directory_saved(1100);
+        model.tick(2400);
+        assert!(model.target_full);
+        assert!(model.directory.is_some());
+        model.tick(2600);
+        assert!(model.directory.is_none());
+        model.tick(2680);
+        assert!(!model.target_full);
+    }
+    #[test]
+    fn directory_hover_cancel_and_reduced_motion_never_start_success_hold() {
+        for reduced in [false, true] {
+            let mut model = directory_full(reduced);
+            model.directory_hover(true, 600);
+            model.pointer(false, 690);
+            model.directory_hover(false, 700);
+            let end = if reduced { 700 } else { 700 + super::EXIT_MS };
+            model.tick(end);
+            assert!(model.directory.is_none());
+            model.tick(end + super::LEAVE_MS);
+            assert!(!model.target_full);
+        }
+    }
+    #[test]
+    fn directory_yields_to_new_download_and_explicit_compact_without_replay() {
+        let mut model = directory_full(true);
+        model.state(super::Stage::Downloading, 0.3, 600);
+        model.directory_saved(700);
+        model.state(super::Stage::Downloading, 0.6, 710);
+        assert!(model.directory.is_some(), "fresh progress does not restart or cancel feedback");
+        assert_eq!(model.stage, super::Stage::Downloading);
+        model.state(super::Stage::Success, 1., 720);
+        assert!(model.directory.is_none());
+        model.directory_saved(800);
+        model.request_compact(810);
+        assert!(model.directory.is_none());
+        assert!(!model.target_full);
+        model.tick(2400);
+        assert!(!model.target_full);
+        model.pointer(false, 2401); model.pointer(true, 2402);
+        assert!(model.target_full);
+        assert!(model.directory.is_none(), "re-entry must not replay old directory success");
+        let mut hidden = directory_full(true);
+        hidden.directory_saved(700); hidden.pointer(false, 710);
+        hidden.clear_directory(720); hidden.tick(800);
+        assert!(!hidden.target_full);
+        hidden.tick(2300); assert!(hidden.directory.is_none());
+    }
+    #[test]
+    fn directory_ack_during_collapse_reverses_existing_motion_without_a_new_spring() {
+        let mut model = directory_full(false);
+        model.pointer(false, 600); model.tick(680); model.tick(696);
+        let before = model.fullness;
+        assert!(!model.target_full);
+        model.directory_saved(700);
+        assert!(model.target_full);
+        assert!((model.fullness - before).abs() < 0.03);
+        for now in (700..2200).step_by(16) { model.tick(now); assert!(model.target_full); }
+        model.tick(2200); assert!(model.directory.is_none());
+    }
+    #[test]
+    fn directory_preview_latches_reduced_but_replays_dynamic_retention_and_collapse() {
+        let mut still = super::Model::new(0, true);
+        still.preview_directory(super::DirectoryFeedback::Saved, 0);
+        still.tick(60_000);
+        assert!(still.directory.is_some());
+        assert!(still.target_full);
+        let mut dynamic = super::Model::new(0, false);
+        dynamic.preview_directory(super::DirectoryFeedback::Saved, 0);
+        for now in (0..1500).step_by(16) { dynamic.tick(now); assert!(dynamic.target_full); }
+        dynamic.tick(1500); assert!(dynamic.directory.is_none());
+        dynamic.tick(1580); assert!(!dynamic.target_full);
+        dynamic.preview_directory(super::DirectoryFeedback::Saved, 2000);
+        assert_eq!(dynamic.directory.unwrap().at, 2000);
+        assert!(dynamic.target_full);
+        assert_eq!(dynamic.directory.unwrap().alpha(2000, false), 0.);
+    }
     #[test]
     fn unknown_downloading_keeps_rotating_after_initial_wake_window() {
         let mut model = super::Model::new(0, false);

@@ -258,6 +258,8 @@ struct Prototype {
     mascot_reveal: mascot_reveal::Reveal,
     _mascot_visibility: Subscription,
     drag: Option<([f32; 2], [f32; 2])>,
+    directory_drag: Option<(std::path::PathBuf, bool)>,
+    directory_probe: Option<Task<()>>,
     copied_at: Option<u64>,
     demo: bool,
     demo_step: u8,
@@ -366,6 +368,8 @@ impl Prototype {
             mascot_reveal: if options.fixture { Default::default() } else { mascot_reveal::Reveal::startup() },
             _mascot_visibility: mascot_visibility,
             drag: None,
+            directory_drag: None,
+            directory_probe: None,
             copied_at: None,
             demo: options.demo,
             demo_step: 0,
@@ -388,6 +392,32 @@ impl Prototype {
     }
     fn now(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
+    }
+    fn clear_directory_drag(&mut self) {
+        self.directory_drag = None;
+        self.directory_probe = None;
+    }
+    fn end_external_drop(&mut self, cx: &mut Context<Self>) {
+        self.clear_directory_drag();
+        self.model.directory_hover(false, self.now());
+        self.model.locks.drop = false;
+        self.model.locks_changed(self.now());
+        cx.notify();
+    }
+    fn preview_directory_drag(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        let candidate = surface_actions::single_drop(paths);
+        if self.directory_drag.as_ref().map(|(path, _)| path) == candidate.as_ref() { return; }
+        self.clear_directory_drag();
+        let Some(path) = candidate else { return; };
+        self.directory_drag = Some((path.clone(), false));
+        // This read is only a visual hint; the settings owner still validates and saves.
+        self.directory_probe = Some(cx.spawn(async move |this, cx| {
+            let is_directory = cx.background_executor().spawn(async move { path.is_dir() }).await;
+            let _ = this.update(cx, |this, cx| {
+                if let Some((_, ready)) = &mut this.directory_drag { *ready = is_directory; }
+                cx.notify();
+            });
+        }));
     }
     fn refresh_preferences(&mut self) {
         if !self.production_preferences { return; }
@@ -458,6 +488,7 @@ impl Prototype {
             && !self.model.locks.menu && !self.model.locks.drop
     }
     fn key(&mut self, key: &str, cx: &mut Context<Self>) {
+        if key == "escape" && self.model.locks.drop { self.end_external_drop(cx); return; }
         if self.surface_menu.is_open() {
             if let Some(action) = self.surface_menu.key(key) { self.surface_menu_action(action, cx); }
             cx.notify();
@@ -562,9 +593,14 @@ impl Prototype {
                 self.model.locks_changed(now);
             }
         }
-        if self.model.locks.drop && !cx.has_active_drag() {
-            self.model.locks.drop = false;
-            self.model.locks_changed(now);
+        if self.model.locks.drop && (!cx.has_active_drag() || !self.native.as_ref().is_some_and(Native::inside)) {
+            self.end_external_drop(cx);
+        }
+        if self.preview.is_none() {
+            let ready = self.model.locks.drop && self.directory_drag.as_ref().is_some_and(|(_, ready)| *ready)
+                && self.downloads.as_ref().is_some_and(|ui| ui.background_actions_available() && ui.settings().is_some())
+                && !self.surface_menu.is_open();
+            self.model.directory_hover(ready, now);
         }
         if self.demo {
             let step = (now / 2200).min(4) as u8;
@@ -593,12 +629,13 @@ impl Prototype {
         if let Some(period) = self.probe_period_ms {
             self.model.set_target((now / period).is_multiple_of(2), now);
         } else {
-            self.model
-                .pointer(self.native.as_ref().is_some_and(Native::inside), now);
+            let fixture_directory = self.preview.as_ref().is_some_and(|p| p.scene().directory_feedback().is_some());
+            self.model.pointer(!fixture_directory && self.native.as_ref().is_some_and(Native::inside), now);
         }
         self.model.tick(now);
         if let Some(preview) = &self.preview {
-            self.model.set_target(preview.scene().surface != "compact", now);
+            let directory_replay = preview.scene().directory_feedback().is_some() && !self.model.reduced;
+            if !directory_replay { self.model.set_target(preview.scene().surface != "compact", now); }
             match preview.scene().state.as_str() {
                 "success" => self.model.stage = Stage::Success,
                 "failure" => self.model.stage = Stage::Failure,
@@ -813,6 +850,8 @@ impl Render for Prototype {
             frame
         };
         let stage = self.model.stage;
+        let directory_feedback = self.model.directory.filter(|_| !self.surface_menu.is_open());
+        let directory_hover = directory_feedback.is_some_and(model::DirectoryPresentation::receiving);
         let copied = self.copied_at.is_some_and(|t| now < t + ui_motion::COPY_FEEDBACK_MS);
         self.wake = None;
         let motion_delay = if self.demo || self.probe_period_ms.is_some()
@@ -877,7 +916,8 @@ impl Render for Prototype {
             .size(px(g.surface))
             .rounded(px(g.radius.min(g.surface * 0.5)))
             .border_1()
-            .border_color(gpui::transparent_black())
+            .border_color(if directory_hover { p.neutral.opacity(0.3 * alpha) } else { gpui::transparent_black() })
+            .when(directory_hover, |s| s.bg(p.badge.opacity(0.35 * alpha)))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
@@ -918,10 +958,12 @@ impl Render for Prototype {
             .w(px(96.))
             .h(px(99.))
             .opacity(alpha)
-            .child(indicator::ring(frame))
-            .child(indicator::center(frame))
-            .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() })
-            .when(stage.active() || matches!(stage, Stage::Failure | Stage::Partial), |s| {
+            .when_some(directory_feedback, |s, feedback| s.child(indicator::directory_feedback(p, feedback, self.language, now, self.model.reduced)))
+            .when(directory_feedback.is_none(), |s| s
+                .child(indicator::ring(frame))
+                .child(indicator::center(frame))
+                .child(if self.downloads.is_some() { indicator::label_with_text(frame, self.live_label()).into_any_element() } else { indicator::label(frame).into_any_element() }))
+            .when(directory_feedback.is_none() && (stage.active() || matches!(stage, Stage::Failure | Stage::Partial)), |s| {
                 let copy = matches!(stage, Stage::Failure | Stage::Partial);
                 s.child(
                     div()
@@ -1108,17 +1150,22 @@ impl Render for Prototype {
                     this.key(event.keystroke.key.as_str(), cx)
                 }
             }))
-            .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
-                if this.surface_menu.is_open() { cx.stop_propagation(); return; }
+            .on_file_drop_exit(cx.listener(|this, _, _, cx| this.end_external_drop(cx)))
+            .on_drag_move::<ExternalPaths>(cx.listener(|this, event: &DragMoveEvent<ExternalPaths>, _, cx| {
+                if this.preview.is_some() { return; }
+                if this.surface_menu.is_open() { this.end_external_drop(cx); cx.stop_propagation(); return; }
+                if !event.bounds.contains(&event.event.position) { this.end_external_drop(cx); return; }
                 this.background_clicks.reset();
+                if !this.model.locks.drop { this.model.clear_directory(this.now()); }
                 this.model.locks.drop = true;
                 this.model.locks_changed(this.now());
+                let paths = event.drag(cx).paths().to_vec();
+                this.preview_directory_drag(&paths, cx);
                 cx.notify();
             }))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                this.end_external_drop(cx);
                 if this.surface_menu.is_open() { cx.stop_propagation(); return; }
-                this.model.locks.drop = false;
-                this.model.locks_changed(this.now());
                 if this.downloads.is_some() {this.drop_output_directory(paths.paths(),cx);}
                 if this.downloads.is_none() && !paths.paths().is_empty() {
                     this.state(Stage::Resolving, cx);

@@ -67,7 +67,7 @@ fn isolated_transport_saves_through_real_owner_and_refuses_download_actions() {
     let mut ui = DownloadUi::native_acceptance(root.path().into());
     let deadline = Instant::now() + Duration::from_secs(3);
     let spin = |ui: &mut DownloadUi| {
-        for reply in ui.poll() { if let UiReply::Settings(reply) = reply { ui.complete_settings(reply); } }
+        for reply in ui.poll() { if let UiReply::Settings(reply) = reply { ui.complete_settings(reply, 0); } }
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(10));
     };
