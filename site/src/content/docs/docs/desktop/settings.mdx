@@ -1,6 +1,6 @@
 ---
-title: 常用设置
-description: 常规、下载、组件管理与应用更新。
+title: 设置与更新
+description: 调整外观，更新 Ameow 或管理下载组件。
 ---
 
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
@@ -9,34 +9,46 @@ import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 <ManualFigure kind="settings-general" />
 
-## 可以调整什么
+画质在 [Full 右键菜单](../../supported-sites/#quality)选择；下载页管理[保存位置](../output-folder/)。
 
-- **常规：** 选择系统、浅色或深色主题，系统、中文或英文界面，以及托盘图标和开机启动。
-- **下载：** 查看、打开、更改或复制[输出目录](../output-folder/)。画质在 Full 右键菜单中选择。
-- **组件管理：** 查看下载工具状态、检查可信版本，并确认要使用的版本。
-- **关于：** 查看应用版本、检查应用更新和阅读第三方许可。
+## 更新应用
 
-## 应用更新
-
-在关于页检查更新，按提示下载并重启 Ameow。可设置自动检查、后台下载及任务结束后自动重启更新；运行中的任务会先安全结束。Full 信息入口及托盘／菜单栏也会在适用时提供更新操作。
+在关于页检查更新，按提示下载并重启。可启用自动检查、后台下载和任务结束后自动重启更新；任务会先安全结束。
 
 <ManualFigure kind="updates" />
 
-组件管理更新的是 yt-dlp 等下载工具，不等于升级 Ameow。组件版本的选择与恢复见[下载组件](../../advanced/download-dependencies/)。
+Windows 通过 Launcher 启动新版本；Mac 更新完整的 `Ameow.app`，仅在目录权限需要时请求系统授权。取消授权或校验失败不会安装更新；替换或启动失败时按提示恢复，用户数据保留。
 
-Windows 使用 Launcher 启动更新后的版本。Mac 更新完整的 `Ameow.app`；只有目录权限需要时才请求系统授权。取消授权或候选校验失败时不会安装更新。替换或新版本启动失败时按提示恢复，用户数据继续保留。
+<span id="components"></span>
 
-## 开机启动与移动应用
+## 管理下载组件
 
-Windows 开机启动指向稳定的 `AmeowLauncher.exe`。移动便携目录前先退出应用，再核对快捷方式和开机启动。
+首次使用由 Ameow 准备所需组件，已有健康缓存时正常启动自检保持安静。在组件与诊断页手动检查 yt-dlp 稳定版本，确认选择后才下载、验证并安全切换；查询本身不会更换版本。
 
-Mac 通过系统登录项管理开机启动，需要从安装好的 `Ameow.app` 调整。若系统要求批准，按提示在系统设置中允许；移动应用后重新核对登录项。
+准备失败时查看该页提示，可明确重试或确认恢复推荐版本。健康且带签名证明的缓存可离线恢复，缺少证明时需要联网；失败保留原选择。不要手动替换缓存程序或清空应用数据。
 
-## 数据保存位置
+<details>
+<summary>各组件的用途</summary>
 
-| 平台 | 用户数据目录 |
+| 组件 | 用途 |
+| --- | --- |
+| yt-dlp | 解析与下载视频。 |
+| gallery-dl | 下载图片与图集。 |
+| Deno | 提供下载器所需的 JavaScript 环境。 |
+| FFmpeg / ffprobe | 处理、合并与检查媒体。 |
+
+</details>
+
+<details>
+<summary>开机启动、移动应用与数据位置</summary>
+
+Windows 开机启动指向 `AmeowLauncher.exe`，移动便携目录后需核对快捷方式和启动设置。Mac 从安装好的 `Ameow.app` 管理系统登录项，如需批准，按提示在系统设置完成；移动应用后重新核对。
+
+| 平台 | 用户数据目录（非下载目录） |
 | --- | --- |
 | Windows | `%LOCALAPPDATA%\Ameow` |
 | macOS | `~/Library/Application Support/AmeowNative` |
 
-设置、组件缓存等用户数据与应用分离，不自动导入旧 Electron 配置。普通排障不需要清空这些目录。
+设置与组件缓存保存在这里，普通排障无需清空。
+
+</details>

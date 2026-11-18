@@ -1,40 +1,30 @@
 ---
-title: Download Ameow
-description: Install Ameow 0.5.0 on Windows or Apple Silicon Mac.
+title: Download and install
+description: Install Ameow 0.5.0 for Windows x64 or Apple Silicon Mac.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Ameow 0.5.0 is available for Windows x64 and macOS Apple Silicon. You do not need Rust, Node, Homebrew, or Python to use the app. Ameow prepares its download components for you.
+[Download Ameow 0.5.0](https://github.com/Wutpeach/Ameow/releases)
 
-[Open GitHub releases](https://github.com/Wutpeach/Ameow/releases)
-
-## Choose your version
-
-| Platform | Package and startup |
+| Platform | File to choose |
 | --- | --- |
-| Windows x64 installer | Choose `Ameow_0.5.0_windows_x64_installer.exe`, install it, and open Ameow from the Start menu. |
-| Windows x64 portable | Choose `Ameow_0.5.0_windows_x64_portable.zip`, fully extract it, and run `AmeowLauncher.exe`. |
-| macOS Apple Silicon | Choose the macOS arm64 version and place `Ameow.app` in your Applications folder. |
+| Windows x64 installer | `Ameow_0.5.0_windows_x64_installer.exe` |
+| Windows x64 portable | `Ameow_0.5.0_windows_x64_portable.zip` |
+| macOS Apple Silicon | `Ameow.app` from the macOS arm64 version |
 
-Mac requires macOS 13 or later. Testing covers macOS 26.3 arm64; there is no complete verification matrix for older systems. Intel Macs, Universal, and Linux are outside this version's platform scope.
+Mac requires macOS 13 or later; testing covers macOS 26.3 arm64. Intel Macs, Universal, and Linux are outside this version's scope. The minimum-version declaration does not establish verification on older systems.
 
-## Install on Windows
+## Windows
 
 <Steps>
-1. Choose the 0.5.0 Windows x64 installer on the release page, open the setup wizard, and finish installation.
-2. Open Ameow from the Start menu. You can choose a desktop shortcut during installation.
-3. For the portable version, keep the extracted directory intact and start `AmeowLauncher.exe`. Do not move its internal executable files separately.
+1. Run the installer, finish the wizard, and open Ameow from the Start menu. For the portable version, extract the whole archive and run `AmeowLauncher.exe`.
+2. Follow the [quick start](../) to choose a destination and submit a link. Ameow prepares the required download components over the network on first use.
 </Steps>
 
-Uninstall keeps `%LOCALAPPDATA%\Ameow` user data by default. Exit normally before moving a portable folder, then check shortcuts and login startup.
+Keep the portable directory intact. Exit before moving it, then check shortcuts and login startup. Uninstall keeps user data by default.
 
-## Install on macOS
+## Mac
 
-1. Choose the 0.5.0 Apple Silicon version on the release page and place `Ameow.app` in `/Applications` or `~/Applications`.
-2. Open it from Finder and find Ameow in the menu bar. No Dock icon appears by default.
-3. Choose open or settings, then follow [Get started](../getting-started/) for your first download.
-
-See [first launch on macOS](../troubleshooting/macos-first-run/) for entry points and troubleshooting.
-
-First-time component preparation may need network access. Source development and builds are covered in the [developer guide](../developer/), separately from normal installation and use. See [release notes](../releases/) for older versions.
+1. Place `Ameow.app` in `/Applications` or `~/Applications` and open it from Finder.
+2. Choose Open or Settings from the cat in the menu bar. No Dock icon appears by default; see [Mac help](../troubleshooting/#mac) for entry points and launch problems.

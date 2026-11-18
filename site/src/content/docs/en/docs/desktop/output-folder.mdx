@@ -1,26 +1,24 @@
 ---
-title: Output folder
-description: Choose a destination, drop a folder, and find downloaded files.
+title: Save location
+description: Choose the output folder, drop a folder, and open downloaded files.
 ---
 
 import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
-View, open, change, or copy the output folder in Download settings. Choose an existing writable folder.
+In Download settings, choose an existing writable folder, open it, or copy its path.
 
 <ManualFigure kind="settings-download" lang="en" />
 
-## Drop a folder to change the destination
+## Drop a folder
 
-Drag one writable folder onto Full and release when the pale-gray folder and glow appear. A successful save shows a colored folder, a ring, and a short status pill confirming the new destination for about two seconds. This changes the download destination; it does not move or collect the folder's contents.
+Drag one writable folder onto Full and use the feedback below to confirm the change.
 
 <ManualFigure kind="folder" lang="en" />
 
-Drop one folder at a time. Files, multiple folders, invalid paths, and unwritable folders do not switch the destination. If no success feedback appears, check the current path and any error in settings.
+- **A successful save confirms the change.** Check the path in settings if no confirmation appears. Files, multiple folders, invalid paths, and unwritable folders do not switch the destination.
+- **New tasks use the new location.** Queued tasks and retries keep the folder selected at submission.
+- **Existing files stay put.** Dropping a folder only changes the destination; it does not collect or move its contents.
 
-## Open and find files
+## Open downloaded files
 
-Double-click Full's empty background to open the current confirmed destination in Windows Explorer or Mac Finder, or open it from settings. This action does not open the old folder while a change is being saved.
-
-Each task keeps its destination at submission. A new location affects new tasks; queued tasks and retries keep the original folder. If a file is missing, confirm the task completed and check its submission folder. See [missing files](../../troubleshooting/missing-files/).
-
-If the folder moves, permissions change, or space runs out, Ameow does not silently switch folders. Address the task message before submitting again.
+Double-click Full's empty background or open the current confirmed folder from settings. The old folder does not open while a change is being saved. If [files are missing](../../troubleshooting/#files), confirm the task completed and check its submission folder. Ameow does not silently switch to another destination.

@@ -8,12 +8,12 @@ Styles are scoped to these figures and do not change the site theme.
 
 | Figure | Page | Source of product behavior |
 | --- | --- | --- |
-| start | getting-started | Compact/Full and platform paste shortcut in desktop-interaction and macos-native specs |
+| start | docs index | Compact/Full and platform paste shortcut in desktop-interaction and macos-native specs |
 | queue | desktop/links-and-queue | indicator.rs ring geometry; download_ui.rs queue rows and fixed 122/4/54 track layout |
 | folder | desktop/output-folder | Verified against PR42 commit 22a5f05910c98d06eb0ed809c4d44d605d5cbe53: indicator::directory_feedback, ring_glow.rs, tokens.rs and main.rs. Both states use the bundled 24px folder artwork and a 96×16 pill at top 59 with 8px medium text. Receiving has neutral icon/glow without a ring; Saved has the green folder, icon glow and success ring/glow. |
 | updates | desktop/settings | About app-update owner and independent Components management |
-| mac | troubleshooting/macos-first-run | macos-native menu-bar entry and settings-window lifecycle |
-| settings-general | docs index and desktop/settings | settings_window.rs: general_page, preference_select and nav. Startup, Theme, Language, Tray icon retain their actual order and values. The preference outline marks automatic saving, without adding a Save control. |
+| mac | troubleshooting#mac | macos-native menu-bar entry and settings-window lifecycle |
+| settings-general | desktop/settings | settings_window.rs: general_page, preference_select and nav. Startup, Theme, Language, Tray icon retain their actual order and values. The preference outline marks automatic saving, without adding a Save control. |
 | settings-download | desktop/output-folder | settings_window.rs: download_page and nav. Open-folder icon and Change remain above the path, with Copy inset at its right. Numbered annotations identify Change and Copy. C drive Downloads is a non-personal example. |
 
 The cat SVGs are imported directly from assets/mascot/light.svg and night.svg;
@@ -30,8 +30,9 @@ then 目录已更新 / Folder updated. Saved feedback follows SettingsSaved for
 uses 0.8 alpha in Light and 1 in Dark. Pill backgrounds follow Palette::pill.
 This source comparison does not assert native Mac validation or user visual approval.
 
-The six active settings screenshot references (Chinese/English index, settings,
-and output-folder pages) now use these two focused, static settings illustrations.
+The former six settings screenshot references were replaced with focused, static
+settings illustrations. After consolidating the manual, settings figures live
+only in their topic pages; the index teaches the first download with the start figure.
 The panels omit unused window space and system chrome. Controls are inert spans,
 inside the figure's image role; they cannot save settings or touch files. Narrow
 layouts reflow labels and values for reading while retaining the sidebar/content

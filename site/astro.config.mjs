@@ -2,11 +2,26 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightThemeBlack from 'starlight-theme-black';
+const base = '/Ameow';
+
+// Preserve useful bookmarks to current topics; retired features have no replacement route.
+const movedPages = {
+  'getting-started': '',
+  'extension/supported-sites': 'supported-sites/',
+  'advanced/quality-and-formats': 'supported-sites/#quality',
+  'advanced/download-dependencies': 'desktop/settings/#components',
+  'troubleshooting/macos-first-run': 'troubleshooting/#mac',
+  'developer/local-development': 'developer/',
+};
+const redirects = Object.fromEntries(['docs', 'en/docs'].flatMap(locale =>
+  Object.entries(movedPages).map(([from, to]) => [`/${locale}/${from}/`, `${base}/${locale}/${to}`])
+));
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://wutpeach.github.io',
-	base: '/Ameow',
+	base,
+	redirects,
 	integrations: [
 		starlight({
 			plugins: [starlightThemeBlack({})],
@@ -30,86 +45,14 @@ export default defineConfig({
 			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/Wutpeach/Ameow' }],
 			sidebar: [
-    {
-        "label": "入门",
-        "translations": {
-            "en": "Getting Started"
-        },
-        "items": [
-            "docs",
-            "docs/getting-started",
-            "docs/downloads",
-            "docs/concepts",
-            "docs/faq",
-            "docs/releases"
-        ]
-    },
-    {
-        "label": "桌面端",
-        "translations": {
-            "en": "Desktop"
-        },
-        "items": [
-            "docs/desktop/floating-window",
-            "docs/desktop/links-and-queue",
-            "docs/desktop/output-folder",
-            "docs/desktop/settings"
-        ]
-    },
-    {
-        "label": "下载与组件",
-        "translations": {
-            "en": "Downloads & Components"
-        },
-        "items": [
-            "docs/extension/supported-sites",
-            "docs/advanced/quality-and-formats",
-            "docs/advanced/download-dependencies"
-        ]
-    },
-    {
-        "label": "故障排查",
-        "translations": {
-            "en": "Troubleshooting"
-        },
-        "items": [
-            "docs/troubleshooting",
-            "docs/troubleshooting/macos-first-run",
-            "docs/troubleshooting/error-messages",
-            "docs/troubleshooting/download-failures",
-            "docs/troubleshooting/missing-files"
-        ]
-    },
-    {
-        "label": "扩展与兼容",
-        "translations": {
-            "en": "Extensions & Compatibility"
-        },
-        "collapsed": true,
-        "items": [
-            "docs/browser-extension",
-            "docs/extension/install",
-            "docs/extension/connection",
-            "docs/extension/cookies-and-login",
-            "docs/desktop/files-and-folders",
-            "docs/advanced/ae-compatibility",
-            "docs/troubleshooting/extension-disconnected"
-        ]
-    },
-    {
-        "label": "开发者指南",
-        "translations": {
-            "en": "Developer Guide"
-        },
-        "items": [
-            "docs/developer",
-            "docs/developer/local-development",
-            "docs/developer/environment-variables",
-            "docs/developer/testing",
-            "docs/developer/docs-and-locales"
-        ]
-    }
-],
+				{ label: '开始使用', translations: { en: 'Get started' }, items: ['docs', 'docs/downloads'] },
+				{ label: '使用指南', translations: { en: 'Using Ameow' }, items: [
+					'docs/desktop/links-and-queue', 'docs/desktop/output-folder',
+					'docs/supported-sites', 'docs/desktop/settings',
+				] },
+				{ label: '遇到问题', translations: { en: 'Get help' }, items: ['docs/troubleshooting'] },
+				'docs/developer',
+			],
 		}),
 	],
 });

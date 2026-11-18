@@ -1,28 +1,24 @@
 ---
-title: "Ameow guide"
-description: "Windows and macOS floating downloads: public videos and images, queue and trusted components."
+title: Quick start
+description: Start Ameow 0.5.0, paste a link, and complete your first download.
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
-Ameow 0.5.0 is a floating download app for Windows and Apple Silicon Macs. Copy a public media link, paste it into the app, and watch its progress as the file is saved. See [supported sites](./extension/supported-sites/) for scope.
+Ameow 0.5.0 is a floating download app for Windows and Apple Silicon Macs. [Download and install](./downloads/), then launch from the Start menu or `AmeowLauncher.exe` on Windows, or open `Ameow.app` from Finder on Mac.
 
-<ManualFigure kind="settings-general" lang="en" />
+<ManualFigure kind="start" lang="en" />
 
-Choose your theme, interface language and startup preference in General settings.
+1. Open settings from Full's right-click menu or the tray/Mac menu bar and choose a destination folder.
+2. Copy a public media link and paste it into Ameow with the shortcut shown above. First use may need network access to prepare components.
+3. Wait for downloading and post-processing to finish, then double-click Full's empty background to open the destination.
 
 <CardGrid>
-<LinkCard title="Download and install" href="./downloads/" description="Choose the Windows or Mac version." />
-<LinkCard title="Get started" href="./getting-started/" description="Run the app and submit a link." />
-<LinkCard title="Links and queue" href="./desktop/links-and-queue/" description="Understand download scope." />
-<LinkCard title="Troubleshooting" href="./troubleshooting/" description="Check task status." />
+<LinkCard title="Downloads and queue" href="./desktop/links-and-queue/" description="Follow progress, cancel, or retry." />
+<LinkCard title="Save location" href="./desktop/output-folder/" description="Choose or drop a folder." />
+<LinkCard title="Supported links and quality" href="./supported-sites/" description="Choose media links and quality." />
+<LinkCard title="Settings and updates" href="./desktop/settings/" description="Appearance, components, and app updates." />
 </CardGrid>
 
-## Start here
-
-1. Choose and install your platform's version from [downloads](./downloads/).
-2. Follow [Get started](./getting-started/) to launch the app, open settings, and choose a destination.
-3. Paste a supported public single-video link, wait for the queue to show completion, and open the result.
-
-To adjust quality, manage tools, or solve a problem, see [download components](./advanced/download-dependencies/) and the [FAQ](./faq/).
+Need help? See [Troubleshooting](./troubleshooting/). To contribute code, start with [For developers](./developer/).

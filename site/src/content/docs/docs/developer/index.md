@@ -1,13 +1,27 @@
 ---
-title: 开发者指南
-description: Rust / GPUI 开发入口与项目契约。
+title: 开发资料
+description: Rust / GPUI 工具链、启动与数据路径。
 ---
 
-Ameow 0.5.0 使用 Rust / GPUI。本节面向贡献者与源码开发；安装和日常使用请从[下载](../downloads/)与[快速上手](../getting-started/)开始。
+本节面向贡献者。安装应用请使用[下载页面](../downloads/)；项目行为要求见仓库 [OpenSpec](https://github.com/Wutpeach/Ameow/blob/main/openspec/README.md)，贡献约定见 [CONTRIBUTING](https://github.com/Wutpeach/Ameow/blob/main/CONTRIBUTING.md)。
 
-- [本地开发](./local-development/)：工具链与启动。
-- [环境变量](./environment-variables/)：数据路径与测试输入。
-- [测试与验证](./testing/)：验证范围与原生 UI。
-- [文档站点与本地化](./docs-and-locales/)：独立站点的开发和部署。
+## 工具链与启动
 
-源码结构与约束以仓库 [CONTRIBUTING](https://github.com/Wutpeach/Ameow/blob/main/CONTRIBUTING.md) 和 [Rust 契约入口](https://github.com/Wutpeach/Ameow/blob/main/openspec/README.md)为准，旧交接资料的来源可用性见[工程文档与历史说明](https://github.com/Wutpeach/Ameow/blob/main/docs/README.md)。历史 Electron 源码可查 [v0.3.1 标签](https://github.com/Wutpeach/Ameow/tree/v0.3.1)。
+`rust-toolchain.toml` 固定 Rust 1.98.1。Windows x64 使用 MSVC，需 Visual Studio C++ Build Tools 与 Windows SDK；Apple Silicon Mac 需 Xcode 开发工具。以下命令从仓库根目录运行：
+
+```sh
+cargo build --locked --bin ameow
+```
+
+Windows 运行 `./target/debug/ameow.exe`，Mac 运行 `./target/debug/ameow`。Finder 启动、系统登录项和完整应用更新使用 `Ameow.app`；前置条件见 [Mac 打包脚本](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh)。Mac 实测为 26.3 arm64，最低 13 的声明不代表较旧系统均已验证。
+
+## 数据与测试输入 {#data}
+
+| 平台 | 当前用户数据目录 |
+| --- | --- |
+| Windows（`LOCALAPPDATA`） | `%LOCALAPPDATA%\Ameow` |
+| macOS（`HOME`） | `~/Library/Application Support/AmeowNative` |
+
+保留已有设置和缓存，不要为开发清空用户数据。部分真实运行时测试使用 `AMEOW_RUNTIME_TEST_ROOT` 指向按生产流程准备的缓存，具体要求以测试源码为准；这是测试输入，不是普通用户配置。
+
+继续阅读[测试与验证](./testing/)或[文档站开发](./docs-and-locales/)。

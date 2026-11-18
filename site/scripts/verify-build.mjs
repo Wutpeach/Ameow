@@ -25,33 +25,30 @@ for (const route of ['docs', 'en/docs']) {
 for (const route of ['docs/downloads', 'en/docs/downloads']) {
   assert.match(pages.get(route + '/index.html'), /<ol\b[^>]*\bsl-steps\b/i, route + ' must render Steps');
 }
-const figures = {
-  'getting-started': 'start',
-  'desktop/links-and-queue': 'queue',
-  'desktop/output-folder': 'folder',
-  'desktop/settings': 'updates',
-  'troubleshooting/macos-first-run': 'mac',
-};
-for (const locale of ['docs', 'en/docs']) for (const [route, kind] of Object.entries(figures)) {
-  const name = locale + '/' + route + '/index.html';
-  const html = pages.get(name);
-  assert(html?.includes('data-figure="' + kind + '"'), name + ' must render its workflow illustration');
-  assert.match(html, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe the illustration');
-  assert(html.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label the illustration in its locale');
-}
-const settingsFigures = {
-  '': 'settings-general',
-  'desktop/settings/': 'settings-general',
-  'desktop/output-folder/': 'settings-download',
-};
-for (const locale of ['docs', 'en/docs']) for (const [route, kind] of Object.entries(settingsFigures)) {
+const figures = [
+  ['', 'start'],
+  ['desktop/links-and-queue/', 'queue'],
+  ['desktop/output-folder/', 'folder'],
+  ['desktop/output-folder/', 'settings-download'],
+  ['desktop/settings/', 'settings-general'],
+  ['desktop/settings/', 'updates'],
+  ['troubleshooting/', 'mac'],
+];
+for (const locale of ['docs', 'en/docs']) for (const [route, kind] of figures) {
   const name = locale + '/' + route + 'index.html';
   const html = pages.get(name);
+  assert(html, 'Missing illustration page: ' + name);
   const start = html.indexOf('data-figure="' + kind + '"');
-  assert(start >= 0, name + ' must replace the settings screenshot with an illustration');
+  assert(start >= 0, name + ' must render ' + kind);
   const figure = html.slice(start, html.indexOf('</figure>', start));
-  assert.match(figure, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe its settings illustration');
-  assert(figure.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label its settings illustration');
+  assert.match(figure, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe ' + kind);
+  assert(figure.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label ' + kind);
+}
+for (const locale of ['docs', 'en/docs']) for (const route of [
+  'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',
+  'troubleshooting/extension-disconnected', 'advanced/ae-compatibility', 'releases',
+]) {
+  assert(!pages.has(locale + '/' + route + '/index.html'), 'Retired manual route returned: ' + route);
 }
 // Generated static HTML is the contract: check every local URL and fragment, not only source Markdown.
 const origin = 'https://wutpeach.github.io';
@@ -91,4 +88,5 @@ for (const [name, html] of pages) {
 const zh = [...pages.keys()].filter((name) => name.startsWith('docs/'));
 const en = [...pages.keys()].filter((name) => name.startsWith('en/docs/')).map((name) => name.slice(3));
 assert.deepEqual(zh.sort(), en.sort(), 'Chinese and English route coverage differs');
-console.log('Verified ' + pages.size + ' HTML pages, ' + zh.length + ' bilingual route pairs and ' + checked + ' local links/assets/fragments.');
+const contentPairs = zh.filter(name => pages.get(name).includes('data-pagefind-body')).length;
+console.log('Verified ' + pages.size + ' HTML pages, ' + contentPairs + ' bilingual content pairs, ' + (zh.length - contentPairs) + ' bilingual redirect pairs and ' + checked + ' local links/assets/fragments.');

@@ -1,0 +1,46 @@
+---
+title: Troubleshooting
+description: Find help for failed downloads, missing files, or Mac startup problems.
+---
+
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
+<span id="downloads"></span>
+
+## Download problems
+
+Read the queue message and check the stage:
+
+| Symptom | What to do |
+| --- | --- |
+| Link rejected | Use a [supported public media entry](../supported-sites/). Remove video playlist or series parameters. |
+| Component preparation failed | Open [Components](../desktop/settings/#components) and follow the retry or recommended-version recovery prompt. |
+| Request rejected or rate-limited (403 / 429) | Wait before retrying. A status code alone does not establish the cause; site, permission, or network changes can affect results. |
+| Saving failed | Check that the task's original folder exists, is writable, and has enough space. Submit a new task to use a different folder. |
+| Cleanup problem while quitting | Follow the app's wait or cleanup-retry prompt. Collapsing the view does not cancel quitting. |
+
+Retry a failed or partial task when offered; its original quality and folder are retained. Content requiring login or regional access may be unavailable even if it plays in a browser.
+
+<span id="files"></span>
+
+## Missing files
+
+1. Confirm the queue shows completion; wait until post-processing finishes.
+2. Open the [destination folder](../desktop/output-folder/). If you changed it after submitting, check the task's original location; retries also retain it.
+3. For a failed task, resolve permissions or space problems and submit again. The app's data directory is not a fallback download location.
+
+<span id="mac"></span>
+
+## Mac entry points and startup
+
+Ameow runs in the menu bar with no Dock icon by default. Closing settings does not quit it; reopen from the menu bar.
+
+<ManualFigure kind="mac" lang="en" />
+
+If the floating window is missing, choose Open or return to a normal desktop. Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
+
+If macOS blocks launch, check the [installed version and source](../downloads/) and keep the complete system message for a report. Follow system prompts for login-startup or update authorization; see [Settings and updates](../desktop/settings/).
+
+## Report a problem
+
+Copy diagnostics from a failed task or Components. Include system/app versions, time, and reproducible steps in [GitHub Issues](https://github.com/Wutpeach/Ameow/issues). Review before sending and hide personal paths, private links, and login details. Do not clear app data for routine troubleshooting.

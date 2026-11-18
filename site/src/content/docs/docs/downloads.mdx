@@ -1,40 +1,30 @@
 ---
-title: 下载 Ameow
-description: 安装 Windows 或 Apple Silicon Mac 版 Ameow 0.5.0。
+title: 下载与安装
+description: 安装 Windows x64 或 Apple Silicon Mac 版 Ameow 0.5.0。
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Ameow 0.5.0 提供 Windows x64 和 macOS Apple Silicon 版本。使用应用无需安装 Rust、Node、Homebrew 或 Python，下载组件由 Ameow 自动准备。
+[下载 Ameow 0.5.0](https://github.com/Wutpeach/Ameow/releases)
 
-[前往 GitHub 发行页](https://github.com/Wutpeach/Ameow/releases)
-
-## 选择你的版本
-
-| 平台 | 选择与启动方式 |
+| 平台 | 选择的文件 |
 | --- | --- |
-| Windows x64 安装版 | 选择 `Ameow_0.5.0_windows_x64_installer.exe`，安装后从开始菜单打开 Ameow。 |
-| Windows x64 便携版 | 选择 `Ameow_0.5.0_windows_x64_portable.zip`，完整解压后运行 `AmeowLauncher.exe`。 |
-| macOS Apple Silicon | 选择 macOS arm64 版本，取出 `Ameow.app` 并放入应用程序目录。 |
+| Windows x64 安装版 | `Ameow_0.5.0_windows_x64_installer.exe` |
+| Windows x64 便携版 | `Ameow_0.5.0_windows_x64_portable.zip` |
+| macOS Apple Silicon | macOS arm64 版本中的 `Ameow.app` |
 
-Mac 要求 macOS 13 或更新系统；目前实测为 macOS 26.3 arm64，较旧系统没有完整验证矩阵。Intel Mac、Universal 和 Linux 不在此版本的平台范围内。
+Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、Universal 和 Linux 不在此版本范围内；最低版本声明不代表较旧系统均已验证。
 
-## Windows 安装
+## Windows
 
 <Steps>
-1. 在发行页选择 0.5.0 的 Windows x64 安装版，打开安装向导并完成安装。
-2. 从开始菜单启动 Ameow；可在安装时选择创建桌面快捷方式。
-3. 若使用便携版，保持解压后的目录完整，通过 `AmeowLauncher.exe` 启动，不单独移动内部程序文件。
+1. 运行安装程序并完成向导，随后从开始菜单打开 Ameow。使用便携版时，先完整解压，再运行 `AmeowLauncher.exe`。
+2. 按[快速上手](../)选择保存位置并提交链接。首次需要的下载组件由应用联网准备。
 </Steps>
 
-卸载默认保留 `%LOCALAPPDATA%\Ameow` 用户数据。移动便携目录前先正常退出，再核对快捷方式和开机启动设置。
+便携版请保持目录完整。移动前先退出，之后核对快捷方式和开机启动。卸载默认保留用户数据。
 
-## macOS 安装
+## Mac
 
-1. 在发行页选择 0.5.0 的 Apple Silicon 版本，将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`。
-2. 从 Finder 打开应用，在菜单栏找到 Ameow；默认不显示 Dock 图标。
-3. 选择打开或设置，按[快速上手](../getting-started/)完成第一次下载。
-
-更多入口与排障见[macOS 首次启动](../troubleshooting/macos-first-run/)。
-
-首次准备下载组件可能需要网络。源码开发与构建方式位于[开发者指南](../developer/)，不影响正常安装和使用。历史版本记录见[发行记录](../releases/)。
+1. 将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`，从 Finder 打开。
+2. 从菜单栏猫咪图标选择打开或设置。默认不显示 Dock 图标；入口与启动问题见[Mac 帮助](../troubleshooting/#mac)。
