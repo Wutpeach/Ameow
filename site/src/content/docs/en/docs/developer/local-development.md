@@ -23,7 +23,7 @@ cargo build --locked --bin ameow
 ./target/debug/ameow
 ```
 
-The source executable is for development. Finder startup, system login items, and full-app updates use `Ameow.app`. See the repository's [macOS packaging script](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh) for the app-bundle entry and prerequisites. A local test bundle is not an official release. Only macOS 26.3 arm64 has been tested; the declared macOS 13 minimum does not establish verification on older systems. Intel, Universal, and Linux are outside the currently verified scope.
+The source executable is for development. Finder startup, system login items, and full-app updates use `Ameow.app`. See the repository's [macOS packaging script](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh) for the app-bundle entry and prerequisites. Only macOS 26.3 arm64 has been tested; the declared macOS 13 minimum does not establish verification on older systems. Intel, Universal, and Linux are outside the currently verified scope. For normal installation, use the [downloads page](../../downloads/).
 
 ## Usage and data
 

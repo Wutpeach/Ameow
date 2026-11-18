@@ -3,11 +3,17 @@ title: Links and queue
 description: Links and queue
 ---
 
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
 Paste a public single-video link: YouTube watch, youtu.be, shorts, embed, and live; Bilibili BV, av, and b23.tv, including a single specified part. Playlist and series parameters on these video sites are rejected. Public images and limited generic links can also be attempted; see [supported sites](../../extension/supported-sites/) for scope and limits.
 
 At most three tasks occupy execution slots; others wait. A task captures quality and folder at submission. You can cancel it and retry a failed or partial result when offered. Internal recovery remains in the same task. The queue is not restored after restart; failed-task diagnostics can be copied. The old extension, cookies, and browser-session import are unavailable. See [download failures](../../troubleshooting/download-failures/).
 
 ## Queue states
+
+Select the count at Full's bottom-right to open the queue. Full shows the current download's progress; the queue shows each task separately. When complete progress data is unavailable, Ameow does not invent a percentage.
+
+<ManualFigure kind="queue" lang="en" />
 
 | State | Meaning and action |
 | --- | --- |

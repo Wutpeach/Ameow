@@ -3,11 +3,17 @@ title: 链接与队列
 description: 链接与队列
 ---
 
+import ManualFigure from '../../../../components/manual/ManualFigure.astro';
+
 粘贴公开单个视频链接：YouTube 支持 watch、youtu.be、shorts、embed、live；Bilibili 支持 BV、av、b23.tv，可指定单个分 P。这些视频网站的播放列表和系列参数会被拒绝。也可尝试公开图片和有限的通用链接，范围与限制见[支持站点](../../extension/supported-sites/)。
 
 最多三个任务占用执行槽位，其余等待。任务固定提交时的质量和目录；可取消，失败或部分完成时可按界面提示重试。内部恢复仍属于同一任务。队列不会在重启后恢复；失败时可复制诊断。当前不支持旧扩展、Cookies 或浏览器登录态导入。见[下载失败](../../troubleshooting/download-failures/)。
 
 ## 队列状态
+
+点 Full 右下角的数字查看队列。主窗口呈现当前下载进度，队列区分每个任务的状态；无完整进度数据时，不会编造百分比。
+
+<ManualFigure kind="queue" />
 
 | 状态 | 含义与操作 |
 | --- | --- |

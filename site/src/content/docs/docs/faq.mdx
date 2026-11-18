@@ -1,32 +1,40 @@
 ---
 title: 常见问题
-description: 常见问题
+description: Ameow 0.5.0 的安装、下载与使用问题。
 ---
 
-## 有 Rust 安装包吗？
+## 去哪里安装？
 
-Rust 尚未正式公开发行，当前 0.5.0 仍是源码版本，没有公开安装包或签名更新源。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且不再支持。见[下载](../downloads/)。
+在[下载页面](../downloads/)选择 Windows x64 安装版、便携版或 macOS Apple Silicon 版本。使用应用不需要 Rust 或 Python。
 
-## 支持什么？
+## 支持哪些链接？
 
-当前源码支持公开单视频和部分图片链接，也可尝试有限的通用链接；不支持旧扩展或登录态导入。见[链接与队列](../desktop/links-and-queue/)。Windows x64 和 Apple Silicon Mac 已有原生验证；Mac 仅在 macOS 26.3 实测，声明最低 macOS 13 不代表旧系统已验证。见[macOS 首次启动](../troubleshooting/macos-first-run/)。
+支持公开单视频、部分图片和图集入口，也可尝试其他公开媒体链接。不接入浏览器扩展或导入登录态，具体范围见[支持站点](../extension/supported-sites/)。
+
+## Mac 上找不到 Dock 图标？
+
+Ameow 默认在菜单栏运行。点击猫咪图标选择打开或设置。Mac 要求 macOS 13 或更新系统，实测为 26.3 arm64，见[macOS 首次启动](../troubleshooting/macos-first-run/)。
 
 ## 隐藏后任务会停止吗？
 
-不会；隐藏后下载继续，可从 Windows 托盘或 Mac 菜单栏恢复。退出会停止任务并等待安全清理，只有清理异常才显示恢复操作。文件保存在提交任务时的目录，见[找不到文件](../troubleshooting/missing-files/)。
+不会。隐藏后下载继续；退出会停止任务并等待安全清理。见[悬浮窗口](../desktop/floating-window/)。
 
 ## 猫咪会显示下载进度吗？
 
-不会。Compact 猫咪用于安静待机；任务、进度和队列集中在 Full。浅色主题是黑猫，深色主题是白猫，减少动态时保持静止。见[悬浮窗口](../desktop/floating-window/)。
+猫咪在 Compact 安静待机，进度和队列显示在 Full。浅色主题是黑猫，深色主题是白猫，减少动态时保持静止。
 
 ## 质量和保存目录什么时候生效？
 
-任务提交时固定两者；更改默认值影响后续任务。失败任务的重试沿用原值。详情见[质量与格式](../advanced/quality-and-formats/)和[输出目录](../desktop/output-folder/)。
+任务提交时固定两者。切换默认值只影响新任务；失败重试沿用原设置。见[质量与格式](../advanced/quality-and-formats/)和[输出目录](../desktop/output-folder/)。
+
+## 应用更新和组件更新有什么区别？
+
+关于页更新 Ameow，安装后需要重启应用；组件管理更新下载工具。见[设置](../desktop/settings/)和[下载组件](../advanced/download-dependencies/)。
 
 ## 可以离线使用组件吗？
 
-健康且保有签名证明的缓存可离线恢复；缺少证明的旧缓存需要联网引导。见[下载组件](../advanced/download-dependencies/)。
+健康且保有签名证明的缓存可离线恢复；缺少证明的缓存需要联网准备。见[下载组件](../advanced/download-dependencies/)。
 
 ## 下载失败怎么办？
 
-先核对公开媒体链接、任务提示和原输出目录，再查看[下载失败](../troubleshooting/download-failures/)。不要公开登录信息或私有链接。
+先核对链接、任务提示和原输出目录，再查看[下载失败](../troubleshooting/download-failures/)。反馈时不要公开登录信息或私有链接。

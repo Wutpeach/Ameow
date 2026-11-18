@@ -1,0 +1,42 @@
+---
+title: Settings
+description: General, Download, Components management, and app updates.
+---
+
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
+Open settings from Full's right-click menu, the Windows tray, or the Mac menu bar. Closing settings does not quit the app.
+
+![Windows General settings](/Ameow/images/docs/rust-settings-en-general.png)
+
+## Available settings
+
+- **General:** choose System, Light, or Dark theme; System, Chinese, or English language; tray icon and login startup.
+- **Download:** view, open, change, or copy the [output folder](../output-folder/). Choose quality in Full's right-click menu.
+- **Components management:** inspect download-tool status, check trusted versions, and confirm which version to use.
+- **About:** view the app version, check for app updates, and read third-party notices.
+
+## App updates
+
+Check for updates in About, then follow the download and restart prompts. You can enable automatic checks, background downloads, and restart after tasks finish. Running tasks finish safely first. Full's information entry and the tray/menu bar also offer update actions when applicable.
+
+<ManualFigure kind="updates" lang="en" />
+
+Components management updates download tools such as yt-dlp; it does not upgrade Ameow. See [download components](../../advanced/download-dependencies/) for version selection and recovery.
+
+Windows starts the updated version through the Launcher. Mac updates the complete `Ameow.app` and requests system authorization only when directory permissions require it. Cancelling authorization or failing verification leaves the candidate uninstalled. Follow recovery prompts if replacement or the new version's startup fails; user data is retained.
+
+## Login startup and moving the app
+
+Windows login startup points to the stable `AmeowLauncher.exe`. Exit before moving a portable folder, then check shortcuts and startup.
+
+Mac uses system login items and requires the installed `Ameow.app` to manage startup. If approval is required, follow the prompt in System Settings. Recheck login items after moving the app.
+
+## Data location
+
+| Platform | User data directory |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\Ameow` |
+| macOS | `~/Library/Application Support/AmeowNative` |
+
+Settings, component cache, and other user data live separately from the app. Old Electron configuration is not automatically imported. Do not clear these directories for routine troubleshooting.

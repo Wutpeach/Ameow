@@ -12,7 +12,7 @@ export default defineConfig({
 			plugins: [starlightThemeBlack({})],
 			customCss: ['./src/styles/pagination.css'],
 			title: 'Ameow',
-			description: 'Ameow Rust / GPUI · Windows and macOS floating downloads · Rust 源码与使用指南。',
+			description: 'Ameow 0.5.0 · Windows and macOS floating downloads · 安装与使用指南。',
 			favicon: '/ameow.ico',
 			locales: {
 				root: {
@@ -40,13 +40,14 @@ export default defineConfig({
             "docs/getting-started",
             "docs/downloads",
             "docs/concepts",
-            "docs/faq"
+            "docs/faq",
+            "docs/releases"
         ]
     },
     {
-        "label": "Rust 桌面端",
+        "label": "桌面端",
         "translations": {
-            "en": "Rust Desktop"
+            "en": "Desktop"
         },
         "items": [
             "docs/desktop/floating-window",
@@ -80,13 +81,12 @@ export default defineConfig({
         ]
     },
     {
-        "label": "历史版本与未来边界",
+        "label": "扩展与兼容",
         "translations": {
-            "en": "History & Future Scope"
+            "en": "Extensions & Compatibility"
         },
         "collapsed": true,
         "items": [
-            "docs/releases",
             "docs/browser-extension",
             "docs/extension/install",
             "docs/extension/connection",

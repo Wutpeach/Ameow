@@ -1,0 +1,26 @@
+---
+title: Output folder
+description: Choose a destination, drop a folder, and find downloaded files.
+---
+
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
+View, open, change, or copy the output folder in Download settings. Choose an existing writable folder.
+
+![Output folder in Windows Download settings](/Ameow/images/docs/rust-settings-en-download.png)
+
+## Drop a folder to change the destination
+
+Drag one writable folder onto Full and release when the pale-gray folder and glow appear. A successful save shows a colored folder, a ring, and a short status pill confirming the new destination for about two seconds. This changes the download destination; it does not move or collect the folder's contents.
+
+<ManualFigure kind="folder" lang="en" />
+
+Drop one folder at a time. Files, multiple folders, invalid paths, and unwritable folders do not switch the destination. If no success feedback appears, check the current path and any error in settings.
+
+## Open and find files
+
+Double-click Full's empty background to open the current confirmed destination in Windows Explorer or Mac Finder, or open it from settings. This action does not open the old folder while a change is being saved.
+
+Each task keeps its destination at submission. A new location affects new tasks; queued tasks and retries keep the original folder. If a file is missing, confirm the task completed and check its submission folder. See [missing files](../../troubleshooting/missing-files/).
+
+The personal path in the image is hidden. If the folder moves, permissions change, or space runs out, Ameow does not silently switch folders. Address the task message before submitting again.

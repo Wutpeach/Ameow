@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Troubleshooting
 ---
 
-Check the task status and message, then see [download failures](./download-failures/), [error messages](./error-messages/), or [missing files](./missing-files/). The old extension does not connect to Rust; see [extension disconnected](./extension-disconnected/). See [macOS first launch](./macos-first-run/) for platform scope.
+Check the task status and message, then see [download failures](./download-failures/), [error messages](./error-messages/), or [missing files](./missing-files/). The old extension does not connect to Ameow 0.5.0; see [extension disconnected](./extension-disconnected/). See [macOS first launch](./macos-first-run/) for platform scope.
 
 Copy failed-task diagnostics for a report; do not publish cookies, tokens, or private links.
 

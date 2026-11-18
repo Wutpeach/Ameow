@@ -25,6 +25,20 @@ for (const route of ['docs', 'en/docs']) {
 for (const route of ['docs/downloads', 'en/docs/downloads']) {
   assert.match(pages.get(route + '/index.html'), /<ol\b[^>]*\bsl-steps\b/i, route + ' must render Steps');
 }
+const figures = {
+  'getting-started': 'start',
+  'desktop/links-and-queue': 'queue',
+  'desktop/output-folder': 'folder',
+  'desktop/settings': 'updates',
+  'troubleshooting/macos-first-run': 'mac',
+};
+for (const locale of ['docs', 'en/docs']) for (const [route, kind] of Object.entries(figures)) {
+  const name = locale + '/' + route + '/index.html';
+  const html = pages.get(name);
+  assert(html?.includes('data-figure="' + kind + '"'), name + ' must render its workflow illustration');
+  assert.match(html, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe the illustration');
+  assert(html.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label the illustration in its locale');
+}
 // Generated static HTML is the contract: check every local URL and fragment, not only source Markdown.
 const origin = 'https://wutpeach.github.io';
 const base = '/Ameow/';

@@ -23,7 +23,7 @@ cargo build --locked --bin ameow
 ./target/debug/ameow
 ```
 
-源码可执行文件用于开发；Finder 启动、系统登录项和完整应用更新使用 `Ameow.app`。应用包入口与前置条件见仓库 [macOS 打包脚本](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh)；不要把脚本产生本地测试包等同于正式发行。当前仅在 macOS 26.3 arm64 实测，声明最低 macOS 13 不代表旧系统已经验证；Intel、Universal 和 Linux 不在当前已验证范围。
+源码可执行文件用于开发；Finder 启动、系统登录项和完整应用更新使用 `Ameow.app`。应用包入口与前置条件见仓库 [macOS 打包脚本](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh)。当前仅在 macOS 26.3 arm64 实测，声明最低 macOS 13 不代表旧系统已经验证；Intel、Universal 和 Linux 不在当前已验证范围。正常安装应用请使用[下载页面](../../downloads/)。
 
 ## 使用与数据
 

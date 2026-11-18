@@ -1,23 +1,24 @@
 ---
-title: 发行状态与历史
-description: 当前 Rust 源码状态与历史版本记录。
+title: 发行记录
+description: Ameow 0.5.0 与历史版本变化。
 ---
 
-## 当前 Rust 源码检查点
+## 0.5.0
 
-当前源码版本为 0.5.0，Windows x64 / MSVC 和 macOS Apple Silicon 的主线适配已合并。Mac 实测为 macOS 26.3；应用声明最低 macOS 13，较旧系统尚未形成通过矩阵。
+Ameow 0.5.0 使用 Rust / GPUI，在 Windows x64 和 Apple Silicon Mac 上提供轻量悬浮下载。
 
-- 两端均可使用 Full 下载界面、设置与队列；Mac 提供系统原生菜单栏菜单，Full 右键仍为应用内菜单。
-- Compact 增加随主题切换的猫咪、基础待机与双爪先抓沿再拉头的入场，普通启动复用该动作。
-- 已接入生产公钥与平台更新地址；应用自身更新与下载组件更新独立。
+- **复制链接即下载：** 粘贴公开视频、图片或支持的图集链接，查看进度与队列。质量和保存目录随任务固定。
+- **双端操作：** Windows 使用系统托盘；Mac 使用原生菜单栏菜单、Finder 目录入口与 Command+V。Full 右键菜单在两端保持一致的应用内样式。
+- **Compact 猫咪：** 随主题切换黑猫与白猫，安静待机；启动和收起时先抓住窗沿再探头。减少动态时保持静止。
+- **目录与更新：** 在设置选择目录，或拖入一个可写文件夹切换；应用更新与下载组件管理各有入口。
 
-这些是已合并的源码能力，不是已发布版本。当前尚无正式 `v0.5.0` Tag、Release、公开安装包或签名更新源。[下载与运行](../downloads/)说明当前入口，[设置与更新](../desktop/settings/)说明应用内操作。
+[下载与安装](../downloads/) · [快速上手](../getting-started/)
+
+Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64；较旧系统没有完整验证矩阵。Intel、Universal 和 Linux 不在 0.5.0 的平台范围内。
 
 ## 历史发行记录
 
-以下所有版本记录均为历史 Ameow / FlowSelect 发行，不描述当前 Rust 的功能。[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且停止支持，仅保留历史记录；Rust 尚未正式公开发行。
-
-这里保留历史稳定版与预发布版本的用户可见变化，供追溯旧版本行为；不作为当前 Rust 的安装或升级建议。
+以下是旧版 Ameow / FlowSelect 的记录，其功能与资产不代表 0.5.0。Electron v0.3.1 已停止支持；当前安装与使用请以上方 0.5.0 指南为准。
 
 ## 稳定版
 

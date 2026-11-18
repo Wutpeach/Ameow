@@ -1,8 +1,8 @@
 ---
 title: 文件与文件夹
-description: 当前 Rust 与历史文件收集功能。
+description: 拖入目录与本地文件的处理范围。
 ---
 
-当前 Rust / GPUI 不提供旧 Electron 的本地文件收集功能。不要依赖拖入文件进行移动或复制；请使用系统文件管理器整理本地素材。
+把一个可写文件夹拖到 Full 可以切换下载目录。看到成功确认后，新任务使用这个目录，步骤见[输出目录](../output-folder/)。
 
-下载文件的保存位置可在应用设置中查看和选择。历史文件及文件夹操作请查 [Electron v0.3.1 源码](https://github.com/Wutpeach/Ameow/tree/v0.3.1)或[发行页](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1)，其行为不适用于当前 Rust。
+此操作不会收集或移动本地文件。整理已有素材请使用资源管理器或 Finder，不要依赖拖入文件进行复制。

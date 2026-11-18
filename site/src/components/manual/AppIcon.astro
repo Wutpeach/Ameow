@@ -1,0 +1,23 @@
+---
+import check from '../../../../assets/check.svg?raw';
+import download from '../../../../assets/download.svg?raw';
+import clock from '../../../../assets/clock.svg?raw';
+import info from '../../../../assets/info.svg?raw';
+import close from '../../../../assets/x.svg?raw';
+import blocks from '../../../../assets/blocks.svg?raw';
+import update from '../../../../assets/circle-arrow-up.svg?raw';
+import retry from '../../../../assets/rotate-ccw.svg?raw';
+import arrow from '../../../../assets/chevron-right.svg?raw';
+import menuCat from '../../../../assets/brand/tray/macos/ameow-menu-bar-white.svg?raw';
+const icons = { check, download, clock, info, close, blocks, update, retry, arrow, menuCat };
+interface Props { name: keyof typeof icons | 'folder'; size?: number; }
+const { name, size = 16 } = Astro.props;
+const source = name === 'folder'
+  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
+  : icons[name].replaceAll('"white"', '"currentColor"');
+---
+<span class="app-icon" style={{ width: size + 'px', height: size + 'px' }} aria-hidden="true" set:html={source} />
+<style>
+  .app-icon { display: inline-flex; flex: none; vertical-align: middle; }
+  .app-icon :global(svg) { width: 100%; height: 100%; }
+</style>

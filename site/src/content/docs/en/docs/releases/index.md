@@ -1,23 +1,24 @@
 ---
-title: Release status and history
-description: Current Rust source status and historical release notes.
+title: Release notes
+description: Ameow 0.5.0 and historical version changes.
 ---
 
-## Current Rust source checkpoint
+## 0.5.0
 
-The source version is 0.5.0. Windows x64 / MSVC and macOS Apple Silicon adaptations are merged into main. Mac testing covers macOS 26.3; the app declares macOS 13 as its minimum, without a verified matrix for older systems.
+Ameow 0.5.0 uses Rust / GPUI to provide lightweight floating downloads on Windows x64 and Apple Silicon Macs.
 
-- Both platforms provide the Full download interface, settings, and queue. Mac uses a native menu bar menu while Full retains its app-styled right-click menu.
-- Compact now includes a themed cat, basic idle behavior, and an entrance with paws gripping the sill before pulling the head up, also used at normal startup.
-- A production public key and platform-specific update addresses are configured. App updates remain independent from download-component updates.
+- **Copy a link to download:** paste public video, image, or supported gallery links and see progress and the queue. Each task keeps its quality and destination.
+- **Desktop controls:** Windows uses the system tray. Mac uses a native menu bar menu, Finder folder access, and Command+V. Full keeps the same app-styled right-click menu on both platforms.
+- **The Compact cat:** black in Light theme and white in Dark, with quiet idle behavior. Its paws grip the sill before its head appears at startup or collapse. Reduced motion keeps it still.
+- **Folders and updates:** choose a destination in settings or drag one writable folder onto Full. App updates and download-component management have separate entry points.
 
-These are merged source capabilities, not a published release. There is no official `v0.5.0` tag, Release, public installer, or signed update feed yet. See [downloads and startup](../downloads/) for current entry points and [settings and updates](../desktop/settings/) for in-app actions.
+[Download and install](../downloads/) · [Get started](../getting-started/)
 
-## Historical release history
+Mac requires macOS 13 or later; testing covers macOS 26.3 arm64, without a complete verification matrix for older systems. Intel, Universal, and Linux are outside the 0.5.0 platform scope.
 
-All release notes below describe historical Ameow / FlowSelect releases, not current Rust features. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history; Rust has not been officially released.
+## Historical releases
 
-Historical stable and prerelease notes are retained to trace older behavior. They are not installation or upgrade recommendations for current Rust.
+The following notes describe older Ameow / FlowSelect versions. Their features and assets do not define 0.5.0. Electron v0.3.1 is unsupported; use the 0.5.0 guides above for current installation and usage.
 
 ## Stable Releases
 

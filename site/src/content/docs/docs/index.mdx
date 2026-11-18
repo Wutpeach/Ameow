@@ -1,18 +1,18 @@
 ---
-title: "Ameow · Rust 使用指南"
+title: "Ameow 使用指南"
 description: "Windows 与 macOS 悬浮下载：公开视频和图片、队列与可信下载组件。"
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Ameow 当前 Rust / GPUI 源码可在 Windows x64 和 Apple Silicon Mac 下载公开视频和图片，包括 YouTube、Bilibili 单视频及部分公开图片链接。其他链接的范围见[支持站点](./extension/supported-sites/)。Rust 尚未正式公开发行；[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且停止支持，仅保留历史记录。
+Ameow 0.5.0 是 Windows 和 Apple Silicon Mac 上的悬浮下载应用。复制公开媒体链接，粘贴到应用，即可查看下载进度并保存文件。具体范围见[支持站点](./extension/supported-sites/)。
 
 ![Ameow 常规设置：开机启动、主题和语言](/Ameow/images/docs/rust-settings-zh-general.png)
 
 在常规设置中选择主题、界面语言和开机启动选项。
 
 <CardGrid>
-<LinkCard title="下载与源码" href="./downloads/" description="了解发行与源码。" />
+<LinkCard title="下载与安装" href="./downloads/" description="选择 Windows 或 Mac 版本。" />
 <LinkCard title="快速上手" href="./getting-started/" description="运行应用并提交链接。" />
 <LinkCard title="链接与队列" href="./desktop/links-and-queue/" description="了解下载范围。" />
 <LinkCard title="排查问题" href="./troubleshooting/" description="检查下载状态。" />
@@ -20,8 +20,8 @@ Ameow 当前 Rust / GPUI 源码可在 Windows x64 和 Apple Silicon Mac 下载�
 
 ## 从这里开始
 
-1. 查看[下载页面](./downloads/)，了解 Rust 发行准备状态与源码运行方式。
-2. 按 Windows x64 或 Apple Silicon Mac 的[运行说明](./getting-started/)启动，打开设置并选择保存目录。
+1. 在[下载页面](./downloads/)选择你的平台并安装。
+2. 按[快速上手](./getting-started/)启动，打开设置并选择保存目录。
 3. 粘贴支持的公开单个视频链接，等待队列显示完成，再打开结果。
 
-当前 Rust 不接入旧浏览器扩展、登录态或本地文件收集；网页选择属于未来研究范围。了解[下载组件](./advanced/download-dependencies/)和[常见问题](./faq/)。
+需要调整画质、管理组件或解决问题时，查看[下载组件](./advanced/download-dependencies/)和[常见问题](./faq/)。

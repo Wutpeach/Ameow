@@ -1,21 +1,29 @@
 ---
 title: Get started
-description: Start Ameow on Windows or Apple Silicon Mac and complete your first download.
+description: Start Ameow and complete your first download.
 ---
 
-There is no public Rust installer yet. Check [downloads and startup](../downloads/) for platform scope and [local development](../developer/local-development/) for source-build prerequisites and commands. Start an existing Windows test distribution through `AmeowLauncher.exe`; open an existing macOS test build of `Ameow.app` from Finder.
+import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
-The app starts with the cat in the compact window (Compact). Move the pointer near it to expand the full window (Full). Restore a hidden window from the Windows system tray or the Mac menu bar. No Dock icon appears by default on Mac.
+Choose and install your version from [downloads](../downloads/). On Windows, open it from the Start menu or `AmeowLauncher.exe`. On Mac, open `Ameow.app` from Finder.
+
+The app starts with the cat in the compact window (Compact). Move the pointer near it to expand the full window (Full), where you paste links and see download status and the queue.
+
+<ManualFigure kind="start" lang="en" />
 
 ## Your first download
 
-1. Open settings from the Full window's right-click menu or the tray/menu bar. In Download, confirm the output folder exists and is writable; change it if needed and open it to check the location.
-2. Copy a supported public video URL in your browser, such as a single YouTube or Bilibili video. In Ameow, press `Ctrl+V` on Windows or `Command+V` on macOS to submit it.
-3. Wait for component preparation and queue processing. First-time preparation may need network access. If components need attention, open Components management and follow its prompt.
-4. Once the task shows completion, open the file in the folder selected at submission. Open that folder from settings or by double-clicking the Full window's empty background.
+1. Open settings from Full's right-click menu or the tray/Mac menu bar. Choose a destination in Download.
+2. Copy a public media link in your browser, such as a single YouTube or Bilibili video.
+3. Return to Ameow and press `Ctrl+V` on Windows or `Command+V` on Mac.
+4. Wait for downloading and post-processing to finish, then open the saved file. Open the folder from settings or double-click Full's empty background.
 
-See [supported sites](../extension/supported-sites/) for other public image and generic-link scope. Quality and output folder are captured at submission; later setting changes affect new tasks. See [links and queue](../desktop/links-and-queue/).
+On first use, the app may need network access to prepare download components. See [supported sites](../extension/supported-sites/) for public image and generic-link scope.
+
+## Queue and destination
+
+Select the count at Full's bottom-right to open the [queue](../desktop/links-and-queue/). Each task keeps its quality and destination at submission; later setting changes affect new tasks. Choose another folder in settings or drag one writable folder onto Full. See [output folder](../desktop/output-folder/).
 
 ## Hide and quit
 
-Downloads continue while hidden. Choose open from the tray or menu bar to restore the window. Quitting stops tasks and waits for safe cleanup, without a routine confirmation dialog. Only a cleanup problem displays its cause and available recovery actions. See [floating window](../desktop/floating-window/) and [download components](../advanced/download-dependencies/).
+Downloads continue while the window is hidden. Choose open from the Windows tray or Mac menu bar to restore it. Quitting stops tasks and waits for safe cleanup, normally without a dialog. Only cleanup problems display their cause and recovery actions. See [floating window](../desktop/floating-window/) for more controls.

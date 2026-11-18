@@ -1,32 +1,40 @@
 ---
 title: Frequently asked questions
-description: Frequently asked questions
+description: Installing, downloading, and using Ameow 0.5.0.
 ---
 
-## Is there a Rust installer?
+## Where do I install it?
 
-Rust has not been officially released. Version 0.5.0 is still a source version, with no public installer or signed update feed. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported. See [downloads](../downloads/).
+Choose the Windows x64 installer, portable version, or macOS Apple Silicon version on the [downloads page](../downloads/). You do not need Rust or Python to use the app.
 
-## What is supported?
+## Which links work?
 
-Current Rust source supports public single videos and some image links, and can attempt limited generic links, without the old extension or session import. See [links and queue](../desktop/links-and-queue/). Windows x64 and Apple Silicon Macs have native verification. Mac testing covers macOS 26.3 only; the declared macOS 13 minimum does not establish verification on older systems. See [first launch on macOS](../troubleshooting/macos-first-run/).
+Public single videos and selected image/gallery links are supported; other public media links can also be attempted. Browser extensions and login-session import are not available. See [supported sites](../extension/supported-sites/) for scope.
+
+## Where is the Mac Dock icon?
+
+Ameow runs in the menu bar by default. Click the cat and choose open or settings. Mac requires macOS 13 or later; testing covers 26.3 arm64. See [first launch on macOS](../troubleshooting/macos-first-run/).
 
 ## Does hiding stop tasks?
 
-No. Downloads continue while hidden; restore the window from the Windows tray or Mac menu bar. Quitting stops tasks and waits for safe cleanup; recovery actions appear only for cleanup problems. Files use the folder captured at submission; see [missing files](../troubleshooting/missing-files/).
+No. Downloads continue while hidden; quitting stops tasks and waits for safe cleanup. See [floating window](../desktop/floating-window/).
 
 ## Does the cat show download progress?
 
-No. The Compact cat is a quiet idle view; tasks, progress, and the queue appear in Full. Light theme shows a black cat, Dark a white cat, and reduced motion keeps it still. See [floating window](../desktop/floating-window/).
+The cat stays quietly in Compact; progress and the queue appear in Full. Light theme shows a black cat, Dark a white cat, and reduced motion keeps it still.
 
 ## When do quality and destination apply?
 
-Both are captured on submission; changes affect later tasks. Retrying a failure retains the original values. See [quality and formats](../advanced/quality-and-formats/) and [output folder](../desktop/output-folder/).
+Both are captured at submission. Changing defaults affects new tasks; retry keeps the original settings. See [quality and formats](../advanced/quality-and-formats/) and [output folder](../desktop/output-folder/).
+
+## How do app and component updates differ?
+
+About updates Ameow and restarts the app after installation. Components management updates download tools. See [settings](../desktop/settings/) and [download components](../advanced/download-dependencies/).
 
 ## Can components work offline?
 
-A healthy cache with signed proof can be recovered offline; an older cache without proof needs online bootstrap. See [download components](../advanced/download-dependencies/).
+A healthy cache with signed proof can recover offline. A cache without proof needs online preparation. See [download components](../advanced/download-dependencies/).
 
 ## What if a download fails?
 
-Check the public media link, task message, and original output folder, then follow [download failures](../troubleshooting/download-failures/). Do not publish login details or private links.
+Check the link, task message, and original destination, then follow [download failures](../troubleshooting/download-failures/). Do not publish login details or private links in reports.

@@ -1,8 +1,8 @@
 ---
 title: Files and folders
-description: Current Rust and historical file collection.
+description: Folder drops and local file handling.
 ---
 
-Current Rust / GPUI does not provide the old Electron local-file collection feature. Do not rely on dropping files to move or copy them; use the system file manager to organize local material.
+Drag one writable folder onto Full to change the download destination. Wait for the confirmation, then new tasks use that folder. See [output folder](../output-folder/) for the steps.
 
-You can view and choose the download destination in application settings. For historical file and folder actions, see the [Electron v0.3.1 source](https://github.com/Wutpeach/Ameow/tree/v0.3.1) or [release](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1); those behaviors do not apply to current Rust.
+This does not collect or move local files. Use Explorer or Finder to organize existing material; do not drop files into Ameow expecting them to be copied.

@@ -1,36 +1,40 @@
 ---
 title: Download Ameow
-description: Rust release status and how to run on Windows and macOS.
+description: Install Ameow 0.5.0 on Windows or Apple Silicon Mac.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI is the only product line and has not been officially released. The source version is 0.5.0, but there is no official `v0.5.0` tag, Release, public installer, or signed update feed yet. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history.
+Ameow 0.5.0 is available for Windows x64 and macOS Apple Silicon. You do not need Rust, Node, Homebrew, or Python to use the app. Ameow prepares its download components for you.
 
-## Current platform scope
+[Open GitHub releases](https://github.com/Wutpeach/Ameow/releases)
 
-| Platform | Current status |
+## Choose your version
+
+| Platform | Package and startup |
 | --- | --- |
-| Windows x64 / MSVC | Verified; can run from source. The installer and Launcher portable ZIP release process is prepared, with no public download yet. |
-| macOS Apple Silicon / arm64 | Tested on macOS 26.3. The app declares macOS 13 as its minimum; this does not establish verification on older systems. No public Rust package yet. |
-| macOS Intel, Universal, and Linux | Outside the currently verified scope. |
+| Windows x64 installer | Choose `Ameow_0.5.0_windows_x64_installer.exe`, install it, and open Ameow from the Start menu. |
+| Windows x64 portable | Choose `Ameow_0.5.0_windows_x64_portable.zip`, fully extract it, and run `AmeowLauncher.exe`. |
+| macOS Apple Silicon | Choose the macOS arm64 version and place `Ameow.app` in your Applications folder. |
+
+Mac requires macOS 13 or later. Testing covers macOS 26.3 arm64; there is no complete verification matrix for older systems. Intel Macs, Universal, and Linux are outside this version's platform scope.
+
+## Install on Windows
 
 <Steps>
-1. Check the platform scope above; historical Electron packages do not provide current Rust features.
-2. Follow [local development](../developer/local-development/) to install the toolchain and run from source. If you already have a test build, use its accompanying startup instructions.
-3. Follow [Get started](../getting-started/) to choose a destination and submit a public media link.
+1. Choose the 0.5.0 Windows x64 installer on the release page, open the setup wizard, and finish installation.
+2. Open Ameow from the Start menu. You can choose a desktop shortcut during installation.
+3. For the portable version, keep the extracted directory intact and start `AmeowLauncher.exe`. Do not move its internal executable files separately.
 </Steps>
 
-## Running on Windows
+Uninstall keeps `%LOCALAPPDATA%\Ameow` user data by default. Exit normally before moving a portable folder, then check shortcuts and login startup.
 
-Source builds require Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK. Run `cargo build --locked --bin ameow` at the repository root, then `./target/debug/ameow.exe`.
+## Install on macOS
 
-After an official release, the installer will provide a Start menu entry, Windows uninstall registration, and an optional desktop shortcut. Fully extract the portable ZIP and start `AmeowLauncher.exe`. Both use the same app and secure updater. Uninstall retains `%LOCALAPPDATA%\Ameow` user data by default.
+1. Choose the 0.5.0 Apple Silicon version on the release page and place `Ameow.app` in `/Applications` or `~/Applications`.
+2. Open it from Finder and find Ameow in the menu bar. No Dock icon appears by default.
+3. Choose open or settings, then follow [Get started](../getting-started/) for your first download.
 
-## Running on macOS
+See [first launch on macOS](../troubleshooting/macos-first-run/) for entry points and troubleshooting.
 
-Apple Silicon Macs can run from source; see [local development](../developer/local-development/) for the toolchain. If you already have a Rust test build of `Ameow.app`, place it in `/Applications` or `~/Applications`, then open it from Finder. The menu bar provides open, settings, and quit; no Dock icon appears by default. See [first launch on macOS](../troubleshooting/macos-first-run/).
-
-The app prepares and manages its download components; using it does not require a separate Node, Homebrew, or Python installation. First-time component preparation may need network access, and the output folder should exist and be writable. App updates and component updates are separate; see [settings and updates](../desktop/settings/).
-
-Assets and the old extension on historical release pages belong to older versions and do not establish current Rust features or platform support. See [release history](../releases/).
+First-time component preparation may need network access. Source development and builds are covered in the [developer guide](../developer/), separately from normal installation and use. See [release notes](../releases/) for older versions.

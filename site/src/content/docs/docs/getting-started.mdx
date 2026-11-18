@@ -1,21 +1,29 @@
 ---
 title: 快速上手
-description: 在 Windows 或 Apple Silicon Mac 启动并完成第一次下载。
+description: 启动 Ameow 并完成第一次下载。
 ---
 
-Rust 尚无公开安装包。先查看[下载与运行](../downloads/)确认平台范围；从源码运行的工具链与命令见[本地开发](../developer/local-development/)。已有 Windows 测试版从 `AmeowLauncher.exe` 启动；已有 macOS 测试版从 Finder 打开 `Ameow.app`。
+import ManualFigure from '../../../components/manual/ManualFigure.astro';
 
-启动后会看到猫咪所在的紧凑窗口（Compact）。将指针移近它即可展开完整窗口（Full）。Windows 可通过系统托盘恢复隐藏的窗口；Mac 使用菜单栏入口，默认不显示 Dock 图标。
+从[下载页面](../downloads/)选择适合你的版本并安装。Windows 从开始菜单或 `AmeowLauncher.exe` 启动；Mac 从 Finder 打开 `Ameow.app`。
+
+启动后会看到猫咪所在的紧凑窗口（Compact）。将指针移近它即可展开完整窗口（Full），在这里粘贴链接、查看下载状态和队列。
+
+<ManualFigure kind="start" />
 
 ## 第一次下载
 
-1. 从 Full 右键菜单或托盘／菜单栏打开设置，在下载页面确认输出文件夹存在且可写；需要时更改并打开它确认位置。
-2. 在浏览器复制支持的公开视频地址，例如 YouTube 或 Bilibili 单视频链接。在 Ameow 按 Windows 的 `Ctrl+V` 或 macOS 的 `Command+V` 提交。
-3. 等待组件准备和队列处理。首次准备可能需要网络；若提示组件问题，打开组件管理查看状态，按提示操作。
-4. 任务显示完成后，在提交时选定的输出目录打开文件。可从设置打开目录，也可双击 Full 的空白背景。
+1. 从 Full 右键菜单或托盘／Mac 菜单栏打开设置，在下载页面选择保存文件夹。
+2. 在浏览器复制公开媒体链接，例如 YouTube 或 Bilibili 单视频地址。
+3. 回到 Ameow，按 Windows 的 `Ctrl+V` 或 Mac 的 `Command+V` 提交。
+4. 等待下载和后处理完成，再打开输出目录中的文件。可从设置打开目录，也可双击 Full 的空白背景。
 
-其他公开图片与通用链接的范围见[支持站点](../extension/supported-sites/)。质量和输出目录在提交时固定，后续设置更改只影响新任务。详见[链接与队列](../desktop/links-and-queue/)。
+首次使用时，应用可能先联网准备下载组件。其他公开图片与通用链接的范围见[支持站点](../extension/supported-sites/)。
+
+## 查看队列与保存位置
+
+点 Full 右下角的数字打开[队列](../desktop/links-and-queue/)。每个任务沿用提交时的质量和保存目录；修改设置只影响之后提交的任务。切换目录可在设置中选择，也可把一个可写文件夹拖入 Full，见[输出目录](../desktop/output-folder/)。
 
 ## 隐藏与退出
 
-隐藏后下载继续，可从托盘或菜单栏选择打开恢复窗口。退出会停止任务并等待安全清理，正常退出不再要求确认；只有清理异常才显示原因与可用的恢复操作。详见[悬浮窗口](../desktop/floating-window/)和[下载组件](../advanced/download-dependencies/)。
+隐藏窗口后下载继续，可从 Windows 托盘或 Mac 菜单栏选择打开恢复。退出会停止任务并等待安全清理，正常情况静默完成；只有清理异常才显示原因与恢复操作。更多操作见[悬浮窗口](../desktop/floating-window/)。

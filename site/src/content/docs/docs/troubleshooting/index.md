@@ -3,7 +3,7 @@ title: 排查问题
 description: 排查问题
 ---
 
-先查看任务状态和提示，再阅读[下载失败](./download-failures/)、[错误信息](./error-messages/)或[找不到文件](./missing-files/)。旧扩展不接入 Rust，见[扩展未连接](./extension-disconnected/)；macOS 范围见[首次启动](./macos-first-run/)。
+先查看任务状态和提示，再阅读[下载失败](./download-failures/)、[错误信息](./error-messages/)或[找不到文件](./missing-files/)。Ameow 0.5.0 不连接旧扩展，见[扩展未连接](./extension-disconnected/)；macOS 范围见[首次启动](./macos-first-run/)。
 
 可复制失败任务诊断用于反馈；不要公开 Cookies、令牌或私有链接。
 

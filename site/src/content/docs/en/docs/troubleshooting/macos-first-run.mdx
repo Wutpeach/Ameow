@@ -1,0 +1,30 @@
+---
+title: First launch on macOS
+description: Installation, the menu bar, and common Mac questions.
+---
+
+import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
+
+Get the Apple Silicon version from [downloads](../../downloads/), place `Ameow.app` in `/Applications` or `~/Applications`, and open it from Finder.
+
+Mac requires macOS 13 or later. Testing covers macOS 26.3 arm64, without establishing verification on every older system. Intel and Universal are outside the 0.5.0 platform scope.
+
+## Open from the menu bar
+
+Click the cat in the menu bar to open Ameow, open Settings, or quit. No Dock icon appears by default. Closing settings keeps the app running; open settings again from the menu bar.
+
+<ManualFigure kind="mac" lang="en" />
+
+Paste a public media link into Ameow with `Command+V`. First use may prepare components over the network; no separate Homebrew or Python installation is needed. After downloading, double-click Full's empty background to open the current destination in Finder.
+
+## If the floating window is missing
+
+Choose open from the menu bar first. Compact follows ordinary Spaces but does not cover another app's fullscreen Space; return to a normal desktop to check. Full and settings have different Spaces behavior. See [floating window](../../desktop/floating-window/).
+
+## Startup, login items, and updates
+
+If macOS blocks startup, check the download source and system version, then follow that version's release instructions. Include the complete system prompt in any report.
+
+Login startup requires the installed app bundle. If macOS requests login-item approval, follow its prompt in System Settings. Updates request authorization only when directory permissions require it; cancelling does not install the candidate. See [settings](../../desktop/settings/) for separate app and download-component update controls.
+
+User data lives in `~/Library/Application Support/AmeowNative`, isolated from old Electron data. Keep this directory when troubleshooting. Copy diagnostics from a failed task or Components management and record your system version and steps.

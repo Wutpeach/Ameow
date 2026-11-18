@@ -3,7 +3,7 @@ title: 开发者指南
 description: Rust / GPUI 开发入口与项目契约。
 ---
 
-当前源码是仓库根目录的 Rust / GPUI 应用，Windows x64 / MSVC 与 macOS Apple Silicon 已有原生验证。Mac 仅在 macOS 26.3 实测；声明最低 macOS 13 不代表旧系统已验证，Intel、Universal 和 Linux 不在当前已验证范围。Rust 0.5.0 尚未正式公开发行，没有公开安装包或签名更新源；[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且停止支持。
+Ameow 0.5.0 使用 Rust / GPUI。本节面向贡献者与源码开发；安装和日常使用请从[下载](../downloads/)与[快速上手](../getting-started/)开始。
 
 - [本地开发](./local-development/)：工具链与启动。
 - [环境变量](./environment-variables/)：数据路径与测试输入。
