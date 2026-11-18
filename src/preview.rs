@@ -192,6 +192,7 @@ impl crate::Prototype {
                 let now = self.now();
                 self.clear_directory_drag();
                 self.model.locks.drop = false;
+                self.model.clear_directory(now);
                 if let Some(reduced) = self.preview.as_ref().and_then(|p| p.reduced) { self.model.set_reduced(reduced, now); }
                 self.model.state(crate::model::Stage::Idle, 0., now);
                 self.model.previous = crate::model::Stage::Idle;
@@ -219,6 +220,7 @@ impl crate::Prototype {
                     if scene.surface == "compact" { self.model.request_compact(now); }
                     else { self.model.set_target(true, now); }
                 }
+                if let Some(feedback) = scene.directory_feedback() { self.model.preview_directory(feedback, now); }
                 match scene.surface.as_str() {
                     "settings" | "components" | "diagnostics" => self.apply_preview_settings_scene(&scene, cx),
                     "tray" => self.apply_preview_tray_scene(&scene, cx),
@@ -343,19 +345,24 @@ mod tests {
         ] {
             let scene = find(name).unwrap();
             let mut ui = DownloadUi::controlled_preview();
+            let mut model = crate::model::Model::new(0, true);
             ui.set_preview_scene(&scene);
+            model.preview_directory(feedback, 0);
             assert!(ui.snapshot.as_ref().unwrap().jobs.is_empty());
             for now in [0, 2_000, 60_000] {
                 ui.hold_preview_feedback(&scene, now);
-                assert_eq!(ui.directory_feedback(false, now), Some(feedback));
-                assert!(!ui.directory_saved(now), "preview is not a SettingsSaved acknowledgement");
+                model.tick(now);
+                assert_eq!(model.directory.unwrap().feedback, feedback);
+                assert_eq!(model.stage, crate::model::Stage::Idle);
+                assert!(!ui.settings_pending, "preview does not create a save request");
             }
             assert!(!ui.request_output_directory("never-written".into(), 60_000));
             assert!(!ui.send(QueueCommand::SaveSettings(ui.settings().unwrap()), 60_000));
             assert!(!ui.send(QueueCommand::Submit { url: "https://example.invalid".into() }, 60_000));
             assert!(!ui.upstream_check_available());
             ui.set_preview_scene(&find("full.idle").unwrap());
-            assert_eq!(ui.directory_feedback(true, 60_001), None);
+            model.clear_directory(60_001);
+            assert!(model.directory.is_none());
         }
     }
     #[test]

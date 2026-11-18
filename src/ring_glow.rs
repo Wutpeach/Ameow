@@ -57,9 +57,9 @@ pub fn load(path: &str) -> Option<Vec<u8>> {
     ).into_bytes())
 }
 
-pub fn folder(color: Hsla) -> impl IntoElement {
-    svg().absolute().left(px(-PADDING)).top(px(-PADDING))
-        .size(px(FOLDER_SIZE + 2. * PADDING)).path(FOLDER_GLOW).text_color(color)
+pub fn folder(color: Hsla, scale:f32) -> impl IntoElement {
+    svg().absolute().left(px(-PADDING * scale)).top(px(-PADDING * scale))
+        .size(px((FOLDER_SIZE + 2. * PADDING) * scale)).path(FOLDER_GLOW).text_color(color)
 }
 
 #[cfg(test)]

@@ -50,12 +50,17 @@ Full SHALL 对健康 warm-cache 自检保持安静，不闪“组件已就绪”
 #### Scenario: 拖离或取消目录拖入
 
 - **WHEN** 拖拽离开窗口、Esc、取消、结束或放下
-- **THEN** 清理拖入提示、高亮和原 drop 锁；异步候选检查不得恢复已清理的拖入态。成功反馈使用短时限且不新增交互锁、窗口动画或底部 toast。
+- **THEN** 清理候选、高亮和原 drop 锁，悬浮表现按原普通 UI 退出收尾；异步候选检查不得恢复已清理的拖入态，取消不得进入成功停留。目录表现不新增全局交互锁、窗口动画或底部 toast。
+
+#### Scenario: 目录 ACK 后立即移出 Full
+
+- **WHEN** 该次 SettingsSaved 已触发目录成功表现，指针随后离开
+- **THEN** 使用与下载 Success 相同的补环、转色、标签与图形收尾时钟及 1500ms retention；反馈播放与停留期间由现有 Model 保持 Full，到期撤下目录表现，再按原 80ms 离开宽限和其他 owner 决定自动收起。目录事件不得把下载业务状态伪改为 Success；新反馈替换旧时钟，新业务阶段或主动隐藏/Compact 清理旧表现，旧截止不能清理新状态或强制收起。Reduced 直接呈现终态，生产停留不跳过。
 
 #### Scenario: Gallery 查看目录反馈
 
 - **WHEN** 选择 full.directory-hover 或 full.directory-saved
-- **THEN** 使用与真实 Full 相同的绘制，支持主题、语言及 Reduced Motion，稳定保留所选反馈以供查看；仅投影视觉，不读候选目录、不触发保存、不写用户设置或连接生产服务，不能将预览投影当作 SettingsSaved，生产约 2000ms 时限保持。
+- **THEN** 使用与真实 Full 相同的绘制和动画生命周期，支持主题与语言；Reduced 稳定保留终态，动态预览重播真实入场、成功停留及自动收起，再次选择重播。仅投影视觉，不读候选目录、不触发保存、不写用户设置或连接生产服务，不能将预览投影当作 SettingsSaved，生产使用现有 Success retention，不再使用目录旧版独立 2000ms。
 
 ### Requirement: 原生窗口与安全退出
 

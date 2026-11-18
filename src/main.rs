@@ -399,6 +399,7 @@ impl Prototype {
     }
     fn end_external_drop(&mut self, cx: &mut Context<Self>) {
         self.clear_directory_drag();
+        self.model.directory_hover(false, self.now());
         self.model.locks.drop = false;
         self.model.locks_changed(self.now());
         cx.notify();
@@ -595,6 +596,12 @@ impl Prototype {
         if self.model.locks.drop && (!cx.has_active_drag() || !self.native.as_ref().is_some_and(Native::inside)) {
             self.end_external_drop(cx);
         }
+        if self.preview.is_none() {
+            let ready = self.model.locks.drop && self.directory_drag.as_ref().is_some_and(|(_, ready)| *ready)
+                && self.downloads.as_ref().is_some_and(|ui| ui.background_actions_available() && ui.settings().is_some())
+                && !self.surface_menu.is_open();
+            self.model.directory_hover(ready, now);
+        }
         if self.demo {
             let step = (now / 2200).min(4) as u8;
             if step != self.demo_step {
@@ -622,12 +629,13 @@ impl Prototype {
         if let Some(period) = self.probe_period_ms {
             self.model.set_target((now / period).is_multiple_of(2), now);
         } else {
-            self.model
-                .pointer(self.native.as_ref().is_some_and(Native::inside), now);
+            let fixture_directory = self.preview.as_ref().is_some_and(|p| p.scene().directory_feedback().is_some());
+            self.model.pointer(!fixture_directory && self.native.as_ref().is_some_and(Native::inside), now);
         }
         self.model.tick(now);
         if let Some(preview) = &self.preview {
-            self.model.set_target(preview.scene().surface != "compact", now);
+            let directory_replay = preview.scene().directory_feedback().is_some() && !self.model.reduced;
+            if !directory_replay { self.model.set_target(preview.scene().surface != "compact", now); }
             match preview.scene().state.as_str() {
                 "success" => self.model.stage = Stage::Success,
                 "failure" => self.model.stage = Stage::Failure,
@@ -842,10 +850,8 @@ impl Render for Prototype {
             frame
         };
         let stage = self.model.stage;
-        let directory_feedback = self.downloads.as_ref().and_then(|ui| ui.directory_feedback(
-            self.model.locks.drop && self.directory_drag.as_ref().is_some_and(|(_, ready)| *ready), now,
-        )).filter(|_| self.model.target_full && !self.surface_menu.is_open());
-        let directory_hover = directory_feedback == Some(indicator::DirectoryFeedback::Receiving);
+        let directory_feedback = self.model.directory.filter(|_| !self.surface_menu.is_open());
+        let directory_hover = directory_feedback.is_some_and(model::DirectoryPresentation::receiving);
         let copied = self.copied_at.is_some_and(|t| now < t + ui_motion::COPY_FEEDBACK_MS);
         self.wake = None;
         let motion_delay = if self.demo || self.probe_period_ms.is_some()
@@ -857,14 +863,11 @@ impl Render for Prototype {
         let copy_delay = self
             .copied_at
             .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
-        let directory_delay = self.downloads.as_ref().filter(|ui| ui.directory_saved(now))
-            .and_then(|ui| ui.directory_saved_at)
-            .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
-        let delay = [motion_delay, copy_delay, directory_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay, reveal_delay]
+        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay, reveal_delay]
             .into_iter()
             .flatten()
             .min();
@@ -955,7 +958,7 @@ impl Render for Prototype {
             .w(px(96.))
             .h(px(99.))
             .opacity(alpha)
-            .when_some(directory_feedback, |s, feedback| s.child(indicator::directory_feedback(p, feedback, self.language)))
+            .when_some(directory_feedback, |s, feedback| s.child(indicator::directory_feedback(p, feedback, self.language, now, self.model.reduced)))
             .when(directory_feedback.is_none(), |s| s
                 .child(indicator::ring(frame))
                 .child(indicator::center(frame))
@@ -1153,7 +1156,7 @@ impl Render for Prototype {
                 if this.surface_menu.is_open() { this.end_external_drop(cx); cx.stop_propagation(); return; }
                 if !event.bounds.contains(&event.event.position) { this.end_external_drop(cx); return; }
                 this.background_clicks.reset();
-                if !this.model.locks.drop && let Some(ui) = &mut this.downloads { ui.directory_saved_at = None; }
+                if !this.model.locks.drop { this.model.clear_directory(this.now()); }
                 this.model.locks.drop = true;
                 this.model.locks_changed(this.now());
                 let paths = event.drag(cx).paths().to_vec();

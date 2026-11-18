@@ -91,7 +91,6 @@ pub struct DownloadUi {
     pub settings_pending: bool,
     pub settings_status: SettingsStatus,
     directory_drop_pending: bool,
-    pub directory_saved_at: Option<u64>,
     acknowledged_settings: Option<Settings>,
     pub queue_open: bool,
     pub exit_open: bool,
@@ -295,7 +294,6 @@ impl DownloadUi {
         self.settings_status = SettingsStatus::Idle;
         self.settings_pending = scene.surface == "menu" && scene.state == "saving";
         self.directory_drop_pending = false;
-        self.directory_saved_at = None;
         self.row_notices.clear();
         self.retry_pending.clear();
         self.preparation_status = None;
@@ -367,7 +365,6 @@ impl DownloadUi {
             settings_pending: false,
             settings_status: SettingsStatus::Idle,
             directory_drop_pending: false,
-            directory_saved_at: None,
             acknowledged_settings: None,
             queue_open: false,
             exit_open: false,
@@ -505,11 +502,9 @@ impl DownloadUi {
     pub fn background_actions_available(&self) -> bool {
         !self.queue_open && !self.exit_open && !self.settings_pending
     }
-    fn complete_settings(&mut self,reply:CommandReply, now:u64) {
-        if self.directory_drop_pending {
-            self.directory_saved_at = matches!(&reply, CommandReply::SettingsSaved(_)).then_some(now);
-            self.directory_drop_pending = false;
-        }
+    fn complete_settings(&mut self,reply:CommandReply, _now:u64) -> bool {
+        let directory_saved = self.directory_drop_pending && matches!(&reply, CommandReply::SettingsSaved(_));
+        self.directory_drop_pending = false;
         if let CommandReply::SettingsSaved(settings)=&reply {self.acknowledged_settings=Some(settings.clone());}
         self.settings_pending=false;
         self.settings_status=match &reply {
@@ -517,6 +512,7 @@ impl DownloadUi {
             CommandReply::Error(error) => SettingsStatus::Failed(format!("保存失败，默认设置未更改。{error}")),
             _ => SettingsStatus::Failed("设置未保存，请重试".into()),
         };
+        directory_saved
     }
     fn request_quality(&mut self,quality:Quality,now:u64) -> bool {
         if self.settings_pending{return false;}
@@ -543,7 +539,6 @@ impl DownloadUi {
         self.request_settings(settings, now)
     }
     fn request_settings(&mut self, settings:Settings, now:u64) -> bool {
-        self.directory_saved_at = None;
         self.settings_pending=self.send(QueueCommand::SaveSettings(settings),now);
         self.settings_status=if self.settings_pending {SettingsStatus::Saving} else {SettingsStatus::Failed("保存未受理，请稍后重试".into())};
         self.settings_pending
@@ -558,20 +553,9 @@ impl DownloadUi {
     }
     fn request_dropped_directory(&mut self, paths:&[PathBuf], now:u64) {
         if self.settings_pending { return; }
-        self.directory_saved_at = None;
         if let Some(path) = crate::surface_actions::single_drop(paths) {
             self.directory_drop_pending = self.request_output_directory(path, now);
         }
-    }
-    pub fn directory_saved(&self, now:u64) -> bool {
-        self.directory_saved_at.is_some_and(|at| now.saturating_sub(at) < crate::ui_motion::COPY_FEEDBACK_MS)
-    }
-    pub fn directory_feedback(&self, candidate_ready:bool, now:u64) -> Option<indicator::DirectoryFeedback> {
-        if let Some(scene) = &self.named_preview { return scene.directory_feedback(); }
-        if candidate_ready && self.background_actions_available() && self.settings().is_some() {
-            Some(indicator::DirectoryFeedback::Receiving)
-        } else if self.directory_saved(now) { Some(indicator::DirectoryFeedback::Saved) }
-        else { None }
     }
     fn request_menu_exit(&mut self) {
         self.evidence(serde_json::json!({"type":"exit-request","source":"main-menu"}));
@@ -1562,7 +1546,7 @@ impl Prototype {
                     if let Some(generation) = self.menu_save_generation.take() {
                         menu_saved = self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)), now);
                     }
-                    ui.complete_settings(reply, now);
+                    if ui.complete_settings(reply, now) && !ui.hidden { self.model.directory_saved(now); }
                 }
                 UiReply::Diagnostic { job, text } => {
                     let result = self
@@ -1968,6 +1952,8 @@ impl Prototype {
         content.into_any_element()
     }
     fn hide_downloads(&mut self,cx:&mut Context<Self>) {
+        self.end_external_drop(cx);
+        self.model.clear_directory(self.now());
         self.close_menu(cx);
         if self.tray.is_some() && let Some(native)=&self.native {tray::Tray::hide(native.hwnd);if let Some(ui)=&mut self.downloads{ui.hidden=true;}}
     }
@@ -2704,10 +2690,9 @@ mod tests {
         std::fs::create_dir(&output).unwrap();
         ui.request_dropped_directory(&[output.clone()], 10);
         let saved = backend.apply(receiver.recv_timeout(Duration::from_secs(1)).unwrap());
-        assert!(!ui.directory_saved(20), "persistence is not yet a UI acknowledgement");
+        assert!(ui.directory_drop_pending, "persistence is not yet a UI acknowledgement");
         assert_eq!(ui.settings(), Some(acknowledged.clone()));
-        ui.complete_settings(saved, 30);
-        assert!(ui.directory_saved(30));
+        assert!(ui.complete_settings(saved, 30));
         let acknowledged = ui.settings().unwrap();
         assert_eq!(acknowledged.output_dir, output.canonicalize().unwrap());
         let accepted_bytes = std::fs::read(&path).unwrap();
@@ -2715,8 +2700,7 @@ mod tests {
             ui.request_dropped_directory(&[invalid], 40);
             let rejected = backend.apply(receiver.recv_timeout(Duration::from_secs(1)).unwrap());
             assert!(matches!(&rejected, CommandReply::Error(_)));
-            ui.complete_settings(rejected, 50);
-            assert!(!ui.directory_saved(50));
+            assert!(!ui.complete_settings(rejected, 50));
             assert_eq!(ui.settings(), Some(acknowledged.clone()));
             assert_eq!(std::fs::read(&path).unwrap(), accepted_bytes);
         }
@@ -2795,47 +2779,42 @@ mod tests {
         use super::*;
         let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
         ui.queue_open = false;
-        assert_eq!(ui.directory_feedback(false, 0), None);
-        assert_eq!(ui.directory_feedback(true, 0), Some(indicator::DirectoryFeedback::Receiving));
+        let mut model = crate::model::Model::new(0, true);
         let old = ui.settings().unwrap();
         ui.request_dropped_directory(&["candidate".into()], 10);
         assert!(ui.settings_pending);
-        assert!(!ui.directory_saved(10));
-        assert_eq!(ui.directory_feedback(false, 10), None);
-        assert_eq!(ui.directory_feedback(true, 10), None, "pending save cannot advertise another folder");
+        assert!(model.directory.is_none());
         assert_eq!(ui.settings(), Some(old.clone()));
         ui.request_dropped_directory(&["ignored-while-pending".into()], 11);
         let QueueCommand::SaveSettings(mut saved) = receiver.try_recv().unwrap() else { panic!("settings command") };
         assert!(receiver.try_recv().is_err());
         saved.output_dir = "canonical-owner-path".into();
-        ui.complete_settings(CommandReply::SettingsSaved(saved.clone()), 100);
+        assert!(ui.complete_settings(CommandReply::SettingsSaved(saved.clone()), 100));
+        model.directory_saved(100);
+        assert!(!ui.complete_settings(CommandReply::SettingsSaved(saved.clone()), 101), "duplicate or unrelated ACK cannot replay feedback");
         assert_eq!(ui.settings(), Some(saved.clone()));
-        assert!(ui.directory_saved(100));
-        assert_eq!(ui.directory_feedback(false, 100), Some(indicator::DirectoryFeedback::Saved));
-        assert!(ui.directory_saved(100 + crate::ui_motion::COPY_FEEDBACK_MS - 1));
-        assert!(!ui.directory_saved(100 + crate::ui_motion::COPY_FEEDBACK_MS));
-        assert_eq!(ui.directory_feedback(false, 100 + crate::ui_motion::COPY_FEEDBACK_MS), None);
+        model.tick(100 + Stage::Success.retention() - 1);
+        assert_eq!(model.directory.unwrap().feedback, indicator::DirectoryFeedback::Saved);
+        model.tick(100 + Stage::Success.retention());
+        assert!(model.directory.is_none());
         ui.request_dropped_directory(&["another".into()], 200);
-        assert!(!ui.directory_saved(200));
         let _ = receiver.try_recv().unwrap();
-        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 210);
-        assert!(!ui.directory_saved(210));
+        assert!(!ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 210));
         assert_eq!(ui.settings(), Some(saved));
         assert!(matches!(ui.settings_status, SettingsStatus::Failed(_)));
         assert!(ui.request_quality(Quality::Saver, 220));
         let QueueCommand::SaveSettings(preferences) = receiver.try_recv().unwrap() else { panic!("settings command") };
-        ui.complete_settings(CommandReply::SettingsSaved(preferences), 230);
-        assert!(!ui.directory_saved(230), "other setting saves cannot confirm a folder drop");
+        assert!(!ui.complete_settings(CommandReply::SettingsSaved(preferences), 230), "other setting saves cannot confirm a folder drop");
         for paths in [vec![], vec!["one".into(), "two".into()]] {
             ui.request_dropped_directory(&paths, 240);
             assert!(!ui.settings_pending);
-            assert!(!ui.directory_saved(240));
+            assert!(!ui.directory_drop_pending);
             assert!(receiver.try_recv().is_err());
         }
         drop(receiver);
         ui.request_dropped_directory(&["disconnected".into()], 250);
         assert!(!ui.settings_pending);
-        assert!(!ui.directory_saved(250));
+        assert!(!ui.directory_drop_pending);
         assert!(matches!(ui.settings_status, SettingsStatus::Failed(_)));
     }
     #[test]

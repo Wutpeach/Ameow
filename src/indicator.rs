@@ -7,8 +7,8 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DirectoryFeedback { Receiving, Saved }
+pub use crate::model::DirectoryFeedback;
+use crate::model::{DirectoryPresentation, Progress};
 impl DirectoryFeedback {
     pub fn label(self, language: crate::ui_text::Language) -> &'static str {
         match self {
@@ -16,31 +16,51 @@ impl DirectoryFeedback {
             Self::Saved => language.text("目录已更新", "Folder updated"),
         }
     }
-    fn frame(self, p: Palette) -> Frame {
+    fn frame(self, p: Palette, at:u64, now:u64, reduced:bool) -> Frame {
         // Presentation only: neither feedback enters the download lifecycle or carries progress.
         let stage = if self == Self::Saved { Stage::Success } else { Stage::Cancelled };
-        let color = if self == Self::Saved { p.green } else { p.neutral };
-        Frame { stage, previous: stage, color, previous_color: color, palette: p,
-            start: 0., sweep: 1., blue_trace: 0., symbol: 0., mix: 1.,
-            percent: 0., center_alpha: 0., symbol_scale: 1. }
+        let motion = success_motion(now.saturating_sub(at), reduced);
+        let color = if self == Self::Saved { p.neutral.blend(p.green.opacity(motion.color_mix)) } else { p.neutral };
+        let mut progress = Progress::new(0., at); progress.update(1., at);
+        Frame { stage, previous: stage, color, previous_color: p.neutral, palette: p,
+            start: 0., sweep: if reduced { 1. } else { progress.sample(now) }, blue_trace: 0., symbol: 0.,
+            mix: if self == Self::Saved { motion.label_mix } else { crate::model::label_mix_at(stage, at, now, reduced) },
+            percent: 0., center_alpha: 0., symbol_scale: if self == Self::Saved { motion.scale } else { 1. } }
     }
-    fn ring_frame(self, p: Palette) -> Option<Frame> {
-        (self == Self::Saved).then(|| self.frame(p))
+    fn ring_frame(self, p: Palette, at:u64, now:u64, reduced:bool) -> Option<Frame> {
+        (self == Self::Saved).then(|| self.frame(p, at, now, reduced))
     }
 }
 
-pub fn directory_feedback(p: Palette, feedback: DirectoryFeedback, language: crate::ui_text::Language) -> Div {
-    let frame = feedback.frame(p);
-    let color = if feedback == DirectoryFeedback::Saved { p.green }
+pub fn directory_feedback(p: Palette, state: DirectoryPresentation, language: crate::ui_text::Language, now:u64, reduced:bool) -> Div {
+    let feedback = state.feedback;
+    let frame = feedback.frame(p, state.at, now, reduced);
+    let alpha = state.alpha(now, reduced);
+    let color = if feedback == DirectoryFeedback::Saved { frame.color }
         else { p.neutral.opacity(if p.night { 1. } else { 0.8 }) };
-    div().absolute().w(px(96.)).h(px(75.))
-        .when_some(feedback.ring_frame(p), |s, frame| s.child(ring(frame)))
+    div().absolute().top(px((1. - alpha) * 5.)).w(px(96.)).h(px(75.)).opacity(alpha)
+        .when_some(feedback.ring_frame(p, state.at, now, reduced), |s, frame| s.child(ring(frame)))
         .child(div().absolute().left(px(23.)).top_0().size(px(50.))
             .flex().items_center().justify_center()
-            .child(div().relative().size(px(ring_glow::FOLDER_SIZE))
-                .child(ring_glow::folder(color.opacity(tokens::RING_GLOW_OPACITY)))
+            .child(div().relative().size(px(ring_glow::FOLDER_SIZE * frame.symbol_scale))
+                .child(ring_glow::folder(color.opacity(tokens::RING_GLOW_OPACITY), frame.symbol_scale))
                 .child(svg().path("icons/folder.svg").size_full().text_color(color))))
-        .child(label_with_color(frame, Some(feedback.label(language).into()), frame.color))
+        .child(label_with_color(frame, Some(feedback.label(language).into()),
+            if feedback == DirectoryFeedback::Saved { p.green } else { p.neutral },
+            if feedback == DirectoryFeedback::Saved { DirectoryFeedback::Receiving.label(language).into() } else { String::new() }, false))
+}
+
+struct SuccessMotion { color_mix:f32, label_mix:f32, scale:f32 }
+fn success_motion(elapsed:u64, reduced:bool) -> SuccessMotion {
+    if reduced { return SuccessMotion { color_mix:1., label_mix:1., scale:1. }; }
+    let settle = elapsed.saturating_sub(PROGRESS_MS + 180) as f32 / 1000.;
+    SuccessMotion {
+        color_mix: (elapsed.saturating_sub(PROGRESS_MS) as f32 / 110.).clamp(0., 1.),
+        label_mix: (elapsed.saturating_sub(PROGRESS_MS + 50) as f32 / 160.).clamp(0., 1.),
+        scale: if elapsed >= PROGRESS_MS + 180 && settle < 0.25 {
+            1. - 0.025 * (-18. * settle).exp() * (40. * settle).cos()
+        } else { 1. },
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -97,6 +117,7 @@ impl Indicator {
         }
         let (mut start, mut sweep) = m.arc(now);
         let elapsed = now.saturating_sub(m.stage_at);
+        let success = success_motion(elapsed, m.reduced);
         if m.stage == Stage::Downloading && m.previous == Stage::Resolving && !m.reduced {
             let t = (elapsed as f32 / 180.).clamp(0., 1.);
             // Use the nearest equivalent top angle, preserving the resolver's last orientation.
@@ -120,7 +141,7 @@ impl Indicator {
         if !m.reduced && m.stage == Stage::Success && !closure {
             color = p
                 .ring(m.previous)
-                .blend(color.opacity(((elapsed - PROGRESS_MS) as f32 / 110.).clamp(0., 1.)));
+                .blend(color.opacity(success.color_mix));
         }
         if !m.reduced && matches!(m.stage, Stage::Failure | Stage::Partial) {
             color = p
@@ -146,20 +167,11 @@ impl Indicator {
             _ => 0.,
         };
         let mix = if m.stage == Stage::Success && !m.reduced {
-            (elapsed.saturating_sub(PROGRESS_MS + 50) as f32 / 160.).clamp(0., 1.)
+            success.label_mix
         } else {
             m.label_mix(now)
         };
-        let settle = elapsed.saturating_sub(PROGRESS_MS + 180) as f32 / 1000.;
-        let symbol_scale = if m.stage == Stage::Success
-            && !m.reduced
-            && elapsed >= PROGRESS_MS + 180
-            && settle < 0.25
-        {
-            1. - 0.025 * (-18. * settle).exp() * (40. * settle).cos()
-        } else {
-            1.
-        };
+        let symbol_scale = if m.stage == Stage::Success { success.scale } else { 1. };
         Frame {
             stage: m.stage,
             previous: m.previous,
@@ -200,10 +212,10 @@ mod tests {
         use crate::ui_text::Language;
         for night in [false, true] {
             let p = Palette::new(night);
-            let receiving = DirectoryFeedback::Receiving.frame(p);
-            let saved = DirectoryFeedback::Saved.frame(p);
-            assert!(DirectoryFeedback::Receiving.ring_frame(p).is_none());
-            assert!(DirectoryFeedback::Saved.ring_frame(p).is_some());
+            let receiving = DirectoryFeedback::Receiving.frame(p, 0, 0, true);
+            let saved = DirectoryFeedback::Saved.frame(p, 0, 0, true);
+            assert!(DirectoryFeedback::Receiving.ring_frame(p, 0, 0, true).is_none());
+            assert!(DirectoryFeedback::Saved.ring_frame(p, 0, 0, true).is_some());
             assert_eq!(receiving.color, p.neutral);
             assert_eq!(saved.color, p.ring(Stage::Success));
             assert_eq!(saved.palette.pill(saved.stage), p.pill(Stage::Success));
@@ -217,6 +229,26 @@ mod tests {
         assert_eq!(DirectoryFeedback::Receiving.label(Language::English), "Drop to set folder");
         assert_eq!(DirectoryFeedback::Saved.label(Language::Chinese), "目录已更新");
         assert_ne!(DirectoryFeedback::Saved.label(Language::Chinese), Stage::Success.name());
+    }
+    #[test]
+    fn directory_motion_samples_the_same_success_ring_label_and_settle_clock() {
+        use super::DirectoryFeedback;
+        let p = Palette::new(false);
+        let mut model = Model::new(0, false);
+        model.state(Stage::Cancelled, 0., 0);
+        model.state(Stage::Success, 1., 10);
+        let mut indicator = Indicator::default();
+        for elapsed in [0, 80, 219, 220, 270, 330, 400, 500, 700] {
+            let folder = DirectoryFeedback::Saved.frame(p, 10, 10 + elapsed, false);
+            let download = indicator.sample(&model, p, 10 + elapsed);
+            assert_eq!(folder.sweep, download.sweep);
+            assert_eq!(folder.mix, download.mix);
+            assert_eq!(folder.symbol_scale, download.symbol_scale);
+            assert_eq!(folder.symbol, 0.);
+            assert_eq!(folder.center_alpha, 0.);
+        }
+        assert_eq!(DirectoryFeedback::Saved.frame(p, 10, 10, false).sweep, 0.);
+        assert_eq!(DirectoryFeedback::Saved.frame(p, 10, 340, false).color, p.green);
     }
 }
 
@@ -469,11 +501,11 @@ pub fn label(f: Frame) -> impl IntoElement {
     label_with_text(f, None)
 }
 pub fn label_with_text(f: Frame, text: Option<String>) -> impl IntoElement {
-    label_with_color(f, text, f.palette.ring(f.stage))
-}
-fn label_with_color(f: Frame, text: Option<String>, color: Hsla) -> Div {
-    let p = f.palette;
     let live = text.is_some();
+    label_with_color(f, text, f.palette.ring(f.stage), f.previous.name().into(), live)
+}
+fn label_with_color(f: Frame, text: Option<String>, color: Hsla, previous:String, live:bool) -> Div {
+    let p = f.palette;
     div()
         .absolute()
         .left(px(0.))
@@ -499,7 +531,7 @@ fn label_with_color(f: Frame, text: Option<String>, color: Hsla) -> Div {
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(f.previous_color)
                 .opacity(if live { 0. } else { 1. - f.mix })
-                .child(f.previous.name()),
+                .child(previous),
         )
         .child(
             div()
