@@ -29,8 +29,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir(&input)?;
     let app = fs::read(&args[1])?;
     let launcher = fs::read(&args[2])?;
+    let cli = fs::read(PathBuf::from(&args[1]).parent().ok_or("fixture app directory")?.join("ameow-cli.exe"))?;
     fs::write(input.join("Ameow.exe"), &app)?;
     fs::write(input.join("AmeowLauncher.exe"), &launcher)?;
+    fs::write(input.join("ameow-cli.exe"), &cli)?;
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let requirements: serde_json::Value = serde_json::from_slice(&fs::read(
         repository.join("distribution/license-inputs.json"),
@@ -55,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     // All-zero source identity deliberately identifies a synthetic layout fixture, not a release build.
     let build = Build {
-        schema: 1,
+        schema: 2,
         version: args[3].clone(),
         target: TARGET.into(),
         commit: "0".repeat(40),
@@ -68,6 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         trust: trust.clone(),
         app: FileRecord::of("Ameow.exe", &app),
         launcher: FileRecord::of("AmeowLauncher.exe", &launcher),
+        cli: Some(FileRecord::of("ameow-cli.exe", &cli)),
         notices,
     };
     fs::write(

@@ -10,6 +10,7 @@ repository=$(cd "$(dirname "$0")/.." && pwd -P)
 executable=$1
 destination=$2
 updater="$(dirname "$executable")/ameow-updater"
+cli="$(dirname "$executable")/ameow-cli"
 if [[ $(uname -s) != Darwin || $(uname -m) != arm64 ]]; then
     printf 'Packaging requires an Apple Silicon Mac.\n' >&2
     exit 1
@@ -20,6 +21,10 @@ if [[ ! -f $executable || ! -x $executable || $(lipo -archs "$executable") != ar
 fi
 if [[ ! -f $updater || ! -x $updater || $(lipo -archs "$updater") != arm64 ]]; then
     printf 'Expected an arm64 ameow-updater beside the application executable.\n' >&2
+    exit 1
+fi
+if [[ ! -f $cli || ! -x $cli || $(lipo -archs "$cli") != arm64 ]]; then
+    printf 'Expected an arm64 ameow-cli beside the application executable.\n' >&2
     exit 1
 fi
 if [[ $destination != /* || $(basename "$destination") != Ameow.app || -e $destination || -L $destination ]]; then
@@ -34,8 +39,9 @@ fi
 version=$(sed -n 's/^version = "\([0-9][0-9.]*\)"$/\1/p' "$repository/Cargo.toml" | head -n 1)
 minimum=$(xcrun vtool -show-build "$executable" | awk '/^[[:space:]]*minos / { print $2; exit }')
 updater_minimum=$(xcrun vtool -show-build "$updater" | awk '/^[[:space:]]*minos / { print $2; exit }')
-if [[ -z $version || -z $minimum || $minimum != "$updater_minimum" ]]; then
-    printf 'Cannot determine matching deployment targets for the application and updater.\n' >&2
+cli_minimum=$(xcrun vtool -show-build "$cli" | awk '/^[[:space:]]*minos / { print $2; exit }')
+if [[ -z $version || -z $minimum || $minimum != "$updater_minimum" || $minimum != "$cli_minimum" ]]; then
+    printf 'Cannot determine matching deployment targets for the application, updater, and CLI.\n' >&2
     exit 1
 fi
 minimum_major=${minimum%%.*}
@@ -49,6 +55,7 @@ bundle="$staging/Ameow.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$staging/ameow.iconset"
 cp "$executable" "$bundle/Contents/MacOS/ameow"
 cp "$updater" "$bundle/Contents/MacOS/ameow-updater"
+cp "$cli" "$bundle/Contents/MacOS/ameow-cli"
 cp "$repository/site/public/ameow-logo.png" "$staging/ameow.iconset/icon_256x256.png"
 cp "$repository/site/public/ameow-logo.png" "$staging/ameow.iconset/icon_128x128@2x.png"
 iconutil -c icns "$staging/ameow.iconset" -o "$bundle/Contents/Resources/ameow.icns"
@@ -72,6 +79,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
 PLIST
 plutil -lint "$bundle/Contents/Info.plist"
 codesign --force --sign - "$bundle/Contents/MacOS/ameow-updater"
+codesign --force --sign - "$bundle/Contents/MacOS/ameow-cli"
 codesign --force --sign - "$bundle"
 codesign --verify --deep --strict "$bundle"
 mv "$bundle" "$destination"

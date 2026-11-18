@@ -133,7 +133,8 @@ pub enum SettingsStatus {
 }
 impl DownloadUi {
     pub fn start() -> Self {
-        let launch = ameow_next::app_update::session::Session::from_env().expect("validated launcher session").map(Arc::new);
+        let isolated = std::env::args().any(|arg|arg=="--instance-root");
+        let launch = if isolated { None } else { ameow_next::app_update::session::Session::from_env().expect("validated launcher session").map(Arc::new) };
         let worker_launch = launch.clone();
         let (commands, receiver) = mpsc::sync_channel(64);
         let (evidence, evidence_receiver) = mpsc::sync_channel(64);
@@ -145,9 +146,10 @@ impl DownloadUi {
             let args: Vec<_> = std::env::args().collect();
             let value = |name: &str| args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).cloned();
             let setup = (|| {
-                let root = value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)?;
-                let settings_path = value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json"));
-                let output_dir = value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)?;
+                let isolated = ameow_next::control::isolated_root(&args).map_err(|e|e.to_string())?;
+                let root = match &isolated { Some(root) => root.join("runtime"), None => value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)? };
+                let settings_path = match &isolated { Some(root) => root.join("settings.json"), None => value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json")) };
+                let output_dir = match &isolated { Some(root) => root.join("output"), None => value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)? };
                 ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default() })
             })();
             let coordinator = match setup {
@@ -170,9 +172,20 @@ impl DownloadUi {
             let update_fixture=value("--app-update-fixture-dir").map(PathBuf::from);
             #[cfg(not(all(feature="app-update-fixture",debug_assertions)))]
             let update_fixture=None;
-            let updates=ameow_next::app_update::service::Handle::start(settings_path,worker_launch.clone(),update_fixture);
+            let updates=if value("--instance-root").is_some() { ameow_next::app_update::service::Handle::default() } else { ameow_next::app_update::service::Handle::start(settings_path,worker_launch.clone(),update_fixture) };
             let _=sender.send(UiReply::AppUpdate(updates.clone()));
             let started = Instant::now();
+            let control_root = ameow_next::control::root(value("--instance-root").map(PathBuf::from));
+            let mut control = match control_root.and_then(|root| ameow_next::control::Server::start(&root)) {
+                Ok(server) => {
+                    append_evidence(&mut evidence, &started, serde_json::json!({"type":"control-start","pid":std::process::id(),"instance_id":server.instance_id,"protocol_version":ameow_next::control::PROTOCOL_VERSION}));
+                    Some(server)
+                },
+                Err(error) => {
+                    append_evidence(&mut evidence, &started, serde_json::json!({"type":"control-error","code":error.code}));
+                    None
+                }
+            };
             let mut last_revision = None;
             for pair in args.windows(2).filter(|pair| pair[0] == "--queue-submit") {
                 if worker_launch.is_some() { continue; }
@@ -222,6 +235,15 @@ impl DownloadUi {
                     Err(mpsc::RecvTimeoutError::Disconnected) => { disconnected = true; coordinator.stop(); std::thread::sleep(Duration::from_millis(80)); }
                 }
                 for event in evidence_receiver.try_iter() { append_evidence(&mut evidence, &started, event); }
+                if let Some(control) = &mut control {
+                    let allowed = worker_launch.as_ref().is_none_or(|session| session.commands_allowed());
+                    let startup_pending = worker_launch.as_ref().is_some_and(|session| !session.accepted.load(std::sync::atomic::Ordering::Acquire));
+                    for (source, reply) in control.poll(&coordinator, allowed, startup_pending) {
+                        append_evidence(&mut evidence, &started, reply_summary(&reply));
+                        let event = match source { Some(source) => UiReply::Retry { source, reply }, None => UiReply::Reply(reply) };
+                        let _ = sender.send(event);
+                    }
+                }
                 #[cfg(target_os = "macos")]
                 if let Some(session) = &worker_launch { session.attest_download_owner(!disconnected); }
                 updates.poll(&coordinator,worker_launch.as_deref());
@@ -409,7 +431,7 @@ impl DownloadUi {
         if self.app_update.as_ref().is_some_and(|s| !s.commands_allowed())
             && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) { return false; }
         if self.named_preview.is_some() { return false; }
-        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
+        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
             return false;
         }
         match self.commands.try_send(command) {
@@ -762,7 +784,7 @@ fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_
 }
 pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
     match command {
-        QueueCommand::Submit { .. } => serde_json::json!({"type":"command","command":"submit"}),
+        QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } => serde_json::json!({"type":"command","command":"submit"}),
         QueueCommand::SaveSettings(settings) => {
             serde_json::json!({"type":"command","command":"save-settings","quality":settings.quality,"theme":settings.theme,"language":settings.language,"tray_icon":settings.tray_icon})
         }

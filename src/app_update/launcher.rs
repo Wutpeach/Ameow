@@ -130,7 +130,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
             #[cfg(windows)]
             if let Ok(crate::login_startup::InstanceAcquire::Duplicate) =
                 crate::login_startup::InstanceGuard::acquire_with_restore(
-                    !args.iter().any(|a| a == "--login-startup"),
+                    !args.iter().any(|a| matches!(a.as_str(), "--login-startup" | "--cli-launch")),
                 )
             {
                 return Ok(());
@@ -141,7 +141,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
     // A direct developer app may own the shared identity independently of this launcher.
     #[cfg(windows)]
     match crate::login_startup::InstanceGuard::acquire_with_restore(
-        !args.iter().any(|a| a == "--login-startup"),
+        !args.iter().any(|a| matches!(a.as_str(), "--login-startup" | "--cli-launch")),
     )? {
         crate::login_startup::InstanceAcquire::Duplicate => return Ok(()),
         crate::login_startup::InstanceAcquire::Primary(guard) => drop(guard),
