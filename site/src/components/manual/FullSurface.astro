@@ -2,8 +2,10 @@
 import AppIcon from './AppIcon.astro';
 interface Props { state?: 'idle' | 'progress' | 'hover' | 'saved'; en?: boolean; }
 const { state = 'idle', en = false } = Astro.props;
+// PR42 22a5f059: the bundled GPUI Kit 0.9.0 folder artwork, at 24px in both states.
+const folderOutline = 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z';
 ---
-<div class="full-surface">
+<div class:list={['full-surface', { receiving: state === 'hover' }]}>
   <span class="close"><AppIcon name="close" size={12} /></span>
   {state === 'progress' && <div class="indicator">
     <!-- src/indicator.rs: 50px canvas, r=22.5, 5px stroke, top origin. -->
@@ -21,18 +23,19 @@ const { state = 'idle', en = false } = Astro.props;
         <circle class="ring-glow" cx="25" cy="25" r="22.5" fill="none" stroke="currentColor" stroke-width="5" />
         <circle cx="25" cy="25" r="22.5" fill="none" stroke="currentColor" stroke-width="5" />
       </>}
-      <g transform={state === 'hover' ? 'translate(6 6) scale(1.58)' : 'translate(13 13)'} fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        {state === 'hover' && <path class="ring-glow" d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" />}
-        <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" />
+      <g class="folder-icon" transform="translate(13 13)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path class="ring-glow" d={folderOutline} />
+        <path d={folderOutline} />
       </g>
     </svg>
-    {state === 'saved' && <span class="status directory-status">{en ? 'Folder updated' : '下载目录已更新'}</span>}
+    <span class="status directory-status">{state === 'hover' ? (en ? 'Drop to set folder' : '松开设为目录') : (en ? 'Folder updated' : '目录已更新')}</span>
   </div>}
   <span class="info"><AppIcon name="info" size={14} /></span>
   {state === 'progress' && <span class="queue-badge">4</span>}
 </div>
 <style>
   .full-surface { position: relative; width: 200px; height: 200px; flex: none; border-radius: 20px; background: var(--fig-surface); color: var(--fig-muted); box-shadow: 0 3px 16px rgb(0 0 0 / 0.08); font-family: var(--sl-font); }
+  .full-surface.receiving { background: color-mix(in srgb, var(--fig-badge) 35%, var(--fig-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fig-muted) 30%, transparent), 0 3px 16px rgb(0 0 0 / 0.08); }
   .close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--fig-badge); }
   .info { position: absolute; bottom: 14px; left: 14px; display: flex; }
   .queue-badge { position: absolute; bottom: 14px; right: 14px; min-width: 20px; height: 20px; border-radius: 10px; display: grid; place-items: center; background: var(--fig-badge); font: 11px var(--sl-font-mono); }
@@ -40,9 +43,12 @@ const { state = 'idle', en = false } = Astro.props;
   .indicator svg { display: block; margin-inline: auto; }
   .status { position: absolute; top: 59px; left: 0; width: 96px; height: 16px; border: 1px solid color-mix(in srgb, var(--fig-blue) 30%, transparent); border-radius: 8px; font-size: 8px; line-height: 14px; }
   .cancel { position: absolute; top: 83px; left: 41px; display: flex; color: var(--fig-muted); }
-  .directory-feedback { color: #a5a8ad; }
-  .directory-feedback.saved { color: var(--fig-green); }
-  .directory-status { border-color: color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 5%, var(--fig-surface)); }
+  .directory-feedback { height: 75px; color: var(--fig-muted); --directory-icon-opacity: 1; --directory-pill: var(--fig-badge); }
+  :global(:root[data-theme='light']) .directory-feedback { --directory-icon-opacity: 0.8; }
+  .directory-feedback.saved { color: var(--fig-green); --directory-icon-opacity: 1; --directory-pill: color-mix(in srgb, var(--fig-green) 14%, transparent); }
+  :global(:root[data-theme='light']) .directory-feedback.saved { --directory-pill: #e8f5ed; }
+  .folder-icon { opacity: var(--directory-icon-opacity); }
+  .directory-status { font-weight: 500; border-color: color-mix(in srgb, currentColor 30%, transparent); background: var(--directory-pill); }
   .ring-glow { filter: blur(4px); opacity: 0.3; }
   .directory-feedback svg { overflow: visible; }
 </style>
