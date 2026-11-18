@@ -425,6 +425,11 @@
     ],
     "rules": [
       {
+        "name": "Full 文件夹拖入反馈",
+        "body": "Full 文件夹拖入复用中央图标与短标签：候选为文件夹时显示“松开以更改下载目录”，表面以现有 blue 角色轻量描边/浅底高亮；仅该次拖入获设置 owner 的 SettingsSaved 回执后显示 green check 与“下载目录已更新”，复用约 2000ms 反馈时限。拖离、取消、结束或放下清拖入态；反馈不增加窗口动效、交互锁或底部 toast。实现见 src/main.rs 与 src/download_ui.rs。",
+        "section": "components"
+      },
+      {
         "name": "The Neutral Action Rule",
         "body": "复制、重试和普通更新操作使用中性处理；关闭、取消、退出按其破坏性语义强调。页面处于失败状态不意味着整页按钮都要染红。真实错误可以使用语义色文字、图标与浅背景。",
         "section": "colors"

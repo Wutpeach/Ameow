@@ -258,6 +258,8 @@ struct Prototype {
     mascot_reveal: mascot_reveal::Reveal,
     _mascot_visibility: Subscription,
     drag: Option<([f32; 2], [f32; 2])>,
+    directory_drag: Option<(std::path::PathBuf, bool)>,
+    directory_probe: Option<Task<()>>,
     copied_at: Option<u64>,
     demo: bool,
     demo_step: u8,
@@ -366,6 +368,8 @@ impl Prototype {
             mascot_reveal: if options.fixture { Default::default() } else { mascot_reveal::Reveal::startup() },
             _mascot_visibility: mascot_visibility,
             drag: None,
+            directory_drag: None,
+            directory_probe: None,
             copied_at: None,
             demo: options.demo,
             demo_step: 0,
@@ -388,6 +392,31 @@ impl Prototype {
     }
     fn now(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
+    }
+    fn clear_directory_drag(&mut self) {
+        self.directory_drag = None;
+        self.directory_probe = None;
+    }
+    fn end_external_drop(&mut self, cx: &mut Context<Self>) {
+        self.clear_directory_drag();
+        self.model.locks.drop = false;
+        self.model.locks_changed(self.now());
+        cx.notify();
+    }
+    fn preview_directory_drag(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        let candidate = surface_actions::single_drop(paths);
+        if self.directory_drag.as_ref().map(|(path, _)| path) == candidate.as_ref() { return; }
+        self.clear_directory_drag();
+        let Some(path) = candidate else { return; };
+        self.directory_drag = Some((path.clone(), false));
+        // This read is only a visual hint; the settings owner still validates and saves.
+        self.directory_probe = Some(cx.spawn(async move |this, cx| {
+            let is_directory = cx.background_executor().spawn(async move { path.is_dir() }).await;
+            let _ = this.update(cx, |this, cx| {
+                if let Some((_, ready)) = &mut this.directory_drag { *ready = is_directory; }
+                cx.notify();
+            });
+        }));
     }
     fn refresh_preferences(&mut self) {
         if !self.production_preferences { return; }
@@ -562,9 +591,8 @@ impl Prototype {
                 self.model.locks_changed(now);
             }
         }
-        if self.model.locks.drop && !cx.has_active_drag() {
-            self.model.locks.drop = false;
-            self.model.locks_changed(now);
+        if self.model.locks.drop && (!cx.has_active_drag() || !self.native.as_ref().is_some_and(Native::inside)) {
+            self.end_external_drop(cx);
         }
         if self.demo {
             let step = (now / 2200).min(4) as u8;
@@ -813,6 +841,11 @@ impl Render for Prototype {
             frame
         };
         let stage = self.model.stage;
+        let directory_hover = self.model.locks.drop && self.directory_drag.as_ref().is_some_and(|(_, ready)| *ready)
+            && self.downloads.as_ref().is_some_and(|ui| ui.background_actions_available() && ui.settings().is_some())
+            && self.preview.is_none() && !self.surface_menu.is_open();
+        let directory_saved = self.downloads.as_ref().is_some_and(|ui| ui.directory_saved(now));
+        let directory_feedback = self.model.target_full && (directory_hover || directory_saved);
         let copied = self.copied_at.is_some_and(|t| now < t + ui_motion::COPY_FEEDBACK_MS);
         self.wake = None;
         let motion_delay = if self.demo || self.probe_period_ms.is_some()
@@ -824,11 +857,14 @@ impl Render for Prototype {
         let copy_delay = self
             .copied_at
             .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
+        let directory_delay = self.downloads.as_ref().filter(|ui| ui.directory_saved(now))
+            .and_then(|ui| ui.directory_saved_at)
+            .map(|at| (at + ui_motion::COPY_FEEDBACK_MS).saturating_sub(now).max(1));
         let exit_delay = self.exit_after_ms.map(|at| at.saturating_sub(now).max(1));
         let hover_delay = (hover_moving || self.surface_menu.animating(now, self.model.reduced)).then_some(16);
         let preparation_delay = self.preparation_animation_delay();
         let queue_delay = self.downloads.as_mut().and_then(|ui| ui.queue_animation_delay(now, self.model.reduced));
-        let delay = [motion_delay, copy_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay, reveal_delay]
+        let delay = [motion_delay, copy_delay, directory_delay, exit_delay, hover_delay, preparation_delay, queue_delay, mascot_delay, reveal_delay]
             .into_iter()
             .flatten()
             .min();
@@ -877,7 +913,8 @@ impl Render for Prototype {
             .size(px(g.surface))
             .rounded(px(g.radius.min(g.surface * 0.5)))
             .border_1()
-            .border_color(gpui::transparent_black())
+            .border_color(if directory_hover { p.blue.opacity(0.45 * alpha) } else { gpui::transparent_black() })
+            .when(directory_hover, |s| s.bg(p.blue.opacity(0.04 * alpha)))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, cx| {
@@ -972,6 +1009,16 @@ impl Render for Prototype {
                         })),
                 )
             });
+        let slot = if directory_feedback {
+            div().id("directory-drop-feedback").absolute()
+                .left(px(g.gutter + 14.)).top(px(g.gutter + 61.)).w(px(172.)).h(px(99.))
+                .flex().flex_col().items_center().gap(px(12.)).opacity(alpha)
+                .child(svg().path(if directory_hover { "icons/folder.svg" } else { "icons/check.svg" })
+                    .size(px(38.)).text_color(if directory_hover { p.blue } else { p.green }))
+                .child(div().w_full().text_center().text_size(px(12.)).text_color(p.primary_text())
+                    .child(if directory_hover { self.language.text("松开以更改下载目录", "Release to change download folder") }
+                        else { self.language.text("下载目录已更新", "Download folder updated") }))
+        } else { slot };
         let live_badge = self.downloads.as_ref().and_then(|ui| ui.badge());
         let badge_visible = if self.downloads.is_some() { live_badge.is_some() } else { stage.active() };
         let (badge_count, failure_dot, download_dot) = live_badge.unwrap_or((2, false, true));
@@ -1108,17 +1155,20 @@ impl Render for Prototype {
                     this.key(event.keystroke.key.as_str(), cx)
                 }
             }))
-            .on_drag_move::<ExternalPaths>(cx.listener(|this, _, _, cx| {
-                if this.surface_menu.is_open() { cx.stop_propagation(); return; }
+            .on_file_drop_exit(cx.listener(|this, _, _, cx| this.end_external_drop(cx)))
+            .on_drag_move::<ExternalPaths>(cx.listener(|this, event: &DragMoveEvent<ExternalPaths>, _, cx| {
+                if this.surface_menu.is_open() { this.end_external_drop(cx); cx.stop_propagation(); return; }
+                if !event.bounds.contains(&event.event.position) { this.end_external_drop(cx); return; }
                 this.background_clicks.reset();
                 this.model.locks.drop = true;
                 this.model.locks_changed(this.now());
+                let paths = event.drag(cx).paths().to_vec();
+                this.preview_directory_drag(&paths, cx);
                 cx.notify();
             }))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
+                this.end_external_drop(cx);
                 if this.surface_menu.is_open() { cx.stop_propagation(); return; }
-                this.model.locks.drop = false;
-                this.model.locks_changed(this.now());
                 if this.downloads.is_some() {this.drop_output_directory(paths.paths(),cx);}
                 if this.downloads.is_none() && !paths.paths().is_empty() {
                     this.state(Stage::Resolving, cx);
