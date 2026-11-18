@@ -7,6 +7,42 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DirectoryFeedback { Receiving, Saved }
+impl DirectoryFeedback {
+    pub fn label(self, language: crate::ui_text::Language) -> &'static str {
+        match self {
+            Self::Receiving => language.text("松开设为目录", "Drop to set folder"),
+            Self::Saved => language.text("目录已更新", "Folder updated"),
+        }
+    }
+    fn frame(self, p: Palette) -> Frame {
+        // Presentation only: neither feedback enters the download lifecycle or carries progress.
+        let stage = if self == Self::Saved { Stage::Success } else { Stage::Cancelled };
+        let color = if self == Self::Saved { p.green } else { p.neutral };
+        Frame { stage, previous: stage, color, previous_color: color, palette: p,
+            start: 0., sweep: 1., blue_trace: 0., symbol: 0., mix: 1.,
+            percent: 0., center_alpha: 0., symbol_scale: 1. }
+    }
+    fn ring_frame(self, p: Palette) -> Option<Frame> {
+        (self == Self::Saved).then(|| self.frame(p))
+    }
+}
+
+pub fn directory_feedback(p: Palette, feedback: DirectoryFeedback, language: crate::ui_text::Language) -> Div {
+    let frame = feedback.frame(p);
+    let color = if feedback == DirectoryFeedback::Saved { p.green }
+        else { p.neutral.opacity(if p.night { 1. } else { 0.8 }) };
+    div().absolute().w(px(96.)).h(px(75.))
+        .when_some(feedback.ring_frame(p), |s, frame| s.child(ring(frame)))
+        .child(div().absolute().left(px(23.)).top_0().size(px(50.))
+            .flex().items_center().justify_center()
+            .child(div().relative().size(px(ring_glow::FOLDER_SIZE))
+                .child(ring_glow::folder(color.opacity(tokens::RING_GLOW_OPACITY)))
+                .child(svg().path("icons/folder.svg").size_full().text_color(color))))
+        .child(label_with_color(frame, Some(feedback.label(language).into()), frame.color))
+}
+
 #[derive(Clone, Copy)]
 pub struct Frame {
     stage: Stage,
@@ -157,6 +193,30 @@ mod tests {
         let frame = Indicator::default().sample(&model, Palette::new(false), 100);
         assert_eq!(frame.percent, model.progress.sample(100));
         assert_eq!(frame.percent, frame.sweep);
+    }
+    #[test]
+    fn directory_feedback_keeps_folder_semantics_and_existing_status_palette() {
+        use super::DirectoryFeedback;
+        use crate::ui_text::Language;
+        for night in [false, true] {
+            let p = Palette::new(night);
+            let receiving = DirectoryFeedback::Receiving.frame(p);
+            let saved = DirectoryFeedback::Saved.frame(p);
+            assert!(DirectoryFeedback::Receiving.ring_frame(p).is_none());
+            assert!(DirectoryFeedback::Saved.ring_frame(p).is_some());
+            assert_eq!(receiving.color, p.neutral);
+            assert_eq!(saved.color, p.ring(Stage::Success));
+            assert_eq!(saved.palette.pill(saved.stage), p.pill(Stage::Success));
+            assert!(!receiving.stage.active());
+            for frame in [receiving, saved] {
+                assert_eq!(frame.center_alpha, 0., "folder feedback must not display a percentage");
+                assert_eq!(frame.symbol, 0., "the folder is not replaced by a download check");
+                assert_eq!(frame.blue_trace, 0.);
+            }
+        }
+        assert_eq!(DirectoryFeedback::Receiving.label(Language::English), "Drop to set folder");
+        assert_eq!(DirectoryFeedback::Saved.label(Language::Chinese), "目录已更新");
+        assert_ne!(DirectoryFeedback::Saved.label(Language::Chinese), Stage::Success.name());
     }
 }
 
@@ -409,6 +469,9 @@ pub fn label(f: Frame) -> impl IntoElement {
     label_with_text(f, None)
 }
 pub fn label_with_text(f: Frame, text: Option<String>) -> impl IntoElement {
+    label_with_color(f, text, f.palette.ring(f.stage))
+}
+fn label_with_color(f: Frame, text: Option<String>, color: Hsla) -> Div {
     let p = f.palette;
     let live = text.is_some();
     div()
@@ -420,7 +483,7 @@ pub fn label_with_text(f: Frame, text: Option<String>) -> impl IntoElement {
         .rounded(px(8.))
         .bg(p.pill(f.stage))
         .border_1()
-        .border_color(p.ring(f.stage).opacity(0.3))
+        .border_color(color.opacity(0.3))
         .opacity(if f.stage == Stage::Idle { 0. } else { 1. })
         .child(
             div()
@@ -450,7 +513,7 @@ pub fn label_with_text(f: Frame, text: Option<String>) -> impl IntoElement {
                 .justify_center()
                 .text_size(px(8.))
                 .font_weight(FontWeight::MEDIUM)
-                .text_color(p.ring(f.stage))
+                .text_color(color)
                 .opacity(if live { 1. } else { f.mix })
                 .child(text.unwrap_or_else(|| f.stage.name().into())),
         )

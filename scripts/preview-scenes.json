@@ -11,6 +11,8 @@
   {"name": "full.components-downloading", "surface": "full", "state": "components-downloading", "description": "实际下载组件：保留左下进度与详情提示"},
   {"name": "full.downloading", "surface": "full", "state": "downloading", "description": "Full 已知进度；仅进度环下方操作按钮保留悬停光晕"},
   {"name": "full.success", "surface": "full", "state": "success", "description": "Full 成功反馈"},
+  {"name": "full.directory-hover", "surface": "full", "state": "directory-hover", "description": "目录可接收：浅灰文件夹与柔和光晕，无圆环，胶囊提示松开设为目录"},
+  {"name": "full.directory-saved", "surface": "full", "state": "directory-saved", "description": "目录已更新：绿色文件夹、成功圆环与光晕、短信息胶囊；仅显示投影"},
   {"name": "full.failure", "surface": "full", "state": "failure", "description": "Full 失败反馈"},
   {"name": "full.partial", "surface": "full", "state": "partial", "description": "Full 部分完成反馈"},
   {"name": "full.cancelled", "surface": "full", "state": "cancelled", "description": "Full 取消反馈"},

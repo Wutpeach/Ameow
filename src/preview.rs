@@ -8,6 +8,16 @@ use std::os::windows::fs::OpenOptionsExt;
 pub const CATALOG: &str = include_str!("../scripts/preview-scenes.json");
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Scene { pub name: String, pub surface: String, pub state: String, pub description: String }
+impl Scene {
+    pub fn directory_feedback(&self) -> Option<crate::indicator::DirectoryFeedback> {
+        if self.surface != "full" { return None; }
+        match self.state.as_str() {
+            "directory-hover" => Some(crate::indicator::DirectoryFeedback::Receiving),
+            "directory-saved" => Some(crate::indicator::DirectoryFeedback::Saved),
+            _ => None,
+        }
+    }
+}
 pub fn scenes() -> Vec<Scene> { serde_json::from_str(CATALOG).expect("embedded preview catalog") }
 pub fn find(name: &str) -> Result<Scene, String> {
     scenes().into_iter().find(|s| s.name == name).ok_or_else(|| format!("未知预览场景：{name}"))
@@ -30,14 +40,14 @@ fn mascot_transition(model: &mut crate::model::Model, reveal: &mut crate::mascot
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Request { step: u64, scene: Option<String>, night: Option<bool>, reduced: Option<bool>, #[serde(default)] quit: bool }
+struct Request { step: u64, scene: Option<String>, night: Option<bool>, reduced: Option<bool>, english: Option<bool>, #[serde(default)] quit: bool }
 pub enum Change { Scene(Scene), Quit }
 pub struct Session {
-    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool, night: Option<bool>, reduced: Option<bool>,
+    control: Option<PathBuf>, scene: Scene, step: Option<u64>, initial: bool, night: Option<bool>, reduced: Option<bool>, english: Option<bool>,
 }
 impl Session {
     pub fn new(control: Option<PathBuf>, name: &str) -> Result<Self, String> {
-        Ok(Self { control, scene: find(name)?, step: None, initial: true, night: None, reduced: None })
+        Ok(Self { control, scene: find(name)?, step: None, initial: true, night: None, reduced: None, english: None })
     }
     pub fn scene(&self) -> &Scene { &self.scene }
     pub fn poll(&mut self) -> Option<Change> {
@@ -60,14 +70,14 @@ impl Session {
         self.step = Some(request.step);
         if request.quit { return Some(Change::Quit); }
         match request.scene.as_deref().map(find) {
-            Some(Ok(scene)) => { self.scene = scene.clone(); self.night = request.night; self.reduced = request.reduced; Some(Change::Scene(scene)) }
+            Some(Ok(scene)) => { self.scene = scene.clone(); self.night = request.night; self.reduced = request.reduced; self.english = request.english; Some(Change::Scene(scene)) }
             Some(Err(error)) => { self.ack(Some(&error)); None }
             None => { self.ack(Some("预览请求缺少 scene")); None }
         }
     }
     pub fn ack(&self, error: Option<&str>) {
         if let Some(path) = &self.control {
-            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"night":self.night,"reduced":self.reduced,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
+            let value = serde_json::json!({"step":self.step,"scene":self.scene.name,"night":self.night,"reduced":self.reduced,"english":self.english,"pid":std::process::id(),"error":error,"catalog":serde_json::from_str::<serde_json::Value>(CATALOG).unwrap(),"version":env!("CARGO_PKG_VERSION")});
             if let Err(error) = fs::write(path.with_extension("ack.json"), value.to_string()) { eprintln!("无法写入预览回执：{error}"); }
         }
     }
@@ -180,6 +190,8 @@ impl crate::Prototype {
                 // set_preview_scene clears selected_job, so an empty next snapshot
                 // cannot otherwise retire the previous scene's painted indicator.
                 let now = self.now();
+                self.clear_directory_drag();
+                self.model.locks.drop = false;
                 if let Some(reduced) = self.preview.as_ref().and_then(|p| p.reduced) { self.model.set_reduced(reduced, now); }
                 self.model.state(crate::model::Stage::Idle, 0., now);
                 self.model.previous = crate::model::Stage::Idle;
@@ -187,11 +199,15 @@ impl crate::Prototype {
                 self.model.progress = crate::model::Progress::new(0., now);
                 self.indicator = Default::default();
                 if let Some(night) = self.preview.as_ref().and_then(|p| p.night) { self.night = night; }
+                if let Some(english) = self.preview.as_ref().and_then(|p| p.english) {
+                    self.language = if english { crate::ui_text::Language::English } else { crate::ui_text::Language::Chinese };
+                }
                 if let Some(handle) = self.settings_window.take() { let _ = handle.update(cx, |_, w, _| w.remove_window()); }
                 self.close_tray_popup(cx);
                 self.surface_menu.close(self.now());
                 if let Some(ui) = &mut self.downloads {
                     ui.set_preview_scene(&scene);
+                    ui.language = self.language;
                     if let Some(snapshot) = &mut ui.snapshot {
                         std::sync::Arc::make_mut(snapshot).settings.theme = if self.night {
                             ameow_next::download::settings::ThemePreference::Dark
@@ -280,22 +296,25 @@ mod tests {
     fn requests_switch_reject_and_quit_without_touching_another_session() {
         let root = tempfile::tempdir().unwrap(); let path = root.path().join("control.json");
         let mut p = Session::new(Some(path.clone()), "queue.mixed").unwrap(); p.poll();
-        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed","night":true,"reduced":false}"#).unwrap();
+        fs::write(&path, r#"{"step":1,"scene":"diagnostics.copy-failed","night":true,"reduced":false,"english":true}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Scene(_)))); p.ack(None);
         assert_eq!(p.night, Some(true));
         let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
         assert_eq!(ack["reduced"], false);
+        assert_eq!(ack["english"], true);
         fs::write(&path, r#"{"step":2,"scene":"unknown","reduced":true}"#).unwrap();
         assert!(p.poll().is_none()); assert_eq!(p.scene().name, "diagnostics.copy-failed");
         assert_eq!(p.night, Some(true));
         assert_eq!(p.reduced, Some(false));
+        assert_eq!(p.english, Some(true));
         let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
         assert!(ack["error"].as_str().unwrap().contains("unknown"));
         assert!(p.poll().is_none());
-        fs::write(&path, r#"{"step":3,"scene":"diagnostics.copy-failed","night":true,"reduced":true}"#).unwrap();
+        fs::write(&path, r#"{"step":3,"scene":"diagnostics.copy-failed","night":true,"reduced":true,"english":false}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Scene(_)))); p.ack(None);
         let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
         assert_eq!(ack["reduced"], true);
+        assert_eq!(ack["english"], false);
         fs::write(&path, r#"{"step":4,"quit":true}"#).unwrap();
         assert!(matches!(p.poll(), Some(Change::Quit)));
     }
@@ -313,6 +332,31 @@ mod tests {
         assert_eq!(ui.snapshot.as_ref().unwrap().jobs[0].phase, JobPhase::Success);
         assert!(!ui.upstream_check_available());
         assert!(!ui.preparation_retry_available());
+    }
+    #[test]
+    fn directory_scenes_hold_the_shared_feedback_without_production_commands_or_ack() {
+        use crate::{download_ui::DownloadUi, indicator::DirectoryFeedback};
+        use ameow_next::download::queue::QueueCommand;
+        for (name, feedback) in [
+            ("full.directory-hover", DirectoryFeedback::Receiving),
+            ("full.directory-saved", DirectoryFeedback::Saved),
+        ] {
+            let scene = find(name).unwrap();
+            let mut ui = DownloadUi::controlled_preview();
+            ui.set_preview_scene(&scene);
+            assert!(ui.snapshot.as_ref().unwrap().jobs.is_empty());
+            for now in [0, 2_000, 60_000] {
+                ui.hold_preview_feedback(&scene, now);
+                assert_eq!(ui.directory_feedback(false, now), Some(feedback));
+                assert!(!ui.directory_saved(now), "preview is not a SettingsSaved acknowledgement");
+            }
+            assert!(!ui.request_output_directory("never-written".into(), 60_000));
+            assert!(!ui.send(QueueCommand::SaveSettings(ui.settings().unwrap()), 60_000));
+            assert!(!ui.send(QueueCommand::Submit { url: "https://example.invalid".into() }, 60_000));
+            assert!(!ui.upstream_check_available());
+            ui.set_preview_scene(&find("full.idle").unwrap());
+            assert_eq!(ui.directory_feedback(true, 60_001), None);
+        }
     }
     #[test]
     fn menu_scene_switches_restore_acknowledged_quality_and_retire_pending_state() {

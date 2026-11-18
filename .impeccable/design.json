@@ -426,7 +426,7 @@
     "rules": [
       {
         "name": "Full 文件夹拖入反馈",
-        "body": "Full 文件夹拖入复用中央图标与短标签：候选为文件夹时显示“松开以更改下载目录”，表面以现有 blue 角色轻量描边/浅底高亮；仅该次拖入获设置 owner 的 SettingsSaved 回执后显示 green check 与“下载目录已更新”，复用约 2000ms 反馈时限。拖离、取消、结束或放下清拖入态；反馈不增加窗口动效、交互锁或底部 toast。实现见 src/main.rs 与 src/download_ui.rs。",
+        "body": "Full 目录反馈复用原状态槽的中心构图、50px 图形载体与下方 96×16px、8px 字级的信息胶囊。合法单文件夹悬浮时显示浅灰文件夹与柔和图标光晕，不加圆环，胶囊为“松开设为目录”／“Drop to set folder”；表面使用现有 neutral/badge 轻量高亮。仅该次拖入获设置 owner 的 SettingsSaved 回执后显示成功语义色文件夹、既有绿色成功环与光晕，胶囊为“目录已更新”／“Folder updated”，复用约 2000ms 真实反馈时限。文件夹保留为主体，不换成下载完成勾形或百分比；图标与环复用既有 4px 模糊、0.3 光晕透明度。拖离、Esc、取消、结束或放下清拖入态，不增加窗口动效、交互锁或底部 toast。Gallery 的 full.directory-hover／full.directory-saved 与真实反馈共用 src/indicator.rs 绘制，可稳定查看、切主题与语言，投影不写设置或触发生产动作。",
         "section": "components"
       },
       {

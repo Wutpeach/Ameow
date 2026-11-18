@@ -294,6 +294,8 @@ impl DownloadUi {
         self.startup_error = None;
         self.settings_status = SettingsStatus::Idle;
         self.settings_pending = scene.surface == "menu" && scene.state == "saving";
+        self.directory_drop_pending = false;
+        self.directory_saved_at = None;
         self.row_notices.clear();
         self.retry_pending.clear();
         self.preparation_status = None;
@@ -563,6 +565,13 @@ impl DownloadUi {
     }
     pub fn directory_saved(&self, now:u64) -> bool {
         self.directory_saved_at.is_some_and(|at| now.saturating_sub(at) < crate::ui_motion::COPY_FEEDBACK_MS)
+    }
+    pub fn directory_feedback(&self, candidate_ready:bool, now:u64) -> Option<indicator::DirectoryFeedback> {
+        if let Some(scene) = &self.named_preview { return scene.directory_feedback(); }
+        if candidate_ready && self.background_actions_available() && self.settings().is_some() {
+            Some(indicator::DirectoryFeedback::Receiving)
+        } else if self.directory_saved(now) { Some(indicator::DirectoryFeedback::Saved) }
+        else { None }
     }
     fn request_menu_exit(&mut self) {
         self.evidence(serde_json::json!({"type":"exit-request","source":"main-menu"}));
@@ -2785,10 +2794,15 @@ mod tests {
     fn dropped_directory_feedback_waits_for_its_own_ack_and_expires() {
         use super::*;
         let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+        ui.queue_open = false;
+        assert_eq!(ui.directory_feedback(false, 0), None);
+        assert_eq!(ui.directory_feedback(true, 0), Some(indicator::DirectoryFeedback::Receiving));
         let old = ui.settings().unwrap();
         ui.request_dropped_directory(&["candidate".into()], 10);
         assert!(ui.settings_pending);
         assert!(!ui.directory_saved(10));
+        assert_eq!(ui.directory_feedback(false, 10), None);
+        assert_eq!(ui.directory_feedback(true, 10), None, "pending save cannot advertise another folder");
         assert_eq!(ui.settings(), Some(old.clone()));
         ui.request_dropped_directory(&["ignored-while-pending".into()], 11);
         let QueueCommand::SaveSettings(mut saved) = receiver.try_recv().unwrap() else { panic!("settings command") };
@@ -2797,8 +2811,10 @@ mod tests {
         ui.complete_settings(CommandReply::SettingsSaved(saved.clone()), 100);
         assert_eq!(ui.settings(), Some(saved.clone()));
         assert!(ui.directory_saved(100));
+        assert_eq!(ui.directory_feedback(false, 100), Some(indicator::DirectoryFeedback::Saved));
         assert!(ui.directory_saved(100 + crate::ui_motion::COPY_FEEDBACK_MS - 1));
         assert!(!ui.directory_saved(100 + crate::ui_motion::COPY_FEEDBACK_MS));
+        assert_eq!(ui.directory_feedback(false, 100 + crate::ui_motion::COPY_FEEDBACK_MS), None);
         ui.request_dropped_directory(&["another".into()], 200);
         assert!(!ui.directory_saved(200));
         let _ = receiver.try_recv().unwrap();
