@@ -16,6 +16,7 @@ const FIXTURE_PUBLIC: &str = "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af
 const MARKER: &[u8] = b"SYNTHETIC TEST FIXTURE - NOT FOR DISTRIBUTION\nSigned with the public RFC test key; never a production release.\n";
 const FIXTURE_GUIDE: &[u8] = b"Ameow synthetic test fixture\nNot for distribution. Start AmeowLauncher.exe; the real Ready handshake is required.\n";
 const PUBLIC_GUIDE: &[u8] = b"Ameow for Windows x64\nExtract the entire ZIP into a new writable directory, then start AmeowLauncher.exe. Keep the complete folder together; do not start versions/*/Ameow.exe directly.\nUser data stays in %LOCALAPPDATA%/Ameow. No administrator rights are required.\nThe first start verifies the signed application and confirms it only after successful startup.\nThird-party notices are in LICENSE, licenses/ and Settings > About. Runtime components are downloaded separately when needed.\n";
+const CLI_GUIDE: &[u8] = b"Ameow for Windows x64\nExtract the entire ZIP into a new writable directory, then start AmeowLauncher.exe. Keep the complete folder together; do not start versions/*/Ameow.exe directly.\nUser data stays in %LOCALAPPDATA%/Ameow. No administrator rights are required.\nThe first start verifies the signed application and confirms it only after successful startup.\nThe ameow-cli.exe in this folder controls the desktop app. App updates do not replace the CLI; update it using a complete installer or portable release.\nThird-party notices are in LICENSE, licenses/ and Settings > About. Runtime components are downloaded separately when needed.\n";
 type Result<T> = std::result::Result<T, String>;
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -84,6 +85,8 @@ pub struct Build {
     pub trust: PublicRoots,
     pub app: FileRecord,
     pub launcher: FileRecord,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli: Option<FileRecord>,
     pub notices: Vec<FileRecord>,
 }
 impl Build {
@@ -93,6 +96,8 @@ impl Build {
     fn guide(&self) -> &'static [u8] {
         if self.is_fixture() {
             FIXTURE_GUIDE
+        } else if self.cli.is_some() {
+            CLI_GUIDE
         } else {
             PUBLIC_GUIDE
         }
@@ -110,11 +115,12 @@ impl Build {
                 return Err("E_RELEASE_COMPILED_IDENTITY".into());
             }
         }
-        if self.schema != 1
+        if !matches!((self.schema, &self.cli), (1, None) | (2, Some(_)))
             || self.target != TARGET
             || self.toolchain != "1.98.1"
             || self.app.path != "Ameow.exe"
             || self.launcher.path != "AmeowLauncher.exe"
+            || self.cli.as_ref().is_some_and(|cli| cli.path != "ameow-cli.exe")
         {
             return Err("E_RELEASE_BUILD_IDENTITY".into());
         }
@@ -327,6 +333,9 @@ fn load_build(root: &Path) -> Result<Build> {
     build
         .launcher
         .check(&read(&root.join(&build.launcher.path), MAX_PACKAGE)?)?;
+    if let Some(cli) = &build.cli {
+        cli.check(&read(&root.join(&cli.path), MAX_PACKAGE)?)?;
+    }
     for notice in &build.notices {
         notice.check(&read(&root.join(&notice.path), MAX_PACKAGE)?)?;
     }
@@ -356,6 +365,7 @@ pub fn prepare(build_root: &Path, output: &Path) -> Result<()> {
     fresh(output)?;
     for item in std::iter::once(&build.app)
         .chain(std::iter::once(&build.launcher))
+        .chain(build.cli.iter())
         .chain(build.notices.iter())
     {
         let dest = output.join(&item.path);
@@ -479,6 +489,9 @@ fn sign_with_key(
         ("release-identity.json".into(), identity_bytes.clone()),
         ("README.txt".into(), build.guide().to_vec()),
     ]);
+    if let Some(cli) = &build.cli {
+        files.insert(cli.path.clone(), read(&root.join(&cli.path), MAX_PACKAGE)?);
+    }
     if build.is_fixture() {
         files.insert("FIXTURE.txt".into(), MARKER.to_vec());
     }
@@ -542,6 +555,25 @@ pub fn verify_signed(root: &Path, public_roots: &Path) -> Result<()> {
     let roots: PublicRoots = json(public_roots)?;
     verify_signed_with_roots(root, &roots)
 }
+/// Only debug fixtures may launch a signed synthetic installation in an isolated data domain.
+#[cfg(any(test, all(windows, feature = "app-update-fixture", debug_assertions)))]
+pub fn verify_fixture_launcher(launcher: &Path) -> Result<()> {
+    let root = launcher.parent().ok_or("E_RELEASE_PATH")?;
+    let signed: SignedManifest = json(&root.join("release-identity.json"))?;
+    let signature = unhex(&signed.signature, 64)?;
+    UnparsedPublicKey::new(&ED25519, unhex(FIXTURE_PUBLIC, 32)?)
+        .verify(&[IDENTITY_DOMAIN, signed.payload.as_bytes()].concat(), &signature)
+        .map_err(|_| "E_RELEASE_IDENTITY_SIGNATURE")?;
+    let identity: Identity = serde_json::from_str(&signed.payload).map_err(err)?;
+    let build = identity.build;
+    build.validate()?;
+    if !identity.fixture || !build.is_fixture() || read(&root.join("FIXTURE.txt"), 1024)? != MARKER {
+        return Err("E_RELEASE_FIXTURE_REQUIRED".into());
+    }
+    build.launcher.check(&read(launcher, MAX_PACKAGE)?)?;
+    let cli = build.cli.ok_or("E_RELEASE_CLI_REQUIRED")?;
+    cli.check(&read(&root.join(&cli.path), MAX_PACKAGE)?)
+}
 fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     let build: Build = json(&root.join("release-build.json"))?;
     build.validate()?;
@@ -598,6 +630,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
         "release-identity.json".into(),
         "README.txt".into(),
     ]);
+    if let Some(cli) = &build.cli { expected.insert(cli.path.clone()); }
     if build.is_fixture() {
         expected.insert("FIXTURE.txt".into());
     }
@@ -612,6 +645,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
         .app
         .check(&files[&format!("versions/{version}/Ameow.exe")])?;
     build.launcher.check(&files["AmeowLauncher.exe"])?;
+    if let Some(cli) = &build.cli { cli.check(&files[&cli.path])?; }
     for notice in &build.notices {
         notice.check(&files[&notice.path])?;
     }

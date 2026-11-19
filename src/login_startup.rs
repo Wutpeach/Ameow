@@ -255,6 +255,11 @@ pub struct InstanceGuard {
     event: HANDLE,
 }
 impl InstanceGuard {
+    pub fn acquire_isolated(root: &Path, restore: bool) -> Result<InstanceAcquire, String> {
+        use sha2::{Digest, Sha256};
+        let digest = format!("{:x}", Sha256::digest(root.as_os_str().to_string_lossy().as_bytes()));
+        Self::acquire_named(&format!("{MUTEX}.{digest}"), &format!("{RESTORE_EVENT}.{digest}"), restore)
+    }
     pub fn acquire_with_restore(restore: bool) -> Result<InstanceAcquire, String> {
         Self::acquire_named(MUTEX, RESTORE_EVENT, restore)
     }

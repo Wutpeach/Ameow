@@ -6,6 +6,7 @@ fn source(root: &Path) -> Build {
     fs::create_dir(root.join("licenses")).unwrap();
     let app = b"controlled application bytes";
     let launcher = b"controlled launcher bytes";
+    let cli = b"controlled CLI bytes";
     let license = b"unit fixture notice, not a distribution review";
     let third_party = b"unit third-party notice";
     let inventory = encode(&serde_json::json!({"schema":1,"materials":[
@@ -15,6 +16,7 @@ fn source(root: &Path) -> Build {
     for (name, bytes) in [
         ("Ameow.exe", app.as_slice()),
         ("AmeowLauncher.exe", launcher.as_slice()),
+        ("ameow-cli.exe", cli.as_slice()),
         ("LICENSE", license.as_slice()),
         ("licenses/THIRD_PARTY_NOTICES.md", third_party.as_slice()),
         ("licenses/license-inputs.json", inventory.as_slice()),
@@ -22,7 +24,7 @@ fn source(root: &Path) -> Build {
         fs::write(root.join(name), bytes).unwrap();
     }
     let build = Build {
-        schema: 1,
+        schema: 2,
         version: "0.1.0".into(),
         target: TARGET.into(),
         commit: "1".repeat(40),
@@ -38,6 +40,7 @@ fn source(root: &Path) -> Build {
         },
         app: FileRecord::of("Ameow.exe", app),
         launcher: FileRecord::of("AmeowLauncher.exe", launcher),
+        cli: Some(FileRecord::of("ameow-cli.exe", cli)),
         notices: vec![
             FileRecord::of("LICENSE", license),
             FileRecord::of("licenses/THIRD_PARTY_NOTICES.md", third_party),
@@ -65,6 +68,34 @@ fn signed_candidate_issued(tmp: &Path, issued: u64) -> (Build, std::path::PathBu
 }
 fn save_build(root: &Path, build: &Build) {
     fs::write(root.join("release-build.json"), encode(build).unwrap()).unwrap()
+}
+
+#[test]
+fn isolated_launcher_requires_signed_fixture_and_unchanged_entry_bytes() {
+    let tmp = tempfile::tempdir().unwrap();
+    // macOS /var is a symlink; release verification requires physical ancestors.
+    let physical = tmp.path().canonicalize().unwrap();
+    let (build, output) = signed_candidate(&physical);
+    let installed = physical.join("install");
+    fs::create_dir(&installed).unwrap();
+    let mut zip = zip::ZipArchive::new(File::open(output.join(portable_name(&build))).unwrap()).unwrap();
+    zip.extract(&installed).unwrap();
+    let launcher = installed.join("AmeowLauncher.exe");
+    verify_fixture_launcher(&launcher).unwrap();
+    let cli = installed.join("ameow-cli.exe");
+    let bytes = fs::read(&cli).unwrap();
+    fs::write(&cli, b"substituted").unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
+    fs::write(cli, bytes).unwrap();
+    let bytes = fs::read(&launcher).unwrap();
+    fs::write(&launcher, b"substituted").unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
+    fs::write(&launcher, bytes).unwrap();
+    let identity = installed.join("release-identity.json");
+    let mut signed: SignedManifest = json(&identity).unwrap();
+    signed.payload.push(' ');
+    fs::write(identity, encode(&signed).unwrap()).unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_IDENTITY_SIGNATURE");
 }
 
 #[test]
@@ -124,6 +155,55 @@ fn incomplete_launcher_build_is_rejected() {
     source(&input);
     fs::remove_file(input.join("AmeowLauncher.exe")).unwrap();
     assert!(prepare(&input, &tmp.path().join("out")).is_err());
+}
+#[test]
+fn cli_is_bound_to_the_signed_portable_and_required_in_schema_two() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (build, output) = signed_candidate(tmp.path());
+    let path = output.join(portable_name(&build));
+    let bytes = read(&path, MAX_PACKAGE).unwrap();
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    let mut contents = BTreeMap::new();
+    for index in 0..zip.len() {
+        let mut entry = zip.by_index(index).unwrap();
+        let mut body = Vec::new();
+        entry.read_to_end(&mut body).unwrap();
+        contents.insert(entry.name().to_string(), body);
+    }
+    assert_eq!(contents["ameow-cli.exe"], b"controlled CLI bytes");
+    contents.insert("ameow-cli.exe".into(), b"modified CLI".to_vec());
+    fs::write(&path, archive(&contents).unwrap()).unwrap();
+    assert_eq!(verify_signed_with_roots(&output, &build.trust).unwrap_err(), "E_RELEASE_FILE_HASH");
+    contents.remove("ameow-cli.exe");
+    fs::write(&path, archive(&contents).unwrap()).unwrap();
+    assert_eq!(verify_signed_with_roots(&output, &build.trust).unwrap_err(), "E_RELEASE_ZIP_MEMBERS");
+}
+#[test]
+fn altered_cli_is_rejected_before_preparation() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("input");
+    source(&input);
+    fs::write(input.join("ameow-cli.exe"), b"substitution").unwrap();
+    let output = tmp.path().join("out");
+    assert!(prepare(&input, &output).is_err());
+    assert!(!output.exists());
+}
+#[test]
+fn legacy_schema_one_remains_verifiable_without_cli() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("input");
+    let mut build = source(&input);
+    build.schema = 1;
+    build.cli = None;
+    save_build(&input, &build);
+    let prepared = tmp.path().join("prepared");
+    prepare(&input, &prepared).unwrap();
+    let output = tmp.path().join("signed");
+    sign_fixture(&prepared, &output, 1, super::super::store::now()).unwrap();
+    verify_signed_with_roots(&output, &build.trust).unwrap();
+    let mut invalid = build.clone();
+    invalid.schema = 2;
+    assert!(invalid.validate().is_err());
 }
 #[test]
 fn wrong_version_platform_commit_and_tag_are_rejected() {

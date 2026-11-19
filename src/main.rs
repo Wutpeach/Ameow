@@ -1243,7 +1243,7 @@ fn main() {
         eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
         std::process::exit(2);
     }
-    if let Err(error) = ameow_next::app_update::session::Session::from_env() {
+    if let Err(error) = ameow_next::control::launch_session(&args) {
         eprintln!("Ameow Launcher session: {error}");
         std::process::exit(2);
     }
@@ -1268,7 +1268,16 @@ fn main() {
     }
     let mut options = Options::from_args();
     if !options.fixture {
-        match login_startup::InstanceGuard::acquire_with_restore(!options.login_startup) {
+        let restore = !options.login_startup && !args.iter().any(|arg| arg == "--cli-launch");
+        let isolated = match ameow_next::control::isolated_root(&args) {
+            Ok(root) => root,
+            Err(error) => { eprintln!("{error}"); std::process::exit(2); }
+        };
+        let acquire = match &isolated {
+            Some(root) => login_startup::InstanceGuard::acquire_isolated(root, restore),
+            None => login_startup::InstanceGuard::acquire_with_restore(restore),
+        };
+        match acquire {
             Ok(login_startup::InstanceAcquire::Primary(guard)) => options.instance = Some(guard),
             Ok(login_startup::InstanceAcquire::Duplicate) => return,
             Err(error) => {
@@ -1285,7 +1294,7 @@ fn main() {
             }
         }
     }
-    let login_startup = options.login_startup;
+    let activate = !options.login_startup && !args.iter().any(|arg| arg == "--cli-launch");
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
@@ -1325,6 +1334,6 @@ fn main() {
                 move |window, cx| cx.new(|cx| Prototype::new(options, window, cx)),
             )
             .expect("GPUI native window");
-            if !login_startup { cx.activate(true); }
+            if activate { cx.activate(true); }
         });
 }

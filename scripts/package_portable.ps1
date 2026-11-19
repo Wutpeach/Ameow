@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Build the Windows application, Launcher and offline release tool, then prepare unsigned update inputs.
+Build the Windows application, Launcher, CLI and offline release tool, then prepare unsigned update inputs.
 .DESCRIPTION
 No approval file, version Tag, signing key or upload is needed. Dirty development inputs are recorded;
 production signing requires a clean, identified Commit. Run this script in a separate clean checkout
@@ -104,7 +104,7 @@ try {
     $env:CARGO_TARGET_DIR = $targetRoot
     # An explicit target keeps host procedural macros out of the static-CRT build.
     $env:RUSTFLAGS = '-C target-feature=+crt-static'
-    $buildArguments = @('build','--locked','--offline','--release','--target',$platform,'--bin','ameow','--bin','ameow-launcher','--bin','ameow-release')
+    $buildArguments = @('build','--locked','--offline','--release','--target',$platform,'--bin','ameow','--bin','ameow-launcher','--bin','ameow-cli','--bin','ameow-release')
     & cargo @buildArguments *> (Join-Path $outputRoot 'build.log')
     if ($LASTEXITCODE -ne 0) { throw "Release build failed; see $outputRoot/build.log" }
     if ((Inventory-Digest @(Source-Inventory)) -cne (Inventory-Digest $before)) { throw 'Build inputs changed during compilation.' }
@@ -113,7 +113,7 @@ try {
     }
     if (((Invoke-Native git @('rev-parse','HEAD')) -join '') -cne $head) { throw 'Build Commit changed during compilation.' }
     $recordFile = { param($path,$name) [ordered]@{path=$name;bytes=(Get-Item -LiteralPath $path).Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()} }
-    foreach ($binary in @(@('ameow','Ameow'),@('ameow-launcher','AmeowLauncher'),@('ameow-release','ameow-release'))) {
+    foreach ($binary in @(@('ameow','Ameow'),@('ameow-launcher','AmeowLauncher'),@('ameow-cli','ameow-cli'),@('ameow-release','ameow-release'))) {
         Copy-Item -LiteralPath (Join-Path $targetRoot "$platform/release/$($binary[0]).exe") -Destination (Join-Path $outputRoot "$($binary[1]).exe")
     }
     $appPath = Join-Path $outputRoot 'Ameow.exe'
@@ -129,7 +129,7 @@ try {
     }
     Write-Json (Join-Path $outputRoot 'input-manifest.json') ([ordered]@{schema=2;baselineHead=$head;baselineTree=$tree;dirty=$dirty;sourceAndResources=$before;sourceInventorySha256=(Inventory-Digest $before);packagingInputs=$implementationInputs;toolchain=$rustc;command=('cargo '+($buildArguments -join ' '))})
     Write-Json (Join-Path $outputRoot 'material-audit.json') ([ordered]@{materials=$materialAudit})
-    $build = [ordered]@{schema=1;version=$version;target=$platform;commit=$head;tree=$tree;tag=$tag;dirty=$dirty;source_sha256=(Inventory-Digest $before).ToLowerInvariant();cargo_lock_sha256=(File-Record 'Cargo.lock').sha256.ToLowerInvariant();toolchain='1.98.1';trust=(Get-Content -LiteralPath (Join-Path $packageRoot 'assets/app-update-trust.json') -Raw | ConvertFrom-Json);app=(& $recordFile $appPath 'Ameow.exe');launcher=(& $recordFile (Join-Path $outputRoot 'AmeowLauncher.exe') 'AmeowLauncher.exe');notices=$materials}
+    $build = [ordered]@{schema=2;version=$version;target=$platform;commit=$head;tree=$tree;tag=$tag;dirty=$dirty;source_sha256=(Inventory-Digest $before).ToLowerInvariant();cargo_lock_sha256=(File-Record 'Cargo.lock').sha256.ToLowerInvariant();toolchain='1.98.1';trust=(Get-Content -LiteralPath (Join-Path $packageRoot 'assets/app-update-trust.json') -Raw | ConvertFrom-Json);app=(& $recordFile $appPath 'Ameow.exe');launcher=(& $recordFile (Join-Path $outputRoot 'AmeowLauncher.exe') 'AmeowLauncher.exe');cli=(& $recordFile (Join-Path $outputRoot 'ameow-cli.exe') 'ameow-cli.exe');notices=$materials}
     Write-Json (Join-Path $outputRoot 'release-build.json') $build
     $tool = Join-Path $outputRoot 'ameow-release.exe'
     & $tool prepare $outputRoot (Join-Path $outputRoot 'prepared') *> (Join-Path $outputRoot 'release-preparation.log')

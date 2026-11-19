@@ -11,6 +11,7 @@ OpenSpec 是本仓库正式行为要求的记录与更新体系。当前工程�
 | [queue-lifecycle](specs/queue-lifecycle/spec.md) | 设置顺序、冻结意图、FIFO3、重试例外、诊断与停止 |
 | [progress-presentation](specs/progress-presentation/spec.md) | primary 进度、观察限额、前台/队列时钟、固定布局、隔离 preview |
 | [desktop-interaction](specs/desktop-interaction/spec.md) | 图标/反馈、键盘/tooltip、静默启动、设置/窗口/退出、动效 |
+| [desktop-control](specs/desktop-control/spec.md) | CLI 共用队列、本机访问、实例身份、机器结果与等待边界 |
 | [release-integrity](specs/release-integrity/spec.md) | 当前构建/签名/四资产、明确发行授权、身份兼容与证据保全 |
 | [macos-native](specs/macos-native/spec.md) | Apple Silicon 原生窗口、菜单栏、组件与应用更新适配 |
 

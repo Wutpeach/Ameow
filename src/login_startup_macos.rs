@@ -178,6 +178,17 @@ fn prepare_instance_directory(home: &Path) -> Result<PathBuf, String> {
 }
 
 impl InstanceGuard {
+    pub fn acquire_isolated(root: &Path, restore: bool) -> Result<InstanceAcquire, String> {
+        use sha2::{Digest, Sha256};
+        use std::os::unix::fs::{DirBuilderExt,MetadataExt};
+        let digest = format!("{:x}",Sha256::digest(root.as_os_str().as_encoded_bytes()));
+        let uid = unsafe { libc::geteuid() };
+        let directory = PathBuf::from("/tmp").join(format!("ameow-instance-{uid}-{}",&digest[..24]));
+        match fs::DirBuilder::new().mode(0o700).create(&directory) { Ok(()) => {}, Err(e) if e.kind()==io::ErrorKind::AlreadyExists => {}, Err(e) => return Err(e.to_string()) }
+        let metadata = fs::symlink_metadata(&directory).map_err(|error| error.to_string())?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() || metadata.uid()!=uid || metadata.mode()&0o777!=0o700 { return Err("E_INSTANCE_DIRECTORY".into()); }
+        Self::acquire_at(directory, restore)
+    }
     pub fn acquire_with_restore(restore: bool) -> Result<InstanceAcquire, String> {
         let home = std::env::var_os("HOME").ok_or("E_INSTANCE_HOME")?;
         let directory = prepare_instance_directory(Path::new(&home))?;

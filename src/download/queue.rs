@@ -10,7 +10,7 @@ use super::{
         RuntimeComponent,
     },
     process_supervisor::{Control, ProcessObservation},
-    request::{Accepted, DownloadIntent, Identity},
+    request::{Accepted, DownloadIntent, Identity, Quality},
     runtime::RuntimeLease,
     settings::Settings,
 };
@@ -93,7 +93,6 @@ pub struct JobSnapshot {
 mod preparation_fixture;
 #[cfg(test)]
 mod tests {
-    use super::super::request::Quality;
     use super::*;
     use crate::download::{
         adapters::yt_dlp::{diagnostics as native_diagnostics, identity as native_identity},
@@ -1251,6 +1250,50 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn per_job_options_leave_defaults_untouched_and_retry_preserves_them() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let default_dir = root.path().join("default");
+        let override_dir = root.path().join("override");
+        fs::create_dir(&default_dir).and_then(|_| fs::create_dir(&override_dir)).map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let defaults = backend.save_settings(Settings {
+            quality: Quality::Balanced, output_dir: default_dir,
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+        })?;
+        let settings_bytes = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
+        let job = match backend.apply(QueueCommand::SubmitWithOptions {
+            url: "https://youtu.be/jNQXAC9IVRw".into(), quality: Some(Quality::Highest),
+            output_dir: Some(override_dir.clone()),
+        }) {
+            CommandReply::Accepted(job) => job,
+            reply => return Err(format!("Expected acceptance: {reply:?}")),
+        };
+        assert!(backend.submit_with_options("https://youtu.be/abcdefghijk".into(), None, Some(root.path().join("missing"))).is_err());
+        let ordinary = backend.submit("https://youtu.be/dQw4w9WgXcQ".into())?;
+        let view = backend.snapshot();
+        assert_eq!(view.settings, defaults);
+        assert_eq!(fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?, settings_bytes);
+        let intent = &view.jobs.iter().find(|j| j.job_id == job).ok_or("missing override job")?.accepted.intent;
+        assert_eq!(intent.quality, Quality::Highest);
+        assert_eq!(intent.output_dir, override_dir.canonicalize().map_err(|e| e.to_string())?);
+        let intent = &view.jobs.iter().find(|j| j.job_id == ordinary).ok_or("missing ordinary job")?.accepted.intent;
+        assert_eq!(intent.quality, defaults.quality);
+        assert_eq!(intent.output_dir, defaults.output_dir);
+        {
+            let mut model = lock(&backend.shared.model);
+            assert_eq!(model.launch(), Some(job));
+            model.settled(job, Snapshot { phase: Phase::Failure, resources_released: true, ..Default::default() });
+            backend.shared.publish(&model);
+        }
+        let retry = backend.retry(job)?;
+        let view = backend.snapshot();
+        let intent = &view.jobs.iter().find(|j| j.job_id == retry).ok_or("missing retry job")?.accepted.intent;
+        assert_eq!(intent.quality, Quality::Highest);
+        assert_eq!(intent.output_dir, override_dir.canonicalize().map_err(|e| e.to_string())?);
+        assert_eq!(view.settings, defaults);
+        Ok(())
+    }
+    #[test]
     fn manual_retry_creates_new_job_with_original_values_identity_and_double_click_dedup()
     -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
@@ -2133,6 +2176,7 @@ pub enum QueueCommand {
     UpgradeEngine { version: String },
     RestoreRecommended,
     Submit { url: String },
+    SubmitWithOptions { url: String, quality: Option<Quality>, output_dir: Option<PathBuf> },
     SaveSettings(Settings),
     Cancel(u64),
     Retry(u64),
@@ -2639,12 +2683,15 @@ impl DownloadCoordinator {
         progress != 0 && dispatch_millis().saturating_sub(progress) <= 500
     }
     pub fn submit(&self, url: String) -> Result<u64, String> {
+        self.submit_with_options(url, None, None)
+    }
+    pub fn submit_with_options(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
         let settings = lock(&self.shared.model).settings.clone();
         let mut accepted = Accepted::new(DownloadIntent {
             url,
-            quality: settings.quality,
-            output_dir: settings.output_dir,
+            quality: quality.unwrap_or(settings.quality),
+            output_dir: output_dir.unwrap_or(settings.output_dir),
         })
         .map_err(|_| "E_INPUT: Use a public single-video URL and existing destination")?;
         let mut model = lock(&self.shared.model);
@@ -2885,6 +2932,10 @@ impl DownloadCoordinator {
             }
             QueueCommand::Submit { url } => self
                 .submit(url)
+                .map(CommandReply::Accepted)
+                .unwrap_or_else(CommandReply::Error),
+            QueueCommand::SubmitWithOptions { url, quality, output_dir } => self
+                .submit_with_options(url, quality, output_dir)
                 .map(CommandReply::Accepted)
                 .unwrap_or_else(CommandReply::Error),
             QueueCommand::SaveSettings(settings) => self

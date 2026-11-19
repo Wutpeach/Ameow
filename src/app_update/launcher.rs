@@ -124,14 +124,30 @@ fn commit_ready(install: &Install, release: &Release, trial: bool) -> Result<(),
     install.save(&state)
 }
 pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result<(), String> {
+    // Validate isolation before touching any production instance mutex or restore event.
+    #[cfg(windows)]
+    let isolated = {
+        if args.iter().any(|arg| arg == "--instance-root")
+            && !cfg!(all(feature = "app-update-fixture", debug_assertions))
+        {
+            return Err("E_INSTANCE_ROOT: packaged isolation requires a debug fixture".into());
+        }
+        crate::control::isolated_root(args).map_err(|e| e.to_string())?
+    };
+    #[cfg(windows)]
+    let acquire = || {
+        let restore = !args.iter().any(|a| matches!(a.as_str(), "--login-startup" | "--cli-launch"));
+        match &isolated {
+            Some(root) => crate::login_startup::InstanceGuard::acquire_isolated(root, restore),
+            None => crate::login_startup::InstanceGuard::acquire_with_restore(restore),
+        }
+    };
     let _running = match exclusive(&install.root.join("running.lock")) {
         Ok(lock) => lock,
         Err(error) => {
             #[cfg(windows)]
             if let Ok(crate::login_startup::InstanceAcquire::Duplicate) =
-                crate::login_startup::InstanceGuard::acquire_with_restore(
-                    !args.iter().any(|a| a == "--login-startup"),
-                )
+                acquire()
             {
                 return Ok(());
             }
@@ -140,9 +156,7 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
     };
     // A direct developer app may own the shared identity independently of this launcher.
     #[cfg(windows)]
-    match crate::login_startup::InstanceGuard::acquire_with_restore(
-        !args.iter().any(|a| a == "--login-startup"),
-    )? {
+    match acquire()? {
         crate::login_startup::InstanceAcquire::Duplicate => return Ok(()),
         crate::login_startup::InstanceAcquire::Primary(guard) => drop(guard),
     }
@@ -277,6 +291,16 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
 mod tests {
     use super::*;
     use crate::app_update::{Coordinator, Phase, tests::prepare};
+    #[cfg(all(windows, not(feature = "app-update-fixture")))]
+    #[test]
+    fn ordinary_launcher_rejects_isolation_before_acquiring_install_lease() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        let args = vec!["--instance-root".into(), root.path().join("domain").to_string_lossy().into_owned()];
+        assert!(run(install.clone(), &args, Duration::from_secs(1)).unwrap_err().starts_with("E_INSTANCE_ROOT"));
+        assert!(!install.root.join("running.lock").exists());
+        assert!(!root.path().join("domain").exists());
+    }
     #[test]
     fn windows_ticket_does_not_add_a_bundle_field() {
         let ticket = Ticket {
