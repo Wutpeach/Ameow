@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'browser-extension/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   pull_request:
-    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
+    paths: ['.gitattributes', 'rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'build_support/**', 'vendor/accesskit_windows/**', 'src/**', 'tests/**', 'examples/**', 'assets/**', 'browser-extension/**', 'distribution/**', 'scripts/package_portable.ps1', 'scripts/test_release_preparation.ps1', 'scripts/package_windows.ps1', 'scripts/test_windows_delivery.ps1', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:
@@ -54,6 +54,12 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/package_portable.ps1 -TargetDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-target') -OutputDirectory (Join-Path $env:RUNNER_TEMP 'ameow-c1-build')
+      - name: Run browser session regressions
+        # The ordinary package step installed the locked extension dependencies.
+        shell: pwsh
+        run: |
+          npm --prefix browser-extension test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify offline release commands
         shell: pwsh
         run: |
