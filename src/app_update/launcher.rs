@@ -291,6 +291,16 @@ pub fn run(install: Install, args: &[String], ready_timeout: Duration) -> Result
 mod tests {
     use super::*;
     use crate::app_update::{Coordinator, Phase, tests::prepare};
+    #[cfg(all(windows, not(feature = "app-update-fixture")))]
+    #[test]
+    fn ordinary_launcher_rejects_isolation_before_acquiring_install_lease() {
+        let root = tempfile::tempdir().unwrap();
+        let install = Install::fixture(root.path().join("install")).unwrap();
+        let args = vec!["--instance-root".into(), root.path().join("domain").to_string_lossy().into_owned()];
+        assert!(run(install.clone(), &args, Duration::from_secs(1)).unwrap_err().starts_with("E_INSTANCE_ROOT"));
+        assert!(!install.root.join("running.lock").exists());
+        assert!(!root.path().join("domain").exists());
+    }
     #[test]
     fn windows_ticket_does_not_add_a_bundle_field() {
         let ticket = Ticket {

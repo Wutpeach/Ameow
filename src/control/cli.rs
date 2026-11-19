@@ -874,6 +874,18 @@ mod tests {
     fn words(input: &[&str]) -> Vec<String> {
         input.iter().map(|v| (*v).to_owned()).collect()
     }
+    #[cfg(not(feature = "app-update-fixture"))]
+    #[test]
+    fn ordinary_cli_rejects_isolated_packaged_entries_before_spawn() {
+        let temp = tempfile::tempdir().unwrap();
+        for name in ["AmeowLauncher.exe", "versions/0.5.0/Ameow.exe", "Ameow.app/Contents/MacOS/ameow"] {
+            let app = temp.path().join(name);
+            std::fs::create_dir_all(app.parent().unwrap()).unwrap();
+            std::fs::write(&app, b"must never execute").unwrap();
+            let options = parse(vec!["--instance-root".into(), temp.path().to_string_lossy().into_owned(), "--app".into(), app.to_string_lossy().into_owned(), "submit".into(), "https://example.com/media".into()]).unwrap();
+            assert_eq!(start_app(&options, temp.path()).unwrap_err().code, "E_LAUNCH");
+        }
+    }
     #[test]
     fn parser_rejects_misapplied_duplicate_and_invalid_options() {
         assert!(parse(words(&["list", "--timeout", "1"])).is_err());
