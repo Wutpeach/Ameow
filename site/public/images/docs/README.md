@@ -1,22 +1,25 @@
-# Rust documentation screenshots / Rust 文档截图
+# Native screenshot provenance
 
-These are real Windows Rust / GPUI captures reused from existing acceptance evidence, not new #19 captures or generated UI. / 以下均为既有验收的真实截图，不是 #19 新截图或生成界面。
+These retained PNGs are Windows Rust / GPUI captures. The current user manual uses
+[workflow illustrations](../../../src/components/manual/README.md); these captures
+record earlier application states and do not establish current UI or Mac validation.
 
-The former local docs/evidence/ backups and #19 receipt copy were removed at the user's request; see [historical-source status](../../../../docs/README.md#历史资料) for remaining availability. Original paths below are provenance only; published image files remain here. / 原本机证据备份和回执副本已按用户要求移除，以下原路径仅用于追溯；本站图片继续保留。
-
-| Asset | Provenance and use / 来源与用途 | Processing / 处理 |
+| Asset | Source | Processing |
 | --- | --- | --- |
-| rust-compact-themes.png | #18 repair, final evidence commit 5a76c480; Compact light/dark theme persistence only / 仅 Compact 明暗主题 | Byte-for-byte copy of docs/evidence/issue18-repair-native.png; withdrawn from user pages in #19 Repair because its small size and captured purple pointer obscure the product / 因尺寸小且带紫色指针，已从用户页面撤下 |
-| rust-settings-zh-general.png, rust-settings-en-general.png | #15 accepted four-page settings; archived tra28-r10-pages.local light-*-general.png / 常规页，不代表本轮重新验收 | Crop [8,1,572,432] to window, no control changes / 只裁窗口外背景 |
-| rust-settings-zh-download.png, rust-settings-en-download.png | Same #15 acceptance, light-*-download.png / 下载目录设置 | Same crop; solid rectangle [146,172,540,216] covers personal path / 实色遮盖个人路径，未替换为虚构目录 |
+| rust-compact-themes.png | #18 repair, evidence commit 5a76c480; Compact light/dark only | Original image bytes; withdrawn from user pages because the small capture and pointer obscure the product |
+| rust-settings-zh-general.png, rust-settings-en-general.png | #15 four-page settings acceptance, light-*-general.png | Window crop [8,1,572,432]; controls unchanged |
+| rust-settings-zh-download.png, rust-settings-en-download.png | Same #15 acceptance, light-*-download.png | Same crop; solid rectangle [146,172,540,216] redacts the personal path without inventing a replacement |
 
-Source evidence: [#15](https://github.com/Wutpeach/Ameow/issues/15), [settings report](https://github.com/Wutpeach/Ameow/blob/eb7f5ac56aaac736da7d5f51ed4368dfc96b64e5/.trellis/research/tra28-r10-settings-master-report.md), [#18 final native report](https://github.com/Wutpeach/Ameow/issues/18#issuecomment-6610225897), [#18 repair receipt](https://github.com/Wutpeach/Ameow/blob/5a76c480/docs/issue18-repair-receipt.json). General and download controls retain the accepted layout through the #18 root promotion. These settings captures predate the formal executable rename and do not establish acceptance for every latest setting or platform.
+Sources: [#15](https://github.com/Wutpeach/Ameow/issues/15),
+[settings report](https://github.com/Wutpeach/Ameow/blob/eb7f5ac56aaac736da7d5f51ed4368dfc96b64e5/.trellis/research/tra28-r10-settings-master-report.md),
+[#18 native report](https://github.com/Wutpeach/Ameow/issues/18#issuecomment-6610225897),
+[#18 repair receipt](https://github.com/Wutpeach/Ameow/blob/5a76c480/docs/issue18-repair-receipt.json).
+The settings captures predate the formal executable rename and cover their recorded
+states only. New captures should identify source revision, executable identity and
+real state, redact personal data, and use a reviewable crop.
 
-#17/T04 process captures with hover tooltips were inspected but are not included. No old Electron SVG mock is presented as a Rust screenshot. No Full/queue screenshot is claimed from the Compact image. Future captures must identify their source revision and real state, redact private data, and preserve a reviewable crop.
+Published SHA-256 values:
 
-Local source and output hashes are retained in the #19 evidence receipt. Published output SHA-256:
-
-#19 display repair uses the existing 564×431 Chinese/English General settings captures on the matching homepages, at their natural aspect ratio. They are clear native Rust UI with no pointer; no new native capture or UI acceptance run was needed. User-facing pages describe the controls naturally; provenance and hashes remain here. The withdrawn Compact asset and its original acceptance evidence are preserved for traceability. / 首页改用相应语言的常规设置实图，保持原比例；无需补拍或重新验收原生界面。
 - rust-settings-zh-general.png: dcc804cba6c013f917bdfa79af2484e94e9b9e9ad0488f930f9699be2241958b
 - rust-settings-zh-download.png: d0ead781246a09f8651b48d4c2bb8c077e1edb7b4f9180bc6362b5e19a103512
 - rust-settings-en-general.png: 02547b43165b38fb86a97bf0b7f523ab7509ae97be266ec476d7338fa987e7c8

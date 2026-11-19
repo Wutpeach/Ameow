@@ -1484,9 +1484,5 @@
         }
       ]
     }
-  ],
-  "former_archive_root": "D:/AmeowMigrationBackups/20261115-openspec-migration",
-  "archive_root": null,
-  "archive_available": false,
-  "archive_disposition": "User requested deletion on 2026-11-15; moved to Windows Recycle Bin. Paths and hashes are provenance only."
+  ]
 }

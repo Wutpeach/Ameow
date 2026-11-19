@@ -57,7 +57,7 @@ JSON 明确标注此行为，所以它不能证明自然置顶。自然置顶/�
 ## 目录和维护
 
 scripts/preview-scenes.json 是名称、分类和说明的唯一目录，编译进程序。
-本轮目录为 123 场景/9 类，其中 Compact 4 场景；以指定 EXE 导出的实际目录为准。
+场景数量与分类以指定 EXE 导出的实际目录为准。
 新增场景后重新编译即可，不维护另一份 Gallery 场景表。
 
 src/preview.rs 负责队列/主界面，settings_window.rs 负责设置和组件，
@@ -92,8 +92,5 @@ scripts/test_gpui_compatibility.py 不保存截图，仅做短时普通/reduced 
 托盘图标注册、所属窗口回调与退出清理；不证明其他 DPI、跨屏、真实 Shell 点击或合成帧节奏。
 scripts/test_gallery_tools.py 不打开窗口，检查防覆盖、回执边界、取消/失败标记及控制器崩溃清理。
 
-旧 preview.ps1 / preview-menu.ps1 / preview-console.cs / start-preview.bat 和对应的
-test_preview_menu.ps1 已在职责对照后移除。替代证据与保留工具见
-[Gallery 职责覆盖的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue32/gallery-coverage.md`）。preview_capture.py、
-native_capture.py、windows_validate.py 及专门的 DPI/跨屏/阴影验证工具继续保留。
-旧入口说明及首批场景证据仍可在 Git 历史和 [#20 记录的历史来源说明](README.md#历史资料)（原 `docs/evidence/issue20/README.md`）回溯。
+preview_capture.py、native_capture.py、windows_validate.py 及专门的 DPI/跨屏/阴影
+工具分别覆盖对应的原生检查；按受影响行为选择入口，不将 Gallery 截图扩大为完整原生验收。

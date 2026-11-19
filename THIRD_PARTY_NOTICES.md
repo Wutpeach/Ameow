@@ -71,6 +71,6 @@ runtime-acquisition.md in this repository for download provenance and review lim
 Exact license-text sources remain unresolved for accesskit@0.24.1, accesskit_consumer@0.38.0, mac@0.1.1, rust-i18n-macro@4.2.4, rust-i18n-support@4.2.4, seahash@4.1.0, taffy@0.15.1, zune-core@0.4.12, zune-jpeg@0.4.21. Their declared licenses are recorded above; no replacement copyright or license text has been invented. The original tag
 for three historical icons, brand redistribution rights, applicable MSVC terms
 and runtime/source obligations also remain under review. These engineering
-notices do not clear public-distribution Gate B or constitute legal approval.
+notices disclose those limits and do not constitute legal approval.
 
 End of third-party notices for Ameow {{VERSION}}.

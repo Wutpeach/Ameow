@@ -2,7 +2,7 @@
 
 Ameow is a Rust / GPUI floating download app for Windows x64 and Apple Silicon Mac. Paste a public media link, manage the queue, and choose quality and a save folder. When idle, the cat returns to the Compact window.
 
-[简体中文](README.md) · [User manual](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
+[简体中文](README.md) · [User manual](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md)
 
 ## Download and install
 

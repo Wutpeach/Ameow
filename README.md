@@ -2,7 +2,7 @@
 
 Ameow 是基于 Rust / GPUI 的悬浮下载应用，支持 Windows x64 和 Apple Silicon Mac。粘贴公开媒体链接，管理下载队列，选择画质和保存位置；空闲时，猫咪回到 Compact 窗口。
 
-[English](README.en.md) · [使用手册](https://wutpeach.github.io/Ameow/docs/) · [开发说明](CONTRIBUTING.md) · [工程文档与历史说明](docs/README.md)
+[English](README.en.md) · [使用手册](https://wutpeach.github.io/Ameow/docs/) · [开发说明](CONTRIBUTING.md)
 
 ## 下载与安装
 
