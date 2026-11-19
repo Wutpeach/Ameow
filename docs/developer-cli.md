@@ -1,9 +1,40 @@
 # CLI 开发入口
 
-开发和 Agent 回归使用同一个固定 target。无需打开 Ameow 或桌面会话：
+本指南只描述 debug 开发执行。普通桌面控制的安装、版本可用性见[用户指南](../site/src/content/docs/docs/cli.md)（[English](../site/src/content/docs/en/docs/cli.md)），完整命令契约见 [cli.md](cli.md)。当前 v0.5.0 正式包没有后加的 CLI；开发 `dev` 入口需包含 PR #61，没有 GUI 设置开关，也不能在 release 构建中开启。
+
+## 准备独立开发目录
+
+已有包含 PR #61 的独立检出时，直接进入该目录。若需要新建候选检出，下面的目录名可自行替换，先安装 [CONTRIBUTING](../CONTRIBUTING.md) 要求的工具链：
+
+~~~sh
+git clone https://github.com/Wutpeach/Ameow.git AmeowCliDev
+cd AmeowCliDev
+git fetch origin pull/61/head
+git switch -c cli-dev FETCH_HEAD
+~~~
+
+这些命令适用于 PowerShell 和 zsh/bash；它们在新目录检出候选，不要求切换日常开发树。PR #61 合并后，也可使用已包含该能力的 main。
+
+## 构建一次，运行场景
+
+开发和 Agent 回归复用同一个固定 target：
+
+~~~sh
+cargo build --locked --features dev-tools --bin ameow-cli --target-dir target
+~~~
+
+Windows PowerShell：
 
 ~~~powershell
-cargo run --locked --features dev-tools --bin ameow-cli -- dev scenario --root evidence/dev-success --case success
+./target/debug/ameow-cli.exe dev --help
+./target/debug/ameow-cli.exe dev scenario --root evidence/dev-success --case success
+~~~
+
+Mac zsh/bash 的文件名不带 `.exe`：
+
+~~~sh
+./target/debug/ameow-cli dev --help
+./target/debug/ameow-cli dev scenario --root evidence/dev-success --case success
 ~~~
 
 每次选择新根目录。命令创建 settings.json、runtime/、output/、evidence/，保存结果后退出。
@@ -12,10 +43,9 @@ cargo run --locked --features dev-tools --bin ameow-cli -- dev scenario --root e
 
 ## 固定离线场景
 
-先编译一次，随后调用同一 EXE（Mac 去掉 .exe）：
+随后调用同一 EXE（以下为 PowerShell，Mac zsh/bash 去掉路径中的 `.exe`）：
 
 ~~~powershell
-cargo build --locked --features dev-tools --bin ameow-cli
 ./target/debug/ameow-cli.exe dev scenario --root evidence/dev-retry --case retry
 ./target/debug/ameow-cli.exe dev scenario --root evidence/dev-cancel --case cancel
 ./target/debug/ameow-cli.exe dev scenario --root evidence/dev-stop --case stop
@@ -39,18 +69,28 @@ held 的异常在正式核心的 owner panic 捕获边界产生，保留本次 r
 ## 真实任务
 
 ~~~powershell
-./target/debug/ameow-cli.exe dev run --root evidence/real-run --url https://example.com/media --quality balanced --timeout 120
+$Url = Read-Host '要下载的公开媒体 URL'
+./target/debug/ameow-cli.exe dev run --root evidence/real-run --url $Url --quality balanced --timeout 120
 ~~~
 
-run 使用正式 AutomaticAdapter、组件准备/校验和任务规则，下载公开 URL，不改变下载器的选流或可下载性判断。
+Mac zsh/bash：
+
+~~~sh
+printf 'Public media URL: '
+IFS= read -r url
+./target/debug/ameow-cli dev run --root evidence/real-run --url "$url" --quality balanced --timeout 120
+~~~
+
+`scenario` 使用离线固定输入；`run` 使用自己的真实 URL，调用正式 AutomaticAdapter、组件准备/校验和任务规则，可能联网，不改变下载器的选流或可下载性判断。请传入实际媒体 URL，其可下载性取决于站点与下载器。
 最多 16 个重复的 --url；提交顺序固定。--quality 为 highest（默认）、balanced、saver，output 固定在本次根的 output/。
 
-可组合的定向动作：
+可组合的定向动作，以下 PowerShell 沿用上面的 `$Url`，第二个链接另行输入：
 
 ~~~powershell
-ameow-cli dev run --root evidence/cancel-run --url URL --cancel-job 1 --cancel-after-ms 1500
-ameow-cli dev run --root evidence/stop-run --url URL1 --url URL2 --stop-after-ms 2000
-ameow-cli dev run --root evidence/retry-run --url URL --retry-failed --duplicate-first
+./target/debug/ameow-cli.exe dev run --root evidence/cancel-run --url $Url --cancel-job 1 --cancel-after-ms 1500
+$Url2 = Read-Host '第二个公开媒体 URL'
+./target/debug/ameow-cli.exe dev run --root evidence/stop-run --url $Url --url $Url2 --stop-after-ms 2000
+./target/debug/ameow-cli.exe dev run --root evidence/retry-run --url $Url --retry-failed --duplicate-first
 ~~~
 
 cancel-job 是从 1 开始的输入序号。retry-failed 对每个输入最多显式重试一次，沿用正式 Failure/Partial 重试规则；重试创建新 ID 时保留 previous_task_id。
@@ -85,7 +125,8 @@ python scripts/test_app_update_media_server.py evidence/media
 服务器将实际端口写入 server-port.json。在另一终端读取该端口，再运行：
 
 ~~~powershell
-ameow-cli dev run --root evidence/local-real --url http://example.com/ameow-issue33-1.mp4 --fixture-media-port PORT --timeout 60
+$Port = (Get-Content evidence/media/server-port.json -Raw | ConvertFrom-Json).port
+./target/debug/ameow-cli.exe dev run --root evidence/local-real --url http://example.com/ameow-issue33-1.mp4 --fixture-media-port $Port --timeout 60
 ~~~
 
 服务器对较大 .ts 传输保留 release-1/2/3 文件门槛；相应 release 文件放行该任务，stop 文件让服务器结束。它只提供固定本地文件，不转发外网。

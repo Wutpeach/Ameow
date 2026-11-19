@@ -35,4 +35,4 @@
 
 ---
 
-[使用手册](https://wutpeach.github.io/Ameow/docs/) · [English](README.en.md) · [第三方说明](THIRD_PARTY_NOTICES.md)
+[使用手册](https://wutpeach.github.io/Ameow/docs/) · [CLI](site/src/content/docs/docs/cli.md) · [English](README.en.md) · [第三方说明](THIRD_PARTY_NOTICES.md)

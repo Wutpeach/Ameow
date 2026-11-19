@@ -35,4 +35,4 @@ Choose a quality preset and drop a folder onto the window to set your save locat
 
 ---
 
-[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [CLI](site/src/content/docs/en/docs/cli.md) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
