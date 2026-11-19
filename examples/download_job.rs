@@ -55,6 +55,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let item = snapshot.jobs.iter().find(|item| item.job_id == job).ok_or("Job missing")?;
             if item.phase.terminal() {
                 if item.phase != JobPhase::Success {
+                    if let Some(path) = value("--diagnostic-output")
+                        && let ameow_next::download::queue::CommandReply::Diagnostic(text) = coordinator.apply(
+                            ameow_next::download::queue::QueueCommand::CopyDiagnostic(job),
+                        )
+                    {
+                        std::fs::write(path, text)?;
+                    }
                     return Err(item.message.clone().into());
                 }
                 return Ok(());

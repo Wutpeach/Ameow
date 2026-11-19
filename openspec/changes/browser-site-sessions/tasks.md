@@ -16,11 +16,13 @@
 
 ## 4. 产品包与交付
 
-- [ ] 4.1 将桥接和扩展纳入普通 Windows/macOS 打包及完整性清单，维护简洁文档/主规范；构建及相关检查通过。
-- [ ] 4.2 独立浏览器合成会话到桌面及正式 Adapter 端到端验证，交可运行入口、准确版本/源码报告和 Draft PR；真实会员状态单列，不将 fixture 作为会员通过。
+- [x] 4.1 将桥接和扩展纳入普通 Windows/macOS 打包及完整性清单，维护简洁文档/主规范；构建及相关检查通过。
+- [x] 4.2 独立浏览器合成会话到桌面及正式 Adapter 端到端验证，交可运行入口、准确版本/源码报告和 Draft PR；真实会员状态单列，不将 fixture 作为会员通过。
 
 ## Workflow follow-up
 
 - 用户及来源复审后再处理归档；本任务不 Ready、merge、关闭 Issue 或发行。
 
 验证边界：Windows 合成协议、真实 Edge 桥接/同步及设置移除已验证；macOS SSH Keychain 返回 -25308，本机专属 GUI 验证包已准备但尚未由用户启动。原生权限确认 UI 与真实会员样本单列待验，不算作上述工程项通过。
+
+交付：实现 c8057a4c；Windows/macOS 普通 release 构建与打包已通过；Draft PR https://github.com/Wutpeach/Ameow/pull/63 。人工待验边界保持如上，不表示产品验收或 Issue 结案。

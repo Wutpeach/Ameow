@@ -131,6 +131,7 @@ def run(name, number=1):
     release.clear()
     command = [str(args.driver.resolve()), '--runtime-root', str(instance / 'runtime'), '--output', str(instance / 'output'),
                '--quality', 'highest', '--url', 'http://example.com/ameow-issue33-' + str(number) + '.mp4',
+               '--diagnostic-output', str(root / (name + '-diagnostic.txt')),
                '--app-update-fixture-dir', str(root), '--app-update-fixture-media-port', str(server.server_port)]
     stderr = (root / (name + '-stderr.log')).open('wb')
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=stderr, text=True, encoding='utf-8', creationflags=flags)
@@ -173,6 +174,8 @@ try:
     run('frozen')
     run('fresh')
     run('failure', 3)
+    diagnostic = (root / 'failure-diagnostic.txt').read_text(encoding='utf-8')
+    assert 'E_' in diagnostic and 'AMEOW_SYNTHETIC' not in diagnostic, 'unsafe or missing copy diagnostic'
     native(dict(operation='revoke', site='example.com', source_id=source, grant_id=grant))
     run('anonymous')
     authorize('AMEOW_SYNTHETIC_V2', revoked_grant)
