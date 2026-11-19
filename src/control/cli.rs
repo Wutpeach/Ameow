@@ -983,6 +983,8 @@ mod tests {
             assert_eq!(terminal_exit(phase, true), Some(code));
         }
         assert_eq!(terminal_exit("Downloading", true), None);
+        assert_eq!(terminal_exit("Held", false), None);
+        assert_eq!(terminal_exit("Held", true), None);
     }
 
     #[test]

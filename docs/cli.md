@@ -37,6 +37,8 @@ ameow-cli --json diagnose
 
 CLI 退出、Ctrl+C、等待超时与失联均不取消任务。取消必须显式执行 cancel。wait 直到权威终态且资源结算后返回结果；GUI 普通重试可能创建新 ID，原失败 ID 仍表示原任务，Gallery 续作可能保持同 ID。
 
+`cancel` 返回 `applied: true` 表示取消意图已受理，不表示资源已经结算。`show` 仍可能返回 `Held`（清理未确认）且 `resources_released: false`；`wait` 此时继续等待或按明确的超时退出 6，不能将该回执当作 `Cancelled`。macOS 在已观察到 fork、取消后无法证明后代结算时沿用此守卫；CLI 与 GUI 读取同一状态。
+
 ## 机器结果
 
 --json 可放在命令前后。stdout 只包含一个 JSON 结果，不含人读日志；错误也输出 JSON。成功 envelope 为：
