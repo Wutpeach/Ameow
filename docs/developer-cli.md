@@ -67,7 +67,7 @@ Held/owner lost 一经观察立即写事件并输出 stderr 提示。工具不�
 ## 本地真实媒体 fixture
 
 --fixture-media-port PORT 仅对三个固定地址 http://example.com/ameow-issue33-1.mp4（以及 -2、-3）选择 127.0.0.1 上的端口；其他 URL 仍走正式系统路由。
-这是显式 dev-tools debug 门槛，复用更新验证的固定本地媒体源，不开放任意本地 URL、代理或数据域。
+这是显式 dev-tools debug 门槛，复用更新验证的固定本地媒体源，不开放任意本地 URL、代理或数据域。指定该端口时，所有输入必须属于上述三个固定地址；identity.transport 明确为 fixed-local-fixture。
 
 复用 scripts/test_app_update_media_server.py。其根目录需 source.mp4、master.m3u8 和 hls/；可用已校验组件 ffmpeg 生成自己的小视频：
 
@@ -86,6 +86,7 @@ ameow-cli dev run --root evidence/local-real --url http://example.com/ameow-issu
 ~~~
 
 服务器对较大 .ts 传输保留 release-1/2/3 文件门槛；相应 release 文件放行该任务，stop 文件让服务器结束。它只提供固定本地文件，不转发外网。
+fail-1/2/3 文件启用对应任务的 HTTP 503 故障；另建 recover-1/2/3 文件后恢复，失败前驱与恢复标记均保留。先观察正式 Failure/资源结算，再恢复并重试，才能验证失败→重试，而非下载器内部 HTTP 重试。
 必要时先复制自己已验证的匹配 warm runtime 到新根 runtime/；缺失组件仍按正式规则准备，fixture 端口不改组件来源。
 此回归标为 production-adapter + 固定本地路由，核对真实媒体、hash、slot 和退出，不能称为公网或 GUI 验收。
 

@@ -1240,7 +1240,7 @@ impl Render for Prototype {
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.iter().any(|argument| argument == "--download-test-bridge") {
-        eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
+        eprintln!("--download-test-bridge 已退役；请使用 cargo run --locked --features dev-tools --bin ameow-cli -- dev run --root <新隔离目录> --url <URL>");
         std::process::exit(2);
     }
     if let Err(error) = ameow_next::control::launch_session(&args) {

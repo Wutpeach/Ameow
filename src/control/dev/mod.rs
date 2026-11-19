@@ -38,6 +38,7 @@ struct Options {
     retry_failed: bool,
     duplicate_first: bool,
     scenario: Option<String>,
+    fixture_media_port: Option<u16>,
 }
 
 fn error(code: &str, message: &str) -> ControlError {
@@ -74,6 +75,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
     let mut retry_failed = false;
     let mut duplicate_first = false;
     let mut scenario = None;
+    let mut fixture_media_port = None;
     let mut seen = HashSet::new();
     while let Some(flag) = args.next() {
         if flag != "--url" && !seen.insert(flag.clone()) {
@@ -115,9 +117,11 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
                     "--cancel-after-ms" => cancel_after = Duration::from_millis(number()?),
                     "--stop-after-ms" => stop_after = Some(Duration::from_millis(number()?)),
                     "--fixture-media-port" if command == "run" => {
-                        if !(1..=65535).contains(&number()?) {
+                        let port = number()?;
+                        if !(1..=65535).contains(&port) {
                             return Err(invalid());
                         }
+                        fixture_media_port = Some(port as u16);
                     }
                     "--timeout" | "--settle-timeout" => {
                         let seconds = number()?;
@@ -174,6 +178,10 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
     }
     if cancel_job.is_some_and(|n| n == 0 || n > urls.len())
         || seen.contains("--cancel-after-ms") && cancel_job.is_none()
+        || fixture_media_port.is_some()
+            && urls
+                .iter()
+                .any(|url| !crate::download::network::FIXTURE_MEDIA_URLS.contains(&url.as_str()))
     {
         return Err(invalid());
     }
@@ -189,6 +197,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
         retry_failed,
         duplicate_first,
         scenario,
+        fixture_media_port,
     })
 }
 
@@ -251,7 +260,8 @@ impl Evidence {
         let identity = json!({"protocol_version":1,"instance_id":instance,"pid":std::process::id(),
             "build":{"version":env!("CARGO_PKG_VERSION"),"source_commit":env!("AMEOW_DEV_BUILD_COMMIT"),"source_sha256":env!("AMEOW_DEV_BUILD_SOURCE_SHA256"),"exe_sha256":exe_hash,"target":crate::app_update::TARGET,"dev_tools":true},
             "mode":if options.scenario.is_some() {"synthetic-adapter-core"} else {"production-adapter"},
-            "scenario":options.scenario,"gui":false,"owner":"finite-cli","task_limit":16,
+            "scenario":options.scenario,"transport":if options.scenario.is_some(){"offline"} else if options.fixture_media_port.is_some(){"fixed-local-fixture"}else{"system-route"},
+            "gui":false,"owner":"finite-cli","task_limit":16,
             "timeout_ms":options.timeout.as_millis(),"settle_timeout_ms":options.settle_timeout.as_millis()});
         io_result(fs::write(
             root.join("evidence/identity.json"),

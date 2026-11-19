@@ -225,6 +225,12 @@ pub fn resolve(input: &str) -> Result<Route, String> {
 }
 /// The engine cannot delegate its opaque requests back to the OS resolver. Restrict it to a
 /// static configuration whose bypass does not match the accepted origin. Native media requests use this explicit accepted-origin route; unrelated bypass entries do not block public videos. This does not attest every future redirect/CDN request.
+#[cfg(all(any(feature = "app-update-fixture", feature = "dev-tools"), debug_assertions))]
+pub(crate) const FIXTURE_MEDIA_URLS: [&str; 3] = [
+    "http://example.com/ameow-issue33-1.mp4",
+    "http://example.com/ameow-issue33-2.mp4",
+    "http://example.com/ameow-issue33-3.mp4",
+];
 pub fn engine_route(input: &str) -> Result<Route, String> {
     // Local media evidence only: keep production URL checks and real engines, while
     // an explicit debug update fixture serves these fixed public-origin test paths.
@@ -234,12 +240,7 @@ pub fn engine_route(input: &str) -> Result<Route, String> {
         let dev = cfg!(feature = "dev-tools") && args.iter().any(|arg|arg=="dev")
             && args.iter().any(|arg|arg=="run") && args.iter().any(|arg|arg=="--root");
         if (args.iter().any(|arg| arg == "--app-update-fixture-dir") || dev)
-            && matches!(
-                input,
-                "http://example.com/ameow-issue33-1.mp4"
-                    | "http://example.com/ameow-issue33-2.mp4"
-                    | "http://example.com/ameow-issue33-3.mp4"
-            )
+            && FIXTURE_MEDIA_URLS.contains(&input)
             && let Some(port) = args
                 .windows(2)
                 .find(|p| p[0] == if dev {"--fixture-media-port"} else {"--app-update-fixture-media-port"})
