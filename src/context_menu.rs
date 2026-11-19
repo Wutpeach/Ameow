@@ -60,17 +60,15 @@ impl Menu {
         }
         self.open = false;
     }
-    /// Acknowledgements from an earlier closed menu cannot dismiss a newer session.
-    pub fn saved(&mut self, generation: u64, success: bool, now: u64) -> bool {
+    /// Acknowledgements from an earlier menu cannot change a newer session's hint.
+    pub fn saved(&mut self, generation: u64, success: bool) {
         if !self.open || self.generation != generation {
-            return false;
+            return;
         }
         if success {
-            self.close(now);
-            true
+            self.hint = None;
         } else {
             self.hint = Some("保存失败，请重试".into());
-            false
         }
     }
     fn reset_selection(&mut self) {
@@ -232,17 +230,30 @@ mod tests {
         assert!(!menu.animating(200, true));
     }
     #[test]
-    fn quality_waits_for_ack_failure_stays_and_stale_success_cannot_close_a_new_menu() {
+    fn quality_ack_keeps_menu_open_clears_hint_and_allows_another_selection() {
         let mut menu = Menu::default();
         menu.open(Some(Quality::Balanced), 0);
         let session = menu.generation();
-        assert!(!menu.saved(session, false, 20));
+        menu.saved(session, false);
         assert!(menu.is_open());
         assert!(menu.hint.is_some());
-        assert!(menu.saved(session, true, 30));
-        assert!(!menu.is_open());
+        menu.saved(session, true);
+        assert!(menu.is_open());
+        assert!(menu.hint.is_none());
+        assert_eq!(menu.generation(), session);
+        menu.key("right");
+        assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
+        menu.saved(session, true);
+        assert!(menu.is_open());
+        assert_eq!(menu.key("escape"), Some(Action::Close));
+        menu.close(36);
+        assert_eq!(menu.key("enter"), None);
         menu.open(Some(Quality::Saver), 40);
-        assert!(!menu.saved(session, true, 50));
+        menu.hint = Some("new-session-pending".into());
+        menu.saved(session, true);
+        assert_eq!(menu.hint.as_deref(), Some("new-session-pending"));
+        menu.saved(session, false);
+        assert_eq!(menu.hint.as_deref(), Some("new-session-pending"));
         assert_eq!(menu.key("enter"), Some(Action::Quality(Quality::Saver)));
         assert!(menu.is_open());
     }
