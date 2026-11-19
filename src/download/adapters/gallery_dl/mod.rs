@@ -74,10 +74,7 @@ impl DownloaderAdapter for GalleryDlAdapter {
         let mut phase = Phase::Resolving;
         let mut native_unsupported = false;
         run(request, context, &mut phase, &mut native_unsupported).map_err(|e| {
-            let _ = fs::write(
-                context.workspace().join("adapter-error.log"),
-                e.chars().take(65536).collect::<String>(),
-            );
+            let _ = context.write_evidence("adapter-error.log", e.chars().take(65536).collect::<String>().as_bytes());
             if context.cancelled() {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else if e.starts_with("E_RUNTIME:") {
@@ -164,8 +161,8 @@ fn native_unsupported_url(
     outcome.stderr == format!("{line}\r\n").as_bytes()
         || outcome.stderr == format!("{line}\n").as_bytes()
 }
-fn common(
-    _context: &ExecutionContext<'_>,
+pub(crate) fn common(
+    context: &ExecutionContext<'_>,
     request: &ExecutionRequest,
 ) -> Result<Vec<String>, String> {
     let route = network::engine_route(&request.accepted.intent.url)
@@ -182,6 +179,9 @@ fn common(
     args.extend(["-o".into(), "extractor.metadata-url=ameow_source".into(),
         "-o".into(), "extractor.metadata-path=ameow_path".into(),
         "--range".into(), if matches!(request.accepted.object, Object::Generic { .. }) { "1-2" } else { "1-1001" }.into()]);
+    if let Some(auth) = context.authentication {
+        args.extend(auth.arguments());
+    }
     Ok(args)
 }
 fn invoke(
@@ -213,16 +213,8 @@ fn invoke(
             callback,
         )
         .map_err(|e| format!("E_RUNTIME: {e}"))?;
-    fs::write(
-        context.workspace().join(format!("{label}-stdout.log")),
-        &result.stdout,
-    )
-    .map_err(|e| format!("E_STORAGE: {e}"))?;
-    fs::write(
-        context.workspace().join(format!("{label}-stderr.log")),
-        &result.stderr,
-    )
-    .map_err(|e| format!("E_STORAGE: {e}"))?;
+    context.write_evidence(&format!("{label}-stdout.log"), &result.stdout)?;
+    context.write_evidence(&format!("{label}-stderr.log"), &result.stderr)?;
     fs::write(
         context.workspace().join(format!("{label}-settlement.log")),
         format!("exit_code: {}\n{:#?}\n", result.exit_code, result.facts),
@@ -289,7 +281,7 @@ fn check_known_identity(accepted: &Accepted, meta: &Value) -> Result<(), String>
     let (actual, expected) = match site {
         Site::Imgur => {
             let (kind, id) = id.split_once(':').ok_or("E_IDENTITY: invalid accepted gallery")?;
-            (if kind == "album" { meta["album"]["id"].as_str() } else { meta["id"].as_str() }, id)
+            (if kind == "album" { meta["ameow_album_id"].as_str().or_else(|| meta["album"]["id"].as_str()) } else { meta["id"].as_str() }, id)
         },
         Site::Bluesky => (meta["post_id"].as_str(), id.rsplit_once('/').ok_or("E_IDENTITY: invalid accepted post")?.1),
         _ => return Ok(()),
@@ -407,7 +399,11 @@ fn run(
     if generic {
         super::yt_dlp::check_generic_destination(&request.accepted)?;
     }
-    let pp = json!([{"name":"metadata","mode":"jsonl","event":"after","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-after.jsonl"},{"name":"metadata","mode":"jsonl","event":"skip","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-skip.jsonl"}]);
+    let mut pp = json!([{"name":"metadata","mode":"jsonl","event":"after","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-after.jsonl"},{"name":"metadata","mode":"jsonl","event":"skip","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-skip.jsonl"}]);
+    for entry in pp.as_array_mut().unwrap() {
+        entry["include"] = json!(["ameow_path", "ameow_source", "id", "filename", "image_key", "post_id", "ameow_album_id"]);
+    }
+    pp.as_array_mut().unwrap().insert(0, json!({"name":"metadata", "mode":"modify", "event":["after", "skip"], "fields":{"ameow_album_id":"{album[id]}"}}));
     let mut args = common(context, request)?;
     args.extend([
         "-o".into(),

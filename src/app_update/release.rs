@@ -87,6 +87,8 @@ pub struct Build {
     pub launcher: FileRecord,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cli: Option<FileRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub browser: Vec<FileRecord>,
     pub notices: Vec<FileRecord>,
 }
 impl Build {
@@ -115,7 +117,7 @@ impl Build {
                 return Err("E_RELEASE_COMPILED_IDENTITY".into());
             }
         }
-        if !matches!((self.schema, &self.cli), (1, None) | (2, Some(_)))
+        if !matches!((self.schema, &self.cli, self.browser.is_empty()), (1, None, true) | (2, Some(_), true) | (3, Some(_), false))
             || self.target != TARGET
             || self.toolchain != "1.98.1"
             || self.app.path != "Ameow.exe"
@@ -136,6 +138,12 @@ impl Build {
             return Err("E_RELEASE_TAG".into());
         }
         self.trust.trust()?;
+        if self.schema == 3 {
+            let required = BTreeSet::from(["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt"]);
+            let names: BTreeSet<_> = self.browser.iter().map(|r| r.path.as_str()).collect();
+            if names != required || self.browser.len() != required.len() { return Err("E_RELEASE_BROWSER_ASSETS".into()); }
+            for record in &self.browser { unhex(&record.sha256, 32)?; }
+        }
         let mut names = BTreeSet::new();
         for notice in &self.notices {
             safe_member(&notice.path)?;
@@ -336,7 +344,7 @@ fn load_build(root: &Path) -> Result<Build> {
     if let Some(cli) = &build.cli {
         cli.check(&read(&root.join(&cli.path), MAX_PACKAGE)?)?;
     }
-    for notice in &build.notices {
+    for notice in build.notices.iter().chain(build.browser.iter()) {
         notice.check(&read(&root.join(&notice.path), MAX_PACKAGE)?)?;
     }
     verify_material_inventory(
@@ -366,6 +374,7 @@ pub fn prepare(build_root: &Path, output: &Path) -> Result<()> {
     for item in std::iter::once(&build.app)
         .chain(std::iter::once(&build.launcher))
         .chain(build.cli.iter())
+        .chain(build.browser.iter())
         .chain(build.notices.iter())
     {
         let dest = output.join(&item.path);
@@ -495,7 +504,7 @@ fn sign_with_key(
     if build.is_fixture() {
         files.insert("FIXTURE.txt".into(), MARKER.to_vec());
     }
-    for notice in &build.notices {
+    for notice in build.notices.iter().chain(build.browser.iter()) {
         files.insert(
             notice.path.clone(),
             read(&root.join(&notice.path), MAX_PACKAGE)?,
@@ -637,6 +646,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     let expected = expected
         .into_iter()
         .chain(build.notices.iter().map(|n| n.path.clone()))
+        .chain(build.browser.iter().map(|n| n.path.clone()))
         .collect();
     let portable_path = portable_name(&build);
     let portable_bytes = read(&root.join(&portable_path), MAX_PACKAGE)?;
@@ -646,7 +656,7 @@ fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
         .check(&files[&format!("versions/{version}/Ameow.exe")])?;
     build.launcher.check(&files["AmeowLauncher.exe"])?;
     if let Some(cli) = &build.cli { cli.check(&files[&cli.path])?; }
-    for notice in &build.notices {
+    for notice in build.notices.iter().chain(build.browser.iter()) {
         notice.check(&files[&notice.path])?;
     }
     verify_material_inventory(&build, &files["licenses/license-inputs.json"])?;

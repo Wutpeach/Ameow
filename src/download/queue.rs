@@ -2151,6 +2151,8 @@ mod tests {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QueueSnapshot {
+    #[serde(default)]
+    pub browser_sessions: crate::browser_sessions::Status,
     pub revision: u64,
     #[serde(default)]
     pub runtime_update: super::runtime_update::RuntimeUpdateSnapshot,
@@ -2173,6 +2175,8 @@ pub struct QueueSnapshot {
     pub main_job: Option<u64>,
 }
 pub enum QueueCommand {
+    InstallBrowserBridge,
+    RemoveBrowserSession { site: String, grant_id: String },
     UpgradeEngine { version: String },
     RestoreRecommended,
     Submit { url: String },
@@ -2210,6 +2214,7 @@ struct Record {
     cancelled: bool,
 }
 struct Model {
+    browser_sessions: crate::browser_sessions::Status,
     downloader_preferences_unreadable: bool,
     downloader_preferences: super::preferences::Preferences,
     downloader_preferences_error: Option<String>,
@@ -2299,6 +2304,7 @@ impl Model {
     }
     fn new(settings: Settings) -> Self {
         Self {
+            browser_sessions: Default::default(),
             downloader_preferences: Default::default(),
             downloader_preferences_unreadable: false,
             downloader_preferences_error: None,
@@ -2358,6 +2364,7 @@ impl Model {
     fn snapshot(&self) -> QueueSnapshot {
         let jobs: Vec<_> = self.records.values().map(|r| r.view.clone()).collect();
         QueueSnapshot {
+            browser_sessions: self.browser_sessions.clone(),
             revision: self.revision,
             runtime_update: self.runtime_update.clone(),
             unfinished: jobs.iter().filter(|r| !r.phase.terminal()).count(),
@@ -2640,6 +2647,7 @@ impl DownloadCoordinator {
         super::runtime::check_data_location(&settings_path)?;
         let settings = Settings::load(&settings_path, defaults)?;
         let mut model = Model::new(settings);
+        model.browser_sessions.notice = crate::browser_sessions::native::refresh_registration(&services.runtime.root).err();
         model.restore_preferences(&super::preferences::path(&settings_path));
         let published = Mutex::new(Arc::new(model.snapshot()));
         let shared = Arc::new(Shared {
@@ -2885,6 +2893,24 @@ impl DownloadCoordinator {
     }
     pub fn apply(&self, command: QueueCommand) -> CommandReply {
         match command {
+            QueueCommand::InstallBrowserBridge => {
+                if lock(&self.shared.model).stopping { return CommandReply::Applied(false); }
+                let result = if super::runtime::RuntimeManager::default_root().as_ref().is_ok_and(|root| root == &self.shared.manager.root) {
+                    crate::browser_sessions::native::companion().and_then(|path| crate::browser_sessions::native::install(&path))
+                } else { Err("E_SESSION_ISOLATED".into()) };
+                let mut model = lock(&self.shared.model);
+                model.browser_sessions.notice = Some(result.as_ref().map_or_else(|e| e.clone(), |_| "installed".into()));
+                model.revision += 1; self.shared.publish(&model);
+                CommandReply::Applied(result.is_ok())
+            }
+            QueueCommand::RemoveBrowserSession { site, grant_id } => {
+                let result = crate::browser_sessions::Store::new(&self.shared.manager.root).remove(&site, &grant_id);
+                let mut model = lock(&self.shared.model);
+                model.browser_sessions.notice = result.as_ref().err().cloned();
+                if result.is_ok() { model.browser_sessions.sites.retain(|s| s.site != site || s.grant_id != grant_id); }
+                model.revision += 1; self.shared.publish(&model);
+                CommandReply::Applied(result.is_ok())
+            }
             QueueCommand::UpgradeEngine { version } => {
                 let mut model = lock(&self.shared.model);
                 let valid = super::upstream::normalize_stable_version(&version).as_deref() == Some(version.as_str())
@@ -3266,7 +3292,16 @@ fn dispatch(shared: Arc<Shared>) {
             super::runtime_update::Selection::default()
         }
     };
+    let mut sessions_checked = std::time::Instant::now() - Duration::from_secs(2);
     loop {
+        if sessions_checked.elapsed() >= Duration::from_secs(1) {
+            let sessions = crate::browser_sessions::Store::new(&shared.manager.root).list();
+            let mut model = lock(&shared.model);
+            let mut next = model.browser_sessions.clone();
+            match sessions { Ok(sites) => { next.sites = sites; next.error = None; }, Err(error) => { next.sites.clear(); next.error = Some(error); } }
+            if model.browser_sessions != next { model.browser_sessions = next; model.revision += 1; shared.publish(&model); }
+            sessions_checked = std::time::Instant::now();
+        }
         #[cfg(test)]
         if shared
             .dispatch_test_exit

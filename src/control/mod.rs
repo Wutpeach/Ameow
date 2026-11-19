@@ -219,6 +219,7 @@ pub enum Command {
         task_id: String,
     },
     Settings {},
+    BrowserSessions {},
     Components {},
     Diagnose {
         task_id: Option<String>,
@@ -744,6 +745,7 @@ impl Server {
                 Ok(file_page(&self.instance_id, job, *after))
             }
             Command::Settings {} => Ok(json!(snapshot.settings)),
+            Command::BrowserSessions {} => Ok(json!(snapshot.browser_sessions)),
             Command::Components {} => Ok(
                 json!({"preparing":snapshot.preparing,"preparation":snapshot.preparation,"held":snapshot.preparation_held,"owner_lost":snapshot.preparation_owner_lost,"verified_versions":snapshot.verified_runtime_versions,"runtime_update":snapshot.runtime_update}),
             ),

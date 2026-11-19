@@ -49,6 +49,8 @@ const RESOLVED_FILE: &str = "resolved.json";
 const TRANSFER_INFO_FILE: &str = "media.info.json";
 const SELECTION_FILE: &str = "selection.txt";
 const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
+// Native output-template projection excludes request headers, URLs and downloader Cookie data.
+const SAFE_METADATA: &str = "%(.{id,title,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index})j";
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
@@ -65,6 +67,8 @@ const EVIDENCE: &[(&str, u64)] = &[
     ("transfer-settlement.txt", 65536),
     ("final-object.txt", 4096),
     ("adapter-error.log", 65536),
+    ("resolve-media.json", 65536),
+    ("transfer-media.json", 65536),
 ];
 pub struct YtDlpAdapter {
     requirements: TrustedRuntimeRequirements,
@@ -104,15 +108,16 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--".into(),
                 accepted.intent.url.clone(),
             ]);
-            let bytes = invoke(context, args, None, InvocationPhase::Resolve)?;
+            let bytes = invoke(context, args, None, InvocationPhase::Resolve, #[cfg(target_os = "macos")] None)?;
             let metadata = parse_metadata(&bytes)?;
+            media_observation(context, "resolve-media.json", &metadata)?;
             check_generic_object(accepted, &metadata)?;
             let proof =
                 identity::proof(accepted, &metadata).map_err(|e| format!("E_IDENTITY: {e}"))?;
             context
                 .admit(&proof)
                 .map_err(|failure| format!("{}: {}", failure.code, failure.reason))?;
-            fs::write(working.join(RESOLVED_FILE), &bytes).map_err(|e| e.to_string())?;
+            context.write_evidence(RESOLVED_FILE, &bytes)?;
             let canonical = identity::canonical_url(accepted, &proof.identity);
             if network::engine_route(&canonical)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?
@@ -143,7 +148,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "mkv".into(),
                 "--output".into(),
                 working.join("media.%(ext)s").display().to_string(),
-                "--write-info-json".into(),
+                if context.authentication.is_some() { "--no-write-info-json" } else { "--write-info-json" }.into(),
                 "--no-overwrites".into(),
                 "--newline".into(),
                 "--progress".into(),
@@ -156,7 +161,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--progress-template".into(),
                 progress::PP_TEMPLATE.into(),
                 "--print-to-file".into(),
-                format!("before_dl:{SELECTION_PREFIX}%()j"),
+                format!("before_dl:{SELECTION_PREFIX}{}", if context.authentication.is_some() { SAFE_METADATA } else { "%()j" }),
                 working.join(SELECTION_FILE).display().to_string(),
                 "--print-to-file".into(),
                 "after_move:AMEOW_FINAL=%(filepath)j".into(),
@@ -164,6 +169,10 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--".into(),
                 canonical,
             ]);
+            if context.authentication.is_some() {
+                let end = args.len() - 2;
+                args.splice(end..end, ["--print-to-file".into(), format!("after_move:{SAFE_METADATA}"), working.join(TRANSFER_INFO_FILE).display().to_string()]);
+            }
             let timeline = progress::Timeline::from_args();
             let feed = Mutex::new((false, progress::ProgressFeed::selected(&Value::Null).with_timeline(timeline.clone())));
             let selected_path = working.join(SELECTION_FILE);
@@ -195,7 +204,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                     }
                 }
             });
-            let record = invoke(context, args, Some(output), InvocationPhase::Transfer)?;
+            let record = invoke(context, args, Some(output), InvocationPhase::Transfer, #[cfg(target_os = "macos")] Some(&metadata))?;
             phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
             let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
@@ -211,6 +220,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             let actual = read_metadata_file(&working.join(TRANSFER_INFO_FILE)).map_err(|error| {
                 if error.starts_with("E_METADATA_") { error } else { format!("E_MEDIA_UNVERIFIED: native metadata unavailable: {error}") }
             })?;
+            media_observation(context, "transfer-media.json", &actual)?;
             check_generic_object(accepted, &actual)?;
             let actual_proof =
                 identity::proof(accepted, &actual).map_err(|e| format!("E_IDENTITY: {e}"))?;
@@ -229,10 +239,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             })
         })();
         result.map_err(|error: String| {
-            let _ = fs::write(
-                working.join("adapter-error.log"),
-                error.chars().take(65536).collect::<String>(),
-            );
+            let _ = context.write_evidence("adapter-error.log", error.chars().take(65536).collect::<String>().as_bytes());
             if context.cancelled() {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else {
@@ -240,6 +247,23 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
         })
     }
+}
+fn media_observation(context: &ExecutionContext<'_>, name: &str, metadata: &Value) -> Result<(), String> {
+    // Only typed media measurements are durable for authenticated attempts. No wire
+    // URLs, headers, titles, format tokens or free-form extractor strings are copied.
+    let measurement = |value: &Value| {
+        let codec = value["vcodec"].as_str().and_then(|s| selection::codec(s).ok()).and_then(|codec| match codec {
+            crate::download::contract::VideoCodec::H264 => Some("h264"),
+            crate::download::contract::VideoCodec::Hevc => Some("hevc"),
+            crate::download::contract::VideoCodec::Vp9 => Some("vp9"),
+            crate::download::contract::VideoCodec::Av1 => Some("av1"), _ => None,
+        });
+        serde_json::json!({"width":value["width"].as_u64(),"height":value["height"].as_u64(),"fps":value["fps"].as_f64(),"tbr":value["tbr"].as_f64(),"video_codec":codec,
+            "audio_present":value["acodec"].as_str().is_some_and(|s| !matches!(s,""|"none"|"unknown"|"N/A"|"?"))})
+    };
+    let formats: Vec<_> = metadata["formats"].as_array().into_iter().flatten().take(128).map(&measurement).collect();
+    let selected: Vec<_> = selection::chosen(metadata).into_iter().map(measurement).collect();
+    fs::write(context.workspace().join(name), serde_json::to_vec_pretty(&serde_json::json!({"formats":formats,"selected":selected})).map_err(|e|e.to_string())?).map_err(|e|e.to_string())
 }
 fn transfer_expectation(actual: &Value, before: Option<&Value>, quality: crate::download::request::Quality) -> Result<VideoExpectation, String> {
     let mut video = selection::expectation(actual, quality);
@@ -287,12 +311,12 @@ fn check_public_addresses(addresses: &[std::net::IpAddr]) -> Result<(), String> 
     }
     Ok(())
 }
-fn engine_args(
+pub(crate) fn engine_args(
     context: &ExecutionContext<'_>,
     route: &network::Route,
     quality: crate::download::request::Quality,
 ) -> Result<Vec<String>, String> {
-    Ok(vec![
+    let mut args = vec![
         "--ignore-config".into(),
         "--no-plugin-dirs".into(),
         "--no-js-runtimes".into(),
@@ -315,19 +339,22 @@ fn engine_args(
             .display()
             .to_string(),
         "--abort-on-unavailable-fragments".into(),
-        "--verbose".into(),
         "--format".into(),
         selection::expression(quality).into(),
         "--format-sort".into(),
         "height,+vcodec:avc".into(),
         "--format-sort-force".into(),
-    ])
+    ];
+    if let Some(auth) = context.authentication { args.extend(auth.arguments()); }
+    else { args.push("--verbose".into()); }
+    Ok(args)
 }
 fn invoke(
     context: &ExecutionContext<'_>,
     args: Vec<String>,
     output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
     invocation: InvocationPhase,
+    #[cfg(target_os = "macos")] resolution: Option<&Value>,
 ) -> Result<Vec<u8>, String> {
     let label = invocation.label();
     let working = context.workspace();
@@ -348,13 +375,11 @@ fn invoke(
         timeout: None,
     };
     #[cfg(target_os = "macos")]
-    let outcome = context.run_ytdlp(command, invocation, output)?;
+    let outcome = context.run_ytdlp(command, invocation, resolution, output)?;
     #[cfg(not(target_os = "macos"))]
     let outcome = context.run(command, output)?;
-    fs::write(working.join(format!("{label}-stdout.log")), &outcome.stdout)
-        .map_err(|e| e.to_string())?;
-    fs::write(working.join(format!("{label}-stderr.log")), &outcome.stderr)
-        .map_err(|e| e.to_string())?;
+    context.write_evidence(&format!("{label}-stdout.log"), &outcome.stdout)?;
+    context.write_evidence(&format!("{label}-stderr.log"), &outcome.stderr)?;
     fs::write(
         working.join(format!("{label}-settlement.txt")),
         format!("{:?}", outcome.facts),

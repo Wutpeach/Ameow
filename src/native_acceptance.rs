@@ -9,6 +9,11 @@ fn settings_and_tray() {
     let root = std::path::PathBuf::from(std::env::var_os("AMEOW_NATIVE_ACCEPTANCE_DIR").expect("task-owned directory"));
     assert!(root.is_absolute() && !root.exists(), "use a fresh absolute directory");
     std::fs::create_dir_all(&root).unwrap();
+    if std::env::var("AMEOW_BROWSER_SESSION_ACCEPTANCE").as_deref() == Ok("1") {
+        use ameow_next::browser_sessions::{Store, Operation, Cookie};
+        Store::new(&root.join("runtime")).apply(Operation::Authorize {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge · isolated profile".into(),grant_id:"b".repeat(32),replaces:None,
+            cookies:vec![Cookie{domain:".bilibili.com".into(),path:"/".into(),name:"ameow_synthetic".into(),value:"SYNTHETIC_UI_ONLY".into(),secure:true,http_only:true,host_only:false,expires:None}],skipped_partitioned:0}).unwrap();
+    }
     let downloads = download_ui::DownloadUi::native_acceptance(root.clone());
     let mut options = Options::from_args();
     options.fixture = true;

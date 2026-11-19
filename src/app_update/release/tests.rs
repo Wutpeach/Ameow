@@ -41,6 +41,7 @@ fn source(root: &Path) -> Build {
         app: FileRecord::of("Ameow.exe", app),
         launcher: FileRecord::of("AmeowLauncher.exe", launcher),
         cli: Some(FileRecord::of("ameow-cli.exe", cli)),
+        browser: Vec::new(),
         notices: vec![
             FileRecord::of("LICENSE", license),
             FileRecord::of("licenses/THIRD_PARTY_NOTICES.md", third_party),
@@ -187,6 +188,23 @@ fn altered_cli_is_rejected_before_preparation() {
     let output = tmp.path().join("out");
     assert!(prepare(&input, &output).is_err());
     assert!(!output.exists());
+}
+#[test]
+fn browser_assets_are_required_and_authenticated_in_product_packages() {
+    let tmp = tempfile::tempdir().unwrap(); let input = tmp.path().join("input");
+    let mut build = source(&input); build.schema = 3;
+    for name in ["ameow-browser-host.exe", "browser-extension/manifest.json", "browser-extension/background.js", "browser-extension/popup.js", "browser-extension/popup.html", "browser-extension/popup.css", "browser-extension/build.json", "browser-extension/LICENSES.txt"] {
+        let bytes = format!("synthetic package member {name}").into_bytes();
+        let path = input.join(name); fs::create_dir_all(path.parent().unwrap()).unwrap(); fs::write(path, &bytes).unwrap();
+        build.browser.push(FileRecord::of(name, &bytes));
+    }
+    save_build(&input, &build);
+    let prepared = tmp.path().join("prepared"); prepare(&input, &prepared).unwrap();
+    let output = tmp.path().join("signed"); sign_fixture(&prepared, &output, 1, super::super::store::now()).unwrap();
+    verify_signed_with_roots(&output, &build.trust).unwrap();
+    fs::write(input.join("browser-extension/background.js"), b"substitution").unwrap();
+    assert_eq!(prepare(&input, &tmp.path().join("bad")).unwrap_err(), "E_RELEASE_FILE_HASH");
+    let mut incomplete = build.clone(); incomplete.browser.pop(); assert!(incomplete.validate().is_err());
 }
 #[test]
 fn legacy_schema_one_remains_verifiable_without_cli() {

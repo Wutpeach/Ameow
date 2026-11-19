@@ -228,7 +228,7 @@ pub struct SettingsWindow {
     component_menu_focus: FocusHandle,
     page: Page,
     scroll: ScrollHandle,
-    control_focus: RefCell<HashMap<&'static str, FocusHandle>>,
+    control_focus: RefCell<HashMap<String, FocusHandle>>,
     reveal_focus: Rc<Cell<bool>>,
     picker_pending: bool,
     open_pending: bool,
@@ -270,6 +270,8 @@ impl SettingsWindow {
             })).collect::<Vec<_>>(),
             "disabled": self.projection.preferences.is_none() || self.projection.pending || self.picker_pending,
             "status": format!("{:?}", self.projection.status),
+            "page": match self.page {Page::General=>"general",Page::Download=>"download",Page::Components=>"components",Page::About=>"about"},
+            "browser_sessions": self.projection.queue.as_ref().map(|q| &q.browser_sessions),
         })
     }
     fn new(
@@ -328,7 +330,7 @@ impl SettingsWindow {
             help_focus_subscriptions.push(cx.on_focus_out(&focus, window, move |this, _, _, cx| {
                 if this.help_open == Some(id) { this.help_open = None; cx.notify(); }
             }));
-            control_focus.insert(id, focus);
+            control_focus.insert(id.to_owned(), focus);
         }
         let mut this = Self {
             title_language: projection.language,
@@ -709,7 +711,7 @@ impl SettingsWindow {
         let open = select.open && enabled;
         let presence = self.motion.presence(format!("select:{id}"), open);
         let cursor_y = self.motion.value(format!("select-cursor:{id}"), select.cursor as f32 * 30.);
-        self.control_focus.borrow_mut().insert(id, select.trigger.clone());
+        self.control_focus.borrow_mut().insert(id.to_owned(), select.trigger.clone());
         let (container, _) = self.control_container(id, enabled, cx);
         let owner = cx.entity(); let confirm = owner.clone();
         let trigger_bounds = Rc::new(Cell::new(None::<Bounds<Pixels>>));
@@ -940,7 +942,7 @@ impl SettingsWindow {
             if backwards { window.focus_prev(cx); } else { window.focus_next(cx); }
         } else if self.component_menu_open {
             let actions: Vec<_> = self.component_menu_action_ids().iter()
-                .filter_map(|id| self.control_focus.borrow().get(id).cloned()).collect();
+                .filter_map(|id| self.control_focus.borrow().get(*id).cloned()).collect();
             let trigger = self.control_focus.borrow().get("component-details").cloned();
             let stops: Vec<_> = trigger.iter().chain(actions.iter()).collect();
             let current = stops.iter().position(|f| f.is_focused(window)).unwrap_or(0);
@@ -961,8 +963,9 @@ impl SettingsWindow {
         self.reveal_focus.set(true);
         cx.notify();
     }
-    fn control_container(&self, id: &'static str, enabled: bool, cx: &mut Context<Self>) -> (Div, FocusHandle) {
-        let focus = self.control_focus.borrow_mut().entry(id)
+    fn control_container(&self, id: &str, enabled: bool, cx: &mut Context<Self>) -> (Div, FocusHandle) {
+        let id = id.to_owned();
+        let focus = self.control_focus.borrow_mut().entry(id.clone())
             .or_insert_with(|| cx.focus_handle().tab_index(0).tab_stop(true)).clone();
         let enabled = enabled && !self.passive.get();
         let tracked = focus.clone();
@@ -1231,7 +1234,76 @@ impl SettingsWindow {
             .child(self.notice_bar("download_page", status))
             .child(self.notice_bar("download-health", self.health.as_ref()
                 .and_then(|health| health.as_ref().err()).map(|error| (settings_message(l, error), true))))
+            .child(self.browser_sessions_section(cx))
             .into_any_element()
+    }
+    fn session_command(&mut self, command: ameow_next::download::queue::QueueCommand, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
+        let accepted = self.main.update(cx, |main, cx| {
+            let now = main.now();
+            let accepted = main.downloads.as_mut().is_some_and(|ui| ui.send(command, now));
+            cx.notify(); accepted
+        }).unwrap_or(false);
+        if !accepted { self.notice = Some((self.projection.language.text("操作未受理，请重试", "Request was not accepted. Try again.").into(), true)); }
+        cx.notify();
+    }
+    fn browser_sessions_section(&self, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.projection.night); let l = self.projection.language;
+        let status = self.projection.queue.as_ref().map(|q| q.browser_sessions.clone()).unwrap_or_default();
+        let enabled = !self.projection.preview && !self.passive.get();
+        let mut content = div().mt(px(24.)).border_t_1().border_color(p.border).pt(px(20.))
+            .child(div().flex().items_center().justify_between().gap(px(12.))
+                .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")))
+                .child(div().flex().items_center().gap(px(4.))
+                    .child(self.icon_button("open-browser-extension", "icons/folder-open.svg", l.text("扩展文件", "Extension files"), enabled, cx, |this, _, cx| this.open_extension(cx)))
+                    .child(self.button("install-browser-bridge", l.text("安装浏览器连接", "Install browser connection"), enabled, ButtonStyle::Standard, cx,
+                        |this, _, cx| this.session_command(ameow_next::download::queue::QueueCommand::InstallBrowserBridge, cx)))))
+            .child(div().mt(px(8.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral)
+                .child(l.text("从扩展主动授权站点，之后自动同步此浏览器已有会话。", "Authorize a site in the extension to keep its existing browser session in sync.")));
+        if let Some(error) = status.error.as_ref().or(status.notice.as_ref().filter(|n| n.as_str() != "installed")) {
+            let message = if error == "E_SESSION_HOST_MISSING" {
+                l.text("未找到浏览器连接组件，请使用完整 Ameow 产品包。", "Browser bridge is missing. Use the complete Ameow package.")
+            } else { l.text("浏览器连接操作未完成，请重试。", "The browser connection could not be updated. Try again.") };
+            content = content.child(div().mt(px(12.)).child(inline_notice(p, message, true)));
+        } else if status.notice.as_deref() == Some("installed") {
+            content = content.child(div().mt(px(12.)).child(inline_notice(p, l.text("连接已安装。请在 Edge 或 Chrome 扩展页加载包内 browser-extension 文件夹。", "Connection installed. Load the packaged browser-extension folder from Edge or Chrome's extensions page."), false)));
+        }
+        for session in status.sites {
+            let key = format!("remove-session:{}", session.site);
+            let (container, focus) = self.control_container(&key, enabled, cx);
+            let site = session.site.clone(); let grant_id = session.grant_id.clone();
+            let detail = if session.skipped_partitioned > 0 {
+                l.text("已同步；分区 Cookie 已排除", "Synced; partitioned cookies excluded").to_owned()
+            } else if session.cookie_count == 0 { l.text("已同步；当前无会话 Cookie", "Synced; no current session cookies").to_owned() }
+            else { l.text("已同步", "Synced").to_owned() };
+            content = content.child(div().mt(px(12.)).py(px(8.)).flex().items_center().gap(px(12.))
+                .child(div().flex_1().min_w(px(0.)).flex().flex_col().gap(px(4.))
+                    .child(div().text_size(px(13.)).child(session.site.clone()))
+                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{} · {} · {}", session.source_name, &session.source_id[..6], detail))))
+                .child(container.child(gpui_base::Button::new(SharedString::from(key)).track_focus(&focus).disabled(!enabled)
+                    .accessibility_label(format!("{} {}", l.text("移除", "Remove"), session.site))
+                    .h(px(tokens::CONTROL_HEIGHT)).px(px(12.)).rounded(px(tokens::CONTROL_RADIUS))
+                    .border_1().border_color(p.control_border()).text_size(px(tokens::CONTROL_FONT_SIZE)).text_color(p.primary_text())
+                    .child(l.text("移除", "Remove"))
+                    .when(enabled, |s| s.cursor_pointer().hover(move |s| s.bg(p.badge))
+                        .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
+                        .on_click(cx.listener(move |this, _, _, cx| this.session_command(ameow_next::download::queue::QueueCommand::RemoveBrowserSession {site: site.clone(), grant_id: grant_id.clone()}, cx)))))));
+        }
+        content.into_any_element()
+    }
+    fn open_extension(&mut self, cx: &mut Context<Self>) {
+        if self.projection.preview { return; }
+        let task = cx.background_executor().spawn(async {
+            let path = ameow_next::browser_sessions::native::extension_directory()?;
+            ameow_next::file_manager::open_directory(&path).map_err(|e| e.to_string())
+        });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |this, cx| {
+                if result.is_err() { this.notice = Some((this.projection.language.text("未找到扩展文件，请使用完整 Ameow 产品包。", "Extension files are missing. Use the complete Ameow package.").into(), true)); }
+                cx.notify();
+            });
+        }).detach();
     }
     fn about_page(&self, cx: &mut Context<Self>) -> AnyElement {
 
@@ -1578,7 +1650,7 @@ impl Render for SettingsWindow {
                     && matches!(event.keystroke.key.as_str(), "escape" | "enter" | "space" | "up" | "down") { return; }
                 if this.component_menu_open {
                     let actions: Vec<_> = this.component_menu_action_ids().iter()
-                        .filter_map(|id| this.control_focus.borrow().get(id).cloned()).collect();
+                        .filter_map(|id| this.control_focus.borrow().get(*id).cloned()).collect();
                     match event.keystroke.key.as_str() {
                         "escape" => {
                             this.component_menu_open = false;
@@ -2045,6 +2117,11 @@ impl Prototype {
         if let Some(snapshot) = projection.queue.as_mut() {
             use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
             let snapshot = std::sync::Arc::make_mut(snapshot);
+            if scene.state == "browser-sessions" {
+                snapshot.browser_sessions.sites = vec![ameow_next::browser_sessions::SiteView {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge".into(),grant_id:"b".repeat(32),synced_at:ameow_next::browser_sessions::now(),cookie_count:3,skipped_partitioned:0}];
+            } else if scene.state == "browser-session-error" {
+                snapshot.browser_sessions.error = Some("E_SESSION_STORAGE".into());
+            }
             snapshot.preparation.phase = PreparationPhase::Ready;
             snapshot.verified_runtime_versions = vec![("yt-dlp".into(), "2026.10.01".into()), ("gallery-dl".into(), "1.32.19".into()), ("deno".into(), "2.5.0".into()), ("ffmpeg".into(), "8.0".into())];
             match scene.state.as_str() {

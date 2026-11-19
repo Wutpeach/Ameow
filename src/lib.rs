@@ -1,5 +1,6 @@
 //! Native download backend. One logical queue owns Jobs; presentation reads immutable snapshots.
 pub mod download;
+pub mod browser_sessions;
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod control;
 pub mod app_update;

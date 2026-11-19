@@ -102,7 +102,7 @@ fn spawn_app(process: &mut Process) -> Result<(), ControlError> {
     Ok(())
 }
 
-const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
+const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | sessions | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
 
 #[derive(Debug)]
 struct Options {
@@ -266,6 +266,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
             none()?;
             Action::Request(Command::Settings {})
         }
+        "sessions" => { none()?; Action::Request(Command::BrowserSessions {}) }
         "components" => {
             none()?;
             Action::Request(Command::Components {})

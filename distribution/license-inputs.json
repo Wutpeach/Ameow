@@ -34,14 +34,14 @@
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-dependency-licenses.txt",
       "destination": "licenses/rust-dependency-licenses.txt",
-      "sha256": "894C1B135020472B119C6FC120C7A529A17A10AC40272BDBCE8385B45B1E30FB"
+      "sha256": "59F6D54547B236B49B90D024A66261558C4DE89D3B75CC998DCEB6FA17969D9F"
     },
     {
       "kind": "Rust material/provenance",
       "obligation": "Preserve actual texts, source mappings and explicit scope/gaps; no public-completeness claim.",
       "source": "distribution/notices/rust-dependency-inventory.json",
       "destination": "licenses/rust-dependency-inventory.json",
-      "sha256": "6661353DBBAD5B763A9EB3F40CE334554853BD9A291FAD349045CFB85B795D6C"
+      "sha256": "A9FEF9486921338FAD7F296B1485F015027C87CB241B432B439655F309B91C51"
     },
     {
       "kind": "Rust material/provenance",

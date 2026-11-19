@@ -35,6 +35,7 @@ pub struct ManagedCommand {
     pub timeout: Option<Duration>,
 }
 pub struct ExecutionContext<'a> {
+    pub(crate) authentication: Option<&'a crate::browser_sessions::Attempt>,
     pub(crate) workspace: &'a Path,
     pub(crate) lease: &'a RuntimeLease,
     pub(crate) requirements: &'a TrustedRuntimeRequirements,
@@ -44,10 +45,17 @@ pub struct ExecutionContext<'a> {
     pub(crate) events: EventSink,
 }
 impl ExecutionContext<'_> {
+    /// Authenticated wire output stays in memory; no engine-supplied headers reach evidence.
+    pub fn write_evidence(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
+        std::fs::write(self.workspace.join(name), if self.authentication.is_some() {
+            b"Authenticated engine output omitted; see safe attempt diagnostics.\n".as_slice()
+        } else { bytes }).map_err(|e| e.to_string())
+    }
     pub fn workspace(&self) -> &Path {
         self.workspace
     }
     pub fn cancelled(&self) -> bool {
+        if self.authentication.is_some_and(|auth| !auth.valid()) { self.control.cancel(); }
         self.control.is_cancelled()
     }
     pub fn tool(&self, name: &str) -> Result<std::path::PathBuf, String> {
@@ -67,26 +75,29 @@ impl ExecutionContext<'_> {
         command: ManagedCommand,
         output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
     ) -> Result<ProcessOutcome, String> {
-        self.run_command(command, output, #[cfg(target_os = "macos")] None)
+        self.run_command(command, output, #[cfg(target_os = "macos")] None, #[cfg(target_os = "macos")] None)
     }
     #[cfg(target_os = "macos")]
     pub(crate) fn run_ytdlp(
         &self,
         command: ManagedCommand,
         phase: super::adapters::yt_dlp::InvocationPhase,
+        resolution: Option<&serde_json::Value>,
         output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
     ) -> Result<ProcessOutcome, String> {
         if !matches!(command.tool, "yt-dlp.exe" | "yt-dlp") {
             return Err("Managed yt-dlp invocation requires its declared tool".into());
         }
-        self.run_command(command, output, Some(phase))
+        self.run_command(command, output, Some(phase), resolution)
     }
     fn run_command(
         &self,
         command: ManagedCommand,
         output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
         #[cfg(target_os = "macos")] phase: Option<super::adapters::yt_dlp::InvocationPhase>,
+        #[cfg(target_os = "macos")] resolution: Option<&serde_json::Value>,
     ) -> Result<ProcessOutcome, String> {
+        if self.cancelled() { return Err("E_CANCELLED: authorization or attempt cancelled".into()); }
         let observer = self.observer.clone();
         let combined = Arc::new(move |event: ProcessObservation| {
             if let Some(output) = &output {
@@ -114,7 +125,7 @@ impl ExecutionContext<'_> {
         #[cfg(target_os = "macos")]
         if let Some(phase) = phase {
             let completion = super::adapters::yt_dlp::settlement_macos::ManagedCompletion::for_invocation(
-                &spec, self.lease, phase,
+                &spec, self.lease, phase, resolution, self.authentication.is_some(),
             )?;
             return process_supervisor::run_managed(spec, completion, self.control, combined);
         }
