@@ -340,10 +340,7 @@ fn run(
     resolved(&result, &request.accepted.intent.url, generic, native_unsupported)?;
     let (identity, expected) =
         preflight(request, &result.stdout)?;
-    let expected_paths: Vec<PathBuf> = expected
-        .keys()
-        .map(|name| PathBuf::from("gallery-media").join(if context.authentication.is_some() { neutral_name(name) } else { name.clone() }))
-        .collect();
+    let expected_paths = collection_paths(&expected);
     if let Some(resume) = &request.resume {
         if !same_collection(&resume.expected_paths, resume.total, &expected_paths) {
             return Err("E_IDENTITY: collection contents changed since previous attempt".into());
@@ -494,7 +491,8 @@ fn run(
             }
         }
     }
-    if context.authentication.is_some() { paths = neutral_paths(&root, paths, &copied)?; }
+    // A retry may acquire or lose authorization; public item paths must keep the same scheme.
+    paths = neutral_paths(&root, paths, &copied)?;
     let artifacts = paths
         .into_iter()
         .map(|name| ProducedArtifact {
@@ -529,6 +527,10 @@ fn run(
         collection: true,
         expected_paths,
     })
+}
+fn collection_paths(expected: &BTreeMap<PathBuf, Value>) -> Vec<PathBuf> {
+    // item_key already hashes native identity; never key the collection by authentication.
+    expected.keys().map(|name| PathBuf::from("gallery-media").join(name)).collect()
 }
 fn neutral_name(name: &Path) -> PathBuf {
     PathBuf::from(format!("item-{:x}.data", Sha256::digest(name.as_os_str().as_encoded_bytes())))
@@ -582,6 +584,19 @@ mod tests {
         let next = neutral_paths(root.path(), BTreeSet::from([original]), &first).unwrap();
         assert_eq!(next, first);
         assert_eq!(fs::read(root.path().join(name)).unwrap(), b"updated");
+    }
+    #[test]
+    fn collection_retry_identity_is_independent_of_authorization() {
+        let request = request("https://bsky.app/profile/test.example/post/abc123");
+        let rows = json!([[3,"https://cdn.test/image.jpg",{"filename":"normal-image","post_id":"abc123"}]]);
+        let (_, expected) = preflight(&request, &serde_json::to_vec(&rows).unwrap()).unwrap();
+        let previous = collection_paths(&expected);
+        // Both first attempt and retry call the same auth-independent key/path functions.
+        let (_, refreshed) = preflight(&request, &serde_json::to_vec(&rows).unwrap()).unwrap();
+        assert!(same_collection(&previous, Some(1), &collection_paths(&refreshed)));
+        let mut changed = rows; changed[0][2]["filename"] = json!("different-item");
+        let (_, changed) = preflight(&request, &serde_json::to_vec(&changed).unwrap()).unwrap();
+        assert!(!same_collection(&previous, Some(1), &collection_paths(&changed)));
     }
     use crate::download::request::{Accepted, DownloadIntent, Quality};
     #[test]
