@@ -1,0 +1,690 @@
+@font-face{
+  font-family:AmeowSans;
+  src:url(../assets/homepage/NotoSansSC.woff) format('woff');
+  font-display:swap;
+  font-weight:100 900}
+  :root{
+    --blue:#2b3fb7;
+    --ink:#111217;
+    --paper:#f9f7ef;
+    --acid:#dbf228;
+    --u:min(.0631313vw,1px);
+    color:var(--ink);
+    background:var(--paper);
+    font-family:AmeowSans,sans-serif;
+    font-synthesis:none;
+    scroll-behavior:smooth;
+    scroll-padding-top:24px;
+    accent-color:var(--blue)}
+    *{
+      box-sizing:border-box}
+      body{
+        margin:0;
+        background:#fbfaf9 url(../assets/homepage/paper.webp);
+        overflow-x:clip}
+        button,a{
+          -webkit-tap-highlight-color:transparent}
+          button{
+            font:inherit;
+            color:inherit;
+            cursor:pointer}
+            a{
+              color:inherit;
+              text-decoration-thickness:1px;
+              text-underline-offset:5px}
+              button:focus-visible,a:focus-visible{
+                outline:3px solid var(--blue);
+                outline-offset:6px}
+                ::selection{
+                  color:var(--paper);
+                  background:var(--blue)}
+                  img,canvas{
+                    display:block;
+                    max-width:100%}
+                    canvas,.file img,.hero-file img{
+                      image-rendering:pixelated}
+                      canvas{
+                        width:100%;
+                        height:100%}
+                        button{
+                          border:0}
+                          h1,h2,p{
+                            margin:0}
+                            .sr-only{
+                              position:absolute;
+                              width:1px;
+                              height:1px;
+                              padding:0;
+                              overflow:hidden;
+                              clip-path:inset(50%);
+                              white-space:nowrap}
+                              .skip-link{
+                                position:fixed;
+                                z-index:50;
+                                top:8px;
+                                left:8px;
+                                padding:12px;
+                                background:var(--acid);
+                                transform:translateY(-150%)}
+                                .skip-link:focus{
+                                  transform:none}
+                                  .header,main,footer{
+                                    max-width:1584px;
+                                    margin:auto}
+                                    .header{
+                                      height:calc(var(--u)*96);
+                                      min-height:72px;
+                                      padding:0 4%;
+                                      display:flex;
+                                      align-items:center;
+                                      gap:calc(var(--u)*48);
+                                      position:relative;
+                                      z-index:10}
+                                      .brand{
+                                        font-size:clamp(27px,2.02vw,32px);
+                                        font-weight:850;
+                                        letter-spacing:-.04em;
+                                        text-decoration:none}
+                                        .header nav{
+                                          display:flex;
+                                          align-items:center;
+                                          margin-left:auto;
+                                          gap:32px;
+                                          font-size:17px}
+                                          .header nav a{
+                                            display:inline-flex;
+                                            align-items:center;
+                                            min-height:44px;
+                                            text-decoration:none}
+                                            .header nav a:hover{
+                                              color:var(--blue);
+                                              text-decoration:underline}
+                                              .action{
+                                                display:inline-flex;
+                                                align-items:center;
+                                                justify-content:center;
+                                                min-height:46px;
+                                                padding:12px 30px;
+                                                background:var(--acid);
+                                                font-size:clamp(16px,1.52vw,24px);
+                                                text-decoration:none;
+                                                line-height:1.5;
+                                                border:0}
+                                                .action:hover{
+                                                  background:#d2e920}
+                                                  .scene{
+                                                    position:relative;
+                                                    isolation:isolate;
+                                                    overflow:clip;
+                                                    scroll-margin-top:20px}
+                                                    .hero{
+                                                      aspect-ratio:1584/827}
+                                                      .hero-copy{
+                                                        position:absolute;
+                                                        left:4%;
+                                                        top:29%;
+                                                        z-index:4}
+                                                        .hero h1{
+                                                          font-size:calc(var(--u)*104);
+                                                          font-weight:900;
+                                                          line-height:1.14;
+                                                          letter-spacing:-.035em}
+                                                          .hero h1 span{
+                                                            display:block}
+                                                            .hero-get{
+                                                              margin-top:calc(var(--u)*50);
+                                                              padding:calc(var(--u)*13) calc(var(--u)*34);
+                                                              min-height:calc(var(--u)*65)}
+                                                              .hero-cat{
+                                                                position:absolute;
+                                                                left:46.4646%;
+                                                                top:1.088%;
+                                                                width:53.535%;
+                                                                aspect-ratio:848/576;
+                                                                z-index:3;
+                                                                pointer-events:none}
+                                                                .hero-acid{
+                                                                  position:absolute;
+                                                                  left:39.14%;
+                                                                  right:0;
+                                                                  bottom:0;
+                                                                  height:31.3%;
+                                                                  background:var(--acid);
+                                                                  clip-path:polygon(0 6%,1.7% 6%,1.7% 0,100% 0,100% 100%,0 100%)}
+                                                                  .hero-file{
+                                                                    position:absolute;
+                                                                    background:var(--paper);
+                                                                    padding:calc(var(--u)*12);
+                                                                    padding-bottom:0;
+                                                                    text-align:left;
+                                                                    z-index:2;
+                                                                    clip-path:polygon(0 0,96.6% 0,100% 7%,100% 100%,0 100%)}
+                                                                    .hero-video{
+                                                                      left:40.4%;
+                                                                      top:70.62%;
+                                                                      width:33.46%;
+                                                                      height:27.57%}
+                                                                      .hero-flower{
+                                                                        left:75.44%;
+                                                                        top:73.04%;
+                                                                        width:24.56%;
+                                                                        height:25.15%}
+                                                                        .hero-picture{
+                                                                          display:block;
+                                                                          position:relative;
+                                                                          height:82.2%;
+                                                                          overflow:hidden}
+                                                                          .hero-picture img,.hero-picture canvas{
+                                                                            position:absolute;
+                                                                            inset:0;
+                                                                            width:100%;
+                                                                            height:100%;
+                                                                            object-fit:cover}
+                                                                            .hero-picture .dance-canvas{
+                                                                              object-fit:cover;
+                                                                              object-position:center 30%}
+                                                                              .filename{
+                                                                                display:block;
+                                                                                font-size:calc(var(--u)*23);
+                                                                                line-height:1.7;
+                                                                                white-space:nowrap}
+                                                                                .play-mark{
+                                                                                  position:absolute;
+                                                                                  left:50%;
+                                                                                  top:50%;
+                                                                                  transform:translate(-50%,-50%);
+                                                                                  width:calc(var(--u)*77);
+                                                                                  aspect-ratio:1;
+                                                                                  display:grid;
+                                                                                  place-items:center;
+                                                                                  background:var(--ink);
+                                                                                  clip-path:polygon(20% 0,80% 0,80% 10%,100% 10%,100% 90%,80% 90%,80% 100%,20% 100%,20% 90%,0 90%,0 10%,20% 10%);
+                                                                                  pointer-events:none}
+                                                                                  .play-mark svg{
+                                                                                    width:65%;
+                                                                                    fill:var(--paper)}
+                                                                                    .save-stage{
+                                                                                      aspect-ratio:1584/1048}
+                                                                                      .save-stage h2{
+                                                                                        position:absolute;
+                                                                                        left:4.4%;
+                                                                                        top:6%;
+                                                                                        font-size:calc(var(--u)*64);
+                                                                                        font-weight:850;
+                                                                                        letter-spacing:-.03em;
+                                                                                        z-index:6}
+                                                                                        .file{
+                                                                                          position:absolute;
+                                                                                          display:block;
+                                                                                          padding:calc(var(--u)*18);
+                                                                                          padding-bottom:0;
+                                                                                          background:var(--paper);
+                                                                                          text-align:left;
+                                                                                          z-index:3;
+                                                                                          box-shadow:0 3px 14px #1112170c;
+                                                                                          transform-origin:25% 85%;
+                                                                                          touch-action:manipulation}
+                                                                                          .file-dance{
+                                                                                            left:23.04%;
+                                                                                            top:20.04%;
+                                                                                            width:32.5%}
+                                                                                            .file-flower{
+                                                                                              left:48.1%;
+                                                                                              top:45.6%;
+                                                                                              width:29.36%;
+                                                                                              z-index:4}
+                                                                                              .file-picture{
+                                                                                                display:block;
+                                                                                                position:relative;
+                                                                                                overflow:hidden;
+                                                                                                aspect-ratio:460/562}
+                                                                                                .file-picture>img,.file-picture>canvas{
+                                                                                                  position:absolute;
+                                                                                                  inset:0;
+                                                                                                  width:100%;
+                                                                                                  height:100%;
+                                                                                                  object-fit:cover}
+                                                                                                  .file-flower .file-picture{
+                                                                                                    aspect-ratio:414/317}
+                                                                                                    .file .filename{
+                                                                                                      line-height:1.9;
+                                                                                                      font-size:calc(var(--u)*29)}
+                                                                                                      .file .play-mark{
+                                                                                                        width:calc(var(--u)*96)}
+                                                                                                        .save-acid{
+                                                                                                          position:absolute;
+                                                                                                          left:44%;
+                                                                                                          top:68%;
+                                                                                                          width:38%;
+                                                                                                          height:24%;
+                                                                                                          background:var(--acid);
+                                                                                                          clip-path:polygon(0 0,94% 0,94% 9%,98% 9%,98% 27%,100% 27%,100% 89%,96% 89%,96% 96%,20% 96%,20% 100%,12% 100%,12% 93%,5% 93%,5% 82%,0 82%)}
+                                                                                                          .support{
+                                                                                                            position:absolute;
+                                                                                                            left:22.5%;
+                                                                                                            top:85.4%;
+                                                                                                            width:57.2%;
+                                                                                                            height:1.4%;
+                                                                                                            background:var(--blue);
+                                                                                                            z-index:2}
+                                                                                                            .support:before,.support:after{
+                                                                                                              content:'';
+                                                                                                              position:absolute;
+                                                                                                              bottom:0;
+                                                                                                              width:16px;
+                                                                                                              height:30px;
+                                                                                                              background:var(--blue)}
+                                                                                                              .support:before{
+                                                                                                                left:0}
+                                                                                                                .support:after{
+                                                                                                                  right:0}
+                                                                                                                  .grab-cat{
+                                                                                                                    position:absolute;
+                                                                                                                    left:-13.57%;
+                                                                                                                    top:47.7%;
+                                                                                                                    width:39.14%;
+                                                                                                                    aspect-ratio:3/2;
+                                                                                                                    pointer-events:none;
+                                                                                                                    z-index:5}
+                                                                                                                    .closing-stage{
+                                                                                                                      aspect-ratio:1584/845;
+                                                                                                                      background:var(--blue)}
+                                                                                                                      .closing-canvas{
+                                                                                                                        position:absolute;
+                                                                                                                        inset:0;
+                                                                                                                        width:100%;
+                                                                                                                        height:100%;
+                                                                                                                        max-width:none}
+                                                                                                                        .get-hotspots a{
+                                                                                                                          position:absolute;
+                                                                                                                          left:64.6%;
+                                                                                                                          width:23.45%;
+                                                                                                                          height:6.65%;
+                                                                                                                          min-height:44px;
+                                                                                                                          z-index:3}
+                                                                                                                          .windows-get{
+                                                                                                                            top:44%}
+                                                                                                                            .mac-get{
+                                                                                                                              top:52.3%}
+                                                                                                                              .get-hotspots a:hover{
+                                                                                                                                outline:3px solid var(--paper);
+                                                                                                                                outline-offset:6px}
+                                                                                                                                .get-hotspots a:focus-visible{
+                                                                                                                                  outline-color:var(--paper)}
+                                                                                                                                  .mobile-get{
+                                                                                                                                    display:none}
+                                                                                                                                    .closing-stage.revealing .closing-canvas{
+                                                                                                                                      animation:pixel-reveal .65s steps(6,end) both}
+                                                                                                                                      @keyframes pixel-reveal{
+                                                                                                                                        0%{
+                                                                                                                                          clip-path:polygon(0 100%,0 100%,0 100%,0 100%)}
+                                                                                                                                          20%{
+                                                                                                                                            clip-path:polygon(0 55%,45% 55%,45% 100%,0 100%)}
+                                                                                                                                            50%{
+                                                                                                                                              clip-path:polygon(0 15%,55% 15%,55% 50%,85% 50%,85% 100%,0 100%)}
+                                                                                                                                              100%{
+                                                                                                                                                clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
+                                                                                                                                              }
+                                                                                                                                              .about{
+                                                                                                                                                display:grid;
+                                                                                                                                                grid-template-columns:1fr 1fr;
+                                                                                                                                                gap:8%;
+                                                                                                                                                padding:76px 5% 58px;
+                                                                                                                                                font-size:17px;
+                                                                                                                                                line-height:1.9}
+                                                                                                                                                .about h2{
+                                                                                                                                                  font-size:32px;
+                                                                                                                                                  margin-bottom:20px;
+                                                                                                                                                  line-height:1.3;
+                                                                                                                                                  font-weight:800}
+                                                                                                                                                  .about p{
+                                                                                                                                                    max-width:40em}
+                                                                                                                                                    .about a{
+                                                                                                                                                      display:inline-block;
+                                                                                                                                                      margin-top:20px}
+                                                                                                                                                      .motion-toggle{
+                                                                                                                                                        position:fixed;
+                                                                                                                                                        right:18px;
+                                                                                                                                                        bottom:18px;
+                                                                                                                                                        width:44px;
+                                                                                                                                                        height:44px;
+                                                                                                                                                        padding:0;
+                                                                                                                                                        background:transparent;
+                                                                                                                                                        border:0;
+                                                                                                                                                        z-index:25;
+                                                                                                                                                        display:grid;
+                                                                                                                                                        place-items:center;
+                                                                                                                                                        color:var(--ink);
+                                                                                                                                                        opacity:.68;
+                                                                                                                                                        isolation:isolate}
+                                                                                                                                                        .motion-toggle:before{
+                                                                                                                                                          content:;
+                                                                                                                                                          position:absolute;
+                                                                                                                                                          inset:6px;
+                                                                                                                                                          background:var(--paper);
+                                                                                                                                                          z-index:-1}
+                                                                                                                                                          .motion-toggle svg{
+                                                                                                                                                            width:18px;
+                                                                                                                                                            fill:currentColor}
+                                                                                                                                                            .motion-toggle:hover,.motion-toggle:focus-visible{
+                                                                                                                                                              opacity:1}
+                                                                                                                                                              .motion-toggle:focus-visible{
+                                                                                                                                                                outline:2px solid var(--ink);
+                                                                                                                                                                outline-offset:1px;
+                                                                                                                                                                box-shadow:0 0 0 4px var(--paper)}
+                                                                                                                                                                .resume-icon{
+                                                                                                                                                                  display:none}
+                                                                                                                                                                  .motion-toggle[aria-pressed=true] .pause-icon{
+                                                                                                                                                                    display:none}
+                                                                                                                                                                    .motion-toggle[aria-pressed=true] .resume-icon{
+                                                                                                                                                                      display:block}
+                                                                                                                                                                      .preview{
+                                                                                                                                                                        padding:24px;
+                                                                                                                                                                        border:0;
+                                                                                                                                                                        width:min(850px,94vw);
+                                                                                                                                                                        max-height:94vh;
+                                                                                                                                                                        overflow:auto;
+                                                                                                                                                                        color:var(--ink);
+                                                                                                                                                                        background:var(--paper)}
+                                                                                                                                                                        .preview::backdrop{
+                                                                                                                                                                          background:#111217b8}
+                                                                                                                                                                          .preview-top{
+                                                                                                                                                                            display:flex;
+                                                                                                                                                                            align-items:center;
+                                                                                                                                                                            justify-content:space-between;
+                                                                                                                                                                            gap:20px;
+                                                                                                                                                                            margin-bottom:18px}
+                                                                                                                                                                            .preview-top h2{
+                                                                                                                                                                              font-size:22px}
+                                                                                                                                                                              .preview-close{
+                                                                                                                                                                                background:transparent;
+                                                                                                                                                                                border:1px solid #11121733;
+                                                                                                                                                                                padding:8px 14px;
+                                                                                                                                                                                min-height:44px}
+                                                                                                                                                                                .preview-close:hover{
+                                                                                                                                                                                  background:#11121708}
+                                                                                                                                                                                  .preview video,.preview-image{
+                                                                                                                                                                                    width:100%;
+                                                                                                                                                                                    max-height:65vh;
+                                                                                                                                                                                    object-fit:contain;
+                                                                                                                                                                                    background:var(--blue)}
+                                                                                                                                                                                    .preview [hidden]{
+                                                                                                                                                                                      display:none}
+                                                                                                                                                                                      .preview-download{
+                                                                                                                                                                                        display:inline-flex;
+                                                                                                                                                                                        align-items:center;
+                                                                                                                                                                                        min-height:44px;
+                                                                                                                                                                                        margin-top:16px;
+                                                                                                                                                                                        padding:6px 0;
+                                                                                                                                                                                        font-size:17px;
+                                                                                                                                                                                        color:var(--blue);
+                                                                                                                                                                                        text-decoration:underline;
+                                                                                                                                                                                        text-underline-offset:5px}
+                                                                                                                                                                                        .preview-download:hover{
+                                                                                                                                                                                          text-decoration-thickness:2px}
+                                                                                                                                                                                          @media(min-width:1585px){
+                                                                                                                                                                                            body{
+                                                                                                                                                                                              --u:1px}
+                                                                                                                                                                                              .header{
+                                                                                                                                                                                                padding-left:63px;
+                                                                                                                                                                                                padding-right:63px}
+                                                                                                                                                                                              }
+                                                                                                                                                                                              @media(max-width:650px){
+                                                                                                                                                                                                :root{
+                                                                                                                                                                                                  --u:.246px;
+                                                                                                                                                                                                  scroll-padding-top:12px}
+                                                                                                                                                                                                  .header{
+                                                                                                                                                                                                    height:76px;
+                                                                                                                                                                                                    min-height:76px;
+                                                                                                                                                                                                    padding:0 22px;
+                                                                                                                                                                                                    gap:24px}
+                                                                                                                                                                                                    .brand{
+                                                                                                                                                                                                      font-size:28px}
+                                                                                                                                                                                                      .header nav{
+                                                                                                                                                                                                        gap:20px;
+                                                                                                                                                                                                        font-size:15px}
+                                                                                                                                                                                                        .hero{
+                                                                                                                                                                                                          aspect-ratio:auto;
+                                                                                                                                                                                                          height:calc(410px + 73vw)}
+                                                                                                                                                                                                          .hero-copy{
+                                                                                                                                                                                                            left:24px;
+                                                                                                                                                                                                            top:26px}
+                                                                                                                                                                                                            .hero h1{
+                                                                                                                                                                                                              font-size:clamp(33px,9.3vw,54px);
+                                                                                                                                                                                                              line-height:1.2;
+                                                                                                                                                                                                              letter-spacing:-.045em}
+                                                                                                                                                                                                              .hero-get{
+                                                                                                                                                                                                                font-size:17px;
+                                                                                                                                                                                                                margin-top:24px;
+                                                                                                                                                                                                                padding:11px 22px;
+                                                                                                                                                                                                                min-height:46px}
+                                                                                                                                                                                                                .hero-cat{
+                                                                                                                                                                                                                  left:4%;
+                                                                                                                                                                                                                  top:255px;
+                                                                                                                                                                                                                  width:108%;
+                                                                                                                                                                                                                  height:auto}
+                                                                                                                                                                                                                  .hero-acid{
+                                                                                                                                                                                                                    left:0;
+                                                                                                                                                                                                                    height:175px}
+                                                                                                                                                                                                                    .hero-file{
+                                                                                                                                                                                                                      padding:8px;
+                                                                                                                                                                                                                      padding-bottom:0;
+                                                                                                                                                                                                                      top:auto;
+                                                                                                                                                                                                                      bottom:8px;
+                                                                                                                                                                                                                      height:155px}
+                                                                                                                                                                                                                      .hero-video{
+                                                                                                                                                                                                                        left:3%;
+                                                                                                                                                                                                                        width:57%}
+                                                                                                                                                                                                                        .hero-flower{
+                                                                                                                                                                                                                          left:62%;
+                                                                                                                                                                                                                          width:38%}
+                                                                                                                                                                                                                          .hero-picture{
+                                                                                                                                                                                                                            height:78%}
+                                                                                                                                                                                                                            .filename{
+                                                                                                                                                                                                                              font-size:15px;
+                                                                                                                                                                                                                              line-height:1.8}
+                                                                                                                                                                                                                              .hero-file .play-mark{
+                                                                                                                                                                                                                                width:46px}
+                                                                                                                                                                                                                                .save-stage{
+                                                                                                                                                                                                                                  aspect-ratio:auto;
+                                                                                                                                                                                                                                  height:600px}
+                                                                                                                                                                                                                                  .save-stage h2{
+                                                                                                                                                                                                                                    left:24px;
+                                                                                                                                                                                                                                    top:40px;
+                                                                                                                                                                                                                                    font-size:34px}
+                                                                                                                                                                                                                                    .file-dance{
+                                                                                                                                                                                                                                      left:23%;
+                                                                                                                                                                                                                                      top:126px;
+                                                                                                                                                                                                                                      width:59%}
+                                                                                                                                                                                                                                      .file-flower{
+                                                                                                                                                                                                                                        left:51%;
+                                                                                                                                                                                                                                        top:345px;
+                                                                                                                                                                                                                                        width:45%}
+                                                                                                                                                                                                                                        .file{
+                                                                                                                                                                                                                                          padding:12px;
+                                                                                                                                                                                                                                          padding-bottom:0}
+                                                                                                                                                                                                                                          .file .filename{
+                                                                                                                                                                                                                                            font-size:17px;
+                                                                                                                                                                                                                                            line-height:2}
+                                                                                                                                                                                                                                            .file .play-mark{
+                                                                                                                                                                                                                                              width:62px}
+                                                                                                                                                                                                                                              .grab-cat{
+                                                                                                                                                                                                                                                left:-43%;
+                                                                                                                                                                                                                                                top:290px;
+                                                                                                                                                                                                                                                width:72%}
+                                                                                                                                                                                                                                                .save-acid{
+                                                                                                                                                                                                                                                  left:43%;
+                                                                                                                                                                                                                                                  top:66%;
+                                                                                                                                                                                                                                                  width:54%;
+                                                                                                                                                                                                                                                  height:24%}
+                                                                                                                                                                                                                                                  .support{
+                                                                                                                                                                                                                                                    left:18%;
+                                                                                                                                                                                                                                                    top:86%;
+                                                                                                                                                                                                                                                    width:77%;
+                                                                                                                                                                                                                                                    height:8px}
+                                                                                                                                                                                                                                                    .support:before,.support:after{
+                                                                                                                                                                                                                                                      width:8px;
+                                                                                                                                                                                                                                                      height:20px}
+                                                                                                                                                                                                                                                      .closing-stage{
+                                                                                                                                                                                                                                                        aspect-ratio:auto;
+                                                                                                                                                                                                                                                        height:730px}
+                                                                                                                                                                                                                                                        .closing-canvas{
+                                                                                                                                                                                                                                                          width:920px;
+                                                                                                                                                                                                                                                          height:491px;
+                                                                                                                                                                                                                                                          left:-20px;
+                                                                                                                                                                                                                                                          top:0}
+                                                                                                                                                                                                                                                          .get-hotspots{
+                                                                                                                                                                                                                                                            display:none}
+                                                                                                                                                                                                                                                            .mobile-get{
+                                                                                                                                                                                                                                                              display:flex;
+                                                                                                                                                                                                                                                              position:absolute;
+                                                                                                                                                                                                                                                              top:486px;
+                                                                                                                                                                                                                                                              left:24px;
+                                                                                                                                                                                                                                                              right:24px;
+                                                                                                                                                                                                                                                              flex-direction:column;
+                                                                                                                                                                                                                                                              gap:14px}
+                                                                                                                                                                                                                                                              .mobile-get h2{
+                                                                                                                                                                                                                                                                font-size:38px;
+                                                                                                                                                                                                                                                                color:var(--paper);
+                                                                                                                                                                                                                                                                font-weight:800;
+                                                                                                                                                                                                                                                                margin-bottom:10px}
+                                                                                                                                                                                                                                                                .mobile-get .action{
+                                                                                                                                                                                                                                                                  font-size:18px;
+                                                                                                                                                                                                                                                                  min-height:52px;
+                                                                                                                                                                                                                                                                  clip-path:polygon(8px 0,calc(100% - 8px) 0,calc(100% - 8px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 8px) calc(100% - 4px),calc(100% - 8px) 100%,8px 100%,8px calc(100% - 4px),0 calc(100% - 4px),0 4px,8px 4px)}
+                                                                                                                                                                                                                                                                  .about{
+                                                                                                                                                                                                                                                                    display:block;
+                                                                                                                                                                                                                                                                    padding:44px 24px 20px;
+                                                                                                                                                                                                                                                                    font-size:16px}
+                                                                                                                                                                                                                                                                    .about>div+div{
+                                                                                                                                                                                                                                                                      margin-top:30px}
+                                                                                                                                                                                                                                                                      .about h2{
+                                                                                                                                                                                                                                                                        font-size:28px}
+                                                                                                                                                                                                                                                                        .motion-toggle{
+                                                                                                                                                                                                                                                                          right:12px;
+                                                                                                                                                                                                                                                                          bottom:12px}
+                                                                                                                                                                                                                                                                          .preview{
+                                                                                                                                                                                                                                                                            padding:18px}
+                                                                                                                                                                                                                                                                            .preview video,.preview-image{
+                                                                                                                                                                                                                                                                              max-height:60vh}
+                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                            @media(max-width:360px){
+                                                                                                                                                                                                                                                                              .header{
+                                                                                                                                                                                                                                                                                padding:0 16px;
+                                                                                                                                                                                                                                                                                gap:18px}
+                                                                                                                                                                                                                                                                                .header nav{
+                                                                                                                                                                                                                                                                                  gap:14px}
+                                                                                                                                                                                                                                                                                  .hero-cat{
+                                                                                                                                                                                                                                                                                    top:265px}
+                                                                                                                                                                                                                                                                                    .hero h1{
+                                                                                                                                                                                                                                                                                      font-size:33px}
+                                                                                                                                                                                                                                                                                      .hero-copy{
+                                                                                                                                                                                                                                                                                        left:20px}
+                                                                                                                                                                                                                                                                                        .hero-file .filename{
+                                                                                                                                                                                                                                                                                          font-size:13px}
+                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                        @media(prefers-reduced-motion:reduce){
+                                                                                                                                                                                                                                                                                          :root{
+                                                                                                                                                                                                                                                                                            scroll-behavior:auto}
+                                                                                                                                                                                                                                                                                            .closing-stage.revealing .closing-canvas{
+                                                                                                                                                                                                                                                                                              animation:none}
+                                                                                                                                                                                                                                                                                              *,*:before,*:after{
+                                                                                                                                                                                                                                                                                                animation-duration:.01ms!important;
+                                                                                                                                                                                                                                                                                                transition-duration:.01ms!important}
+                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                              .hero-cat{
+                                                                                                                                                                                                                                                                                                background:url(../assets/homepage/rear-static.png) center/100% 100% no-repeat}
+                                                                                                                                                                                                                                                                                                .grab-cat{
+                                                                                                                                                                                                                                                                                                  background:url(../assets/homepage/grab-static.png) center/100% 100% no-repeat}
+                                                                                                                                                                                                                                                                                                  .closing-stage{
+                                                                                                                                                                                                                                                                                                    background-image:url(../assets/homepage/closing.png);
+                                                                                                                                                                                                                                                                                                    background-size:100% 100%}
+                                                                                                                                                                                                                                                                                                    body[data-ready=true] .hero-cat,body[data-ready=true] .grab-cat{
+                                                                                                                                                                                                                                                                                                      background-image:none}
+                                                                                                                                                                                                                                                                                                      body[data-ready=true] .closing-stage{
+                                                                                                                                                                                                                                                                                                        background-image:url(../assets/homepage/closing-backdrop.png)}
+                                                                                                                                                                                                                                                                                                        @media(max-width:650px){
+                                                                                                                                                                                                                                                                                                          .closing-stage,body[data-ready=true] .closing-stage{
+                                                                                                                                                                                                                                                                                                            background-image:none}
+                                                                                                                                                                                                                                                                                                          }
+                                                                                                                                                                                                                                                                                                          .site-footer{
+                                                                                                                                                                                                                                                                                                            display:block;
+                                                                                                                                                                                                                                                                                                            position:relative;
+                                                                                                                                                                                                                                                                                                            padding:70px 5% 30px;
+                                                                                                                                                                                                                                                                                                            color:var(--paper);
+                                                                                                                                                                                                                                                                                                            background:var(--blue);
+                                                                                                                                                                                                                                                                                                            clip-path:polygon(0 12px,12% 12px,12% 6px,42% 6px,42% 0,100% 0,100% 100%,0 100%);
+                                                                                                                                                                                                                                                                                                            font-size:16px;
+                                                                                                                                                                                                                                                                                                            line-height:1.6}
+                                                                                                                                                                                                                                                                                                            .footer-main{
+                                                                                                                                                                                                                                                                                                              display:grid;
+                                                                                                                                                                                                                                                                                                              grid-template-columns:2.2fr 1fr 1fr;
+                                                                                                                                                                                                                                                                                                              gap:7%;
+                                                                                                                                                                                                                                                                                                              align-items:start;
+                                                                                                                                                                                                                                                                                                              padding-bottom:44px}
+                                                                                                                                                                                                                                                                                                              .footer-brand{
+                                                                                                                                                                                                                                                                                                                justify-self:start;
+                                                                                                                                                                                                                                                                                                                font-size:clamp(64px,6.1vw,96px);
+                                                                                                                                                                                                                                                                                                                font-weight:850;
+                                                                                                                                                                                                                                                                                                                line-height:1.1;
+                                                                                                                                                                                                                                                                                                                letter-spacing:-.045em;
+                                                                                                                                                                                                                                                                                                                text-decoration:none}
+                                                                                                                                                                                                                                                                                                                .footer-group h2{
+                                                                                                                                                                                                                                                                                                                  margin:6px 0 15px;
+                                                                                                                                                                                                                                                                                                                  font-size:15px;
+                                                                                                                                                                                                                                                                                                                  line-height:1.5;
+                                                                                                                                                                                                                                                                                                                  font-weight:650;
+                                                                                                                                                                                                                                                                                                                  color:var(--acid)}
+                                                                                                                                                                                                                                                                                                                  .footer-group a{
+                                                                                                                                                                                                                                                                                                                    display:table;
+                                                                                                                                                                                                                                                                                                                    min-height:40px;
+                                                                                                                                                                                                                                                                                                                    padding:6px 0;
+                                                                                                                                                                                                                                                                                                                    text-decoration:none;
+                                                                                                                                                                                                                                                                                                                    font-size:17px;
+                                                                                                                                                                                                                                                                                                                    line-height:1.6}
+                                                                                                                                                                                                                                                                                                                    .footer-group a:hover{
+                                                                                                                                                                                                                                                                                                                      text-decoration:underline;
+                                                                                                                                                                                                                                                                                                                      text-underline-offset:5px;
+                                                                                                                                                                                                                                                                                                                      color:var(--acid)}
+                                                                                                                                                                                                                                                                                                                      .site-footer a:focus-visible{
+                                                                                                                                                                                                                                                                                                                        outline-color:var(--acid)}
+                                                                                                                                                                                                                                                                                                                        .header .brand{
+                                                                                                                                                                                                                                                                                                                          display:inline-flex;
+                                                                                                                                                                                                                                                                                                                          align-items:center;
+                                                                                                                                                                                                                                                                                                                          min-height:44px}
+                                                                                                                                                                                                                                                                                                                          .footer-meta{
+                                                                                                                                                                                                                                                                                                                            display:flex;
+                                                                                                                                                                                                                                                                                                                            justify-content:space-between;
+                                                                                                                                                                                                                                                                                                                            align-items:center;
+                                                                                                                                                                                                                                                                                                                            gap:20px;
+                                                                                                                                                                                                                                                                                                                            padding-top:23px;
+                                                                                                                                                                                                                                                                                                                            border-top:1px solid #f9f7ef45;
+                                                                                                                                                                                                                                                                                                                            font-size:13px;
+                                                                                                                                                                                                                                                                                                                            line-height:1.7}
+                                                                                                                                                                                                                                                                                                                            .footer-meta small{
+                                                                                                                                                                                                                                                                                                                              font:inherit}
+                                                                                                                                                                                                                                                                                                                              .footer-meta span{
+                                                                                                                                                                                                                                                                                                                                color:var(--acid)}
+                                                                                                                                                                                                                                                                                                                                @media(max-width:650px){
+                                                                                                                                                                                                                                                                                                                                  .site-footer{
+                                                                                                                                                                                                                                                                                                                                    padding:48px 24px 82px;
+                                                                                                                                                                                                                                                                                                                                    clip-path:polygon(0 8px,20% 8px,20% 4px,55% 4px,55% 0,100% 0,100% 100%,0 100%)}
+                                                                                                                                                                                                                                                                                                                                    .footer-main{
+                                                                                                                                                                                                                                                                                                                                      grid-template-columns:1fr 1fr;
+                                                                                                                                                                                                                                                                                                                                      gap:32px 28px;
+                                                                                                                                                                                                                                                                                                                                      padding-bottom:28px}
+                                                                                                                                                                                                                                                                                                                                      .footer-brand{
+                                                                                                                                                                                                                                                                                                                                        grid-column:1/-1;
+                                                                                                                                                                                                                                                                                                                                        font-size:64px}
+                                                                                                                                                                                                                                                                                                                                        .footer-group h2{
+                                                                                                                                                                                                                                                                                                                                          margin:0 0 12px;
+                                                                                                                                                                                                                                                                                                                                          font-size:14px}
+                                                                                                                                                                                                                                                                                                                                          .footer-group a{
+                                                                                                                                                                                                                                                                                                                                            min-height:44px;
+                                                                                                                                                                                                                                                                                                                                            font-size:16px;
+                                                                                                                                                                                                                                                                                                                                            padding:9px 0}
+                                                                                                                                                                                                                                                                                                                                            .footer-meta{
+                                                                                                                                                                                                                                                                                                                                              gap:16px;
+                                                                                                                                                                                                                                                                                                                                              padding-top:20px;
+                                                                                                                                                                                                                                                                                                                                              font-size:12px}
+                                                                                                                                                                                                                                                                                                                                            }
