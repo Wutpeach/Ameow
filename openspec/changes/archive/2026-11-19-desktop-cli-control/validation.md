@@ -12,7 +12,7 @@
 ## Windows 本轮定向结果
 
 - 复用本树唯一 target 重建；locked/offline 的 app、CLI、Launcher、release tool 和 release_fixture 构建成功。
-- 新签名/入口替换回归 1 passed；control 模块 20 passed；PR58 画质菜单定向 1 passed。普通 Launcher 在取得安装租约前拒绝隔离入口、普通 CLI 拒绝包内隔离自动启动，各 1 passed。Held 不被 wait 当作终态的既有回归补充断言后 1 passed。
+- 新签名/入口替换回归 1 passed；control 模块 20 passed；PR58 画质菜单定向 1 passed。普通 Launcher 在取得安装租约前拒绝隔离入口、普通 CLI 拒绝包内隔离自动启动，各 1 passed。Held 不被 wait 当作终态的定向断言检查 1 passed；该额外断言仅保留于本轮私有检查记录，最终 src 保持来源已审 bc448076343f7ada53e6db24671a9e0790577662。
 - 使用公共 RFC 测试密钥生成并核验带 CLI 的实际 portable fixture，CLI 从包内自动寻找相邻稳定 Launcher，未传 --app。两个并发提交只产生一个真实桌面 owner，Launcher 审计记录 spawned/ready，持久 current 已确认且 trial/pending 清空；两任务与 CLI 列表的实例/任务 ID 一致。
 - 两项显式取消后 wait 均退出 5，resources_released=true；默认仍 Balanced 与隔离输出目录，未产生 settings.json。对确切自有原生窗口发送 WM_CLOSE 后，Launcher 记录 exited，CLI 再读为 E_NOT_RUNNING。
 - 本轮没有执行安装器向导或写注册表；不将私有 RFC fixture 当作正式签发安装器。没有读取生产私钥或操作日常实例。
