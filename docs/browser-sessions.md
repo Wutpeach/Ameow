@@ -13,7 +13,7 @@ cargo build --locked --bin ameow --bin ameow-cli --bin ameow-browser-host
 ./target/debug/ameow.exe
 ~~~
 
-macOS 的可执行文件没有 .exe 后缀。Windows Edge 为首要验证浏览器；Edge、Chrome 和 Chromium 使用同一协议，最低 Chromium 120。扩展固定 ID 为 icedkidcbbbijndplfofcbhikohlcool，原生 host 为 org.ameow.browser_sessions。
+macOS 的可执行文件没有 .exe 后缀。当前已接入 Edge、Google Chrome 和 Chromium 的扩展/注册路径，manifest 声明最低 Chromium 120；共享协议不等于各品牌或最低版本均已实测。Windows Edge已有独立运行证据，Chrome路线另以官方Chrome for Testing的精确版本做隔离验证，普通品牌Chrome日常安装/商店流程、独立Chromium与Mac浏览器链路分别列未验。Firefox当前尚未接入，仅提供方案，是否实施待定。各平台/品牌实测及Firefox最小适配见[浏览器覆盖说明](browser-session-browsers.md)。扩展固定 ID 为 icedkidcbbbijndplfofcbhikohlcool，原生 host 为 org.ameow.browser_sessions。
 
 在 Ameow **设置 → 下载 → 浏览器会话** 点击“安装浏览器连接”，注册当前产品包的桥接。安装回执分别说明注册落盘和组件自检，实际浏览器连接由扩展握手确认；自检仅 Ping，不读取会话 Store、Cookie 或 Keychain。Windows 会把可可靠表示的组件路径写为同一文件的普通 Win32 路径，不支持的路径明确失败。点击旁边文件夹图标找到扩展目录，在 Edge/Chrome 的扩展管理页启用开发者模式并加载该目录。开发构建目录是 browser-extension/dist；完整产品包携带 browser-extension，Mac 包位于 Contents/Resources/browser-extension。不要单独移动注册后的桥接可执行文件。
 
@@ -62,7 +62,7 @@ node browser-extension/tests/native.e2e.mjs D:/task/new-edge-fixture
 
 Edge E2E 只创建自己的 profile、合成 Cookie 和测试 host 注册。无头 Edge 的权限由该 profile 的扩展管理 API 预授，不把它当成浏览器原生确认 UI 的验收。测试通过真实 Native Messaging EXE、正式桌面 owner 和 Rust CookieJar 检查首次授权、变化、重启、删除及撤销。调试 host 的 AMEOW_BROWSER_TEST_INSTANCE 只在 debug 生效；普通产品的注册、存储及 Adapter 不依赖它。
 
-复审定向回归入口：`node browser-extension/tests/native.e2e.mjs D:/task/new-sync-fixture --sync-status-only` 检查失败结果到桌面和确切恢复；`scripts/test_session_title_privacy.py --help` 给出本地 HTML/HLS 回显标题、截断和正常名称的正式交付检查参数，需要上述 feature 构建的 driver 和本任务已有隔离 warm runtime。`cargo build --example browser_bridge_manifest` 后，`node browser-extension/tests/installed.e2e.mjs D:/task/new-handshake-fixture D:/task/ordinary-product target/debug/examples/browser_bridge_manifest.exe` 对普通 release 包使用生产清单构造/组件自检，再由独立 Edge profile 验证真实 Native Messaging 握手及同一 helper 的路径负例；只发送 Ping，不读取 Store 或 Cookie。两种 Edge fixture 共用专属测试注册名，必须串行运行，结束移除自己的测试注册。
+复审定向回归入口：`node browser-extension/tests/native.e2e.mjs D:/task/new-sync-fixture --sync-status-only` 检查失败结果到桌面和确切恢复；`scripts/test_session_title_privacy.py --help` 给出本地 HTML/HLS 回显标题、截断和正常名称的正式交付检查参数，需要上述 feature 构建的 driver 和本任务已有隔离 warm runtime。`cargo build --example browser_bridge_manifest` 后，`node browser-extension/tests/installed.e2e.mjs D:/task/new-handshake-fixture D:/task/ordinary-product target/debug/examples/browser_bridge_manifest.exe` 对普通 release 包使用生产清单构造/组件自检，再由独立 Edge profile 验证真实 Native Messaging 握手及同一 helper 的路径负例；只发送 Ping，不读取 Store 或 Cookie。新入口默认生成唯一专属测试注册名并在结束移除，也可显式选择chrome-for-testing及可执行路径，详见浏览器覆盖说明；旧证据中固定.fixture的清理和身份记录保持原样。
 
 实际下载 fixture 使用已有 debug 更新 fixture 的固定 example.com 代理路由；服务器不会转发外部请求，不修改系统代理。它运行正式下载内核、官方 yt-dlp/FFmpeg/verifier，检查 2160p 合成交付、匿名 1080p、attempt 冻结、来源刷新、失败脱敏和真实撤销结算：
 

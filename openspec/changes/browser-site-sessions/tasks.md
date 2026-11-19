@@ -34,3 +34,8 @@
 - [x] 5.3 修复 Windows Native Messaging 路径及安装回执，普通产品路径的无 Cookie 浏览器握手通过；统一新包、CI和报告身份。
 
 复审增量：R1 原失败与 driver blob 映射保留，title-green-03 三项正式交付无凭据泄漏且正常中文名保留；R2 扩展三类安全错误/恢复、真实 Edge → Native → 桌面状态、真实设置失败/恢复均通过。新普通产品目录含空格和中文，Edge 无 Cookie Ping 握手、旧前缀负例、恢复及测试注册清理通过；该连接证明不计业务授权。完整验证报告与准确新包/CI身份由本轮 `D:/Ameow-handoffs/issue24-review-fixes/REPORT.md` 及 Draft PR63 记录。用户当前无大会员账号，真实会员 4K 未验证；旧冻结 Mac GUI 合成结果不换标新产品、不要求重跑。
+
+## 6. 浏览器覆盖补证
+
+- [x] 6.1 使用官方 Chrome for Testing 的任务私有环境、唯一测试注册及新profile，复用979正式App/CLI/host完成无Store Ping与合成同步/变化/重启/删除/撤销/来源隔离；保留品牌、版本、哈希、权限预授和前驱失败边界，不触及日常Edge。
+- [x] 6.2 维护实现/实测矩阵与Firefox最小Win/Mac接入、验证及签名分发方案；区分CfT和普通Chrome安装/商店流程，Firefox仍只讨论范围、不实施，不把共享协议当跨浏览器验收。
