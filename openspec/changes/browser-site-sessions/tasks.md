@@ -23,6 +23,6 @@
 
 - 用户及来源复审后再处理归档；本任务不 Ready、merge、关闭 Issue 或发行。
 
-验证边界：Windows 合成协议、真实 Edge 桥接/同步及设置移除已验证；macOS SSH Keychain 返回 -25308，本机专属 GUI 验证包已准备但尚未由用户启动。原生权限确认 UI 与真实会员样本单列待验，不算作上述工程项通过。
+验证边界：Windows 合成协议、真实 Edge 桥接/同步及设置移除已验证；macOS SSH Keychain 曾返回 -25308；用户随后本机启动冻结专属 GUI 入口，已核对双程序身份、4 项 checks、error=null 和 cleanup=Ok 的本轮 PASS 回执。该结果不替代完整 GPUI。原生权限确认 UI 与真实会员样本单列待验，不算作上述工程项通过。
 
 交付：实现 c8057a4c；Windows/macOS 普通 release 构建与打包已通过；Draft PR https://github.com/Wutpeach/Ameow/pull/63 。人工待验边界保持如上，不表示产品验收或 Issue 结案。

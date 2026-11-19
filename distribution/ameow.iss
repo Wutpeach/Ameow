@@ -73,6 +73,8 @@ begin
      not PlainDestination(ExpandConstant('{app}\licenses')) or
      not PlainDestination(ExpandConstant('{app}\state.json')) or
      not PlainDestination(ExpandConstant('{app}\AmeowLauncher.exe')) or
+     not PlainDestination(ExpandConstant('{app}\ameow-browser-host.exe')) or
+     not PlainDestination(ExpandConstant('{app}\browser-extension')) or
      not PlainDestination(ExpandConstant('{app}\ameow-cli.exe')) then begin
     Result := 'Choose a plain installation directory without symbolic links or junctions.';
     exit;
