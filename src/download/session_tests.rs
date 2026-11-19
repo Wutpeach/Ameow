@@ -86,7 +86,7 @@ fn both_native_adapters_share_the_frozen_jar_and_keep_anonymous_arguments() -> R
     })?;
     let transfer = yt_dlp::engine_args(&context, &super::network::Route::Direct, Quality::Highest)?;
     assert_eq!(resolve, transfer);
-    for args in [resolve, gallery_dl::common(&context, &request)?] {
+    for args in [resolve, gallery_dl::engine_args(&context, &request, &super::network::Route::Direct)] {
         assert!(args.windows(2).any(|p| p == auth.arguments()));
         assert!(!args.join(" ").contains("SYNTHETIC"));
         assert!(
@@ -123,7 +123,7 @@ fn both_native_adapters_share_the_frozen_jar_and_keep_anonymous_arguments() -> R
             .any(|p| p == "--cookies")
     );
     assert!(
-        !gallery_dl::common(&anonymous, &request)?
+        !gallery_dl::engine_args(&anonymous, &request, &super::network::Route::Direct)
             .iter()
             .any(|p| p == "--cookies")
     );

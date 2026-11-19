@@ -161,12 +161,19 @@ fn native_unsupported_url(
     outcome.stderr == format!("{line}\r\n").as_bytes()
         || outcome.stderr == format!("{line}\n").as_bytes()
 }
-pub(crate) fn common(
+fn common(
     context: &ExecutionContext<'_>,
     request: &ExecutionRequest,
 ) -> Result<Vec<String>, String> {
     let route = network::engine_route(&request.accepted.intent.url)
         .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
+    Ok(engine_args(context, request, &route))
+}
+pub(crate) fn engine_args(
+    context: &ExecutionContext<'_>,
+    request: &ExecutionRequest,
+    route: &network::Route,
+) -> Vec<String> {
     let mut args = vec![
         "--config-ignore".into(),
         "--proxy".into(),
@@ -182,7 +189,7 @@ pub(crate) fn common(
     if let Some(auth) = context.authentication {
         args.extend(auth.arguments());
     }
-    Ok(args)
+    args
 }
 fn invoke(
     context: &ExecutionContext<'_>,
