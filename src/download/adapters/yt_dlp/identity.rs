@@ -7,7 +7,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
             { return Err("Metadata is a playlist/multiple/indirect object".into()); }
             let frozen = format!("{:x}", Sha256::digest(url.as_bytes()));
             let id = metadata["id"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(&frozen);
-            let title = crate::download::diagnostics::safe_title(metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id));
+            let title = metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id).to_owned();
             return Ok(Identity {
                 id: frozen,
                 title,
@@ -78,9 +78,7 @@ pub fn attest(accepted: &Accepted, metadata: &Value) -> Result<Identity, String>
                 id
             }.into(),
             part: if extractor == "BiliBili" { Some(id.rsplit_once("_p").and_then(|(_, p)| p.parse().ok()).unwrap_or(1)) } else { None },
-            title: crate::download::diagnostics::safe_title(
-                metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id),
-            ),
+            title: metadata["title"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(id).to_owned(),
             site: if extractor == "Youtube" { Site::Youtube } else { Site::Bilibili },
         })
     }

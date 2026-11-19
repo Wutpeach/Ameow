@@ -26,3 +26,9 @@
 验证边界：Windows 合成协议、真实 Edge 桥接/同步及设置移除已验证；macOS SSH Keychain 曾返回 -25308；用户随后本机启动冻结专属 GUI 入口，已核对双程序身份、4 项 checks、error=null 和 cleanup=Ok 的本轮 PASS 回执。该结果不替代完整 GPUI。原生权限确认 UI 与真实会员样本单列待验，不算作上述工程项通过。
 
 交付：实现 c8057a4c；Windows/macOS 普通 release 构建与打包已通过；Draft PR https://github.com/Wutpeach/Ameow/pull/63 。人工待验边界保持如上，不表示产品验收或 Issue 结案。
+
+## 5. 独立复审修复
+
+- [x] 5.1 PR63-R1：在公开身份、业务快照和交付命名前保护认证元数据；保留原失败及 driver 映射，合成红绿回归覆盖回显、截断及正常标题。
+- [x] 5.2 PR63-R2：保存受限同步结果，重连传递失败，扩展/设置区分上次成功缓存与最近结果；回归已知错误和恢复。
+- [ ] 5.3 修复 Windows Native Messaging 路径及安装回执，普通产品路径的无 Cookie 浏览器握手通过；统一新包、CI和报告身份。

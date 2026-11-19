@@ -1,6 +1,7 @@
 //! Site-scoped browser sessions. No raw credential implements Debug or enters a projection.
 pub mod native;
 mod protection;
+mod public_text;
 #[cfg(test)]
 mod tests;
 
@@ -21,6 +22,25 @@ pub fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+pub fn utc_timestamp(seconds: u64) -> String {
+    let seconds = seconds.min(253_402_300_799);
+    let z = (seconds / 86400) as i64 + 719468;
+    let era = z / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} UTC",
+        seconds / 3600 % 24,
+        seconds / 60 % 60,
+        seconds % 60
+    )
 }
 fn invalid() -> String {
     "E_SESSION_INVALID".into()
@@ -114,6 +134,8 @@ struct Session {
     grant_id: String,
     sequence: u64,
     synced_at: u64,
+    #[serde(default)]
+    last_result: Option<SyncResult>,
     cookies: Vec<Cookie>,
     skipped_partitioned: usize,
 }
@@ -132,6 +154,32 @@ pub struct SiteView {
     pub synced_at: u64,
     pub cookie_count: usize,
     pub skipped_partitioned: usize,
+    #[serde(default)]
+    pub last_result: Option<SyncResult>,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SyncError {
+    #[serde(rename = "E_COOKIE_READ")]
+    CookieRead,
+    #[serde(rename = "E_BRIDGE")]
+    Bridge,
+    #[serde(rename = "E_SESSION_STORAGE")]
+    Storage,
+    #[serde(rename = "E_SESSION_LIMIT")]
+    Limit,
+    #[serde(rename = "E_SESSION_INVALID")]
+    Invalid,
+    #[serde(rename = "E_SESSION_PROTOCOL")]
+    Protocol,
+    #[serde(rename = "E_SESSION_STALE")]
+    Stale,
+    #[serde(rename = "E_PERMISSION")]
+    Permission,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncResult {
+    pub at: u64,
+    pub error: Option<SyncError>,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Status {
@@ -153,12 +201,14 @@ impl Session {
                 .filter(|c| c.expires.is_none_or(|t| t > now()))
                 .count(),
             skipped_partitioned: self.skipped_partitioned,
+            last_result: self.last_result.clone(),
         }
     }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Operation {
+    Ping,
     List,
     Authorize {
         site: String,
@@ -181,6 +231,13 @@ pub enum Operation {
         site: String,
         source_id: String,
         grant_id: String,
+    },
+    ReportFailure {
+        site: String,
+        source_id: String,
+        grant_id: String,
+        sequence: u64,
+        error: SyncError,
     },
 }
 #[derive(Clone)]
@@ -273,12 +330,15 @@ impl Store {
         })
     }
     pub fn apply(&self, operation: Operation) -> Result<Vec<SiteView>> {
+        if matches!(operation, Operation::Ping) {
+            return Ok(Vec::new());
+        }
         if matches!(operation, Operation::List) {
             return self.list();
         }
         self.locked(true, |db| {
             match operation {
-                Operation::List => unreachable!(),
+                Operation::List | Operation::Ping => unreachable!(),
                 Operation::Authorize {
                     site,
                     source_id,
@@ -323,6 +383,10 @@ impl Store {
                             grant_id,
                             sequence: 0,
                             synced_at: now(),
+                            last_result: Some(SyncResult {
+                                at: now(),
+                                error: None,
+                            }),
                             cookies,
                             skipped_partitioned,
                         },
@@ -350,7 +414,38 @@ impl Store {
                     session.sequence = sequence;
                     session.cookies = cookies;
                     session.synced_at = now();
+                    session.last_result = Some(SyncResult {
+                        at: now(),
+                        error: None,
+                    });
                     session.skipped_partitioned = skipped_partitioned;
+                }
+                Operation::ReportFailure {
+                    site,
+                    source_id,
+                    grant_id,
+                    sequence,
+                    error,
+                } => {
+                    validate(&site, &source_id, &grant_id, &[])?;
+                    let session = db
+                        .sessions
+                        .get_mut(&site)
+                        .filter(|s| s.source_id == source_id && s.grant_id == grant_id)
+                        .ok_or("E_SESSION_REVOKED")?;
+                    if sequence < session.sequence
+                        || (sequence == session.sequence
+                            && session.last_result.as_ref().and_then(|r| r.error) != Some(error))
+                    {
+                        return Err("E_SESSION_STALE".into());
+                    }
+                    if sequence > session.sequence {
+                        session.sequence = sequence;
+                        session.last_result = Some(SyncResult {
+                            at: now(),
+                            error: Some(error),
+                        });
+                    }
                 }
                 Operation::Revoke {
                     site,
@@ -417,6 +512,14 @@ impl Store {
         }
         Ok(Some(Attempt {
             path,
+            values: std::sync::Arc::new(
+                session
+                    .cookies
+                    .iter()
+                    .filter(|c| c.expires.is_none_or(|t| t > now()))
+                    .map(|c| c.value.clone())
+                    .collect(),
+            ),
             store: self.clone(),
             site: session.site,
             grant_id: session.grant_id,
@@ -435,6 +538,7 @@ fn validate(site: &str, source: &str, grant: &str, cookies: &[Cookie]) -> Result
 #[derive(Clone)]
 pub struct Attempt {
     pub path: PathBuf,
+    values: std::sync::Arc<Vec<String>>,
     store: Store,
     site: String,
     grant_id: String,

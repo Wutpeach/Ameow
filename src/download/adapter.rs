@@ -65,7 +65,18 @@ impl ExecutionContext<'_> {
         self.lease.file(name)
     }
     pub fn admit(&self, proof: &IdentityAttestation) -> Result<(), Failure> {
-        (self.admission)(proof).map_err(|error| Failure::new(if error.starts_with("E_DUPLICATE:") { FailureCode::Duplicate } else { FailureCode::Identity }, "admission"))
+        let mut proof = proof.clone();
+        proof.identity = self.public_identity(&proof.identity).map_err(|_| Failure::new(FailureCode::Runtime, "resolve"))?;
+        (self.admission)(&proof).map_err(|error| Failure::new(if error.starts_with("E_DUPLICATE:") { FailureCode::Duplicate } else { FailureCode::Identity }, "admission"))
+    }
+    pub fn public_identity(&self, identity: &super::request::Identity) -> Result<super::request::Identity, String> {
+        let mut identity = identity.clone();
+        let title = match self.authentication {
+            Some(auth) => auth.public_text(&identity.title)?,
+            None => identity.title.clone(),
+        };
+        identity.title = super::diagnostics::safe_title(&title);
+        Ok(identity)
     }
     pub fn emit(&self, event: AdapterEvent) {
         (self.events)(event);

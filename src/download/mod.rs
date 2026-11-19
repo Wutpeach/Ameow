@@ -539,7 +539,7 @@ fn execute(
             state.snapshot.collection = resume.clone();
             state.publish();
         }
-        let batch = services
+        let mut batch = services
             .adapter
             .execute_batch(
                 &ExecutionRequest {
@@ -553,6 +553,7 @@ fn execute(
                 adapter_failure = Some(failure);
                 message
             })?;
+        for artifact in &mut batch.artifacts { artifact.identity = context.public_identity(&artifact.identity)?; }
         if batch.collection {
             let failure = batch.failure.clone();
             adapter_failure = failure.clone();

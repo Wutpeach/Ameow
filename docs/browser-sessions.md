@@ -15,7 +15,7 @@ cargo build --locked --bin ameow --bin ameow-cli --bin ameow-browser-host
 
 macOS 的可执行文件没有 .exe 后缀。Windows Edge 为首要验证浏览器；Edge、Chrome 和 Chromium 使用同一协议，最低 Chromium 120。扩展固定 ID 为 icedkidcbbbijndplfofcbhikohlcool，原生 host 为 org.ameow.browser_sessions。
 
-在 Ameow **设置 → 下载 → 浏览器会话** 点击“安装浏览器连接”，注册当前产品包的桥接。点击旁边文件夹图标找到扩展目录，在 Edge/Chrome 的扩展管理页启用开发者模式并加载该目录。开发构建目录是 browser-extension/dist；完整产品包携带 browser-extension，Mac 包位于 Contents/Resources/browser-extension。不要单独移动注册后的桥接可执行文件。
+在 Ameow **设置 → 下载 → 浏览器会话** 点击“安装浏览器连接”，注册当前产品包的桥接。安装回执分别说明注册落盘和组件自检，实际浏览器连接由扩展握手确认；自检仅 Ping，不读取会话 Store、Cookie 或 Keychain。Windows 会把可可靠表示的组件路径写为同一文件的普通 Win32 路径，不支持的路径明确失败。点击旁边文件夹图标找到扩展目录，在 Edge/Chrome 的扩展管理页启用开发者模式并加载该目录。开发构建目录是 browser-extension/dist；完整产品包携带 browser-extension，Mac 包位于 Contents/Resources/browser-extension。不要单独移动注册后的桥接可执行文件。
 
 在普通网页打开 Ameow 扩展，确认显示的站点及子域范围，再点击授权并完成浏览器权限确认。权限按公共后缀表确定边界；不会因为媒体位于另一个站点而扩大授权。每个浏览器 profile 的扩展安装保有独立来源 ID，一个站点只使用一个来源；“改用此浏览器”明确替换当前来源。
 
@@ -23,7 +23,7 @@ macOS 的可执行文件没有 .exe 后缀。Windows Edge 为首要验证浏览�
 
 已授权站点在 Cookie 变化后合并同步，浏览器启动补同步，另以一分钟周期补偿遗漏事件。桥接只在浏览器通信时运行，不启动完整 GUI。桌面未运行时仍能保存当前用户受保护的离线缓存；缓存是最近同步的会话，不证明网站当前仍接受登录或会员权益。刷新同步的是浏览器已有会话，不替用户重新登录。
 
-设置显示站点、浏览器来源和最近同步结果。移除只停止 Ameow 使用并删除其保存的会话；不会退出网站或更改浏览器原始 Cookie。扩展下次同步识别失效授权并移除自身站点权限。浏览器撤销权限会通知桥接；桥接暂不可用时保留待处理状态并补交。已开始的对应下载按原有取消和资源结算停止。
+设置分别显示站点、浏览器来源、上次成功缓存时间和最近收到的同步结果。扩展保存安全失败码；连接恢复时补交未送达失败，状态查询或缓存读取成功不会冒充新的同步成功。旧缓存继续保留，新的 Cookie 同步成功回执才清除对应失败。移除只停止 Ameow 使用并删除其保存的会话；不会退出网站或更改浏览器原始 Cookie。扩展下次同步识别失效授权并移除自身站点权限。浏览器撤销权限会通知桥接；桥接暂不可用时保留待处理状态并补交。已开始的对应下载按原有取消和资源结算停止。
 
 非分区 Cookie 保留域、host-only、path、secure、HttpOnly、过期及会话语义。分区 Cookie 不展平进 Netscape Jar，扩展和设置说明排除结果。站点的设备/IP 绑定、风控、地区或付费限制仍可能影响原生下载器；通用授权不是下载支持白名单。
 
@@ -33,7 +33,7 @@ Windows 使用当前用户 DPAPI；Mac 使用应用专属 Keychain 密钥和 AEA
 
 每次 attempt 从有效授权建立独立 Jar，正式 yt-dlp/gallery-dl 的 metadata、选流、transfer、内部重试及后备共用该 Jar。浏览器随后同步不会替换它；后端自己的 CookieJar 更新留在 attempt 内，不回写受保护的浏览器来源。显式失败重试取得新快照并重新解析，画质和目录继续沿用原任务意图。没有授权时沿用匿名下载。
 
-Cookie 原文不进入 argv、业务状态或持久诊断。认证下载不保存原始引擎 stdout/stderr/JSON；保留资源结算事实和仅含尺寸、帧率、码率及已知 codec 的媒体观察。临时 Jar 随已有工作区清理屏障释放。失败继续使用原失败状态、复制安全诊断和显式重试；没有失败卡授权按钮或授权后自动重试链。
+Cookie 原文不进入 argv、业务状态或持久诊断。认证响应的自由标题在截断、身份发布和交付命名前按本 attempt 的 Cookie 值及常见 URL 表达保护，保留原始快照值与引擎 Jar 后续值；正常标题继续保留。认证 gallery 的工作文件使用稳定中性名称，避免原生文件名进入公开集合状态；显式重试可能由原生引擎重传已保存项，既有成品仍经哈希核对并保留。认证下载不保存原始引擎 stdout/stderr/JSON；保留资源结算事实和仅含尺寸、帧率、码率及已知 codec 的媒体观察。临时 Jar 随已有工作区清理屏障释放。失败继续使用原失败状态、复制安全诊断和显式重试；没有失败卡授权按钮或授权后自动重试链。
 
 ameow-cli --json sessions 只读查看站点与同步事实。它连接现有桌面实例，不启动下载或导出 Cookie。
 
@@ -62,6 +62,8 @@ node browser-extension/tests/native.e2e.mjs D:/task/new-edge-fixture
 
 Edge E2E 只创建自己的 profile、合成 Cookie 和测试 host 注册。无头 Edge 的权限由该 profile 的扩展管理 API 预授，不把它当成浏览器原生确认 UI 的验收。测试通过真实 Native Messaging EXE、正式桌面 owner 和 Rust CookieJar 检查首次授权、变化、重启、删除及撤销。调试 host 的 AMEOW_BROWSER_TEST_INSTANCE 只在 debug 生效；普通产品的注册、存储及 Adapter 不依赖它。
 
+复审定向回归入口：`node browser-extension/tests/native.e2e.mjs D:/task/new-sync-fixture --sync-status-only` 检查失败结果到桌面和确切恢复；`scripts/test_session_title_privacy.py --help` 给出本地 HTML/HLS 回显标题、截断和正常名称的正式交付检查参数，需要上述 feature 构建的 driver 和本任务已有隔离 warm runtime。`cargo build --example browser_bridge_manifest` 后，`node browser-extension/tests/installed.e2e.mjs D:/task/new-handshake-fixture D:/task/ordinary-product target/debug/examples/browser_bridge_manifest.exe` 对普通 release 包使用生产清单构造/组件自检，再由独立 Edge profile 验证真实 Native Messaging 握手及同一 helper 的路径负例；只发送 Ping，不读取 Store 或 Cookie。两种 Edge fixture 共用专属测试注册名，必须串行运行，结束移除自己的测试注册。
+
 实际下载 fixture 使用已有 debug 更新 fixture 的固定 example.com 代理路由；服务器不会转发外部请求，不修改系统代理。它运行正式下载内核、官方 yt-dlp/FFmpeg/verifier，检查 2160p 合成交付、匿名 1080p、attempt 冻结、来源刷新、失败脱敏和真实撤销结算：
 
 ~~~powershell
@@ -71,4 +73,4 @@ python scripts/test_browser_session_media.py --root D:/task/new-media-fixture --
 
 Mac 的 scripts/package_session_check_macos.sh /absolute/new/check-directory 只准备可从 Finder 启动的专属合成验证包，不启动 GUI 或访问 Keychain。它使用产品存储代码和桥接，检查两个可执行文件访问、快照、刷新和撤销；其身份及覆盖边界与完整 GPUI/浏览器验证分开记录。只有用户本机明确启动后才运行，回执仅含安全状态及哈希，清理限定测试 root 对应的专属 account。
 
-会员验证由用户在本地从真实站点主动授权，再对同一新样本分别核对匿名/授权可见格式、实际选择和成品。凭据不经过聊天，fixture 不代表真实会员通过，也不能追溯证明未知旧链接的唯一根因。
+会员验证仅在用户自愿且具备相应账号权益时，在本地从真实站点主动授权，再对同一新样本分别核对匿名/授权可见格式、实际选择和成品。凭据不经过聊天，fixture 不代表真实会员通过，也不能追溯证明未知旧链接的唯一根因。

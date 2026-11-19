@@ -50,7 +50,7 @@ const TRANSFER_INFO_FILE: &str = "media.info.json";
 const SELECTION_FILE: &str = "selection.txt";
 const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
 // Native output-template projection excludes request headers, URLs and downloader Cookie data.
-const SAFE_METADATA: &str = "%(.{id,title,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index})j";
+const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index})j";
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
@@ -233,7 +233,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             context.emit(AdapterEvent::Finalizing);
             Ok(ProducedArtifact {
                 relative_path,
-                identity: actual_proof.identity,
+                identity: if context.authentication.is_some() { proof.identity } else { actual_proof.identity },
                 kind: MediaKind::Video,
                 verification: VerificationRequirements::Video(video),
             })

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawn } from 'node:child_process';
 const project = fileURLToPath(new URL('../../', import.meta.url));
 const directory = resolve(process.argv[2]);
+const syncStatusOnly = process.argv.includes('--sync-status-only');
 const instance = join(directory, 'desktop');
 const extensionId = 'icedkidcbbbijndplfofcbhikohlcool';
 const hostName = 'org.ameow.browser_sessions.fixture';
@@ -91,6 +92,22 @@ try {
   await page.screenshot({ path: join(directory, 'extension-dark.png') });
   assert.equal(await page.evaluate(() => chrome.permissions.contains({ origins: ['https://*.evil.net/*'] })), false);
   evidence.checks.push('unrelated site remains ungranted');
+  if (syncStatusOnly) {
+    const cached = desktopSessions().sites[0].synced_at;
+    const worker = context.serviceWorkers()[0];
+    await worker.evaluate(() => { globalThis.originalCookieRead = chrome.cookies.getAll; chrome.cookies.getAll = async () => { throw Error('synthetic read failure'); }; });
+    await page.getByRole('button', {name:'立即同步',exact:true}).click();
+    await until(() => desktopSessions()?.sites?.[0]?.last_result?.error === 'E_COOKIE_READ', 'browser failure reaches desktop status');
+    await pause(1100);
+    assert.equal(desktopSessions().sites[0].synced_at,cached);
+    assert.equal(desktopSessions().sites[0].last_result.error,'E_COOKIE_READ');
+    evidence.checks.push('failed browser sync preserves cached time and survives desktop polling');
+    await page.screenshot({path:join(directory,'sync-failure.png')});
+    await worker.evaluate(() => { chrome.cookies.getAll = globalThis.originalCookieRead; });
+    await page.getByRole('button', {name:'立即同步',exact:true}).click();
+    await until(() => desktopSessions()?.sites?.[0]?.last_result?.error === null, 'fresh successful sync clears failure');
+    evidence.checks.push('fresh successful browser receipt clears the reported failure');
+  } else {
   const first = desktopSessions().sites[0].synced_at; await pause(1100);
   await context.addCookies([{ name: 'ameow_synthetic', value: 'AMEOW_SYNTHETIC_V2', domain: '.example.com', path: '/', httpOnly: true, secure: true, expires: Date.now() / 1000 + 86400 }]);
   await until(() => desktopSessions()?.sites?.[0]?.synced_at > first, 'Cookie change auto-sync'); snapshot('v2');
@@ -99,6 +116,7 @@ try {
   await until(() => desktopSessions()?.sites?.[0]?.synced_at > beforeRestart, 'browser restart resynchronization'); snapshot('v2');
   await context.clearCookies({ name: 'ameow_synthetic', domain: '.example.com' });
   await until(() => desktopSessions()?.sites?.[0]?.cookie_count === 0, 'deleted Cookie auto-sync'); snapshot('empty');
+  }
   page = await popup(); await page.getByRole('button', { name: '移除', exact: true }).click();
   await until(() => desktopSessions()?.sites?.length === 0, 'permission revocation reaches desktop'); snapshot('revoked');
   assert.equal(await page.evaluate(() => chrome.permissions.contains({ origins: ['https://*.example.com/*'] })), false);

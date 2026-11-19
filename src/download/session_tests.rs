@@ -75,6 +75,16 @@ fn both_native_adapters_share_the_frozen_jar_and_keep_anonymous_arguments() -> R
         })?,
         resume: None,
     };
+    let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured = observed.clone();
+    let protected = ExecutionContext { admission: Arc::new(move |proof| { captured.lock().unwrap().push(proof.identity.clone()); Ok(()) }), ..context };
+    let raw = yt_dlp::identity::proof(&request.accepted, &serde_json::json!({"title":"clip SYNTHETIC_V1 episode"}))?;
+    protected.admit(&raw).map_err(|_| "admission failed")?;
+    let public = protected.public_identity(&raw.identity)?;
+    assert_eq!(observed.lock().unwrap()[0].title, "clip [redacted] episode");
+    assert_eq!(public.title, "clip [redacted] episode");
+    assert!(!super::output::media_basename(&public.title, &public.id, &Default::default()).contains("SYNTHETIC"));
+    let context = protected;
     let resolve = yt_dlp::engine_args(&context, &super::network::Route::Direct, Quality::Highest)?;
     store.apply(Operation::Sync {
         site: "example.com".into(),

@@ -1263,23 +1263,45 @@ impl SettingsWindow {
         if let Some(error) = status.error.as_ref().or(status.notice.as_ref().filter(|n| n.as_str() != "installed")) {
             let message = if error == "E_SESSION_HOST_MISSING" {
                 l.text("未找到浏览器连接组件，请使用完整 Ameow 产品包。", "Browser bridge is missing. Use the complete Ameow package.")
+            } else if error == "E_SESSION_HOST_PATH" {
+                l.text("浏览器无法使用此组件路径，请把完整产品包放到较短的普通目录。", "The browser cannot use this bridge path. Put the complete package in a shorter standard directory.")
+            } else if error == "E_SESSION_HOST_PROTOCOL" {
+                l.text("连接组件自检失败，请使用与当前应用配套的完整产品包。", "Bridge self-check failed. Use the complete package matching this application.")
+            } else if error == "E_SESSION_HOST_START" || error == "E_SESSION_HOST_TIMEOUT" {
+                l.text("连接组件未能正常启动或响应。", "The bridge could not start or respond.")
+            } else if error == "E_SESSION_REGISTRATION" {
+                l.text("组件自检通过，但浏览器注册未完成。", "Component self-check passed, but browser registration is incomplete.")
+            } else if status.error.is_some() {
+                l.text("会话缓存暂不可读，当前同步结果不可确认。", "Session cache is unreadable; current sync status cannot be confirmed.")
             } else { l.text("浏览器连接操作未完成，请重试。", "The browser connection could not be updated. Try again.") };
             content = content.child(div().mt(px(12.)).child(inline_notice(p, message, true)));
         } else if status.notice.as_deref() == Some("installed") {
-            content = content.child(div().mt(px(12.)).child(inline_notice(p, l.text("连接已安装。请在 Edge 或 Chrome 扩展页加载包内 browser-extension 文件夹。", "Connection installed. Load the packaged browser-extension folder from Edge or Chrome's extensions page."), false)));
+            content = content.child(div().mt(px(12.)).child(inline_notice(p, l.text("注册已写入，组件自检通过。请从扩展检查浏览器连接。", "Registration saved and component self-check passed. Check the browser connection from the extension."), false)));
         }
         for session in status.sites {
             let key = format!("remove-session:{}", session.site);
             let (container, focus) = self.control_container(&key, enabled, cx);
             let site = session.site.clone(); let grant_id = session.grant_id.clone();
-            let detail = if session.skipped_partitioned > 0 {
-                l.text("已同步；分区 Cookie 已排除", "Synced; partitioned cookies excluded").to_owned()
-            } else if session.cookie_count == 0 { l.text("已同步；当前无会话 Cookie", "Synced; no current session cookies").to_owned() }
-            else { l.text("已同步", "Synced").to_owned() };
+            let failed = session.last_result.as_ref().is_some_and(|r| r.error.is_some());
+            let detail = match &session.last_result {
+                None => l.text("最近同步结果未知", "Latest sync result unknown").to_owned(),
+                Some(result) => format!("{}{} · {}", l.text("最近收到：", "Last received: "), ameow_next::browser_sessions::utc_timestamp(result.at),
+                    if let Some(error) = result.error { match error {
+                        ameow_next::browser_sessions::SyncError::Storage => l.text("存储失败；保留旧缓存", "Storage failed; previous cache retained"),
+                        ameow_next::browser_sessions::SyncError::Bridge => l.text("连接失败；保留旧缓存", "Connection failed; previous cache retained"),
+                        ameow_next::browser_sessions::SyncError::CookieRead => l.text("读取失败；保留旧缓存", "Read failed; previous cache retained"),
+                        _ => l.text("同步失败；保留旧缓存", "Sync failed; previous cache retained"),
+                    } }
+                    else if session.skipped_partitioned > 0 { l.text("成功；分区 Cookie 已排除", "Success; partitioned cookies excluded") }
+                    else if session.cookie_count == 0 { l.text("成功；当前无会话 Cookie", "Success; no current session cookies") }
+                    else { l.text("成功", "Success") }),
+            };
             content = content.child(div().mt(px(12.)).py(px(8.)).flex().items_center().gap(px(12.))
                 .child(div().flex_1().min_w(px(0.)).flex().flex_col().gap(px(4.))
                     .child(div().text_size(px(13.)).child(session.site.clone()))
-                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{} · {} · {}", session.source_name, &session.source_id[..6], detail))))
+                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{} · {}", session.source_name, &session.source_id[..6])))
+                    .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{}{}", l.text("上次成功缓存：", "Last successful cache: "), ameow_next::browser_sessions::utc_timestamp(session.synced_at))))
+                    .child(div().text_size(px(12.)).text_color(if failed { error_text(p) } else { p.neutral }).child(detail)))
                 .child(container.child(gpui_base::Button::new(SharedString::from(key)).track_focus(&focus).disabled(!enabled)
                     .accessibility_label(format!("{} {}", l.text("移除", "Remove"), session.site))
                     .h(px(tokens::CONTROL_HEIGHT)).px(px(12.)).rounded(px(tokens::CONTROL_RADIUS))
@@ -2118,7 +2140,7 @@ impl Prototype {
             use ameow_next::download::{preparation::PreparationPhase, runtime_update::RuntimeUpdatePhase};
             let snapshot = std::sync::Arc::make_mut(snapshot);
             if scene.state == "browser-sessions" {
-                snapshot.browser_sessions.sites = vec![ameow_next::browser_sessions::SiteView {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge".into(),grant_id:"b".repeat(32),synced_at:ameow_next::browser_sessions::now(),cookie_count:3,skipped_partitioned:0}];
+                snapshot.browser_sessions.sites = vec![ameow_next::browser_sessions::SiteView {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge".into(),grant_id:"b".repeat(32),synced_at:ameow_next::browser_sessions::now(),cookie_count:3,skipped_partitioned:0,last_result:None}];
             } else if scene.state == "browser-session-error" {
                 snapshot.browser_sessions.error = Some("E_SESSION_STORAGE".into());
             }

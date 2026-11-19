@@ -13,6 +13,9 @@ fn settings_and_tray() {
         use ameow_next::browser_sessions::{Store, Operation, Cookie};
         Store::new(&root.join("runtime")).apply(Operation::Authorize {site:"bilibili.com".into(),source_id:"a".repeat(32),source_name:"Microsoft Edge · isolated profile".into(),grant_id:"b".repeat(32),replaces:None,
             cookies:vec![Cookie{domain:".bilibili.com".into(),path:"/".into(),name:"ameow_synthetic".into(),value:"SYNTHETIC_UI_ONLY".into(),secure:true,http_only:true,host_only:false,expires:None}],skipped_partitioned:0}).unwrap();
+        if std::env::var("AMEOW_BROWSER_SESSION_ERROR").as_deref() == Ok("storage") {
+            Store::new(&root.join("runtime")).apply(Operation::ReportFailure {site:"bilibili.com".into(),source_id:"a".repeat(32),grant_id:"b".repeat(32),sequence:1,error:ameow_next::browser_sessions::SyncError::Storage}).unwrap();
+        }
     }
     let downloads = download_ui::DownloadUi::native_acceptance(root.clone());
     let mut options = Options::from_args();

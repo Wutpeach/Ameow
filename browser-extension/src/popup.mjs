@@ -1,4 +1,4 @@
-import { siteFromUrl, scope } from './core.mjs';
+import { siteFromUrl, scope, SYNC_ERRORS } from './core.mjs';
 const $ = id => document.getElementById(id);
 let site, current, sourceId;
 const sourceName = navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : 'Chrome / Chromium';
@@ -12,13 +12,16 @@ async function refresh() {
   const state = await send('status'); sourceId = state.source_id;
   current = state.sites.find(row => row.site === site);
   $('source').textContent = current ? `来源：${current.source_name} · ${current.source_id.slice(0, 6)}` : '';
-  const own = current?.source_id === sourceId;
+  const own = current ? current.source_id === sourceId : Boolean(state.grant);
   $('authorize').hidden = own; $('sync').hidden = !own; $('revoke').hidden = !own;
   $('authorize').textContent = current ? '改用此浏览器' : '授权此站点';
   $('authorize').disabled = false;
-  if (current) status(current.skipped_partitioned ? '已同步。分区 Cookie 无法用于下载，已排除。' : `已同步 · ${new Date(current.synced_at * 1000).toLocaleString()}`);
-  if (state.grant?.error === 'E_COOKIE_READ') status('浏览器会话读取失败。保留上次同步结果，请重试。', true);
-  if (state.grant?.error === 'E_SESSION_LIMIT') status('此站点会话超出同步容量。保留上次同步结果。', true);
+  const last = current?.synced_at ? current.synced_at * 1000 : state.grant?.last_sync;
+  const cached = last ? `上次成功：${new Date(last).toLocaleString()}。` : '';
+  const error = state.error || (own && state.grant?.error) || current?.last_result?.error;
+  if (error) status(`${SYNC_ERRORS[error] || '同步结果不可用'}。${cached}保留已有缓存。`, true);
+  else if (current) status(`${cached}${current.last_result ? '最近收到的同步结果：成功。' : '最近同步结果未知。'}${current.skipped_partitioned ? '分区 Cookie 已排除。' : ''}`);
+  else status(state.grant?.pending ? '授权尚未完成同步。' : '');
 }
 for (const action of ['authorize', 'sync', 'revoke']) $(action).addEventListener('click', async () => {
   for (const id of ['authorize', 'sync', 'revoke']) $(id).disabled = true;
@@ -35,8 +38,7 @@ for (const action of ['authorize', 'sync', 'revoke']) $(action).addEventListener
     status(action === 'revoke' ? '已移除。' : '已同步。');
     await refresh();
   } catch (error) {
-    const message = { E_COOKIE_READ: '浏览器会话读取失败，请重试。', E_SESSION_LIMIT: '此站点会话超出同步容量。', E_SESSION_SOURCE_CHANGED: '来源已变化，请重新确认此站点。' }[error.message];
-    status(message || '同步未完成。请确认桌面 Ameow 的浏览器连接已安装，再重试。', true);
+    status(`${SYNC_ERRORS[error.message] || '同步未完成，原因未确认'}。`, true);
   }
   finally { for (const id of ['authorize', 'sync', 'revoke']) $(id).disabled = false; }
 });
@@ -46,5 +48,5 @@ try {
   $('scope').textContent = `授权范围：${site} 及其子域。允许 Ameow 自动同步这些站点的 Cookie，并在下载时复用。`;
   await refresh();
 } catch {
-  status(site ? '请先在桌面 Ameow 设置中安装浏览器连接。' : '请在普通网站页面打开扩展。', true);
+  status(site ? '浏览器连接状态不可用，原因未确认。' : '请在普通网站页面打开扩展。', true);
 }

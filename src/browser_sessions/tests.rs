@@ -42,6 +42,94 @@ fn site_boundary_and_cookie_injection_are_rejected() {
     );
 }
 #[test]
+fn public_titles_cover_original_and_engine_updated_cookie_values() -> Result<()> {
+    let root = tempfile::tempdir().unwrap();
+    let work = tempfile::tempdir().unwrap();
+    let store = Store::new(root.path());
+    store.apply(authorize(&"f".repeat(32), None, "initial-session-7Q9d"))?;
+    let auth = store
+        .snapshot("https://example.com/page", work.path())?
+        .unwrap();
+    fs::write(&auth.path,"# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tTRUE\t0\tnew-session\tserver-session-P8x3\n").unwrap();
+    assert_eq!(
+        auth.public_text("initial-session-7Q9d and server-session-P8x3")?,
+        "[redacted] and [redacted]"
+    );
+    assert_eq!(auth.public_text("雨后的小猫 2026")?, "雨后的小猫 2026");
+    Ok(())
+}
+#[test]
+fn sync_failures_keep_cache_and_only_a_new_success_clears_the_result() -> Result<()> {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::new(root.path());
+    let grant = "e".repeat(32);
+    store.apply(authorize(&grant, None, "frozen_cookie"))?;
+    let cached = store.list()?[0].synced_at;
+    for (index, error) in [SyncError::Storage, SyncError::Bridge, SyncError::CookieRead]
+        .into_iter()
+        .enumerate()
+    {
+        let sequence = index as u64 + 1;
+        store.apply(Operation::ReportFailure {
+            site: "example.com".into(),
+            source_id: "a".repeat(32),
+            grant_id: grant.clone(),
+            sequence,
+            error,
+        })?;
+        for _ in 0..2 {
+            let site = &store.list()?[0];
+            assert_eq!(site.synced_at, cached);
+            assert_eq!(site.last_result.as_ref().unwrap().error, Some(error));
+            assert_eq!(site.cookie_count, 1);
+        }
+    }
+    store.apply(Operation::Sync {
+        site: "example.com".into(),
+        source_id: "a".repeat(32),
+        grant_id: grant.clone(),
+        sequence: 4,
+        cookies: vec![],
+        skipped_partitioned: 0,
+    })?;
+    assert_eq!(store.list()?[0].last_result.as_ref().unwrap().error, None);
+    assert_eq!(
+        store
+            .apply(Operation::ReportFailure {
+                site: "example.com".into(),
+                source_id: "a".repeat(32),
+                grant_id: grant.clone(),
+                sequence: 3,
+                error: SyncError::Bridge
+            })
+            .unwrap_err(),
+        "E_SESSION_STALE"
+    );
+    assert_eq!(utc_timestamp(0), "1970-01-01 00:00:00 UTC");
+    assert_eq!(utc_timestamp(1709251200), "2024-03-01 00:00:00 UTC");
+    Ok(())
+}
+#[test]
+fn ping_is_storage_free_and_windows_messaging_paths_are_plain() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::new(root.path());
+    assert!(store.apply(Operation::Ping).unwrap().is_empty());
+    assert!(!root.path().join("browser-sessions").exists());
+    #[cfg(windows)]
+    {
+        assert_eq!(
+            native::messaging_path(Path::new(r"\\?\D:\Ameow 包\host.exe")).unwrap(),
+            PathBuf::from(r"D:\Ameow 包\host.exe")
+        );
+        assert_eq!(
+            native::messaging_path(Path::new(r"\\?\UNC\server\共享 路径\host.exe")).unwrap(),
+            PathBuf::from(r"\\server\共享 路径\host.exe")
+        );
+        assert!(native::messaging_path(Path::new(r"\\?\Volume{abc}\host.exe")).is_err());
+        assert!(native::messaging_path(Path::new("relative.exe")).is_err());
+    }
+}
+#[test]
 fn revoke_before_initial_authorize_prevents_late_consent_restore() -> Result<()> {
     let root = tempfile::tempdir().unwrap();
     let store = Store::new(root.path());

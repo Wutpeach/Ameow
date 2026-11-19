@@ -281,7 +281,7 @@ fn preflight(request: &ExecutionRequest, data: &[u8]) -> Result<(Identity, BTree
         Object::Generic { url } => (Site::Generic, format!("{:x}", Sha256::digest(url.as_bytes()))),
         _ => return Err("Wrong adapter".into()),
     };
-    Ok((Identity { title: crate::download::diagnostics::safe_title(title.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(&id)), id, site, part: None }, files))
+    Ok((Identity { title: title.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| id.clone()), id, site, part: None }, files))
 }
 fn check_known_identity(accepted: &Accepted, meta: &Value) -> Result<(), String> {
     let Object::Gallery { site, id } = &accepted.object else { return Ok(()); };
@@ -342,7 +342,7 @@ fn run(
         preflight(request, &result.stdout)?;
     let expected_paths: Vec<PathBuf> = expected
         .keys()
-        .map(|name| PathBuf::from("gallery-media").join(name))
+        .map(|name| PathBuf::from("gallery-media").join(if context.authentication.is_some() { neutral_name(name) } else { name.clone() }))
         .collect();
     if let Some(resume) = &request.resume {
         if !same_collection(&resume.expected_paths, resume.total, &expected_paths) {
@@ -494,6 +494,7 @@ fn run(
             }
         }
     }
+    if context.authentication.is_some() { paths = neutral_paths(&root, paths, &copied)?; }
     let artifacts = paths
         .into_iter()
         .map(|name| ProducedArtifact {
@@ -529,6 +530,20 @@ fn run(
         expected_paths,
     })
 }
+fn neutral_name(name: &Path) -> PathBuf {
+    PathBuf::from(format!("item-{:x}.data", Sha256::digest(name.as_os_str().as_encoded_bytes())))
+}
+fn neutral_paths(root: &Path, paths: BTreeSet<PathBuf>, copied: &BTreeSet<PathBuf>) -> Result<BTreeSet<PathBuf>, String> {
+    let mut result = BTreeSet::new();
+    for name in paths {
+        let neutral = neutral_name(&name);
+        // Prior verified copies belong to this attempt; engine output may replace them on retry.
+        if copied.contains(&neutral) { fs::remove_file(root.join(&neutral)).map_err(|_| "E_STORAGE: resume item cleanup failed")?; }
+        output::move_no_replace(&root.join(name), &root.join(&neutral)).map_err(|_| "E_STORAGE: cannot neutralize native item name")?;
+        result.insert(neutral);
+    }
+    Ok(result)
+}
 fn same_collection(previous: &[PathBuf], total: Option<usize>, current: &[PathBuf]) -> bool {
     let old: BTreeSet<_> = previous.iter().collect();
     let new: BTreeSet<_> = current.iter().collect();
@@ -554,6 +569,20 @@ mod diagnostic_regressions;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn authenticated_native_names_are_opaque_and_stable_on_resume() {
+        let root = tempfile::tempdir().unwrap();
+        let original = PathBuf::from("private-response-name.png");
+        fs::write(root.path().join(&original), b"first").unwrap();
+        let first = neutral_paths(root.path(), BTreeSet::from([original.clone()]), &BTreeSet::new()).unwrap();
+        let name = first.first().unwrap();
+        assert_eq!(name, &neutral_name(&original), "expected collection paths and delivered item keys share the opaque name");
+        assert!(!name.to_string_lossy().contains("private-response"));
+        fs::write(root.path().join(&original), b"updated").unwrap();
+        let next = neutral_paths(root.path(), BTreeSet::from([original]), &first).unwrap();
+        assert_eq!(next, first);
+        assert_eq!(fs::read(root.path().join(name)).unwrap(), b"updated");
+    }
     use crate::download::request::{Accepted, DownloadIntent, Quality};
     #[test]
     fn only_exact_native_gallery_unsupported_output_allows_fallback() {

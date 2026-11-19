@@ -44,9 +44,18 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Res
                         .bytes()
                         .all(|b| b.is_ascii_alphanumeric() || b == b'-') =>
             {
+                let ping = matches!(&message.operation, Operation::Ping);
                 match Store::new(root).apply(message.operation) {
                     Ok(sites) => {
-                        serde_json::json!({"version":1, "request_id":message.request_id, "ok":true, "sites":sites})
+                        let mut response = serde_json::json!({"version":1, "request_id":message.request_id, "ok":true, "sites":sites});
+                        if ping {
+                            let sha256 = std::env::current_exe()
+                                .ok()
+                                .and_then(|p| fs::File::open(p).ok())
+                                .and_then(|f| crate::download::runtime::hash(f).ok());
+                            response["bridge"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sha256":sha256,"capabilities":["ping","report_failure"]});
+                        }
+                        response
                     }
                     Err(code) => {
                         serde_json::json!({"version":1, "request_id":message.request_id, "ok":false, "error":code})
@@ -93,22 +102,131 @@ pub fn companion() -> Result<PathBuf> {
     Ok(sibling)
 }
 pub fn install(host: &Path) -> Result<PathBuf> {
-    let host = host.canonicalize().map_err(|_| "E_SESSION_HOST_MISSING")?;
+    let contents = installation_manifest(host)?;
     let directory =
         crate::download::runtime::RuntimeManager::default_root()?.join("browser-bridge");
-    super::protection::directory(&directory)?;
+    super::protection::directory(&directory).map_err(|_| "E_SESSION_REGISTRATION")?;
     let manifest = directory.join(format!("{HOST_NAME}.json"));
     fs::write(
         &manifest,
-        serde_json::to_vec_pretty(&serde_json::json!({
-            "name":HOST_NAME, "description":"Ameow site sessions", "path":host,
-            "type":"stdio", "allowed_origins":[ORIGIN]
-        }))
-        .map_err(|_| storage())?,
+        serde_json::to_vec_pretty(&contents).map_err(|_| "E_SESSION_REGISTRATION")?,
     )
-    .map_err(|_| storage())?;
-    register(&manifest)?;
+    .map_err(|_| "E_SESSION_REGISTRATION")?;
+    register(&manifest).map_err(|_| "E_SESSION_REGISTRATION")?;
     Ok(manifest)
+}
+pub fn installation_manifest(host: &Path) -> Result<serde_json::Value> {
+    let host = host.canonicalize().map_err(|_| "E_SESSION_HOST_MISSING")?;
+    let normal = messaging_path(&host)?;
+    if !normal.is_file() || normal.canonicalize().map_err(|_| "E_SESSION_HOST_PATH")? != host {
+        return Err("E_SESSION_HOST_PATH".into());
+    }
+    let host = normal;
+    probe_host(&host)?;
+    Ok(serde_json::json!({
+        "name":HOST_NAME, "description":"Ameow site sessions", "path":host,
+        "type":"stdio", "allowed_origins":[ORIGIN]
+    }))
+}
+pub fn messaging_path(path: &Path) -> Result<PathBuf> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let text = path.to_str().ok_or("E_SESSION_HOST_PATH")?;
+        // Chromium may launch through cmd.exe, which cannot execute verbatim device paths.
+        let normal = if text
+            .get(..8)
+            .is_some_and(|p| p.eq_ignore_ascii_case(r"\\?\UNC\"))
+        {
+            PathBuf::from(format!(r"\\{}", &text[8..]))
+        } else if let Some(drive) = text.strip_prefix(r"\\?\") {
+            if !drive
+                .as_bytes()
+                .first()
+                .is_some_and(u8::is_ascii_alphabetic)
+                || drive.as_bytes().get(1..3) != Some(b":\\")
+            {
+                return Err("E_SESSION_HOST_PATH".into());
+            }
+            PathBuf::from(drive)
+        } else {
+            path.to_path_buf()
+        };
+        if !normal.is_absolute()
+            || normal.as_os_str().encode_wide().count() >= 260
+            || normal.to_string_lossy().starts_with(r"\\.\")
+        {
+            return Err("E_SESSION_HOST_PATH".into());
+        }
+        return Ok(normal);
+    }
+    #[cfg(not(windows))]
+    Ok(path.to_path_buf())
+}
+fn probe_host(host: &Path) -> Result<()> {
+    use std::process::{Command, Stdio};
+    let mut command = Command::new(host);
+    command
+        .arg(ORIGIN)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let mut child = command.spawn().map_err(|_| "E_SESSION_HOST_START")?;
+    let data = serde_json::to_vec(&Message {
+        version: 1,
+        request_id: "installation-probe".into(),
+        operation: Operation::Ping,
+    })
+    .map_err(|_| storage())?;
+    let mut input = child.stdin.take().ok_or("E_SESSION_HOST_PROTOCOL")?;
+    input
+        .write_all(&(data.len() as u32).to_le_bytes())
+        .and_then(|_| input.write_all(&data))
+        .map_err(|_| "E_SESSION_HOST_PROTOCOL")?;
+    drop(input);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        if child
+            .try_wait()
+            .map_err(|_| "E_SESSION_HOST_PROTOCOL")?
+            .is_some()
+        {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("E_SESSION_HOST_TIMEOUT".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|_| "E_SESSION_HOST_PROTOCOL")?;
+    if !output.status.success() || output.stdout.len() < 4 || output.stdout.len() > MAX_MESSAGE {
+        return Err("E_SESSION_HOST_PROTOCOL".into());
+    }
+    let length = u32::from_le_bytes(output.stdout[..4].try_into().unwrap()) as usize;
+    let reply: serde_json::Value =
+        serde_json::from_slice(&output.stdout[4..]).map_err(|_| "E_SESSION_HOST_PROTOCOL")?;
+    let capabilities = reply["bridge"]["capabilities"].as_array();
+    if length != output.stdout.len() - 4
+        || reply["version"] != 1
+        || reply["ok"] != true
+        || reply["request_id"] != "installation-probe"
+        || !reply["sites"].is_array()
+        || !capabilities.is_some_and(|v| {
+            v.iter().any(|s| s == "ping") && v.iter().any(|s| s == "report_failure")
+        })
+    {
+        return Err("E_SESSION_HOST_PROTOCOL".into());
+    }
+    Ok(())
 }
 pub fn extension_directory() -> Result<PathBuf> {
     let host = companion()?;
