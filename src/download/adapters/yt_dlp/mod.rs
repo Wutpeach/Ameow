@@ -50,7 +50,7 @@ const TRANSFER_INFO_FILE: &str = "media.info.json";
 const SELECTION_FILE: &str = "selection.txt";
 const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
 // Native output-template projection excludes request headers, URLs and downloader Cookie data.
-const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index})j";
+const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index,section_start,section_end})j";
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
@@ -101,6 +101,8 @@ impl DownloaderAdapter for YtDlpAdapter {
             let route = network::engine_route(&accepted.intent.url)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
+            #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+            append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
             generic_args(&mut args, accepted, true);
             args.extend([
                 "--dump-single-json".into(),
@@ -112,6 +114,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             let metadata = parse_metadata(&bytes)?;
             media_observation(context, "resolve-media.json", &metadata)?;
             check_generic_object(accepted, &metadata)?;
+            if let Some(range) = accepted.intent.clip { check_clip_source(&metadata, range)?; }
             let proof =
                 identity::proof(accepted, &metadata).map_err(|e| format!("E_IDENTITY: {e}"))?;
             context
@@ -140,6 +143,12 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             generic_args(&mut args, accepted, false);
+            #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+            append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
+            if let Some(range) = accepted.intent.clip {
+                args.extend(["--download-sections".into(), range.section(), "--force-keyframes-at-cuts".into(),
+                    "--downloader-args".into(), "ffmpeg_o:-c:v libx264 -preset medium -crf 18 -c:a aac -b:a 192k -f matroska".into()]);
+            }
             args.extend([
                 "--no-simulate".into(),
                 "--merge-output-format".into(),
@@ -229,13 +238,19 @@ impl DownloaderAdapter for YtDlpAdapter {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
             let before = read_selection(&working.join(SELECTION_FILE)).ok();
-            let video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
+            let mut video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
+            let verification = if let Some(range) = accepted.intent.clip {
+                check_clip_source(&actual, range)?;
+                check_clip_record(&actual, range)?;
+                video.codec = Some(crate::download::contract::VideoCodec::H264);
+                VerificationRequirements::Clip { video, range }
+            } else { VerificationRequirements::Video(video) };
             context.emit(AdapterEvent::Finalizing);
             Ok(ProducedArtifact {
                 relative_path,
                 identity: if context.authentication.is_some() { proof.identity } else { actual_proof.identity },
                 kind: MediaKind::Video,
-                verification: VerificationRequirements::Video(video),
+                verification,
             })
         })();
         result.map_err(|error: String| {
@@ -247,6 +262,23 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
         })
     }
+}
+fn check_clip_source(value: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
+    if value["is_live"] == true || matches!(value["live_status"].as_str(), Some("is_live" | "is_upcoming" | "post_live")) {
+        return Err("E_OBJECT_UNSUPPORTED: clip requires a single on-demand video".into());
+    }
+    if value["duration"].as_f64().filter(|d| d.is_finite() && *d > 0.).is_some_and(|d| range.end_ms as f64 / 1000. > d + 0.001) {
+        return Err("E_MEDIA_INVALID: clip extends beyond source duration".into());
+    }
+    Ok(())
+}
+fn check_clip_record(value: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
+    for (name, expected) in [("section_start", range.start_ms), ("section_end", range.end_ms)] {
+        if !value[name].as_f64().is_some_and(|t| t.is_finite() && (t * 1000. - expected as f64).abs() <= 1.) {
+            return Err("E_MEDIA_UNVERIFIED: downloader did not attest the selected interval".into());
+        }
+    }
+    Ok(())
 }
 fn media_observation(context: &ExecutionContext<'_>, name: &str, metadata: &Value) -> Result<(), String> {
     // Only typed media measurements are durable for authenticated attempts. No wire
@@ -348,6 +380,30 @@ pub(crate) fn engine_args(
     if let Some(auth) = context.authentication { args.extend(auth.arguments()); }
     else { args.push("--verbose".into()); }
     Ok(args)
+}
+#[cfg(all(feature = "app-update-fixture", debug_assertions))]
+fn append_fixture_tls(args: &mut Vec<String>, input: &str, route: &network::Route, fixture: &[String]) {
+    if fixture.iter().any(|a| a == "--app-update-fixture-media-tls")
+        && network::fixture_media_route(input, fixture).as_ref() == Some(route) {
+        args.extend(["--no-check-certificates".into(), "--downloader-args".into(), "ffmpeg_i:-tls_verify 0".into()]);
+    }
+}
+#[cfg(all(test, feature = "app-update-fixture", debug_assertions))]
+mod clip_tls_fixture_tests {
+    use super::*;
+    #[test]
+    fn clip_tls_fixture_requires_fixed_target_and_exact_owned_port() {
+        let root = tempfile::tempdir().unwrap();
+        let fixture = vec!["--app-update-fixture-dir".into(), root.path().display().to_string(),
+            "--app-update-fixture-media-port".into(), "54321".into(), "--app-update-fixture-media-tls".into()];
+        let route = network::Route::Proxy("http://127.0.0.1:54321".into());
+        let mut positive = Vec::new(); append_fixture_tls(&mut positive, "https://example.com/ameow-issue33-1.mp4", &route, &fixture);
+        assert!(positive.iter().any(|s| s == "--no-check-certificates"));
+        for (url, route) in [("https://example.org/media", route), ("https://example.com/ameow-issue33-1.mp4", network::Route::Proxy("http://127.0.0.1:54322".into()))] {
+            let mut args = Vec::new(); append_fixture_tls(&mut args, url, &route, &fixture);
+            assert!(args.is_empty(), "non-fixture URL or mismatched proxy must keep normal TLS validation");
+        }
+    }
 }
 fn invoke(
     context: &ExecutionContext<'_>,
@@ -552,7 +608,7 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
         let bytes = serde_json::to_vec(&metadata).map_err(|e| e.to_string())?;
         assert!(bytes.len() > 4 * 1024 * 1024);
         let parsed = parse_metadata(&bytes)?;
-        let accepted = Accepted::new(DownloadIntent {
+        let accepted = Accepted::new(DownloadIntent { clip: None,
             url: "https://youtu.be/jNQXAC9IVRw".into(),
             quality: request::Quality::Balanced,
             output_dir: root.path().into(),
@@ -662,7 +718,7 @@ mod generic_tests {
     use crate::download::request::{DownloadIntent, Quality};
     use serde_json::json;
     fn accepted(url: &str) -> Accepted {
-        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+        Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
     #[test]
     fn optional_before_dl_can_be_missing_or_sparse_while_known_contradictions_fail() {

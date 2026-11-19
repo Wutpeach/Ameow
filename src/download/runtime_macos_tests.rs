@@ -108,7 +108,7 @@ fn legacy_data_and_output_are_rejected_without_changes() {
         assert!(Settings::load(&legacy.join("settings.json"), settings.clone()).is_err());
         assert!(settings.persist(&settings_path).is_err());
         assert!(!settings_path.exists());
-        let intent = DownloadIntent {
+        let intent = DownloadIntent { clip: None,
             url: "https://example.com/media".into(),
             quality: Quality::Balanced,
             output_dir: alias,

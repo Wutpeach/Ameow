@@ -21,9 +21,31 @@ impl Quality {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DownloadIntent {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clip: Option<ClipRange>,
     pub url: String,
     pub quality: Quality,
     pub output_dir: PathBuf,
+}
+/// A single source-time interval. Version 1 always uses boundary-priority re-encoding.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ClipRange {
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+impl ClipRange {
+    pub fn validate(self) -> Result<Self, String> {
+        // Millisecond integers also remain exact in browser JSON.
+        if self.end_ms <= self.start_ms || self.end_ms > 9_007_199_254_740_991 {
+            return Err("E_CLIP_RANGE: expected 0 <= I < O in source milliseconds".into());
+        }
+        Ok(self)
+    }
+    pub fn duration_seconds(self) -> f64 { (self.end_ms - self.start_ms) as f64 / 1000. }
+    pub fn section(self) -> String {
+        format!("*{}.{:03}-{}.{:03}", self.start_ms / 1000, self.start_ms % 1000, self.end_ms / 1000, self.end_ms % 1000)
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Object {
@@ -103,6 +125,7 @@ pub struct Identity {
 
 impl Accepted {
     pub fn new(mut intent: DownloadIntent) -> Result<Self, String> {
+        if let Some(clip) = intent.clip { clip.validate()?; }
         let u = validate_public_url(&intent.url)?;
         let host = u.host_str().ok_or("Missing site host")?.trim_end_matches('.');
         let segments: Vec<_> = u
@@ -221,8 +244,19 @@ impl Identity {
 #[cfg(test)]
 mod generic_tests {
     use super::*;
+    #[test]
+    fn clip_milliseconds_are_validated_without_changing_source_identity() {
+        for (start_ms, end_ms) in [(0, 0), (5, 4), (0, u64::MAX)] { assert!(ClipRange { start_ms, end_ms }.validate().is_err()); }
+        let clip = ClipRange { start_ms: 1250, end_ms: 4750 }.validate().unwrap();
+        assert_eq!(clip.section(), "*1.250-4.750");
+        let original = accept("https://youtu.be/jNQXAC9IVRw").unwrap();
+        let mut intent = original.intent.clone(); intent.clip = Some(clip);
+        let selected = Accepted::new(intent).unwrap();
+        assert_eq!(selected.object, original.object);
+        assert!(serde_json::from_value::<ClipRange>(serde_json::json!({"start_ms":0,"end_ms":1,"mode":"copy"})).is_err());
+    }
     fn accept(url: &str) -> Result<Accepted, String> {
-        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() })
+        Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() })
     }
     #[test]
     fn public_url_boundary_and_normalization() {

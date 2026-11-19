@@ -640,7 +640,7 @@ mod tests {
     fn request(url: &str) -> ExecutionRequest {
         let output = std::env::temp_dir();
         ExecutionRequest {
-            accepted: Accepted::new(DownloadIntent {
+            accepted: Accepted::new(DownloadIntent { clip: None,
                 url: url.into(),
                 quality: Quality::Balanced,
                 output_dir: output,

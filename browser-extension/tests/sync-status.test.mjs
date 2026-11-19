@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { Sessions, SYNC_ERRORS, siteFromUrl, scope } from '../src/core.mjs';
-const popup = (await readFile(new URL('../src/popup.mjs', import.meta.url), 'utf8')).replace(/^import[^\n]+\n/, '');
+import { PAGE_ORIGINS, pageHost } from '../src/page-core.mjs';
+const popup = (await readFile(new URL('../src/popup.mjs', import.meta.url), 'utf8')).replace(/^import[^\n]+\n/gm, '');
 async function openPopup(sessions) {
   const elements = new Map();
   const document = { getElementById(id) {
@@ -11,7 +12,7 @@ async function openPopup(sessions) {
     return elements.get(id);
   }};
   const chrome = {tabs:{query:async()=>[{url:'https://www.example.com/fixture'}]},runtime:{sendMessage:async()=>({ok:true,value:await sessions.status('example.com')})}};
-  await vm.runInNewContext('(async()=>{' + popup + '})()', {document,chrome,navigator:{userAgent:'Edg/156'},siteFromUrl,scope,SYNC_ERRORS,Date});
+  await vm.runInNewContext('(async()=>{' + popup + '})()', {document,chrome,navigator:{userAgent:'Edg/156'},siteFromUrl,scope,SYNC_ERRORS,PAGE_ORIGINS,pageHost,Date});
   return elements.get('status');
 }
 for (const code of ['E_SESSION_STORAGE', 'E_BRIDGE', 'E_COOKIE_READ']) test(`failed ${code} survives popup reopen until a fresh sync succeeds`, async () => {

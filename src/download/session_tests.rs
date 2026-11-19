@@ -68,7 +68,7 @@ fn both_native_adapters_share_the_frozen_jar_and_keep_anonymous_arguments() -> R
         events: Arc::new(|_| {}),
     };
     let request = ExecutionRequest {
-        accepted: Accepted::new(DownloadIntent {
+        accepted: Accepted::new(DownloadIntent { clip: None,
             url: "https://example.com/work".into(),
             quality: Quality::Highest,
             output_dir: root.path().into(),

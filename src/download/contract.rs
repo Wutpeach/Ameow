@@ -88,12 +88,13 @@ pub struct VideoExpectation {
 #[derive(Clone, Debug)]
 pub enum VerificationRequirements {
     Video(VideoExpectation),
+    Clip { video: VideoExpectation, range: super::request::ClipRange },
     Media { height_cap: u64 },
     Data,
 }
 impl VerificationRequirements {
     pub fn height_cap(&self) -> Option<u64> {
-        match self { Self::Video(video) => Some(video.height_cap), Self::Media { height_cap } => Some(*height_cap), Self::Data => None }
+        match self { Self::Video(video) | Self::Clip { video, .. } => Some(video.height_cap), Self::Media { height_cap } => Some(*height_cap), Self::Data => None }
     }
 }
 #[derive(Clone, Debug)]

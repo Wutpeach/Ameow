@@ -125,6 +125,11 @@ impl DownloaderAdapter for AutomaticAdapter {
         request: &ExecutionRequest,
         context: &ExecutionContext<'_>,
     ) -> Result<ProducedBatch, Failure> {
+        if request.accepted.intent.clip.is_some() {
+            // A gallery fallback has no interval contract and must never download the whole source.
+            context.emit(AdapterEvent::Engine(Downloader::YtDlp));
+            return self.video.execute_batch(request, context);
+        }
         if matches!(request.accepted.object, Object::Generic { .. }) {
             let preferred = request.accepted.preferred_engine;
             let (primary, secondary): (&dyn DownloaderAdapter, &dyn DownloaderAdapter) = match preferred {
@@ -229,7 +234,7 @@ mod tests {
         let event_control = control.clone();
         let admission: IdentityAdmission = Arc::new(move |_| if refuse_admission { Err("E_DUPLICATE: fixture".into()) } else { Ok(()) });
         let context = ExecutionContext { authentication: None, workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
-        let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
+        let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { clip: None, url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
         let primary = Fixture::new(first); let secondary = Fixture::new(second);
         let result = generic_batch(&request, &context, &primary, &secondary, preferred);
         assert_eq!(primary.calls.load(Ordering::Acquire), 1);

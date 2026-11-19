@@ -102,7 +102,7 @@ fn spawn_app(process: &mut Process) -> Result<(), ControlError> {
     Ok(())
 }
 
-const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | sessions | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
+const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR] [--start-ms I --end-ms O]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | sessions | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
 
 #[derive(Debug)]
 struct Options {
@@ -139,6 +139,8 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
     let mut instance_id = None;
     let mut quality = None;
     let mut output_dir = None;
+    let mut start_ms = None;
+    let mut end_ms = None;
     let mut timeout = None;
     let mut positionals = Vec::new();
     let mut args = args.into_iter();
@@ -148,6 +150,8 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
                 .ok_or_else(|| invalid(format!("{arg} requires a value")))
         };
         match arg.as_str() {
+            "--start-ms" if start_ms.is_none() => start_ms = Some(value()?.parse::<u64>().map_err(|_| invalid("start-ms must be nonnegative integer milliseconds"))?),
+            "--end-ms" if end_ms.is_none() => end_ms = Some(value()?.parse::<u64>().map_err(|_| invalid("end-ms must be nonnegative integer milliseconds"))?),
             "--json" if !json => json = true,
             "--no-start" if !no_start => no_start = true,
             "--app" if app.is_none() => app = Some(PathBuf::from(value()?)),
@@ -217,6 +221,8 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
         .map(String::as_str)
         .ok_or_else(|| invalid("missing command; use --help"))?;
     if quality.is_some() && name != "submit"
+        || (start_ms.is_some() || end_ms.is_some()) && name != "submit"
+        || start_ms.is_some() != end_ms.is_some()
         || output_dir.is_some() && name != "submit"
         || timeout.is_some() && name != "wait"
         || request_id.is_some() && !matches!(name, "submit" | "cancel" | "retry")
@@ -247,6 +253,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
             Action::Version
         }
         "submit" => Action::Request(Command::Submit {
+            clip: start_ms.zip(end_ms).map(|(start_ms, end_ms)| crate::download::request::ClipRange { start_ms, end_ms }.validate().map_err(invalid)).transpose()?,
             url: one()?,
             quality,
             output_dir,
@@ -632,6 +639,10 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
         .into());
     }
     if matches!(&options.action, Action::Request(Command::Submit { .. })) {
+        if matches!(&options.action, Action::Request(Command::Submit { clip: Some(_), .. }))
+            && greeting.result.as_ref().and_then(|v| v["clip_v1"].as_bool()) != Some(true) {
+            return Err(ControlError::new("E_CLIP_UNSUPPORTED", "Desktop owner does not support clip intervals; request was not sent").into());
+        }
         let started = Instant::now();
         loop {
             let state = greeting
@@ -762,6 +773,17 @@ fn print_error(json: bool, failure: CliError) -> i32 {
     status
 }
 
+/// The browser bridge shares CLI startup, handshake and acceptance.
+pub(crate) fn browser_submit(instance_root: Option<PathBuf>, url: String, clip: Option<crate::download::request::ClipRange>, request_id: String) -> Result<serde_json::Value, String> {
+    if let Some(range) = clip { range.validate()?; }
+    let app = if instance_root.is_some() {
+        Some(std::env::current_exe().map_err(|_| "E_LAUNCH")?.with_file_name(if cfg!(windows) { "ameow.exe" } else { "ameow" }))
+    } else { None };
+    let options = Options { json: true, no_start: false, app, instance_root, request_id: Some(request_id), instance_id: None,
+        action: Action::Request(Command::Submit { url, clip, quality: None, output_dir: None }) };
+    let (reply, _) = execute(&options).map_err(|e| e.error.code)?;
+    reply.result.filter(|v| v["task_id"].is_string()).ok_or_else(|| "E_PROTOCOL".into())
+}
 pub fn run() -> i32 {
     let raw_args: Vec<_> = std::env::args_os().skip(1).collect();
     let wants_json = raw_args.iter().any(|arg| arg == "--json");

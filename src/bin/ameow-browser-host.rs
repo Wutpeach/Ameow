@@ -18,15 +18,16 @@ fn main() {
             ameow_next::control::isolated_root(&args)
                 .map_err(|e| e.to_string())
                 .and_then(|r| r.ok_or_else(|| "E_INSTANCE_ROOT".to_string()))
-                .map(|r| r.join("runtime"))
+                .map(|r| (r.join("runtime"), Some(r)))
         } else {
-            RuntimeManager::default_root()
+            RuntimeManager::default_root().map(|r| (r, None))
         };
-        root.and_then(|root| {
-            native::serve(
+        root.and_then(|(root, instance)| {
+            native::serve_with_instance(
                 &mut std::io::stdin().lock(),
                 &mut std::io::stdout().lock(),
                 &root,
+                instance,
             )
         })
     } else {

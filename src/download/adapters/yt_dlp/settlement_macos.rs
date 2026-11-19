@@ -282,7 +282,7 @@ mod tests {
                 } else {
                     "https://www.w3schools.com/html/mov_bbb.mp4"
                 };
-                let accepted = Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
+                let accepted = Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
                 let adapter = super::super::YtDlpAdapter::new(requirements.clone());
                 let result = adapter.execute(&ExecutionRequest { accepted, resume: None }, &context);
                 let observations = observations.lock().unwrap();

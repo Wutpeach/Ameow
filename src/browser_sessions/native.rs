@@ -1,4 +1,4 @@
-//! Browser-owned short-lived stdio bridge. It never starts a GUI or downloads.
+//! Browser-owned stdio bridge; explicit page submits use the desktop control owner.
 use super::{MAX_MESSAGE, Operation, Result, Store, storage};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -16,7 +16,16 @@ pub struct Message {
     pub request_id: String,
     pub operation: Operation,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PageMessage { version: u32, request_id: String, operation: PageOperation }
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum PageOperation { Submit { url: String, clip: Option<crate::download::request::ClipRange> } }
 pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Result<()> {
+    serve_with_instance(input, output, root, None)
+}
+pub fn serve_with_instance(input: &mut impl Read, output: &mut impl Write, root: &Path, instance: Option<PathBuf>) -> Result<()> {
     loop {
         let mut length = [0u8; 4];
         match input.read(&mut length[..1]) {
@@ -34,7 +43,18 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Res
         input
             .read_exact(&mut bytes)
             .map_err(|_| "E_SESSION_FRAME")?;
-        let response = match serde_json::from_slice::<Message>(&bytes) {
+        let response = if let Ok(message) = serde_json::from_slice::<PageMessage>(&bytes) {
+            if message.version != 1 || message.request_id.len() < 8 || message.request_id.len() > 80
+                || !message.request_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                serde_json::json!({"version":1,"ok":false,"error":"E_SESSION_PROTOCOL"})
+            } else {
+                let PageOperation::Submit { url, clip } = message.operation;
+                match crate::control::cli::browser_submit(instance.clone(), url, clip, message.request_id.clone()) {
+                    Ok(accepted) => serde_json::json!({"version":1,"request_id":message.request_id,"ok":true,"accepted":accepted}),
+                    Err(code) => serde_json::json!({"version":1,"request_id":message.request_id,"ok":false,"error":code}),
+                }
+            }
+        } else { match serde_json::from_slice::<Message>(&bytes) {
             Ok(message)
                 if message.version == 1
                     && message.request_id.len() <= 80
@@ -53,7 +73,7 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Res
                                 .ok()
                                 .and_then(|p| fs::File::open(p).ok())
                                 .and_then(|f| crate::download::runtime::hash(f).ok());
-                            response["bridge"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sha256":sha256,"capabilities":["ping","report_failure"]});
+                            response["bridge"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sha256":sha256,"capabilities":["ping","report_failure","page_submit_v1","clip_v1"]});
                         }
                         response
                     }
@@ -63,7 +83,7 @@ pub fn serve(input: &mut impl Read, output: &mut impl Write, root: &Path) -> Res
                 }
             }
             _ => serde_json::json!({"version":1, "ok":false, "error":"E_SESSION_PROTOCOL"}),
-        };
+        } };
         let bytes = serde_json::to_vec(&response).map_err(|_| storage())?;
         output
             .write_all(&(bytes.len() as u32).to_le_bytes())

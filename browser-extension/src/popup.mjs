@@ -1,6 +1,19 @@
 import { siteFromUrl, scope, SYNC_ERRORS } from './core.mjs';
+import { PAGE_ORIGINS, pageHost } from './page-core.mjs';
 const $ = id => document.getElementById(id);
-let site, current, sourceId;
+let site, current, sourceId, host, tabId, toolsEnabled = false;
+$("toggle-tools").addEventListener("click", async () => {
+  $("toggle-tools").disabled = true;
+  try {
+    if (!toolsEnabled && !await chrome.permissions.request({ origins: [PAGE_ORIGINS[host]] })) { $("page-status").textContent = "未启用页面工具。"; return; }
+    const reply = await chrome.runtime.sendMessage({ action: "pages-set", host, enabled: !toolsEnabled, tab_id: tabId });
+    if (!reply?.ok) throw Error();
+    toolsEnabled = reply.value.enabled;
+    $("toggle-tools").textContent = toolsEnabled ? "关闭页面工具" : "启用页面工具";
+    $("page-status").textContent = toolsEnabled ? "已启用。播放单个点播视频后，右上角可见 Ameow 图标。" : "已关闭。";
+  } catch { $("page-status").textContent = "页面工具未更新，请重新打开扩展后重试。"; }
+  finally { $("toggle-tools").disabled = false; }
+});
 const sourceName = navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : 'Chrome / Chromium';
 async function send(action, extra = {}) {
   const response = await chrome.runtime.sendMessage({ action, site, ...extra });
@@ -44,6 +57,14 @@ for (const action of ['authorize', 'sync', 'revoke']) $(action).addEventListener
 });
 try {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  host = pageHost(tab.url); tabId = tab.id;
+  if (host) {
+    $("page-tools").hidden = false;
+    const reply = await chrome.runtime.sendMessage({ action: "pages-status", host });
+    toolsEnabled = Boolean(reply?.value?.enabled);
+    $("toggle-tools").textContent = toolsEnabled ? "关闭页面工具" : "启用页面工具";
+    $("toggle-tools").disabled = false;
+  }
   site = siteFromUrl(tab.url); $('site').textContent = site;
   $('scope').textContent = `授权范围：${site} 及其子域。允许 Ameow 自动同步这些站点的 Cookie，并在下载时复用。`;
   await refresh();

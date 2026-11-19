@@ -1,0 +1,49 @@
+# 页面视频与片段下载
+
+此功能属于 #50 开发候选，依赖 PR63 的扩展连接；不表示扩展商店或正式应用已经发布。Windows Edge / Chrome for Testing 的公开点播验证和已知限制见本 change 的验证报告。
+
+在 YouTube / B站的单作品点播页面打开扩展，点击“启用页面工具”。页面工具与下方 Cookie 授权分别控制：已有会话授权不会自动启用页面工具，仅启用工具也不会启动 Cookie 同步。
+
+播放器内部右上角的 Ameow 猫图标直接下载整段。鼠标悬浮或键盘聚焦后，I/O 图标向左展开；点击进入 Peek。关闭、Esc 或点遮罩回到原播放器，不建立第二套媒体播放链路。
+
+Peek 提供播放、定位、I/O 标记与时间编辑；可使用秒、小数秒、分:秒或时:分:秒，精度为毫秒。I / O 键标记当前位置，空格播放/暂停。两个拖动控件即时定位入点/出点。有效 I/O 才能下载片段；清除只清选区，不下载整段，也不取消已经入队的任务。相同作品关闭后保留草稿，换作品或分 P 清除旧草稿。
+
+等待状态表示正在请求桌面受理，对勾只表示已加入同一 Ameow 队列；真实下载与取消继续在桌面队列中管理。没有确认受理时保留草稿，请先检查桌面队列再显式重试。
+
+## 输出与范围
+
+片段默认优先所选边界，使用 yt-dlp 范围读取和 FFmpeg 重编码为 H264/AAC、MKV 输出，源无声时不要求音轨。受理后范围、策略、画质与目录一起冻结；编辑范围是新提交。整段、不同区间为不同任务，相同作品/范围的未完成任务仍拒绝重复。
+
+输出验证检查范围记录、输出 codec、画质、所选音轨、时长及完整解码，沿用原哈希和不覆盖发布。实际边界受源帧率与音频包影响，不能把毫秒输入称为任意输入帧精确；当前校验容差为两帧，限制在80–250ms。非关键帧合成验证另核对首尾内容及音画脉冲。
+
+范围取数不保证省流，索引、分片和服务器 Range 行为可能让实际取数明显增加。范围执行失败会保留失败；不会静默完整下载后裁剪，也不会后备到丢失范围的 Gallery 路径。
+
+## 首期边界
+
+首批是 YouTube / B站可准确对应的单作品、单区间点播。直播/DVR、广告、目标歧义、跨域 iframe、未能可靠映射的播放器暂不提供选区。Firefox 未实现，Mac 浏览器及原生流程本轮未验。
+
+认证 attempt 仍使用 #24 的同一受控 Jar；公开点播下载不等于真实会员验收。固定 yt-dlp 2026.08.19 / FFmpeg 9.0.2 的 Cookie 范围传递存在上游限制：HTTP 代理的绝对请求路径会影响 Cookie path 匹配；前导点域与裸域匹配、host-only/secure 等属性也不能从成功的匿名样本推定完整支持。需要 Cookie 直接保护的此类媒体不能宣称支持，服务端拒绝时按原失败处理，不改 Cookie 域、不加全局 Cookie 头、不绕过站点限制。HTTPS 子域受保护 Range fixture 有独立正例与匿名403对照；不外推为 HLS 嵌套认证或真实账号通过。
+
+本轮两个公开样本的实际媒体主机分别为 googlevideo.com 与 bilivideo.com / bilivideo.cn，和网页会话域不同；网页 Cookie 不应跨域发送。下载器可通过网页解析取得媒体访问参数，这一事实仍不证明所有账号或格式可用。可过期媒体 URL 和真实 Cookie 不放入公开意图、文件名或分享报告。
+
+## CLI 与开发验证
+
+CLI 同样提交到桌面队列，可使用可选毫秒参数：
+
+~~~powershell
+ameow-cli --json submit https://www.youtube.com/watch?v=jNQXAC9IVRw --start-ms 1250 --end-ms 4750
+~~~
+
+两个参数必须同时出现。旧桌面没有 clip_v1 能力时会明确拒绝，不能忽略范围后下载整段。CLI/Native bridge 不新增下载服务。
+
+~~~powershell
+npm ci --prefix browser-extension --ignore-scripts
+npm --prefix browser-extension run build
+npm --prefix browser-extension test
+cargo check --locked --all-targets
+cargo test --locked --lib clip
+~~~
+
+浏览器验证入口为 browser-extension/tests/page-ui.e2e.mjs 和 page-submit.e2e.mjs，必须选择新的任务目录。共享 isolation.mjs 为全部入口及运行 chunk 注入测试 Native API 边界，拒绝正式 Host，记录安全操作名；UI-only 使用唯一未注册名称，Native 完整验证只注册测试名称并在 finally 移除。不得在日常 profile 加载候选或把脚本指向正式实例。
+
+媒体入口 scripts/test_video_clips.py 使用任务私有 runtime、合成内容、真实队列/受管工具/验证器；HTTPS 自签名 fixture 的证书例外仅编译于显式 debug app-update-fixture，并限定现有固定 example.com 路径及本地代理，不改变系统信任或普通产品构建。

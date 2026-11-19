@@ -24,6 +24,35 @@ pub fn verify(
         path, workspace, expected, false, lease, control, observer, probe_tool,
     )
 }
+pub fn verify_clip(
+    path: &Path, workspace: &Path, expected: &VideoExpectation,
+    range: crate::download::request::ClipRange, lease: &RuntimeLease, control: &Control,
+    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, probe_tool: &str,
+) -> Result<VerifiedMedia, String> {
+    range.validate()?;
+    let media = verify(path, workspace, expected, lease, control, observer.clone(), probe_tool)?;
+    let info: Value = serde_json::from_slice(&fs::read(workspace.join("ffprobe.json")).map_err(|e| e.to_string())?)
+        .map_err(|_| "E_MEDIA_UNVERIFIED: clip probe unavailable")?;
+    validate_clip(&info, range)?;
+    let decoded = decoded_duration(path, workspace, lease, control, observer, true)?;
+    if (decoded - range.duration_seconds()).abs() > 0.25 {
+        return Err("E_MEDIA_INVALID: decoded clip duration differs from selected interval".into());
+    }
+    Ok(media)
+}
+fn validate_clip(info: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
+    let streams = info["streams"].as_array().ok_or("E_MEDIA_UNVERIFIED: clip streams missing")?;
+    let video = streams.iter().find(|s| s["codec_type"] == "video").ok_or("E_MEDIA_INVALID: clip video missing")?;
+    let tolerance = ratio(&video["avg_frame_rate"]).map_or(0.25, |fps| (2. / fps).clamp(0.08, 0.25));
+    let duration = positive(&info["format"]["duration"]).ok_or("E_MEDIA_UNVERIFIED: clip duration missing")?;
+    if (duration - range.duration_seconds()).abs() > tolerance {
+        return Err("E_MEDIA_INVALID: clip duration differs from selected interval".into());
+    }
+    for stream in streams.iter().filter(|s| s["codec_type"] == "audio") {
+        if stream["codec_name"] != "aac" { return Err("E_MEDIA_INVALID: clip audio differs from AAC plan".into()); }
+    }
+    Ok(())
+}
 pub(super) fn verify_media(
     path: &Path,
     workspace: &Path,
@@ -134,6 +163,7 @@ fn inspect(
             lease,
             control,
             observer,
+            false,
         )?);
     }
     media.kind = MediaKind::Video;
@@ -217,6 +247,7 @@ fn decoded_duration(
     lease: &RuntimeLease,
     control: &Control,
     observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
+    clip: bool,
 ) -> Result<f64, String> {
     let recovery = Control::default();
     let decode_control = if control.is_cancelled() {
@@ -227,7 +258,7 @@ fn decoded_duration(
     let outcome = process_supervisor::run(
         ProcessSpec {
             executable: lease.file("ffmpeg.exe")?,
-            args: ["-nostdin", "-v", "error", "-xerror", "-i"]
+            args: ["-nostdin", "-v", "error", "-xerror", "-stats_period", "10", "-i"]
                 .into_iter()
                 .map(str::to_string)
                 .chain([path.display().to_string()])
@@ -235,6 +266,8 @@ fn decoded_duration(
                     [
                         "-map",
                         "0:v:0",
+                        "-map",
+                        "0:a?",
                         "-progress",
                         "pipe:1",
                         "-nostats",
@@ -250,11 +283,7 @@ fn decoded_duration(
             env: crate::download::runtime::child_environment(workspace)?,
             stdout_limit: 65536,
             stderr_limit: 65536,
-            timeout: Some(Duration::from_secs(if control.is_cancelled() {
-                1
-            } else {
-                30
-            })),
+            timeout: if control.is_cancelled() { Some(Duration::from_secs(1)) } else if clip { None } else { Some(Duration::from_secs(30)) },
         },
         decode_control,
         observer,

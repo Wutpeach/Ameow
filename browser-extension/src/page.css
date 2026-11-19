@@ -1,0 +1,16 @@
+.ameow-peek { position:fixed!important; inset:0!important; margin:auto!important; padding:0!important; border:0!important; border-radius:12px!important; width:min(1040px,calc(100vw - 48px))!important; height:min(780px,calc(100dvh - 48px))!important; max-width:none!important; max-height:none!important; background:#000!important; color:#fff!important; overflow:hidden!important; box-shadow:0 18px 60px #0005!important; }
+.ameow-peek[open] { display:flex!important; flex-direction:column!important; }
+.ameow-peek::backdrop { background:rgb(0 0 0 / .64); transition:opacity 180ms ease-out; opacity:1; }
+.ameow-peek[data-closing]::backdrop { opacity:0; transition-duration:110ms; }
+@starting-style { .ameow-peek[open]::backdrop { opacity:0; } }
+.ameow-peek-stage { flex:1 1 0; min-height:0; width:100%; position:relative; background:#000; transform-origin:top left; }
+.ameow-peek[data-transition] { overflow:visible!important; }
+.ameow-peek-stage { border-radius:12px 12px 0 0; overflow:hidden; }
+.ameow-peek-player .bpx-player-sending-area { display:none!important; }
+.ameow-peek-player .bpx-player-primary-area, .ameow-peek-player .bpx-player-video-area { height:100%!important; }
+.ameow-peek-player { width:100%!important; height:100%!important; min-width:0!important; min-height:0!important; max-width:none!important; max-height:none!important; position:relative!important; top:0!important; left:0!important; margin:0!important; border-radius:0!important; }
+.ameow-peek-player .ytp-chrome-bottom, .ameow-peek-player .ytp-chrome-top, .ameow-peek-player .ytp-gradient-bottom, .ameow-peek-player .ytp-gradient-top, .ameow-peek-player .ytp-pause-overlay, .ameow-peek-player .bpx-player-control-wrap, .ameow-peek-player .bpx-player-top-wrap, .ameow-peek-player .bpx-player-dm-wrap { visibility:hidden!important; pointer-events:none!important; }
+.ameow-peek-player > ameow-page-tools { visibility:hidden!important; }
+.ameow-peek > ameow-peek-controls { display:block; flex:none; width:100%; position:relative; z-index:2; }
+@media(max-width:600px) { .ameow-peek { width:calc(100vw - 16px)!important; height:calc(100dvh - 32px)!important; } }
+@media(prefers-reduced-motion:reduce) { .ameow-peek::backdrop { transition-duration:60ms; } }

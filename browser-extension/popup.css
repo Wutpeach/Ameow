@@ -6,6 +6,8 @@ h1 { margin:0 0 24px; font-size:16px; font-weight:600; }
 h2 { font-size:15px; margin:0 0 8px; overflow-wrap:anywhere; }
 p { margin:0 0 12px; overflow-wrap:anywhere; }
 .secondary { color:var(--secondary); font-size:12px; }
+section { margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--hover); }
+section button { margin-bottom:8px; }
 #status:empty, #source:empty { display:none; }
 #status[data-error] { color:var(--danger); }
 .actions { display:flex; gap:8px; flex-wrap:wrap; margin:20px 0; }

@@ -3964,7 +3964,7 @@ mod tests {
             revision: 1,
             attempt: 1,
             phase: JobPhase::Held,
-            accepted: Accepted::new(DownloadIntent {
+            accepted: Accepted::new(DownloadIntent { clip: None,
                 url: "https://youtu.be/00000000007".into(),
                 quality: Quality::Balanced,
                 output_dir: root.path().into(),

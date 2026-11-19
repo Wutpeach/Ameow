@@ -211,6 +211,8 @@ pub enum Command {
         url: String,
         quality: Option<Quality>,
         output_dir: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        clip: Option<crate::download::request::ClipRange>,
     },
     Cancel {
         task_id: String,
@@ -718,7 +720,7 @@ impl Server {
         };
         match command {
             Command::Hello {} => Ok(
-                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false}),
+                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true}),
             ),
             Command::List {} | Command::ListPage { .. } => {
                 let after = match command {
@@ -767,6 +769,7 @@ impl Server {
                 url,
                 quality,
                 output_dir,
+                clip,
             } => {
                 if url.len() > 8192
                     || output_dir
@@ -782,6 +785,7 @@ impl Server {
                     url: url.clone(),
                     quality: *quality,
                     output_dir: output_dir.clone(),
+                    clip: *clip,
                 })?;
                 let CommandReply::Accepted(id) = reply else {
                     return Err(ControlError::new(

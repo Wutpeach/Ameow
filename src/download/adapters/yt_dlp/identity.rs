@@ -144,7 +144,7 @@ mod tests {
     use serde_json::json;
 
     fn generic(url: &str) -> Accepted {
-        Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
+        Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() }).unwrap()
     }
     #[test]
     fn generic_identity_allows_native_normalization_and_optional_labels() {
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn youtube_id_containing_part_like_text_is_preserved_through_canonical_transfer() {
         let output = tempfile::tempdir().unwrap();
-        let accepted = Accepted::new(DownloadIntent {
+        let accepted = Accepted::new(DownloadIntent { clip: None,
             url: "https://www.youtube.com/watch?v=abc_p123456".into(),
             quality: Quality::Balanced,
             output_dir: output.path().into(),
