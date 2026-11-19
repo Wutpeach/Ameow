@@ -17,6 +17,7 @@
 - CLI 重试结果也进入 GUI 现有 UiReply::Retry，使原失败行退役语义一致。终态由原 JobPhase 与 resources_released 确认，返回全部真实交付文件。
 - ameow-cli 是 console binary，桌面 ameow 保持 windows subsystem。自动启动优先相邻稳定 launcher（存在时），否则相邻开发 app；--cli-launch 只抑制额外 restore/activate，保留普通窗口偏好。并发启动继续经 InstanceGuard；没有实例时只对 submit 启动，其他命令返回明确错误。
 - 构建复用本新树固定 target；验证数据/设置/runtime/output 全部隔离，不连接用户现有进程。
+- 包内入口验入复用现有 app-update-fixture（仅 debug，release 编译禁止）：Windows 测试安装布局以公共 RFC 测试密钥签名，CLI 核验 fixture 身份及相邻 Launcher/CLI 字节后才允许隔离启动；Launcher 和子应用共用 instance-root 派生的实例锁，保留真实 Ready/accepted 门槛，更新服务停用。Mac fixture 允许从实际包内相邻 ameow 启动隔离域，跳过生产更新会话。正式构建继续只允许直接开发应用的隔离自动启动。
 
 ## Risks / Trade-offs
 

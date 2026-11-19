@@ -555,6 +555,25 @@ pub fn verify_signed(root: &Path, public_roots: &Path) -> Result<()> {
     let roots: PublicRoots = json(public_roots)?;
     verify_signed_with_roots(root, &roots)
 }
+/// Only debug fixtures may launch a signed synthetic installation in an isolated data domain.
+#[cfg(any(test, all(windows, feature = "app-update-fixture", debug_assertions)))]
+pub fn verify_fixture_launcher(launcher: &Path) -> Result<()> {
+    let root = launcher.parent().ok_or("E_RELEASE_PATH")?;
+    let signed: SignedManifest = json(&root.join("release-identity.json"))?;
+    let signature = unhex(&signed.signature, 64)?;
+    UnparsedPublicKey::new(&ED25519, unhex(FIXTURE_PUBLIC, 32)?)
+        .verify(&[IDENTITY_DOMAIN, signed.payload.as_bytes()].concat(), &signature)
+        .map_err(|_| "E_RELEASE_IDENTITY_SIGNATURE")?;
+    let identity: Identity = serde_json::from_str(&signed.payload).map_err(err)?;
+    let build = identity.build;
+    build.validate()?;
+    if !identity.fixture || !build.is_fixture() || read(&root.join("FIXTURE.txt"), 1024)? != MARKER {
+        return Err("E_RELEASE_FIXTURE_REQUIRED".into());
+    }
+    build.launcher.check(&read(launcher, MAX_PACKAGE)?)?;
+    let cli = build.cli.ok_or("E_RELEASE_CLI_REQUIRED")?;
+    cli.check(&read(&root.join(&cli.path), MAX_PACKAGE)?)
+}
 fn verify_signed_with_roots(root: &Path, roots: &PublicRoots) -> Result<()> {
     let build: Build = json(&root.join("release-build.json"))?;
     build.validate()?;

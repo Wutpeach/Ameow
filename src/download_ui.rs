@@ -133,8 +133,7 @@ pub enum SettingsStatus {
 }
 impl DownloadUi {
     pub fn start() -> Self {
-        let isolated = std::env::args().any(|arg|arg=="--instance-root");
-        let launch = if isolated { None } else { ameow_next::app_update::session::Session::from_env().expect("validated launcher session").map(Arc::new) };
+        let launch = ameow_next::control::launch_session(&std::env::args().collect::<Vec<_>>()).expect("validated launcher session").map(Arc::new);
         let worker_launch = launch.clone();
         let (commands, receiver) = mpsc::sync_channel(64);
         let (evidence, evidence_receiver) = mpsc::sync_channel(64);

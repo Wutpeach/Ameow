@@ -1243,11 +1243,7 @@ fn main() {
         eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
         std::process::exit(2);
     }
-    let isolated_requested = args.iter().any(|arg|arg=="--instance-root");
-    if isolated_requested && std::env::var_os("AMEOW_LAUNCH_SESSION").is_some() {
-        eprintln!("E_INSTANCE_ROOT: isolated instances require a direct development executable"); std::process::exit(2);
-    }
-    if !isolated_requested && let Err(error) = ameow_next::app_update::session::Session::from_env() {
+    if let Err(error) = ameow_next::control::launch_session(&args) {
         eprintln!("Ameow Launcher session: {error}");
         std::process::exit(2);
     }
@@ -1277,9 +1273,6 @@ fn main() {
             Ok(root) => root,
             Err(error) => { eprintln!("{error}"); std::process::exit(2); }
         };
-        if isolated.is_some() && std::env::var_os("AMEOW_LAUNCH_SESSION").is_some() {
-            eprintln!("E_INSTANCE_ROOT: isolated instances require a direct development executable"); std::process::exit(2);
-        }
         let acquire = match &isolated {
             Some(root) => login_startup::InstanceGuard::acquire_isolated(root, restore),
             None => login_startup::InstanceGuard::acquire_with_restore(restore),

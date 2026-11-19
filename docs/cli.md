@@ -86,6 +86,8 @@ ameow-cli --json --request-id ORIGINAL_REQUEST_KEY --instance-id ORIGINAL_INSTAN
 
 测试数据与 warm cache 放在该域；不得复制或改写其他任务的 app/target。本树构建使用固定 target，证据使用 ignored evidence/。Windows named pipe 限制当前用户 DACL 并核验服务端用户；macOS socket 位于受保护短路径目录并核验双方 UID。没有 TCP/HTTP 或远程服务。
 
+仅为本地包内验入，现有 `app-update-fixture` 特性（release 编译禁止）支持隔离启动测试安装布局：Windows 从相邻 `AmeowLauncher.exe` 启动，核验公共 RFC fixture 签名与 Launcher/CLI 字节，Launcher 与应用共用该域的唯一实例锁，并继续等待真实 Ready/accepted；不能用生产包替代 fixture。macOS 可从私有 `Ameow.app/Contents/MacOS/ameow-cli` 启动相邻应用。两端仍强制隔离 runtime/settings/output，停用生产更新服务，不读生产私钥或连接日常实例。正式构建仍要求上述直接开发入口。
+
 ## macOS 最小复验
 
 由本功能独立验证树检出 PR 的精确实现提交，不写 0.5.0 固定树。构建 app、CLI、updater；在长路径的独立实例根验证两个并发提交只建立一个桌面 owner，CLI/GUI 同任务可见，双向取消/重试，真实交付、等待超时/中断、旧 ID 拒绝，以及默认未被任务目录覆盖。核验 socket 当前用户权限和同根重绑；构建应用包时核对 CLI arm64、最低系统版本与完整包签名。Windows 结果不能替代 Mac 验证。

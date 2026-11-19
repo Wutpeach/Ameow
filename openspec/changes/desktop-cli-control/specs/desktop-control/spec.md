@@ -20,6 +20,10 @@ CLI SHALL 连接当前用户的桌面实例，提供提交、列表、查看、�
 - **WHEN** 两个 CLI 同时向未运行的实例提交
 - **THEN** 仅一个桌面队列 owner 处理任务，两个提交分别取得准确回执，不因启动竞争复制提交。
 
+#### Scenario: 包内入口的隔离验入
+- **WHEN** debug-only 的 app-update-fixture 从任务私有安装布局或应用包提交到显式 instance-root
+- **THEN** Launcher 与普通桌面应用使用该域的同一实例仲裁及数据，Windows 保留真实 Ready/accepted 门槛且先验证公共 fixture 身份及入口字节；生产更新服务停用，正式构建不开放此测试例外。
+
 ### Requirement: 会话身份与有界请求关联
 
 外部任务 ID SHALL 绑定随机实例身份；重启后旧 ID SHALL 被拒绝，不映射为新任务。写请求 SHALL 在真实受理边界关联并去重，同键不同内容拒绝；容量耗尽明确拒绝新写请求，不通过淘汰允许旧请求重新执行。不新增持久历史或断点续传。

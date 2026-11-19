@@ -124,6 +124,18 @@ pub fn isolated_root(args: &[String]) -> Result<Option<PathBuf>, ControlError> {
     std::fs::create_dir_all(isolated.join("output")).map_err(io_error)?;
     Ok(Some(isolated))
 }
+/// Isolated packaged fixtures keep the real Windows Ready gate without a production session.
+pub fn launch_session(args: &[String]) -> Result<Option<crate::app_update::session::Session>, String> {
+    if args.iter().any(|arg| arg == "--instance-root") {
+        if std::env::var_os("AMEOW_LAUNCH_SESSION").is_none() {
+            return Ok(None);
+        }
+        if !cfg!(all(windows, feature = "app-update-fixture", debug_assertions)) {
+            return Err("E_INSTANCE_ROOT: isolated instances require a direct development executable".into());
+        }
+    }
+    crate::app_update::session::Session::from_env()
+}
 fn future_path(path: &Path) -> Result<PathBuf, ControlError> {
     let path = if path.is_absolute() {
         path.to_path_buf()

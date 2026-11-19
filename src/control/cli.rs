@@ -350,7 +350,9 @@ fn app_path(selected: Option<&Path>) -> Result<PathBuf, ControlError> {
 }
 
 fn start_app(options: &Options, instance_root: &Path) -> Result<(), ControlError> {
-    let app = if options.instance_root.is_some() {
+    let app = if options.instance_root.is_some()
+        && !cfg!(all(feature = "app-update-fixture", debug_assertions))
+    {
         let selected = options.app.as_ref().ok_or_else(|| {
             ControlError::new(
                 "E_LAUNCH",
@@ -376,6 +378,13 @@ fn start_app(options: &Options, instance_root: &Path) -> Result<(), ControlError
     } else {
         app_path(options.app.as_deref())?
     };
+    #[cfg(all(windows, feature = "app-update-fixture", debug_assertions))]
+    if options.instance_root.is_some()
+        && app.file_name().is_some_and(|name| name.eq_ignore_ascii_case("AmeowLauncher.exe"))
+    {
+        crate::app_update::release::verify_fixture_launcher(&app)
+            .map_err(|e| ControlError::new("E_LAUNCH", e))?;
+    }
     let mut process = Process::new(app);
     process
         .arg("--cli-launch")

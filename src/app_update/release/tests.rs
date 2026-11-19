@@ -71,6 +71,32 @@ fn save_build(root: &Path, build: &Build) {
 }
 
 #[test]
+fn isolated_launcher_requires_signed_fixture_and_unchanged_entry_bytes() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (build, output) = signed_candidate(tmp.path());
+    let installed = tmp.path().join("install");
+    fs::create_dir(&installed).unwrap();
+    let mut zip = zip::ZipArchive::new(File::open(output.join(portable_name(&build))).unwrap()).unwrap();
+    zip.extract(&installed).unwrap();
+    let launcher = installed.join("AmeowLauncher.exe");
+    verify_fixture_launcher(&launcher).unwrap();
+    let cli = installed.join("ameow-cli.exe");
+    let bytes = fs::read(&cli).unwrap();
+    fs::write(&cli, b"substituted").unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
+    fs::write(cli, bytes).unwrap();
+    let bytes = fs::read(&launcher).unwrap();
+    fs::write(&launcher, b"substituted").unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_FILE_HASH");
+    fs::write(&launcher, bytes).unwrap();
+    let identity = installed.join("release-identity.json");
+    let mut signed: SignedManifest = json(&identity).unwrap();
+    signed.payload.push(' ');
+    fs::write(identity, encode(&signed).unwrap()).unwrap();
+    assert_eq!(verify_fixture_launcher(&launcher).unwrap_err(), "E_RELEASE_IDENTITY_SIGNATURE");
+}
+
+#[test]
 fn separate_archives_and_unconfirmed_first_boot_verify_with_launcher_trust() {
     for days in [8, 30, 365 * 5] {
     let tmp = tempfile::tempdir().unwrap();
