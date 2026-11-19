@@ -26,6 +26,80 @@ struct Fixture {
     requirements: TrustedRuntimeRequirements,
 }
 impl DownloaderAdapter for Fixture {
+    #[cfg(test)]
+    fn execute_batch(
+        &self,
+        request: &ExecutionRequest,
+        context: &ExecutionContext<'_>,
+    ) -> Result<crate::download::contract::ProducedBatch, Failure> {
+        use crate::download::{
+            contract::ProducedBatch,
+            request::{Identity, Object},
+        };
+        if !self.case.starts_with("gallery-") {
+            return self
+                .execute(request, context)
+                .map(|artifact| ProducedBatch {
+                    artifacts: vec![artifact],
+                    failure: None,
+                    total: Some(1),
+                    collection: false,
+                    expected_paths: Vec::new(),
+                });
+        }
+        let Object::Gallery { site, id } = &request.accepted.object else {
+            panic!("Gallery fixture input");
+        };
+        let identity = Identity {
+            id: id.clone(),
+            site: *site,
+            title: "Ameow gallery fixture".into(),
+            part: None,
+        };
+        context.admit(&IdentityAttestation {
+            aliases: vec![identity.canonical_key()],
+            identity: identity.clone(),
+        })?;
+        context.emit(AdapterEvent::Transferring);
+        let first = self.attempts.fetch_add(1, Ordering::AcqRel) == 0;
+        if !first {
+            // Keep the retry active so a stale completion decision reliably cancels it.
+            let until = Instant::now() + Duration::from_millis(150);
+            while Instant::now() < until {
+                if context.cancelled() {
+                    return Err(Failure::new(FailureCode::Cancelled, "cleanup"));
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+        }
+        let count = if first {
+            usize::from(self.case == "gallery-partial")
+        } else {
+            2
+        };
+        let mut artifacts = Vec::new();
+        for n in 0..count {
+            let relative_path = PathBuf::from(format!("image-{n}.bin"));
+            fs::write(
+                context.workspace().join(&relative_path),
+                format!("Ameow gallery fixture {n}"),
+            )
+            .unwrap();
+            artifacts.push(ProducedArtifact {
+                relative_path,
+                identity: identity.clone(),
+                kind: MediaKind::Data,
+                verification: VerificationRequirements::Data,
+            });
+        }
+        Ok(ProducedBatch {
+            artifacts,
+            failure: first.then(|| Failure::new(FailureCode::Unknown, "transfer")),
+            total: Some(2),
+            collection: true,
+            expected_paths: vec!["image-0.bin".into(), "image-1.bin".into()],
+        })
+    }
     fn kind(&self) -> MediaKind {
         MediaKind::Data
     }

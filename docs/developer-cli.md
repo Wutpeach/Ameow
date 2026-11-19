@@ -54,6 +54,7 @@ ameow-cli dev run --root evidence/retry-run --url URL --retry-failed --duplicate
 ~~~
 
 cancel-job 是从 1 开始的输入序号。retry-failed 对每个输入最多显式重试一次，沿用正式 Failure/Partial 重试规则；重试创建新 ID 时保留 previous_task_id。
+Gallery 续作保持同一任务 ID，等待新的 attempt；其回归同时覆盖 Failure 和 Partial，不把重试前终态当作本次完成。
 取消或停止动作的 applied/受理事件都不表示终态。普通成功/Partial/Failure/Cancelled 退出分别为 0/3/4/5；参数错误为 2，开发启动/隔离拒绝为 9。
 
 --timeout 默认 120 秒，--settle-timeout 默认 10 秒，均为 1–3600 秒。运行超时请求正式 Stop，退出 6；Stop 宽限期结束仍未结算时保存真实状态并退出 6。
@@ -70,6 +71,8 @@ Held/owner lost 一经观察立即写事件并输出 stderr 提示。工具不�
 这是显式 dev-tools debug 门槛，复用更新验证的固定本地媒体源，不开放任意本地 URL、代理或数据域。指定该端口时，所有输入必须属于上述三个固定地址；identity.transport 明确为 fixed-local-fixture。
 
 复用 scripts/test_app_update_media_server.py。其根目录需 source.mp4、master.m3u8 和 hls/；可用已校验组件 ffmpeg 生成自己的小视频：
+
+下列生成命令使用 Windows 组件的 libx264。Mac 组件未包含该编码器，可复用相同的受控输入，或选择本机 ffmpeg 实际提供的编码器；这不改变正式下载与验证路径。
 
 ~~~powershell
 New-Item -ItemType Directory evidence/media/hls

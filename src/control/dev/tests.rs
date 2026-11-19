@@ -1,6 +1,57 @@
 use super::*;
 
 #[test]
+fn gallery_same_id_retry_waits_for_new_attempt_after_failure_or_partial() {
+    let parent = tempfile::tempdir().unwrap();
+    for (case, prior_phase) in [
+        ("gallery-failure", "Failure"),
+        ("gallery-partial", "Partial"),
+    ] {
+        let root = parent.path().join(case);
+        let mut options = parse(vec![
+            "scenario".into(),
+            "--case".into(),
+            "retry".into(),
+            "--root".into(),
+            root.to_str().unwrap().into(),
+        ])
+        .unwrap();
+        options.scenario = Some(case.into());
+        options.urls = vec!["https://imgur.com/a/ABCDE".into()];
+        let result = execute(options).unwrap();
+        assert_eq!(result["exit_code"], 0, "{result}");
+        assert_eq!(result["owner_settled"], true);
+        let tasks = result["state"]["tasks"].as_array().unwrap();
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0]["phase"], "Success");
+        assert_eq!(tasks[0]["attempt"], 2);
+        assert_eq!(result["files"].as_array().unwrap().len(), 2);
+        assert!(
+            result["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|f| f["verified_on_disk"] == true)
+        );
+        let events: Vec<Value> = fs::read_to_string(root.join("evidence/events.jsonl"))
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert!(
+            events
+                .iter()
+                .any(|e| e["event"] == "state" && e["value"]["tasks"][0]["phase"] == prior_phase)
+        );
+        let retry = events.iter().find(|e| e["event"] == "retry").unwrap();
+        assert_eq!(
+            retry["value"]["task_id"],
+            retry["value"]["result"]["previous_task_id"]
+        );
+    }
+}
+
+#[test]
 fn rejects_ambiguous_or_unbounded_arguments_before_creating_data() {
     for args in [
         vec!["run", "--root", "x"],

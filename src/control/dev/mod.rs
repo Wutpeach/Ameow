@@ -542,6 +542,7 @@ fn execute(options: Options) -> Result<Value, ControlError> {
                 }
                 let timed_out = start.elapsed() >= options.timeout;
                 let explicit_stop = options.stop_after.is_some_and(|t| start.elapsed() >= t);
+                let mut retry_queued = false;
                 if options.retry_failed && !timed_out && !explicit_stop {
                     for id in &mut ids {
                         if view.jobs.iter().any(|j| {
@@ -562,14 +563,17 @@ fn execute(options: Options) -> Result<Value, ControlError> {
                             evidence.requests.insert(next, request);
                             retried.insert(next);
                             *id = next;
+                            retry_queued = true;
                         }
                     }
                 }
-                let done = ids.iter().all(|id| {
-                    view.jobs
-                        .iter()
-                        .any(|j| j.job_id == *id && j.phase.terminal() && j.resources_released)
-                });
+                // Gallery retries keep their ID; this snapshot still describes the previous attempt.
+                let done = !retry_queued
+                    && ids.iter().all(|id| {
+                        view.jobs
+                            .iter()
+                            .any(|j| j.job_id == *id && j.phase.terminal() && j.resources_released)
+                    });
                 let preparation_failed =
                     view.preparation.phase == PreparationPhase::Failed && !view.preparing;
                 if timed_out || explicit_stop || done || preparation_failed {

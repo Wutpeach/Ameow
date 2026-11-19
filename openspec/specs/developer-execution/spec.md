@@ -26,6 +26,10 @@
 - **WHEN** 启用一次失败重试且原任务结算为 Failure 或 Partial
 - **THEN** 使用原重试规则并保留原任务、请求与重试身份关联。
 
+#### Scenario: Gallery 沿用原任务身份续作
+- **WHEN** Gallery 从已结算的 Failure 或 Partial 重试，返回原任务 ID
+- **THEN** 等待新尝试的权威快照与资源结算，不得用重试前的终态立即停止续作。
+
 ### Requirement: 有界等待与真实未结算结果
 
 执行 SHALL 有明确运行期限与停止宽限期。到期 SHALL 请求正式停止，Held 或 owner lost SHALL 立即输出清理未确认原因。宽限期后仍未结算 SHALL 返回非成功与 stopped=false 等真实资源状态，不能强制终止后宣称结算；外部强杀没有完整结果时 SHALL 视为未确认。
