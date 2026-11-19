@@ -73,8 +73,10 @@ fn save_build(root: &Path, build: &Build) {
 #[test]
 fn isolated_launcher_requires_signed_fixture_and_unchanged_entry_bytes() {
     let tmp = tempfile::tempdir().unwrap();
-    let (build, output) = signed_candidate(tmp.path());
-    let installed = tmp.path().join("install");
+    // macOS /var is a symlink; release verification requires physical ancestors.
+    let physical = tmp.path().canonicalize().unwrap();
+    let (build, output) = signed_candidate(&physical);
+    let installed = physical.join("install");
     fs::create_dir(&installed).unwrap();
     let mut zip = zip::ZipArchive::new(File::open(output.join(portable_name(&build))).unwrap()).unwrap();
     zip.extract(&installed).unwrap();
