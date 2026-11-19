@@ -5,13 +5,13 @@ description: 安装 Windows x64 或 Apple Silicon Mac 版 Ameow 0.5.0。
 
 import { Steps } from '@astrojs/starlight/components';
 
-[下载 Ameow 0.5.0](https://github.com/Wutpeach/Ameow/releases)
+[Ameow 0.5.0 发行说明](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0)
 
 | 平台 | 选择的文件 |
 | --- | --- |
-| Windows x64 安装版 | `Ameow_0.5.0_windows_x64_installer.exe` |
-| Windows x64 便携版 | `Ameow_0.5.0_windows_x64_portable.zip` |
-| macOS Apple Silicon | macOS arm64 版本中的 `Ameow.app` |
+| Windows x64 安装版 | [安装程序](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe) |
+| Windows x64 便携版 | [便携 ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
+| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
 
 Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、Universal 和 Linux 不在此版本范围内；最低版本声明不代表较旧系统均已验证。
 
@@ -26,5 +26,11 @@ Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、U
 
 ## Mac
 
-1. 将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`，从 Finder 打开。
+1. 下载并解压 Mac ZIP，将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`，从 Finder 打开。无需另行安装 Homebrew 或 Python。
 2. 从菜单栏猫咪图标选择打开或设置。默认不显示 Dock 图标；入口与启动问题见[Mac 帮助](../troubleshooting/#mac)。
+
+## 升级
+
+Rust 版在[设置的关于页](../desktop/settings/)检查应用更新，按提示下载并重启。下载组件在组件与诊断页单独管理。
+
+从旧 Electron 版转用时，请按本页的平台入口安装 Rust 版，再重新选择保存位置和偏好。两版数据隔离，不自动迁移旧配置、缓存或历史，也不承诺旧 Electron 自动升级到 Rust 版。

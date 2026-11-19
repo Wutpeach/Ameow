@@ -5,13 +5,13 @@ description: Install Ameow 0.5.0 for Windows x64 or Apple Silicon Mac.
 
 import { Steps } from '@astrojs/starlight/components';
 
-[Download Ameow 0.5.0](https://github.com/Wutpeach/Ameow/releases)
+[Ameow 0.5.0 release notes](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0)
 
 | Platform | File to choose |
 | --- | --- |
-| Windows x64 installer | `Ameow_0.5.0_windows_x64_installer.exe` |
-| Windows x64 portable | `Ameow_0.5.0_windows_x64_portable.zip` |
-| macOS Apple Silicon | `Ameow.app` from the macOS arm64 version |
+| Windows x64 installer | [Installer](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe) |
+| Windows x64 portable | [Portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
+| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
 
 Mac requires macOS 13 or later; testing covers macOS 26.3 arm64. Intel Macs, Universal, and Linux are outside this version's scope. The minimum-version declaration does not establish verification on older systems.
 
@@ -26,5 +26,11 @@ Keep the portable directory intact. Exit before moving it, then check shortcuts 
 
 ## Mac
 
-1. Place `Ameow.app` in `/Applications` or `~/Applications` and open it from Finder.
+1. Download and extract the Mac ZIP, place `Ameow.app` in `/Applications` or `~/Applications`, and open it from Finder. You do not need to install Homebrew or Python separately.
 2. Choose Open or Settings from the cat in the menu bar. No Dock icon appears by default; see [Mac help](../troubleshooting/#mac) for entry points and launch problems.
+
+## Upgrade
+
+In the Rust app, check for application updates in [Settings → About](../desktop/settings/), then follow the download and restart prompts. Download components are managed separately in Components.
+
+To move from the old Electron app, install the Rust package for your platform above and choose your save folder and preferences again. The two apps keep their data separate. Old settings, caches, and history are not automatically migrated, and automatic upgrades from Electron to Rust are not promised.
