@@ -15,6 +15,13 @@ const existing = new Set(built.map((name) => path.relative(dist, name).replaceAl
 const pages = new Map(await Promise.all(built.filter((name) => name.endsWith('.html')).map(async (name) => [
   path.relative(dist, name).replaceAll('\\', '/'), await readFile(name, 'utf8'),
 ])));
+const home = pages.get('index.html');
+assert(home, 'Missing product homepage');
+assert.doesNotMatch(home, /http-equiv\s*=\s*["']refresh/i, 'Homepage must not redirect to the manual');
+assert.doesNotMatch(home, /name="robots"\s+content="noindex"/, 'Product homepage must be indexable');
+assert.match(home, /id="top"/, 'Homepage must retain the brand target');
+assert.match(home, /id="get"/, 'Homepage must retain the platform download section');
+assert.equal([...home.matchAll(/href="#get"/g)].length, 1, 'Homepage must have one acquisition CTA');
 const required = ['docs', 'en/docs', 'docs/developer', 'en/docs/developer', 'docs/downloads', 'en/docs/downloads'];
 for (const route of required) assert(pages.has(route + '/index.html'), 'Missing required route: ' + route);
 for (const route of ['docs', 'en/docs']) {

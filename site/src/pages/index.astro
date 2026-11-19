@@ -1,21 +1,163 @@
 ---
+import '../styles/homepage.css';
+import { homepageAssets as assets } from '../scripts/homepage-assets.js';
+
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
-const target = `${base}docs/`;
+const manualUrl = `${base}docs/`;
 ---
 
 <!doctype html>
 <html lang="zh-CN">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="robots" content="noindex" />
-		<meta http-equiv="refresh" content={`0;url=${target}`} />
-		<link rel="canonical" href={target} />
-		<script is:inline define:vars={{ target }}>
-			window.location.replace(target);
-		</script>
-		<title>Redirecting to Ameow docs</title>
-	</head>
-	<body>
-		<a href={target}>Redirecting to Ameow docs</a>
-	</body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#2b3fb7">
+    <title>Ameow — 视频和图片，下载到电脑。</title>
+    <meta name="description" content="Ameow，把喜欢的视频与图片保存到电脑。适用于 Windows x64 与 Apple Silicon Mac。">
+    <link rel="icon" href={`${base}ameow.ico`} />
+    <link rel="canonical" href={new URL(base, Astro.site)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="header" id="top">
+      <a class="brand" href="#top" aria-label="Ameow，返回首屏">Ameow</a>
+      <nav aria-label="主导航">
+        <a href={manualUrl} target="_blank" rel="noopener">使用手册</a>
+        <a href="https://github.com/Wutpeach/Ameow" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero scene" id="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">
+            <span>视频和图片，</span>
+            <span>下载到电脑。</span>
+          </h1>
+          <a class="action hero-get" href="#get">获取 Ameow</a>
+        </div>
+        <div class="hero-acid" aria-hidden="true">
+        </div>
+        <div class="hero-cat enterable">
+          <canvas id="rear" width="848" height="576" aria-label="Ameow 猫咪背对镜头，尾巴上卷，臀部有一个小像素X" role="img">
+          </canvas>
+        </div>
+        <button class="hero-file hero-video" data-preview="video" aria-label="播放舞蹈.mp4 示例">
+          <span class="hero-picture">
+            <img src={assets["hero-dancer.png"]} alt="黑白衣装的像素舞者">
+            <canvas class="dance-canvas" width="368" height="448" aria-hidden="true">
+            </canvas>
+            <span class="play-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <path d="M11 6H15V9H20V12H24V20H20V23H15V26H11Z"/>
+              </svg>
+            </span>
+          </span>
+          <span class="filename">舞蹈.mp4</span>
+        </button>
+        <button class="hero-file hero-flower" data-preview="image" aria-label="查看黄花.jpg 示例">
+          <span class="hero-picture">
+            <img src={assets["hero-flower.png"]} alt="酸黄色的像素花朵">
+          </span>
+          <span class="filename">黄花.jpg</span>
+        </button>
+      </section>
+      <section class="save-stage scene" id="save" aria-labelledby="save-title">
+        <h2 id="save-title">保存到电脑。</h2>
+        <div class="save-acid" aria-hidden="true">
+        </div>
+        <div class="support" aria-hidden="true">
+        </div>
+        <button class="file file-dance enterable" data-preview="video" aria-label="播放舞蹈.mp4 示例">
+          <span class="file-picture">
+            <img src={assets["dancer-poster.png"]} alt="舞者穿白色上衣与黑色长裤，双臂展开">
+            <canvas class="dance-canvas" width="368" height="448" aria-hidden="true">
+            </canvas>
+            <span class="play-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <path d="M11 6H15V9H20V12H24V20H20V23H15V26H11Z"/>
+              </svg>
+            </span>
+          </span>
+          <span class="filename">舞蹈.mp4</span>
+        </button>
+        <button class="file file-flower enterable" data-preview="image" aria-label="查看黄花.jpg 示例">
+          <span class="file-picture">
+            <img src={assets["flower.png"]} alt="像素印刷风格的黄花">
+          </span>
+          <span class="filename">黄花.jpg</span>
+        </button>
+        <div class="grab-cat enterable">
+          <canvas id="grab" width="384" height="256" aria-label="Ameow 猫咪伸爪拉近舞蹈文件，再松爪让它回弹" role="img">
+          </canvas>
+        </div>
+      </section>
+      <section class="closing-stage scene" id="get" aria-label="获取 Ameow">
+        <canvas id="closing" class="closing-canvas" width="1584" height="845" role="img" aria-label="纸白像素猫从群青画面边缘探头">
+        </canvas>
+        <h2 class="sr-only">开始保存。</h2>
+        <div class="get-hotspots">
+          <a class="windows-get" href="https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe" aria-label="下载 Ameow 0.5.0，Windows x64 安装版">
+            <span class="sr-only">Windows x64</span>
+          </a>
+          <a class="mac-get" href="https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip" aria-label="下载 Ameow 0.5.0，macOS Apple Silicon">
+            <span class="sr-only">macOS Apple Silicon</span>
+          </a>
+        </div>
+        <div class="mobile-get">
+          <h2>开始保存。</h2>
+          <a class="action" href="https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe">Windows x64</a>
+          <a class="action" href="https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip">macOS Apple Silicon</a>
+        </div>
+      </section>
+      <section class="about" aria-label="应用说明">
+        <div>
+          <h2>把链接交给 Ameow。</h2>
+          <p>复制视频或图片链接，在桌面小窗口粘贴。选择画质和保存位置，文件就留在自己的电脑里。</p>
+        </div>
+        <div>
+          <p>YouTube、Bilibili 公开单视频，Imgur 图片与相册，Bluesky 单帖图片。其他公开媒体链接可交由下载器尝试。</p>
+          <a href={manualUrl} target="_blank" rel="noopener">使用手册</a>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="footer-main">
+        <a class="footer-brand" href="#top" aria-label="Ameow，返回首屏">Ameow</a>
+        <nav class="footer-group" aria-labelledby="footer-product">
+          <h2 id="footer-product">产品</h2>
+          <a href={manualUrl} target="_blank" rel="noopener">使用手册</a>
+          <a href="https://github.com/Wutpeach/Ameow/releases" target="_blank" rel="noopener">版本记录</a>
+        </nav>
+        <nav class="footer-group" aria-labelledby="footer-project">
+          <h2 id="footer-project">项目</h2>
+          <a href="https://github.com/Wutpeach/Ameow" target="_blank" rel="noopener">GitHub 源码</a>
+          <a href="https://github.com/Wutpeach/Ameow/issues" target="_blank" rel="noopener">问题反馈</a>
+          <a href="https://github.com/Wutpeach/Ameow/blob/main/LICENSE" target="_blank" rel="noopener">MIT 许可</a>
+        </nav>
+      </div>
+      <div class="footer-meta">
+        <small>© 2026 Wutpeach</small>
+        <span>Ameow 0.5.0</span>
+      </div>
+    </footer>
+    <button class="motion-toggle" type="button" aria-label="暂停动效" aria-pressed="false" title="暂停动效">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path class="pause-icon" d="M5 4H10V20H5ZM14 4H19V20H14Z"/>
+        <path class="resume-icon" d="M6 3H10V6H15V9H19V15H15V18H10V21H6Z"/>
+      </svg>
+    </button>
+    <dialog class="preview" aria-labelledby="preview-title">
+      <div class="preview-top">
+        <h2 id="preview-title">舞蹈.mp4</h2>
+        <button class="preview-close" type="button" aria-label="关闭预览">关闭</button>
+      </div>
+      <video class="preview-video" controls playsinline loop preload="metadata">
+      </video>
+      <img class="preview-image" src={assets["flower.png"]} alt="黄花图片示例" hidden>
+      <a class="preview-download" download="舞蹈.mp4">下载示例视频</a>
+    </dialog>
+    <script>
+      import '../scripts/homepage.js';
+    </script>
+  </body>
 </html>
