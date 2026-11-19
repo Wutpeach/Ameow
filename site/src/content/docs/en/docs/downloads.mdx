@@ -1,24 +1,36 @@
 ---
-title: Download Ameow
-description: Download Ameow
+title: Download and install
+description: Install Ameow 0.5.0 for Windows x64 or Apple Silicon Mac.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-Rust / GPUI is the only product line and has not been officially released. The Windows x64 installer and portable ZIP release process has been prepared, but no Rust download has been officially published yet. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is discontinued and unsupported, retained only as history.
+[Ameow 0.5.0 release notes](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0)
+
+| Platform | File to choose |
+| --- | --- |
+| Windows x64 installer | [Installer](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe) |
+| Windows x64 portable | [Portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
+| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
+
+Mac requires macOS 13 or later; testing covers macOS 26.3 arm64. Intel Macs, Universal, and Linux are outside this version's scope. The minimum-version declaration does not establish verification on older systems.
+
+## Windows
 
 <Steps>
-1. Use the source-build steps below; historical Electron packages are not the current product.
-2. To run Rust source on Windows x64, install Rust 1.98.1, Visual Studio C++ Build Tools, and the Windows SDK.
-3. Run `cargo build --locked` at the repository root, then run `./target/debug/ameow.exe`.
+1. Run the installer, finish the wizard, and open Ameow from the Start menu. For the portable version, extract the whole archive and run `AmeowLauncher.exe`.
+2. Follow the [quick start](../) to choose a destination and submit a link. Ameow prepares the required download components over the network on first use.
 </Steps>
 
-A source build is not a public release. Native macOS and Linux operation is unverified. See the [developer guide](../developer/).
+Keep the portable directory intact. Exit before moving it, then check shortcuts and login startup. Uninstall keeps user data by default.
 
-After an official release, the installer will provide a Start menu entry, Windows uninstall registration and an optional desktop shortcut. The portable ZIP must be fully extracted and started with `AmeowLauncher.exe`. Both use the same app and secure updater. Uninstall retains `%LOCALAPPDATA%\Ameow` user data by default.
+## Mac
 
-## Before and after running
+1. Download and extract the Mac ZIP, place `Ameow.app` in `/Applications` or `~/Applications`, and open it from Finder. You do not need to install Homebrew or Python separately.
+2. Choose Open or Settings from the cat in the menu bar. No Dock icon appears by default; see [Mac help](../troubleshooting/#mac) for entry points and launch problems.
 
-Running source requires the Windows x64 / MSVC toolchain; the app itself does not require Node, Python, or Electron. Component preparation may need network access, and the output folder should exist and be writable. After building, follow [Get started](../getting-started/) to submit a public single-video link.
+## Upgrade
 
-Assets and the old extension on the historical release page belong to Electron and do not establish Rust features or platform support. See [release history](../releases/).
+In the Rust app, check for application updates in [Settings → About](../desktop/settings/), then follow the download and restart prompts. Download components are managed separately in Components.
+
+To move from the old Electron app, install the Rust package for your platform above and choose your save folder and preferences again. The two apps keep their data separate. Old settings, caches, and history are not automatically migrated, and automatic upgrades from Electron to Rust are not promised.

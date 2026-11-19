@@ -1,27 +1,24 @@
 ---
-title: "Ameow · Rust 使用指南"
-description: "Windows 悬浮下载：公开视频和图片、队列与可信下载组件。"
+title: 快速上手
+description: 启动 Ameow 0.5.0，粘贴链接并完成第一次下载。
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import ManualFigure from '../../../components/manual/ManualFigure.astro';
 
-Ameow 当前 Rust / GPUI 源码可在 Windows x64 下载公开视频和图片，包括 YouTube、Bilibili 单视频及部分公开图片链接。其他链接的范围见[支持站点](./extension/supported-sites/)。Rust 尚未正式公开发行；[Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) 已废弃且停止支持，仅保留历史记录。
+Ameow 0.5.0 是 Windows 和 Apple Silicon Mac 上的悬浮下载应用。先[下载并安装](./downloads/)，Windows 从开始菜单或 `AmeowLauncher.exe` 启动，Mac 从 Finder 打开 `Ameow.app`。
 
-![Ameow 常规设置：开机启动、主题和语言](/Ameow/images/docs/rust-settings-zh-general.png)
+<ManualFigure kind="start" />
 
-在常规设置中选择主题、界面语言和开机启动选项。
+1. 从 Full 右键菜单或托盘／Mac 菜单栏打开设置，选择保存文件夹。
+2. 复制公开媒体链接，在 Ameow 按图示快捷键粘贴。首次使用可能先联网准备组件。
+3. 等待下载和后处理完成，双击 Full 空白背景打开保存位置。
 
 <CardGrid>
-<LinkCard title="下载与源码" href="./downloads/" description="了解发行与源码。" />
-<LinkCard title="快速上手" href="./getting-started/" description="运行应用并提交链接。" />
-<LinkCard title="链接与队列" href="./desktop/links-and-queue/" description="了解下载范围。" />
-<LinkCard title="排查问题" href="./troubleshooting/" description="检查下载状态。" />
+<LinkCard title="下载与队列" href="./desktop/links-and-queue/" description="查看进度、取消或重试。" />
+<LinkCard title="保存位置" href="./desktop/output-folder/" description="选择目录或拖入文件夹。" />
+<LinkCard title="支持范围与画质" href="./supported-sites/" description="选择链接与下载质量。" />
+<LinkCard title="设置与更新" href="./desktop/settings/" description="外观、组件和应用更新。" />
 </CardGrid>
 
-## 从这里开始
-
-1. 查看[下载页面](./downloads/)，了解 Rust 发行准备状态与源码运行方式。
-2. 在已验证的 Windows x64 环境从源码运行，打开设置并选择保存目录。
-3. 粘贴支持的公开单个视频链接，等待队列显示完成，再打开结果。
-
-当前 Rust 不接入旧浏览器扩展、登录态或本地文件收集；网页选择属于未来研究范围。了解[下载组件](./advanced/download-dependencies/)和[常见问题](./faq/)。
+需要帮助？查看[遇到问题](./troubleshooting/)。贡献源码请从[开发资料](./developer/)开始。

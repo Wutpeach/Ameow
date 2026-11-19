@@ -1,37 +1,38 @@
-# Ameow
+<h1 align="center"><img src="site/public/ameow-logo.png" alt="Ameow app icon" width="48" align="middle"> Ameow</h1>
 
-Ameow is a Rust / GPUI floating download application for Windows. This repository maintains the Rust development baseline; [#18](https://github.com/Wutpeach/Ameow/issues/18) records the main-branch takeover.
+<p align="center">Your little desktop download cat. Just paste a link.</p>
 
-**Rust has not been officially released.** A default light Inno Setup installer and Launcher-based portable ZIP for Windows x64 are under controlled validation; production signing and public-release restrictions remain in place. [Electron v0.3.1](https://github.com/Wutpeach/Ameow/releases/tag/v0.3.1) is an unsupported historical release, with no maintenance, upgrades or compatibility support.
+<p align="center">
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img src="https://img.shields.io/github/v/release/Wutpeach/Ameow?style=flat-square&amp;labelColor=30363d&amp;label=&amp;color=0b78d0&amp;logo=github&amp;logoColor=white" alt="Latest stable Ameow release" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/Windows-x64-0b78d0?style=flat-square&amp;labelColor=30363d" alt="Windows x64" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/macOS-arm64-0b78d0?style=flat-square&amp;labelColor=30363d&amp;logo=apple&amp;logoColor=white" alt="macOS Apple Silicon arm64" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/blob/main/Cargo.toml"><img src="https://img.shields.io/badge/Rust-GPUI-0b78d0?style=flat-square&amp;labelColor=30363d&amp;logo=rust&amp;logoColor=white" alt="Rust / GPUI" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-0b78d0?style=flat-square&amp;labelColor=30363d" alt="MIT license for the application code" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/actions/workflows/rust.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/Wutpeach/Ameow/rust.yml?style=flat-square&amp;labelColor=30363d&amp;branch=main&amp;label=CI&amp;logo=githubactions&amp;logoColor=white" alt="Ameow Rust Windows CI on the main branch" height="20"></a>
+</p>
 
-[简体中文](README.md) · [Documentation](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
+<p align="center"><img src="docs/images/readme/compact.png" alt="The compact Ameow cat window" width="80" align="middle"> <img src="docs/images/readme/download.png" alt="The expanded Ameow download progress window" width="200" align="middle"></p>
 
-## Build and run
 
-Windows x64/MSVC is the current native target. Install Rust 1.93.0, Visual Studio C++ Build Tools and the Windows SDK. Node, Python and Electron are not application dependencies.
+## Paste a link, leave it to the cat
 
-```powershell
-cargo build --locked
-./target/debug/ameow.exe
-```
+Paste a public media link and download up to three items at once. If one fails, give it another try.
 
-The accepted Rust baseline provides single-video YouTube/Bilibili input, a queue, settings and a tray. Download components are prepared and verified against the embedded manifest; yt-dlp updates require explicit discovery and selection. Refer to the original Issue evidence for verified behavior and remaining limitations; the Rust application does not claim every historical Electron feature.
+<p align="center">
+  <img src="docs/images/readme/queue.png" alt="The Ameow queue with three active downloads and one waiting task" width="280">
+</p>
 
-## Existing data and startup
+<br>
 
-Current settings, runtime selection and cache use `%LOCALAPPDATA%\Ameow`, separately from program files. Old `AmeowNext\stage-a` data is neither migrated nor cleaned, and Electron settings are not imported. Current single-instance and startup identities use `Ameow`; recognized early Rust `AmeowNext` startup entries are retired only when the user changes the startup option.
+## Quality and save folder are up to you
 
-The distribution entry is the stable `AmeowLauncher.exe`, with the app in `versions/<version>/Ameow.exe`. The installer defaults to `%LOCALAPPDATA%\Programs\Ameow`; extract the entire portable ZIP before use. Source builds may still run Cargo's `ameow.exe` directly. Exit normally before installing, updating or moving the app. Startup is opt-in; external shortcuts are not migrated. Actual sign-out/sign-in startup remains unverified.
+Choose a quality preset and drop a folder onto the window to set your save location.
 
-## Documentation and distribution
+<p align="center">
+  <img src="docs/images/readme/quality.png" alt="Highest, Balanced and Data Saver quality presets in the Ameow context menu" width="228"> &emsp;
+  <img src="docs/images/readme/save-folder.png" alt="The Ameow confirmation that the save folder has been updated" width="228">
+</p>
 
-The site has its own Node >=22.19.0 dependencies:
+---
 
-```powershell
-npm ci --prefix site
-npm --prefix site run build
-```
-
-The existing Pages address is retained. The site documents current Rust source; historical Electron v0.3.1 is no longer supported. [#19](https://github.com/Wutpeach/Ameow/issues/19) tracks documentation maintenance. Future page-selection research belongs to [#22](https://github.com/Wutpeach/Ameow/issues/22).
-
-Application code is [MIT](LICENSE); third-party materials retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). A successful build does not authorize redistribution. Private packaging needs a review bound to the current inputs; public Gate B remains blocked. See [Windows delivery](distribution/windows-delivery.md) for controlled dual-asset builds and the manual release handoff. CI uploads no EXE/ZIP and does not publish releases.
+[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)

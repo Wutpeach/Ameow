@@ -133,6 +133,11 @@ pub fn presented_geometry(requested: Geometry, viewport: [f32; 2]) -> Geometry {
     Geometry::at(((available - compact) / (full - compact)).clamp(0., 1.))
 }
 
+fn borderless_style(initial: NSWindowStyleMask) -> NSWindowStyleMask {
+    // AppKit does not resync a panel's activation mode when this bit is removed later.
+    NSWindowStyleMask::Borderless | (initial & NSWindowStyleMask::NonactivatingPanel)
+}
+
 pub struct Native {
     pub hwnd: NativeHandle,
     window: Retained<NSWindow>,
@@ -154,7 +159,7 @@ impl Native {
     pub fn attach(window: &Window, metrics_path: Option<String>) -> Self {
         let hwnd = handle(window);
         let window = hwnd.window().expect("Live AppKit window");
-        window.setStyleMask(NSWindowStyleMask::Borderless);
+        window.setStyleMask(borderless_style(window.styleMask()));
         window.setHasShadow(false);
         configure_overlay(&window);
         Self {
@@ -296,6 +301,19 @@ impl Drop for Native {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn borderless_popup_preserves_its_initial_keyboard_focus_mode() {
+        let popup = NSWindowStyleMask::Titled | NSWindowStyleMask::Closable
+            | NSWindowStyleMask::FullSizeContentView | NSWindowStyleMask::NonactivatingPanel;
+        let borderless = borderless_style(popup);
+        assert!(borderless.contains(NSWindowStyleMask::NonactivatingPanel),
+            "AppKit must retain the panel focus mode established by GPUI at creation");
+        assert!(!borderless.intersects(NSWindowStyleMask::Titled | NSWindowStyleMask::Closable
+            | NSWindowStyleMask::FullSizeContentView));
+        assert!(!borderless_style(NSWindowStyleMask::Titled)
+            .contains(NSWindowStyleMask::NonactivatingPanel), "do not add a new focus mode later");
+    }
 
     #[test]
     fn presentation_fits_the_drawable_while_native_growth_is_pending() {

@@ -1,0 +1,28 @@
+---
+import check from '../../../../assets/check.svg?raw';
+import download from '../../../../assets/download.svg?raw';
+import clock from '../../../../assets/clock.svg?raw';
+import info from '../../../../assets/info.svg?raw';
+import close from '../../../../assets/x.svg?raw';
+import blocks from '../../../../assets/blocks.svg?raw';
+import update from '../../../../assets/circle-arrow-up.svg?raw';
+import retry from '../../../../assets/rotate-ccw.svg?raw';
+import arrow from '../../../../assets/chevron-right.svg?raw';
+import menuCat from '../../../../assets/brand/tray/macos/ameow-menu-bar-white.svg?raw';
+import sliders from '../../../../assets/sliders-horizontal.svg?raw';
+import copy from '../../../../assets/copy.svg?raw';
+import down from '../../../../assets/chevron-down.svg?raw';
+// Same folder-open artwork as GPUI Kit 0.9.0, used by Download settings.
+const folderOpen = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>';
+const icons = { check, download, clock, info, close, blocks, update, retry, arrow, menuCat, sliders, copy, down, folderOpen };
+interface Props { name: keyof typeof icons | 'folder'; size?: number; }
+const { name, size = 16 } = Astro.props;
+const source = name === 'folder'
+  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z"/></svg>'
+  : icons[name].replaceAll('"white"', '"currentColor"');
+---
+<span class="app-icon" style={{ width: size + 'px', height: size + 'px' }} aria-hidden="true" set:html={source} />
+<style>
+  .app-icon { display: inline-flex; flex: none; vertical-align: middle; }
+  .app-icon :global(svg) { width: 100%; height: 100%; }
+</style>
