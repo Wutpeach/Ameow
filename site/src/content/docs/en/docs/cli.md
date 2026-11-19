@@ -9,7 +9,7 @@ description: Get the Ameow CLI, submit tasks from a terminal, and read results f
 
 **The current stable v0.5.0 release does not include the CLI added afterward.** This page describes upcoming capabilities. To use them now, obtain a matching complete candidate package that includes the CLI, or build source that contains it. Installing v0.5.0 from the downloads page will not add this command.
 
-Ordinary desktop control is already in source main. The developer-only `dev` entry is part of the [PR #61](https://github.com/Wutpeach/Ameow/pull/61) candidate. Future complete releases will distribute these additions; use the actual release notes to check version availability.
+The ordinary CLI controls the queue owned by the desktop app. The `dev` entry is only for debug source builds with `dev-tools` enabled. Check the actual release notes for CLI availability in future complete releases.
 
 ## Install and invoke
 
