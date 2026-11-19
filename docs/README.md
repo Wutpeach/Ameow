@@ -4,6 +4,7 @@
 
 | 入口 | 用途 |
 | --- | --- |
+| [CLI 开发入口](developer-cli.md) | 隔离有限执行、离线场景、证据与旧工具替代 |
 | [预览指南](preview.md) | Windows Gallery、原生场景与截图工具 |
 | [规范维护](spec-maintenance.md) | OpenSpec 更新与验证范围 |
 | [发行构建](../distribution/packaging.md) | 构建输入、签名、许可材料与发行检查 |

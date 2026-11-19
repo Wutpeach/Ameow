@@ -60,3 +60,5 @@ accesskit_windows = { path = "vendor/accesskit_windows" }
 [features]
 # Explicitly isolated local fixtures; forbidden in release builds.
 app-update-fixture = []
+# Finite local development execution; never present in a release build.
+dev-tools = []

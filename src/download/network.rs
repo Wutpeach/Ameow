@@ -228,10 +228,12 @@ pub fn resolve(input: &str) -> Result<Route, String> {
 pub fn engine_route(input: &str) -> Result<Route, String> {
     // Local media evidence only: keep production URL checks and real engines, while
     // an explicit debug update fixture serves these fixed public-origin test paths.
-    #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+    #[cfg(all(any(feature = "app-update-fixture", feature = "dev-tools"), debug_assertions))]
     {
         let args: Vec<_> = std::env::args().collect();
-        if args.iter().any(|arg| arg == "--app-update-fixture-dir")
+        let dev = cfg!(feature = "dev-tools") && args.iter().any(|arg|arg=="dev")
+            && args.iter().any(|arg|arg=="run") && args.iter().any(|arg|arg=="--root");
+        if (args.iter().any(|arg| arg == "--app-update-fixture-dir") || dev)
             && matches!(
                 input,
                 "http://example.com/ameow-issue33-1.mp4"
@@ -240,7 +242,7 @@ pub fn engine_route(input: &str) -> Result<Route, String> {
             )
             && let Some(port) = args
                 .windows(2)
-                .find(|p| p[0] == "--app-update-fixture-media-port")
+                .find(|p| p[0] == if dev {"--fixture-media-port"} else {"--app-update-fixture-media-port"})
                 .and_then(|p| p[1].parse::<u16>().ok())
                 .filter(|port| *port != 0)
         {

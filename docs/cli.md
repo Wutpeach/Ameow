@@ -1,5 +1,7 @@
 # Ameow CLI
 
+开发专用的有限无 GUI 执行和可重复场景见 [CLI 开发入口](developer-cli.md)，需要显式 dev-tools debug 构建。以下约定描述普通桌面控制。
+
 ameow-cli 控制本机当前用户的普通 Ameow 桌面实例。任务、组件准备、下载器、取消、重试和交付均使用 GUI 的同一个队列。Windows 和 macOS 是本阶段目标；实际验收覆盖以 PR 证据为准。
 
 ## 构建与入口
