@@ -10,4 +10,4 @@
 
 ## Workflow follow-up
 
-- Draft PR 对应 Refs #56、Refs #57；来源完成产品验收后决定 Issue 状态及变更归档。
+- PR #58 对应 Refs #56、Refs #57；来源已转交用户在精确隔离实例上“两项都正常”的验收反馈，本 change 随 PR 收尾归档，按授权普通合入。Issue/Project 状态仍交原唯一记录任务。
