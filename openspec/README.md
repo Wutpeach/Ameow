@@ -1,6 +1,6 @@
 # Ameow 规范入口
 
-OpenSpec 是本仓库唯一活跃的正式 Spec 记录与更新体系。这里是现有行为的整理基线，不是新增功能或整体验收 PASS。当前工程为根目录 Rust/GPUI，Windows x64/MSVC 是已验证目标。
+OpenSpec 是本仓库正式行为要求的记录与更新体系。当前工程为根目录 Rust/GPUI，0.5.0 分发目标为 Windows x64/MSVC 和 Apple Silicon Mac。平台实测范围见 [CONTRIBUTING](../CONTRIBUTING.md)。
 
 | 能力 | 内容 |
 | --- | --- |
@@ -14,8 +14,8 @@ OpenSpec 是本仓库唯一活跃的正式 Spec 记录与更新体系。这里�
 | [release-integrity](specs/release-integrity/spec.md) | 当前构建/签名/四资产、明确发行授权、身份兼容与证据保全 |
 | [macos-native](specs/macos-native/spec.md) | Apple Silicon 原生窗口、菜单栏、组件与应用更新适配 |
 
-按任务只读相关能力，不能按历史轮次、修改日期或最后一条评论推导授权。GitHub Issues/Projects/PR 管理范围与交付；Cindy 原生历史负责会话检索。OpenSpec changes 只承载实际获授权的变更，不重建旧 Linear/Trellis 任务或把历史研发伪装成新 change。
+按改动读取相关能力。GitHub Issue/PR 记录目标、决定与交付，OpenSpec changes 记录正式行为变更；已归档 change 保留需求与设计沿革。
 
-维护方法见 [规范维护](../docs/spec-maintenance.md)。[DESIGN.md](../DESIGN.md) 与 sidecar 保留为设计 token/组件参考，实际值与实现以其关联 Rust owner 为证据；正式行为边界在上述能力维护，不另建平行 Spec。用户后续明确决定优先，出现冲突应据来源修正规范，不能擅自修改产品来迎合文档。
+维护方法见 [规范维护](../docs/spec-maintenance.md)。[DESIGN.md](../DESIGN.md) 与 sidecar 是设计 token/组件参考，实际值以关联 Rust 实现为准；正式行为边界在上述能力维护。
 
-[迁移映射与来源说明](../docs/spec-migration/README.md)记录旧章节去向、明确替代依据和未决事项。外部迁移与 docs 备份已按用户要求移入 Windows 回收站，不再作为恢复入口。已提交历史可从 Git 读取；本记录不保证未跟踪或忽略资料仍有可用副本。
+[迁移映射与来源说明](../docs/spec-migration/README.md)保留旧章节去向、替代依据及迁移时点的验证范围，供查询规范来源。

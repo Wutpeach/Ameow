@@ -41,7 +41,7 @@ layouts reflow labels and values for reading while retaining the sidebar/content
 relationship. Source controls were checked against settings_window.rs at the
 unchanged application baseline f7b11d66275d2495433d1205126bc99fd0f44beb.
 
-Progress values, media titles and the download path are neutral examples. Former
-settings screenshot files and their provenance remain in site/public/images/docs/README.md
-as historical material. No personal path is introduced. Formal app requirements
+Progress values, media titles and the download path are neutral examples. Earlier
+native capture provenance is documented in [the screenshot reference](../../../public/images/docs/README.md).
+No personal path is introduced. Formal app requirements
 remain in OpenSpec; these figures are explanatory.

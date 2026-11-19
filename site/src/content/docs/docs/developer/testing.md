@@ -14,6 +14,6 @@ cargo test --locked
 
 macOS 原生验证独立覆盖 Apple Silicon 上的窗口、菜单栏、下载组件及完整应用更新，范围见 [macos-native 规范](https://github.com/Wutpeach/Ameow/blob/main/openspec/specs/macos-native/spec.md)。当前实测系统为 macOS 26.3；最低版本声明和其他平台的通过记录不能代替旧系统原生证据。
 
-Windows 截图工具及其依赖见 [UI_REGRESSION.md](https://github.com/Wutpeach/Ameow/blob/main/scripts/UI_REGRESSION.md)。验证时使用独立输出目录，保留已接受的可执行文件与历史证据。私有打包及公开发行限制见 [distribution/packaging.md](https://github.com/Wutpeach/Ameow/blob/main/distribution/packaging.md)。
+Windows 截图工具及其依赖见 [UI_REGRESSION.md](https://github.com/Wutpeach/Ameow/blob/main/scripts/UI_REGRESSION.md)。验证时使用独立输出目录，保留已接受的可执行文件与历史证据。构建、签名与发行检查见 [distribution/packaging.md](https://github.com/Wutpeach/Ameow/blob/main/distribution/packaging.md)。
 
 [返回开发资料](../)

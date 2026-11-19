@@ -1,51 +1,38 @@
-# Ameow
+<h1 align="center"><img src="site/public/ameow-logo.png" alt="Ameow app icon" width="48" align="middle"> Ameow</h1>
 
-Ameow is a Rust / GPUI floating download app for Windows x64 and Apple Silicon Mac. Paste a public media link, manage the queue, and choose quality and a save folder. When idle, the cat returns to the Compact window.
+<p align="center">Your little desktop download cat. Just paste a link.</p>
 
-[简体中文](README.md) · [User manual](https://wutpeach.github.io/Ameow/en/docs/) · [Development](CONTRIBUTING.md) · [Engineering docs and history](docs/README.md)
+<p align="center">
+  <a href="https://github.com/Wutpeach/Ameow/releases/latest"><img src="https://img.shields.io/github/v/release/Wutpeach/Ameow?style=flat-square&amp;labelColor=30363d&amp;label=&amp;color=0b78d0&amp;logo=github&amp;logoColor=white" alt="Latest stable Ameow release" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/Windows-x64-0b78d0?style=flat-square&amp;labelColor=30363d" alt="Windows x64" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/macOS-arm64-0b78d0?style=flat-square&amp;labelColor=30363d&amp;logo=apple&amp;logoColor=white" alt="macOS Apple Silicon arm64" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/blob/main/Cargo.toml"><img src="https://img.shields.io/badge/Rust-GPUI-0b78d0?style=flat-square&amp;labelColor=30363d&amp;logo=rust&amp;logoColor=white" alt="Rust / GPUI" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-0b78d0?style=flat-square&amp;labelColor=30363d" alt="MIT license for the application code" height="20"></a>
+  <a href="https://github.com/Wutpeach/Ameow/actions/workflows/rust.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/Wutpeach/Ameow/rust.yml?style=flat-square&amp;labelColor=30363d&amp;branch=main&amp;label=CI&amp;logo=githubactions&amp;logoColor=white" alt="Ameow Rust Windows CI on the main branch" height="20"></a>
+</p>
 
-## Download and install
+<p align="center"><img src="docs/images/readme/compact.png" alt="The compact Ameow cat window" width="80" align="middle"> <img src="docs/images/readme/download.png" alt="The expanded Ameow download progress window" width="200" align="middle"></p>
 
-| Ameow 0.5.0 | Download |
-| --- | --- |
-| Windows x64 installer | [Installer](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_installer.exe) |
-| Windows x64 portable | [Portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
-| macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
 
-On Windows, finish the installer and launch from the Start menu, or extract the entire portable ZIP and run `AmeowLauncher.exe`. On Mac, extract the ZIP, move `Ameow.app` to `/Applications` or `~/Applications`, and open it from Finder. macOS 13 is the declared minimum; testing covers macOS 26.3 / arm64. Intel Macs, Universal, and Linux are outside this release's distribution scope.
+## Paste a link, leave it to the cat
 
-See [download and installation instructions](https://wutpeach.github.io/Ameow/en/docs/downloads/) and the [0.5.0 release notes](https://github.com/Wutpeach/Ameow/releases/tag/v0.5.0). First use requires a network connection to prepare download components. Mac users do not need to install Homebrew or Python separately.
+Paste a public media link and download up to three items at once. If one fails, give it another try.
 
-## Downloads and updates
+<p align="center">
+  <img src="docs/images/readme/queue.png" alt="The Ameow queue with three active downloads and one waiting task" width="280">
+</p>
 
-Supported inputs include public single videos on YouTube and Bilibili, Imgur images and albums, and images in a single Bluesky post. Other public HTTP(S) media links can be passed to the downloader to try. Choose from three quality presets, run up to three tasks at once, retry failed downloads, or copy diagnostics. Drop a folder onto Full to change the save location. Website, login, and regional restrictions can affect availability; this version does not import browser login sessions.
+<br>
 
-Check application updates in About. Download components are managed separately in Components. Windows launches new versions through the Launcher; Mac updates the complete `Ameow.app`. Updates use signature and integrity checks, and user data is stored separately from program files:
+## Quality and save folder are up to you
 
-| Platform | User data directory |
-| --- | --- |
-| Windows | `%LOCALAPPDATA%\Ameow` |
-| macOS | `~/Library/Application Support/AmeowNative` |
+Choose a quality preset and drop a folder onto the window to set your save location.
 
-The Rust app keeps its data separate from the old Electron app. It does not automatically migrate old settings, caches, or history, and automatic upgrades from Electron to Rust are not promised. Install the package for your platform above, then choose your save folder and preferences again. Historical Electron v0.3.1 is no longer maintained or supported. Early Rust `AmeowNext\stage-a` data is neither automatically migrated nor cleaned.
+<p align="center">
+  <img src="docs/images/readme/quality.png" alt="Highest, Balanced and Data Saver quality presets in the Ameow context menu" width="228"> &emsp;
+  <img src="docs/images/readme/save-folder.png" alt="The Ameow confirmation that the save folder has been updated" width="228">
+</p>
 
-## Build and run
+---
 
-`rust-toolchain.toml` pins Rust 1.98.1. Windows x64 uses MSVC and needs Visual Studio C++ Build Tools plus the Windows SDK. Apple Silicon Macs need Xcode development tools. From the repository root:
-
-```sh
-cargo build --locked --bin ameow
-```
-
-Run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. Finder startup, system login items, and full-app updates use the packaged `Ameow.app`. Users do not need to configure Node, Python, or Electron separately. See [CONTRIBUTING](CONTRIBUTING.md) for development and packaging details.
-
-## Documentation and distribution
-
-The site has its own Node >=22.19.0 dependencies:
-
-```sh
-npm ci --prefix site
-npm --prefix site run build
-```
-
-Application code is [MIT](LICENSE); third-party code, fonts, icons, and runtimes retain their own licenses. See [packaging](distribution/packaging.md) and [notices](THIRD_PARTY_NOTICES.md). Use [Windows delivery](distribution/windows-delivery.md) for installer and portable packaging, and [package_macos.sh](scripts/package_macos.sh) for Mac. Building, offline signing, and public release are separate operations. CI does not upload application assets or automatically create releases.
+[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)

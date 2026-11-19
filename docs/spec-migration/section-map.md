@@ -1,6 +1,6 @@
 # 旧规范章节迁移映射
 
-每份旧 Spec 的全部行均包含在下列章节区间中。全部子标题、原始行号和 SHA-256 见 [coverage.json](coverage.json)。外部原文备份已于 2026-11-15 按用户要求移入 Windows 回收站；表中的“归档”和旧路径是迁移时点的来源记录，不表示当前仍有可用外部副本。已提交原文按 Git 历史读取。覆盖表用于人工复核，不把章节映射本身当作语义完整的证明。
+每份旧 Spec 的全部行均包含在下列章节区间中。全部子标题、原始行号和 SHA-256 见 [coverage.json](coverage.json)。表中的“归档”和旧路径按 2026-11-15 迁移时点理解，已提交原文按 Git 历史读取。覆盖表用于人工复核，不把章节映射本身当作语义完整的证明。
 
 | 旧文件 / 章节（原行号） | 当前去向 | 处理与依据 |
 | --- | --- | --- |
@@ -49,7 +49,7 @@
 - 集合例外：src/download/collection_tests.rs 中 partial_retry_keeps_job_directory_and_verified_files_without_overwrite、changed_saved_file_is_not_trusted_or_overwritten_by_retry、cancel_keeps_completed_files_and_releases_resources，以及当前 queue 实现。
 - 标题/真实分辨率：src/download/output.rs 和迁移前 HEAD eb61f7b3 的正式实现，不把命名元数据变成准入门槛。
 - UI：DESIGN.md 的 2026-11-13 用户决定、关联 docs/evidence/ui-review/、src/download_ui.rs、src/surface_actions.rs、src/ui_tooltip.rs、src/ui_motion.rs。已有 dirty 保全，不由本次创建新验收。
-- 发行替代：distribution/packaging.md、distribution/windows-delivery.md、docs/first-rust-release.md 与 scripts/package_portable.ps1 明确取消旧审核命令。
+- 发行替代：distribution/packaging.md、distribution/windows-delivery.md 与 scripts/package_portable.ps1 明确取消旧审核命令。
 - 原生权威：src/download/process_supervisor.rs、runtime.rs、queue.rs、tests/windows_process_supervisor.rs。这里只核对来源，没有重新运行产品测试。
 
 不能确认的验收状态见 [未决边界](unresolved.md)，不能按日期自动取舍。

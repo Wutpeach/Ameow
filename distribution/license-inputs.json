@@ -6,7 +6,7 @@
       "obligation": "Preserve the versioned source and checked local full texts.",
       "source": "THIRD_PARTY_NOTICES.md",
       "destination": "licenses/THIRD_PARTY_NOTICES.md",
-      "sha256": "ED4653E1F45415925CD395BF78C52C1782B3EFEB32FF728457443FCF944D2A5E"
+      "sha256": "0B9FAEC45C8D35EC01CE79EB0B4ABD9E3D3861BC94C6E03969A242981D884579"
     },
     {
       "kind": "Ameow-owned code",
@@ -76,7 +76,7 @@
       "obligation": "Record pinned official downloads after launch; tools are not ZIP members.",
       "source": "distribution/notices/runtime-acquisition.md",
       "destination": "licenses/runtime-acquisition.md",
-      "sha256": "438A849B30F176B1F88C883283286A9755963DE775B68435D7A117FEDF227A7A"
+      "sha256": "CA743B6AC3FBAAFBB32A748391004F61CC6F88AAD3DE53975801BFA44DB1A546"
     },
     {
       "kind": "on-demand GPL context",
@@ -90,7 +90,7 @@
       "obligation": "Record build context; no compiler/separate runtime DLL bundled; no public clearance.",
       "source": "distribution/notices/msvc-build-context.md",
       "destination": "licenses/msvc-build-context.md",
-      "sha256": "68C98CBC0EEAAD5F1822143973D1CA02F88F2DC25289468ED5B828528E08FAA3"
+      "sha256": "8B1D5F0B3B779272229B4E36D251789851EF8005ED4D594B2E837D8E7A47B420"
     }
   ],
   "notes": [
