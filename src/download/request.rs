@@ -27,7 +27,7 @@ pub struct DownloadIntent {
     pub quality: Quality,
     pub output_dir: PathBuf,
 }
-/// A single source-time interval. Version 1 always uses boundary-priority re-encoding.
+/// A frozen source-time interval. Version 1 uses native fast sections, without re-encoding.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ClipRange {

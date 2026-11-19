@@ -88,7 +88,7 @@ pub struct VideoExpectation {
 #[derive(Clone, Debug)]
 pub enum VerificationRequirements {
     Video(VideoExpectation),
-    Clip { video: VideoExpectation, range: super::request::ClipRange },
+    Clip { video: VideoExpectation, range: super::request::ClipRange, source_duration: Option<f64> },
     Media { height_cap: u64 },
     Data,
 }

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pageHost, canonicalTarget, clipRange, parseTime, formatTime } from '../src/page-core.mjs';
 import { PageTools } from '../src/page-background.mjs';
+import { Sessions } from '../src/core.mjs';
 test('only the current unambiguous VOD is bound, including the Bilibili part', () => {
   const yt = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
   const evidence = { id: 'jNQXAC9IVRw', duration: 19.021, count: 1 };
@@ -37,4 +38,16 @@ test('an older native bridge refuses clip submission before any submit operation
   pages.binding = async () => target;
   await assert.rejects(pages.submit({ ...target, clip: { start_ms: 1250, end_ms: 4750 }, request_id: '00000000-0000-0000-0000-000000000000' }, {}), /E_CLIP_UNSUPPORTED/);
   assert.deepEqual(calls, ['ping']);
+});
+
+test('cookie revocation survives a bridge outage without collecting or disabling page tools', async () => {
+  const saved = { source_id: 'owned-fixture', grants: { 'youtube.com': { grant_id: 'owned-grant', sequence: 0 } }, page_tools: { 'www.youtube.com': true } };
+  const removed = [], calls = [];
+  const api = { storage: { local: { get: async () => structuredClone(saved), set: async value => Object.assign(saved, value) } }, permissions: { remove: async value => removed.push(...value.origins) } };
+  let unavailable = true;
+  const sessions = new Sessions(api, () => ({ request: async op => { calls.push(op.operation); if (unavailable) throw Error('E_BRIDGE'); return []; }, close() {} }));
+  sessions.collect = async () => { throw Error('COOKIE_READ_MUST_NOT_HAPPEN'); };
+  await sessions.revoke('youtube.com'); assert(saved.grants['youtube.com'].revoking);
+  assert.deepEqual(removed, ['http://*.youtube.com/*']); assert(saved.page_tools['www.youtube.com']);
+  unavailable = false; await sessions.sync(); assert.deepEqual(saved.grants, {}); assert(calls.includes('revoke'));
 });

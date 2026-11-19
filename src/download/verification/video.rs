@@ -26,32 +26,42 @@ pub fn verify(
 }
 pub fn verify_clip(
     path: &Path, workspace: &Path, expected: &VideoExpectation,
-    range: crate::download::request::ClipRange, lease: &RuntimeLease, control: &Control,
+    range: crate::download::request::ClipRange, source_duration: Option<f64>, lease: &RuntimeLease, control: &Control,
     observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, probe_tool: &str,
 ) -> Result<VerifiedMedia, String> {
     range.validate()?;
     let media = verify(path, workspace, expected, lease, control, observer.clone(), probe_tool)?;
     let info: Value = serde_json::from_slice(&fs::read(workspace.join("ffprobe.json")).map_err(|e| e.to_string())?)
         .map_err(|_| "E_MEDIA_UNVERIFIED: clip probe unavailable")?;
-    validate_clip(&info, range)?;
+    let duration = positive(&info["format"]["duration"]).ok_or("E_MEDIA_UNVERIFIED: clip duration missing")?;
+    validate_clip_duration(duration, range, source_duration)?;
     let decoded = decoded_duration(path, workspace, lease, control, observer, true)?;
-    if (decoded - range.duration_seconds()).abs() > 0.25 {
-        return Err("E_MEDIA_INVALID: decoded clip duration differs from selected interval".into());
-    }
+    validate_clip_duration(decoded, range, source_duration)?;
     Ok(media)
 }
-fn validate_clip(info: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
-    let streams = info["streams"].as_array().ok_or("E_MEDIA_UNVERIFIED: clip streams missing")?;
-    let video = streams.iter().find(|s| s["codec_type"] == "video").ok_or("E_MEDIA_INVALID: clip video missing")?;
-    let tolerance = ratio(&video["avg_frame_rate"]).map_or(0.25, |fps| (2. / fps).clamp(0.08, 0.25));
-    let duration = positive(&info["format"]["duration"]).ok_or("E_MEDIA_UNVERIFIED: clip duration missing")?;
-    if (duration - range.duration_seconds()).abs() > tolerance {
-        return Err("E_MEDIA_INVALID: clip duration differs from selected interval".into());
-    }
-    for stream in streams.iter().filter(|s| s["codec_type"] == "audio") {
-        if stream["codec_name"] != "aac" { return Err("E_MEDIA_INVALID: clip audio differs from AAC plan".into()); }
+fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRange, source_duration: Option<f64>) -> Result<(), String> {
+    // Fast stream copy may include a preceding GOP. Bound the supported slack;
+    // never turn a short selection into a whole-source success.
+    let requested = range.duration_seconds();
+    if !duration.is_finite()
+        || duration < (requested - 0.25).max(0.001) || duration > requested + 10.
+        || source_duration.is_some_and(|source| requested < source - 1. && duration >= source - 0.25) {
+        return Err("E_CLIP_UNSUPPORTED: fast cut is outside the bounded keyframe interval".into());
     }
     Ok(())
+}
+#[cfg(test)]
+mod clip_tests {
+    use super::*;
+    #[test]
+    fn fast_clip_allows_gop_slack_but_rejects_whole_or_truncated_output() {
+        let range = crate::download::request::ClipRange { start_ms: 301250, end_ms: 309750 };
+        for duration in [8.5, 9.75, 12.] { assert!(validate_clip_duration(duration, range, Some(600.)).is_ok()); }
+        for duration in [0., 3., 19., 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.)).is_err()); }
+        assert!(validate_clip_duration(600., range, None).is_err());
+        let short = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750 };
+        assert!(validate_clip_duration(8., short, Some(8.)).is_err());
+    }
 }
 pub(super) fn verify_media(
     path: &Path,

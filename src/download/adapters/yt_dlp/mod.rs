@@ -143,12 +143,12 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             generic_args(&mut args, accepted, false);
+            if let Some(range) = accepted.intent.clip {
+                // Native sections seek remote input and copy streams near keyframes.
+                args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into()]);
+            }
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
             append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
-            if let Some(range) = accepted.intent.clip {
-                args.extend(["--download-sections".into(), range.section(), "--force-keyframes-at-cuts".into(),
-                    "--downloader-args".into(), "ffmpeg_o:-c:v libx264 -preset medium -crf 18 -c:a aac -b:a 192k -f matroska".into()]);
-            }
             args.extend([
                 "--no-simulate".into(),
                 "--merge-output-format".into(),
@@ -238,12 +238,12 @@ impl DownloaderAdapter for YtDlpAdapter {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
             let before = read_selection(&working.join(SELECTION_FILE)).ok();
-            let mut video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
+            let video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
             let verification = if let Some(range) = accepted.intent.clip {
                 check_clip_source(&actual, range)?;
                 check_clip_record(&actual, range)?;
-                video.codec = Some(crate::download::contract::VideoCodec::H264);
-                VerificationRequirements::Clip { video, range }
+                let source_duration = clip_source_duration(&actual);
+                VerificationRequirements::Clip { video, range, source_duration }
             } else { VerificationRequirements::Video(video) };
             context.emit(AdapterEvent::Finalizing);
             Ok(ProducedArtifact {
@@ -267,10 +267,13 @@ fn check_clip_source(value: &Value, range: crate::download::request::ClipRange) 
     if value["is_live"] == true || matches!(value["live_status"].as_str(), Some("is_live" | "is_upcoming" | "post_live")) {
         return Err("E_OBJECT_UNSUPPORTED: clip requires a single on-demand video".into());
     }
-    if value["duration"].as_f64().filter(|d| d.is_finite() && *d > 0.).is_some_and(|d| range.end_ms as f64 / 1000. > d + 0.001) {
+    if clip_source_duration(value).is_some_and(|d| range.end_ms as f64 / 1000. > d + 0.001) {
         return Err("E_MEDIA_INVALID: clip extends beyond source duration".into());
     }
     Ok(())
+}
+fn clip_source_duration(value: &Value) -> Option<f64> {
+    value["duration"].as_f64().filter(|d| d.is_finite() && *d > 0.)
 }
 fn check_clip_record(value: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
     for (name, expected) in [("section_start", range.start_ms), ("section_end", range.end_ms)] {
@@ -385,7 +388,9 @@ pub(crate) fn engine_args(
 fn append_fixture_tls(args: &mut Vec<String>, input: &str, route: &network::Route, fixture: &[String]) {
     if fixture.iter().any(|a| a == "--app-update-fixture-media-tls")
         && network::fixture_media_route(input, fixture).as_ref() == Some(route) {
-        args.extend(["--no-check-certificates".into(), "--downloader-args".into(), "ffmpeg_i:-tls_verify 0".into()]);
+        args.push("--no-check-certificates".into());
+        if let Some(input) = args.iter_mut().find(|a| a.starts_with("ffmpeg_i:")) { input.push_str(" -tls_verify 0"); }
+        else { args.extend(["--downloader-args".into(), "ffmpeg_i:-tls_verify 0".into()]); }
     }
 }
 #[cfg(all(test, feature = "app-update-fixture", debug_assertions))]
@@ -399,6 +404,9 @@ mod clip_tls_fixture_tests {
         let route = network::Route::Proxy("http://127.0.0.1:54321".into());
         let mut positive = Vec::new(); append_fixture_tls(&mut positive, "https://example.com/ameow-issue33-1.mp4", &route, &fixture);
         assert!(positive.iter().any(|s| s == "--no-check-certificates"));
+        let mut clip = vec!["--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into()];
+        append_fixture_tls(&mut clip, "https://example.com/ameow-issue33-1.mp4", &route, &fixture);
+        assert!(clip.iter().any(|a| a == "ffmpeg_i:-seekable 1 -xerror -tls_verify 0"));
         for (url, route) in [("https://example.org/media", route), ("https://example.com/ameow-issue33-1.mp4", network::Route::Proxy("http://127.0.0.1:54322".into()))] {
             let mut args = Vec::new(); append_fixture_tls(&mut args, url, &route, &fixture);
             assert!(args.is_empty(), "non-fixture URL or mismatched proxy must keep normal TLS validation");

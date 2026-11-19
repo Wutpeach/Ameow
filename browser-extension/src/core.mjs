@@ -1,4 +1,5 @@
 import { getDomain } from 'tldts';
+import { PAGE_ORIGINS } from './page-core.mjs';
 export const HOST = 'org.ameow.browser_sessions';
 export const SYNC_ERRORS = Object.freeze({
   E_COOKIE_READ: '浏览器会话读取失败', E_BRIDGE: '浏览器连接失败',
@@ -109,6 +110,14 @@ export class Sessions {
     await this.api.storage.local.set({ grants: state.grants });
     return this.sync(site);
   }
+  async releasePermission(site) {
+    const { page_tools = {} } = await this.api.storage.local.get('page_tools');
+    // Chromium removes a narrower grant with its encompassing origin. Keep the
+    // existing HTTPS permission while page tools need it; never request it again.
+    const keepHttps = Object.entries(PAGE_ORIGINS).some(([host]) => page_tools[host] && within(host, site));
+    const origins = scope(site).filter(origin => !keepHttps || !origin.startsWith('https:'));
+    if (origins.length) await this.api.permissions.remove({ origins });
+  }
   async sync(onlySite) {
     const state = await this.state();
     const results = {};
@@ -121,6 +130,10 @@ export class Sessions {
     try { await this.withClient(async client => {
       for (const [site, grant] of selected) {
         try {
+          if (grant.revoking) {
+            await client.request({ operation: 'revoke', site, source_id: state.source_id, grant_id: grant.grant_id });
+            delete state.grants[site]; results[site] = 'revoked'; continue;
+          }
           let data;
           try { data = await this.collect(site); } catch (error) {
             if (error.message !== 'E_PERMISSION') throw error;
@@ -139,7 +152,7 @@ export class Sessions {
         } catch (error) {
           remember(site, grant, error);
           if (['E_SESSION_REVOKED', 'E_SESSION_SOURCE_CHANGED'].includes(grant.error)) {
-            delete state.grants[site]; await this.api.permissions.remove({ origins: scope(site) });
+            delete state.grants[site]; await this.releasePermission(site);
           } else { try { await this.reportFailure(client, state, site, grant); } catch {} }
         }
       }
@@ -148,8 +161,10 @@ export class Sessions {
     return results;
   }
   async revoke(site) {
-    // Remove browser permission first. An unavailable host is retried by the periodic reconciliation.
-    await this.api.permissions.remove({ origins: scope(site) });
+    // Persist revocation before I/O. Retries must never collect another snapshot.
+    const state = await this.state();
+    if (state.grants[site]) { state.grants[site].revoking = true; await this.api.storage.local.set({ grants: state.grants }); }
+    await this.releasePermission(site);
     return this.sync(site);
   }
 }

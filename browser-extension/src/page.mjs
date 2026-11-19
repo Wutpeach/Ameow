@@ -36,13 +36,14 @@ function iconButton(root, action, label, icon, className = "icon") {
   button.dataset.action = action; button.setAttribute("aria-label", label); button.title = label; button.innerHTML = icon; root.append(button);
   return button;
 }
-function mediaForPage() {
+function mediaForPage(boundVideo) {
   const selector = location.hostname === "www.youtube.com" ? "#movie_player" : ".bpx-player-container";
   const roots = [...document.querySelectorAll(selector)].filter(el => el.getBoundingClientRect().width > 120);
   if (roots.length !== 1) return null;
   const media = [...roots[0].querySelectorAll("video, bwp-video")].filter(el => el.getBoundingClientRect().width > 120 && el.getBoundingClientRect().height > 60);
   const video = media[0];
-  return media.length === 1 && video.readyState >= 2 && Number.isFinite(video.duration) && video.duration > 0 ? { player: roots[0], video } : null;
+  const ready = video && (video.readyState >= 2 || video === boundVideo && video.readyState >= 1);
+  return media.length === 1 && ready && Number.isFinite(video.duration) && video.duration > 0 ? { player: roots[0], video } : null;
 }
 class PageVideoTools {
   constructor() {
@@ -64,7 +65,7 @@ class PageVideoTools {
     if (document.hidden || this.refreshing) return;
     this.refreshing = true;
     try {
-      const media = mediaForPage();
+      const media = mediaForPage(this.video);
       const target = media ? await request("page-binding") : null;
       if (this.stopped) return;
       if (!media || !target || Math.abs(target.duration - media.video.duration) > .5) { this.unbind(); return; }
@@ -175,7 +176,7 @@ class PageVideoTools {
     const playing = !this.video.paused;
     this.stage.append(this.player); this.player.classList.add("ameow-peek-player"); this.video.controls = false;
     const host = document.createElement("ameow-peek-controls"); this.dialog.append(host);
-    this.controls = shadow(host, '<div class="controls"><div class="heading"><h2>选择片段</h2></div><div class="playback"><div class="timeline"><div class="band" hidden></div><input type="range" min="0" step="0.001" aria-label="播放位置"></div><span class="time"></span></div><div class="fields"><div class="selection"><div class="field"><label for="clip-in">I</label><input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off"></div><div class="field"><label for="clip-out">O</label><input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off"></div><span class="duration" aria-live="polite">设置入点和出点</span></div><div class="trim"><label>I <input type="range" min="0" step="0.001" aria-label="拖动入点"></label><label>O <input type="range" min="0" step="0.001" aria-label="拖动出点"></label></div></div><div class="actions"><button type="button" data-action="clear">清除选区</button><button type="button" class="submit" data-action="submit" disabled>下载片段</button></div><p class="note">按 I / O 标记，空格播放。按所选边界重编码，可能需要额外取数与等待。</p><p class="status" role="status" aria-live="polite"></p></div>');
+    this.controls = shadow(host, '<div class="controls"><div class="heading"><h2>选择片段</h2></div><div class="playback"><div class="timeline"><div class="band" hidden></div><input type="range" min="0" step="0.001" aria-label="播放位置"></div><span class="time"></span></div><div class="fields"><div class="selection"><div class="field"><label for="clip-in">I</label><input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off"></div><div class="field"><label for="clip-out">O</label><input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off"></div><span class="duration" aria-live="polite">设置入点和出点</span></div><div class="trim"><label>I <input type="range" min="0" step="0.001" aria-label="拖动入点"></label><label>O <input type="range" min="0" step="0.001" aria-label="拖动出点"></label></div></div><div class="actions"><button type="button" data-action="clear">清除选区</button><button type="button" class="submit" data-action="submit" disabled>下载片段</button></div><p class="note">按 I / O 标记，空格播放。按关键帧附近快速粗切。</p><p class="status" role="status" aria-live="polite"></p></div>');
     iconButton(this.controls.querySelector(".heading"), "close", "关闭预览", icons.close).onclick = () => this.closePeek();
     this.playButton = iconButton(this.controls.querySelector(".playback"), "play", "播放", icons.play);
     this.controls.querySelector(".playback").prepend(this.playButton);
@@ -197,9 +198,9 @@ class PageVideoTools {
     this.controls.querySelector('[data-action="clear"]').onclick = () => this.clearSelection();
     this.controls.addEventListener("keydown", e => { if (e.key !== "Escape") e.stopPropagation(); });
     this.keydown = e => {
-      const input = e.composedPath().some(n => n instanceof HTMLInputElement);
+      const interactive = e.composedPath().some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable='true'],[role='button']"));
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); this.closePeek(); }
-      else if (!input && ["i", "o", "I", "O", " "].includes(e.key)) {
+      else if (!interactive && ["i", "o", "I", "O", " "].includes(e.key)) {
         e.preventDefault(); e.stopImmediatePropagation();
         if (e.key === " ") this.togglePlayback(); else this.setMark(e.key.toLowerCase() === "i" ? "start_ms" : "end_ms");
       }

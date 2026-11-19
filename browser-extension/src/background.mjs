@@ -36,7 +36,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   }
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html')) return false;
   const action = {
-    "pages-status": async () => ({ enabled: Boolean((await pages.state())[message.host]) }),
+    "pages-status": async () => ({ enabled: await pages.enabled(message.host) }),
     "pages-set": () => pages.set(message.host, message.enabled, message.tab_id),
     status: () => sessions.status(message.site),
     authorize: () => sessions.authorize(message.site, message.replaces, message.source_name),
