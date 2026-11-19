@@ -1517,7 +1517,6 @@ impl Prototype {
         let Some(ui) = &mut self.downloads else {
             return;
         };
-        let mut menu_saved = false;
         for reply in ui.poll() {
             match reply {
                 UiReply::AppUpdate(handle) => ui.updates = handle,
@@ -1544,7 +1543,7 @@ impl Prototype {
                 }
                 UiReply::Settings(reply) => {
                     if let Some(generation) = self.menu_save_generation.take() {
-                        menu_saved = self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)), now);
+                        self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)));
                     }
                     if ui.complete_settings(reply, now) && !ui.hidden { self.model.directory_saved(now); }
                 }
@@ -1602,7 +1601,6 @@ impl Prototype {
         }
         // Hidden main windows do not render, but settings and tray projections still observe us.
         self.refresh_preferences();
-        if menu_saved { self.close_menu(cx); }
         self.process_exit_request(cx);
         self.model.tick(now);
         cx.notify();
@@ -2773,6 +2771,39 @@ mod tests {
         assert!(!ui.settings_pending);
         assert_eq!(ui.settings().unwrap(), requested);
         assert!(matches!(ui.settings_status, SettingsStatus::Failed(_)));
+    }
+    #[test]
+    fn full_menu_quality_repeats_after_ack_without_changing_frozen_jobs() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Failure, false);
+        let frozen = ui.snapshot.as_ref().unwrap().jobs[0].accepted.intent.quality;
+        let mut menu = crate::context_menu::Menu::default();
+        menu.open(Some(ui.settings().unwrap().quality), 0);
+        let generation = menu.generation();
+        for quality in [Quality::Highest, Quality::Saver, Quality::Balanced] {
+            let previous = ui.settings().unwrap().quality;
+            assert!(ui.request_quality(quality, 10));
+            assert_eq!(ui.settings().unwrap().quality, previous);
+            assert!(!ui.request_quality(previous, 11));
+            let QueueCommand::SaveSettings(settings) = receiver.try_recv().unwrap() else { panic!("settings command") };
+            assert_eq!(settings.quality, quality);
+            menu.hint = Some("saving".into());
+            ui.complete_settings(CommandReply::SettingsSaved(settings), 20);
+            menu.saved(generation, true);
+            assert_eq!(ui.settings().unwrap().quality, quality);
+            assert!(!ui.settings_pending);
+            assert!(menu.is_open());
+            assert!(menu.hint.is_none());
+            assert_eq!(ui.snapshot.as_ref().unwrap().jobs[0].accepted.intent.quality, frozen);
+        }
+        assert!(ui.request_quality(Quality::Saver, 30));
+        receiver.try_recv().unwrap();
+        ui.complete_settings(CommandReply::Error("E_SETTINGS_SAVE".into()), 40);
+        menu.saved(generation, false);
+        assert_eq!(ui.settings().unwrap().quality, Quality::Balanced);
+        assert!(menu.is_open() && menu.hint.is_some());
+        assert!(!ui.settings_pending);
+        assert!(ui.request_quality(Quality::Saver, 50));
     }
     #[test]
     fn dropped_directory_feedback_waits_for_its_own_ack_and_expires() {
