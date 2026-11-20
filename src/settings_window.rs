@@ -698,7 +698,7 @@ impl SettingsWindow {
         } else {
             match &self.projection.status {
                 SettingsStatus::Saving if !self.projection.shortcut_pending => Some((l.text("正在保存…", "Saving…").into(), false)),
-                SettingsStatus::Failed(message) if self.projection.shortcut_error.as_deref() != Some("save") => Some((settings_message(l, message), true)),
+                SettingsStatus::Failed(message) if !matches!(self.projection.shortcut_error.as_deref(), Some("save" | "save-restore")) => Some((settings_message(l, message), true)),
                 _ => None,
             }
         };

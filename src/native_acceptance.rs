@@ -123,6 +123,10 @@ fn registration_lifecycle(root: &std::path::Path) {
     let old = chord("f9", 0x78, 101);
     let new = chord("f10", 0x79, 109);
     let empty = ShortcutPreference { chord: None };
+    if std::env::var_os("AMEOW_NATIVE_RESTORE_FAILURE_ONLY").is_some() {
+        registration_restore_failures(root, old, new);
+        return;
+    }
     let mut evidence = std::fs::File::create(root.join("registration-checks.jsonl")).unwrap();
     let mut passed = |name| { writeln!(evidence, "{}", serde_json::json!({"check":name,"passed":true})).unwrap(); evidence.flush().unwrap(); };
     let check_available = |preference: &ShortcutPreference, available: bool| {
@@ -147,4 +151,50 @@ fn registration_lifecycle(root: &std::path::Path) {
     owner.observe(&old); owner.stop(); check_available(&old, true); passed("explicit stop releases");
     { let mut ending = Controller::default(); ending.observe(&new); assert!(ending.is_active()); }
     check_available(&new, true); passed("instance drop releases");
+}
+
+fn registration_restore_failures(root: &std::path::Path, old: ameow_next::shortcut::ShortcutPreference, new: ameow_next::shortcut::ShortcutPreference) {
+    use super::global_shortcut::Controller;
+    use ameow_next::shortcut::ShortcutPreference;
+    let mut evidence = std::fs::File::create(root.join("registration-restore-checks.jsonl")).unwrap();
+    let mut passed = |name| { writeln!(evidence, "{}", serde_json::json!({"check":name,"passed":true})).unwrap(); evidence.flush().unwrap(); };
+    let empty = ShortcutPreference { chord: None };
+    let mut owner = Controller::default(); owner.observe(&old); assert!(owner.is_active());
+    owner.suspend();
+    let mut occupied_old = Controller::default(); occupied_old.observe(&old); assert!(occupied_old.is_active());
+    let mut occupied_new = Controller::default(); occupied_new.observe(&new); assert!(occupied_new.is_active());
+    assert_eq!(owner.prepare(new.clone()), Err("taken-restore".into()));
+    assert!(!owner.is_active());
+    passed("candidate conflict reports that old registration also failed");
+    occupied_new.stop();
+    owner.prepare(new.clone()).unwrap(); owner.complete(false);
+    assert_eq!(owner.error.as_deref(), Some("save-restore")); assert!(!owner.is_active());
+    passed("failed save reports old registration unavailable");
+    owner.prepare(empty.clone()).unwrap(); owner.complete(false);
+    assert_eq!(owner.error.as_deref(), Some("save-restore")); assert!(!owner.is_active());
+    owner.complete(true); // An unrelated preferences ACK must not erase registration failure.
+    assert_eq!(owner.error.as_deref(), Some("taken"));
+    passed("failed clear and unrelated ACK retain actual registration failure");
+    occupied_old.stop();
+    owner.prepare(new.clone()).unwrap(); owner.complete(false);
+    assert!(owner.is_active()); assert_eq!(owner.error.as_deref(), Some("save"));
+    let mut probe = Controller::default(); probe.observe(&new); assert!(probe.is_active()); probe.stop();
+    owner.stop();
+    passed("rollback retries old registration when it becomes available and frees candidate");
+    let mut occupied = Controller::default(); occupied.observe(&old); assert!(occupied.is_active());
+    let mut retry = Controller::default(); retry.observe(&old); assert!(!retry.is_active());
+    occupied.stop();
+    retry.prepare(old.clone()).unwrap(); retry.complete(false);
+    assert!(retry.is_active()); assert_eq!(retry.error.as_deref(), Some("save")); retry.stop();
+    passed("rollback releases same-chord candidate before restoring old registration");
+    let mut owner = Controller::default(); owner.observe(&old); assert!(owner.is_active()); owner.suspend();
+    let mut occupied = Controller::default(); occupied.observe(&old); assert!(occupied.is_active());
+    owner.prepare(empty).unwrap(); owner.complete(true);
+    assert!(!owner.is_active()); assert!(owner.error.is_none());
+    owner.stop(); occupied.stop();
+    passed("successful clear remains possible while old chord is occupied");
+    for preference in [old, new] {
+        let mut probe = Controller::default(); probe.observe(&preference); assert!(probe.is_active()); probe.stop();
+    }
+    passed("all task-owned registrations released");
 }
