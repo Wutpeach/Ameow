@@ -13,6 +13,9 @@ assets/test/yt-dlp-2026.10.26-SHA2-256SUMS* -text
 /assets/LICENSE -text
 /distribution/license-inputs.json -text
 /distribution/notices/** -text
+# Keep the pinned Inno translation and license downloads byte-identical.
+/distribution/languages/*.isl -text
+/distribution/languages/LICENSE.txt -text
 /THIRD_PARTY_NOTICES.md -text
 /distribution/macos-license-inputs.json -text
 /src/download/macos-runtime-notice-inputs.md -text

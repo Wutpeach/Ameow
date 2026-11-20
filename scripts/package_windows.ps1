@@ -55,6 +55,15 @@ function Check-Record([string]$Path, $Record) {
     $actual = Record $Path $Record.path
     if ($actual.bytes -ne $Record.bytes -or $actual.sha256 -cne $Record.sha256) { throw "Changed verified member: $($Record.path)" }
 }
+function Installer-Source {
+    $commit = & git -C $repository rev-parse HEAD
+    if ($LASTEXITCODE -ne 0 -or $commit -cnotmatch '^[0-9a-f]{40}$') { throw 'E_INSTALLER_SOURCE: cannot resolve commit.' }
+    $tree = & git -C $repository rev-parse 'HEAD^{tree}'
+    if ($LASTEXITCODE -ne 0 -or $tree -cnotmatch '^[0-9a-f]{40}$') { throw 'E_INSTALLER_SOURCE: cannot resolve tree.' }
+    $status = & git -C $repository status --porcelain
+    if ($LASTEXITCODE -ne 0) { throw 'E_INSTALLER_SOURCE: cannot resolve working changes.' }
+    [ordered]@{commit=$commit;tree=$tree;dirty=[bool]$status}
+}
 $portableSource = Join-Path $SignedDirectory $report.portable.path
 Check-Record $portableSource $report.portable
 $portableName = "Ameow_${version}_windows_x64_portable$fileSuffix.zip"
@@ -88,11 +97,17 @@ if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
 $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
 $includeRecord = Record $include 'payload.iss'
+$installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
+$compilerMessages = Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') 'Default.isl'
+$installerSource = Installer-Source
 & $Iscc /Qp @defines (Join-Path $repository 'distribution/ameow.iss') *> (Join-Path $output 'inno-build.log')
 if ($LASTEXITCODE -ne 0) { throw "Inno compilation failed; see $output/inno-build.log" }
 Check-Record (Join-Path $repository $definition.path) $definition
 Check-Record $PSCommandPath $packaging
 Check-Record $include $includeRecord
+foreach ($resource in $installerResources) { Check-Record (Join-Path $repository $resource.path) $resource }
+Check-Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') $compilerMessages
+if ((Installer-Source | ConvertTo-Json -Compress) -cne ($installerSource | ConvertTo-Json -Compress)) { throw 'E_INSTALLER_SOURCE_CHANGED: source identity changed during compilation.' }
 # Recheck the immutable core and update archive after compilation, not just before staging.
 foreach ($member in $report.members) { Check-Record (Join-Path $payload $member.path) $member }
 Check-Record (Join-Path $output $portableName) $report.portable
@@ -108,6 +123,6 @@ $manifest = Record (Join-Path $output $manifestName) $manifestName
 $assets = @($installer, $portable, $report.update, $manifest)
 foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
 Write-Output "Windows delivery: $output/delivery.json ($suffix; nothing uploaded)"
