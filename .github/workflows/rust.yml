@@ -48,10 +48,12 @@ jobs:
         run: cargo +1.98.1 check --locked --all-targets
       - name: Run tests without external runtime fixtures
         run: cargo +1.98.1 test --locked
-      - name: Verify isolated development execution and process exits
+      - name: Verify isolated development execution, metadata inspection and process exits
         shell: pwsh
         run: |
           cargo +1.98.1 test --locked --features dev-tools --lib control::dev::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +1.98.1 test --locked --features dev-tools --lib inspection_
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo +1.98.1 test --locked --features dev-tools --test developer_cli
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -74,7 +76,7 @@ jobs:
       - name: Compile and verify controlled installer and portable fixtures
         shell: pwsh
         run: |
-          cargo +1.98.1 build --locked --offline --features app-update-fixture --bin ameow-launcher --bin ameow-release --example release_fixture
+          cargo +1.98.1 build --locked --offline --features app-update-fixture --bin ameow-launcher --bin ameow-release --example release_fixture --example session_media_fixture
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $fixture = Join-Path $env:RUNNER_TEMP 'ameow-c5-fixture'
           $version = (Get-Content (Join-Path $env:RUNNER_TEMP 'ameow-c1-build/release-build.json') -Raw | ConvertFrom-Json).version
