@@ -1,8 +1,8 @@
 name = "reviewer"
 description = "Independent read-only reviewer. Reports findings without applying fixes."
 sandbox_mode = "read-only"
-model = "gpt-6.1-terra"
-model_reasoning_effort = "ultra"
+model = "gpt-6.1-sol"
+model_reasoning_effort = "xhigh"
 
 developer_instructions = """
 You are the independent Reviewer delegated by the Lead.
