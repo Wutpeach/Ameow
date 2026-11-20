@@ -11,28 +11,44 @@
   <a href="https://github.com/Wutpeach/Ameow/actions/workflows/rust.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/Wutpeach/Ameow/rust.yml?style=flat-square&amp;labelColor=30363d&amp;branch=main&amp;label=CI&amp;logo=githubactions&amp;logoColor=white" alt="Ameow Rust Windows CI on the main branch" height="20"></a>
 </p>
 
-<p align="center"><img src="docs/images/readme/compact.png" alt="The compact Ameow cat window" width="80" align="middle"> <img src="docs/images/readme/download.png" alt="The expanded Ameow download progress window" width="200" align="middle"></p>
+Clips and browser session sync preview a future version; the current **0.5.0** release does not include them. The GIFs use isolated example states.
 
+## Your desktop cat
 
-## Paste a link, leave it to the cat
-
-Paste a public media link and download up to three items at once. If one fails, give it another try.
-
-<p align="center">
-  <img src="docs/images/readme/queue.png" alt="The Ameow queue with three active downloads and one waiting task" width="280">
-</p>
-
-<br>
-
-## Quality and save folder are up to you
-
-Choose a quality preset and drop a folder onto the window to set your save location.
+The cat waits quietly on your desktop. Move closer to expand it, then move away to tuck it back in.
 
 <p align="center">
-  <img src="docs/images/readme/quality.png" alt="Highest, Balanced and Data Saver quality presets in the Ameow context menu" width="228"> &emsp;
-  <img src="docs/images/readme/save-folder.png" alt="The Ameow confirmation that the save folder has been updated" width="228">
+  <img src="docs/images/readme/desktop-cat.gif" alt="The Ameow desktop cat waits, expands into the download window as the pointer approaches, then returns when it leaves." width="400">
 </p>
+
+## Paste a link
+
+Paste a media link and let the cat take over. Follow its progress in the floating window.
+
+<p align="center">
+  <img src="docs/images/readme/paste-link.gif" alt="After a link is pasted into Ameow, the same example task moves from accepted to downloading." width="400">
+</p>
+
+## Keep the part you want
+
+Mark a section on the video page and send it to the cat. Fast cuts may start or end near a keyframe.
+
+<p align="center">
+  <img src="docs/images/readme/clip-selection.gif" alt="Add a Marker at one second in Peek and drag it to four seconds to create a clip range, with the playhead staying independent." width="560">
+</p>
+
+## Browser session sync
+
+Authorize a site in the extension to sync its existing browser session for later downloads. Sync does not sign you in.
+
+<p align="center">
+  <img src="docs/images/readme/session-sync.gif" alt="Click Sync now for an already-authorized example site; the Ameow extension shows that site's browser source and latest sync result." width="560">
+</p>
+
+## Development and building
+
+See [Contributing](CONTRIBUTING.md) for setup and build instructions. Scripts and agents can use ameow-cli to work with the same desktop queue; see the [CLI user guide](https://github.com/Wutpeach/Ameow/blob/2c916bc78a593cae3e5cc2f8961cb07374002def/site/src/content/docs/en/docs/cli.md) (development candidate; CLI is not included in the 0.5.0 release).
 
 ---
 
-[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[User manual](https://wutpeach.github.io/Ameow/en/docs/) · [简体中文](README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md) · [GIF sources](docs/images/readme/README.md)
