@@ -97,7 +97,7 @@ if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
 $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
 $includeRecord = Record $include 'payload.iss'
-$installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard.png', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
+$installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
 $compilerMessages = Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') 'Default.isl'
 $installerSource = Installer-Source
 & $Iscc /Qp @defines (Join-Path $repository 'distribution/ameow.iss') *> (Join-Path $output 'inno-build.log')

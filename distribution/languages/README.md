@@ -7,4 +7,4 @@ ChineseSimplified.isl 与 ChineseTraditional.isl 原字节来自 [jrsoftware/iss
 | ChineseSimplified.isl | e0b0b350e2245f3c5e65586dfe43d574f6e7f06f2261149aba284954b3fc9a8d |
 | ChineseTraditional.isl | 031684fc769259291fd563338b5abe20b7753c88ab5a2976b83a80788deb8455 |
 
-`../ameow-wizard.png` 是已批准 `assets/brand/ameow.ico` 的 256px 帧，未改图形；`../ameow-wizard-large.png` 将同一帧原尺寸置于 328×628 透明画布的 (36, 96)，供原生完成页使用。两图复用应用资源，不引入新标志。
+`../ameow-wizard-large.png` 将已批准 `assets/brand/ameow.ico` 的 256px 帧原尺寸置于 328×628 透明画布的 (36, 96)，供原生完成页使用，未改图形。标题栏保留正式 ICO，向导页面右上角不显示大图标。

@@ -25,6 +25,6 @@
 
 安装器按当前用户的 Windows **显示语言**默认选择 English、简体中文或繁體中文，其他语言回退 English；不使用区域格式，也不复用以前安装保存的语言。`/LANG=english`、`/LANG=chinesesimplified`、`/LANG=chinesetraditional` 可显式覆盖。内置安装/卸载文字使用 SDK English 与仓库固定中文消息，自有安全提示随所选语言；保留正常退出要求，不终止运行中的 Ameow。
 
-向导采用 `WizardSizePercent=100` 的原生紧凑比例并随 DPI 缩放；程序与向导复用正式应用图标。`delivery.json` 的 `installerSource` 记录安装器脚本所在 Commit/tree/dirty，`build` 仍为已签名应用核心身份；两者可能不同，不得将重打安装器称为该脚本 HEAD 的完整 App 构建。`installerResources` 与 `compilerMessages` 记录新增图标、简繁消息及 SDK English 字节，并在编译后复核。
+向导采用 `WizardSizePercent=100` 的原生紧凑比例并随 DPI 缩放；标题栏和安装完成页复用正式应用图标，向导页首不显示大图标。`delivery.json` 的 `installerSource` 记录安装器脚本所在 Commit/tree/dirty，`build` 仍为已签名应用核心身份；两者可能不同，不得将重打安装器称为该脚本 HEAD 的完整 App 构建。`installerResources` 与 `compilerMessages` 记录新增图标、简繁消息及 SDK English 字节，并在编译后复核。
 
 正式上传前再核对 v<version> 精确指向签名构建 Commit；历史 Tag 永不移动/覆盖。私钥不进 Git/CI，本脚本不签名、不上传。生产可信根以 `assets/app-update-trust.json` 为准，签名验证使用所有者保管的独立可信公钥副本；构建或验签成功不代表已经公开发布。

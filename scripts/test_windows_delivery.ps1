@@ -54,7 +54,7 @@ foreach ($resource in $delivery.installerResources) {
     $source = Join-Path $PSScriptRoot ('../' + $resource.path)
     if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ine $resource.sha256) { throw "Installer resource changed: $($resource.path)" }
 }
-if ($delivery.installerResources.Count -ne 5 -or $delivery.compilerMessages.path -cne 'Default.isl' -or $delivery.installerSource.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Missing installer source or language/icon materials.' }
+if ($delivery.installerResources.Count -ne 4 -or $delivery.compilerMessages.path -cne 'Default.isl' -or $delivery.installerSource.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Missing installer source or language/icon materials.' }
 foreach ($asset in $delivery.assets) {
     $file = Join-Path $valid $asset.path
     if ((Get-Item -LiteralPath $file).Length -ne $asset.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $asset.sha256) { throw "Release asset changed: $($asset.path)" }
