@@ -251,6 +251,15 @@ impl Model {
             self.collapse = None; self.set_target(true, now);
         } else { self.schedule_leave(now); }
     }
+    /// A new summon starts at Compact without resetting download or terminal ownership.
+    pub fn summon(&mut self, now: u64) {
+        self.window_motion = Motion::new(now);
+        self.fullness = 0.;
+        self.velocity = 0.;
+        self.target_full = false;
+        self.keyboard_hold = false;
+        self.keyboard(true, now);
+    }
     pub fn clear_directory(&mut self, now:u64) {
         if self.directory.take().is_some() { self.schedule_leave(now); }
     }
@@ -551,6 +560,15 @@ pub fn reachable_anchor(anchor: [f32; 2], geometry: Geometry, work: [f32; 4]) ->
         origin[0].clamp(work[0], (work[2] - geometry.native).max(work[0])) + geometry.gutter,
         origin[1].clamp(work[1], (work[3] - geometry.native).max(work[1])) + geometry.gutter,
     ]
+}
+
+/// Reserve the expanded native bounds on the cursor's display before showing Compact.
+pub fn summon_anchor(cursor: [f32; 2], scale: f32, work: [f32; 4]) -> [f32; 2] {
+    let full = Geometry::at(1.);
+    reachable_anchor(cursor, Geometry {
+        surface: full.surface * scale, gutter: full.gutter * scale,
+        radius: full.radius * scale, native: full.native * scale,
+    }, work)
 }
 
 #[cfg(test)]
@@ -1067,6 +1085,56 @@ mod tests {
 #[cfg(test)]
 mod shortcut_tests {
     use super::*;
+    #[test]
+    fn every_summon_restarts_compact_motion_and_preserves_business() {
+        let mut model = Model::new(0, false);
+        model.state(Stage::Downloading, 0.4, 0);
+        for now in (0..=800).step_by(16) { model.tick(now); }
+        assert_eq!(model.fullness, 1.);
+        for start in [1000, 2000] {
+            model.summon(start);
+            assert_eq!((model.fullness, model.velocity), (0., 0.));
+            assert!(model.keyboard_hold && model.target_full);
+            assert_eq!(model.stage, Stage::Downloading);
+            assert_eq!(model.progress.target, 0.4);
+            model.pointer(false, start + 1);
+            model.tick(start + 32);
+            assert!(model.fullness > 0. && model.fullness < 1.);
+            for now in (start + 48..=start + 800).step_by(16) { model.tick(now); }
+            assert_eq!(model.fullness, 1.);
+        }
+    }
+    #[test]
+    fn reduced_summon_snaps_to_full_without_resetting_terminal_retention() {
+        let mut model = Model::new(0, true);
+        model.state(Stage::Success, 1., 1);
+        model.summon(20);
+        assert_eq!(model.fullness, 1.);
+        assert!(model.keyboard_hold && model.target_full);
+        model.tick(1501);
+        assert_eq!(model.stage, Stage::Idle);
+        assert!(model.target_full);
+        model.keyboard(false, 1502);
+        model.tick(1502 + LEAVE_MS);
+        assert_eq!(model.fullness, 0.);
+    }
+    #[test]
+    fn summon_reserves_full_bounds_on_the_selected_work_area_at_each_scale() {
+        for work in [[0.,0.,1920.,1040.],[-1920.,-300.,0.,780.],[0.,-1200.,2560.,0.]] {
+            for scale in [1.,1.25,1.5,2.] {
+                for cursor in [[work[0],work[1]],[work[2]-1.,work[3]-1.],[(work[0]+work[2])/2.,(work[1]+work[3])/2.]] {
+                    let anchor = summon_anchor(cursor, scale, work);
+                    for fullness in [0.,0.25,0.5,1.] {
+                        let g = Geometry::at(fullness);
+                        let origin = [anchor[0]-g.gutter*scale,anchor[1]-g.gutter*scale];
+                        assert!(origin[0] >= work[0] && origin[1] >= work[1]);
+                        assert!(origin[0]+g.native*scale <= work[2] && origin[1]+g.native*scale <= work[3]);
+                    }
+                }
+            }
+        }
+        assert_eq!(summon_anchor([500.,400.],1.,[0.,0.,1920.,1040.]),[500.,400.]);
+    }
     #[test]
     fn keyboard_summon_survives_real_pointer_outside_until_release() {
         let mut model = Model::new(0, true);

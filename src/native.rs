@@ -18,7 +18,7 @@ use windows::{
             MonitorFromWindow,
         },
         UI::{
-            HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::GetAsyncKeyState,
+            HiDpi::{GetDpiForWindow, GetDpiForMonitor, MDT_EFFECTIVE_DPI}, Input::KeyboardAndMouse::GetAsyncKeyState,
             WindowsAndMessaging::*,
         },
     },
@@ -186,6 +186,29 @@ impl Native {
     }
     pub fn scale(&self) -> f32 {
         unsafe { GetDpiForWindow(self.hwnd) as f32 / 96. }
+    }
+    pub fn scale_at(&self, point: [f32; 2]) -> f32 {
+        let monitor = unsafe { MonitorFromPoint(POINT { x: point[0].round() as i32, y: point[1].round() as i32 }, MONITOR_DEFAULTTONEAREST) };
+        let (mut x, mut y) = (96, 96);
+        unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x, &mut y).expect("summon display DPI"); }
+        x as f32 / 96.
+    }
+    /// Finish native placement outside the borrowed GPUI Window before restoring visibility.
+    pub fn prepare_summon(&mut self, anchor: [f32; 2], scale: f32, geometry: crate::model::Geometry, cx: &App) -> gpui::Task<std::result::Result<(), String>> {
+        let rect = [(anchor[0] - geometry.gutter * scale).round() as i32,
+            (anchor[1] - geometry.gutter * scale).round() as i32,
+            (geometry.native * scale).round() as i32, (geometry.native * scale).round() as i32];
+        self.last = Some(rect);
+        self.latest.set(Some(rect));
+        let latest = self.latest.clone();
+        let research = self.research.clone();
+        let hwnd = self.hwnd;
+        cx.foreground_executor().spawn(async move {
+            if latest.get() != Some(rect) { return Err("Summon placement superseded".into()); }
+            apply_window_bounds(hwnd, rect, false, true, &research).map_err(|error| error.to_string())?;
+            research.borrow_mut().last_applied = Some(rect);
+            Ok(())
+        })
     }
     pub fn visible(&self) -> bool {
         // The toolkit visibility cache can lag an externally hidden/restored popup.

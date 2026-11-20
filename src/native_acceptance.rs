@@ -1,5 +1,5 @@
 //! Explicit debug fixture, also invoked from a test on Windows.
-use super::{Assets, Options, Prototype, download_ui, tokens};
+use super::{Assets, Options, Prototype, Native, download_ui, tokens};
 use gpui::{AppContext, Bounds, TitlebarOptions, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, point, px, size};
 use std::{borrow::Cow, io::Write, time::{Duration, Instant}};
 
@@ -64,14 +64,35 @@ pub(super) fn run() {
         })).unwrap();
         cx.spawn(async move |cx| {
             let mut opened = false;
+            let pointer_summon = std::env::var_os("AMEOW_NATIVE_POINTER_SUMMON").is_some();
+            let mut pointer_step = 0;
             let started = Instant::now();
             let mut previous = String::new();
             let mut history = std::fs::File::create(root.join("states.jsonl")).unwrap();
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
-                let stop = handle.update(cx, |view, _, cx| {
-                    if !opened && view.native.is_some() && view.downloads.as_ref().and_then(|ui|ui.settings()).is_some() {
+                let stop = handle.update(cx, |view, window, cx| {
+                    if !pointer_summon && !opened && view.native.is_some() && view.downloads.as_ref().and_then(|ui|ui.settings()).is_some() {
                         view.open_or_focus_settings(cx); opened = true;
+                    }
+                    if pointer_summon && view.native.is_some() {
+                        if let Ok(bytes) = std::fs::read(root.join("pointer-command.json")) {
+                            if let Ok(command) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                                if let Some(step) = command["step"].as_u64().filter(|step| *step > pointer_step) {
+                                    pointer_step = step;
+                                    match command["action"].as_str() {
+                                        Some("summon") => view.toggle_shortcut(window, cx),
+                                        Some("summon-interleaved") => { view.toggle_shortcut(window, cx); view.advance(window, cx); },
+                                        Some("hide") => view.hide_downloads(cx),
+                                        Some("compact") => { view.model.request_compact(view.now()); cx.notify(); },
+                                        Some("settings") => view.open_or_focus_settings(cx),
+                                        Some("reduced") => { view.model.set_reduced(true, view.now()); cx.notify(); },
+                                        Some("motion") => { view.model.set_reduced(false, view.now()); cx.notify(); },
+                                        _ => {},
+                                    }
+                                }
+                            }
+                        }
                     }
                     let ui = view.downloads.as_ref().unwrap();
                     let controls = view.settings_window.and_then(|handle| handle.update(cx, |root, window, cx| {
@@ -86,6 +107,9 @@ pub(super) fn run() {
                         "motion_reduced":view.model.reduced,
                         "hidden":ui.hidden, "queue_open":ui.queue_open,
                         "keyboard_hold":view.model.keyboard_hold, "full":view.model.target_full,
+                        "fullness":view.model.fullness, "anchor":view.anchor, "cursor":Native::cursor(),
+                        "scale":view.native.as_ref().map(Native::scale), "pointer_step":pointer_step,
+                        "positioning":view.shortcut_positioning,
                         "pointer_inside":view.model.pointer, "shortcut_registered":view.shortcut.is_active(),
                         "shortcut_error":view.shortcut.error,
                         "main_focused":view.native.as_ref().is_some_and(super::global_shortcut::focused),

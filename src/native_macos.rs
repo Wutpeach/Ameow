@@ -182,6 +182,22 @@ impl Native {
     pub fn scale(&self) -> f32 {
         1.
     }
+    pub fn scale_at(&self, _point: [f32; 2]) -> f32 { 1. }
+    pub fn prepare_summon(&mut self, anchor: [f32; 2], scale: f32, geometry: Geometry, cx: &App) -> gpui::Task<Result<(), String>> {
+        let rect = [(anchor[0] - geometry.gutter * scale).round() as i32,
+            (anchor[1] - geometry.gutter * scale).round() as i32,
+            (geometry.native * scale).round() as i32, (geometry.native * scale).round() as i32];
+        self.last = Some(rect);
+        self.latest.set(Some(rect));
+        let latest = self.latest.clone();
+        let alive = self.alive.clone();
+        let window = self.window.clone();
+        cx.foreground_executor().spawn(async move {
+            if !alive.get() || latest.get() != Some(rect) { return Err("Summon window closed or placement superseded".into()); }
+            set_bounds(&window, rect);
+            Ok(())
+        })
+    }
     pub fn set_compact(&mut self, compact: bool, cx: &App) {
         if self.compact == compact {
             return;

@@ -244,6 +244,8 @@ struct Prototype {
     shortcut: global_shortcut::Controller,
     shortcut_allowed: bool,
     _shortcut_task: Task<()>,
+    shortcut_reveal: Task<()>,
+    shortcut_positioning: bool,
     unknown_downloading: bool,
     tray: Option<tray::Tray>,
     tray_popup: Option<WindowHandle<tray_popup::TrayPopup>>,
@@ -369,6 +371,8 @@ impl Prototype {
             shortcut,
             shortcut_allowed,
             _shortcut_task: shortcut_task,
+            shortcut_reveal: Task::ready(()),
+            shortcut_positioning: false,
             unknown_downloading: options.unknown_downloading,
             tray,
             tray_popup: None,
@@ -665,7 +669,7 @@ impl Prototype {
                 _ => {}
             }
         }
-        if self.clamped_target != self.model.target_full {
+        if !self.shortcut_positioning && self.clamped_target != self.model.target_full {
             self.clamped_target = self.model.target_full;
             self.clamp_anchor(
                 if self.model.target_full {
@@ -676,9 +680,10 @@ impl Prototype {
             );
         }
         let g = self.model.geometry();
-        #[cfg(target_os = "macos")]
-        self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
-        self.native
+        if !self.shortcut_positioning {
+            #[cfg(target_os = "macos")]
+            self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
+            self.native
             .as_mut()
             .unwrap()
             .apply(
@@ -687,7 +692,8 @@ impl Prototype {
                 g.gutter,
                 cx,
             )
-            .expect("atomic native geometry");
+                .expect("atomic native geometry");
+        }
         if now >= self.last_telemetry + 8 {
             self.last_telemetry = now;
             if let Some(log) = &mut self.telemetry {

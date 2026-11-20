@@ -1677,9 +1677,39 @@ impl Prototype {
         if hide {
             self.hide_downloads(cx);
         } else {
-            self.model.keyboard(true, self.now());
-            self.focus_downloads(window, cx);
-            self.model.pointer(self.native.as_ref().is_some_and(crate::native::Native::inside), self.now());
+            let cursor = crate::native::Native::cursor();
+            let native = self.native.as_ref().unwrap();
+            let scale = native.scale_at(cursor);
+            let work = native.work_area_at(cursor);
+            self.hide_downloads(cx);
+            self.anchor = crate::model::summon_anchor(cursor, scale, work);
+            let geometry = crate::model::Geometry::at(if self.model.reduced { 1. } else { 0. });
+            // Only native geometry waits here; download and settings arbitration continue.
+            self.shortcut_positioning = true;
+            let positioned = self.native.as_mut().unwrap().prepare_summon(self.anchor, scale, geometry, cx);
+            self.shortcut_reveal = cx.spawn_in(window, async move |this, cx| {
+                let positioned = positioned.await;
+                let _ = this.update_in(cx, |this, window, cx| {
+                    this.shortcut_positioning = false;
+                    if let Err(error) = positioned {
+                        if let Some(ui) = &this.downloads { ui.evidence(serde_json::json!({"type":"summon-position-failed","error":error})); }
+                        cx.notify();
+                        return; // A later shortcut retries placement; do not present old coordinates as success.
+                    }
+                    if this.downloads.as_ref().is_none_or(|ui| ui.exit_intent.pending || ui.exit_when_stopped) { return; }
+                    let now = this.now();
+                    this.model.summon(now);
+                    this.clamped_target = true;
+                    this.spring_hover = Default::default();
+                    this.visual_offset = [0., 0.];
+                    this.focus_downloads(window, cx);
+                    this.model.pointer(this.native.as_ref().is_some_and(crate::native::Native::inside), now);
+                    if let Some(ui) = &this.downloads { ui.evidence(serde_json::json!({"type":"summon-positioned", "cursor":cursor,
+                        "anchor":this.anchor,"work":work,"scale":scale,"fullness":this.model.fullness,"reduced":this.model.reduced,
+                        "native_bounds":this.native.as_ref().map(crate::native::Native::bounds)})); }
+                    cx.notify();
+                });
+            });
         }
         cx.notify();
     }
@@ -2014,7 +2044,9 @@ impl Prototype {
         }
         content.into_any_element()
     }
-    fn hide_downloads(&mut self,cx:&mut Context<Self>) {
+    pub(super) fn hide_downloads(&mut self,cx:&mut Context<Self>) {
+        self.shortcut_reveal = gpui::Task::ready(());
+        self.shortcut_positioning = false;
         self.model.keyboard(false, self.now());
         self.end_external_drop(cx);
         self.model.clear_directory(self.now());
