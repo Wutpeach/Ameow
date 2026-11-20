@@ -77,6 +77,8 @@ components:
     layout: "video / full-width timeline / icon toolbar"
     timelineHeight: "64px"
     markerInteraction: "empty: add / marked: clear; direct edge drag"
+    markerShape: "single: full / range: inward in-out caps"
+    textSelection: "display: none / editable: native"
     controlHeight: "32px"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"

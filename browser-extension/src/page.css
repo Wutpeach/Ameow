@@ -1,4 +1,4 @@
-.ameow-peek { position:fixed!important; inset:0!important; margin:auto!important; padding:0!important; border:0!important; border-radius:12px!important; width:min(1040px,calc(100vw - 48px))!important; height:min(780px,calc(100dvh - 48px))!important; max-width:none!important; max-height:none!important; background:#000!important; color:#fff!important; overflow:hidden!important; box-shadow:0 18px 60px #0005!important; }
+.ameow-peek { -webkit-user-select:none; user-select:none; position:fixed!important; inset:0!important; margin:auto!important; padding:0!important; border:0!important; border-radius:12px!important; width:min(1040px,calc(100vw - 48px))!important; height:min(780px,calc(100dvh - 48px))!important; max-width:none!important; max-height:none!important; background:#000!important; color:#fff!important; overflow:hidden!important; box-shadow:0 18px 60px #0005!important; }
 .ameow-peek[open] { display:flex!important; flex-direction:column!important; }
 .ameow-peek::backdrop { background:rgb(0 0 0 / .64); transition:opacity 180ms ease-out; opacity:1; }
 .ameow-peek[data-closing]::backdrop { opacity:0; transition-duration:110ms; }
@@ -16,3 +16,5 @@
 @media(prefers-reduced-motion:reduce) { .ameow-peek::backdrop { transition-duration:60ms; } }
 
 .ameow-peek-player .bpx-player-render-dm-wrap { display:none!important; }
+
+.ameow-peek :is(input:not([type=range]),textarea,[contenteditable]:not([contenteditable=false])) { -webkit-user-select:text; user-select:text; }

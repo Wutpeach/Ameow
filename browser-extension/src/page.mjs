@@ -2,9 +2,12 @@ import { clipRange, formatTime, parseTime } from "./page-core.mjs";
 import styles from "./page-ui.css";
 import cat from "../../assets/brand/tray/macos/ameow-menu-bar-white.svg";
 import scissors from "./icons/scissors.svg";
+import markerIn from "./icons/marker-range-in.svg";
+import markerOut from "./icons/marker-range-out.svg";
 
 const icons = {
   select: scissors,
+  markerIn, markerOut,
   marker: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v10l-6 6-6-6V4a1 1 0 0 1 1-1Z"/></svg>',
   edit: '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>',
   focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="M9 9h6v6H9Z"/></svg>',
@@ -508,6 +511,11 @@ class PageVideoTools {
       const ms = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
       const handle = this.sliders[index];
       const position = this.trackPercent(ms);
+      const shape = valid ? (index ? "out" : "in") : "single";
+      if (handle.dataset.shape !== shape) {
+        handle.dataset.shape = shape;
+        handle.innerHTML = valid ? (index ? icons.markerOut : icons.markerIn) : icons.marker;
+      }
       handle.style.left = position + "%"; handle.hidden = this.draft[key] === null || position < 0 || position > 100;
       handle.classList.toggle("single", this.draft.start_ms === null || this.draft.end_ms === null);
       handle.setAttribute("aria-valuemax", Math.round(this.video.duration * 1000));
