@@ -31,12 +31,13 @@ try {
   });
   await page.addScriptTag({ url: origin + '/page.js' }); await page.locator('ameow-page-tools').waitFor(); await page.evaluate(() => ameowPageTools.openPeek());
   const controls = page.locator('ameow-peek-controls'); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750');
+  await controls.getByRole('button',{name:'聚焦选区',exact:true}).click();
   report.results.before = await page.evaluate(() => ({ readyState: fixtureVideo.readyState, buffered: Array.from({ length: fixtureVideo.buffered.length }, (_, i) => [fixtureVideo.buffered.start(i), fixtureVideo.buffered.end(i)]) }));
   await controls.getByRole('slider', { name: '播放位置', exact: true }).evaluate(input => { input.value = '7'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.waitForFunction(() => fixtureVideo.readyState === 1 && fixtureVideo.seeking);
   await page.waitForTimeout(1300);
-  const snapshot = () => page.evaluate(() => ({ readyState: fixtureVideo.readyState, seeking: fixtureVideo.seeking, sameNode: ameowPageTools.video === fixtureVideo, dialogOpen: !!document.querySelector('.ameow-peek[open]'), binding: ameowPageTools.binding?.key, draft: { ...ameowPageTools.draft } }));
-  report.results.buffering = await snapshot(); assert.equal(report.results.buffering.readyState, 1); assert(report.results.buffering.dialogOpen && report.results.buffering.sameNode); assert.equal(report.results.buffering.draft.start_ms, 1250);
+  const snapshot = () => page.evaluate(() => ({ readyState: fixtureVideo.readyState, seeking: fixtureVideo.seeking, sameNode: ameowPageTools.video === fixtureVideo, dialogOpen: !!document.querySelector('.ameow-peek[open]'), binding: ameowPageTools.binding?.key, draft: { ...ameowPageTools.draft }, waiting: document.querySelector('ameow-peek-controls')?.shadowRoot.querySelector('.buffering')?.textContent }));
+  report.results.buffering = await snapshot(); assert.equal(report.results.buffering.readyState, 1); assert.equal(report.results.buffering.waiting,'缓冲中…'); await page.locator('.ameow-peek').screenshot({path:join(root,'buffering.png')}); assert(report.results.buffering.dialogOpen && report.results.buffering.sameNode); assert.equal(report.results.buffering.draft.start_ms, 1250);
   await page.waitForFunction(() => fixtureVideo.readyState >= 2 && !fixtureVideo.seeking, null, { timeout: 15000 });
   report.results.recovered = await snapshot(); assert(report.results.recovered.dialogOpen && report.results.recovered.sameNode); assert.equal(report.results.recovered.draft.end_ms, 4750);
   await controls.getByRole('textbox', { name: '出点时间' }).fill('5.750'); assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isEnabled());

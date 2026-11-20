@@ -71,3 +71,12 @@ TLS证书例外仅属于显式debug app-update-fixture：固定example.com媒体
 本机默认cargo test首次有三个安装器测试失败：首个E_APP_UPDATE_INSTALL_RUNNING，其余锁中毒。store.rs的安装器注册获取全局InstanceGuard，本机存在运行实例；不为测试停止日常应用。排除这三项后的其余完整测试通过，ignored不计PASS；不以“模块旧”断言基线无缺陷。715的干净CI44579779740/check135756968881已完成success，完整默认测试与普通Release包通过；此结果不能套到快速粗切新head，后者单独跟进。
 
 本轮仅开发交付与Draft；未Ready、merge、Tag、Release、商店/官网部署或关闭Issue。产品最终手感与整合由来源继续验收。
+
+
+## 2026-11-20 试用后的 UI 增量
+
+本轮以用户截图和随后 AE/达芬奇轨道参考替代旧纯图标展开约束：28px胶囊展开146px，图标/文字分别12–13px/13px，无分隔及 title。800px Peek 使用70px单行工具栏，合并播放、I/O与下沿平移命中；聚焦选区/全片仅切换视窗，长源短区间可辨认，视窗外播放头隐藏并显示方向。系统字体在内层明确设置，窄窗紧凑折行。
+
+新增本地实际指针/布局回归 page-layout.e2e.mjs，覆盖空/单端/有效、双端拖动、独立播放头、整体平移保长度/夹边、悬停、聚焦映射/视窗外播放头、禁用和延迟 mock ACK。page-ui.e2e.mjs 记录两站 Edge/CfT 正常/Reduced、原节点/源/位置恢复、同作品草稿与换分P、桌面/窄窗、聚焦及快速往返。mock、匿名 UI-only 与私有 Native 受理证据分别报告，不互相冒充。
+
+新证据独立位于 D:/Ameow-handoffs/issue50-ui-polish-20261120；最终 head、候选混合来源身份、报告、录制及实际未验范围见该目录 REPORT.md/DELIVERY.json。各前驱目录保留当时源码摘要，不换标最终版本。后端/协议/权限源码未改，普通程序/runtime 复用准确532，旧媒体计量、认证与有限Mac证据维持原范围；新UI不继承532 CI或代码review结论。原两处tasks完成勾选为前轮文档overlay，保留待来源整合。

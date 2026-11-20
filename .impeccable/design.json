@@ -333,6 +333,12 @@
   },
   "components": [
     {
+      "name": "页面视频胶囊与 Peek",
+      "kind": "toolbar",
+      "refersTo": "page-video-toolbar / page-video-controls",
+      "description": "28px高胶囊，展开146px；12px操作图标、13px品牌图标及13px/20px系统UI字。Peek以32px控制、8px 10px边距构成单行合并轨道工具栏，窄窗折行。现值见browser-extension/src/page-ui.css，正式行为见page-video-tools。"
+    },
+    {
       "name": "标准操作",
       "kind": "button",
       "refersTo": "button-standard",

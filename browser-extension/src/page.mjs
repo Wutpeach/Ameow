@@ -7,7 +7,7 @@ const icons = {
   close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></svg>',
-  mark: '<svg viewBox="0 0 24 24"><path d="M12 4v16M5 12h14"/></svg>',
+  clear: '<svg viewBox="0 0 24 24"><path d="m9 5-6 7 6 7h11V5Z M12 9l5 6m0-6-5 6"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
 };
 const errors = {
@@ -33,7 +33,7 @@ function shadow(host, html) {
 }
 function iconButton(root, action, label, icon, className = "icon") {
   const button = document.createElement("button"); button.type = "button"; button.className = className;
-  button.dataset.action = action; button.setAttribute("aria-label", label); button.title = label; button.innerHTML = icon; root.append(button);
+  button.dataset.action = action; button.setAttribute("aria-label", label); button.innerHTML = icon; root.append(button);
   return button;
 }
 function mediaForPage(boundVideo) {
@@ -82,7 +82,7 @@ class PageVideoTools {
   }
   mount() {
     this.host = document.createElement("ameow-page-tools");
-    this.host.style.cssText = "position:absolute;top:12px;right:12px;z-index:2147483646;display:block;width:80px;height:40px;pointer-events:none";
+    this.host.style.cssText = "position:absolute;top:10px;right:10px;z-index:2147483646;display:block;width:146px;height:28px;pointer-events:none";
     this.position = this.player.style.getPropertyValue("position");
     this.positionPriority = this.player.style.getPropertyPriority("position");
     this.positionChanged = getComputedStyle(this.player).position === "static";
@@ -91,9 +91,9 @@ class PageVideoTools {
     this.root = shadow(this.host, '<div class="toolbar"><div class="capsule"></div><div class="feedback" role="status" aria-live="polite"></div></div>');
     this.toolbar = this.root.querySelector(".toolbar");
     for (const event of ["click", "pointerdown"]) this.toolbar.addEventListener(event, e => e.stopPropagation());
-    this.select = iconButton(this.toolbar, "peek", "选择片段", icons.select, "select");
+    this.select = iconButton(this.toolbar, "peek", "切片", icons.select + '<span>切片</span>', "select");
     this.select.tabIndex = -1; this.select.inert = true;
-    this.download = iconButton(this.toolbar, "download", "下载整段", cat, "download");
+    this.download = iconButton(this.toolbar, "download", "下载", '<span class="download-icon">' + cat + '</span><span class="download-label">下载</span>', "download");
     this.select.onclick = () => this.openPeek();
     this.download.onclick = () => void this.submit(null);
     this.toolbar.addEventListener("mouseenter", () => this.wake());
@@ -132,11 +132,11 @@ class PageVideoTools {
     try {
       await request("page-submit", { key: bound.key, url: bound.url, clip: range, request_id: crypto.randomUUID() });
       if (this.binding?.key !== bound.key || this.stopped) return;
-      this.toolbar.dataset.status = "accepted"; this.download.innerHTML = icons.check;
-      this.download.setAttribute("aria-label", "已加入队列"); this.download.title = "已加入队列";
+      this.toolbar.dataset.status = "accepted"; this.download.querySelector(".download-icon").innerHTML = icons.check;
+      this.download.setAttribute("aria-label", "已加入队列");
       if (this.submitButton) { this.submitButton.dataset.status = "accepted"; this.submitButton.textContent = "已加入队列"; }
       clearTimeout(this.ackTimer); this.ackTimer = setTimeout(() => {
-        if (this.download) { this.download.innerHTML = cat; this.download.setAttribute("aria-label", "下载整段"); this.download.title = "下载整段"; }
+        if (this.download) { this.download.querySelector(".download-icon").innerHTML = cat; this.download.setAttribute("aria-label", "下载"); }
         if (this.toolbar) delete this.toolbar.dataset.status;
         if (this.submitButton) { delete this.submitButton.dataset.status; this.submitButton.textContent = "下载片段"; }
         this.updateFields(); this.rest();
@@ -157,6 +157,7 @@ class PageVideoTools {
   openPeek() {
     if (!this.binding || !this.player.isConnected) return;
     if (this.dialog) return;
+    this.view = null;
     this.returnFocus = this.root.activeElement || document.activeElement;
     this.savedScroll = { left: window.scrollX, top: window.scrollY, behavior: "instant" };
     const from = this.player.getBoundingClientRect();
@@ -176,29 +177,50 @@ class PageVideoTools {
     const playing = !this.video.paused;
     this.stage.append(this.player); this.player.classList.add("ameow-peek-player"); this.video.controls = false;
     const host = document.createElement("ameow-peek-controls"); this.dialog.append(host);
-    this.controls = shadow(host, '<div class="controls"><div class="heading"><h2>选择片段</h2></div><div class="playback"><div class="timeline"><div class="band" hidden></div><input type="range" min="0" step="0.001" aria-label="播放位置"></div><span class="time"></span></div><div class="fields"><div class="selection"><div class="field"><label for="clip-in">I</label><input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off"></div><div class="field"><label for="clip-out">O</label><input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off"></div><span class="duration" aria-live="polite">设置入点和出点</span></div><div class="trim"><label>I <input type="range" min="0" step="0.001" aria-label="拖动入点"></label><label>O <input type="range" min="0" step="0.001" aria-label="拖动出点"></label></div></div><div class="actions"><button type="button" data-action="clear">清除选区</button><button type="button" class="submit" data-action="submit" disabled>下载片段</button></div><p class="note">按 I / O 标记，空格播放。按关键帧附近快速粗切。</p><p class="status" role="status" aria-live="polite"></p></div>');
-    iconButton(this.controls.querySelector(".heading"), "close", "关闭预览", icons.close).onclick = () => this.closePeek();
+    this.controls = shadow(host, '<div class="controls"><div class="control-row"><div class="playback"><div class="timeline"><div class="track"><div class="ticks" aria-hidden="true"></div><div class="rail"></div><div class="buffered" aria-hidden="true"></div><div class="band"></div><input type="range" min="0" step="0.001" aria-label="播放位置"><button type="button" class="handle in" role="slider" aria-label="拖动入点" aria-valuemin="0"></button><button type="button" class="handle out" role="slider" aria-label="拖动出点" aria-valuemin="0"></button><div class="playhead" aria-hidden="true"></div><button type="button" class="range-body" role="slider" aria-label="平移选区" aria-valuemin="0" hidden></button><output class="time-bubble" hidden></output></div><div class="track-times"><span class="time"></span><span class="buffering" role="status"></span><span class="duration" aria-live="polite"></span><button type="button" class="view-toggle" aria-label="聚焦选区" hidden>聚焦选区</button></div></div></div><div class="field"><button type="button" data-action="mark-start_ms" aria-label="将当前位置设为入点（I）">I</button><input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off" spellcheck="false"></div><div class="field"><button type="button" data-action="mark-end_ms" aria-label="将当前位置设为出点（O）">O</button><input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off" spellcheck="false"></div><div class="actions"><button type="button" class="submit" data-action="submit" disabled>下载片段</button></div></div><p class="status" role="status" aria-live="polite"></p></div>');
+    const actions = this.controls.querySelector(".actions");
+    iconButton(actions, "close", "关闭预览", icons.close).onclick = () => this.closePeek();
+    const clear = iconButton(actions, "clear", "清除选区", icons.clear); actions.prepend(clear);
     this.playButton = iconButton(this.controls.querySelector(".playback"), "play", "播放", icons.play);
     this.controls.querySelector(".playback").prepend(this.playButton);
     this.playButton.onclick = () => this.togglePlayback();
-    this.seek = this.controls.querySelector(".timeline input"); this.seek.max = this.video.duration;
+    this.seek = this.controls.querySelector('.track input'); this.seek.max = this.video.duration;
     this.seek.oninput = () => { this.video.currentTime = Number(this.seek.value); this.updatePlayback(); };
     this.inputs = [this.controls.querySelector("#clip-in"), this.controls.querySelector("#clip-out")];
-    this.sliders = [...this.controls.querySelectorAll(".trim input")];
+    this.sliders = [...this.controls.querySelectorAll(".handle")];
     for (const [index, key] of ["start_ms", "end_ms"].entries()) {
-      const input = this.inputs[index], slider = this.sliders[index]; slider.max = this.video.duration;
+      const input = this.inputs[index], handle = this.sliders[index];
       input.value = formatTime(this.draft[key]);
       input.oninput = () => { this.draft[key] = parseTime(input.value); this.updateFields(); };
       input.onchange = () => { if (this.draft[key] !== null) input.value = formatTime(this.draft[key]); };
-      slider.oninput = () => { this.setMark(key, Math.round(Number(slider.value) * 1000)); this.video.currentTime = Number(slider.value); };
-      iconButton(input.parentNode, "mark-" + key, index ? "将当前位置设为出点（O）" : "将当前位置设为入点（I）", icons.mark).onclick = () => this.setMark(key);
+      const move = value => {
+        value = Math.max(0, Math.min(Math.round(this.video.duration * 1000), value));
+        this.setMark(key, value); this.video.currentTime = value / 1000; this.showTrackTime(value, (index ? "O " : "I ") + formatTime(value)); this.updatePlayback();
+      };
+      handle.onpointerdown = e => {
+        if (e.button !== 0) return;
+        e.preventDefault(); handle.focus({ preventScroll: true }); handle.setPointerCapture(e.pointerId);
+        const track = this.controls.querySelector(".track").getBoundingClientRect();
+        const origin = e.clientX, start = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
+        this.draggingTrack = true; move(start);
+        handle.onpointermove = event => move(Math.round(start + (event.clientX - origin) / track.width * this.timeWindow().span * 1000));
+        handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = () => { handle.onpointermove = null; this.draggingTrack = false; this.hideTrackTime(); };
+      };
+      handle.onkeydown = e => {
+        const value = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
+        const delta = e.shiftKey ? 1000 : 1;
+        const next = { ArrowLeft: value - delta, ArrowDown: value - delta, ArrowRight: value + delta, ArrowUp: value + delta, Home: 0, End: Math.round(this.video.duration * 1000) }[e.key];
+        if (next !== undefined) { e.preventDefault(); move(next); }
+      };
+      this.controls.querySelector('[data-action="mark-' + key + '"]').onclick = () => this.setMark(key);
     }
+    this.setupTimeline();
     this.submitButton = this.controls.querySelector('[data-action="submit"]');
     this.submitButton.onclick = () => void this.submit({ ...this.draft });
     this.controls.querySelector('[data-action="clear"]').onclick = () => this.clearSelection();
     this.controls.addEventListener("keydown", e => { if (e.key !== "Escape") e.stopPropagation(); });
     this.keydown = e => {
-      const interactive = e.composedPath().some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable='true'],[role='button']"));
+      const interactive = e.composedPath().some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable='true'],[role='button'],[role='slider']"));
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); this.closePeek(); }
       else if (!interactive && ["i", "o", "I", "O", " "].includes(e.key)) {
         e.preventDefault(); e.stopImmediatePropagation();
@@ -209,7 +231,7 @@ class PageVideoTools {
     this.dialog.addEventListener("cancel", e => { e.preventDefault(); this.closePeek(); });
     this.dialog.addEventListener("click", e => { const r = this.dialog.getBoundingClientRect(); if (e.target === this.dialog && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) this.closePeek(); });
     this.onTime = () => this.updatePlayback();
-    for (const event of ["timeupdate", "play", "pause", "seeked", "durationchange"]) this.video.addEventListener(event, this.onTime);
+    for (const event of ["timeupdate", "play", "pause", "seeked", "seeking", "waiting", "playing", "progress", "durationchange"]) this.video.addEventListener(event, this.onTime);
     this.dialog.showModal(); this.fitPeek(); window.dispatchEvent(new Event("resize"));
     this.dialog.setAttribute("data-transition", "");
     const dialog = this.dialog;
@@ -220,6 +242,90 @@ class PageVideoTools {
     this.updateFields(); this.updatePlayback(); this.playButton.focus({ preventScroll: true });
     if (playing && this.video.paused) void this.video.play().catch(() => this.status("播放未恢复，请按播放继续。"));
   }
+  setupTimeline() {
+    const track = this.controls.querySelector(".track"), body = this.controls.querySelector(".range-body");
+    const at = x => Math.max(0, Math.min(this.video.duration * 1000, (this.timeWindow().start + (x - track.getBoundingClientRect().left) / track.clientWidth * this.timeWindow().span) * 1000));
+    track.addEventListener("pointermove", e => { if (!this.draggingTrack) this.showTrackTime(at(e.clientX)); });
+    track.addEventListener("pointerleave", () => { if (!this.draggingTrack) this.hideTrackTime(); });
+    track.addEventListener("pointerdown", e => {
+      if (e.target === track || e.target.matches(".ticks,.ticks span")) { this.video.currentTime = at(e.clientX) / 1000; this.updatePlayback(); }
+    });
+    const head = this.controls.querySelector(".playhead");
+    head.onpointerdown = e => {
+      if (e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation(); head.setPointerCapture(e.pointerId); this.seek.focus({ preventScroll: true });
+      const seekTo = x => { this.video.currentTime = at(x) / 1000; this.updatePlayback(); this.showTrackTime(at(x)); };
+      this.draggingTrack = true; seekTo(e.clientX);
+      head.onpointermove = event => seekTo(event.clientX);
+      head.onpointerup = head.onpointercancel = head.onlostpointercapture = () => { head.onpointermove = null; this.draggingTrack = false; this.hideTrackTime(); };
+    };
+    const shift = (delta, start = this.draft.start_ms, end = this.draft.end_ms) => {
+      if (start === null || end === null || end <= start) return;
+      delta = Math.max(-start, Math.min(Math.round(this.video.duration * 1000) - end, Math.round(delta)));
+      this.draft = { start_ms: start + delta, end_ms: end + delta };
+      this.inputs[0].value = formatTime(this.draft.start_ms); this.inputs[1].value = formatTime(this.draft.end_ms);
+      this.updateFields(); this.showTrackTime((this.draft.start_ms + this.draft.end_ms) / 2, formatTime(this.draft.start_ms) + " – " + formatTime(this.draft.end_ms));
+    };
+    body.onpointerdown = e => {
+      if (e.button !== 0) return;
+      e.preventDefault(); body.focus({ preventScroll: true }); body.setPointerCapture(e.pointerId);
+      const start = this.draft.start_ms, end = this.draft.end_ms, origin = e.clientX, width = track.clientWidth;
+      this.draggingTrack = true; body.setAttribute("data-dragging", "");
+      body.onpointermove = event => { if (Math.abs(event.clientX - origin) >= 3) shift((event.clientX - origin) / width * this.timeWindow().span * 1000, start, end); };
+      body.onpointerup = body.onpointercancel = body.onlostpointercapture = () => { body.onpointermove = null; this.draggingTrack = false; body.removeAttribute("data-dragging"); this.hideTrackTime(); };
+    };
+    body.onkeydown = e => {
+      const delta = e.shiftKey ? 1000 : 1;
+      const move = { ArrowLeft: -delta, ArrowDown: -delta, ArrowRight: delta, ArrowUp: delta, Home: -this.draft.start_ms, End: this.video.duration * 1000 - this.draft.end_ms }[e.key];
+      if (move !== undefined) { e.preventDefault(); shift(move); }
+    };
+    this.controls.querySelector(".view-toggle").onclick = () => {
+      if (this.view) this.view = null;
+      else {
+        const length = (this.draft.end_ms - this.draft.start_ms) / 1000, padding = Math.max(.75, length * .6);
+        const span = Math.min(this.video.duration, length + padding * 2);
+        const start = Math.max(0, Math.min(this.video.duration - span, this.draft.start_ms / 1000 - padding));
+        this.view = { start, end: start + span };
+      }
+      this.hideTrackTime(); this.updateFields(); this.updatePlayback();
+    };
+    this.seek.addEventListener("input", () => this.showTrackTime(Number(this.seek.value) * 1000));
+    this.seek.addEventListener("change", () => this.hideTrackTime());
+    this.controls.addEventListener("focusout", () => this.hideTrackTime());
+    this.renderTicks();
+  }
+  timeWindow() {
+    const start = this.view?.start ?? 0, end = this.view?.end ?? this.video.duration;
+    return { start, end, span: end - start };
+  }
+  trackPercent(ms) { const window = this.timeWindow(); return (ms / 1000 - window.start) / window.span * 100; }
+  renderTicks() {
+    if (!this.controls) return;
+    const track = this.controls.querySelector(".track"), ticks = track.querySelector(".ticks");
+    const window = this.timeWindow(), duration = window.span, width = track.clientWidth;
+    const target = duration / Math.max(1, Math.floor(width / 62));
+    const step = [1,2,5,10,15,30,60,120,300,600,1200,1800,3600,7200,14400,86400].find(n => n >= target) || duration;
+    const signature = window.start + ":" + duration + ":" + width + ":" + step;
+    if (ticks.dataset.signature === signature) return;
+    ticks.dataset.signature = signature; ticks.replaceChildren();
+    for (let time = Math.ceil(window.start / step) * step; time <= window.end; time += step) {
+      const tick = document.createElement("span"); tick.style.left = this.trackPercent(time * 1000) + "%";
+      tick.textContent = formatTime(time * 1000).replace(/\.\d{3}$/, ""); ticks.append(tick);
+    }
+  }
+  showTrackTime(ms, text = formatTime(ms)) {
+    const bubble = this.controls?.querySelector(".time-bubble"); if (!bubble) return;
+    const duration = this.draft.end_ms - this.draft.start_ms;
+    if (this.draggingTrack && duration > 0) text += " · " + formatTime(duration);
+    bubble.textContent = text; bubble.hidden = false;
+    const percent = Math.max(0, Math.min(100, this.trackPercent(ms)));
+    bubble.style.left = percent + "%";
+    const track = bubble.parentElement;
+    const half = bubble.getBoundingClientRect().width / 2;
+    const center = percent / 100 * track.clientWidth;
+    bubble.style.transform = "translateX(" + Math.max(-center, Math.min(-half, track.clientWidth - center - half * 2)) + "px)";
+  }
+  hideTrackTime() { const bubble = this.controls?.querySelector(".time-bubble"); if (bubble) bubble.hidden = true; }
   animateStage(from, to, duration) {
     this.animation?.cancel();
     if (!duration || !to.width || !to.height) return null;
@@ -239,6 +345,7 @@ class PageVideoTools {
       this.dialog.style.setProperty("width", height * this.sourceAspect + "px", "important");
       this.dialog.style.setProperty("height", height + footer + "px", "important");
     }
+    this.renderTicks();
   }
   closePeek(immediate = false) {
     if (!this.dialog || this.closing && !immediate) return;
@@ -256,7 +363,7 @@ class PageVideoTools {
     if (!this.dialog) return;
     const originalConnected = this.placeholder.isConnected;
     this.animation?.cancel(); this.animation = null;
-    for (const event of ["timeupdate", "play", "pause", "seeked", "durationchange"]) this.video.removeEventListener(event, this.onTime);
+    for (const event of ["timeupdate", "play", "pause", "seeked", "seeking", "waiting", "playing", "progress", "durationchange"]) this.video.removeEventListener(event, this.onTime);
     this.player.classList.remove("ameow-peek-player");
     if (this.savedStyle === null) this.player.removeAttribute("style"); else this.player.setAttribute("style", this.savedStyle);
     this.video.controls = this.savedControls;
@@ -281,9 +388,10 @@ class PageVideoTools {
     this.updateFields();
   }
   clearSelection() {
+    this.view = null;
     this.draft = { start_ms: null, end_ms: null };
     for (const input of this.inputs) input.value = "";
-    this.updateFields(); this.status("");
+    this.updateFields(); this.updatePlayback(); this.hideTrackTime(); this.status("");
   }
   updateFields() {
     if (!this.controls) return;
@@ -291,23 +399,57 @@ class PageVideoTools {
     try { clipRange(this.draft, this.video.duration); valid = true; } catch { /* Incomplete drafts are normal. */ }
     this.submitButton.disabled = !valid || this.pending || this.submitButton.dataset.status === "accepted";
     const duration = this.controls.querySelector(".duration");
-    duration.textContent = valid ? formatTime(this.draft.end_ms - this.draft.start_ms) : "设置有效的入点和出点";
+    duration.textContent = valid ? formatTime(this.draft.end_ms - this.draft.start_ms) : "";
     for (const [index, key] of ["start_ms", "end_ms"].entries()) {
-      this.sliders[index].value = (this.draft[key] ?? (index ? this.video.duration * 1000 : 0)) / 1000;
+      const ms = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
+      const handle = this.sliders[index];
+      const position = this.trackPercent(ms);
+      handle.style.left = position + "%"; handle.hidden = position < 0 || position > 100;
+      handle.setAttribute("aria-valuemax", Math.round(this.video.duration * 1000));
+      handle.setAttribute("aria-valuenow", ms);
+      handle.setAttribute("aria-valuetext", this.draft[key] === null ? "未设置" : formatTime(ms));
+      handle.toggleAttribute("data-unset", this.draft[key] === null);
       const value = this.draft[key];
       const reversed = this.draft.start_ms !== null && this.draft.end_ms !== null && this.draft.end_ms <= this.draft.start_ms;
       this.inputs[index].setAttribute("aria-invalid", this.inputs[index].value && (value === null || value > this.video.duration * 1000 || reversed) ? "true" : "false");
     }
-    const band = this.controls.querySelector(".band"); band.hidden = false; band.style.opacity = valid ? ".22" : "0";
-    if (valid) { band.style.left = this.draft.start_ms / (this.video.duration * 10) + "%"; band.style.right = 100 - this.draft.end_ms / (this.video.duration * 10) + "%"; }
+    const toggle = this.controls.querySelector(".view-toggle"); toggle.hidden = !valid && !this.view;
+    toggle.textContent = this.view ? "全片" : "聚焦选区"; toggle.setAttribute("aria-label", this.view ? "显示全片" : "聚焦选区");
+    const window = this.timeWindow(); this.seek.min = window.start; this.seek.max = window.end;
+    const band = this.controls.querySelector(".band"); band.style.opacity = valid ? ".22" : "0";
+    const body = this.controls.querySelector(".range-body"); body.hidden = !valid;
+    this.controls.querySelector(".track").toggleAttribute("data-selection", valid);
+    if (valid) {
+      const left = Math.max(0, this.trackPercent(this.draft.start_ms)), right = Math.min(100, this.trackPercent(this.draft.end_ms));
+      body.hidden = right <= left; band.hidden = right <= left;
+      body.style.left = (left + right) / 2 + "%"; body.style.width = (right - left) + "%";
+      band.style.left = left + "%"; band.style.right = 100 - right + "%";
+      body.setAttribute("aria-valuenow", this.draft.start_ms); body.setAttribute("aria-valuemax", this.video.duration * 1000 - (this.draft.end_ms - this.draft.start_ms));
+      body.setAttribute("aria-valuetext", formatTime(this.draft.start_ms) + " – " + formatTime(this.draft.end_ms));
+    } else band.hidden = true;
+    this.renderTicks();
   }
+
   updatePlayback() {
     if (!this.controls) return;
     if (this.controls.activeElement !== this.seek) this.seek.value = this.video.currentTime;
     this.playButton.innerHTML = this.video.paused ? icons.play : icons.pause;
     this.playButton.setAttribute("aria-label", this.video.paused ? "播放" : "暂停");
-    this.playButton.title = this.video.paused ? "播放" : "暂停";
-    this.controls.querySelector(".time").textContent = formatTime(this.video.currentTime * 1000) + " / " + formatTime(this.video.duration * 1000);
+    this.renderTicks();
+    const position = this.trackPercent(this.video.currentTime * 1000), head = this.controls.querySelector(".playhead");
+    head.hidden = position < 0 || position > 100; head.style.left = position + "%";
+    const waiting = this.video.seeking || !this.video.paused && this.video.readyState < 3;
+    this.controls.querySelector(".buffering").textContent = waiting ? "缓冲中…" : "";
+    const buffered = this.controls.querySelector(".buffered"); buffered.replaceChildren();
+    for (let i = 0; i < this.video.buffered.length; i++) {
+      const left = Math.max(0, this.trackPercent(this.video.buffered.start(i) * 1000)), right = Math.min(100, this.trackPercent(this.video.buffered.end(i) * 1000));
+      if (right <= left) continue;
+      const span = document.createElement("span"); span.style.left = left + "%";
+      span.style.width = (right - left) + "%"; buffered.append(span);
+    }
+    const time = this.controls.querySelector(".time");
+    time.textContent = (position < 0 ? "◀ " : position > 100 ? "▶ " : "") + formatTime(this.video.currentTime * 1000) + " / " + formatTime(this.video.duration * 1000);
+    time.setAttribute("aria-label", position < 0 ? "播放位置在视窗之前" : position > 100 ? "播放位置在视窗之后" : "播放位置");
   }
   unbind() {
     this.closePeek(true);

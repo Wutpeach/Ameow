@@ -60,8 +60,8 @@ try {
     await popup.getByRole('button', { name: '启用页面工具' }).click(); await popup.getByRole('button', { name: '关闭页面工具' }).waitFor(); await popup.close(); await page.bringToFront();
     await page.setViewportSize({ width: 1441, height: 1000 }); await page.setViewportSize({ width: 1440, height: 1000 });
     const toolbar = page.locator('ameow-page-tools'); await toolbar.waitFor({ timeout: 20000 });
-    await toolbar.getByRole('button', { name: '下载整段', exact: true }).hover(); await pause(240);
-    const select = toolbar.getByRole('button', { name: '选择片段' }); const box = await select.boundingBox(); await page.mouse.click(box.x + 20, box.y + 20);
+    await toolbar.getByRole('button', { name: '下载', exact: true }).hover(); await pause(240);
+    const select = toolbar.getByRole('button', { name: '切片' }); const box = await select.boundingBox(); await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     const controls = page.locator('ameow-peek-controls');
     await controls.getByRole('textbox', { name: '入点时间' }).fill('0:01.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('0:04.750');
     await controls.getByRole('button', { name: '下载片段', exact: true }).click();
@@ -78,7 +78,7 @@ try {
     assert.deepEqual(done.accepted.intent.clip, { start_ms: 1250, end_ms: 4750 });
     assert.equal(done.phase, 'Success', 'public clip delivered by the production verifier');
     if (brand === 'edge' && site === 'youtube') {
-      const full = toolbar.getByRole('button', { name: '下载整段', exact: true });
+      const full = toolbar.getByRole('button', { name: '下载', exact: true });
       await full.click();
       await toolbar.getByRole('button', { name: '已加入队列', exact: true }).waitFor({ timeout: 45000 });
       const acceptedFull = command('list').result.jobs.at(-1);

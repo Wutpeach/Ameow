@@ -66,6 +66,17 @@ spacing:
   xl: "24px"
   xxl: "32px"
 components:
+  page-video-toolbar:
+    height: "28px"
+    expandedWidth: "146px"
+    iconSize: "12px"
+    brandIconSize: "13px"
+    typography: "{typography.body}"
+    rounded: "{rounded.circle}"
+  page-video-controls:
+    controlHeight: "32px"
+    desktopPadding: "8px 10px"
+    typography: "{typography.body}"
   button-standard:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.primary-text-light}"
