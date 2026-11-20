@@ -144,6 +144,7 @@ struct Projection {
     shortcut: Option<ameow_next::shortcut::ShortcutPreference>,
     shortcut_error: Option<String>,
     shortcut_pending: bool,
+    shortcut_failed_save: bool,
     queue: Option<std::sync::Arc<ameow_next::download::queue::QueueSnapshot>>,
     preparation_retry_available: bool,
     preparation_copy_pending: bool,
@@ -170,6 +171,7 @@ impl Projection {
             shortcut: ui.and_then(|ui| ui.settings()).map(|settings| settings.shortcut),
             shortcut_error: main.shortcut.error.clone(),
             shortcut_pending: main.shortcut.is_pending(),
+            shortcut_failed_save: ui.is_some_and(|ui| ui.shortcut_save_failed()),
             preferences: ui
                 .and_then(|ui| ui.settings())
                 .map(|s| (s.theme, s.language, s.tray_icon)),
@@ -285,6 +287,7 @@ impl SettingsWindow {
             "shortcut":self.projection.shortcut, "shortcut_error":self.projection.shortcut_error,
             "shortcut_recording":self.shortcut_recording, "shortcut_draft":self.shortcut_draft,
             "shortcut_notice":self.shortcut_notice,
+            "shortcut_failed_save":self.projection.shortcut_failed_save,
             "shortcut_saving":self.projection.shortcut_pending,
             "shortcut_saved":self.copy_feedback.contains_key("shortcut"),
             "shortcut_repair_focused":self.control_focus.borrow().get("shortcut-repair").is_some_and(|focus| focus.is_focused(window)),
@@ -704,7 +707,7 @@ impl SettingsWindow {
         } else {
             match &self.projection.status {
                 SettingsStatus::Saving if !self.projection.shortcut_pending => Some((l.text("正在保存…", "Saving…").into(), false)),
-                SettingsStatus::Failed(message) if !matches!(self.projection.shortcut_error.as_deref(), Some("save" | "save-restore")) => Some((settings_message(l, message), true)),
+                SettingsStatus::Failed(message) if !self.projection.shortcut_failed_save => Some((settings_message(l, message), true)),
                 _ => None,
             }
         };

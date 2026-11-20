@@ -90,6 +90,7 @@ pub struct DownloadUi {
     pub startup_error: Option<String>,
     pub settings_pending: bool,
     pub settings_status: SettingsStatus,
+    settings_from_shortcut: bool,
     directory_drop_pending: bool,
     acknowledged_settings: Option<Settings>,
     pub queue_open: bool,
@@ -313,6 +314,7 @@ impl DownloadUi {
         self.sync_exit_issue();
         self.startup_error = None;
         self.settings_status = SettingsStatus::Idle;
+        self.settings_from_shortcut = false;
         self.settings_pending = scene.surface == "menu" && scene.state == "saving";
         self.directory_drop_pending = false;
         self.row_notices.clear();
@@ -385,6 +387,7 @@ impl DownloadUi {
             startup_error: None,
             settings_pending: false,
             settings_status: SettingsStatus::Idle,
+            settings_from_shortcut: false,
             directory_drop_pending: false,
             acknowledged_settings: None,
             queue_open: false,
@@ -543,6 +546,7 @@ impl DownloadUi {
     pub fn request_preferences(&mut self, theme: ThemePreference, language: LanguagePreference, now: u64) -> bool {
         if self.settings_pending { return false; }
         let Some(mut settings) = self.settings() else {
+            self.settings_from_shortcut = false;
             self.settings_status = SettingsStatus::Failed("下载设置尚未就绪，请稍后重试".into());
             return false;
         };
@@ -553,6 +557,7 @@ impl DownloadUi {
     pub fn request_tray_icon(&mut self, tray_icon: TrayIconPreference, now: u64) -> bool {
         if self.settings_pending { return false; }
         let Some(mut settings) = self.settings() else {
+            self.settings_from_shortcut = false;
             self.settings_status = SettingsStatus::Failed("下载设置尚未就绪，请稍后重试".into());
             return false;
         };
@@ -563,9 +568,15 @@ impl DownloadUi {
         if self.settings_pending { return false; }
         let Some(mut settings) = self.settings() else { return false; };
         settings.shortcut = shortcut;
-        self.request_settings(settings, now)
+        let admitted = self.request_settings(settings, now);
+        self.settings_from_shortcut = true;
+        admitted
+    }
+    pub fn shortcut_save_failed(&self) -> bool {
+        self.settings_from_shortcut && matches!(self.settings_status, SettingsStatus::Failed(_))
     }
     fn request_settings(&mut self, settings:Settings, now:u64) -> bool {
+        self.settings_from_shortcut = false;
         self.settings_pending=self.send(QueueCommand::SaveSettings(settings),now);
         self.settings_status=if self.settings_pending {SettingsStatus::Saving} else {SettingsStatus::Failed("保存未受理，请稍后重试".into())};
         self.settings_pending
@@ -573,6 +584,7 @@ impl DownloadUi {
     pub fn request_output_directory(&mut self, path:PathBuf, now:u64) -> bool {
         if self.settings_pending {return false;}
         let Some(mut settings)=self.settings() else {
+            self.settings_from_shortcut = false;
             self.settings_status=SettingsStatus::Failed("下载设置尚未就绪，请稍后重试".into());return false;
         };
         // Use the current ACK after a possibly long-lived native picker.
@@ -4050,19 +4062,50 @@ mod shortcut_settings_tests {
         assert_eq!(requested, Settings { shortcut: preference.clone(), ..old.clone() });
         ui.complete_settings(CommandReply::Error("owned write failure".into()), 3);
         assert_eq!(ui.settings(), Some(old.clone()));
+        assert!(ui.shortcut_save_failed());
         assert!(ui.request_shortcut(preference, 4));
         let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("save command") };
         ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 5);
+        assert!(!ui.shortcut_save_failed());
         assert_eq!(ui.settings(), Some(requested.clone()));
         assert!(!ui.settings_pending);
         let clear = ameow_next::shortcut::ShortcutPreference { chord: None };
         assert!(ui.request_shortcut(clear.clone(), 6));
         let _ = receiver.try_recv().unwrap();
         ui.complete_settings(CommandReply::Error("owned clear failure".into()), 7);
+        assert!(ui.shortcut_save_failed());
         assert_eq!(ui.settings(), Some(requested));
         assert!(ui.request_shortcut(clear, 8));
         let QueueCommand::SaveSettings(cleared) = receiver.try_recv().unwrap() else { panic!("clear command") };
         ui.complete_settings(CommandReply::SettingsSaved(cleared), 9);
         assert!(ui.settings().unwrap().shortcut.chord.is_none());
+    }
+    #[test]
+    fn shortcut_failure_source_survives_editing_and_does_not_hide_other_settings_failures() {
+        let (commands, receiver) = mpsc::sync_channel(2);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.acknowledged_settings = Some(Settings { quality: Quality::Saver, output_dir: PathBuf::from("owned-output"),
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() });
+        assert!(ui.request_shortcut(ameow_next::shortcut::ShortcutPreference { chord: None }, 1));
+        let _ = receiver.try_recv().unwrap();
+        ui.complete_settings(CommandReply::Error("owned shortcut failure".into()), 2);
+        assert!(ui.shortcut_save_failed());
+        let mut registration = crate::global_shortcut::Controller::default();
+        registration.error = Some("save".into());
+        registration.suspend(); registration.resume(); // Editing may clear registration error, not save provenance.
+        assert!(registration.error.is_none());
+        assert!(ui.shortcut_save_failed());
+        assert!(ui.request_preferences(ThemePreference::Dark, LanguagePreference::English, 3));
+        let _ = receiver.try_recv().unwrap();
+        ui.complete_settings(CommandReply::Error("owned other settings failure".into()), 4);
+        assert!(matches!(ui.settings_status, super::SettingsStatus::Failed(_)));
+        assert!(!ui.shortcut_save_failed());
+        drop(receiver);
+        assert!(!ui.request_shortcut(ameow_next::shortcut::ShortcutPreference { chord: None }, 5));
+        assert!(ui.shortcut_save_failed());
+        assert!(!ui.request_preferences(ThemePreference::Dark, LanguagePreference::English, 6));
+        assert!(!ui.shortcut_save_failed());
     }
 }
