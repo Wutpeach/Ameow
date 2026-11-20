@@ -293,6 +293,11 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let shortcut_owner = cx.entity().downgrade();
+        window.on_window_should_close(cx, move |_, cx| {
+            let _ = shortcut_owner.update(cx, |this, cx| this.finish_shortcut(cx));
+            true
+        });
         if !cx.has_global::<SettingsKeyBindings>() {
             cx.bind_keys([
                 KeyBinding::new("tab", TabForward, Some("AmeowSettings")),
@@ -338,10 +343,10 @@ impl SettingsWindow {
         control_focus.insert("shortcut-record", shortcut_focus.clone());
         let shortcut_subscriptions = vec![
             cx.on_focus_out(&shortcut_focus, window, |this, _, _, cx| {
-                if this.shortcut_recording { this.cancel_shortcut(cx); }
+                this.finish_shortcut(cx);
             }),
             cx.observe_window_activation(window, |this, window, cx| {
-                if !window.is_window_active() { this.cancel_shortcut(cx); }
+                if !window.is_window_active() { this.finish_shortcut(cx); }
             }),
             cx.on_release(|this, cx| {
                 let _ = this.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
@@ -1033,7 +1038,7 @@ impl SettingsWindow {
         let (container, focus) = self.control_container(id, enabled, cx);
         let button = gpui_base::Button::new(id)
             .when(id == "shortcut-record", |button| button.accessibility_label(
-                self.projection.language.text("修改呼出快捷键", "Change summon shortcut")))
+                self.shortcut_accessibility_label()))
             .track_focus(&focus)
             .disabled(!enabled)
             .flex_none()
@@ -1051,7 +1056,7 @@ impl SettingsWindow {
             .when(style == ButtonStyle::Menu, |s| s.w_full().justify_start())
             .rounded(px(tokens::CONTROL_RADIUS))
             .border_1()
-            .border_color(if quiet {
+            .border_color(if quiet || id == "shortcut-record" {
                 transparent_black()
             } else {
                 p.control_border()
@@ -1120,7 +1125,7 @@ impl SettingsWindow {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
-                    this.cancel_shortcut(cx);
+                    this.finish_shortcut(cx);
                     this.notices_open = false;
                     this.component_menu_open = false;
                     this.help_open = None;
@@ -1132,7 +1137,7 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
-                this.cancel_shortcut(cx);
+                this.finish_shortcut(cx);
                 this.notices_open = false;
                 this.component_menu_open = false;
                 this.help_open = None;
@@ -1578,11 +1583,11 @@ impl Render for SettingsWindow {
             .id("settings-root")
             .key_context("AmeowSettings")
             .on_action(cx.listener(|this, _: &TabForward, window, cx| {
-                if this.shortcut_recording { this.cancel_shortcut(cx); }
+                this.finish_shortcut(cx);
                 this.move_focus(false, window, cx); cx.stop_propagation();
             }))
             .on_action(cx.listener(|this, _: &TabBackward, window, cx| {
-                if this.shortcut_recording { this.cancel_shortcut(cx); }
+                this.finish_shortcut(cx);
                 this.move_focus(true, window, cx); cx.stop_propagation();
             }))
             .relative()
@@ -1653,13 +1658,6 @@ impl Render for SettingsWindow {
                     cx.stop_propagation();
                 }
             }))
-            .capture_key_up(cx.listener(|this, event: &KeyUpEvent, _, cx| {
-                if this.shortcut_recording && this.shortcut_draft.as_ref().is_some_and(|chord| chord.key.eq_ignore_ascii_case(&event.keystroke.key)) {
-                    this.shortcut_recording = false;
-                    let _ = this.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
-                    cx.notify(); cx.stop_propagation();
-                }
-            }))
             .child(
                 div()
                     .relative().w(px(144.))
@@ -1716,7 +1714,7 @@ impl Render for SettingsWindow {
                                 l.text("关闭设置", "Close settings"),
                                 true,
                                 cx,
-                                |_, window, _| window.remove_window(),
+                                |this, window, cx| { this.finish_shortcut(cx); window.remove_window(); },
                             )))),
                     )
                     .child(

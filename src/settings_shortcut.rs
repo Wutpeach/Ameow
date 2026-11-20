@@ -12,6 +12,22 @@ impl SettingsWindow {
         }
         cx.notify();
     }
+    pub(super) fn finish_shortcut(&mut self, cx: &mut Context<Self>) {
+        if !self.shortcut_recording && self.shortcut_draft.is_none() { return; }
+        self.shortcut_recording = false;
+        if let Some(chord) = self.shortcut_draft.take() {
+            self.save_shortcut(ShortcutPreference { chord: Some(chord) }, cx);
+        } else {
+            let _ = self.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
+            cx.notify();
+        }
+    }
+    pub(super) fn shortcut_accessibility_label(&self) -> String {
+        let l = self.projection.language;
+        let value = self.shortcut_draft.as_ref().or_else(|| self.projection.shortcut.as_ref().and_then(|p| p.chord.as_ref()))
+            .map(|chord| chord.accessible_label()).unwrap_or_else(|| l.text("未设置", "Not set").into());
+        format!("{}: {value}", l.text("修改呼出快捷键", "Change summon shortcut"))
+    }
     fn begin_shortcut(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.projection.pending || self.picker_pending { return; }
         self.shortcut_recording = true; self.shortcut_draft = None; self.shortcut_notice = None;
@@ -28,19 +44,24 @@ impl SettingsWindow {
         }
         if !self.shortcut_recording { return false; }
         if event.keystroke.key == "tab" {
-            self.cancel_shortcut(cx); self.move_focus(event.keystroke.modifiers.shift, window, cx); return true;
+            self.finish_shortcut(cx); self.move_focus(event.keystroke.modifiers.shift, window, cx); return true;
         }
         if event.is_held { return true; }
         if matches!(event.keystroke.key.as_str(), "control" | "ctrl" | "alt" | "shift" | "cmd" | "super" | "win" | "fn") { return true; }
         match crate::global_shortcut::record(event) {
             Ok(chord) => { self.shortcut_draft = Some(chord); self.shortcut_notice = None; }
-            Err(error) => self.shortcut_notice = Some(error),
+            Err(error) => { self.shortcut_draft = None; self.shortcut_notice = Some(error); }
         }
         cx.notify(); true
     }
     fn save_shortcut(&mut self, preference: ShortcutPreference, cx: &mut Context<Self>) {
-        if self.projection.preview || self.projection.pending || self.picker_pending { return; }
+        if self.projection.preview { self.cancel_shortcut(cx); return; }
         self.shortcut_recording = false;
+        self.shortcut_draft = None;
+        if self.projection.pending || self.picker_pending {
+            let _ = self.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
+            self.shortcut_notice = Some("busy".into()); cx.notify(); return;
+        }
         let result = self.main.update(cx, |main, cx| {
             if !main.shortcut_allowed { return Err("busy".to_owned()); }
             let result = main.shortcut.prepare(preference.clone()).and_then(|()| {
@@ -67,26 +88,22 @@ impl SettingsWindow {
         } else { combo.map(|chord| chord.label()).unwrap_or_else(|| l.text("未设置", "Not set").into()) };
         let recorder = self.button("shortcut-record", label, enabled, ButtonStyle::Standard, cx,
             |this, window, cx| this.begin_shortcut(window, cx));
-        let editing = self.shortcut_recording || self.shortcut_draft.is_some();
-        let controls = div().flex().items_center().gap(px(12.)).child(recorder)
-            .when(preference.chord.is_some() && !editing, |s| s.child(self.button("shortcut-clear", l.text("清空", "Clear"),
-                enabled, ButtonStyle::Quiet, cx, |this, _, cx| this.save_shortcut(ShortcutPreference { chord: None }, cx))));
-        let mut actions = div().flex().justify_end().items_center().gap(px(12.));
-        if editing {
-            actions = actions.child(self.button("shortcut-apply", l.text("应用", "Apply"),
-                enabled && !self.shortcut_recording && self.shortcut_draft.is_some(), ButtonStyle::Standard, cx,
-                |this, _, cx| {
-                    let preference = ShortcutPreference { chord: this.shortcut_draft.clone() };
-                    this.save_shortcut(preference, cx);
-                })).child(self.button("shortcut-cancel", l.text("取消", "Cancel"), enabled, ButtonStyle::Quiet, cx,
-                    |this, _, cx| this.cancel_shortcut(cx)));
-        }
+        let clear = self.icon_button("shortcut-clear", "icons/x.svg",
+            l.text("清空呼出快捷键", "Clear summon shortcut"), enabled, cx,
+            |this, window, cx| {
+                this.save_shortcut(ShortcutPreference { chord: None }, cx);
+                if let Some(focus) = this.control_focus.borrow().get("shortcut-record") { window.focus(focus, cx); }
+            });
+        let controls = div().flex().items_center().rounded(px(tokens::CONTROL_RADIUS))
+            .border_1().border_color(p.control_border()).child(recorder)
+            .when(combo.is_some(), |s| s.child(div()
+                // Keep recorder focus until clear handles the click, so blur cannot save its draft first.
+                .capture_any_mouse_down(|_, window, _| window.prevent_default()).child(clear)));
         let error = self.shortcut_notice.as_ref().or(self.projection.shortcut_error.as_ref());
         div().mt(px(24.)).flex().flex_col().gap(px(8.))
             .child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM).child(l.text("快捷键", "Shortcut")))
             .child(div().min_h(px(44.)).flex().items_center().justify_between().gap(px(12.))
                 .child(div().child(l.text("呼出／隐藏 Ameow", "Show / hide Ameow"))).child(controls))
-            .when(editing, |s| s.child(actions))
             .when(self.projection.shortcut_pending, |s| s.child(div().text_size(px(12.)).text_color(p.neutral)
                 .child(l.text("正在保存…", "Saving…"))))
             .when_some(error, |s, error| s.child(div().text_size(px(12.)).text_color(error_text(p))

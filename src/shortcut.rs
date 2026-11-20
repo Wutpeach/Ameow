@@ -62,11 +62,23 @@ impl ShortcutChord {
         }
     }
     pub fn label(&self) -> String {
+        if self.platform == ShortcutPlatform::Macos {
+            let mut label = String::new();
+            if self.control { label.push('⌃'); }
+            if self.alt { label.push('⌥'); }
+            if self.shift { label.push('⇧'); }
+            if self.command { label.push('⌘'); }
+            label.push_str(&self.key.to_ascii_uppercase());
+            return label;
+        }
+        self.accessible_label().replace("Control", "Ctrl")
+    }
+    pub fn accessible_label(&self) -> String {
         let mut parts = Vec::new();
-        if self.control { parts.push("Ctrl".to_owned()); }
+        if self.control { parts.push("Control".to_owned()); }
         if self.alt { parts.push(if self.platform == ShortcutPlatform::Macos { "Option" } else { "Alt" }.to_owned()); }
         if self.shift { parts.push("Shift".to_owned()); }
-        if self.command { parts.push("Cmd".to_owned()); }
+        if self.command { parts.push("Command".to_owned()); }
         parts.push(self.key.to_ascii_uppercase());
         parts.join("+")
     }
@@ -90,7 +102,8 @@ mod tests {
     fn default_is_control_shift_f_and_an_explicit_empty_choice_stays_disabled() {
         let preference = ShortcutPreference::default();
         let default = preference.chord.as_ref().unwrap();
-        assert_eq!(default.label(), "Ctrl+Shift+F");
+        assert_eq!(default.label(), if cfg!(target_os = "macos") { "⌃⇧F" } else { "Ctrl+Shift+F" });
+        assert_eq!(default.accessible_label(), "Control+Shift+F");
         assert_eq!(default.platform, ShortcutPlatform::current());
         assert!(preference.validate().is_ok());
         let cleared = ShortcutPreference { chord: None };
@@ -111,5 +124,16 @@ mod tests {
         assert_eq!(c.validate(), Err("reserved"));
         c.alt = true; c.key_code = 0x57;
         assert!(c.validate().is_err());
+    }
+    #[test]
+    fn platform_display_keeps_modifier_meanings_and_readable_accessibility_names() {
+        let mut c = chord(); c.shift = true;
+        assert_eq!(c.label(), "Ctrl+Alt+Shift+F9");
+        c.platform = ShortcutPlatform::Macos; c.key_code = 101;
+        assert_eq!(c.label(), "⌃⌥⇧F9");
+        c.command = true;
+        assert_eq!(c.label(), "⌃⌥⇧⌘F9");
+        assert_eq!(c.accessible_label(), "Control+Option+Shift+Command+F9");
+        assert!(c.control && c.alt && c.shift && c.command);
     }
 }

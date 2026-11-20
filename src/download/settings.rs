@@ -186,7 +186,7 @@ mod shortcut_tests {
             theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() };
         fs::write(&path, serde_json::json!({"quality":"Balanced","output_dir":root.path()}).to_string()).unwrap();
         let loaded = Settings::load(&path, defaults.clone()).unwrap();
-        assert_eq!(loaded.shortcut.chord.unwrap().label(), "Ctrl+Shift+F");
+        assert_eq!(loaded.shortcut.chord.unwrap().accessible_label(), "Control+Shift+F");
         let cleared = Settings { shortcut: crate::shortcut::ShortcutPreference { chord: None }, ..defaults.clone() };
         let saved = cleared.persist(&path).unwrap();
         assert!(saved.shortcut.chord.is_none());
