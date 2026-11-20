@@ -17,12 +17,12 @@ rights.
 | Material | Version | Observed license material |
 | --- | --- | --- |
 | Astral python-build-standalone CPython | 3.13.18+20261110, Apple Silicon `install_only` | CPython `python/lib/python3.13/LICENSE.txt`; the archive also includes pip 26.3 and its vendored license files, preserved in the companion text. Additional bundled native library notices and complete source correspondence remain to be inventoried. |
-| gallery-dl | 1.32.19 wheel | GPL-2.0-only; `gallery_dl-1.32.19.dist-info/licenses/LICENSE`. |
-| requests | 2.32.5 wheel | Apache-2.0; `requests-2.32.5.dist-info/licenses/LICENSE`. |
-| idna | 3.10 wheel | BSD 3-Clause; `idna-3.10.dist-info/LICENSE.md`. |
-| urllib3 | 2.5.0 wheel | MIT; `urllib3-2.5.0.dist-info/licenses/LICENSE.txt`. |
-| charset-normalizer | 3.4.3 wheel | MIT; `charset_normalizer-3.4.3.dist-info/licenses/LICENSE`. |
-| certifi | 2026.2.25 wheel | MPL-2.0; `certifi-2026.2.25.dist-info/licenses/LICENSE`. |
+| gallery-dl | 1.32.20 wheel | GPL-2.0-only; `gallery_dl-1.32.20.dist-info/licenses/LICENSE`. |
+| requests | 2.34.2 wheel | Apache-2.0; `requests-2.34.2.dist-info/licenses/LICENSE`. |
+| idna | 3.20 wheel | BSD 3-Clause; `idna-3.20.dist-info/LICENSE.md`. |
+| urllib3 | 2.8.0 wheel | MIT; `urllib3-2.8.0.dist-info/licenses/LICENSE.txt`. |
+| charset-normalizer | 3.5.2 wheel | MIT; `charset_normalizer-3.5.2.dist-info/licenses/LICENSE`. |
+| certifi | 2026.10.23 wheel | MPL-2.0; `certifi-2026.10.23.dist-info/licenses/LICENSE`. |
 | Martin Riedl FFmpeg and ffprobe | 9.0.2, macOS arm64 release created 2026-09-20 | Both report GPL-3.0-or-later; their separately downloaded ZIPs contain only the respective executable. The GPLv3 text follows in the offline notice. The publisher's build configuration enables GPL, version 3 and OpenSSL; bundled libraries have their own licenses and exact corresponding-source obligations still need review. |
 
 The fixed publisher release and dependency report are:

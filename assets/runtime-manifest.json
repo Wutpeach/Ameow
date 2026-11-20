@@ -4,37 +4,37 @@
   "components": [
     {
       "name": "yt-dlp",
-      "version": "2026.08.19",
-      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
-      "bytes": 17840399,
-      "sha256": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A",
+      "version": "2026.10.26",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe",
+      "bytes": 23575744,
+      "sha256": "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D",
       "license": "GPL-3.0-or-later (official bundled executable); repository Unlicense; bundled EJS 0.8.0 Unlicense with ISC/MIT third-party notices",
-      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.08.19",
+      "source": "https://github.com/yt-dlp/yt-dlp/tree/2026.10.26",
       "files": [
         {
           "archive_path": null,
           "name": "yt-dlp.exe",
-          "sha256": "66674953FE251B89F4D08C5F0E35E0728679BD67AB3D7D05C0562AF101DD3E7A",
+          "sha256": "F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D",
           "probe": "--version",
-          "version_contains": "2026.08.19"
+          "version_contains": "2026.10.26"
         }
       ]
     },
     {
       "name": "deno",
-      "version": "2.9.7",
-      "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
-      "bytes": 42630221,
-      "sha256": "A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238",
+      "version": "2.9.8",
+      "url": "https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip",
+      "bytes": 42917472,
+      "sha256": "CBA84B26E0DF5AE7F74FC66B86A95B866872A86292EBD84FA1E959927EDD93BF",
       "license": "MIT",
-      "source": "https://github.com/denoland/deno/tree/v2.9.7",
+      "source": "https://github.com/denoland/deno/tree/v2.9.8",
       "files": [
         {
           "archive_path": "deno.exe",
           "name": "deno.exe",
-          "sha256": "E020F3E232BD16E33768DEE528E5983349C962952051CED0A5D58AD42F5D9B33",
+          "sha256": "924397800533D3EB0ED0C889B20AD70E18B970D93ACD8135BC043F425E528266",
           "probe": "--version",
-          "version_contains": "deno 2.9.7"
+          "version_contains": "deno 2.9.8"
         }
       ]
     },
@@ -65,19 +65,19 @@
     },
     {
       "name": "gallery-dl",
-      "version": "1.32.19",
-      "url": "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.19/gallery-dl.exe",
-      "bytes": 22627366,
-      "sha256": "4DDA3F14EFBC8A8E616AF1FC7E1E88D795995326B47692453E620117254DEC18",
+      "version": "1.32.20",
+      "url": "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.20/gallery-dl.exe",
+      "bytes": 22639307,
+      "sha256": "E14E498E0D95A216B3019B4F899D813EBB322868052F4F0ECFA3A0600DEB84B0",
       "license": "GPL-2.0-only; standalone bundled dependencies retain their licenses",
-      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.19",
+      "source": "https://github.com/mikf/gallery-dl/tree/v1.32.20",
       "files": [
         {
           "archive_path": null,
           "name": "gallery-dl.exe",
-          "sha256": "4DDA3F14EFBC8A8E616AF1FC7E1E88D795995326B47692453E620117254DEC18",
+          "sha256": "E14E498E0D95A216B3019B4F899D813EBB322868052F4F0ECFA3A0600DEB84B0",
           "probe": "--version",
-          "version_contains": "1.32.19"
+          "version_contains": "1.32.20"
         }
       ]
     }
