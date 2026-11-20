@@ -108,7 +108,7 @@ impl SettingsWindow {
                 .when(saved, |s| s.child(svg().path("icons/check.svg").size(px(14.)).flex_none().text_color(p.green)))
                 .when(enabled, |s| s.cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border))
                     .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
-                    .when(!self.shortcut_recording, |s| s.tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip { text: hint.into(), night: p.night }).into()))
+                    .when(!self.shortcut_recording, |s| s.tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip { text: hint.clone(), night: p.night }).into()))
                     .on_click(cx.listener(|this, _, window, cx| this.begin_shortcut(window, cx)))));
         let clear = self.icon_button("shortcut-clear", "icons/x.svg",
             l.text("清空呼出快捷键", "Clear summon shortcut"), enabled, cx,
