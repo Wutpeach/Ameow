@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings {
         quality: Quality::Balanced,
         output_dir: PathBuf::from(&arguments[2]),
-        theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+        theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
     };
     let coordinator = composition::download_coordinator(
         runtime, isolated.path().join("settings.json"), settings.clone(),

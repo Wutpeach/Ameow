@@ -1,0 +1,35 @@
+# Design
+
+## Context
+
+基座 main@3083076b；同一 GPUI PopUp 负责 Compact/Full，原 Model 决定保持与收起。托盘恢复会写入 pointer(true)，不能代替鼠标在外的键盘保持。SettingsSaved 是唯一设置确认入口；Windows 已有原生 API，Mac PR58 要求保留 NSPanel 创建时 NonactivatingPanel。
+
+## Goals / Non-Goals
+
+**Goals:** 在现有 owner 内贯通一次系统按键、可靠焦点和有限配置；默认 Ctrl+Shift+F，以组合是否为空决定启用；注册与保存失败可恢复。
+
+**Non-Goals:** 通用动作框架、媒体键、按键序列、输入 hook、系统桌面管理、其它快捷键清单或窗口、发行。系统剪贴板不用于代理测试，真实粘贴由用户在候选内操作。
+
+## Decisions
+
+- 仅保存可选组合，移除独立 enabled 状态；serde 缺字段时默认 Ctrl+Shift+F，显式空值保持关闭。沿现有 Settings SaveSettings/SettingsSaved 写入，显示状态另保留本进程注册错误。键盘组合只接受有限普通键和修饰键，保存实际原生键身份，避免把输入法文本当键码。
+- Windows 使用已有 windows 的 RegisterHotKey/MOD_NOREPEAT 与一个隐藏消息 owner；Mac 使用主线程 Carbon RegisterEventHotKey/handler，均以 RAII 释放，不接输入 hook。热键回调只唤醒应用任务，再交 UI 主线程处理，避免借用中的窗口重入及持续轮询。
+- 原生注册由 Prototype 的实例生命期持有；录入暂时注销旧注册，新组合先验证、保存 ACK 后激活并释放旧组合，失败恢复旧值；记录、保存与关闭窗口的路径显式收尾。
+- Model 增加键盘保持原因，调用真实 pointer 采样并接入 blocked；原生键盘焦点丢失或最外 Esc 释放。仅热键恢复要求 Full 与保持，普通托盘和 CLI 的原行为不扩大。
+- 常规页复用现有 focusable 控件、间距与就近错误；单行组合录入与清空动作，草稿有应用/取消。设置窗关闭不影响已确认注册。
+
+## Risks / Trade-offs
+
+- 注册与文件不是跨资源原子事务 → 保存期间保留旧注册及候选引用，ACK 后切换；失败准确反馈，绝不假成功。
+- 录入暂停时旧组合可能被其他进程占用 → 取消后重注册失败如实显示，不声称旧绑定必然恢复。
+- 原生前台请求可失败、非激活 NSPanel 状态不同于应用激活 → 观察实际原生键盘目标，保留 PR58，不以 visible 推导粘贴成功。
+- 普通桌面恢复可能切回原 Space → 沿用现有原生恢复，不添加全屏覆盖或无文档桌面接口。
+- 系统级测试影响桌面 → 私有设置root/明确唯一组合、自有窗口；与来源及 #24 协调短窗口；不改用户剪贴板或关闭其应用。
+
+## Migration Plan
+
+旧设置缺字段使用用户指定的 Ctrl+Shift+F；用户明确清空后保存为空，重启不恢复默认。以独立普通候选、原生回执及 Draft PR 交付，未验证平台准确保留限制；撤回本变更后旧版本忽略新增字段，不移动用户数据。
+
+## Decision update
+
+2026-11-20 用户明确要求删除右侧开关：设置组合即启用、清空即关闭，并指定默认 Ctrl+Shift+F。本决定覆盖最初来源的默认关闭／未设置与独立开关方案；旧研究和第一轮原生开关测试保持历史身份，不换标为新方案验收。

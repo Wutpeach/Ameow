@@ -1,6 +1,6 @@
 //! Production GPUI command boundary. Initialization, persistence and polling stay off the UI.
 use crate::ui_tooltip::TooltipExt as _;
-#[cfg(test)]
+#[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
 #[path = "native_settings_transport.rs"]
 mod native_settings_transport;
 use ameow_next::download::{
@@ -104,7 +104,7 @@ pub struct DownloadUi {
     presentation: crate::queue_presentation::Presentation,
     queue_scroll: gpui::ScrollHandle,
     fixture: bool,
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     isolated_settings_acceptance: bool,
     named_preview: Option<crate::preview::Scene>,
     preview_scenes: Option<SyncSender<&'static str>>,
@@ -149,7 +149,7 @@ impl DownloadUi {
                 let root = match &isolated { Some(root) => root.join("runtime"), None => value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)? };
                 let settings_path = match &isolated { Some(root) => root.join("settings.json"), None => value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json")) };
                 let output_dir = match &isolated { Some(root) => root.join("output"), None => value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)? };
-                ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default() })
+                ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() })
             })();
             let coordinator = match setup {
                 Ok(coordinator) => coordinator,
@@ -399,7 +399,7 @@ impl DownloadUi {
             presentation: Default::default(),
             queue_scroll: gpui::ScrollHandle::new(),
             fixture: false,
-            #[cfg(test)]
+            #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
             isolated_settings_acceptance: false,
             named_preview: None,
             preview_scenes: None,
@@ -475,7 +475,7 @@ impl DownloadUi {
             && self.snapshot.as_ref().is_some_and(|s| s.preparation_retry_allowed)
     }
     pub fn upstream_check_available(&self) -> bool {
-        #[cfg(test)]
+        #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
         if self.isolated_settings_acceptance { return false; }
         !self.fixture
     }
@@ -557,6 +557,12 @@ impl DownloadUi {
             return false;
         };
         settings.tray_icon = tray_icon;
+        self.request_settings(settings, now)
+    }
+    pub fn request_shortcut(&mut self, shortcut: ameow_next::shortcut::ShortcutPreference, now: u64) -> bool {
+        if self.settings_pending { return false; }
+        let Some(mut settings) = self.settings() else { return false; };
+        settings.shortcut = shortcut;
         self.request_settings(settings, now)
     }
     fn request_settings(&mut self, settings:Settings, now:u64) -> bool {
@@ -1563,6 +1569,7 @@ impl Prototype {
                     ui.startup_error = Some(error);
                 }
                 UiReply::Settings(reply) => {
+                    self.shortcut.complete(matches!(&reply, CommandReply::SettingsSaved(_)));
                     if let Some(generation) = self.menu_save_generation.take() {
                         self.surface_menu.saved(generation, matches!(reply, CommandReply::SettingsSaved(_)));
                     }
@@ -1627,6 +1634,10 @@ impl Prototype {
         cx.notify();
     }
     pub(super) fn restore_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.focus_downloads(window, cx);
+        self.model.pointer(true, self.now());
+    }
+    fn focus_downloads(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(native) = &self.native {
             tray::Tray::restore(native.hwnd);
         }
@@ -1639,7 +1650,25 @@ impl Prototype {
         #[cfg(not(target_os = "windows"))]
         window.activate_window();
         window.focus(&self.focus, cx);
-        self.model.pointer(true, self.now());
+        cx.notify();
+    }
+    pub(super) fn toggle_shortcut(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.native.is_none() || self.model.locks.drag || self.model.locks.drop
+            || self.downloads.as_ref().is_none_or(|ui| ui.exit_intent.pending || ui.exit_when_stopped) { return; }
+        if self.settings_window.is_some_and(|handle| handle.update(cx, |root, _, cx| {
+            root.view().clone().downcast::<crate::settings_window::SettingsWindow>().ok()
+                .is_some_and(|view| view.read(cx).shortcut_blocked())
+        }).unwrap_or(false)) { return; }
+        let hidden = self.downloads.as_ref().is_some_and(|ui| ui.hidden);
+        let hide = !hidden && self.model.target_full && crate::global_shortcut::focused(self.native.as_ref().unwrap());
+        if let Some(ui) = &self.downloads { ui.evidence(serde_json::json!({"type":"summon-shortcut","action":if hide {"hide"} else {"show"},"hidden_before":hidden})); }
+        if hide {
+            self.hide_downloads(cx);
+        } else {
+            self.model.keyboard(true, self.now());
+            self.focus_downloads(window, cx);
+            self.model.pointer(self.native.as_ref().is_some_and(crate::native::Native::inside), self.now());
+        }
         cx.notify();
     }
     fn process_exit_request(&mut self, cx: &mut Context<Self>) {
@@ -1658,6 +1687,7 @@ impl Prototype {
         cx.notify();
     }
     pub(super) fn stop_and_exit(&mut self, cx: &mut Context<Self>) {
+        self.shortcut.stop();
         if self.preview.is_some() { cx.quit(); return; }
         let now = self.now();
         self.surface_menu.close(now);self.background_clicks.reset();
@@ -1699,6 +1729,7 @@ impl Prototype {
     pub(super) fn production_key(&mut self, key: &str, cx: &mut Context<Self>) {
         match key {
             "escape" => {
+                let overlay = self.downloads.as_ref().is_some_and(|ui| ui.queue_open || ui.exit_open);
                 if let Some(ui) = &mut self.downloads {
                     ui.queue_open = false;
                     ui.title_browse = None;
@@ -1706,6 +1737,7 @@ impl Prototype {
                     ui.dismiss_exit_issue();
                 }
                 self.close_menu(cx);
+                if !overlay { self.model.keyboard(false, self.now()); }
             }
             "t" | "T" => {
                 let now = self.now();
@@ -1971,6 +2003,7 @@ impl Prototype {
         content.into_any_element()
     }
     fn hide_downloads(&mut self,cx:&mut Context<Self>) {
+        self.model.keyboard(false, self.now());
         self.end_external_drop(cx);
         self.model.clear_directory(self.now());
         self.close_menu(cx);
@@ -2999,7 +3032,7 @@ mod tests {
         use super::*;
         let (mut ui,receiver)=row_ui(JobPhase::Failure,false);
         let old=ui.snapshot.as_ref().unwrap().settings.clone();
-        let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder"),theme:Default::default(),language:Default::default(), tray_icon:Default::default()};
+        let newer=Settings{quality:Quality::Balanced,output_dir:PathBuf::from("new-acknowledged-folder"),theme:Default::default(),language:Default::default(), tray_icon:Default::default(), shortcut: Default::default()};
         ui.settings_pending=true;ui.complete_settings(CommandReply::SettingsSaved(newer.clone()), 0);
         assert_eq!(ui.snapshot.as_ref().unwrap().settings,old);
         ui.request_quality(Quality::Saver,101);
@@ -3418,7 +3451,7 @@ mod tests {
         let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
         ui.fixture = true;
         for command in [QueueCommand::Submit { url: "https://youtu.be/jNQXAC9IVRw".into() },
-            QueueCommand::SaveSettings(Settings { quality: Quality::Balanced, output_dir: PathBuf::new(), theme: Default::default(), language: Default::default(), tray_icon: Default::default() }),
+            QueueCommand::SaveSettings(Settings { quality: Quality::Balanced, output_dir: PathBuf::new(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() }),
             QueueCommand::RetryPreparation] {
             assert!(!ui.send(command, 100));
             assert!(receiver.try_recv().is_err());
@@ -3564,7 +3597,7 @@ mod tests {
             settings: Settings {
                 quality: Quality::Balanced,
                 output_dir: std::env::temp_dir(),
-                theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+                theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
             },
             unfinished: 0,
             failures: 0,
@@ -3929,7 +3962,7 @@ mod tests {
         let settings = Settings {
             quality: Quality::Balanced,
             output_dir: root.path().into(),
-            theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         };
         let mut snapshot = QueueSnapshot {
             revision: 1,
@@ -3990,5 +4023,46 @@ mod tests {
         snapshot.preparation_owner_lost = false;
         assert_eq!(cleanup_targets(&snapshot), vec![0]);
         assert_eq!(exit_issue(&snapshot), Some(ExitIssue::Cleanup));
+    }
+}
+
+#[cfg(test)]
+mod shortcut_settings_tests {
+    use super::{DownloadUi, Settings, Quality, ThemePreference, LanguagePreference, TrayIconPreference,
+        QueueCommand, CommandReply, Arc, Mutex, mpsc, PathBuf};
+    #[test]
+    fn shortcut_settings_publish_only_after_ack_and_preserve_other_preferences() {
+        let (commands, receiver) = mpsc::sync_channel(2);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        let old = Settings { quality: Quality::Saver, output_dir: PathBuf::from("owned-output"),
+            theme: ThemePreference::Dark, language: LanguagePreference::English,
+            tray_icon: TrayIconPreference::Apricot, shortcut: Default::default() };
+        ui.acknowledged_settings = Some(old.clone());
+        let preference = ameow_next::shortcut::ShortcutPreference { chord: Some(ameow_next::shortcut::ShortcutChord {
+            platform: ameow_next::shortcut::ShortcutPlatform::Windows, key: "f9".into(), key_code: 0x78,
+            control: true, alt: true, shift: true, command: false }) };
+        assert!(ui.request_shortcut(preference.clone(), 1));
+        assert!(!ui.request_shortcut(Default::default(), 2));
+        let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("save command") };
+        assert_eq!(ui.settings(), Some(old.clone()));
+        assert_eq!(requested, Settings { shortcut: preference.clone(), ..old.clone() });
+        ui.complete_settings(CommandReply::Error("owned write failure".into()), 3);
+        assert_eq!(ui.settings(), Some(old.clone()));
+        assert!(ui.request_shortcut(preference, 4));
+        let QueueCommand::SaveSettings(requested) = receiver.try_recv().unwrap() else { panic!("save command") };
+        ui.complete_settings(CommandReply::SettingsSaved(requested.clone()), 5);
+        assert_eq!(ui.settings(), Some(requested.clone()));
+        assert!(!ui.settings_pending);
+        let clear = ameow_next::shortcut::ShortcutPreference { chord: None };
+        assert!(ui.request_shortcut(clear.clone(), 6));
+        let _ = receiver.try_recv().unwrap();
+        ui.complete_settings(CommandReply::Error("owned clear failure".into()), 7);
+        assert_eq!(ui.settings(), Some(requested));
+        assert!(ui.request_shortcut(clear, 8));
+        let QueueCommand::SaveSettings(cleared) = receiver.try_recv().unwrap() else { panic!("clear command") };
+        ui.complete_settings(CommandReply::SettingsSaved(cleared), 9);
+        assert!(ui.settings().unwrap().shortcut.chord.is_none());
     }
 }

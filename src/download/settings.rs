@@ -44,6 +44,8 @@ pub struct Settings {
     pub language: LanguagePreference,
     #[serde(default)]
     pub tray_icon: TrayIconPreference,
+    #[serde(default)]
+    pub shortcut: crate::shortcut::ShortcutPreference,
 }
 
 #[cfg(test)]
@@ -53,12 +55,13 @@ mod tests {
     fn old_settings_default_preferences_and_new_preferences_round_trip() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("settings.json");
-        let defaults = Settings { quality: Quality::Saver, output_dir: root.path().into(), theme: ThemePreference::Dark, language: LanguagePreference::English, tray_icon: TrayIconPreference::Apricot };
+        let defaults = Settings { quality: Quality::Saver, output_dir: root.path().into(), theme: ThemePreference::Dark, language: LanguagePreference::English, tray_icon: TrayIconPreference::Apricot, shortcut: Default::default() };
         fs::write(&path, serde_json::json!({"quality": "Balanced", "output_dir": root.path()}).to_string()).unwrap();
         let old = Settings::load(&path, defaults).unwrap();
         assert_eq!(old.theme, ThemePreference::Light);
         assert_eq!(old.language, LanguagePreference::System);
         assert_eq!(old.tray_icon, TrayIconPreference::FollowAppearance);
+        assert_eq!(old.shortcut, crate::shortcut::ShortcutPreference::default());
         let changed = Settings { theme: ThemePreference::Dark, language: LanguagePreference::Chinese, ..old };
         let saved = changed.persist(&path).unwrap();
         assert_eq!(Settings::load(&path, changed).unwrap(), saved);
@@ -75,7 +78,7 @@ mod tests {
             (TrayIconPreference::AmeowBlue, "ameow_blue"),
             (TrayIconPreference::Apricot, "apricot"),
         ] {
-            let settings = Settings { quality: Quality::Balanced, output_dir: root.path().into(), theme: Default::default(), language: Default::default(), tray_icon };
+            let settings = Settings { quality: Quality::Balanced, output_dir: root.path().into(), theme: Default::default(), language: Default::default(), tray_icon, shortcut: Default::default() };
             let saved = settings.persist(&path).unwrap();
             assert_eq!(Settings::load(&path, settings).unwrap(), saved);
             let json: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
@@ -88,7 +91,7 @@ mod tests {
         let output = root.path().join("output");
         fs::create_dir(&output).unwrap();
         let path = root.path().join("settings.json");
-        let first = Settings { quality: Quality::Balanced, output_dir: output , theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).unwrap();
+        let first = Settings { quality: Quality::Balanced, output_dir: output , theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default()}.persist(&path).unwrap();
         let next = Settings { quality: Quality::Saver, ..first };
         let saved = next.persist(&path).unwrap();
         assert_eq!(saved.quality, Quality::Saver);
@@ -99,11 +102,11 @@ mod tests {
     fn directory_validation_keeps_acknowledged_defaults_and_removes_probe() {
         let root=tempfile::tempdir().unwrap();let output=root.path().join("output");fs::create_dir(&output).unwrap();
         let path=root.path().join("settings.json");
-        let saved=Settings{quality:Quality::Balanced,output_dir:output.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).unwrap();
+        let saved=Settings{quality:Quality::Balanced,output_dir:output.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default()}.persist(&path).unwrap();
         assert_eq!(fs::read_dir(&output).unwrap().count(),0);
         let before=fs::read(&path).unwrap();let file=root.path().join("file.txt");fs::write(&file,b"ordinary").unwrap();
         for candidate in [file,root.path().join("missing")] {
-            assert!(Settings{quality:Quality::Saver,output_dir:candidate, theme: Default::default(), language: Default::default(), tray_icon: Default::default()}.persist(&path).is_err());
+            assert!(Settings{quality:Quality::Saver,output_dir:candidate, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default()}.persist(&path).is_err());
             assert_eq!(fs::read(&path).unwrap(),before);
             assert_eq!(Settings::load(&path,saved.clone()).unwrap(),saved);
         }
@@ -145,11 +148,13 @@ impl Settings {
             theme: self.theme,
             language: self.language,
             tray_icon: self.tray_icon,
+            shortcut: self.shortcut.clone(),
         };
         saved.persist_preferences(path)
     }
 
     pub(super) fn persist_preferences(&self, path: &Path) -> Result<Self, String> {
+        self.shortcut.validate().map_err(|_| "E_SETTINGS_SAVE: Invalid summon shortcut".to_owned())?;
         super::runtime::check_data_location(path)?;
         let parent = path
             .parent()
@@ -167,5 +172,27 @@ impl Settings {
         file.persist(path)
             .map_err(|_| "E_SETTINGS_SAVE: Cannot replace saved defaults")?;
         Ok(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+    #[test]
+    fn missing_shortcut_uses_control_shift_f_but_saved_empty_survives_restart() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("settings.json");
+        let defaults = Settings { quality: Quality::Balanced, output_dir: root.path().into(),
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() };
+        fs::write(&path, serde_json::json!({"quality":"Balanced","output_dir":root.path()}).to_string()).unwrap();
+        let loaded = Settings::load(&path, defaults.clone()).unwrap();
+        assert_eq!(loaded.shortcut.chord.unwrap().label(), "Ctrl+Shift+F");
+        let cleared = Settings { shortcut: crate::shortcut::ShortcutPreference { chord: None }, ..defaults.clone() };
+        let saved = cleared.persist(&path).unwrap();
+        assert!(saved.shortcut.chord.is_none());
+        assert!(Settings::load(&path, defaults).unwrap().shortcut.chord.is_none());
+        let json: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert!(json["shortcut"]["chord"].is_null());
+        assert!(json["shortcut"].get("enabled").is_none());
     }
 }

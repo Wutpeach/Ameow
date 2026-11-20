@@ -729,7 +729,7 @@ mod tests {
     fn defaults(root: &std::path::Path) -> Settings {
         Settings {
             quality: Quality::Balanced,
-            output_dir: root.into(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: root.into(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         }
     }
     #[test]
@@ -743,7 +743,7 @@ mod tests {
         let job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
         let frozen = backend.snapshot().jobs.iter().find(|row| row.job_id == job).unwrap().accepted.intent.clone();
         fs::remove_dir(&output).map_err(|e| e.to_string())?;
-        let icon_changed = Settings { tray_icon: TrayIconPreference::Apricot, ..saved };
+        let icon_changed = Settings { tray_icon: TrayIconPreference::Apricot, shortcut: Default::default(), ..saved };
         assert_eq!(backend.save_settings(icon_changed.clone())?, icon_changed);
         let changed = Settings { theme: ThemePreference::Dark, language: LanguagePreference::Chinese, ..icon_changed };
         assert_eq!(backend.save_settings(changed.clone())?, changed);
@@ -1198,12 +1198,12 @@ mod tests {
         let backend = fake_backend(root.path());
         let a = backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: out_a, theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: out_a, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         })?;
         let job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
         let b = backend.save_settings(Settings {
             quality: Quality::Highest,
-            output_dir: out_b, theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: out_b, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         })?;
         let view = backend.snapshot();
         let accepted = &view
@@ -1258,7 +1258,7 @@ mod tests {
         let backend = fake_backend(root.path());
         let defaults = backend.save_settings(Settings {
             quality: Quality::Balanced, output_dir: default_dir,
-            theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         })?;
         let settings_bytes = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
         let job = match backend.apply(QueueCommand::SubmitWithOptions {
@@ -1327,7 +1327,7 @@ mod tests {
         }
         backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: root.path().into(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: root.path().into(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         })?;
         let new = backend.retry(job)?;
         assert!(new > job);
@@ -1995,7 +1995,7 @@ mod tests {
         fs::create_dir(&destination).map_err(|e| e.to_string())?;
         let frozen = backend.save_settings(Settings {
             quality: Quality::Saver,
-            output_dir: destination.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: destination.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         })?;
         let queued = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
         fs::remove_dir(&destination).map_err(|e| e.to_string())?;

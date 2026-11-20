@@ -33,6 +33,8 @@ use windows::Win32::{
 mod components;
 #[path = "settings_notices.rs"]
 mod notices;
+#[path = "settings_shortcut.rs"]
+mod shortcut_ui;
 
 actions!(ameow_settings, [TabForward, TabBackward]);
 struct SettingsKeyBindings;
@@ -139,6 +141,9 @@ struct Projection {
     reduced: bool,
     language: Language,
     preferences: Option<(ThemePreference, LanguagePreference, TrayIconPreference)>,
+    shortcut: Option<ameow_next::shortcut::ShortcutPreference>,
+    shortcut_error: Option<String>,
+    shortcut_pending: bool,
     queue: Option<std::sync::Arc<ameow_next::download::queue::QueueSnapshot>>,
     preparation_retry_available: bool,
     preparation_copy_pending: bool,
@@ -162,6 +167,9 @@ impl Projection {
             night: main.night,
             reduced: main.model.reduced,
             language: main.language,
+            shortcut: ui.and_then(|ui| ui.settings()).map(|settings| settings.shortcut),
+            shortcut_error: main.shortcut.error.clone(),
+            shortcut_pending: main.shortcut.is_pending(),
             preferences: ui
                 .and_then(|ui| ui.settings())
                 .map(|s| (s.theme, s.language, s.tray_icon)),
@@ -220,6 +228,10 @@ enum ButtonStyle {
     Menu,
 }
 pub struct SettingsWindow {
+    shortcut_recording: bool,
+    shortcut_draft: Option<ameow_next::shortcut::ShortcutChord>,
+    shortcut_notice: Option<String>,
+    _shortcut_subscriptions: Vec<Subscription>,
     main: WeakEntity<Prototype>,
     projection: Projection,
     _observer: Subscription,
@@ -260,7 +272,7 @@ pub struct SettingsWindow {
     copy_feedback: HashMap<&'static str, std::time::Instant>,
 }
 impl SettingsWindow {
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     pub(super) fn acceptance_snapshot(&self, window: &Window, _: &App) -> serde_json::Value {
         serde_json::json!({
             "selects": self.selects.iter().map(|s| serde_json::json!({
@@ -270,6 +282,9 @@ impl SettingsWindow {
             })).collect::<Vec<_>>(),
             "disabled": self.projection.preferences.is_none() || self.projection.pending || self.picker_pending,
             "status": format!("{:?}", self.projection.status),
+            "shortcut":self.projection.shortcut, "shortcut_error":self.projection.shortcut_error,
+            "shortcut_recording":self.shortcut_recording, "shortcut_draft":self.shortcut_draft,
+            "shortcut_notice":self.shortcut_notice,
         })
     }
     fn new(
@@ -319,6 +334,19 @@ impl SettingsWindow {
             PreferenceSelect { kind, trigger, menu, open: false, cursor: kind.selected(&projection).unwrap_or(0) }
         }).collect();
         let mut control_focus = HashMap::new();
+        let shortcut_focus = cx.focus_handle().tab_index(0).tab_stop(true);
+        control_focus.insert("shortcut-record", shortcut_focus.clone());
+        let shortcut_subscriptions = vec![
+            cx.on_focus_out(&shortcut_focus, window, |this, _, _, cx| {
+                if this.shortcut_recording { this.cancel_shortcut(cx); }
+            }),
+            cx.observe_window_activation(window, |this, window, cx| {
+                if !window.is_window_active() { this.cancel_shortcut(cx); }
+            }),
+            cx.on_release(|this, cx| {
+                let _ = this.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
+            }),
+        ];
         let mut help_focus_subscriptions = Vec::new();
         for id in ["download-read-help", "update-auto-check-help", "update-auto-download-help", "update-idle-restart-help"] {
             let focus = cx.focus_handle().tab_index(0).tab_stop(true);
@@ -331,6 +359,8 @@ impl SettingsWindow {
             control_focus.insert(id, focus);
         }
         let mut this = Self {
+            shortcut_recording: false, shortcut_draft: None, shortcut_notice: None,
+            _shortcut_subscriptions: shortcut_subscriptions,
             title_language: projection.language,
             main: main.downgrade(),
             projection,
@@ -662,8 +692,8 @@ impl SettingsWindow {
             ))
         } else {
             match &self.projection.status {
-                SettingsStatus::Saving => Some((l.text("正在保存…", "Saving…").into(), false)),
-                SettingsStatus::Failed(message) => Some((settings_message(l, message), true)),
+                SettingsStatus::Saving if !self.projection.shortcut_pending => Some((l.text("正在保存…", "Saving…").into(), false)),
+                SettingsStatus::Failed(message) if self.projection.shortcut_error.as_deref() != Some("save") => Some((settings_message(l, message), true)),
                 _ => None,
             }
         };
@@ -671,6 +701,7 @@ impl SettingsWindow {
             .flex()
             .flex_col()
             .child(group)
+            .child(self.shortcut_section(cx))
             .child(self.notice_bar("general_page", status))
             .into_any_element()
     }
@@ -1001,6 +1032,8 @@ impl SettingsWindow {
         let enabled = enabled && !self.passive.get();
         let (container, focus) = self.control_container(id, enabled, cx);
         let button = gpui_base::Button::new(id)
+            .when(id == "shortcut-record", |button| button.accessibility_label(
+                self.projection.language.text("修改呼出快捷键", "Change summon shortcut")))
             .track_focus(&focus)
             .disabled(!enabled)
             .flex_none()
@@ -1087,6 +1120,7 @@ impl SettingsWindow {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
+                    this.cancel_shortcut(cx);
                     this.notices_open = false;
                     this.component_menu_open = false;
                     this.help_open = None;
@@ -1098,6 +1132,7 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
+                this.cancel_shortcut(cx);
                 this.notices_open = false;
                 this.component_menu_open = false;
                 this.help_open = None;
@@ -1543,9 +1578,11 @@ impl Render for SettingsWindow {
             .id("settings-root")
             .key_context("AmeowSettings")
             .on_action(cx.listener(|this, _: &TabForward, window, cx| {
+                if this.shortcut_recording { this.cancel_shortcut(cx); }
                 this.move_focus(false, window, cx); cx.stop_propagation();
             }))
             .on_action(cx.listener(|this, _: &TabBackward, window, cx| {
+                if this.shortcut_recording { this.cancel_shortcut(cx); }
                 this.move_focus(true, window, cx); cx.stop_propagation();
             }))
             .relative()
@@ -1563,6 +1600,7 @@ impl Render for SettingsWindow {
                 }
             }))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.shortcut_key(event, window, cx) { cx.stop_propagation(); return; }
                 if !this.keyboard_focus {
                     this.keyboard_focus = true;
                     cx.notify();
@@ -1613,6 +1651,13 @@ impl Render for SettingsWindow {
                 } else if event.keystroke.key == "tab" {
                     this.move_focus(event.keystroke.modifiers.shift, window, cx);
                     cx.stop_propagation();
+                }
+            }))
+            .capture_key_up(cx.listener(|this, event: &KeyUpEvent, _, cx| {
+                if this.shortcut_recording && this.shortcut_draft.as_ref().is_some_and(|chord| chord.key.eq_ignore_ascii_case(&event.keystroke.key)) {
+                    this.shortcut_recording = false;
+                    let _ = this.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
+                    cx.notify(); cx.stop_propagation();
                 }
             }))
             .child(
@@ -2130,6 +2175,7 @@ impl Prototype {
         }
     }
     pub(super) fn open_or_focus_settings(&mut self, cx: &mut Context<Self>) {
+        self.model.keyboard(false, self.now());
         if let Some(handle) = self.settings_window {
             if handle.update(cx, |_, _, _| ()).is_ok() {
                 show(handle, None, cx);

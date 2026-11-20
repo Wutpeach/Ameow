@@ -1,6 +1,8 @@
 //! Test-only transport: real queue settings owner, isolated disk, no runtime preparation.
-use super::{DownloadUi, UiReply, SettingsStatus, Settings, Quality, ThemePreference, LanguagePreference,
-    QueueCommand, CommandReply, command_summary, reply_summary, Arc, Mutex, mpsc, File, Write, PathBuf, Duration, Instant};
+use super::{DownloadUi, UiReply, Settings, Quality, ThemePreference, LanguagePreference,
+    QueueCommand, CommandReply, command_summary, reply_summary, Arc, Mutex, mpsc, File, Write, PathBuf, Duration};
+#[cfg(test)]
+use super::{SettingsStatus, Instant};
 
 impl DownloadUi {
     pub(crate) fn native_acceptance(root: PathBuf) -> Self {
@@ -11,7 +13,8 @@ impl DownloadUi {
         let defaults = Settings {
             output_dir: root.clone(), quality: Quality::Balanced,
             theme: ThemePreference::Light, language: LanguagePreference::Chinese,
-            tray_icon: Default::default(),
+            // The owned host never claims the user's default system combination.
+            tray_icon: Default::default(), shortcut: ameow_next::shortcut::ShortcutPreference { chord: None },
         };
         let backend = composition::download_coordinator(root.join("runtime"), root.join("settings.json"), defaults).unwrap();
         let (commands, receiver) = mpsc::sync_channel(8);

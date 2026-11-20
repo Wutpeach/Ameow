@@ -540,7 +540,7 @@ fn pinned_ffprobe_verifies_real_video_audio_and_rejects_wrong_plan() -> Result<(
         verifiers: Arc::new(VerifierRegistry::video("ffprobe.exe")),
     }, destination.path().join("probe-settings.json"), Settings {
         quality: Quality::Balanced, output_dir: destination.path().into(),
-        theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+        theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
     })?;
     let existing = destination.path().join("Silent fixture[64x48].mkv");
     fs::write(&existing, b"existing user media").map_err(|e| e.to_string())?;

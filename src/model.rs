@@ -176,6 +176,7 @@ impl Progress {
 }
 
 pub struct Model {
+    pub keyboard_hold: bool,
     pub stage: Stage,
     pub previous: Stage,
     pub pointer: bool,
@@ -200,6 +201,7 @@ pub struct Model {
 impl Model {
     pub fn new(now: u64, reduced: bool) -> Self {
         Self {
+            keyboard_hold: false,
             stage: Stage::Idle,
             previous: Stage::Idle,
             pointer: false,
@@ -223,7 +225,7 @@ impl Model {
         }
     }
     pub fn blocked(&self) -> bool {
-        self.locks.drag
+        self.keyboard_hold || self.locks.drag
             || self.locks.menu
             || self.locks.drop
             || (!self.manual_compact
@@ -234,11 +236,20 @@ impl Model {
     }
     /// Explicit Compact affects presentation only. A real leave/re-entry retires the override.
     pub fn request_compact(&mut self, now: u64) {
+        self.keyboard_hold = false;
         self.directory = None;
         self.manual_compact = true;
         self.compact_left = !self.pointer;
         self.collapse = None;
         self.set_target(false, now);
+    }
+    pub fn keyboard(&mut self, hold: bool, now: u64) {
+        if self.keyboard_hold == hold { return; }
+        self.keyboard_hold = hold;
+        if hold {
+            self.manual_compact = false; self.compact_left = false;
+            self.collapse = None; self.set_target(true, now);
+        } else { self.schedule_leave(now); }
     }
     pub fn clear_directory(&mut self, now:u64) {
         if self.directory.take().is_some() { self.schedule_leave(now); }
@@ -1049,6 +1060,33 @@ mod tests {
             assert_eq!(p.sample(0), expected);
             p.update(1., 1);
             assert!(p.sample(50).is_finite());
+        }
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+    #[test]
+    fn keyboard_summon_survives_real_pointer_outside_until_release() {
+        let mut model = Model::new(0, true);
+        model.keyboard(true, 1);
+        model.pointer(false, 2);
+        model.tick(10_000);
+        assert!(model.target_full && model.keyboard_hold && !model.pointer);
+        model.keyboard(false, 10_001);
+        model.tick(10_080);
+        assert!(model.target_full);
+        model.tick(10_081);
+        assert!(!model.target_full);
+    }
+    #[test]
+    fn releasing_keyboard_does_not_override_download_or_menu_ownership() {
+        for menu in [false, true] {
+            let mut model = Model::new(0, true);
+            if menu { model.locks.menu = true; } else { model.state(Stage::Downloading, 0.2, 0); }
+            model.keyboard(true, 1); model.keyboard(false, 2); model.tick(10_000);
+            assert!(model.target_full && !model.keyboard_hold);
         }
     }
 }
