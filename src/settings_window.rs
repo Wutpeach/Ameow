@@ -623,7 +623,7 @@ impl SettingsWindow {
             .child(switch);
         let row = |label: &'static str, control: AnyElement| {
             div()
-                .min_h(px(56.))
+                .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
                 .flex()
                 .items_center()
                 .justify_between()
@@ -677,7 +677,7 @@ impl SettingsWindow {
         let group = div()
             .flex()
             .flex_col()
-            .child(div().pb(px(12.)).child(row(
+            .child(div().child(row(
                 l.text("开机启动", "Launch at login"),
                 switch.into_any_element(),
             )).child(self.notice_bar("startup", startup_status)))
@@ -775,7 +775,7 @@ impl SettingsWindow {
             .on_confirm(move |window, cx| confirm.update(cx, |this, cx| this.confirm_preference(index, window, cx)))
             .child(div().on_children_prepainted(move |children, _, _| measured_trigger.set(children.first().copied())).child(trigger));
         if presence.visible() {
-            let mut menu = div().id(("preference-popup", index)).relative().w(px(176.)).p(px(4.))
+            let mut menu = div().id(("preference-popup", index)).relative().w(px(tokens::SETTINGS_CONTROL_WIDTH)).p(px(4.))
                 .rounded(px(8.)).border_1().border_color(p.border).bg(p.surface).occlude()
                 .opacity(presence.alpha).top(px(presence.travel(-4.)))
                 .shadow(vec![BoxShadow { inset: false, color: gpui::black().opacity(0.12 * presence.alpha.powi(3)),
@@ -809,7 +809,7 @@ impl SettingsWindow {
             root = root.child(div().absolute().right_0().top(px(38.)).child(deferred(
                 anchored().anchor(gpui::Anchor::TopRight).snap_to_window_with_margin(Edges::all(px(12.))).child(menu))));
         }
-        container.w(px(176.)).child(root).into_any_element()
+        container.w(px(tokens::SETTINGS_CONTROL_WIDTH)).child(root).into_any_element()
     }
     fn select_option(&mut self, kind: PreferenceKind, index: usize, cx: &mut Context<Self>) {
         if index >= 3 || self.projection.pending || self.picker_pending { cx.notify(); return; }
@@ -1215,7 +1215,7 @@ impl SettingsWindow {
                     .flex_col()
                     .child(
                         div()
-                            .min_h(px(56.))
+                            .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
                             .flex()
                             .items_center()
                             .gap(px(8.))
@@ -1423,13 +1423,13 @@ impl SettingsWindow {
             _ => ("update-idle-restart-help", l.text("空闲时自动重启更新说明", "Idle restart help"), l.text("所有下载任务结束并释放资源后，自动重启应用以安装更新。", "Restarts the app to install an update after all downloads finish and release their resources.")),
         };
         div()
-            .min_h(px(44.))
+            .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
             .flex()
             .items_center()
             .justify_between()
             .gap(px(12.))
-            .child(div().flex_1().flex().items_center().gap(px(4.)).text_size(px(13.))
-                .child(label).child(self.help_button(help_id, help_label, help.into(), cx)))
+            .child(div().flex_1().min_w(px(0.)).flex().items_center().gap(px(4.)).text_size(px(13.))
+                .child(div().min_w(px(0.)).child(label)).child(self.help_button(help_id, help_label, help.into(), cx)))
             .child(switch)
             .into_any_element()
     }
@@ -1488,16 +1488,17 @@ impl SettingsWindow {
                 .child(div().flex_1().min_w(px(0.)).text_size(px(13.)).line_height(px(20.))
                     .child(crate::app_update_ui::headline(v,l)))
                 .child(actions.flex_none()))
-            .child(self.notice_bar("app-update-error", (!detail.is_empty() && matches!(v.update.phase, Phase::Failed | Phase::RolledBack))
-                .then(|| (detail.clone(), true))).mx(px(-10.)))
-            .when(!detail.is_empty() && !matches!(v.update.phase, Phase::Failed | Phase::RolledBack), |s|
+            .child(self.notice_bar("app-update-error", (!detail.is_empty() && (matches!(v.update.phase, Phase::Failed | Phase::RolledBack) || v.update.error.is_some()))
+                .then(|| (detail.clone(), true))))
+            .when(!detail.is_empty() && !matches!(v.update.phase, Phase::Failed | Phase::RolledBack) && v.update.error.is_none(), |s|
                 s.child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(detail)))
-            .when(v.update.phase==Phase::Ready&&!v.launcher,|s|s.child(div().mt(px(6.)).text_size(px(12.)).text_color(p.neutral).child(l.text("请通过 Ameow 启动入口重新打开后更新。","Open Ameow through its launcher to install the update."))))
+            .child(self.notice_bar("app-update-launcher", (v.update.phase == Phase::Ready && !v.launcher)
+                .then(|| (l.text("请通过 Ameow 启动入口重新打开后更新。", "Open Ameow through its launcher to install the update.").into(), false))))
             .child(div().mt(px(20.)).border_t_1().border_color(p.border).pt(px(8.))
                 .child(self.update_switch(0,cx)).child(self.update_switch(1,cx)).child(self.update_switch(2,cx)))
             .child(self.notice_bar("update-preferences", (v.saving || v.save_error.is_some()).then(|| (
                 if v.save_error.is_some() { l.text("保存失败，请重试", "Could not save. Try again") } else { l.text("正在保存…", "Saving…") }.into(),
-                v.save_error.is_some()))).mx(px(-10.)))
+                v.save_error.is_some()))))
             .into_any_element()
     }
 }
@@ -2090,6 +2091,11 @@ impl Prototype {
         projection.error = None;
         projection.pending = false;
         projection.status = SettingsStatus::Idle;
+        projection.shortcut = Some(Default::default());
+        projection.shortcut_error = (scene.state == "shortcut-conflict").then(|| "taken".into());
+        projection.shortcut_pending = false;
+        projection.shortcut_failed_save = false;
+        if scene.state == "shortcut-unset" { projection.shortcut = Some(ameow_next::shortcut::ShortcutPreference { chord: None }); }
         projection.upstream_available = true;
         let mut upstream = ameow_next::download::upstream::UpstreamSnapshot::default();
         if let Some(snapshot) = projection.queue.as_mut() {
@@ -2122,6 +2128,9 @@ impl Prototype {
                 view.update(cx, |view, cx| {
                 window.focus(&view.focus, cx);
                 view.projection = projection;
+                view.shortcut_recording = scene.state == "shortcut-recording";
+                view.shortcut_draft = None;
+                view.shortcut_notice = None;
                 view.startup = Some(Ok(StartupState::Disabled));
                 view.startup_pending = false;
                 for select in &mut view.selects { select.open = false; }
@@ -2151,7 +2160,7 @@ impl Prototype {
                 view.page = match scene.surface.as_str() {
                     _ if scene.state.starts_with("app-") || scene.state.starts_with("third-party-licenses") || scene.state == "about" => Page::About,
                     "components" | "diagnostics" => Page::Components,
-                    _ if matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
+                    _ if scene.state.starts_with("shortcut-") || matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
                     _ => Page::Download,
                 };
                 match (scene.surface.as_str(), scene.state.as_str()) {

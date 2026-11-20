@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-20T07:14:42.566503Z",
+  "generatedAt": "2026-11-20T08:06:36.794941Z",
   "title": "Design System: Ameow",
   "extensions": {
     "colorMeta": {
@@ -473,6 +473,11 @@
         "name": "The Signature Motion Rule",
         "body": "磁吸、Compact／Full 形变与状态环由各自 owner 管理。展开不重新加入弹性；Full→Compact 保留按实际窗口尺寸调过、已验收的克制弹性；保留单层 6px 磁吸和无边缘 glow。普通 UI 调整不能顺带重调这些手感或照搬网页弹簧参数。",
         "section": "components"
+      },
+      {
+        "name": "设置页行列与字级",
+        "body": "设置的同类标签／控件行使用 48px 最小高；常规下拉与快捷键字段共用 192px 右侧列、32px 控件高，字段值左对齐。常规、下载、组件与更新开关复用同一行节奏，段落之间以 24px 区分；必要多行内容可增高。正文／控件使用 13px，短标题使用 15px，分组标题使用 13px 中等字重；12px 仅用于版本、路径、许可正文与已包装的辅助信息。不要为页面整齐裁掉必要说明、缩小长标签或移动焦点顺序。",
+        "section": "layout"
       }
     ],
     "dos": [

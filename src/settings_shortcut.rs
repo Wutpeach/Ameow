@@ -95,15 +95,16 @@ impl SettingsWindow {
             l.text("按下组合键…", "Press shortcut…").to_owned()
         } else { combo.map(|chord| chord.label()).unwrap_or_else(|| l.text("设置快捷键", "Set shortcut").into()) };
         let (container, focus) = self.control_container("shortcut-record", enabled, cx);
-        let hint = l.text("点击后按下新的组合键", "Click, then press a new shortcut");
-        let recorder = container.flex_1().min_w(px(0.)).child(
+        let hint = format!("{}{}", combo.map(|chord| format!("{} · ", chord.label())).unwrap_or_default(),
+            l.text("点击后按下新的组合键", "Click, then press a new shortcut"));
+        let recorder = container.flex_1().min_w(px(0.)).h_full().child(
             gpui_base::Button::new("shortcut-record").track_focus(&focus).disabled(!enabled)
                 .accessibility_label(if saving { l.text("正在保存呼出快捷键", "Saving summon shortcut").into() } else { self.shortcut_accessibility_label() })
-                .w_full().h(px(tokens::CONTROL_HEIGHT)).px(px(12.)).gap(px(6.))
+                .w_full().h_full().px(px(10.)).flex().items_center().justify_start().gap(px(6.))
                 .rounded(px(tokens::CONTROL_RADIUS)).border_1().border_color(transparent_black())
                 .text_size(px(tokens::CONTROL_FONT_SIZE)).line_height(px(tokens::CONTROL_LINE_HEIGHT))
                 .text_color(if enabled { p.primary_text() } else { p.neutral })
-                .child(label)
+                .child(div().min_w(px(0.)).truncate().child(label))
                 .when(saved, |s| s.child(svg().path("icons/check.svg").size(px(14.)).flex_none().text_color(p.green)))
                 .when(enabled, |s| s.cursor_pointer().hover(move |s| s.bg(p.badge)).active(move |s| s.bg(p.border))
                     .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
@@ -115,7 +116,8 @@ impl SettingsWindow {
                 this.save_shortcut(ShortcutPreference { chord: None }, cx);
                 if let Some(focus) = this.control_focus.borrow().get("shortcut-record") { window.focus(focus, cx); }
             });
-        let controls = div().w(px(192.)).flex_none().flex().items_center().rounded(px(tokens::CONTROL_RADIUS))
+        let controls = div().w(px(tokens::SETTINGS_CONTROL_WIDTH)).h(px(tokens::CONTROL_HEIGHT))
+            .flex_none().flex().items_center().rounded(px(tokens::CONTROL_RADIUS))
             .border_1().border_color(if error.is_some() { error_text(p) } else if self.shortcut_recording { p.blue } else { p.control_border() })
             .bg(if self.shortcut_recording { p.badge.opacity(0.55) } else { p.surface }).child(recorder)
             .when(combo.is_some(), |s| s.child(div()
@@ -123,7 +125,7 @@ impl SettingsWindow {
                 .capture_any_mouse_down(|_, window, _| window.prevent_default()).child(clear)));
         div().mt(px(24.)).flex().flex_col().gap(px(8.))
             .child(div().text_size(px(13.)).font_weight(FontWeight::MEDIUM).child(l.text("快捷键", "Shortcut")))
-            .child(div().min_h(px(44.)).flex().items_center().justify_between().gap(px(12.))
+            .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                 .child(div().child(l.text("呼出／隐藏 Ameow", "Show / hide Ameow"))).child(controls))
             .when_some(error, |s, error| {
                 let reason = crate::global_shortcut::error_text(error, l);

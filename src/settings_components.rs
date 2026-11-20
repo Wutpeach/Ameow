@@ -484,7 +484,7 @@ impl SettingsWindow {
                     })).child(version_value).into_any_element()
             };
             let section = div().flex().flex_col().border_b_1().border_color(p.border)
-                .child(div().min_h(px(56.)).flex().items_center().justify_between().gap(px(12.))
+                .child(div().min_h(px(tokens::SETTINGS_ROW_HEIGHT)).flex().items_center().justify_between().gap(px(12.))
                     .child(div().id(("component-name", index)).flex_none().text_size(px(13.))
                         .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip {
                             text: match name {
@@ -526,7 +526,7 @@ impl SettingsWindow {
             .any(|name| verified_version(snapshot, name).is_none());
         let copied = self.projection.preparation_status.as_ref()
             .is_some_and(|(message, danger)| !danger && message == "已复制组件诊断");
-        let mut diagnostic = div().pt(px(16.)).flex().flex_col().gap(px(8.))
+        let mut diagnostic = div().pt(px(24.)).flex().flex_col().gap(px(8.))
             .child(div().flex().items_center().gap(px(8.))
             .child(div().flex_1().min_w(px(0.)).text_size(px(13.)).font_weight(FontWeight::MEDIUM)
                 .child(l.text("诊断信息", "Diagnostics")))
