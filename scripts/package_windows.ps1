@@ -55,6 +55,15 @@ function Check-Record([string]$Path, $Record) {
     $actual = Record $Path $Record.path
     if ($actual.bytes -ne $Record.bytes -or $actual.sha256 -cne $Record.sha256) { throw "Changed verified member: $($Record.path)" }
 }
+function Installer-Source {
+    $commit = & git -C $repository rev-parse HEAD
+    if ($LASTEXITCODE -ne 0 -or $commit -cnotmatch '^[0-9a-f]{40}$') { throw 'E_INSTALLER_SOURCE: cannot resolve commit.' }
+    $tree = & git -C $repository rev-parse 'HEAD^{tree}'
+    if ($LASTEXITCODE -ne 0 -or $tree -cnotmatch '^[0-9a-f]{40}$') { throw 'E_INSTALLER_SOURCE: cannot resolve tree.' }
+    $status = & git -C $repository status --porcelain
+    if ($LASTEXITCODE -ne 0) { throw 'E_INSTALLER_SOURCE: cannot resolve working changes.' }
+    [ordered]@{commit=$commit;tree=$tree;dirty=[bool]$status}
+}
 $portableSource = Join-Path $SignedDirectory $report.portable.path
 Check-Record $portableSource $report.portable
 $portableName = "Ameow_${version}_windows_x64_portable$fileSuffix.zip"
@@ -90,7 +99,7 @@ $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
 $includeRecord = Record $include 'payload.iss'
 $installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard.png', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
 $compilerMessages = Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') 'Default.isl'
-$installerSource = [ordered]@{commit=(& git -C $repository rev-parse HEAD);tree=(& git -C $repository rev-parse 'HEAD^{tree}');dirty=[bool](& git -C $repository status --porcelain)}
+$installerSource = Installer-Source
 & $Iscc /Qp @defines (Join-Path $repository 'distribution/ameow.iss') *> (Join-Path $output 'inno-build.log')
 if ($LASTEXITCODE -ne 0) { throw "Inno compilation failed; see $output/inno-build.log" }
 Check-Record (Join-Path $repository $definition.path) $definition
@@ -98,6 +107,7 @@ Check-Record $PSCommandPath $packaging
 Check-Record $include $includeRecord
 foreach ($resource in $installerResources) { Check-Record (Join-Path $repository $resource.path) $resource }
 Check-Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') $compilerMessages
+if ((Installer-Source | ConvertTo-Json -Compress) -cne ($installerSource | ConvertTo-Json -Compress)) { throw 'E_INSTALLER_SOURCE_CHANGED: source identity changed during compilation.' }
 # Recheck the immutable core and update archive after compilation, not just before staging.
 foreach ($member in $report.members) { Check-Record (Join-Path $payload $member.path) $member }
 Check-Record (Join-Path $output $portableName) $report.portable
