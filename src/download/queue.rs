@@ -720,7 +720,7 @@ mod tests {
         Ok(())
     }
     fn accepted(root: &std::path::Path, n: u64) -> Result<Accepted, String> {
-        Accepted::new(DownloadIntent {
+        Accepted::new(DownloadIntent { clip: None,
             url: format!("https://youtu.be/{n:011}"),
             quality: Quality::Balanced,
             output_dir: root.into(),
@@ -731,6 +731,33 @@ mod tests {
             quality: Quality::Balanced,
             output_dir: root.into(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         }
+    }
+    #[test]
+    fn clip_ranges_are_distinct_and_retry_keeps_the_frozen_interval() -> Result<(), String> {
+        use super::super::request::ClipRange;
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let url = "https://youtu.be/jNQXAC9IVRw".to_string();
+        let first = ClipRange { start_ms: 1250, end_ms: 4750 };
+        let second = ClipRange { start_ms: 2250, end_ms: 5750 };
+        backend.submit(url.clone())?;
+        let clip = backend.submit_clip(url.clone(), None, None, Some(first))?;
+        backend.submit_clip(url.clone(), None, None, Some(second))?;
+        assert!(backend.submit_clip(url.clone(), None, None, Some(first)).unwrap_err().starts_with("E_DUPLICATE"));
+        assert!(backend.submit_clip(url, None, None, Some(ClipRange { start_ms: 5, end_ms: 5 })).is_err());
+        {
+            let mut model = lock(&backend.shared.model);
+            let record = model.records.get_mut(&clip).unwrap();
+            record.view.phase = JobPhase::Failure;
+            record.view.resources_released = true;
+            record.view.terminal_count = 1;
+            record.frozen_identity = Some("youtube:jNQXAC9IVRw".into());
+        }
+        let retried = backend.retry(clip)?;
+        let view = backend.snapshot();
+        assert_eq!(view.jobs.iter().find(|j| j.job_id == retried).unwrap().accepted.intent.clip, Some(first));
+        assert_eq!(view.jobs.iter().find(|j| j.job_id == clip).unwrap().phase, JobPhase::Failure);
+        Ok(())
     }
     #[test]
     fn preferences_save_when_output_disappears_without_changing_frozen_job() -> Result<(), String> {
@@ -894,7 +921,7 @@ mod tests {
     fn fallback_failure_keeps_one_job_one_terminal_and_two_safe_attempt_diagnostics() -> Result<(), String> {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let mut model = Model::new(defaults(root.path()));
-        let accepted = Accepted::new(DownloadIntent { url: "https://example.com/private?token=SECRET".into(), quality: Quality::Saver, output_dir: root.path().into() })?;
+        let accepted = Accepted::new(DownloadIntent { clip: None, url: "https://example.com/private?token=SECRET".into(), quality: Quality::Saver, output_dir: root.path().into() })?;
         let job = model.accept(accepted, None)?;
         assert_eq!(model.launch(), Some(job));
         let mut failure = diagnostics::known("E_ENGINE_FAILED", "resolve");
@@ -1262,6 +1289,7 @@ mod tests {
         })?;
         let settings_bytes = fs::read(&backend.shared.settings_path).map_err(|e| e.to_string())?;
         let job = match backend.apply(QueueCommand::SubmitWithOptions {
+            clip: None,
             url: "https://youtu.be/jNQXAC9IVRw".into(), quality: Some(Quality::Highest),
             output_dir: Some(override_dir.clone()),
         }) {
@@ -1377,7 +1405,7 @@ mod tests {
                 .submit("https://bilibili.com/video/BV17x411w7KC?p=2".into())
                 .is_err()
         );
-        let unparted = Accepted::new(DownloadIntent {
+        let unparted = Accepted::new(DownloadIntent { clip: None,
             url: "https://b23.tv/AbCd12".into(),
             quality: Quality::Saver,
             output_dir: root.path().into(),
@@ -1401,7 +1429,7 @@ mod tests {
         ] {
             assert!(backend.submit(url.into()).is_err());
         }
-        let generic = Accepted::new(DownloadIntent {
+        let generic = Accepted::new(DownloadIntent { clip: None,
             url: "https://other.example/BV17x411w7KC".into(),
             quality: Quality::Saver,
             output_dir: root.path().into(),
@@ -1511,12 +1539,12 @@ mod tests {
         }
         assert!(backend.retry(job).is_err());
         assert_eq!(backend.snapshot().jobs.len(), 1);
-        let single = Accepted::new(DownloadIntent {
+        let single = Accepted::new(DownloadIntent { clip: None,
             url: "https://bilibili.com/video/BV17x411w7KC".into(),
             quality: Quality::Saver,
             output_dir: root.path().into(),
         })?;
-        let part = Accepted::new(DownloadIntent {
+        let part = Accepted::new(DownloadIntent { clip: None,
             url: "https://bilibili.com/video/BV17x411w7KC?p=1".into(),
             quality: Quality::Saver,
             output_dir: root.path().into(),
@@ -2151,6 +2179,8 @@ mod tests {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QueueSnapshot {
+    #[serde(default)]
+    pub browser_sessions: crate::browser_sessions::Status,
     pub revision: u64,
     #[serde(default)]
     pub runtime_update: super::runtime_update::RuntimeUpdateSnapshot,
@@ -2173,10 +2203,12 @@ pub struct QueueSnapshot {
     pub main_job: Option<u64>,
 }
 pub enum QueueCommand {
+    InstallBrowserBridge,
+    RemoveBrowserSession { site: String, grant_id: String },
     UpgradeEngine { version: String },
     RestoreRecommended,
     Submit { url: String },
-    SubmitWithOptions { url: String, quality: Option<Quality>, output_dir: Option<PathBuf> },
+    SubmitWithOptions { url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange> },
     SaveSettings(Settings),
     Cancel(u64),
     Retry(u64),
@@ -2210,6 +2242,7 @@ struct Record {
     cancelled: bool,
 }
 struct Model {
+    browser_sessions: crate::browser_sessions::Status,
     downloader_preferences_unreadable: bool,
     downloader_preferences: super::preferences::Preferences,
     downloader_preferences_error: Option<String>,
@@ -2299,6 +2332,7 @@ impl Model {
     }
     fn new(settings: Settings) -> Self {
         Self {
+            browser_sessions: Default::default(),
             downloader_preferences: Default::default(),
             downloader_preferences_unreadable: false,
             downloader_preferences_error: None,
@@ -2358,6 +2392,7 @@ impl Model {
     fn snapshot(&self) -> QueueSnapshot {
         let jobs: Vec<_> = self.records.values().map(|r| r.view.clone()).collect();
         QueueSnapshot {
+            browser_sessions: self.browser_sessions.clone(),
             revision: self.revision,
             runtime_update: self.runtime_update.clone(),
             unfinished: jobs.iter().filter(|r| !r.phase.terminal()).count(),
@@ -2394,6 +2429,7 @@ impl Model {
         let key = accepted.object.provisional_key();
         if let Some(existing) = self.records.values().find(|r| {
             !r.view.phase.terminal()
+                && r.view.accepted.intent.clip == accepted.intent.clip
                 && (r.view.accepted.object.provisional_key() == key
                     || r.frozen_identity.as_ref() == Some(&key)
                     || r.view
@@ -2640,6 +2676,7 @@ impl DownloadCoordinator {
         super::runtime::check_data_location(&settings_path)?;
         let settings = Settings::load(&settings_path, defaults)?;
         let mut model = Model::new(settings);
+        model.browser_sessions.notice = crate::browser_sessions::native::refresh_registration(&services.runtime.root).err();
         model.restore_preferences(&super::preferences::path(&settings_path));
         let published = Mutex::new(Arc::new(model.snapshot()));
         let shared = Arc::new(Shared {
@@ -2686,9 +2723,12 @@ impl DownloadCoordinator {
         self.submit_with_options(url, None, None)
     }
     pub fn submit_with_options(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>) -> Result<u64, String> {
+        self.submit_clip(url, quality, output_dir, None)
+    }
+    pub fn submit_clip(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange>) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
         let settings = lock(&self.shared.model).settings.clone();
-        let mut accepted = Accepted::new(DownloadIntent {
+        let mut accepted = Accepted::new(DownloadIntent { clip,
             url,
             quality: quality.unwrap_or(settings.quality),
             output_dir: output_dir.unwrap_or(settings.output_dir),
@@ -2885,6 +2925,24 @@ impl DownloadCoordinator {
     }
     pub fn apply(&self, command: QueueCommand) -> CommandReply {
         match command {
+            QueueCommand::InstallBrowserBridge => {
+                if lock(&self.shared.model).stopping { return CommandReply::Applied(false); }
+                let result = if super::runtime::RuntimeManager::default_root().as_ref().is_ok_and(|root| root == &self.shared.manager.root) {
+                    crate::browser_sessions::native::companion().and_then(|path| crate::browser_sessions::native::install(&path))
+                } else { Err("E_SESSION_ISOLATED".into()) };
+                let mut model = lock(&self.shared.model);
+                model.browser_sessions.notice = Some(result.as_ref().map_or_else(|e| e.clone(), |_| "installed".into()));
+                model.revision += 1; self.shared.publish(&model);
+                CommandReply::Applied(result.is_ok())
+            }
+            QueueCommand::RemoveBrowserSession { site, grant_id } => {
+                let result = crate::browser_sessions::Store::new(&self.shared.manager.root).remove(&site, &grant_id);
+                let mut model = lock(&self.shared.model);
+                model.browser_sessions.notice = result.as_ref().err().cloned();
+                if result.is_ok() { model.browser_sessions.sites.retain(|s| s.site != site || s.grant_id != grant_id); }
+                model.revision += 1; self.shared.publish(&model);
+                CommandReply::Applied(result.is_ok())
+            }
             QueueCommand::UpgradeEngine { version } => {
                 let mut model = lock(&self.shared.model);
                 let valid = super::upstream::normalize_stable_version(&version).as_deref() == Some(version.as_str())
@@ -2934,8 +2992,8 @@ impl DownloadCoordinator {
                 .submit(url)
                 .map(CommandReply::Accepted)
                 .unwrap_or_else(CommandReply::Error),
-            QueueCommand::SubmitWithOptions { url, quality, output_dir } => self
-                .submit_with_options(url, quality, output_dir)
+            QueueCommand::SubmitWithOptions { url, quality, output_dir, clip } => self
+                .submit_clip(url, quality, output_dir, clip)
                 .map(CommandReply::Accepted)
                 .unwrap_or_else(CommandReply::Error),
             QueueCommand::SaveSettings(settings) => self
@@ -3080,6 +3138,7 @@ fn admit_identity(shared: &Shared, job: u64, proof: &IdentityAttestation) -> Res
     if let Some(existing) = model.records.values().find(|record| {
         record.view.job_id != job
             && !record.view.phase.terminal()
+            && record.view.accepted.intent.clip == current.view.accepted.intent.clip
             && (record.frozen_identity.as_ref() == Some(&key)
                 || record
                     .view
@@ -3266,7 +3325,16 @@ fn dispatch(shared: Arc<Shared>) {
             super::runtime_update::Selection::default()
         }
     };
+    let mut sessions_checked = std::time::Instant::now() - Duration::from_secs(2);
     loop {
+        if sessions_checked.elapsed() >= Duration::from_secs(1) {
+            let sessions = crate::browser_sessions::Store::new(&shared.manager.root).list();
+            let mut model = lock(&shared.model);
+            let mut next = model.browser_sessions.clone();
+            match sessions { Ok(sites) => { next.sites = sites; next.error = None; }, Err(error) => { next.sites.clear(); next.error = Some(error); } }
+            if model.browser_sessions != next { model.browser_sessions = next; model.revision += 1; shared.publish(&model); }
+            sessions_checked = std::time::Instant::now();
+        }
         #[cfg(test)]
         if shared
             .dispatch_test_exit

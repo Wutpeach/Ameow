@@ -26,6 +26,7 @@ ameow-cli --json wait INSTANCE:JOB --timeout 300
 ameow-cli --json cancel INSTANCE:JOB
 ameow-cli --json retry INSTANCE:JOB
 ameow-cli --json settings
+ameow-cli --json sessions
 ameow-cli --json components
 ameow-cli --json diagnose INSTANCE:JOB
 ameow-cli --json diagnose

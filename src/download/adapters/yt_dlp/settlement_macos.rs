@@ -8,6 +8,7 @@ pub(crate) struct ManagedCompletion {
     phase: InvocationPhase,
     binding: Option<ProcessSpec>,
     _guards: Vec<File>,
+    safe_records: bool,
 }
 
 impl ManagedCompletion {
@@ -15,6 +16,8 @@ impl ManagedCompletion {
         spec: &ProcessSpec,
         lease: &RuntimeLease,
         phase: InvocationPhase,
+        resolution: Option<&serde_json::Value>,
+        safe_records: bool,
     ) -> Result<Option<Self>, String> {
         let guards = lease.execution_guards()?;
         for name in ["rtmpdump", "phantomjs"] {
@@ -23,13 +26,14 @@ impl ManagedCompletion {
                 _ => return Ok(None),
             }
         }
-        if phase == InvocationPhase::Transfer
-            && !transfer_record(&spec.cwd.join(RESOLVED_FILE), None)
-                .is_some_and(|value| transfer_media_value(&value))
-        {
-            return Ok(None);
+        if phase == InvocationPhase::Transfer {
+            let disk;
+            let value = if safe_records { resolution } else {
+                disk = transfer_record(&spec.cwd.join(RESOLVED_FILE), None); disk.as_ref()
+            };
+            if !value.is_some_and(transfer_media_value) { return Ok(None); }
         }
-        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards }))
+        Ok(Some(Self { phase, binding: Some(spec.clone()), _guards: guards, safe_records }))
     }
 
     pub(crate) fn matches_invocation(&self, spec: &ProcessSpec) -> bool {
@@ -43,7 +47,7 @@ impl ManagedCompletion {
     pub(crate) fn complete(&self, workspace: &Path) -> bool {
         match self.phase {
             InvocationPhase::Resolve => true,
-            InvocationPhase::Transfer => transfer_media_completion(workspace),
+            InvocationPhase::Transfer => transfer_media_completion(workspace, self.safe_records),
             #[cfg(test)]
             InvocationPhase::Fixture => true,
         }
@@ -51,7 +55,7 @@ impl ManagedCompletion {
 
     #[cfg(test)]
     pub(crate) fn fixture(phase: InvocationPhase) -> Self {
-        Self { phase, binding: None, _guards: Vec::new() }
+        Self { phase, binding: None, _guards: Vec::new(), safe_records: false }
     }
 }
 
@@ -159,7 +163,7 @@ fn transfer_record(path: &Path, prefix: Option<&str>) -> Option<serde_json::Valu
     serde_json::from_slice(record).ok()
 }
 
-fn transfer_media_completion(workspace: &Path) -> bool {
+fn transfer_media_completion(workspace: &Path, safe_records: bool) -> bool {
     let Some(selection) =
         transfer_record(&workspace.join(SELECTION_FILE), Some(SELECTION_PREFIX))
     else {
@@ -168,7 +172,9 @@ fn transfer_media_completion(workspace: &Path) -> bool {
     let Some(summary) = transfer_record(&workspace.join(TRANSFER_INFO_FILE), None) else {
         return false;
     };
-    transfer_media_value(&selection)
+    // The original in-memory resolution already qualified the actual invocation. Safe
+    // native receipts retain protocol/kind without persisting URLs or request headers.
+    (if safe_records { transfer_media_kind(&selection) } else { transfer_media_value(&selection) })
         && transfer_media_kind(&summary)
         && summary["protocol"] == selection["protocol"]
 }
@@ -195,6 +201,7 @@ mod tests {
                 phase: InvocationPhase::Resolve,
                 binding: Some(spec.clone()),
                 _guards: Vec::new(),
+                safe_records: false,
             };
             assert!(completion.matches_invocation(&spec));
             let mut changed = spec.clone();
@@ -266,6 +273,7 @@ mod tests {
                     }
                 });
                 let context = ExecutionContext {
+                    authentication: None,
                     workspace: &workspace, lease: &lease, requirements: &requirements,
                     control: &control, observer, admission: Arc::new(|_| Ok(())), events: Arc::new(|_| {}),
                 };
@@ -274,7 +282,7 @@ mod tests {
                 } else {
                     "https://www.w3schools.com/html/mov_bbb.mp4"
                 };
-                let accepted = Accepted::new(DownloadIntent { url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
+                let accepted = Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: root.join("output") }).unwrap();
                 let adapter = super::super::YtDlpAdapter::new(requirements.clone());
                 let result = adapter.execute(&ExecutionRequest { accepted, resume: None }, &context);
                 let observations = observations.lock().unwrap();

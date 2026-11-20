@@ -16,7 +16,7 @@ cargo check --locked --all-targets
 cargo test --locked
 ```
 
-Build the app with `cargo build --locked --bin ameow`, then run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. A Cargo executable is a development entry; Windows distributions start through `AmeowLauncher.exe`, while Finder startup, system login items, and full-app updates on Mac use `Ameow.app`. Build both `ameow` and `ameow-updater` before using [package_macos.sh](scripts/package_macos.sh); see the [developer manual](https://wutpeach.github.io/Ameow/en/docs/developer/) for platform and data-path details.
+Build the app with `cargo build --locked --bin ameow`, then run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. A Cargo executable is a development entry; Windows distributions start through `AmeowLauncher.exe`, while Finder startup, system login items, and full-app updates on Mac use `Ameow.app`. Build `ameow`, `ameow-updater`, `ameow-cli`, and `ameow-browser-host` before using [package_macos.sh](scripts/package_macos.sh); see the [developer manual](https://wutpeach.github.io/Ameow/en/docs/developer/) for platform and data-path details.
 
 Run the narrowest relevant test first. Genuine runtime/media tests are explicitly ignored by default and require their documented inputs; ignored is not PASS. Native UI changes require running the affected workflow. Existing accepted evidence can be reused when its source and behavior remain applicable.
 

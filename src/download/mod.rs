@@ -5,6 +5,8 @@ pub mod output;
 mod output_names;
 pub mod contract;
 pub mod adapter;
+#[cfg(all(test, windows))]
+mod session_tests;
 pub mod adapters;
 pub mod composition;
 pub mod verification;
@@ -334,6 +336,8 @@ fn execute(
     let mut workspace = None;
     let mut lease = None;
     let mut destination_stage = None;
+    let mut authentication = None;
+    let mut authorization_watch = None;
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         runtime::check_data_location(&manager.root)?;
         runtime::check_data_location(&accepted.intent.output_dir)?;
@@ -511,7 +515,10 @@ fn execute(
                 }
             }
         });
+        authentication = crate::browser_sessions::Store::new(&manager.root).snapshot(&accepted.intent.url, working)?;
+        if let Some(auth) = &authentication { authorization_watch = Some(auth.watch(control.clone())?); }
         let context = ExecutionContext {
+            authentication: authentication.as_ref(),
             workspace: working,
             lease: runtime,
             requirements: services.adapter.requirements(),
@@ -532,7 +539,7 @@ fn execute(
             state.snapshot.collection = resume.clone();
             state.publish();
         }
-        let batch = services
+        let mut batch = services
             .adapter
             .execute_batch(
                 &ExecutionRequest {
@@ -546,6 +553,7 @@ fn execute(
                 adapter_failure = Some(failure);
                 message
             })?;
+        for artifact in &mut batch.artifacts { artifact.identity = context.public_identity(&artifact.identity)?; }
         if batch.collection {
             let failure = batch.failure.clone();
             adapter_failure = failure.clone();
@@ -655,6 +663,9 @@ fn execute(
     } else {
         None
     };
+    if authentication.is_some() && let Some(failure) = &failure {
+        message = format!("{}: {}", failure.code, failure.reason);
+    }
     if let Some(working) = workspace.as_ref() {
         let _ = fs::write(working.path().join("attempt-error.log"), &message);
     }
@@ -671,13 +682,16 @@ fn execute(
     // this owner's exact workspace. A failed cleanup remains Held with its runtime lease retained.
     if let Some(owned) = workspace {
         let path = owned.keep();
-        let evidence: Vec<_> = services
+        let mut evidence: Vec<_> = services
             .adapter
             .evidence_files()
             .iter()
             .chain(services.verifiers.evidence_files().iter())
             .copied()
             .collect();
+        if authentication.is_some() {
+            evidence.retain(|(name, _)| name.contains("settlement") || name.ends_with("-media.json"));
+        }
         match preserve_diagnostics(&manager.root, &path, job, &evidence) {
             Ok(diagnostics) => {
                 let mut state = lock(&state);
@@ -707,6 +721,7 @@ fn execute(
             }
         }
     }
+    drop(authorization_watch);
     drop(lease);
     drop(prepared); // shared attempt lease is released before this runner publishes resources_released.
     {

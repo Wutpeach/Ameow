@@ -34,7 +34,7 @@ pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>)
         attempt: u32::from(ticket.is_some()),
         phase: phase.clone(),
         accepted: Accepted {
-            intent: DownloadIntent {
+            intent: DownloadIntent { clip: None,
                 url: String::new(),
                 quality: Quality::Balanced,
                 output_dir: PathBuf::new(),
@@ -86,6 +86,7 @@ pub fn partial(total: Option<usize>) -> JobSnapshot {
 }
 pub fn snapshot(jobs: Vec<JobSnapshot>) -> QueueSnapshot {
     QueueSnapshot {
+        browser_sessions: Default::default(),
         revision: 1,
         unfinished: jobs.iter().filter(|j| !j.phase.terminal()).count(),
         failures: jobs.iter().filter(|j| matches!(j.phase, JobPhase::Failure | JobPhase::Partial)).count(),

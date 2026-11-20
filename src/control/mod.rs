@@ -211,6 +211,8 @@ pub enum Command {
         url: String,
         quality: Option<Quality>,
         output_dir: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        clip: Option<crate::download::request::ClipRange>,
     },
     Cancel {
         task_id: String,
@@ -219,6 +221,7 @@ pub enum Command {
         task_id: String,
     },
     Settings {},
+    BrowserSessions {},
     Components {},
     Diagnose {
         task_id: Option<String>,
@@ -717,7 +720,7 @@ impl Server {
         };
         match command {
             Command::Hello {} => Ok(
-                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false}),
+                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true}),
             ),
             Command::List {} | Command::ListPage { .. } => {
                 let after = match command {
@@ -744,6 +747,7 @@ impl Server {
                 Ok(file_page(&self.instance_id, job, *after))
             }
             Command::Settings {} => Ok(json!(snapshot.settings)),
+            Command::BrowserSessions {} => Ok(json!(snapshot.browser_sessions)),
             Command::Components {} => Ok(
                 json!({"preparing":snapshot.preparing,"preparation":snapshot.preparation,"held":snapshot.preparation_held,"owner_lost":snapshot.preparation_owner_lost,"verified_versions":snapshot.verified_runtime_versions,"runtime_update":snapshot.runtime_update}),
             ),
@@ -765,6 +769,7 @@ impl Server {
                 url,
                 quality,
                 output_dir,
+                clip,
             } => {
                 if url.len() > 8192
                     || output_dir
@@ -780,6 +785,7 @@ impl Server {
                     url: url.clone(),
                     quality: *quality,
                     output_dir: output_dir.clone(),
+                    clip: *clip,
                 })?;
                 let CommandReply::Accepted(id) = reply else {
                     return Err(ControlError::new(

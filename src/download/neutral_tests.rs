@@ -27,6 +27,44 @@ pub(crate) struct DataAdapter {
     pub(crate) requirements: TrustedRuntimeRequirements,
     pub(crate) mode: Arc<AtomicU8>,
 }
+struct SessionObserver {
+    inner: DataAdapter,
+    observations: Arc<std::sync::Mutex<Vec<Option<String>>>>,
+}
+impl DownloaderAdapter for SessionObserver {
+    fn kind(&self) -> MediaKind { MediaKind::Data }
+    fn requirements(&self) -> &TrustedRuntimeRequirements { &self.inner.requirements }
+    fn evidence_files(&self) -> &[(&str,u64)] { &[] }
+    fn execute(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> AdapterResult {
+        let hash = context.authentication.map(|a| super::runtime::hash(fs::File::open(&a.path).unwrap()).unwrap());
+        self.observations.lock().unwrap().push(hash);
+        self.inner.execute(request, context)
+    }
+}
+#[test]
+fn explicit_retry_takes_a_new_session_and_revocation_settles_the_active_owner() -> Result<(), String> {
+    use crate::browser_sessions::{Cookie, Operation, Store};
+    let root = tempfile::tempdir().unwrap(); let runtime_root = root.path().join("runtime");
+    let output = root.path().join("output"); fs::create_dir(&output).unwrap();
+    let store = Store::new(&runtime_root); let source = "a".repeat(32); let grant = "b".repeat(32);
+    let cookie = |value:&str| Cookie {domain:".youtube.com".into(),path:"/".into(),name:"synthetic".into(),value:value.into(),secure:true,http_only:true,host_only:false,expires:None};
+    store.apply(Operation::Authorize {site:"youtube.com".into(),source_id:source.clone(),source_name:"Isolated browser".into(),grant_id:grant.clone(),replaces:None,cookies:vec![cookie("SYNTHETIC_V1")],skipped_partitioned:0})?;
+    let mode = Arc::new(AtomicU8::new(1)); let observations = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let services = DownloadServices {runtime:Arc::new(RuntimeManager::new(runtime_root)),adapter:Arc::new(SessionObserver {inner:DataAdapter{requirements:TrustedRuntimeRequirements::empty(),mode:mode.clone()},observations:observations.clone()}),verifiers:Arc::new(VerifierRegistry::data())};
+    let queue = DownloadCoordinator::new(services,root.path().join("settings.json"),Settings {quality:Quality::Highest,output_dir:output,theme:Default::default(),language:Default::default(),tray_icon:Default::default()})?;
+    let url = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+    let first = queue.submit(url.into())?; wait(&queue, |v| v.jobs.iter().any(|j| j.job_id == first && j.phase == JobPhase::Failure && j.resources_released))?;
+    assert!(!queue.diagnostic(first)?.contains("SYNTHETIC"));
+    store.apply(Operation::Sync {site:"youtube.com".into(),source_id:source,grant_id:grant.clone(),sequence:1,cookies:vec![cookie("SYNTHETIC_V2")],skipped_partitioned:0})?;
+    mode.store(0, Ordering::Release); let retry = queue.retry(first)?;
+    wait(&queue, |v| v.jobs.iter().any(|j| j.job_id == retry && j.phase == JobPhase::Success && j.resources_released))?;
+    { let observed = observations.lock().unwrap(); assert!(observed[0].is_some()); assert!(observed[1].is_some()); assert_ne!(observed[0], observed[1]); }
+    mode.store(3, Ordering::Release); let active = queue.submit(url.into())?;
+    wait(&queue, |v| v.jobs.iter().any(|j| j.job_id == active && j.phase == JobPhase::Downloading))?;
+    store.remove("youtube.com", &grant)?;
+    wait(&queue, |v| v.jobs.iter().any(|j| j.job_id == active && j.phase == JobPhase::Cancelled && j.resources_released && !j.slot_owned))?;
+    stop(&queue)
+}
 impl DownloaderAdapter for DataAdapter {
     fn kind(&self) -> MediaKind {
         MediaKind::Data

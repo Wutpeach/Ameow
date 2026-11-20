@@ -42,7 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
         coordinator.save_settings(settings)?;
-        let job = coordinator.submit(url)?;
+        let clip = match (value("--start-ms"), value("--end-ms")) {
+            (Some(start), Some(end)) => Some(ameow_next::download::request::ClipRange { start_ms: start.parse()?, end_ms: end.parse()? }.validate()?),
+            (None, None) => None,
+            _ => return Err("both --start-ms and --end-ms are required".into()),
+        };
+        let job = coordinator.submit_clip(url, None, None, clip)?;
         let start = Instant::now();
         let mut revision = None;
         let mut cancelled = false;
@@ -55,6 +60,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let item = snapshot.jobs.iter().find(|item| item.job_id == job).ok_or("Job missing")?;
             if item.phase.terminal() {
                 if item.phase != JobPhase::Success {
+                    if let Some(path) = value("--diagnostic-output")
+                        && let ameow_next::download::queue::CommandReply::Diagnostic(text) = coordinator.apply(
+                            ameow_next::download::queue::QueueCommand::CopyDiagnostic(job),
+                        )
+                    {
+                        std::fs::write(path, text)?;
+                    }
                     return Err(item.message.clone().into());
                 }
                 return Ok(());

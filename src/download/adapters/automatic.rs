@@ -48,6 +48,7 @@ fn generic_batch(
     let observed = settled.clone();
     let observer = context.observer.clone();
     let first = ExecutionContext {
+        authentication: context.authentication,
         workspace: &directory, lease: context.lease, requirements: context.requirements, control: context.control,
         admission: Arc::new(move |proof| {
             // Even a refused admission may already have frozen queue identity.
@@ -124,6 +125,11 @@ impl DownloaderAdapter for AutomaticAdapter {
         request: &ExecutionRequest,
         context: &ExecutionContext<'_>,
     ) -> Result<ProducedBatch, Failure> {
+        if request.accepted.intent.clip.is_some() {
+            // A gallery fallback has no interval contract and must never download the whole source.
+            context.emit(AdapterEvent::Engine(Downloader::YtDlp));
+            return self.video.execute_batch(request, context);
+        }
         if matches!(request.accepted.object, Object::Generic { .. }) {
             let preferred = request.accepted.preferred_engine;
             let (primary, secondary): (&dyn DownloaderAdapter, &dyn DownloaderAdapter) = match preferred {
@@ -160,6 +166,8 @@ const EVIDENCE: &[(&str, u64)] = &[
     ("primary-transfer-command.json", 65536),
     ("primary-resolve-settlement.log", 65536),
     ("primary-transfer-settlement.log", 65536),
+    ("primary-resolve-media.json", 65536),
+    ("primary-transfer-media.json", 65536),
     ("resolved.json", 32 * 1024 * 1024),
     ("media.info.json", 32 * 1024 * 1024),
     ("selection.txt", 32 * 1024 * 1024),
@@ -173,6 +181,8 @@ const EVIDENCE: &[(&str, u64)] = &[
     ("transfer-settlement.txt", 65536),
     ("final-object.txt", 4096),
     ("adapter-error.log", 65536),
+    ("resolve-media.json", 65536),
+    ("transfer-media.json", 65536),
     ("gallery-after.jsonl", 8 * 1024 * 1024),
     ("gallery-skip.jsonl", 8 * 1024 * 1024),
     ("resolve-command.json", 8 * 1024 * 1024),
@@ -223,8 +233,8 @@ mod tests {
         let captured = events.clone();
         let event_control = control.clone();
         let admission: IdentityAdmission = Arc::new(move |_| if refuse_admission { Err("E_DUPLICATE: fixture".into()) } else { Ok(()) });
-        let context = ExecutionContext { workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
-        let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
+        let context = ExecutionContext { authentication: None, workspace: &work, lease: &lease, requirements: &requirements, control: &control, observer: Arc::new(|_| {}), admission, events: Arc::new(move |event| { if cancel_on_fallback && matches!(event, AdapterEvent::Fallback) { event_control.cancel(); } captured.lock().unwrap().push(format!("{event:?}")); }) };
+        let request = ExecutionRequest { accepted: Accepted::new(DownloadIntent { clip: None, url: "https://example.com/work".into(), quality: Quality::Saver, output_dir: root.path().into() }).unwrap(), resume: None };
         let primary = Fixture::new(first); let secondary = Fixture::new(second);
         let result = generic_batch(&request, &context, &primary, &secondary, preferred);
         assert_eq!(primary.calls.load(Ordering::Acquire), 1);

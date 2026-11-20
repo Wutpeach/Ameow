@@ -433,7 +433,7 @@ impl DownloadUi {
         if self.app_update.as_ref().is_some_and(|s| !s.commands_allowed())
             && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) { return false; }
         if self.named_preview.is_some() { return false; }
-        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
+        if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended | QueueCommand::InstallBrowserBridge | QueueCommand::RemoveBrowserSession { .. }) {
             return false;
         }
         match self.commands.try_send(command) {
@@ -801,6 +801,8 @@ fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_
 }
 pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
     match command {
+        QueueCommand::InstallBrowserBridge => serde_json::json!({"type":"command","command":"install-browser-bridge"}),
+        QueueCommand::RemoveBrowserSession { .. } => serde_json::json!({"type":"command","command":"remove-browser-session"}),
         QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } => serde_json::json!({"type":"command","command":"submit"}),
         QueueCommand::SaveSettings(settings) => {
             serde_json::json!({"type":"command","command":"save-settings","quality":settings.quality,"theme":settings.theme,"language":settings.language,"tray_icon":settings.tray_icon})
@@ -3636,6 +3638,7 @@ mod tests {
     use core::prelude::v1::test;
     fn exit_snapshot() -> QueueSnapshot {
         QueueSnapshot {
+            browser_sessions: Default::default(),
             revision: 1,
             jobs: Vec::new(),
             settings: Settings {
@@ -4009,6 +4012,7 @@ mod tests {
             theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         };
         let mut snapshot = QueueSnapshot {
+            browser_sessions: Default::default(),
             revision: 1,
             jobs: Vec::new(),
             settings,
@@ -4037,7 +4041,7 @@ mod tests {
             revision: 1,
             attempt: 1,
             phase: JobPhase::Held,
-            accepted: Accepted::new(DownloadIntent {
+            accepted: Accepted::new(DownloadIntent { clip: None,
                 url: "https://youtu.be/00000000007".into(),
                 quality: Quality::Balanced,
                 output_dir: root.path().into(),
