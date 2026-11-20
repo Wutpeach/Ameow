@@ -7,18 +7,22 @@ boundaries. Temporary captures, cached GitHub CSS and check results go to ignore
 
 ## Native cat and paste
 
-`cat-paste/record.py` uses an owned, visible Gallery Preview and a 320px neutral
-backdrop. Arrange an available desktop window before running it. It never sends
-physical input, reads the clipboard or starts real downloads. It pins the cached
+`cat-paste/record.py` requires Windows and Python with Pillow. It uses an owned,
+visible Gallery Preview and a 320px neutral backdrop. Arrange available desktop
+time before running it. It never sends
+physical input, reads the clipboard or starts real downloads. It pins the
 EXE hash, uses a unique control directory, and closes only its own processes and
 background. The outer Windows Job and 60-second supervisor bound the run.
 
 ```powershell
-python docs/readme-media/cat-paste/record.py --exe D:/Ameow/target/debug/ameow.exe
+$previewExe = '<absolute-path-to-hash-matched-ameow.exe>'
+python docs/readme-media/cat-paste/record.py --exe $previewExe
 ```
 
-This command fails if that cached EXE changes; review a new binary and its actual
-Gallery catalog before updating the pin.
+Supply the Windows EXE matching the SHA256 in the [media sources](../images/readme/README.md).
+The command rejects other binaries; its pin does not identify a generic 0.5.0
+build. Review a different binary and its actual Gallery catalog before changing
+the pin. New recordings produce raw media for review.
 
 ## Extension session sync
 
@@ -27,19 +31,22 @@ build's source hash against pinned PR63 source, injects only a synthetic browser
 transport, and blocks external requests. No extension is installed.
 
 ```powershell
-node docs/readme-media/session-sync/render.mjs D:/path/to/PR63/browser-extension/dist
+$env:PLAYWRIGHT_MODULE = '<absolute-path-to-playwright-core/index.mjs>'
+$env:CHROMIUM_PATH = '<absolute-path-to-headless-chromium-executable>'
+$extensionDist = '<absolute-path-to-PR63/browser-extension/dist>'
+node docs/readme-media/session-sync/render.mjs $extensionDist
 ```
 
-Use the existing PR63 build, or build the pinned source in an isolated directory
-with its lockfile. `PLAYWRIGHT_MODULE` selects an installed `playwright-core`
-module and `CHROMIUM_PATH` selects a headless Chromium executable; defaults reuse
-this machine's existing trusted cache. FFmpeg encodes the GIF after capture.
-No new business dependencies are required.
+Use the pinned PR63 source object and a matching extension build produced with
+its lockfile. Set `PLAYWRIGHT_MODULE` to an installed `playwright-core` module
+file and `CHROMIUM_PATH` to the Chromium executable to use. These variables also
+apply to `check.mjs`; provide your own paths explicitly. Node.js and FFmpeg must
+be available. No project dependencies are added.
 
-## Approved clip
+## Existing clip assets
 
-Do not re-encode `clip-selection.gif` or its poster. They are copied from the
-approved #71 output and their two hashes are checked by `check.mjs`.
+Reuse `clip-selection.gif` and its poster without re-encoding. Their two hashes
+are documented in the media sources and checked by `check.mjs`.
 
 ## README preview and checks
 
@@ -50,12 +57,13 @@ node docs/readme-media/preview.mjs
 node docs/readme-media/check.mjs
 ```
 
-The first command uses the authenticated `gh` CLI only for GitHub Markdown
-rendering and fetches GitHub's public styles. The server binds only
+The first command uses the authenticated `gh` CLI for GitHub Markdown rendering
+and caches GitHub's public styles. Browser checks require the two tool paths
+above, FFmpeg/FFprobe, and Python. The server binds only
 `http://127.0.0.1:8871/`. Its controls switch language, GitHub light/dark and
 GIF/static poster views; they do not change the README. Stop it with Ctrl+C.
 
-Checks decode every GIF frame with FFmpeg, check both approved clip hashes,
+Checks decode every GIF frame with FFmpeg, check both clip hashes,
 README image/alt/local-link paths and six badge slots, then inspect both languages
 at desktop and 320px in GitHub light/dark. Tight section screenshots and a short
 result JSON stay in `.work/check/`. These checks verify the media and reading
