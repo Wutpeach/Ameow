@@ -103,13 +103,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
             append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
-            generic_args(&mut args, accepted, true);
-            args.extend([
-                "--dump-single-json".into(),
-                "--skip-download".into(),
-                "--".into(),
-                accepted.intent.url.clone(),
-            ]);
+            resolve_args(&mut args, accepted);
             let bytes = invoke(context, args, None, InvocationPhase::Resolve, #[cfg(target_os = "macos")] None)?;
             let metadata = parse_metadata(&bytes)?;
             media_observation(context, "resolve-media.json", &metadata)?;
@@ -262,7 +256,80 @@ impl DownloaderAdapter for YtDlpAdapter {
             }
         })
     }
+    fn inspect(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> Result<crate::download::inspection::Inspection, Failure> {
+        let accepted = &request.accepted;
+        let result = (|| {
+            if context.cancelled() { return Err("Cancelled before extraction".into()); }
+            if request.resume.is_some() || accepted.intent.clip.is_some() || matches!(accepted.object, Object::Gallery { .. }) {
+                return Err("E_OBJECT_UNSUPPORTED: inspection requires one complete video".into());
+            }
+            context.emit(AdapterEvent::Resolving);
+            check_generic_destination(accepted)?;
+            let route = network::engine_route(&accepted.intent.url)
+                .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
+            inspect_resolve(accepted, context, &route)
+        })();
+        result.map_err(|error: String| {
+            if context.cancelled() { Failure::new(FailureCode::Cancelled, "cleanup") }
+            else { diagnostics::classify(&Phase::Resolving, &error) }
+        })
+    }
 }
+
+fn inspect_resolve(accepted: &Accepted, context: &ExecutionContext<'_>, route: &network::Route) -> Result<crate::download::inspection::Inspection, String> {
+    let mut args = engine_args(context, route, accepted.intent.quality)?;
+    resolve_args(&mut args, accepted);
+    // Inspection keeps native output in memory only, even for anonymous attempts.
+    let command = ManagedCommand { tool: "yt-dlp.exe", args, stdout_limit: METADATA_LIMIT, stderr_limit: 1024 * 1024, timeout: None };
+    #[cfg(target_os = "macos")]
+    let outcome = context.run_ytdlp(command, InvocationPhase::Resolve, None, None)?;
+    #[cfg(not(target_os = "macos"))]
+    let outcome = context.run(command, None)?;
+    validate_engine_outcome(&outcome, "resolve")?;
+    if context.cancelled() { return Err("Cancelled after extraction".into()); }
+    let metadata = parse_metadata(&outcome.stdout)?;
+    check_generic_object(accepted, &metadata)?;
+    let mut proof = identity::proof(accepted, &metadata).map_err(|e| format!("E_IDENTITY: {e}"))?;
+    // Native titles are free-form and can echo secrets outside the CookieJar.
+    proof.identity.title.clear();
+    context.admit(&proof).map_err(|failure| format!("{}: {}", failure.code, failure.reason))?;
+    let identity = context.public_identity(&proof.identity)?;
+    if context.cancelled() { return Err("Cancelled after identity admission".into()); }
+    Ok(inspection_summary(identity, &metadata))
+}
+
+fn inspection_summary(identity: crate::download::request::Identity, metadata: &Value) -> crate::download::inspection::Inspection {
+    use crate::download::inspection::{Inspection, SelectedMedia, SizeSource, VideoCodec};
+    let selected = selection::chosen(metadata).into_iter().take(8).map(|item| {
+        let dimension = |key| item[key].as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n > 0);
+        let video_codec = item["vcodec"].as_str().and_then(|value| selection::codec(value).ok()).and_then(|codec| match codec {
+            crate::download::contract::VideoCodec::H264 => Some(VideoCodec::H264),
+            crate::download::contract::VideoCodec::Hevc => Some(VideoCodec::Hevc),
+            crate::download::contract::VideoCodec::Vp9 => Some(VideoCodec::Vp9),
+            crate::download::contract::VideoCodec::Av1 => Some(VideoCodec::Av1),
+            _ => None,
+        });
+        let audio_present = item["acodec"].as_str().and_then(|codec| match codec {
+            "none" => Some(false),
+            "" | "unknown" | "N/A" | "?" => None,
+            _ => Some(true),
+        });
+        let size = |key| item[key].as_u64().filter(|n| *n > 0);
+        let (bytes, size_source) = if let Some(size) = size("filesize") { (Some(size), Some(SizeSource::NativeFilesize)) }
+            else if let Some(size) = size("filesize_approx") { (Some(size), Some(SizeSource::NativeEstimate)) }
+            else { (None, None) };
+        SelectedMedia { width: dimension("width"), height: dimension("height"), video_codec, audio_present, bytes, size_source }
+    }).collect();
+    Inspection { identity, duration_seconds: metadata["duration"].as_f64().filter(|n| n.is_finite() && *n > 0.), selected }
+}
+
+fn resolve_args(args: &mut Vec<String>, accepted: &Accepted) {
+    generic_args(args, accepted, true);
+    args.extend(["--dump-single-json".into(), "--skip-download".into(), "--".into(), accepted.intent.url.clone()]);
+}
+
+#[cfg(test)]
+mod inspection_tests;
 fn check_clip_source(value: &Value, range: crate::download::request::ClipRange) -> Result<(), String> {
     if value["is_live"] == true || matches!(value["live_status"].as_str(), Some("is_live" | "is_upcoming" | "post_live")) {
         return Err("E_OBJECT_UNSUPPORTED: clip requires a single on-demand video".into());

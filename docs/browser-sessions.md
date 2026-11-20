@@ -67,8 +67,8 @@ Edge E2E 只创建自己的 profile、合成 Cookie 和测试 host 注册。无�
 实际下载 fixture 使用已有 debug 更新 fixture 的固定 example.com 代理路由；服务器不会转发外部请求，不修改系统代理。它运行正式下载内核、官方 yt-dlp/FFmpeg/verifier，检查 2160p 合成交付、匿名 1080p、attempt 冻结、来源刷新、失败脱敏和真实撤销结算：
 
 ~~~powershell
-cargo build --locked --features app-update-fixture --example download_job
-python scripts/test_browser_session_media.py --root D:/task/new-media-fixture --driver target/debug/examples/download_job.exe --host target/debug/ameow-browser-host.exe --ffmpeg C:/tools/ffmpeg.exe --ffprobe C:/tools/ffprobe.exe
+cargo build --locked --features app-update-fixture --example session_media_fixture
+python scripts/test_browser_session_media.py --root D:/task/new-media-fixture --driver target/debug/examples/session_media_fixture.exe --host target/debug/ameow-browser-host.exe --ffmpeg C:/tools/ffmpeg.exe --ffprobe C:/tools/ffprobe.exe
 ~~~
 
 Mac 的 scripts/package_session_check_macos.sh /absolute/new/check-directory 只准备可从 Finder 启动的专属合成验证包，不启动 GUI 或访问 Keychain。它使用产品存储代码和桥接，检查两个可执行文件访问、快照、刷新和撤销；其身份及覆盖边界与完整 GPUI/浏览器验证分开记录。只有用户本机明确启动后才运行，回执仅含安全状态及哈希，清理限定测试 root 对应的专属 account。

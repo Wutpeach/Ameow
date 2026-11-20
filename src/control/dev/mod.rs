@@ -23,7 +23,7 @@ use std::{
 };
 
 const HELP: &str = "ameow-cli dev (debug + dev-tools only)\n\n  run --root DIR --url URL [--url URL ...] [--quality highest|balanced|saver]\n      [--cancel-job N --cancel-after-ms MS] [--stop-after-ms MS]\n      [--retry-failed] [--duplicate-first] [--timeout SECONDS] [--settle-timeout SECONDS]
-      [--fixture-media-port PORT] (three fixed local media URLs only)\n  scenario --root DIR --case success|retry|cancel|stop|held|timeout\n\nOwns this finite invocation; no GUI or attach service. New root per run; only a copied runtime/ may be preseeded.\nWrites evidence/identity.json, events.jsonl, result.json. stdout is one JSON result.\nTimeout requests Stop; unconfirmed cleanup returns 6 with stopped=false, never a settlement claim.\n";
+      [--fixture-media-port PORT] (three fixed local media URLs only)\n  scenario --root DIR --case success|retry|cancel|stop|held|timeout\n  inspect URL --instance-id ID [--instance-root DIR] [--quality highest|balanced|saver]\n\nrun/scenario own a finite isolated invocation; new root per run, no GUI or attach service.\ninspect connects an explicitly identified existing owner; no auto-start. Observe with show/wait, cancel explicitly, retry a Held inspection to retry cleanup.\nInspection may use network and temporary files; Inspected is metadata only, never a delivered download.\nWrites evidence/identity.json, events.jsonl, result.json. stdout is one JSON result.\nTimeout requests Stop; unconfirmed cleanup returns 6 with stopped=false, never a settlement claim.\n";
 
 #[derive(Debug)]
 struct Options {
@@ -430,6 +430,7 @@ fn execute(options: Options) -> Result<Value, ControlError> {
     let mut evidence = Evidence::new(root.clone(), &options)?;
     evidence.event("started", evidence.identity.clone())?;
     let defaults = Settings {
+        shortcut: Default::default(),
         quality: options.quality,
         output_dir: root.join("output"),
         theme: Default::default(),

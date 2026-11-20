@@ -38,6 +38,7 @@ pub enum JobPhase {
     Validating,
     Publishing,
     Held,
+    Inspected,
     Success,
     Partial,
     Failure,
@@ -45,7 +46,7 @@ pub enum JobPhase {
 }
 impl JobPhase {
     pub fn terminal(&self) -> bool {
-        matches!(self, Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
+        matches!(self, Self::Inspected | Self::Success | Self::Partial | Self::Failure | Self::Cancelled)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,6 +65,10 @@ pub struct JobEvent {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JobSnapshot {
+    #[serde(default)]
+    pub inspect_only: bool,
+    #[serde(default)]
+    pub inspection: Option<super::inspection::Inspection>,
     #[serde(default)]
     pub engine: Option<super::contract::Downloader>,
     pub job_id: u64,
@@ -2203,6 +2208,7 @@ pub struct QueueSnapshot {
     pub main_job: Option<u64>,
 }
 pub enum QueueCommand {
+    Inspect { url: String, quality: Quality },
     InstallBrowserBridge,
     RemoveBrowserSession { site: String, grant_id: String },
     UpgradeEngine { version: String },
@@ -2458,6 +2464,8 @@ impl Model {
             job,
             Record {
                 view: JobSnapshot {
+                    inspect_only: false,
+                    inspection: None,
                     engine: None,
                     job_id: job,
                     revision: 0,
@@ -2565,6 +2573,14 @@ impl Model {
             sha256: media.sha256.clone(),
         });
         self.event(job, "attempt-joined-slot-release");
+        if snapshot.phase == Phase::Inspected && !self.stopping && !self.records[&job].cancelled {
+            if let Some(record) = self.records.get_mut(&job) {
+                record.view.inspection = snapshot.inspection;
+                record.view.message = "Metadata inspected; no media downloaded".into();
+            }
+            self.terminal(job, JobPhase::Inspected);
+            return;
+        }
         if snapshot.phase == Phase::Success {
             if let Some(record) = self.records.get_mut(&job) {
                 record.view.message = "Verified media safely delivered".into();
@@ -2726,17 +2742,27 @@ impl DownloadCoordinator {
         self.submit_clip(url, quality, output_dir, None)
     }
     pub fn submit_clip(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange>) -> Result<u64, String> {
+        self.submit_kind(url, quality, output_dir, clip, false)
+    }
+    pub fn inspect(&self, url: String, quality: Quality) -> Result<u64, String> {
+        if !cfg!(all(feature = "dev-tools", debug_assertions)) { return Err("E_INSPECTION_UNSUPPORTED".into()); }
+        self.submit_kind(url, Some(quality), None, None, true)
+    }
+    fn submit_kind(&self, url: String, quality: Option<Quality>, output_dir: Option<PathBuf>, clip: Option<super::request::ClipRange>, inspect_only: bool) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
         let settings = lock(&self.shared.model).settings.clone();
+        if inspect_only { super::runtime::safe_dir(&self.shared.manager.root)?; }
         let mut accepted = Accepted::new(DownloadIntent { clip,
             url,
             quality: quality.unwrap_or(settings.quality),
-            output_dir: output_dir.unwrap_or(settings.output_dir),
+            output_dir: if inspect_only { self.shared.manager.root.clone() } else { output_dir.unwrap_or(settings.output_dir) },
         })
         .map_err(|_| "E_INPUT: Use a public single-video URL and existing destination")?;
         let mut model = lock(&self.shared.model);
-        accepted.preferred_engine = model.downloader_preferences.preferred(&accepted);
+        accepted.preferred_engine = if inspect_only { super::contract::Downloader::YtDlp } else { model.downloader_preferences.preferred(&accepted) };
+        if inspect_only && matches!(accepted.object, super::request::Object::Gallery { .. }) { return Err("E_OBJECT_UNSUPPORTED: inspection requires one yt-dlp work".into()); }
         let job = model.accept(accepted, None)?;
+        model.records.get_mut(&job).ok_or("E_RUNTIME")?.view.inspect_only = inspect_only;
         self.shared.publish(&model);
         Ok(job)
     }
@@ -2800,6 +2826,7 @@ impl DownloadCoordinator {
             .records
             .get(&failed_job)
             .ok_or("E_RETRY: Unknown Job")?;
+        if old.view.inspect_only { return Err("E_RETRY: Submit a new inspection explicitly".into()); }
         if !matches!(old.view.phase, JobPhase::Failure | JobPhase::Partial) {
             return Err("E_RETRY: Only failed or partially completed downloads can retry".into());
         }
@@ -2925,6 +2952,7 @@ impl DownloadCoordinator {
     }
     pub fn apply(&self, command: QueueCommand) -> CommandReply {
         match command {
+            QueueCommand::Inspect { url, quality } => self.inspect(url, quality).map(CommandReply::Accepted).unwrap_or_else(CommandReply::Error),
             QueueCommand::InstallBrowserBridge => {
                 if lock(&self.shared.model).stopping { return CommandReply::Applied(false); }
                 let result = if super::runtime::RuntimeManager::default_root().as_ref().is_ok_and(|root| root == &self.shared.manager.root) {
@@ -3752,6 +3780,7 @@ fn dispatch(shared: Arc<Shared>) {
                     job,
                     attempt as u64,
                     PreparedAttempt {
+                        inspect_only: record.view.inspect_only,
                         lease: lease.clone(),
                         admit,
                         resume: record.view.collection.clone(),

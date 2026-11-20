@@ -120,6 +120,13 @@ impl DownloaderAdapter for AutomaticAdapter {
         if batch.artifacts.len() != 1 { return Err(Failure::new(FailureCode::Media, "verify")); }
         Ok(batch.artifacts.remove(0))
     }
+    fn inspect(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> Result<crate::download::inspection::Inspection, Failure> {
+        if matches!(request.accepted.object, Object::Gallery { .. }) {
+            return Err(Failure::new(FailureCode::UnsupportedObject, "resolve"));
+        }
+        context.emit(AdapterEvent::Engine(Downloader::YtDlp));
+        self.video.inspect(request, context)
+    }
     fn execute_batch(
         &self,
         request: &ExecutionRequest,

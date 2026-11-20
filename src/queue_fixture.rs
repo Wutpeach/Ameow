@@ -29,6 +29,7 @@ struct Control {
 pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>) -> JobSnapshot {
     let terminal = phase.terminal();
     JobSnapshot {
+        inspect_only: false, inspection: None,
         job_id: id,
         revision: 1,
         attempt: u32::from(ticket.is_some()),

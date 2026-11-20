@@ -727,7 +727,7 @@ impl DownloadUi {
     pub fn badge(&self) -> Option<(usize, bool, bool)> {
         self.snapshot
             .as_ref()
-            .and_then(|snapshot| badge_counts(snapshot.unfinished, self.presentation.failures(snapshot)))
+            .and_then(|snapshot| badge_counts(snapshot.jobs.iter().filter(|job| !job.inspect_only && !job.phase.terminal()).count(), self.presentation.failures(snapshot)))
     }
     fn complete_diagnostic(&mut self, job: u64, result: Result<(), String>, now: u64) -> bool {
         if job == 0 {
@@ -801,6 +801,7 @@ fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_
 }
 pub(crate) fn command_summary(command: &QueueCommand) -> serde_json::Value {
     match command {
+        QueueCommand::Inspect { .. } => serde_json::json!({"type":"command","command":"inspect"}),
         QueueCommand::InstallBrowserBridge => serde_json::json!({"type":"command","command":"install-browser-bridge"}),
         QueueCommand::RemoveBrowserSession { .. } => serde_json::json!({"type":"command","command":"remove-browser-session"}),
         QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } => serde_json::json!({"type":"command","command":"submit"}),
@@ -974,6 +975,7 @@ pub fn phase_label(job: &JobSnapshot) -> String {
         JobPhase::Validating => "校验媒体".into(),
         JobPhase::Publishing => "保存文件".into(),
         JobPhase::Held => "清理待确认".into(),
+        JobPhase::Inspected => "解析完成".into(),
         JobPhase::Success => "下载完成".into(),
         JobPhase::Failure => match job.failure.as_ref().map(|f| f.code.as_str()) {
             Some("E_OBJECT_UNSUPPORTED" | "E_UNSUPPORTED_URL") => "暂不支持".into(),
@@ -4037,6 +4039,7 @@ mod tests {
         assert!(!message.contains("保留资源"));
         assert!(!message.contains("重试"));
         snapshot.jobs.push(JobSnapshot {
+            inspect_only: false, inspection: None,
             job_id: 7,
             revision: 1,
             attempt: 1,

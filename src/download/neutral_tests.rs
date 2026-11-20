@@ -51,7 +51,7 @@ fn explicit_retry_takes_a_new_session_and_revocation_settles_the_active_owner() 
     store.apply(Operation::Authorize {site:"youtube.com".into(),source_id:source.clone(),source_name:"Isolated browser".into(),grant_id:grant.clone(),replaces:None,cookies:vec![cookie("SYNTHETIC_V1")],skipped_partitioned:0})?;
     let mode = Arc::new(AtomicU8::new(1)); let observations = Arc::new(std::sync::Mutex::new(Vec::new()));
     let services = DownloadServices {runtime:Arc::new(RuntimeManager::new(runtime_root)),adapter:Arc::new(SessionObserver {inner:DataAdapter{requirements:TrustedRuntimeRequirements::empty(),mode:mode.clone()},observations:observations.clone()}),verifiers:Arc::new(VerifierRegistry::data())};
-    let queue = DownloadCoordinator::new(services,root.path().join("settings.json"),Settings {quality:Quality::Highest,output_dir:output,theme:Default::default(),language:Default::default(),tray_icon:Default::default()})?;
+    let queue = DownloadCoordinator::new(services,root.path().join("settings.json"),Settings {shortcut:Default::default(),quality:Quality::Highest,output_dir:output,theme:Default::default(),language:Default::default(),tray_icon:Default::default()})?;
     let url = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
     let first = queue.submit(url.into())?; wait(&queue, |v| v.jobs.iter().any(|j| j.job_id == first && j.phase == JobPhase::Failure && j.resources_released))?;
     assert!(!queue.diagnostic(first)?.contains("SYNTHETIC"));

@@ -1,5 +1,21 @@
 use super::*;
 
+#[cfg(all(feature = "dev-tools", windows))]
+pub(crate) fn retry_inspection_cleanup_for_test(queue: &DownloadCoordinator, job: u64) {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().canonicalize().unwrap();
+    let mut server = Server::start(&path).unwrap();
+    let instance = server.instance_id.clone();
+    let client = std::thread::spawn(move || rpc(&path, &request(&instance, "cleanup_retry_01", Command::Retry {task_id:format!("{instance}:{job}")})));
+    let until = Instant::now() + Duration::from_secs(5);
+    while !client.is_finished() && Instant::now() < until { server.poll(queue, false, false); std::thread::sleep(Duration::from_millis(5)); }
+    let reply = client.join().unwrap().unwrap();
+    assert!(reply.ok, "{reply:?}");
+    let result = reply.result.unwrap();
+    assert_eq!(result["cleanup_retry"], true);
+    assert_eq!(result["job_id"], job);
+}
+
 fn isolated_server() -> Server {
     let (_, receiver) = mpsc::sync_channel(1);
     Server {

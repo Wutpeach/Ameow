@@ -1,6 +1,6 @@
 """Owned synthetic HLS through the real desktop download core and official yt-dlp.
 
-Build download_job with app-update-fixture. Its existing, fixed example.com proxy
+Build session_media_fixture with app-update-fixture. Its existing, fixed example.com proxy
 gate is used; no system proxy, browser database, or production route is changed.
 """
 import argparse

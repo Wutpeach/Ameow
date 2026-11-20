@@ -351,7 +351,7 @@ impl SettingsWindow {
         }).collect();
         let mut control_focus = HashMap::new();
         let shortcut_focus = cx.focus_handle().tab_index(0).tab_stop(true);
-        control_focus.insert("shortcut-record", shortcut_focus.clone());
+        control_focus.insert("shortcut-record".to_owned(), shortcut_focus.clone());
         let shortcut_subscriptions = vec![
             cx.on_focus_out(&shortcut_focus, window, |this, _, _, cx| {
                 this.finish_shortcut(cx);

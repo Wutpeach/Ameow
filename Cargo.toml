@@ -63,3 +63,7 @@ accesskit_windows = { path = "vendor/accesskit_windows" }
 app-update-fixture = []
 # Finite local development execution; never present in a release build.
 dev-tools = []
+
+[[example]]
+name = "session_media_fixture"
+required-features = ["app-update-fixture"]

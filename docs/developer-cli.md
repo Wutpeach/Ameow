@@ -1,19 +1,19 @@
 # CLI 开发入口
 
-本指南只描述 debug 开发执行。普通桌面控制的安装、版本可用性见[用户指南](../site/src/content/docs/docs/cli.md)（[English](../site/src/content/docs/en/docs/cli.md)），完整命令契约见 [cli.md](cli.md)。当前 v0.5.0 正式包没有后加的 CLI；开发 `dev` 入口需包含 PR #61，没有 GUI 设置开关，也不能在 release 构建中开启。
+本指南只描述 debug 开发执行。普通桌面控制的安装、版本可用性见[用户指南](../site/src/content/docs/docs/cli.md)（[English](../site/src/content/docs/en/docs/cli.md)），完整命令契约见 [cli.md](cli.md)。当前 v0.5.0 正式包没有后加的 CLI；本组合候选已整合 PR #61、#63、#64；开发入口需使用本候选，没有 GUI 设置开关，也不能在 release 构建中开启。
 
 ## 准备独立开发目录
 
-已有包含 PR #61 的独立检出时，直接进入该目录。若需要新建候选检出，下面的目录名可自行替换，先安装 [CONTRIBUTING](../CONTRIBUTING.md) 要求的工具链：
+已有包含 PR #61 的独立检出时，直接进入该目录。若需要新建组合候选检出，下面的目录名可自行替换，先安装 [CONTRIBUTING](../CONTRIBUTING.md) 要求的工具链：
 
 ~~~sh
 git clone https://github.com/Wutpeach/Ameow.git AmeowCliDev
 cd AmeowCliDev
-git fetch origin pull/61/head
+git fetch origin feat/cli-inspect-owner
 git switch -c cli-dev FETCH_HEAD
 ~~~
 
-这些命令适用于 PowerShell 和 zsh/bash；它们在新目录检出候选，不要求切换日常开发树。PR #61 合并后，也可使用已包含该能力的 main。
+这些命令适用于 PowerShell 和 zsh/bash；它们在新目录检出候选，不要求切换日常开发树。候选尚待具体合入验收；也可使用以后已包含该能力的 main。
 
 ## 构建一次，运行场景
 
@@ -186,3 +186,40 @@ cargo test --locked --features dev-tools --test developer_cli
 
 第一项验证普通构建拒绝 dev。后两项分别验证核心/参数/日志边界和真实子进程的六个离线场景及退出。
 正式下载器、本地媒体、原生进程守卫与 GUI 的实测覆盖以具体候选的验证记录为准。
+
+## 使用现有 owner 只解析
+
+先构建匹配的桌面 owner 与 CLI：
+
+~~~powershell
+cargo build --locked --features dev-tools --bin ameow --bin ameow-cli --target-dir target
+~~~
+
+只解析连接已经运行、已明确授权用于本次操作的 Ameow owner。现有正式授权仍由扩展/应用的正式会话流程管理；本命令不新建匿名运行根、不复制 Store、不导入或导出 Cookie。没有该站点授权时沿正式匿名路径尝试，不声称登录成功。
+
+以下只查询默认运行域。只有在明确选择该域且已有 owner 时执行；运行中的普通构建/旧候选可能不支持 inspection_v1：
+
+~~~powershell
+./target/debug/ameow-cli.exe --json --no-start components
+$InstanceId = Read-Host '从 owner.instance_id 复制本次明确选择的实例 ID'
+$Url = Read-Host '本次获准解析的单作品 URL'
+./target/debug/ameow-cli.exe --json dev inspect $Url --instance-id $InstanceId --quality balanced
+~~~
+
+已有隔离 owner 使用同一个 instance-root 查询和提交，root 必须是该 owner 的真实运行域：
+
+~~~powershell
+$InstanceRoot = Read-Host '已有且获准使用的 owner 运行根'
+./target/debug/ameow-cli.exe --json --instance-root $InstanceRoot components
+./target/debug/ameow-cli.exe --json dev inspect $Url --instance-root $InstanceRoot --instance-id $InstanceId --quality balanced
+~~~
+
+将回执 task_id 用于同一域的 show、wait、cancel；隔离域的每条后续命令继续带 --instance-root。wait --timeout 仅结束等待；需要停止解析时显式 cancel。Held 的 retry 是同任务清理重试，受理后继续 wait，直到权威终态与 resources_released=true。未释放时不当作完成。
+
+解析使用正式共享组件准备、可信租约、单 attempt Jar 与撤销观察；默认保存目录不可用不阻挡只解析。它可能联网、准备组件并产生 owned 临时文件；不承诺网络硬预算或在固定秒数内结算。单 URL、单 quality、yt-dlp 单作品有效，集合明确拒绝，不回退为 Gallery 或下载整段。
+
+成功 phase 为 Inspected。摘要只保留已校验的 site/id/part，标题留空；duration_seconds、selected 中尺寸、视频 codec、audio_present、bytes 与 size_source 缺失为 null。selected 最多八项，是本次原生解析的选流预测；不会启动 transfer、媒体验证或发布。失败保留正式阶段/类别，可通过 diagnose 查看安全诊断。共享准备细节在 components。
+
+run/scenario 继续是独立无 GUI 开发域，不附着现有 owner、也不借用正式认证。需正式登录态或 ClipRange 的真实下载使用普通 submit（区间参数 --start-ms/--end-ms，owner 协商 clip_v1）；本批未增加 dev run 区间参数、认证导入导出或 Ctrl+C 治理。
+
+浏览器会话的本地合成媒体脚本保留独立的 app-update-fixture 驱动 session_media_fixture；它只服务合成认证媒体回归，不恢复已退役的通用 download_job/download_queue 开发入口，不能代替真实账号验收。

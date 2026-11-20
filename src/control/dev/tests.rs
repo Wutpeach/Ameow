@@ -175,6 +175,7 @@ fn held_is_never_cancelled_or_settled_and_log_is_bounded() {
         fixture::services(root.join("runtime"), "cancel"),
         root.join("settings.json"),
         Settings {
+            shortcut: Default::default(),
             quality: Quality::Balanced,
             output_dir: root.join("output"),
             theme: Default::default(),

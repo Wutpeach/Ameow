@@ -14,6 +14,9 @@ pub trait DownloaderAdapter: Send + Sync {
     fn kind(&self) -> MediaKind;
     fn requirements(&self) -> &TrustedRuntimeRequirements;
     fn execute(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> AdapterResult;
+    fn inspect(&self, _request: &ExecutionRequest, _context: &ExecutionContext<'_>) -> Result<super::inspection::Inspection, Failure> {
+        Err(Failure::new(FailureCode::UnsupportedUrl, "resolve"))
+    }
     fn execute_batch(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> Result<ProducedBatch, Failure> {
         self.execute(request, context).map(|artifact| ProducedBatch {
             artifacts: vec![artifact], failure: None, total: Some(1), collection: false, expected_paths: Vec::new(),

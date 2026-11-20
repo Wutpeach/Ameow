@@ -1,5 +1,7 @@
 //! Local desktop control. The transport carries requests; the desktop command owner applies them.
 pub mod cli;
+#[cfg(all(test, feature = "dev-tools", windows))]
+pub(crate) use integration_tests::retry_inspection_cleanup_for_test;
 #[cfg(all(feature = "dev-tools", debug_assertions))]
 mod dev;
 #[cfg(test)]
@@ -198,6 +200,7 @@ fn path_contains(path: &Path, parent: &Path) -> bool {
 #[serde(tag = "command", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     Hello {},
+    Inspect { url: String, quality: Quality },
     List {},
     ListPage {
         after: u64,
@@ -233,7 +236,7 @@ impl Command {
     fn mutation(&self) -> bool {
         matches!(
             self,
-            Self::Submit { .. } | Self::Cancel { .. } | Self::Retry { .. }
+            Self::Inspect { .. } | Self::Submit { .. } | Self::Cancel { .. } | Self::Retry { .. }
         )
     }
 }
@@ -248,6 +251,8 @@ pub struct Request {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Response {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<Value>,
     pub protocol_version: u32,
     pub request_id: String,
     pub instance_id: String,
@@ -262,6 +267,7 @@ impl Response {
             Err(e) => (false, None, Some(e)),
         };
         Self {
+            owner: None,
             protocol_version: PROTOCOL_VERSION,
             request_id: request.request_id.clone(),
             instance_id: instance.into(),
@@ -424,6 +430,7 @@ fn serve_connection(
         Ok(request) => request,
         Err(_) => {
             let response = Response {
+                owner: None,
                 protocol_version: PROTOCOL_VERSION,
                 request_id: String::new(),
                 instance_id: identity.into(),
@@ -709,7 +716,7 @@ impl Server {
                 })
         };
         let apply = |command: QueueCommand| -> Result<CommandReply, ControlError> {
-            if !allowed && !matches!(command, QueueCommand::Cancel(_)) {
+            if !allowed && !matches!(command, QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_)) {
                 return Err(ControlError::new(
                     "E_APP_UPDATE_BUSY",
                     "Application update is starting or draining",
@@ -722,7 +729,7 @@ impl Server {
         };
         match command {
             Command::Hello {} => Ok(
-                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true}),
+                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true,"inspection_v1":cfg!(all(feature="dev-tools", debug_assertions)),"browser_sessions_v1":true}),
             ),
             Command::List {} | Command::ListPage { .. } => {
                 let after = match command {
@@ -767,6 +774,16 @@ impl Server {
                     )),
                 }
             }
+            Command::Inspect { url, quality } => {
+                if !cfg!(all(feature = "dev-tools", debug_assertions)) {
+                    return Err(ControlError::new("E_INSPECTION_UNSUPPORTED", "Metadata inspection requires a debug dev-tools owner"));
+                }
+                if url.len() > 8192 { return Err(ControlError::new("E_INVALID_REQUEST", "URL exceeds boundary limits")); }
+                let CommandReply::Accepted(id) = apply(QueueCommand::Inspect { url: url.clone(), quality: *quality })? else {
+                    return Err(ControlError::new("E_REQUEST_REJECTED", "Inspection was not accepted"));
+                };
+                Ok(json!({"task_id":format!("{}:{id}",self.instance_id),"job_id":id,"inspect_only":true}))
+            }
             Command::Submit {
                 url,
                 quality,
@@ -810,7 +827,15 @@ impl Server {
                 Ok(json!({"task_id":task_id,"applied":true}))
             }
             Command::Retry { task_id } => {
-                let source = find(task_id)?.job_id;
+                let job = find(task_id)?;
+                let source = job.job_id;
+                if job.inspect_only && job.phase == crate::download::queue::JobPhase::Held {
+                    let reply = apply(QueueCommand::RetryCleanup(source))?;
+                    if !matches!(reply, CommandReply::Applied(true)) {
+                        return Err(ControlError::new("E_REQUEST_REJECTED", "Inspection cleanup retry was not accepted"));
+                    }
+                    return Ok(json!({"task_id":task_id,"job_id":source,"cleanup_retry":true,"applied":true}));
+                }
                 let reply = apply(QueueCommand::Retry(source))?;
                 let CommandReply::Accepted(id) = reply else {
                     return Err(ControlError::new(
@@ -833,7 +858,7 @@ fn job_view(instance: &str, job: &JobSnapshot) -> Value {
 }
 fn job_summary(instance: &str, job: &JobSnapshot) -> Value {
     json!({"task_id":format!("{instance}:{}",job.job_id),"job_id":job.job_id,"revision":job.revision,"attempt":job.attempt,"phase":job.phase,
-        "accepted":job.accepted,"identity":job.identity,"title":job.title,"message":job.message,"failure":job.failure,"engine":job.engine,
+        "accepted":if job.inspect_only {Value::Null} else {json!(job.accepted)},"inspect_only":job.inspect_only,"inspection":job.inspection,"quality":job.accepted.intent.quality,"identity":job.identity,"title":if job.inspect_only {""} else {job.title.as_str()},"message":job.message,"failure":job.failure,"engine":job.engine,
         "transfer_progress":job.transfer_progress,"gallery_progress":job.gallery_progress,"slot_owned":job.slot_owned,"resources_released":job.resources_released,
         "collection":job.collection.as_ref().map(|c|json!({"directory":c.directory,"total":c.total,"saved_files":c.files.len()}))})
 }
