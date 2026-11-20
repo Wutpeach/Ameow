@@ -45,11 +45,11 @@ english.PlainDirectory=Choose a plain installation directory without symbolic li
 chinesesimplified.PlainDirectory=请选择不含符号链接或联接点的普通安装目录。
 chinesetraditional.PlainDirectory=請選擇不含符號連結或接合點的一般安裝目錄。
 english.VersionConflict=This version directory contains different files. Choose a new folder; existing versions and update state have been preserved.
-chinesesimplified.VersionConflict=此版本目录中存在不同的文件。请选择新文件夹；已有版本和更新状态均已保留。
-chinesetraditional.VersionConflict=此版本目錄中存在不同的檔案。請選擇新資料夾；既有版本和更新狀態均已保留。
+chinesesimplified.VersionConflict=此版本目录中存在不同的文件。%n请选择新文件夹；已有版本和更新状态均已保留。
+chinesetraditional.VersionConflict=此版本目錄中存在不同的檔案。%n請選擇新資料夾；既有版本和更新狀態均已保留。
 english.RegistrationFailed=The signed version could not be registered. Existing update state was preserved. Close Ameow and retry with a trusted current package.
-chinesesimplified.RegistrationFailed=无法注册已签名版本。现有更新状态已保留。请退出 Ameow，并使用当前可信安装包重试。
-chinesetraditional.RegistrationFailed=無法註冊已簽署版本。現有更新狀態已保留。請結束 Ameow，並使用目前可信的安裝套件重試。
+chinesesimplified.RegistrationFailed=无法注册已签名版本。现有更新状态已保留。%n请退出 Ameow，并使用当前可信安装包重试。
+chinesetraditional.RegistrationFailed=無法註冊已簽署版本。現有更新狀態已保留。%n請結束 Ameow，並使用目前可信的安裝套件重試。
 
 [Tasks]
 Name: desktopicon; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
