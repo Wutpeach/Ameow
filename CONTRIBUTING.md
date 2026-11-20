@@ -10,6 +10,7 @@ Use the repository root for Rust work. `rust-toolchain.toml` pins Rust 1.98.1. W
 - `openspec/specs/`: the only active formal contracts; start at [OpenSpec](openspec/README.md).
 - [Spec maintenance](docs/spec-maintenance.md): update rules and validation scope.
 - [Engineering guides](docs/README.md): preview tools and platform packaging.
+- [Development CLI](docs/developer-cli.md): isolated finite runs, offline scenarios, evidence and tool replacements.
 
 ```powershell
 cargo check --locked --all-targets

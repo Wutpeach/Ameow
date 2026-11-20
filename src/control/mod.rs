@@ -1,5 +1,7 @@
 //! Local desktop control. The transport carries requests; the desktop command owner applies them.
 pub mod cli;
+#[cfg(all(feature = "dev-tools", debug_assertions))]
+mod dev;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod integration_tests;

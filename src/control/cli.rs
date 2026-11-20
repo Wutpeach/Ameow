@@ -797,6 +797,12 @@ pub fn run() -> i32 {
             );
         }
     };
+    if args.iter().find(|arg| arg.as_str() != "--json").is_some_and(|arg| arg == "dev") {
+        #[cfg(all(feature = "dev-tools", debug_assertions))]
+        return super::dev::run(args.into_iter().filter(|arg| arg != "--json").skip(1).collect());
+        #[cfg(not(all(feature = "dev-tools", debug_assertions)))]
+        return print_error(wants_json, ControlError::new("E_DEV_DISABLED", "dev requires a debug build with --features dev-tools").into());
+    }
     let options = match parse(args) {
         Ok(options) => options,
         Err(error) => return print_error(wants_json, error.into()),

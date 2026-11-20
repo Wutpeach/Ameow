@@ -48,6 +48,13 @@ jobs:
         run: cargo +1.98.1 check --locked --all-targets
       - name: Run tests without external runtime fixtures
         run: cargo +1.98.1 test --locked
+      - name: Verify isolated development execution and process exits
+        shell: pwsh
+        run: |
+          cargo +1.98.1 test --locked --features dev-tools --lib control::dev::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +1.98.1 test --locked --features dev-tools --test developer_cli
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Fetch locked release dependencies before the offline build
         run: cargo +1.98.1 fetch --locked --target x86_64-pc-windows-msvc
       - name: Build and verify unsigned release inputs

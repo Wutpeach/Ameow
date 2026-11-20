@@ -14,7 +14,7 @@ fn retired_bridge_fails_before_launch_session_or_window_initialization() {
         assert_eq!(output.status.code(), Some(2));
         let error = String::from_utf8(output.stderr).unwrap();
         assert!(error.contains("--download-test-bridge"));
-        assert!(error.contains("cargo run --example download_job"));
+        assert!(error.contains("--features dev-tools --bin ameow-cli -- dev run --root"));
         assert!(!error.contains("Ameow Launcher session"));
         assert!(output.stdout.is_empty());
         assert_eq!(std::fs::read_dir(isolated.path()).unwrap().count(), 0);

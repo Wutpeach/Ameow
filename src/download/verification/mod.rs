@@ -32,7 +32,7 @@ impl VerifierRegistry {
     pub fn video_and_images(probe: &'static str) -> Self {
         Self { video_probe: Some(probe), data: true, images: true }
     }
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "dev-tools", debug_assertions)))]
     pub(crate) fn data() -> Self {
         Self {
             video_probe: None,

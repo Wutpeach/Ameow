@@ -1,10 +1,16 @@
 # Ameow CLI
 
+[中英文用户指南与安装说明](../site/src/content/docs/docs/cli.md) · [English](../site/src/content/docs/en/docs/cli.md)。开发专用的有限无 GUI 执行和可重复场景见 [CLI 开发入口](developer-cli.md)。以下是普通桌面控制的完整调用契约。
+
+## 版本与启用
+
+当前正式 v0.5.0 包不包含后加的 CLI；现在需要匹配候选完整包或包含该能力的源码，后续完整正式包才会分发。普通控制 CLI 已在 main，开发 `dev` 入口需包含 PR #61。无需另装扩展或开启 GUI 设置；安装不自动修改用户 PATH，也不注册全局命令。`dev-tools` 仅是 debug 开发构建特性，不能从正式包的设置中开启，release 构建会拒绝它。
+
 ameow-cli 控制本机当前用户的普通 Ameow 桌面实例。任务、组件准备、下载器、取消、重试和交付均使用 GUI 的同一个队列。Windows 和 macOS 是本阶段目标；实际验收覆盖以 PR 证据为准。
 
 ## 构建与入口
 
-在独立开发目录使用同一个固定 target：
+在包含所需能力的独立开发目录使用同一个固定 target，先按 [CONTRIBUTING](../CONTRIBUTING.md) 安装工具链：
 
 ~~~powershell
 cargo build --locked --bin ameow --bin ameow-cli --target-dir target
@@ -13,13 +19,17 @@ cargo build --locked --bin ameow --bin ameow-cli --target-dir target
 
 Windows 安装包/便携包中的 ameow-cli.exe 与 AmeowLauncher.exe 同目录，可将该目录加入自己的 PATH，也可直接使用绝对路径。macOS 包内入口为 Ameow.app/Contents/MacOS/ameow-cli，可用自己的 shell alias 调用。CLI 使用 console subsystem，桌面应用保持原窗口入口。
 
+上述包内位置适用于包含 CLI 的完整包；保留 Launcher、应用版本成员与目录结构，不要把单个 CLI EXE 放到其他版本旁。Mac 源码构建使用相同 Cargo 命令，在 zsh/bash 运行 `./target/debug/ameow-cli --help`，路径不带 `.exe`。Windows PowerShell 调用带引号的绝对路径时使用 `& '实际路径/ameow-cli.exe' --help`。
+
 Windows 应用自动更新仍使用原单 EXE 更新包，只更新桌面应用；CLI 随完整安装包/便携包更新。协议版本不兼容时明确报错。macOS CLI 是应用包成员，纳入完整包签名与更新校验。
 
 ## 常用命令
 
 ~~~powershell
-ameow-cli --json submit https://imgur.com/21yMxCS
-ameow-cli --json submit https://example.com/media --quality saver --output D:/Downloads/ThisTask
+$Url = Read-Host '公开媒体 URL'
+$Output = Read-Host '已存在的保存目录'
+ameow-cli --json submit $Url
+ameow-cli --json submit $Url --quality saver --output $Output
 ameow-cli --json list
 ameow-cli --json show INSTANCE:JOB
 ameow-cli --json wait INSTANCE:JOB --timeout 300
@@ -71,7 +81,7 @@ show / wait 保留 task_id、原 job_id、revision、attempt、phase、冻结的
 写请求失败回执保留请求键和实例身份。如果请求可能已受理但失联，可向**同一实例**显式重放完全相同的命令：
 
 ~~~powershell
-ameow-cli --json --request-id ORIGINAL_REQUEST_KEY --instance-id ORIGINAL_INSTANCE_ID submit https://imgur.com/21yMxCS
+ameow-cli --json --request-id ORIGINAL_REQUEST_KEY --instance-id ORIGINAL_INSTANCE_ID submit $Url
 ~~~
 
 同键同内容返回原回执；同键不同内容拒绝。CLI 不自动跨实例重放。请求键为 8–80 位 ASCII 字母、数字、-、_；实例 ID 为原回执的 32 位十六进制。相对目录重放仍应解析为原绝对目录。
@@ -83,7 +93,8 @@ ameow-cli --json --request-id ORIGINAL_REQUEST_KEY --instance-id ORIGINAL_INSTAN
 --instance-root 是完整隔离域：应用侧固定派生 runtime/、settings.json、output/，拒绝混入其他路径或与生产 runtime/安装目录相交。该实例不创建生产更新会话。自动启动隔离实例需要 --app 指向直接开发应用，不使用已安装版本或稳定启动器。
 
 ~~~powershell
-./target/debug/ameow-cli.exe --json --instance-root D:/AmeowCliTest --app ./target/debug/ameow.exe submit https://imgur.com/21yMxCS
+$Url = Read-Host '公开媒体 URL'
+./target/debug/ameow-cli.exe --json --instance-root D:/AmeowCliTest --app ./target/debug/ameow.exe submit $Url
 ./target/debug/ameow-cli.exe --json --instance-root D:/AmeowCliTest list
 ~~~
 
