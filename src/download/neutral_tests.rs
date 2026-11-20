@@ -106,7 +106,7 @@ fn setup(mode: u8) -> Result<(tempfile::TempDir, DownloadCoordinator, Arc<Atomic
         root.path().join("settings.json"),
         Settings {
             quality: Quality::Balanced,
-            output_dir: output, theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: output, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         },
     )?;
     Ok((root, queue, mode))
@@ -175,7 +175,7 @@ fn neutral_final_failure_stays_terminal_and_manual_retry_is_new_frozen_job() -> 
     assert_eq!(queue.snapshot().jobs[0].attempt, 1);
     queue.save_settings(Settings {
         quality: Quality::Saver,
-        output_dir: frozen.intent.output_dir.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+        output_dir: frozen.intent.output_dir.clone(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
     })?;
     mode.store(0, Ordering::Release);
     let new = queue.retry(old)?; assert_ne!(new, old);
@@ -265,7 +265,7 @@ fn generic_native_cancel_settles_owned_extractor_without_delivery() -> Result<()
     fs::create_dir_all(root.join("output")).map_err(|e| e.to_string())?;
     let queue = super::composition::download_coordinator(
         root.join("runtime"), root.join("settings.json"),
-        Settings { quality: Quality::Saver, output_dir: root.join("output"), theme: Default::default(), language: Default::default(), tray_icon: Default::default() },
+        Settings { quality: Quality::Saver, output_dir: root.join("output"), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() },
     )?;
     let job = queue.submit("https://www.pinterest.com/pin/664281013778109217/".into())?;
     let deadline = Instant::now() + Duration::from_secs(45);

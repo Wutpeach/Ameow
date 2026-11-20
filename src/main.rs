@@ -32,11 +32,12 @@ mod ui_motion;
 mod ui_tooltip;
 mod surface_actions;
 mod settings_window;
+mod global_shortcut;
 use ameow_next::login_startup;
 mod app_update_ui;
 mod ui_text;
 mod brand_icons;
-#[cfg(all(test, target_os = "windows"))]
+#[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
 mod native_acceptance;
 
 use gpui::{prelude::*, *};
@@ -240,6 +241,11 @@ struct Prototype {
     background_clicks: surface_actions::BackgroundClicks,
     downloads: Option<download_ui::DownloadUi>,
     settings_window: Option<WindowHandle<gpui_component::Root>>,
+    shortcut: global_shortcut::Controller,
+    shortcut_allowed: bool,
+    _shortcut_task: Task<()>,
+    shortcut_reveal: Task<()>,
+    shortcut_positioning: bool,
     unknown_downloading: bool,
     tray: Option<tray::Tray>,
     tray_popup: Option<WindowHandle<tray_popup::TrayPopup>>,
@@ -284,6 +290,7 @@ impl Prototype {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let menu_activation = cx.observe_window_activation(window, |this, window, cx| {
+            if !window.is_window_active() { this.model.keyboard(false, this.now()); }
             if this.preview.is_none() && !window.is_window_active() && this.surface_menu.is_open() {
                 this.close_menu(cx);
             }
@@ -336,6 +343,17 @@ impl Prototype {
                 if this.update_in(cx, |this, window, cx| { this.poll_downloads(window, cx); cx.notify(); }).is_err() { break; }
             }
         }));
+        let shortcut = global_shortcut::Controller::default();
+        let shortcut_allowed = !options.fixture && options.instance.is_some();
+        let shortcut_signal = shortcut.signal.clone();
+        let shortcut_task = cx.spawn_in(window, async move |this, cx| {
+            loop {
+                let id = shortcut_signal.next().await;
+                if this.update_in(cx, |this, window, cx| {
+                    if this.shortcut.accepts(id) { this.toggle_shortcut(window, cx); }
+                }).is_err() { break; }
+            }
+        });
         Self {
             surface_menu: context_menu::Menu::default(),
             instance: options.instance,
@@ -350,6 +368,11 @@ impl Prototype {
             background_clicks: surface_actions::BackgroundClicks::default(),
             downloads,
             settings_window: None,
+            shortcut,
+            shortcut_allowed,
+            _shortcut_task: shortcut_task,
+            shortcut_reveal: Task::ready(()),
+            shortcut_positioning: false,
             unknown_downloading: options.unknown_downloading,
             tray,
             tray_popup: None,
@@ -420,6 +443,9 @@ impl Prototype {
         }));
     }
     fn refresh_preferences(&mut self) {
+        if self.shortcut_allowed && let Some(settings) = self.downloads.as_ref().and_then(|ui| ui.settings()) {
+            self.shortcut.observe(&settings.shortcut);
+        }
         if !self.production_preferences { return; }
         let now = self.now();
         // Polling also notices OS changes while all windows are hidden.
@@ -643,7 +669,7 @@ impl Prototype {
                 _ => {}
             }
         }
-        if self.clamped_target != self.model.target_full {
+        if !self.shortcut_positioning && self.clamped_target != self.model.target_full {
             self.clamped_target = self.model.target_full;
             self.clamp_anchor(
                 if self.model.target_full {
@@ -654,9 +680,10 @@ impl Prototype {
             );
         }
         let g = self.model.geometry();
-        #[cfg(target_os = "macos")]
-        self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
-        self.native
+        if !self.shortcut_positioning {
+            #[cfg(target_os = "macos")]
+            self.native.as_mut().unwrap().set_compact(!self.model.target_full && self.model.fullness < 0.02, cx);
+            self.native
             .as_mut()
             .unwrap()
             .apply(
@@ -665,7 +692,8 @@ impl Prototype {
                 g.gutter,
                 cx,
             )
-            .expect("atomic native geometry");
+                .expect("atomic native geometry");
+        }
         if now >= self.last_telemetry + 8 {
             self.last_telemetry = now;
             if let Some(log) = &mut self.telemetry {
@@ -1124,6 +1152,12 @@ impl Render for Prototype {
             }))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {this.background_clicks.motion([event.position.x.into(),event.position.y.into()]);cx.notify();}))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
+                if this.shortcut_allowed && this.instance.is_none() && let Some(ui) = &this.downloads {
+                    ui.evidence(serde_json::json!({"type":"native-key-target", "key":event.keystroke.key,
+                        "control":event.keystroke.modifiers.control,"alt":event.keystroke.modifiers.alt,
+                        "platform":event.keystroke.modifiers.platform}));
+                }
                 if event.keystroke.key == "u" && this.downloads.as_ref().is_some_and(|ui| ui.updates.snapshot().attention()) {
                     this.open_update_settings(cx);
                     cx.stop_propagation();
@@ -1239,6 +1273,12 @@ impl Render for Prototype {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|argument| argument == "--shortcut-native-acceptance") {
+        #[cfg(all(feature = "app-update-fixture", debug_assertions))]
+        { native_acceptance::run(); return; }
+        #[cfg(not(all(feature = "app-update-fixture", debug_assertions)))]
+        { eprintln!("Native acceptance requires an explicit debug fixture build"); std::process::exit(2); }
+    }
     if args.iter().any(|argument| argument == "--download-test-bridge") {
         eprintln!("--download-test-bridge 已退役；请使用 cargo run --example download_job -- --url <URL> --output <目录>");
         std::process::exit(2);

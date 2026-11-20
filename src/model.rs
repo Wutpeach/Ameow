@@ -176,6 +176,7 @@ impl Progress {
 }
 
 pub struct Model {
+    pub keyboard_hold: bool,
     pub stage: Stage,
     pub previous: Stage,
     pub pointer: bool,
@@ -200,6 +201,7 @@ pub struct Model {
 impl Model {
     pub fn new(now: u64, reduced: bool) -> Self {
         Self {
+            keyboard_hold: false,
             stage: Stage::Idle,
             previous: Stage::Idle,
             pointer: false,
@@ -223,7 +225,7 @@ impl Model {
         }
     }
     pub fn blocked(&self) -> bool {
-        self.locks.drag
+        self.keyboard_hold || self.locks.drag
             || self.locks.menu
             || self.locks.drop
             || (!self.manual_compact
@@ -234,11 +236,29 @@ impl Model {
     }
     /// Explicit Compact affects presentation only. A real leave/re-entry retires the override.
     pub fn request_compact(&mut self, now: u64) {
+        self.keyboard_hold = false;
         self.directory = None;
         self.manual_compact = true;
         self.compact_left = !self.pointer;
         self.collapse = None;
         self.set_target(false, now);
+    }
+    pub fn keyboard(&mut self, hold: bool, now: u64) {
+        if self.keyboard_hold == hold { return; }
+        self.keyboard_hold = hold;
+        if hold {
+            self.manual_compact = false; self.compact_left = false;
+            self.collapse = None; self.set_target(true, now);
+        } else { self.schedule_leave(now); }
+    }
+    /// A new summon starts at Compact without resetting download or terminal ownership.
+    pub fn summon(&mut self, now: u64) {
+        self.window_motion = Motion::new(now);
+        self.fullness = 0.;
+        self.velocity = 0.;
+        self.target_full = false;
+        self.keyboard_hold = false;
+        self.keyboard(true, now);
     }
     pub fn clear_directory(&mut self, now:u64) {
         if self.directory.take().is_some() { self.schedule_leave(now); }
@@ -433,6 +453,10 @@ impl Model {
         self.window_motion.tick(now, self.target_full, self.reduced);
         self.fullness = self.window_motion.x;
         self.velocity = self.window_motion.v;
+        // Keyboard summon protects expansion only; pointer leave owns settled Full.
+        if self.keyboard_hold && self.target_full && self.fullness == 1. && !self.window_motion.moving() {
+            self.keyboard(false, now);
+        }
     }
     pub fn geometry(&self) -> Geometry {
         self.window_motion.geometry()
@@ -540,6 +564,15 @@ pub fn reachable_anchor(anchor: [f32; 2], geometry: Geometry, work: [f32; 4]) ->
         origin[0].clamp(work[0], (work[2] - geometry.native).max(work[0])) + geometry.gutter,
         origin[1].clamp(work[1], (work[3] - geometry.native).max(work[1])) + geometry.gutter,
     ]
+}
+
+/// Reserve the expanded native bounds on the cursor's display before showing Compact.
+pub fn summon_anchor(cursor: [f32; 2], scale: f32, work: [f32; 4]) -> [f32; 2] {
+    let full = Geometry::at(1.);
+    reachable_anchor(cursor, Geometry {
+        surface: full.surface * scale, gutter: full.gutter * scale,
+        radius: full.radius * scale, native: full.native * scale,
+    }, work)
 }
 
 #[cfg(test)]
@@ -1049,6 +1082,150 @@ mod tests {
             assert_eq!(p.sample(0), expected);
             p.update(1., 1);
             assert!(p.sample(50).is_finite());
+        }
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+    #[test]
+    fn every_summon_restarts_compact_motion_and_preserves_business() {
+        let mut model = Model::new(0, false);
+        model.state(Stage::Downloading, 0.4, 0);
+        for now in (0..=800).step_by(16) { model.tick(now); }
+        assert_eq!(model.fullness, 1.);
+        for start in [1000, 2000] {
+            model.summon(start);
+            assert_eq!((model.fullness, model.velocity), (0., 0.));
+            assert!(model.keyboard_hold && model.target_full);
+            assert_eq!(model.stage, Stage::Downloading);
+            assert_eq!(model.progress.target, 0.4);
+            model.pointer(false, start + 1);
+            model.tick(start + 32);
+            assert!(model.fullness > 0. && model.fullness < 1.);
+            for now in (start + 48..=start + 800).step_by(16) { model.tick(now); }
+            assert_eq!(model.fullness, 1.);
+            assert!(!model.keyboard_hold);
+        }
+    }
+    #[test]
+    fn reduced_summon_snaps_to_full_without_resetting_terminal_retention() {
+        let mut model = Model::new(0, true);
+        model.state(Stage::Success, 1., 1);
+        model.summon(20);
+        assert_eq!(model.fullness, 1.);
+        model.tick(20);
+        assert!(!model.keyboard_hold && model.target_full);
+        model.tick(1501);
+        assert_eq!(model.stage, Stage::Idle);
+        assert!(model.target_full);
+        model.tick(1501 + LEAVE_MS - 1);
+        assert!(model.target_full);
+        model.tick(1501 + LEAVE_MS);
+        assert_eq!(model.fullness, 0.);
+    }
+    #[test]
+    fn summon_reserves_full_bounds_on_the_selected_work_area_at_each_scale() {
+        for work in [[0.,0.,1920.,1040.],[-1920.,-300.,0.,780.],[0.,-1200.,2560.,0.]] {
+            for scale in [1.,1.25,1.5,2.] {
+                for cursor in [[work[0],work[1]],[work[2]-1.,work[3]-1.],[(work[0]+work[2])/2.,(work[1]+work[3])/2.]] {
+                    let anchor = summon_anchor(cursor, scale, work);
+                    for fullness in [0.,0.25,0.5,1.] {
+                        let g = Geometry::at(fullness);
+                        let origin = [anchor[0]-g.gutter*scale,anchor[1]-g.gutter*scale];
+                        assert!(origin[0] >= work[0] && origin[1] >= work[1]);
+                        assert!(origin[0]+g.native*scale <= work[2] && origin[1]+g.native*scale <= work[3]);
+                    }
+                }
+            }
+        }
+        assert_eq!(summon_anchor([500.,400.],1.,[0.,0.,1920.,1040.]),[500.,400.]);
+    }
+    #[test]
+    fn settled_summon_uses_pointer_leave_without_a_focus_loss_event() {
+        for reduced in [false, true] {
+            let mut model = Model::new(0, reduced);
+            model.pointer(true, 1);
+            model.summon(2);
+            for now in (2..=1000).step_by(16) { model.tick(now); }
+            assert!(model.target_full && !model.keyboard_hold && model.pointer);
+            model.tick(5000);
+            assert!(model.target_full, "pointer inside must retain Full");
+            // No keyboard(false) input is delivered: native focus may stay with the window.
+            model.pointer(false, 5001);
+            model.tick(5001 + LEAVE_MS - 1);
+            assert!(model.target_full);
+            model.tick(5001 + LEAVE_MS);
+            assert!(!model.target_full);
+            for now in (5100..=6100).step_by(16) { model.tick(now); }
+            assert_eq!(model.fullness, 0.);
+        }
+    }
+    #[test]
+    fn old_outside_sample_cannot_reverse_summon_expansion() {
+        let mut model = Model::new(0, false);
+        model.pointer(true, 1);
+        model.summon(2);
+        model.pointer(false, 3);
+        model.tick(34);
+        assert!(model.target_full && model.keyboard_hold);
+        assert!(model.fullness > 0. && model.fullness < 1.);
+        model.pointer(true, 35);
+        for now in (50..=1000).step_by(16) { model.tick(now); }
+        assert!(model.target_full && !model.keyboard_hold && model.pointer);
+        model.tick(5000);
+        assert!(model.target_full);
+    }
+    #[test]
+    fn clamped_outside_summon_and_repeats_have_no_permanent_hold() {
+        for reduced in [false, true] {
+            let mut model = Model::new(0, reduced);
+            for start in [0, 2000, 4000] {
+                model.summon(start);
+                model.pointer(false, start);
+                let mut released = None;
+                for now in (start..=start + 1000).step_by(16) {
+                    model.tick(now);
+                    if !model.keyboard_hold { released = Some(now); break; }
+                    assert!(model.target_full, "first-frame outside cannot cancel expansion");
+                }
+                let released = released.expect("completed expansion must hand ownership back");
+                assert_eq!(model.fullness, 1.);
+                model.tick(released + LEAVE_MS - 1);
+                assert!(model.target_full);
+                model.tick(released + LEAVE_MS);
+                assert!(!model.target_full && !model.keyboard_hold);
+                for now in (released + LEAVE_MS + 16..=start + 1800).step_by(16) { model.tick(now); }
+                assert_eq!(model.fullness, 0.);
+            }
+        }
+    }
+    #[test]
+    fn releasing_keyboard_does_not_override_download_or_menu_ownership() {
+        for owner in 0..4 {
+            let mut model = Model::new(0, false);
+            match owner {
+                0 => model.state(Stage::Downloading, 0.2, 0),
+                1 => model.locks.menu = true,
+                2 => model.locks.drag = true,
+                _ => model.locks.drop = true,
+            }
+            model.summon(1);
+            model.pointer(false, 2);
+            for now in (1..=1500).step_by(16) { model.tick(now); }
+            assert!(model.target_full && !model.keyboard_hold);
+            match owner {
+                0 => model.state(Stage::Idle, 0., 1501),
+                1 => model.locks.menu = false,
+                2 => model.locks.drag = false,
+                _ => model.locks.drop = false,
+            }
+            model.locks_changed(1501);
+            model.tick(1501 + LEAVE_MS - 1);
+            assert!(model.target_full);
+            model.tick(1501 + LEAVE_MS);
+            assert!(!model.target_full);
         }
     }
 }

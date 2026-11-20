@@ -1,6 +1,8 @@
 //! Test-only transport: real queue settings owner, isolated disk, no runtime preparation.
-use super::{DownloadUi, UiReply, SettingsStatus, Settings, Quality, ThemePreference, LanguagePreference,
-    QueueCommand, CommandReply, command_summary, reply_summary, Arc, Mutex, mpsc, File, Write, PathBuf, Duration, Instant};
+use super::{DownloadUi, UiReply, Settings, Quality, ThemePreference, LanguagePreference,
+    QueueCommand, CommandReply, command_summary, reply_summary, Arc, Mutex, mpsc, File, Write, PathBuf, Duration};
+#[cfg(test)]
+use super::{SettingsStatus, Instant};
 
 impl DownloadUi {
     pub(crate) fn native_acceptance(root: PathBuf) -> Self {
@@ -11,7 +13,8 @@ impl DownloadUi {
         let defaults = Settings {
             output_dir: root.clone(), quality: Quality::Balanced,
             theme: ThemePreference::Light, language: LanguagePreference::Chinese,
-            tray_icon: Default::default(),
+            // The owned host never claims the user's default system combination.
+            tray_icon: Default::default(), shortcut: ameow_next::shortcut::ShortcutPreference { chord: None },
         };
         let backend = composition::download_coordinator(root.join("runtime"), root.join("settings.json"), defaults).unwrap();
         let (commands, receiver) = mpsc::sync_channel(8);
@@ -26,6 +29,10 @@ impl DownloadUi {
                     Ok(command) => {
                         writeln!(log, "{}", command_summary(&command)).unwrap();
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
+                        if saving && let Ok(delay) = std::fs::read_to_string(root.join("save-delay-ms"))
+                            && let Ok(delay) = delay.trim().parse::<u64>() {
+                            std::thread::sleep(Duration::from_millis(delay.min(2000)));
+                        }
                         let diagnostic = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         // Keep every network/runtime action outside this test host's command set.
                         let reply = if saving || matches!(&command, QueueCommand::Stop | QueueCommand::CopyDiagnostic(_)) {

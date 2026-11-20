@@ -33,6 +33,8 @@ use windows::Win32::{
 mod components;
 #[path = "settings_notices.rs"]
 mod notices;
+#[path = "settings_shortcut.rs"]
+mod shortcut_ui;
 
 actions!(ameow_settings, [TabForward, TabBackward]);
 struct SettingsKeyBindings;
@@ -139,6 +141,10 @@ struct Projection {
     reduced: bool,
     language: Language,
     preferences: Option<(ThemePreference, LanguagePreference, TrayIconPreference)>,
+    shortcut: Option<ameow_next::shortcut::ShortcutPreference>,
+    shortcut_error: Option<String>,
+    shortcut_pending: bool,
+    shortcut_failed_save: bool,
     queue: Option<std::sync::Arc<ameow_next::download::queue::QueueSnapshot>>,
     preparation_retry_available: bool,
     preparation_copy_pending: bool,
@@ -162,6 +168,10 @@ impl Projection {
             night: main.night,
             reduced: main.model.reduced,
             language: main.language,
+            shortcut: ui.and_then(|ui| ui.settings()).map(|settings| settings.shortcut),
+            shortcut_error: main.shortcut.error.clone(),
+            shortcut_pending: main.shortcut.is_pending(),
+            shortcut_failed_save: ui.is_some_and(|ui| ui.shortcut_save_failed()),
             preferences: ui
                 .and_then(|ui| ui.settings())
                 .map(|s| (s.theme, s.language, s.tray_icon)),
@@ -220,6 +230,10 @@ enum ButtonStyle {
     Menu,
 }
 pub struct SettingsWindow {
+    shortcut_recording: bool,
+    shortcut_draft: Option<ameow_next::shortcut::ShortcutChord>,
+    shortcut_notice: Option<String>,
+    _shortcut_subscriptions: Vec<Subscription>,
     main: WeakEntity<Prototype>,
     projection: Projection,
     _observer: Subscription,
@@ -260,7 +274,7 @@ pub struct SettingsWindow {
     copy_feedback: HashMap<&'static str, std::time::Instant>,
 }
 impl SettingsWindow {
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "app-update-fixture", debug_assertions)))]
     pub(super) fn acceptance_snapshot(&self, window: &Window, _: &App) -> serde_json::Value {
         serde_json::json!({
             "selects": self.selects.iter().map(|s| serde_json::json!({
@@ -270,6 +284,13 @@ impl SettingsWindow {
             })).collect::<Vec<_>>(),
             "disabled": self.projection.preferences.is_none() || self.projection.pending || self.picker_pending,
             "status": format!("{:?}", self.projection.status),
+            "shortcut":self.projection.shortcut, "shortcut_error":self.projection.shortcut_error,
+            "shortcut_recording":self.shortcut_recording, "shortcut_draft":self.shortcut_draft,
+            "shortcut_notice":self.shortcut_notice,
+            "shortcut_failed_save":self.projection.shortcut_failed_save,
+            "shortcut_saving":self.projection.shortcut_pending,
+            "shortcut_saved":self.copy_feedback.contains_key("shortcut"),
+            "shortcut_repair_focused":self.control_focus.borrow().get("shortcut-repair").is_some_and(|focus| focus.is_focused(window)),
         })
     }
     fn new(
@@ -278,6 +299,11 @@ impl SettingsWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let shortcut_owner = cx.entity().downgrade();
+        window.on_window_should_close(cx, move |_, cx| {
+            let _ = shortcut_owner.update(cx, |this, cx| this.finish_shortcut(cx));
+            true
+        });
         if !cx.has_global::<SettingsKeyBindings>() {
             cx.bind_keys([
                 KeyBinding::new("tab", TabForward, Some("AmeowSettings")),
@@ -295,7 +321,10 @@ impl SettingsWindow {
             if next.path != this.projection.path || next.status != this.projection.status {
                 this.notice = None;
             }
+            let shortcut_saved = !next.shortcut_pending && next.shortcut_error.is_none()
+                && (this.projection.shortcut_pending || (next.shortcut != this.projection.shortcut && matches!(next.status, SettingsStatus::Saved)));
             this.projection = next;
+            if shortcut_saved { this.reset_copy_feedback_later("shortcut", cx); }
             if update_scheduled { this.show_update_notice(cx); }
             this.refresh_health(false, cx);
             cx.notify();
@@ -319,6 +348,19 @@ impl SettingsWindow {
             PreferenceSelect { kind, trigger, menu, open: false, cursor: kind.selected(&projection).unwrap_or(0) }
         }).collect();
         let mut control_focus = HashMap::new();
+        let shortcut_focus = cx.focus_handle().tab_index(0).tab_stop(true);
+        control_focus.insert("shortcut-record", shortcut_focus.clone());
+        let shortcut_subscriptions = vec![
+            cx.on_focus_out(&shortcut_focus, window, |this, _, _, cx| {
+                this.finish_shortcut(cx);
+            }),
+            cx.observe_window_activation(window, |this, window, cx| {
+                if !window.is_window_active() { this.finish_shortcut(cx); }
+            }),
+            cx.on_release(|this, cx| {
+                let _ = this.main.update(cx, |main, cx| { main.shortcut.resume(); cx.notify(); });
+            }),
+        ];
         let mut help_focus_subscriptions = Vec::new();
         for id in ["download-read-help", "update-auto-check-help", "update-auto-download-help", "update-idle-restart-help"] {
             let focus = cx.focus_handle().tab_index(0).tab_stop(true);
@@ -331,6 +373,8 @@ impl SettingsWindow {
             control_focus.insert(id, focus);
         }
         let mut this = Self {
+            shortcut_recording: false, shortcut_draft: None, shortcut_notice: None,
+            _shortcut_subscriptions: shortcut_subscriptions,
             title_language: projection.language,
             main: main.downgrade(),
             projection,
@@ -579,7 +623,7 @@ impl SettingsWindow {
             .child(switch);
         let row = |label: &'static str, control: AnyElement| {
             div()
-                .min_h(px(56.))
+                .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
                 .flex()
                 .items_center()
                 .justify_between()
@@ -633,7 +677,7 @@ impl SettingsWindow {
         let group = div()
             .flex()
             .flex_col()
-            .child(div().pb(px(12.)).child(row(
+            .child(div().child(row(
                 l.text("开机启动", "Launch at login"),
                 switch.into_any_element(),
             )).child(self.notice_bar("startup", startup_status)))
@@ -662,8 +706,8 @@ impl SettingsWindow {
             ))
         } else {
             match &self.projection.status {
-                SettingsStatus::Saving => Some((l.text("正在保存…", "Saving…").into(), false)),
-                SettingsStatus::Failed(message) => Some((settings_message(l, message), true)),
+                SettingsStatus::Saving if !self.projection.shortcut_pending => Some((l.text("正在保存…", "Saving…").into(), false)),
+                SettingsStatus::Failed(message) if !self.projection.shortcut_failed_save => Some((settings_message(l, message), true)),
                 _ => None,
             }
         };
@@ -671,6 +715,7 @@ impl SettingsWindow {
             .flex()
             .flex_col()
             .child(group)
+            .child(self.shortcut_section(cx))
             .child(self.notice_bar("general_page", status))
             .into_any_element()
     }
@@ -730,7 +775,7 @@ impl SettingsWindow {
             .on_confirm(move |window, cx| confirm.update(cx, |this, cx| this.confirm_preference(index, window, cx)))
             .child(div().on_children_prepainted(move |children, _, _| measured_trigger.set(children.first().copied())).child(trigger));
         if presence.visible() {
-            let mut menu = div().id(("preference-popup", index)).relative().w(px(176.)).p(px(4.))
+            let mut menu = div().id(("preference-popup", index)).relative().w(px(tokens::SETTINGS_CONTROL_WIDTH)).p(px(4.))
                 .rounded(px(8.)).border_1().border_color(p.border).bg(p.surface).occlude()
                 .opacity(presence.alpha).top(px(presence.travel(-4.)))
                 .shadow(vec![BoxShadow { inset: false, color: gpui::black().opacity(0.12 * presence.alpha.powi(3)),
@@ -764,7 +809,7 @@ impl SettingsWindow {
             root = root.child(div().absolute().right_0().top(px(38.)).child(deferred(
                 anchored().anchor(gpui::Anchor::TopRight).snap_to_window_with_margin(Edges::all(px(12.))).child(menu))));
         }
-        container.w(px(176.)).child(root).into_any_element()
+        container.w(px(tokens::SETTINGS_CONTROL_WIDTH)).child(root).into_any_element()
     }
     fn select_option(&mut self, kind: PreferenceKind, index: usize, cx: &mut Context<Self>) {
         if index >= 3 || self.projection.pending || self.picker_pending { cx.notify(); return; }
@@ -1087,6 +1132,7 @@ impl SettingsWindow {
                 if event.keystroke.key == "enter" || event.keystroke.key == "space" {
                     for select in &mut this.selects { select.open = false; }
                     this.page = page;
+                    this.finish_shortcut(cx);
                     this.notices_open = false;
                     this.component_menu_open = false;
                     this.help_open = None;
@@ -1098,6 +1144,7 @@ impl SettingsWindow {
             .on_click(cx.listener(move |this, _, _, cx| {
                 for select in &mut this.selects { select.open = false; }
                 this.page = page;
+                this.finish_shortcut(cx);
                 this.notices_open = false;
                 this.component_menu_open = false;
                 this.help_open = None;
@@ -1168,7 +1215,7 @@ impl SettingsWindow {
                     .flex_col()
                     .child(
                         div()
-                            .min_h(px(56.))
+                            .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
                             .flex()
                             .items_center()
                             .gap(px(8.))
@@ -1376,13 +1423,13 @@ impl SettingsWindow {
             _ => ("update-idle-restart-help", l.text("空闲时自动重启更新说明", "Idle restart help"), l.text("所有下载任务结束并释放资源后，自动重启应用以安装更新。", "Restarts the app to install an update after all downloads finish and release their resources.")),
         };
         div()
-            .min_h(px(44.))
+            .min_h(px(tokens::SETTINGS_ROW_HEIGHT))
             .flex()
             .items_center()
             .justify_between()
             .gap(px(12.))
-            .child(div().flex_1().flex().items_center().gap(px(4.)).text_size(px(13.))
-                .child(label).child(self.help_button(help_id, help_label, help.into(), cx)))
+            .child(div().flex_1().min_w(px(0.)).flex().items_center().gap(px(4.)).text_size(px(13.))
+                .child(div().min_w(px(0.)).child(label)).child(self.help_button(help_id, help_label, help.into(), cx)))
             .child(switch)
             .into_any_element()
     }
@@ -1441,16 +1488,17 @@ impl SettingsWindow {
                 .child(div().flex_1().min_w(px(0.)).text_size(px(13.)).line_height(px(20.))
                     .child(crate::app_update_ui::headline(v,l)))
                 .child(actions.flex_none()))
-            .child(self.notice_bar("app-update-error", (!detail.is_empty() && matches!(v.update.phase, Phase::Failed | Phase::RolledBack))
-                .then(|| (detail.clone(), true))).mx(px(-10.)))
-            .when(!detail.is_empty() && !matches!(v.update.phase, Phase::Failed | Phase::RolledBack), |s|
+            .child(self.notice_bar("app-update-error", (!detail.is_empty() && (matches!(v.update.phase, Phase::Failed | Phase::RolledBack) || v.update.error.is_some()))
+                .then(|| (detail.clone(), true))))
+            .when(!detail.is_empty() && !matches!(v.update.phase, Phase::Failed | Phase::RolledBack) && v.update.error.is_none(), |s|
                 s.child(div().mt(px(6.)).text_size(px(12.)).line_height(px(18.)).text_color(p.neutral).child(detail)))
-            .when(v.update.phase==Phase::Ready&&!v.launcher,|s|s.child(div().mt(px(6.)).text_size(px(12.)).text_color(p.neutral).child(l.text("请通过 Ameow 启动入口重新打开后更新。","Open Ameow through its launcher to install the update."))))
+            .child(self.notice_bar("app-update-launcher", (v.update.phase == Phase::Ready && !v.launcher)
+                .then(|| (l.text("请通过 Ameow 启动入口重新打开后更新。", "Open Ameow through its launcher to install the update.").into(), false))))
             .child(div().mt(px(20.)).border_t_1().border_color(p.border).pt(px(8.))
                 .child(self.update_switch(0,cx)).child(self.update_switch(1,cx)).child(self.update_switch(2,cx)))
             .child(self.notice_bar("update-preferences", (v.saving || v.save_error.is_some()).then(|| (
                 if v.save_error.is_some() { l.text("保存失败，请重试", "Could not save. Try again") } else { l.text("正在保存…", "Saving…") }.into(),
-                v.save_error.is_some()))).mx(px(-10.)))
+                v.save_error.is_some()))))
             .into_any_element()
     }
 }
@@ -1543,9 +1591,11 @@ impl Render for SettingsWindow {
             .id("settings-root")
             .key_context("AmeowSettings")
             .on_action(cx.listener(|this, _: &TabForward, window, cx| {
+                this.finish_shortcut(cx);
                 this.move_focus(false, window, cx); cx.stop_propagation();
             }))
             .on_action(cx.listener(|this, _: &TabBackward, window, cx| {
+                this.finish_shortcut(cx);
                 this.move_focus(true, window, cx); cx.stop_propagation();
             }))
             .relative()
@@ -1563,6 +1613,7 @@ impl Render for SettingsWindow {
                 }
             }))
             .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.shortcut_key(event, window, cx) { cx.stop_propagation(); return; }
                 if !this.keyboard_focus {
                     this.keyboard_focus = true;
                     cx.notify();
@@ -1671,7 +1722,7 @@ impl Render for SettingsWindow {
                                 l.text("关闭设置", "Close settings"),
                                 true,
                                 cx,
-                                |_, window, _| window.remove_window(),
+                                |this, window, cx| { this.finish_shortcut(cx); window.remove_window(); },
                             )))),
                     )
                     .child(
@@ -2040,6 +2091,11 @@ impl Prototype {
         projection.error = None;
         projection.pending = false;
         projection.status = SettingsStatus::Idle;
+        projection.shortcut = Some(Default::default());
+        projection.shortcut_error = (scene.state == "shortcut-conflict").then(|| "taken".into());
+        projection.shortcut_pending = false;
+        projection.shortcut_failed_save = false;
+        if scene.state == "shortcut-unset" { projection.shortcut = Some(ameow_next::shortcut::ShortcutPreference { chord: None }); }
         projection.upstream_available = true;
         let mut upstream = ameow_next::download::upstream::UpstreamSnapshot::default();
         if let Some(snapshot) = projection.queue.as_mut() {
@@ -2072,6 +2128,9 @@ impl Prototype {
                 view.update(cx, |view, cx| {
                 window.focus(&view.focus, cx);
                 view.projection = projection;
+                view.shortcut_recording = scene.state == "shortcut-recording";
+                view.shortcut_draft = None;
+                view.shortcut_notice = None;
                 view.startup = Some(Ok(StartupState::Disabled));
                 view.startup_pending = false;
                 for select in &mut view.selects { select.open = false; }
@@ -2101,7 +2160,7 @@ impl Prototype {
                 view.page = match scene.surface.as_str() {
                     _ if scene.state.starts_with("app-") || scene.state.starts_with("third-party-licenses") || scene.state == "about" => Page::About,
                     "components" | "diagnostics" => Page::Components,
-                    _ if matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
+                    _ if scene.state.starts_with("shortcut-") || matches!(scene.state.as_str(), "general" | "theme-menu" | "language-menu" | "tray-menu" | "startup-enabled" | "startup-unavailable" | "startup-pending") => Page::General,
                     _ => Page::Download,
                 };
                 match (scene.surface.as_str(), scene.state.as_str()) {
@@ -2130,6 +2189,7 @@ impl Prototype {
         }
     }
     pub(super) fn open_or_focus_settings(&mut self, cx: &mut Context<Self>) {
+        self.model.keyboard(false, self.now());
         if let Some(handle) = self.settings_window {
             if handle.update(cx, |_, _, _| ()).is_ok() {
                 show(handle, None, cx);

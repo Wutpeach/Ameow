@@ -98,7 +98,7 @@ pub fn snapshot(jobs: Vec<JobSnapshot>) -> QueueSnapshot {
         jobs,
         settings: Settings {
             quality: Quality::Balanced,
-            output_dir: PathBuf::new(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+            output_dir: PathBuf::new(), theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
         },
         preparing: false,
         preparation_held: false,

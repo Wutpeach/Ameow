@@ -85,12 +85,12 @@ impl SettingsWindow {
                         cx,
                         |this, window, cx| this.close_notices(window, cx),
                     ))
-                    .child(div().flex_1().min_w(px(0.)).text_size(px(18.)).line_height(px(24.))
+                    .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).line_height(px(20.))
                         .font_weight(FontWeight::MEDIUM)
                         .child(l.text("第三方许可", "Third-party licenses"))),
             )
             .child(self.notice_bar("notices-copy-error", (self.notices_copied == Some(false))
-                .then(|| (l.text("无法复制，请重试。", "Could not copy. Try again.").into(), true))).mb(px(8.)))
+                .then(|| (l.text("无法复制，请重试。", "Could not copy. Try again.").into(), true))))
             .child(
                 div()
                     .id("notices-reader")

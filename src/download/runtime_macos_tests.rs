@@ -103,7 +103,7 @@ fn legacy_data_and_output_are_rejected_without_changes() {
             output_dir: alias.clone(),
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         };
         assert!(Settings::load(&legacy.join("settings.json"), settings.clone()).is_err());
         assert!(settings.persist(&settings_path).is_err());

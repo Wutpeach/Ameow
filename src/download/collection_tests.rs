@@ -129,7 +129,7 @@ fn setup(mode: u8) -> (tempfile::TempDir, DownloadCoordinator, Arc<AtomicU8>) {
             output_dir: output,
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         },
     )
     .unwrap();
@@ -289,7 +289,7 @@ fn real_gallery_pipeline_and_partial_retry() {
             output_dir: root.join("output"),
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         },
     )
     .unwrap();
@@ -367,7 +367,7 @@ fn real_gallery_cancel_releases_managed_processes() {
             output_dir: root.join("output"),
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         },
     )
     .unwrap();
@@ -399,7 +399,7 @@ fn real_imgur_single_image_delivery() {
             output_dir: root.join("output"),
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         },
     )
     .unwrap();
@@ -494,7 +494,7 @@ fn real_cold_runtime_image_and_video_delivery() {
             output_dir: root.join("output"),
             theme: Default::default(),
             language: Default::default(),
-            tray_icon: Default::default(),
+            tray_icon: Default::default(), shortcut: Default::default(),
         },
     )
     .unwrap();

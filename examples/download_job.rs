@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = Settings {
         quality,
         output_dir: PathBuf::from(value("--output").ok_or("--output required")?),
-        theme: Default::default(), language: Default::default(), tray_icon: Default::default(),
+        theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default(),
     };
     let cancel = value("--cancel-after-ms")
         .map(|s| s.parse::<u64>())
