@@ -181,13 +181,13 @@ pub fn error_text(error: &str, language: crate::ui_text::Language) -> String {
         "unsupported" => language.text("请使用修饰键与字母、数字或 F1–F11", "Use modifiers with a letter, number or F1–F11"),
         "reserved" => language.text("该组合用于常用系统操作，请换一个", "Choose a different combination for this system shortcut"),
         "platform" => language.text("请在本机重新录入组合键", "Record the shortcut on this computer"),
-        "taken" => language.text("组合已被占用，请换一个", "Shortcut is in use. Choose another"),
+        "taken" => language.text("组合已被占用", "Shortcut is in use"),
         "save" => language.text("保存失败，已保留原设置", "Could not save. Previous settings retained"),
-        "save-restore" => language.text("保存失败；原快捷键不可用，请重新设置", "Could not save. Previous shortcut unavailable; set it again"),
+        "save-restore" => language.text("保存失败；原快捷键不可用", "Save failed; previous shortcut unavailable"),
         "taken-restore" => language.text("新组合已被占用；原快捷键也不可用", "New shortcut is in use; previous shortcut is also unavailable"),
-        "register-restore" => language.text("注册失败；原快捷键也不可用，请重新设置", "Could not register. Previous shortcut unavailable; set it again"),
+        "register-restore" => language.text("注册失败；原快捷键也不可用", "Registration failed; previous shortcut unavailable"),
         "busy" => language.text("正在保存，请稍后重试", "Saving. Try again shortly"),
-        _ => language.text("无法注册快捷键，请更换或重试", "Could not register. Change the shortcut or retry"),
+        _ => language.text("无法注册此组合", "Could not register this shortcut"),
     };
     text.into()
 }

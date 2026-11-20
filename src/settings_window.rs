@@ -285,6 +285,9 @@ impl SettingsWindow {
             "shortcut":self.projection.shortcut, "shortcut_error":self.projection.shortcut_error,
             "shortcut_recording":self.shortcut_recording, "shortcut_draft":self.shortcut_draft,
             "shortcut_notice":self.shortcut_notice,
+            "shortcut_saving":self.projection.shortcut_pending,
+            "shortcut_saved":self.copy_feedback.contains_key("shortcut"),
+            "shortcut_repair_focused":self.control_focus.borrow().get("shortcut-repair").is_some_and(|focus| focus.is_focused(window)),
         })
     }
     fn new(
@@ -315,7 +318,10 @@ impl SettingsWindow {
             if next.path != this.projection.path || next.status != this.projection.status {
                 this.notice = None;
             }
+            let shortcut_saved = !next.shortcut_pending && next.shortcut_error.is_none()
+                && (this.projection.shortcut_pending || (next.shortcut != this.projection.shortcut && matches!(next.status, SettingsStatus::Saved)));
             this.projection = next;
+            if shortcut_saved { this.reset_copy_feedback_later("shortcut", cx); }
             if update_scheduled { this.show_update_notice(cx); }
             this.refresh_health(false, cx);
             cx.notify();
@@ -1037,8 +1043,6 @@ impl SettingsWindow {
         let enabled = enabled && !self.passive.get();
         let (container, focus) = self.control_container(id, enabled, cx);
         let button = gpui_base::Button::new(id)
-            .when(id == "shortcut-record", |button| button.accessibility_label(
-                self.shortcut_accessibility_label()))
             .track_focus(&focus)
             .disabled(!enabled)
             .flex_none()
@@ -1056,7 +1060,7 @@ impl SettingsWindow {
             .when(style == ButtonStyle::Menu, |s| s.w_full().justify_start())
             .rounded(px(tokens::CONTROL_RADIUS))
             .border_1()
-            .border_color(if quiet || id == "shortcut-record" {
+            .border_color(if quiet {
                 transparent_black()
             } else {
                 p.control_border()

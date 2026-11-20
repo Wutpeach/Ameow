@@ -29,6 +29,10 @@ impl DownloadUi {
                     Ok(command) => {
                         writeln!(log, "{}", command_summary(&command)).unwrap();
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
+                        if saving && let Ok(delay) = std::fs::read_to_string(root.join("save-delay-ms"))
+                            && let Ok(delay) = delay.trim().parse::<u64>() {
+                            std::thread::sleep(Duration::from_millis(delay.min(2000)));
+                        }
                         let diagnostic = match &command { QueueCommand::CopyDiagnostic(job) => Some(*job), _ => None };
                         // Keep every network/runtime action outside this test host's command set.
                         let reply = if saving || matches!(&command, QueueCommand::Stop | QueueCommand::CopyDiagnostic(_)) {
