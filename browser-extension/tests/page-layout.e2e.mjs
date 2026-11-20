@@ -88,6 +88,10 @@ try {
     await page.locator('.ameow-peek').screenshot({path:join(root,'narrow-'+width+'.png')});
   }
   await page.keyboard.press('Escape'); await page.locator('.ameow-peek').waitFor({state:'detached'}); report.checks.restore=true;
+  await page.evaluate(()=>ameowPageTools.openPeek()); await page.locator('.ameow-peek[data-transition]').waitFor({state:'detached'});
+  const rb=await controls.getByRole('slider',{name:'平移选区'}).boundingBox();await page.mouse.move(rb.x+rb.width/2,rb.y+rb.height/2);await page.mouse.down();await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});await page.mouse.up();await page.evaluate(()=>ameowPageTools.openPeek());await page.locator('.ameow-peek[data-transition]').waitFor({state:'detached'});
+  const hover=await controls.locator('.track').boundingBox();await page.mouse.move(hover.x+hover.width*.6,hover.y+2);await page.waitForTimeout(100);report.checks.escapeWhileDragging=await page.evaluate(()=>({dragging:ameowPageTools.draggingTrack,bubbleHidden:ameowPageTools.controls.querySelector('.time-bubble').hidden}));assert(!report.checks.escapeWhileDragging.dragging);assert(!report.checks.escapeWhileDragging.bubbleHidden);
+
   report.build=JSON.parse(await readFile('browser-extension/dist/build.json','utf8')); report.bundleSha256=createHash('sha256').update(await readFile(join(root,'page.js'))).digest('hex');
 } catch(error) {report.error=error.stack;throw error;} finally {await context.close();await writeFile(join(root,'report.json'),JSON.stringify(report,null,2));}
 console.log(JSON.stringify(report,null,2));

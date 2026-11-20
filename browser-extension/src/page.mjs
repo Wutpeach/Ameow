@@ -361,6 +361,7 @@ class PageVideoTools {
   }
   restorePeek() {
     if (!this.dialog) return;
+    this.draggingTrack = false;
     const originalConnected = this.placeholder.isConnected;
     this.animation?.cancel(); this.animation = null;
     for (const event of ["timeupdate", "play", "pause", "seeked", "seeking", "waiting", "playing", "progress", "durationchange"]) this.video.removeEventListener(event, this.onTime);
