@@ -49,3 +49,7 @@ UI增量复审指出，重新录入会清注册error，却未清原SettingsStatu
 ## 鼠标位置呼出（2026-11-20用户决定）
 
 隐藏照常；所有呼出分支只采样一次真实鼠标位置，以既有表面锚点定位并按目标屏幕缩放和Full完整边界钳制。暂时隐藏自有主窗，等Window借用释放后完成Compact原生定位，再重置既有运动并恢复焦点／键盘保持。Reduced Motion直接Full。隐藏取消尚未完成的自有定位任务，防止旧任务复活窗口；不加业务锁，不移动鼠标或伪造pointer，不改变下载／设置owner、PR58面板焦点、Compact全屏边界或Spaces未知。此决定覆盖旧坐标恢复／后台Full只聚焦。
+
+## 呼出保护生命周期纠正（2026-11-20用户体验反馈）
+
+用户认可鼠标位置展开效果，但明确要求Full仍持有原生焦点时，鼠标移出仍按正常规则收Compact。此决定覆盖先前持续keyboard_hold直到失焦的设计。Model在既有窗口Motion达到Full终态后释放keyboard_hold，复用既有pointer／leave宽限及业务／交互仲裁；定位／展开过程中仍防首帧旧坐标outside抢占，不新增延时、设置项或必须先enter一次的锁。Reduced与屏边初始outside同样按完成阶段交回。原生focus不变，不用强制失焦、挪鼠标或hide绕过。

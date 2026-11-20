@@ -453,6 +453,10 @@ impl Model {
         self.window_motion.tick(now, self.target_full, self.reduced);
         self.fullness = self.window_motion.x;
         self.velocity = self.window_motion.v;
+        // Keyboard summon protects expansion only; pointer leave owns settled Full.
+        if self.keyboard_hold && self.target_full && self.fullness == 1. && !self.window_motion.moving() {
+            self.keyboard(false, now);
+        }
     }
     pub fn geometry(&self) -> Geometry {
         self.window_motion.geometry()
@@ -1102,6 +1106,7 @@ mod shortcut_tests {
             assert!(model.fullness > 0. && model.fullness < 1.);
             for now in (start + 48..=start + 800).step_by(16) { model.tick(now); }
             assert_eq!(model.fullness, 1.);
+            assert!(!model.keyboard_hold);
         }
     }
     #[test]
@@ -1110,12 +1115,14 @@ mod shortcut_tests {
         model.state(Stage::Success, 1., 1);
         model.summon(20);
         assert_eq!(model.fullness, 1.);
-        assert!(model.keyboard_hold && model.target_full);
+        model.tick(20);
+        assert!(!model.keyboard_hold && model.target_full);
         model.tick(1501);
         assert_eq!(model.stage, Stage::Idle);
         assert!(model.target_full);
-        model.keyboard(false, 1502);
-        model.tick(1502 + LEAVE_MS);
+        model.tick(1501 + LEAVE_MS - 1);
+        assert!(model.target_full);
+        model.tick(1501 + LEAVE_MS);
         assert_eq!(model.fullness, 0.);
     }
     #[test]
@@ -1136,25 +1143,89 @@ mod shortcut_tests {
         assert_eq!(summon_anchor([500.,400.],1.,[0.,0.,1920.,1040.]),[500.,400.]);
     }
     #[test]
-    fn keyboard_summon_survives_real_pointer_outside_until_release() {
-        let mut model = Model::new(0, true);
-        model.keyboard(true, 1);
-        model.pointer(false, 2);
-        model.tick(10_000);
-        assert!(model.target_full && model.keyboard_hold && !model.pointer);
-        model.keyboard(false, 10_001);
-        model.tick(10_080);
+    fn settled_summon_uses_pointer_leave_without_a_focus_loss_event() {
+        for reduced in [false, true] {
+            let mut model = Model::new(0, reduced);
+            model.pointer(true, 1);
+            model.summon(2);
+            for now in (2..=1000).step_by(16) { model.tick(now); }
+            assert!(model.target_full && !model.keyboard_hold && model.pointer);
+            model.tick(5000);
+            assert!(model.target_full, "pointer inside must retain Full");
+            // No keyboard(false) input is delivered: native focus may stay with the window.
+            model.pointer(false, 5001);
+            model.tick(5001 + LEAVE_MS - 1);
+            assert!(model.target_full);
+            model.tick(5001 + LEAVE_MS);
+            assert!(!model.target_full);
+            for now in (5100..=6100).step_by(16) { model.tick(now); }
+            assert_eq!(model.fullness, 0.);
+        }
+    }
+    #[test]
+    fn old_outside_sample_cannot_reverse_summon_expansion() {
+        let mut model = Model::new(0, false);
+        model.pointer(true, 1);
+        model.summon(2);
+        model.pointer(false, 3);
+        model.tick(34);
+        assert!(model.target_full && model.keyboard_hold);
+        assert!(model.fullness > 0. && model.fullness < 1.);
+        model.pointer(true, 35);
+        for now in (50..=1000).step_by(16) { model.tick(now); }
+        assert!(model.target_full && !model.keyboard_hold && model.pointer);
+        model.tick(5000);
         assert!(model.target_full);
-        model.tick(10_081);
-        assert!(!model.target_full);
+    }
+    #[test]
+    fn clamped_outside_summon_and_repeats_have_no_permanent_hold() {
+        for reduced in [false, true] {
+            let mut model = Model::new(0, reduced);
+            for start in [0, 2000, 4000] {
+                model.summon(start);
+                model.pointer(false, start);
+                let mut released = None;
+                for now in (start..=start + 1000).step_by(16) {
+                    model.tick(now);
+                    if !model.keyboard_hold { released = Some(now); break; }
+                    assert!(model.target_full, "first-frame outside cannot cancel expansion");
+                }
+                let released = released.expect("completed expansion must hand ownership back");
+                assert_eq!(model.fullness, 1.);
+                model.tick(released + LEAVE_MS - 1);
+                assert!(model.target_full);
+                model.tick(released + LEAVE_MS);
+                assert!(!model.target_full && !model.keyboard_hold);
+                for now in (released + LEAVE_MS + 16..=start + 1800).step_by(16) { model.tick(now); }
+                assert_eq!(model.fullness, 0.);
+            }
+        }
     }
     #[test]
     fn releasing_keyboard_does_not_override_download_or_menu_ownership() {
-        for menu in [false, true] {
-            let mut model = Model::new(0, true);
-            if menu { model.locks.menu = true; } else { model.state(Stage::Downloading, 0.2, 0); }
-            model.keyboard(true, 1); model.keyboard(false, 2); model.tick(10_000);
+        for owner in 0..4 {
+            let mut model = Model::new(0, false);
+            match owner {
+                0 => model.state(Stage::Downloading, 0.2, 0),
+                1 => model.locks.menu = true,
+                2 => model.locks.drag = true,
+                _ => model.locks.drop = true,
+            }
+            model.summon(1);
+            model.pointer(false, 2);
+            for now in (1..=1500).step_by(16) { model.tick(now); }
             assert!(model.target_full && !model.keyboard_hold);
+            match owner {
+                0 => model.state(Stage::Idle, 0., 1501),
+                1 => model.locks.menu = false,
+                2 => model.locks.drag = false,
+                _ => model.locks.drop = false,
+            }
+            model.locks_changed(1501);
+            model.tick(1501 + LEAVE_MS - 1);
+            assert!(model.target_full);
+            model.tick(1501 + LEAVE_MS);
+            assert!(!model.target_full);
         }
     }
 }
