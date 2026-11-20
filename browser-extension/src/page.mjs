@@ -254,7 +254,7 @@ class PageVideoTools {
     head.onpointerdown = e => {
       if (e.button !== 0) return;
       e.preventDefault(); e.stopPropagation(); head.setPointerCapture(e.pointerId); this.seek.focus({ preventScroll: true });
-      const seekTo = x => { this.video.currentTime = at(x) / 1000; this.updatePlayback(); this.showTrackTime(at(x)); };
+      const seekTo = x => { this.seek.value = at(x) / 1000; this.video.currentTime = Number(this.seek.value); this.updatePlayback(); this.showTrackTime(this.video.currentTime * 1000); };
       this.draggingTrack = true; seekTo(e.clientX);
       head.onpointermove = event => seekTo(event.clientX);
       head.onpointerup = head.onpointercancel = head.onlostpointercapture = () => { head.onpointermove = null; this.draggingTrack = false; this.hideTrackTime(); };
