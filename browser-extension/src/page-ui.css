@@ -46,23 +46,21 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 .track input { position:absolute; top:24px; left:0; width:100%; height:24px; min-width:0; margin:0; appearance:none; background:transparent; cursor:crosshair; }
 .track input::-webkit-slider-runnable-track { height:3px; background:transparent; }
 .track input::-webkit-slider-thumb { appearance:none; width:8px; height:8px; border-radius:50%; background:transparent; margin-top:-2.5px; }
-.track .handle { position:absolute; top:8px; width:24px; height:28px; min-height:28px; padding:0; border-radius:4px; background:transparent; cursor:ew-resize; touch-action:none; z-index:3; }
+.track .handle { position:absolute; top:4px; width:24px; height:24px; min-height:24px; padding:0; border-radius:4px; background:transparent; cursor:ew-resize; touch-action:none; z-index:3; }
 .handle.in { transform:translateX(-100%); }
 .handle svg { position:absolute; top:7px; width:14px; height:18px; stroke-width:1.8; color:var(--focus); fill:var(--surface); pointer-events:none; }
 .handle.in svg { right:-7px; }
 .handle.out svg { left:-7px; }
-.track .handle.single { width:40px; transform:translateX(-50%); cursor:grab; }
+.track .handle.single { width:40px; transform:translateX(-50%); cursor:ew-resize; }
 .track .handle.single svg { left:13px; right:auto; }
 .track .handle:hover,.track .handle:focus-visible,.track .handle[data-dragging] { background:color-mix(in srgb,var(--focus) 12%,transparent); }
-.track[data-alt] .handle { z-index:6; }
-.track[data-alt] .handle.single[data-side=in] { cursor:w-resize; }
-.track[data-alt] .handle.single[data-side=out] { cursor:e-resize; }
-.track[data-alt] .handle.single::before { content:""; position:absolute; inset:0 50% 0 0; border-radius:4px; background:color-mix(in srgb,var(--focus) 20%,transparent); }
-.track[data-alt] .handle.single[data-side=out]::before { inset:0 0 0 50%; }
+.track .handle.single[data-side=in] { cursor:w-resize; }
+.track .handle.single[data-side=out] { cursor:e-resize; }
+.track .handle.single:hover::before,.track .handle.single[data-dragging]::before { content:""; position:absolute; inset:0 50% 0 0; border-radius:4px; background:color-mix(in srgb,var(--focus) 20%,transparent); pointer-events:none; }
+.track .handle.single[data-side=out]::before { inset:0 0 0 50%; }
 .playhead { position:absolute; top:28px; width:12px; height:22px; margin-left:-6px; pointer-events:auto; cursor:ew-resize; touch-action:none; z-index:4; }
 .playhead::after { content:""; position:absolute; left:6px; top:0; width:1px; height:22px; background:var(--text); }
 .playhead::before { content:""; position:absolute; left:3px; top:0; width:7px; height:5px; background:var(--text); clip-path:polygon(0 0,100% 0,50% 100%); }
-.track[data-alt] .playhead { pointer-events:none; }
 .buffered { position:absolute; top:30px; left:0; right:0; height:3px; pointer-events:none; }
 .buffered span { position:absolute; height:100%; background:var(--muted); opacity:.3; }
 .track[data-selection] .rail { opacity:.45; }
@@ -79,6 +77,7 @@ svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; st
 .control-row { justify-content:space-between; margin-top:6px; }
 .icon { position:relative; width:32px; height:32px; min-height:32px; padding:0; display:grid; place-items:center; flex:none; background:transparent; color:var(--muted); }
 .icon svg { width:16px; height:16px; }
+.icon[data-action=marker][aria-pressed=true] { color:var(--focus); background:color-mix(in srgb,var(--focus) 12%,transparent); }
 button[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 5px); left:50%; transform:translateX(-50%); width:max-content; max-width:160px; padding:3px 6px; border-radius:4px; background:var(--text); color:var(--surface); font-size:11px; line-height:16px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity 80ms ease-out; z-index:8; }
 button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1; }
 .tools > :first-child::after { left:0; transform:none; }

@@ -76,6 +76,7 @@ components:
   page-video-controls:
     layout: "video / full-width timeline / icon toolbar"
     timelineHeight: "64px"
+    markerInteraction: "empty: add / marked: clear; direct edge drag"
     controlHeight: "32px"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"

@@ -33,7 +33,7 @@ try {
   const marks = async () => { if (!await controls.getByRole('textbox', { name: '入点时间' }).isVisible()) await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click(); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750'); };
   await open(); await marks();
   await page.evaluate(() => ameowPageTools.video.pause());
-  const clear = controls.getByRole('button', { name: '清除选区' });
+  const clear = controls.locator('[data-action=marker]');
   await clear.focus(); await clear.press('Space');
   assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isDisabled());
   assert(await page.evaluate(() => ameowPageTools.video.paused));
