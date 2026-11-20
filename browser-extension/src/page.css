@@ -14,3 +14,5 @@
 .ameow-peek > ameow-peek-controls { display:block; flex:none; width:100%; position:relative; z-index:2; }
 @media(max-width:600px) { .ameow-peek { width:calc(100vw - 16px)!important; height:calc(100dvh - 32px)!important; } }
 @media(prefers-reduced-motion:reduce) { .ameow-peek::backdrop { transition-duration:60ms; } }
+
+.ameow-peek-player .bpx-player-render-dm-wrap { display:none!important; }

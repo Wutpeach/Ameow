@@ -30,7 +30,7 @@ try {
   await page.locator('ameow-page-tools').waitFor();
   const open = async () => { await page.evaluate(() => ameowPageTools.openPeek()); await page.locator('.ameow-peek[data-transition]').waitFor({ state: 'detached' }); };
   const controls = page.locator('ameow-peek-controls');
-  const marks = async () => { await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750'); };
+  const marks = async () => { if (!await controls.getByRole('textbox', { name: '入点时间' }).isVisible()) await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click(); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750'); };
   await open(); await marks();
   await page.evaluate(() => ameowPageTools.video.pause());
   const clear = controls.getByRole('button', { name: '清除选区' });

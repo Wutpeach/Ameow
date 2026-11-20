@@ -1,13 +1,21 @@
 import { clipRange, formatTime, parseTime } from "./page-core.mjs";
 import styles from "./page-ui.css";
 import cat from "../../assets/brand/tray/macos/ameow-menu-bar-white.svg";
+import scissors from "./icons/scissors.svg";
+import broom from "./icons/broom-sparkles.svg";
 
 const icons = {
-  select: '<svg viewBox="0 0 24 24"><path d="M8 5H5v14h3m8-14h3v14h-3M9 12h6m-3-3v6"/></svg>',
+  select: scissors,
+  marker: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v10l-6 6-6-6V4a1 1 0 0 1 1-1Z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>',
+  focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="M9 9h6v6H9Z"/></svg>',
+  whole: '<svg viewBox="0 0 24 24"><path d="M3 8V3h5m8 0h5v5M3 16v5h5m13-5v5h-5"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>',
+  waiting: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></svg>',
-  clear: '<svg viewBox="0 0 24 24"><path d="m9 5-6 7 6 7h11V5Z M12 9l5 6m0-6-5 6"/></svg>',
+  clear: broom,
   check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
 };
 const errors = {
@@ -127,18 +135,18 @@ class PageVideoTools {
     catch (error) { this.status(errors[error.message]); return; }
     const bound = this.binding; this.pending = true; this.wake();
     this.toolbar.dataset.status = "pending"; this.download.disabled = true;
-    if (this.submitButton) { this.submitButton.disabled = true; this.submitButton.textContent = "等待 Ameow 受理…"; }
+    if (this.submitButton) { this.submitButton.disabled = true; this.setSubmitStatus("pending"); }
     this.status("");
     try {
       await request("page-submit", { key: bound.key, url: bound.url, clip: range, request_id: crypto.randomUUID() });
       if (this.binding?.key !== bound.key || this.stopped) return;
       this.toolbar.dataset.status = "accepted"; this.download.querySelector(".download-icon").innerHTML = icons.check;
       this.download.setAttribute("aria-label", "已加入队列");
-      if (this.submitButton) { this.submitButton.dataset.status = "accepted"; this.submitButton.textContent = "已加入队列"; }
+      if (this.submitButton) this.setSubmitStatus("accepted");
       clearTimeout(this.ackTimer); this.ackTimer = setTimeout(() => {
         if (this.download) { this.download.querySelector(".download-icon").innerHTML = cat; this.download.setAttribute("aria-label", "下载"); }
         if (this.toolbar) delete this.toolbar.dataset.status;
-        if (this.submitButton) { delete this.submitButton.dataset.status; this.submitButton.textContent = "下载片段"; }
+        if (this.submitButton) this.setSubmitStatus();
         this.updateFields(); this.rest();
       }, 1600);
     } catch (error) {
@@ -146,7 +154,7 @@ class PageVideoTools {
     } finally {
       this.pending = false;
       if (this.download) this.download.disabled = false;
-      if (this.submitButton && this.submitButton.dataset.status !== "accepted") this.submitButton.textContent = "下载片段";
+      if (this.submitButton && this.submitButton.dataset.status !== "accepted") this.setSubmitStatus();
       this.updateFields(); this.rest();
     }
   }
@@ -177,57 +185,60 @@ class PageVideoTools {
     const playing = !this.video.paused;
     this.stage.append(this.player); this.player.classList.add("ameow-peek-player"); this.video.controls = false;
     const host = document.createElement("ameow-peek-controls"); this.dialog.append(host);
-    this.controls = shadow(host, '<div class="controls"><div class="control-row"><div class="playback"><div class="timeline"><div class="track"><div class="ticks" aria-hidden="true"></div><div class="rail"></div><div class="buffered" aria-hidden="true"></div><div class="band"></div><input type="range" min="0" step="0.001" aria-label="播放位置"><button type="button" class="handle in" role="slider" aria-label="拖动入点" aria-valuemin="0"></button><button type="button" class="handle out" role="slider" aria-label="拖动出点" aria-valuemin="0"></button><div class="playhead" aria-hidden="true"></div><button type="button" class="range-body" role="slider" aria-label="平移选区" aria-valuemin="0" hidden></button><output class="time-bubble" hidden></output></div><div class="track-times"><span class="time"></span><span class="buffering" role="status"></span><span class="duration" aria-live="polite"></span><button type="button" class="view-toggle" aria-label="聚焦选区" hidden>聚焦选区</button></div></div></div><div class="field"><button type="button" data-action="mark-start_ms" aria-label="将当前位置设为入点（I）">I</button><input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off" spellcheck="false"></div><div class="field"><button type="button" data-action="mark-end_ms" aria-label="将当前位置设为出点（O）">O</button><input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off" spellcheck="false"></div><div class="actions"><button type="button" class="submit" data-action="submit" disabled>下载片段</button></div></div><p class="status" role="status" aria-live="polite"></p></div>');
-    const actions = this.controls.querySelector(".actions");
-    iconButton(actions, "close", "关闭预览", icons.close).onclick = () => this.closePeek();
-    const clear = iconButton(actions, "clear", "清除选区", icons.clear); actions.prepend(clear);
-    this.playButton = iconButton(this.controls.querySelector(".playback"), "play", "播放", icons.play);
-    this.controls.querySelector(".playback").prepend(this.playButton);
+    this.controls = shadow(host, '<div class="controls"><div class="timeline"><div class="track"><div class="ticks" aria-hidden="true"></div><div class="rail"></div><div class="buffered" aria-hidden="true"></div><div class="band"></div><input type="range" min="0" step="0.001" aria-label="播放位置"><button type="button" class="handle in" role="slider" aria-label="拖动入点" aria-valuemin="0"></button><button type="button" class="handle out" role="slider" aria-label="拖动出点" aria-valuemin="0"></button><div class="playhead" aria-hidden="true"></div><button type="button" class="range-body" role="slider" aria-label="平移选区" aria-valuemin="0" hidden></button><output class="time-bubble" id="marker-time" role="tooltip" hidden></output></div><div class="track-times"><span class="time"></span><span class="buffering" role="status"></span><span class="duration" aria-live="polite"></span></div></div><div class="control-row"><div class="tools"></div><div class="actions"></div></div><div class="time-editor" hidden><label class="field">I<input id="clip-in" inputmode="decimal" placeholder="入点" aria-label="入点时间" autocomplete="off" spellcheck="false"></label><label class="field">O<input id="clip-out" inputmode="decimal" placeholder="出点" aria-label="出点时间" autocomplete="off" spellcheck="false"></label></div><p class="status" role="status" aria-live="polite"></p></div>');
+    for (const event of ["click", "pointerdown"]) this.controls.addEventListener(event, e => e.stopPropagation());
+    const tools = this.controls.querySelector(".tools"), actions = this.controls.querySelector(".actions");
+    const tool = (root, action, label, svg, className = "icon") => {
+      const button = iconButton(root, action, label, svg, className); button.dataset.tip = label; return button;
+    };
+    this.playButton = tool(tools, "play", "播放", icons.play);
     this.playButton.onclick = () => this.togglePlayback();
+    this.markerButton = tool(tools, "marker", "添加标记", icons.marker);
+    this.markerButton.onclick = () => this.markCurrent();
+    const edit = tool(tools, "edit", "编辑选区时间", icons.edit);
+    edit.setAttribute("aria-expanded", "false");
+    edit.onclick = () => {
+      const editor = this.controls.querySelector(".time-editor"); editor.hidden = !editor.hidden;
+      edit.setAttribute("aria-expanded", String(!editor.hidden)); this.fitPeek();
+      if (!editor.hidden) this.inputs[0].focus({ preventScroll: true }); else edit.focus({ preventScroll: true });
+    };
+    tool(tools, "view", "聚焦选区", icons.focus, "icon view-toggle");
+    tool(tools, "clear", "清除选区", icons.clear).onclick = () => this.clearSelection();
+    this.submitButton = tool(actions, "submit", "下载片段", icons.download, "icon submit");
+    this.submitButton.onclick = () => void this.submit({ ...this.draft });
+    tool(actions, "close", "关闭预览", icons.close).onclick = () => this.closePeek();
     this.seek = this.controls.querySelector('.track input'); this.seek.max = this.video.duration;
     this.seek.oninput = () => { this.video.currentTime = Number(this.seek.value); this.updatePlayback(); };
     this.inputs = [this.controls.querySelector("#clip-in"), this.controls.querySelector("#clip-out")];
     this.sliders = [...this.controls.querySelectorAll(".handle")];
     for (const [index, key] of ["start_ms", "end_ms"].entries()) {
-      const input = this.inputs[index], handle = this.sliders[index];
-      input.value = formatTime(this.draft[key]);
-      input.oninput = () => { this.draft[key] = parseTime(input.value); this.updateFields(); };
+      const input = this.inputs[index]; input.value = formatTime(this.draft[key]);
+      input.oninput = () => { this.draft[key] = parseTime(input.value); this.updateFields(); this.status(""); };
       input.onchange = () => { if (this.draft[key] !== null) input.value = formatTime(this.draft[key]); };
-      const move = value => {
-        value = Math.max(0, Math.min(Math.round(this.video.duration * 1000), value));
-        this.setMark(key, value); this.video.currentTime = value / 1000; this.showTrackTime(value, (index ? "O " : "I ") + formatTime(value)); this.updatePlayback();
-      };
-      handle.onpointerdown = e => {
-        if (e.button !== 0) return;
-        e.preventDefault(); handle.focus({ preventScroll: true }); handle.setPointerCapture(e.pointerId);
-        const track = this.controls.querySelector(".track").getBoundingClientRect();
-        const origin = e.clientX, start = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
-        this.draggingTrack = true; move(start);
-        handle.onpointermove = event => move(Math.round(start + (event.clientX - origin) / track.width * this.timeWindow().span * 1000));
-        handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = () => { handle.onpointermove = null; this.draggingTrack = false; this.hideTrackTime(); };
-      };
-      handle.onkeydown = e => {
-        const value = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
-        const delta = e.shiftKey ? 1000 : 1;
-        const next = { ArrowLeft: value - delta, ArrowDown: value - delta, ArrowRight: value + delta, ArrowUp: value + delta, Home: 0, End: Math.round(this.video.duration * 1000) }[e.key];
-        if (next !== undefined) { e.preventDefault(); move(next); }
-      };
-      this.controls.querySelector('[data-action="mark-' + key + '"]').onclick = () => this.setMark(key);
     }
-    this.setupTimeline();
-    this.submitButton = this.controls.querySelector('[data-action="submit"]');
-    this.submitButton.onclick = () => void this.submit({ ...this.draft });
-    this.controls.querySelector('[data-action="clear"]').onclick = () => this.clearSelection();
+    this.setupMarkerHandles(); this.setupTimeline();
     this.controls.addEventListener("keydown", e => { if (e.key !== "Escape") e.stopPropagation(); });
+    this.handledKeys = new Set();
     this.keydown = e => {
-      const interactive = e.composedPath().some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable='true'],[role='button'],[role='slider']"));
+      if (!this.controls) return;
+      this.controls.querySelector(".track").toggleAttribute("data-alt", e.altKey);
+      const path = e.composedPath(), editing = path.some(n => n instanceof Element && n.matches("input:not([type=range]),textarea,select,[contenteditable]:not([contenteditable='false']),[role='textbox']"));
+      const interactive = path.some(n => n instanceof Element && n.matches("input,button,select,textarea,a[href],[contenteditable]:not([contenteditable='false']),[role='button'],[role='slider']"));
       if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); this.closePeek(); }
-      else if (!interactive && ["i", "o", "I", "O", " "].includes(e.key)) {
-        e.preventDefault(); e.stopImmediatePropagation();
-        if (e.key === " ") this.togglePlayback(); else this.setMark(e.key.toLowerCase() === "i" ? "start_ms" : "end_ms");
+      else if (!editing && !e.ctrlKey && !e.metaKey && !e.altKey && ["i", "o", "I", "O"].includes(e.key)) {
+        this.handledKeys.add(e.code); e.preventDefault(); e.stopImmediatePropagation(); this.setMark(e.key.toLowerCase() === "i" ? "start_ms" : "end_ms");
+      } else if (!interactive && e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.handledKeys.add(e.code); e.preventDefault(); e.stopImmediatePropagation(); this.togglePlayback();
+      } else if (path.includes(this.controls.host) && [" ", "Enter"].includes(e.key)) {
+        // Keep native activation/text entry while stopping the site's capture shortcuts.
+        this.handledKeys.add(e.code); e.stopImmediatePropagation();
       }
     };
-    this.dialog.addEventListener("keydown", this.keydown, true);
+    this.keyup = e => {
+      this.controls?.querySelector(".track").toggleAttribute("data-alt", e.altKey);
+      if (this.handledKeys.delete(e.code)) e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", this.keydown, true); window.addEventListener("keyup", this.keyup, true);
     this.dialog.addEventListener("cancel", e => { e.preventDefault(); this.closePeek(); });
     this.dialog.addEventListener("click", e => { const r = this.dialog.getBoundingClientRect(); if (e.target === this.dialog && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) this.closePeek(); });
     this.onTime = () => this.updatePlayback();
@@ -240,12 +251,94 @@ class PageVideoTools {
     else dialog.removeAttribute("data-transition");
     host.animate([{ opacity: 0 }, { opacity: 1 }], { duration: this.motion.matches ? 60 : 180 });
     this.updateFields(); this.updatePlayback(); this.playButton.focus({ preventScroll: true });
-    if (playing && this.video.paused) void this.video.play().catch(() => this.status("播放未恢复，请按播放继续。"));
+    if (playing && this.video.paused) this.togglePlayback();
+  }
+  setSubmitStatus(state) {
+    if (!this.submitButton) return;
+    if (state) this.submitButton.dataset.status = state; else delete this.submitButton.dataset.status;
+    const label = state === "pending" ? "等待 Ameow 受理…" : state === "accepted" ? "已加入队列" : "下载片段";
+    this.submitButton.setAttribute("aria-label", label); this.submitButton.dataset.tip = label;
+    this.submitButton.innerHTML = state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download;
+  }
+  markCurrent() {
+    const time = Math.round(this.video.currentTime * 1000), { start_ms: start, end_ms: end } = this.draft;
+    if (start === null && end === null) this.setMark("start_ms", time);
+    else if (start === null || end === null) {
+      const anchor = start ?? end;
+      if (time !== anchor) this.setDraft(Math.min(anchor, time), Math.max(anchor, time));
+    } else if (time > start) this.setMark("end_ms", time);
+    else { this.status("出点须晚于入点。可按 I 重新设置入点。"); return; }
+    this.status("");
+  }
+  setDraft(start, end) {
+    this.draft = { start_ms: start, end_ms: end }; this.status("");
+    if (this.inputs) { this.inputs[0].value = formatTime(start); this.inputs[1].value = formatTime(end); }
+    this.updateFields();
+  }
+  setupMarkerHandles() {
+    const keys = ["start_ms", "end_ms"];
+    for (const [index, handle] of this.sliders.entries()) {
+      handle.innerHTML = icons.marker; handle.setAttribute("aria-describedby", "marker-time");
+      const time = () => this.draft[keys[index]];
+      const tip = () => { if (time() !== null) this.showTrackTime(time(), (index ? "出点 " : "入点 ") + formatTime(time())); };
+      handle.onfocus = tip; handle.onpointerenter = tip;
+      handle.onpointermove = e => {
+        if (this.draggingTrack) return;
+        if (handle.classList.contains("single")) handle.dataset.side = e.clientX < handle.getBoundingClientRect().left + handle.clientWidth / 2 ? "in" : "out";
+        tip();
+      };
+      handle.onpointerdown = e => {
+        if (e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation(); handle.focus({ preventScroll: true }); handle.setPointerCapture(e.pointerId);
+        const single = this.draft.start_ms === null || this.draft.end_ms === null;
+        const anchor = this.draft.start_ms ?? this.draft.end_ms;
+        const rect = handle.getBoundingClientRect();
+        const selected = single && e.altKey ? (e.clientX < rect.left + rect.width / 2 ? 0 : 1) : index;
+        const from = this.draft[keys[index]], other = this.draft[keys[1 - index]], origin = e.clientX;
+        const width = this.controls.querySelector(".track").clientWidth, span = this.timeWindow().span * 1000;
+        const show = value => this.showTrackTime(value, (selected ? "出点 " : "入点 ") + formatTime(value));
+        this.draggingTrack = true; handle.dataset.dragging = ""; show(from);
+        const drag = event => {
+          let value = Math.max(0, Math.min(Math.round(this.video.duration * 1000), Math.round(from + (event.clientX - origin) / width * span)));
+          if (single && e.altKey) {
+            if (selected === 0 && value < anchor) this.setDraft(value, anchor);
+            else if (selected === 1 && value > anchor) this.setDraft(anchor, value);
+            else return;
+          } else {
+            if (other !== null) value = index ? Math.max(other + 1, value) : Math.min(other - 1, value);
+            this.setMark(keys[index], value);
+          }
+          show(value);
+        };
+        const hover = handle.onpointermove;
+        handle.onpointermove = drag;
+        const finish = event => {
+          handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = null;
+          handle.onpointermove = hover; this.draggingTrack = false; delete handle.dataset.dragging;
+          if (event.type === "pointerup" && this.controls && !this.closing) {
+            this.sliders[selected].focus({ preventScroll: true });
+            const value = this.draft[keys[selected]];
+            this.showTrackTime(value, (selected ? "出点 " : "入点 ") + formatTime(value));
+          } else this.hideTrackTime();
+        };
+        handle.onpointerup = handle.onpointercancel = handle.onlostpointercapture = finish;
+      };
+      handle.onkeydown = e => {
+        const value = time(); if (value === null) return;
+        const delta = e.shiftKey ? 1000 : 1;
+        let next = { ArrowLeft: value - delta, ArrowDown: value - delta, ArrowRight: value + delta, ArrowUp: value + delta, Home: 0, End: Math.round(this.video.duration * 1000) }[e.key];
+        if (next === undefined) return;
+        e.preventDefault(); next = Math.max(0, Math.min(Math.round(this.video.duration * 1000), next));
+        const other = this.draft[keys[1 - index]];
+        if (other !== null) next = index ? Math.max(other + 1, next) : Math.min(other - 1, next);
+        this.setMark(keys[index], next); tip();
+      };
+    }
   }
   setupTimeline() {
     const track = this.controls.querySelector(".track"), body = this.controls.querySelector(".range-body");
     const at = x => Math.max(0, Math.min(this.video.duration * 1000, (this.timeWindow().start + (x - track.getBoundingClientRect().left) / track.clientWidth * this.timeWindow().span) * 1000));
-    track.addEventListener("pointermove", e => { if (!this.draggingTrack) this.showTrackTime(at(e.clientX)); });
+    track.addEventListener("pointermove", e => { if (!this.draggingTrack && !e.target.closest(".handle")) this.showTrackTime(at(e.clientX)); });
     track.addEventListener("pointerleave", () => { if (!this.draggingTrack) this.hideTrackTime(); });
     track.addEventListener("pointerdown", e => {
       if (e.target === track || e.target.matches(".ticks,.ticks span")) { this.video.currentTime = at(e.clientX) / 1000; this.updatePlayback(); }
@@ -282,16 +375,18 @@ class PageVideoTools {
     this.controls.querySelector(".view-toggle").onclick = () => {
       if (this.view) this.view = null;
       else {
-        const length = (this.draft.end_ms - this.draft.start_ms) / 1000, padding = Math.max(.75, length * .6);
+        const single = this.draft.start_ms === null || this.draft.end_ms === null;
+        const anchor = (this.draft.start_ms ?? this.draft.end_ms) / 1000;
+        const length = single ? 0 : (this.draft.end_ms - this.draft.start_ms) / 1000, padding = single ? 4 : Math.max(.75, length * .6);
         const span = Math.min(this.video.duration, length + padding * 2);
-        const start = Math.max(0, Math.min(this.video.duration - span, this.draft.start_ms / 1000 - padding));
+        const start = Math.max(0, Math.min(this.video.duration - span, anchor - padding));
         this.view = { start, end: start + span };
       }
       this.hideTrackTime(); this.updateFields(); this.updatePlayback();
     };
     this.seek.addEventListener("input", () => this.showTrackTime(Number(this.seek.value) * 1000));
     this.seek.addEventListener("change", () => this.hideTrackTime());
-    this.controls.addEventListener("focusout", () => this.hideTrackTime());
+    this.controls.addEventListener("focusout", () => queueMicrotask(() => this.hideTrackTime()));
     this.renderTicks();
   }
   timeWindow() {
@@ -325,7 +420,14 @@ class PageVideoTools {
     const center = percent / 100 * track.clientWidth;
     bubble.style.transform = "translateX(" + Math.max(-center, Math.min(-half, track.clientWidth - center - half * 2)) + "px)";
   }
-  hideTrackTime() { const bubble = this.controls?.querySelector(".time-bubble"); if (bubble) bubble.hidden = true; }
+  hideTrackTime() {
+    const active = this.controls?.activeElement;
+    if (active?.matches(".handle") && !active.hidden && !this.closing) {
+      const out = active.classList.contains("out"), value = this.draft[out ? "end_ms" : "start_ms"];
+      this.showTrackTime(value, (out ? "出点 " : "入点 ") + formatTime(value)); return;
+    }
+    const bubble = this.controls?.querySelector(".time-bubble"); if (bubble) bubble.hidden = true;
+  }
   animateStage(from, to, duration) {
     this.animation?.cancel();
     if (!duration || !to.width || !to.height) return null;
@@ -361,7 +463,8 @@ class PageVideoTools {
   }
   restorePeek() {
     if (!this.dialog) return;
-    this.draggingTrack = false;
+    this.draggingTrack = false; this.playbackRequest = (this.playbackRequest ?? 0) + 1;
+    window.removeEventListener("keydown", this.keydown, true); window.removeEventListener("keyup", this.keyup, true);
     const originalConnected = this.placeholder.isConnected;
     this.animation?.cancel(); this.animation = null;
     for (const event of ["timeupdate", "play", "pause", "seeked", "seeking", "waiting", "playing", "progress", "durationchange"]) this.video.removeEventListener(event, this.onTime);
@@ -380,11 +483,14 @@ class PageVideoTools {
     }
   }
   togglePlayback() {
-    if (this.video.paused) void this.video.play().catch(() => this.status("播放未开始，请重试播放。"));
-    else this.video.pause();
+    const video = this.video, request = this.playbackRequest = (this.playbackRequest ?? 0) + 1;
+    if (video.paused) void video.play().catch(() => {
+      if (this.controls && this.video === video && this.playbackRequest === request) this.status("播放未开始，请重试播放。");
+    });
+    else { video.pause(); this.status(""); }
   }
   setMark(key, value = Math.round(this.video.currentTime * 1000)) {
-    this.draft[key] = value;
+    this.draft[key] = value; this.status("");
     if (this.inputs) this.inputs[key === "start_ms" ? 0 : 1].value = formatTime(value);
     this.updateFields();
   }
@@ -405,7 +511,8 @@ class PageVideoTools {
       const ms = this.draft[key] ?? (index ? this.video.duration * 1000 : 0);
       const handle = this.sliders[index];
       const position = this.trackPercent(ms);
-      handle.style.left = position + "%"; handle.hidden = position < 0 || position > 100;
+      handle.style.left = position + "%"; handle.hidden = this.draft[key] === null || position < 0 || position > 100;
+      handle.classList.toggle("single", this.draft.start_ms === null || this.draft.end_ms === null);
       handle.setAttribute("aria-valuemax", Math.round(this.video.duration * 1000));
       handle.setAttribute("aria-valuenow", ms);
       handle.setAttribute("aria-valuetext", this.draft[key] === null ? "未设置" : formatTime(ms));
@@ -414,8 +521,9 @@ class PageVideoTools {
       const reversed = this.draft.start_ms !== null && this.draft.end_ms !== null && this.draft.end_ms <= this.draft.start_ms;
       this.inputs[index].setAttribute("aria-invalid", this.inputs[index].value && (value === null || value > this.video.duration * 1000 || reversed) ? "true" : "false");
     }
-    const toggle = this.controls.querySelector(".view-toggle"); toggle.hidden = !valid && !this.view;
-    toggle.textContent = this.view ? "全片" : "聚焦选区"; toggle.setAttribute("aria-label", this.view ? "显示全片" : "聚焦选区");
+    const toggle = this.controls.querySelector(".view-toggle"); toggle.disabled = this.draft.start_ms === null && this.draft.end_ms === null;
+    const label = this.view ? "显示全片" : valid ? "聚焦选区" : "聚焦标记";
+    toggle.innerHTML = this.view ? icons.whole : icons.focus; toggle.setAttribute("aria-label", label); toggle.dataset.tip = label; toggle.setAttribute("aria-pressed", String(Boolean(this.view)));
     const window = this.timeWindow(); this.seek.min = window.start; this.seek.max = window.end;
     const band = this.controls.querySelector(".band"); band.style.opacity = valid ? ".22" : "0";
     const body = this.controls.querySelector(".range-body"); body.hidden = !valid;
@@ -427,7 +535,7 @@ class PageVideoTools {
       band.style.left = left + "%"; band.style.right = 100 - right + "%";
       body.setAttribute("aria-valuenow", this.draft.start_ms); body.setAttribute("aria-valuemax", this.video.duration * 1000 - (this.draft.end_ms - this.draft.start_ms));
       body.setAttribute("aria-valuetext", formatTime(this.draft.start_ms) + " – " + formatTime(this.draft.end_ms));
-    } else band.hidden = true;
+    } else band.hidden = false;
     this.renderTicks();
   }
 
@@ -435,7 +543,7 @@ class PageVideoTools {
     if (!this.controls) return;
     if (this.controls.activeElement !== this.seek) this.seek.value = this.video.currentTime;
     this.playButton.innerHTML = this.video.paused ? icons.play : icons.pause;
-    this.playButton.setAttribute("aria-label", this.video.paused ? "播放" : "暂停");
+    this.playButton.setAttribute("aria-label", this.video.paused ? "播放" : "暂停"); this.playButton.dataset.tip = this.video.paused ? "播放" : "暂停";
     this.renderTicks();
     const position = this.trackPercent(this.video.currentTime * 1000), head = this.controls.querySelector(".playhead");
     head.hidden = position < 0 || position > 100; head.style.left = position + "%";

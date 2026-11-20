@@ -74,6 +74,8 @@ components:
     typography: "{typography.body}"
     rounded: "{rounded.circle}"
   page-video-controls:
+    layout: "video / full-width timeline / icon toolbar"
+    timelineHeight: "64px"
     controlHeight: "32px"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"

@@ -9,6 +9,7 @@ const root = resolve(process.argv[2]);
 const brand = process.argv[3] || 'cft';
 try { await access(root); throw Error('Use a fresh evidence directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
 await mkdir(root, { recursive: true });
+await writeFile(join(root, 'executed-script.mjs'), await (await import('node:fs/promises')).readFile(new URL(import.meta.url)));
 const extension = join(root, 'extension');
 // UI-only runs must never call the user's registered native host, even for List.
 const fixtureHost = 'org.ameow.browser_sessions.fixture.ui_' + randomUUID().replaceAll('-', '');
@@ -29,156 +30,70 @@ try {
   await manager.evaluate(async id => { for (const origin of ['https://www.youtube.com/*', 'https://www.bilibili.com/*']) await chrome.developerPrivate.addHostPermission(id, origin); }, extensionId);
   await manager.close();
   for (const [site, url] of [['youtube', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'], ['bilibili', 'https://www.bilibili.com/video/BV17x411w7KC/']]) {
-    const page = await context.newPage();
-    const row = { site, url, startedAt: Date.now(), events: [] }; report.checks.push(row);
-    page.on('console', msg => { if (msg.type() === 'error' && msg.text().includes('ameow')) row.console = msg.text().slice(0, 300); });
+    const page = await context.newPage(), row = { site, url, startedAt: Date.now(), events: [] }; report.checks.push(row);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForFunction(() => [...document.querySelectorAll('video, bwp-video')].some(v => v.readyState >= 2 && v.duration > 0 && Number.isFinite(v.duration)), null, { timeout: 30000 });
-    await page.bringToFront();
-    const active = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]);
-    const tab = { id: active.id, url: page.url() };
-    row.tab = tab ? { id: tab.id, url: tab.url } : null;
-    const popup = await context.newPage();
-    await popup.setViewportSize({ width: 320, height: 600 });
-    await popup.addInitScript(tab => { chrome.tabs.query = async () => [tab]; }, tab);
-    await popup.goto('chrome-extension://' + extensionId + '/popup.html');
-    assert.equal(await popup.evaluate(() => globalThis.ameowFixtureNativeGuard), fixtureHost, 'popup entry has live native boundary');
-    await sleep(1500);
-    row.popup = await popup.locator('body').innerText();
-    await popup.screenshot({ path: join(root, site + '-popup.png') });
-    await popup.getByRole('button', { name: '启用页面工具' }).click();
-    await popup.getByRole('button', { name: '关闭页面工具' }).waitFor();
-    await popup.close(); await page.bringToFront();
-    // Persistent browser windows share compositor bounds; restore them after the popup.
-    await page.setViewportSize({ width: 1441, height: 1000 });
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const toolbar = page.locator('ameow-page-tools');
-    await toolbar.waitFor({ state: 'visible', timeout: 20000 });
-    const cat = toolbar.getByRole('button', { name: '下载', exact: true });
-    const before = await cat.boundingBox();
-    await page.mouse.move(20,20); await cat.evaluate(e=>e.blur()); await sleep(2600);
-    assert(await toolbar.locator('.toolbar').evaluate(e=>e.hasAttribute('data-dim')));
-    await toolbar.locator('.toolbar').screenshot({path:join(root,site+'-collapsed.png')});
-    await cat.hover(); await sleep(250);
-    const select = toolbar.getByRole('button', { name: '切片', exact: true });
-    const clickSelect = async () => {
-      await cat.hover(); await sleep(230);
-      const box = await select.boundingBox();
-      const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
-      assert.equal(hit, 'AMEOW-PAGE-TOOLS', 'real pointer target is unobscured');
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    };
-    await select.hover(); await sleep(600);
-    assert(await select.isVisible());
-    const expanded = await cat.boundingBox();
-    assert(Math.abs(expanded.x + expanded.width - before.x - before.width) < 1 && expanded.y === before.y, 'right download hit position stays fixed');
-    assert.equal(await toolbar.locator('[title],[role=tooltip]').count(), 0);
-    row.toolbarGeometry = { collapsed: before, expanded };
-    await toolbar.screenshot({ path: join(root, site + '-toolbar.png') });
-    await page.evaluate(() => { const video = document.querySelector('#movie_player video, .bpx-player-video-wrap video, .bpx-player-video-wrap bwp-video'); video.pause(); window.ameowEvidence = { video, parent: video.closest('#movie_player,.bpx-player-container').parentNode, source: video.currentSrc, time: video.currentTime, scrollY }; });
-    await page.setViewportSize({width:848,height:780});
+    await page.waitForFunction(() => [...document.querySelectorAll('video,bwp-video')].some(v => v.readyState >= 2 && Number.isFinite(v.duration) && v.duration > 0), null, { timeout: 45000 });
+    const pause = async time => page.evaluate(time => { document.querySelector('#movie_player')?.pauseVideo?.(); for (const v of document.querySelectorAll('video,bwp-video')) { v.pause(); if (time !== undefined) v.currentTime = time; } }, time);
+    await pause(); await page.bringToFront();
+    const tab = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]);
+    const popup = await context.newPage(); await popup.setViewportSize({ width: 320, height: 600 });
+    await popup.addInitScript(tab => { chrome.tabs.query = async () => [tab]; }, { id: tab.id, url: page.url() });
+    await popup.goto('chrome-extension://' + extensionId + '/popup.html'); assert.equal(await popup.evaluate(() => globalThis.ameowFixtureNativeGuard), fixtureHost);
+    await popup.getByRole('button', { name: '启用页面工具' }).click(); await popup.getByRole('button', { name: '关闭页面工具' }).waitFor(); await popup.close(); await page.bringToFront();
+    await page.setViewportSize({ width: 1441, height: 1000 }); await page.setViewportSize({ width: 1440, height: 1000 }); await pause();
+    const toolbar = page.locator('ameow-page-tools'); await toolbar.waitFor({ timeout: 20000 });
+    const cat = toolbar.getByRole('button', { name: '下载', exact: true }), select = toolbar.getByRole('button', { name: '切片', exact: true });
+    const hoverCat = async () => { const b = await cat.boundingBox(); await page.mouse.move(b.x + b.width - 14, b.y + 14); };
+    const open = async () => { await hoverCat(); await sleep(230); const b = await select.boundingBox(); assert.equal(await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.tagName,{x:b.x+b.width/2,y:b.y+b.height/2}), 'AMEOW-PAGE-TOOLS'); await page.mouse.click(b.x+b.width/2,b.y+b.height/2); await page.locator('.ameow-peek[data-transition]').waitFor({state:'detached'}); };
+    const cdp = await context.newCDPSession(page);
+    row.capsule = [];
     for (const reduced of [false, true]) {
       await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
-      row.events.push({ action: reduced ? 'reduced-entry' : 'normal-entry', seconds: (Date.now() - row.startedAt) / 1000 });
-      await clickSelect();
-      const controls = page.locator('ameow-peek-controls');
-      await controls.getByRole('button', { name: '播放', exact: true }).waitFor();
-      await controls.getByRole('textbox', { name: '入点时间', exact: true }).fill('0:01.250');
-      await controls.getByRole('textbox', { name: '出点时间', exact: true }).fill('0:04.750');
-      assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isEnabled());
-      const focusBefore = await page.evaluate(()=>window.ameowEvidence.video.currentTime);
-      await controls.getByRole('button',{name:'聚焦选区',exact:true}).click();
-      assert.equal(await controls.getByRole('textbox',{name:'入点时间'}).inputValue(),'0:01.250');
-      assert.equal(await page.evaluate(()=>window.ameowEvidence.video.currentTime),focusBefore);
-      const focused = await controls.getByRole('slider',{name:'播放位置',exact:true}).evaluate(e=>({min:Number(e.min),max:Number(e.max)}));
-      assert(focused.max-focused.min < 10); row[reduced?'reducedWindow':'normalWindow']=focused;
-      await page.locator('.ameow-peek').screenshot({path:join(root,site+(reduced?'-reduced':'-normal')+'-focused.png')});
-      const inHandle = controls.getByRole('slider', { name: '拖动入点', exact: true });
-      await inHandle.focus(); await inHandle.press('ArrowRight');
-      assert.equal(await controls.getByRole('textbox', { name: '入点时间' }).inputValue(), '0:01.251');
-      assert(await page.evaluate(() => Math.abs(window.ameowEvidence.video.currentTime - 1.251) < .01), 'range input seeks immediately');
-      await inHandle.press('ArrowLeft');
-      const seek=controls.getByRole('slider',{name:'播放位置',exact:true}); await seek.focus(); await seek.press('Home'); await seek.press('ArrowRight');
-      const head=controls.locator('.playhead'), hb=await head.boundingBox();
-      await page.mouse.move(hb.x+hb.width/2,hb.y+3);await page.mouse.down();await page.mouse.move(hb.x+hb.width/2+6,hb.y+3,{steps:5});await page.mouse.up();
-      assert.equal(await controls.getByRole('textbox',{name:'入点时间'}).inputValue(),'0:01.250');assert.equal(await controls.getByRole('textbox',{name:'出点时间'}).inputValue(),'0:04.750');
-
-      await page.evaluate(() => { window.ameowEvidence.time = window.ameowEvidence.video.currentTime; });
-      const layout = await controls.evaluate(h=>({width:h.getBoundingClientRect().width,height:h.getBoundingClientRect().height,font:getComputedStyle(h.shadowRoot.querySelector('.controls')).fontFamily,overflow:h.shadowRoot.querySelector('.controls').scrollWidth>h.clientWidth}));
-      assert(layout.height <= 72 && !layout.overflow && layout.font.includes('Segoe UI')); row[reduced?'reducedLayout':'normalLayout']=layout;
-      const out = controls.getByRole('slider',{name:'拖动出点'}), b = await out.boundingBox();
-      const was=Number(await out.getAttribute('aria-valuenow'));
-      await page.mouse.move(b.x+b.width/2,b.y+b.height/2); await page.mouse.down(); await page.mouse.move(b.x+b.width/2+8,b.y+b.height/2,{steps:4}); await page.mouse.up();
-      assert(Number(await out.getAttribute('aria-valuenow'))>was);
-      await controls.getByRole('textbox',{name:'出点时间'}).fill('0:04.750');
-      const body=controls.getByRole('slider',{name:'平移选区'}), rangeBox=await body.boundingBox();
-      const playBefore=await page.evaluate(()=>window.ameowEvidence.video.currentTime);
-      await page.mouse.move(rangeBox.x+rangeBox.width/2,rangeBox.y+rangeBox.height/2);await page.mouse.down();await page.mouse.move(rangeBox.x+rangeBox.width/2+10,rangeBox.y+rangeBox.height/2,{steps:6});
-      assert(await controls.locator('.time-bubble').isVisible());
-      const cb=await controls.boundingBox();await page.screenshot({path:join(root,site+(reduced?'-reduced':'-normal')+'-drag.png'),clip:{x:cb.x,y:cb.y-40,width:cb.width,height:cb.height+40}});await page.mouse.up();
-      assert.equal(await page.evaluate(()=>window.ameowEvidence.video.currentTime),playBefore);
-      const rangeState=await body.getAttribute('aria-valuetext');row[reduced?'reducedDrag':'normalDrag']=rangeState;
-      const beforeFull = {start:await controls.getByRole('textbox',{name:'入点时间'}).inputValue(),end:await controls.getByRole('textbox',{name:'出点时间'}).inputValue(),time:await page.evaluate(()=>window.ameowEvidence.video.currentTime)};
-      await controls.getByRole('button',{name:'显示全片',exact:true}).click();
-      assert.equal(await controls.getByRole('slider',{name:'播放位置',exact:true}).getAttribute('min'),'0');
-      assert.equal(await controls.getByRole('textbox',{name:'入点时间'}).inputValue(),beforeFull.start);assert.equal(await controls.getByRole('textbox',{name:'出点时间'}).inputValue(),beforeFull.end);assert.equal(await page.evaluate(()=>window.ameowEvidence.video.currentTime),beforeFull.time);
-      row[reduced?'reducedFocusRoundtrip':'normalFocusRoundtrip']=true;
-      await controls.getByRole('textbox',{name:'入点时间'}).fill('0:01.250');await controls.getByRole('textbox',{name:'出点时间'}).fill('0:04.750');
-      await page.mouse.move(10,10);
-
-
-      await page.evaluate(()=>{window.ameowEvidence.time=window.ameowEvidence.video.currentTime});
-      await sleep(300);
-      await page.locator('.ameow-peek').screenshot({ path: join(root, site + (reduced ? '-reduced' : '-normal') + '-peek.png') });
-      await controls.getByRole('button', { name: '清除选区' }).click();
-      assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isDisabled());
-      assert(await page.locator('.ameow-peek').isVisible());
-      await controls.getByRole('textbox', { name: '入点时间', exact: true }).fill('0:01.250');
-      await controls.getByRole('textbox', { name: '出点时间', exact: true }).fill('0:04.750');
-      row.events.push({ action: reduced ? 'reduced-exit' : 'normal-exit', seconds: (Date.now() - row.startedAt) / 1000 });
-      await page.keyboard.press('Escape');
-      await page.locator('.ameow-peek').waitFor({ state: 'detached' });
-      const identity = await page.evaluate(() => { const p = window.ameowEvidence; return { sameNode: p.video === document.querySelector('#movie_player video, .bpx-player-video-wrap video, .bpx-player-video-wrap bwp-video'), sameSource: p.source === p.video.currentSrc, time: p.video.currentTime, originalTime: p.time, restored: p.video.closest('#movie_player,.bpx-player-container').parentNode === p.parent, scrollUnlocked: document.documentElement.style.overflow !== 'hidden' }; });
-      assert(identity.sameNode && identity.sameSource && identity.restored && identity.scrollUnlocked);
-      assert(Math.abs(identity.time - identity.originalTime) < .05);
-      assert(await page.evaluate(() => Math.abs(scrollY - window.ameowEvidence.scrollY) < 1));
-      row[reduced ? 'reduced' : 'normal'] = identity;
-      row.restoredGeometry = await page.evaluate(() => { const v = window.ameowEvidence.video.closest('#movie_player,.bpx-player-container'); return { player: v.getBoundingClientRect().toJSON(), parent: v.parentNode.getBoundingClientRect().toJSON(), style: v.getAttribute('style'), scrollY }; });
-      await clickSelect();
-      assert.equal(await controls.getByRole('textbox', { name: '入点时间' }).inputValue(), '0:01.250', 'same-work draft retained');
-      await controls.getByRole('button', { name: '关闭预览' }).click();
-      await page.locator('.ameow-peek').waitFor({ state: 'detached' });
+      await page.mouse.move(5,5); await toolbar.evaluate(h=>h.shadowRoot.activeElement?.blur()); await sleep(2600);
+      assert(await toolbar.locator('.toolbar').evaluate(e=>e.hasAttribute('data-dim')));
+      if (!reduced) await toolbar.locator('.toolbar').screenshot({path:join(root,site+'-collapsed.png')});
+      const box=await toolbar.boundingBox(), frames=[]; const prefix=site+(reduced?'-reduced':'-normal');
+      const capture=async n=>{const frame=await cdp.send('Page.captureScreenshot',{format:'png',clip:{x:box.x-4,y:box.y-4,width:box.width+8,height:box.height+8,scale:1},captureBeyondViewport:false});const name=prefix+'-expand-'+n+'.png';await writeFile(join(root,name),Buffer.from(frame.data,'base64'));frames.push({path:name,at:Date.now()});};
+      row.events.push({action:prefix+'-capsule-expand',seconds:(Date.now()-row.startedAt)/1000});await capture(0);await hoverCat();
+      for(let n=1;n<=7;n++){await capture(n);await sleep(20);}
+      const label=await toolbar.locator('.download-label').evaluate(e=>({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,whiteSpace:getComputedStyle(e).whiteSpace}));assert.equal(label.height,20);assert.equal(label.width,26);assert.equal(label.whiteSpace,'nowrap');assert.equal(await toolbar.locator('[title],[role=tooltip]').count(),0);row.capsule.push({reduced,frames,label});
+      if(!reduced)await toolbar.screenshot({path:join(root,site+'-expanded.png')});
+      await page.setViewportSize({width:848,height:780});await pause(3);
+      await page.evaluate(()=>{const video=document.querySelector('#movie_player video,.bpx-player-container video,.bpx-player-container bwp-video'),player=video.closest('#movie_player,.bpx-player-container');globalThis.ameowEvidence={video,player,parent:player.parentNode,source:video.currentSrc,controls:video.controls,scrollY,dm:player.querySelector('.bpx-player-render-dm-wrap'),subtitle:player.querySelector('.bpx-player-subtitle-wrap')};const e=ameowEvidence;e.dmDisplay=e.dm?getComputedStyle(e.dm).display:null;e.subtitleDisplay=e.subtitle?getComputedStyle(e.subtitle).display:null;});
+      row.events.push({action:prefix+'-peek-entry',seconds:(Date.now()-row.startedAt)/1000});await open();
+      const controls=page.locator('ameow-peek-controls'), marker=controls.getByRole('button',{name:'添加标记',exact:true}), clear=controls.getByRole('button',{name:'清除选区',exact:true});
+      const state=async()=>({start:await controls.locator('#clip-in').inputValue(),end:await controls.locator('#clip-out').inputValue(),time:await page.evaluate(()=>ameowEvidence.video.currentTime)});
+      await clear.click();await pause(3);await marker.click();assert.deepEqual(await state(),{start:'0:03.000',end:'',time:3});assert(await controls.getByRole('button',{name:'下载片段',exact:true}).isDisabled());
+      if(site==='bilibili'){const dm=await page.evaluate(()=>({present:!!ameowEvidence.dm,display:ameowEvidence.dm?getComputedStyle(ameowEvidence.dm).display:null,subtitleBefore:ameowEvidence.subtitleDisplay,subtitleNow:ameowEvidence.subtitle?getComputedStyle(ameowEvidence.subtitle).display:null}));assert(dm.present&&dm.display==='none');assert.equal(dm.subtitleNow,dm.subtitleBefore);row[reduced?'reducedDanmaku':'normalDanmaku']=dm;}
+      await controls.getByRole('button',{name:'聚焦标记',exact:true}).click();
+      const drag=async side=>{const h=controls.locator('.handle.single:not([hidden])'),b=await h.boundingBox(),x=b.x+b.width/2+(side==='left'?-10:10);await page.keyboard.down('Alt');await page.mouse.move(x,b.y+14);await page.mouse.down();await page.mouse.move(x+(side==='left'?-40:40),b.y+14,{steps:8});const cb=await controls.boundingBox();await page.screenshot({path:join(root,prefix+'-alt-'+side+'.png'),clip:{x:cb.x,y:cb.y-40,width:cb.width,height:cb.height+40}});await page.mouse.up();await page.keyboard.up('Alt');};
+      await drag('left');const left=await state();assert.equal(left.end,'0:03.000');assert.notEqual(left.start,'0:03.000');assert.equal(left.time,3);
+      await clear.click();await marker.click();await controls.getByRole('button',{name:'聚焦标记',exact:true}).click();await drag('right');const right=await state();assert.equal(right.start,'0:03.000');assert.notEqual(right.end,'0:03.000');assert.equal(right.time,3);row[reduced?'reducedAlt':'normalAlt']={left,right};
+      for(const name of['拖动入点','拖动出点']){await controls.getByRole('slider',{name,exact:true}).focus();assert((await controls.getByRole('tooltip').innerText()).includes(name==='拖动入点'?'入点':'出点'));}
+      for(const [action,key,time,field,expected]of[['marker','KeyI',1.25,'start','0:01.250'],['play','KeyO',4.75,'end','0:04.750'],['clear','Shift+KeyI',2,'start','0:02.000'],['marker','Shift+KeyO',5,'end','0:05.000']]){await pause(time);await controls.locator('[data-action='+action+']').focus();await page.keyboard.press(key);assert.equal((await state())[field],expected);}
+      await controls.getByRole('button',{name:'编辑选区时间',exact:true}).click();const start=controls.getByRole('textbox',{name:'入点时间'}),end=controls.getByRole('textbox',{name:'出点时间'});await end.fill('');await end.press('KeyO');assert.equal(await end.inputValue(),'o');await start.fill('1.250');await end.fill('4.750');await controls.getByRole('button',{name:'编辑选区时间',exact:true}).click();assert.equal(await controls.getByRole('textbox').count(),0);
+      await controls.getByRole('button',{name:'显示全片',exact:true}).click();await pause(2);
+      await page.locator('.ameow-peek-stage').evaluate(el=>{el.tabIndex=0;el.focus()});
+      row.spaceTelemetry ??= [];const spaceState=()=>page.evaluate(()=>({paused:ameowEvidence.video.paused,ready:ameowEvidence.video.readyState,focusTag:document.activeElement?.tagName,focusClass:document.activeElement?.className,playerState:document.querySelector('#movie_player')?.getPlayerState?.()}));
+      await page.keyboard.press('Space');row.spaceTelemetry.push({reduced,action:'play',...await spaceState()});await page.waitForFunction(()=>!ameowEvidence.video.paused);await page.keyboard.press('Space');row.spaceTelemetry.push({reduced,action:'pause',...await spaceState()});await page.waitForFunction(()=>ameowEvidence.video.paused);
+      await pause(2);const h=controls.locator('.playhead'),hb=await h.boundingBox();await page.mouse.move(hb.x+hb.width/2,hb.y+3);await page.mouse.down();await page.mouse.move(hb.x+hb.width/2+6,hb.y+3,{steps:5});await page.mouse.up();const dragged=(await state()).time;await page.keyboard.press('ArrowRight');assert(Math.abs((await state()).time-dragged-.001)<.002);assert.equal((await state()).start,'0:01.250');assert.equal((await state()).end,'0:04.750');
+      await controls.getByRole('button',{name:'聚焦选区',exact:true}).click();await page.mouse.move(5,5);await controls.locator('[data-action=play]').evaluate(el=>el.blur());await sleep(150);
+      const layout=await controls.evaluate(h=>({width:h.clientWidth,height:h.clientHeight,scrollWidth:h.shadowRoot.querySelector('.controls').scrollWidth,timelineWidth:h.shadowRoot.querySelector('.timeline').getBoundingClientRect().width,font:getComputedStyle(h.shadowRoot.querySelector('.controls')).fontFamily}));row[reduced?'reducedLayout':'normalLayout']=layout;assert(layout.width===800&&layout.scrollWidth<=layout.width&&layout.timelineWidth>740&&layout.height<=130&&layout.font.includes('Segoe UI'));
+      await page.locator('.ameow-peek').screenshot({path:join(root,prefix+'-peek.png')});
+      await clear.focus();await clear.press('Space');assert(await controls.getByRole('button',{name:'下载片段',exact:true}).isDisabled());assert(await page.locator('.ameow-peek').isVisible());
+      await pause(1.25);await marker.focus();await marker.press('Space');await pause(4.75);await marker.press('Space');assert.equal((await state()).start,'0:01.250');assert.equal((await state()).end,'0:04.750');
+      await page.evaluate(()=>{ameowEvidence.exitTime=ameowEvidence.video.currentTime});row.events.push({action:prefix+'-peek-exit',seconds:(Date.now()-row.startedAt)/1000});await controls.getByRole('button',{name:'关闭预览',exact:true}).focus();await page.keyboard.press('Space');await page.locator('.ameow-peek').waitFor({state:'detached'});
+      const restored=await page.evaluate(()=>{const e=ameowEvidence;return{sameNode:e.video===document.querySelector('#movie_player video,.bpx-player-container video,.bpx-player-container bwp-video'),sameSource:e.video.currentSrc===e.source,parent:e.player.parentNode===e.parent,time:e.video.currentTime,expectedTime:e.exitTime,controls:e.video.controls===e.controls,scrollUnlocked:document.documentElement.style.overflow!=='hidden',dm:e.dm?getComputedStyle(e.dm).display:null,expectedDm:e.dmDisplay,subtitle:e.subtitle?getComputedStyle(e.subtitle).display:null,expectedSubtitle:e.subtitleDisplay}});assert(restored.sameNode&&restored.sameSource&&restored.parent&&restored.controls&&restored.scrollUnlocked);assert(Math.abs(restored.time-restored.expectedTime)<.05);assert.equal(restored.dm,restored.expectedDm);assert.equal(restored.subtitle,restored.expectedSubtitle);row[reduced?'reducedRestore':'normalRestore']=restored;
+      await open();assert.equal(await controls.locator('#clip-in').inputValue(),'0:01.250');assert.equal(await controls.locator('#clip-out').inputValue(),'0:04.750');await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});
+      await page.setViewportSize({width:1440,height:1000});
     }
-    await clickSelect(); await page.setViewportSize({width:420,height:780}); await sleep(200);
-    row.narrow = await page.locator('ameow-peek-controls').evaluate(h=>({width:h.clientWidth,scrollWidth:h.shadowRoot.querySelector('.controls').scrollWidth,height:h.clientHeight}));
-    assert(row.narrow.scrollWidth <= row.narrow.width);
-    await page.locator('.ameow-peek').screenshot({path:join(root,site+'-narrow.png')});
-    await page.keyboard.press('Escape'); await page.locator('.ameow-peek').waitFor({state:'detached'}); await page.setViewportSize({width:1440,height:1000});
-    for(let n=0;n<3;n++){await clickSelect();await sleep(50);await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});}
-    row.events.push({ action: 'fast-hover', seconds: (Date.now() - row.startedAt) / 1000 });
-    for (let n = 0; n < 4; n++) { await cat.hover(); await sleep(65); await page.mouse.move(20, 20); await sleep(90); }
-    await cat.focus(); await sleep(500); assert(await select.isVisible());
-    if (site === 'bilibili') {
-      await page.evaluate(() => window.player.next());
-      await page.waitForFunction(() => window.player?.getManifest?.().p === 2, null, { timeout: 20000 });
-      await untilBinding();
-      await clickSelect();
-      assert.equal(await page.locator('ameow-peek-controls').getByRole('textbox', { name: '入点时间' }).inputValue(), '');
-      assert.equal(await page.locator('ameow-peek-controls').getByRole('textbox', { name: '出点时间' }).inputValue(), '');
-      await page.keyboard.press('Escape'); await page.locator('.ameow-peek').waitFor({ state: 'detached' });
-      row.partSwitchClearsDraft = true;
-    }
-    const state = await worker.evaluate(async () => chrome.storage.local.get(['grants', 'page_tools']));
-    assert.equal(Object.keys(state.grants || {}).length, 0, 'page tools do not grant cookie sync'); row.noCookieGrant = true;
-    row.pass = true; row.video = await page.video().path();
-    await page.close();
-    async function untilBinding() {
-      await page.waitForURL(/p=2/, { timeout: 20000 });
-      await sleep(1500); await toolbar.waitFor({ state: 'visible', timeout: 20000 });
-    }
+    await page.emulateMedia({reducedMotion:'no-preference'});await open();await page.setViewportSize({width:320,height:780});await sleep(150);const controls=page.locator('ameow-peek-controls');row.narrow=await controls.evaluate(h=>({width:h.clientWidth,scrollWidth:h.shadowRoot.querySelector('.controls').scrollWidth,height:h.clientHeight}));assert(row.narrow.scrollWidth<=row.narrow.width);await page.locator('.ameow-peek').screenshot({path:join(root,site+'-narrow.png')});await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});await page.setViewportSize({width:1440,height:1000});
+    row.events.push({action:'fast-hover-peek',seconds:(Date.now()-row.startedAt)/1000});for(let n=0;n<4;n++){await hoverCat();await sleep(50);await page.mouse.move(5,5);await sleep(70)}for(let n=0;n<3;n++){await open();await sleep(50);await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});}
+    if(site==='bilibili'){await open();await page.evaluate(()=>window.player.next());await page.waitForFunction(()=>window.player?.getManifest?.().p===2,null,{timeout:20000});await page.locator('.ameow-peek').waitFor({state:'detached'});await sleep(1200);await pause();await toolbar.waitFor({timeout:20000});await open();assert.equal(await page.locator('ameow-peek-controls #clip-in').inputValue(),'');assert.equal(await page.locator('ameow-peek-controls #clip-out').inputValue(),'');await page.keyboard.press('Escape');await page.locator('.ameow-peek').waitFor({state:'detached'});assert.notEqual(await page.locator('.bpx-player-render-dm-wrap').evaluate(e=>getComputedStyle(e).display),'none');row.partSwitchRestoresAndClears=true;}
+    assert.equal(Object.keys((await worker.evaluate(()=>chrome.storage.local.get('grants'))).grants||{}).length,0);row.noCookieGrant=true;row.pass=true;row.video=await page.video().path();await page.close();
   }
   report.nativeAudit = await nativeAudit(worker);
   assert(report.nativeAudit.every(e => e.allowed ? e.host === fixtureHost : e.host === 'FORBIDDEN'));
-} catch (e) { report.error = e.stack; throw e; }
+} catch (e) { report.error = e.stack; for (const page of context.pages()) { if(await page.locator('.ameow-peek').count()) { await page.locator('.ameow-peek').screenshot({path:join(root,'failure.png')}).catch(()=>{}); report.failureLayout=await page.locator('ameow-peek-controls').evaluate(h=>({status:h.shadowRoot.querySelector('.status').textContent,rect:h.getBoundingClientRect().toJSON(),overflow:[...h.shadowRoot.querySelectorAll('*')].filter(e=>e.getBoundingClientRect().right>h.getBoundingClientRect().right+.5).map(e=>({tag:e.tagName,cls:e.className,rect:e.getBoundingClientRect().toJSON()}))})).catch(()=>null); }} throw e; }
 finally { await context.close(); await writeFile(join(root, 'report.json'), JSON.stringify(report, null, 2)); }
 console.log(JSON.stringify(report, null, 2));

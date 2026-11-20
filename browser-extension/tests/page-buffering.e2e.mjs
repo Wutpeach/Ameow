@@ -30,7 +30,7 @@ try {
     globalThis.chrome = { runtime: { onMessage: { addListener() {}, removeListener() {} }, sendMessage: async () => ({ ok: true, value: { key: 'bilibili:fixture:' + fixturePart, url: 'https://www.bilibili.com/video/BV17x411w7KC/?p=' + fixturePart, duration: fixtureVideo.duration } }), connectNative() { throw Error('FORBIDDEN_NATIVE'); }, sendNativeMessage() { throw Error('FORBIDDEN_NATIVE'); } } };
   });
   await page.addScriptTag({ url: origin + '/page.js' }); await page.locator('ameow-page-tools').waitFor(); await page.evaluate(() => ameowPageTools.openPeek());
-  const controls = page.locator('ameow-peek-controls'); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750');
+  const controls = page.locator('ameow-peek-controls'); await controls.getByRole('button', { name: '编辑选区时间', exact: true }).click(); await controls.getByRole('textbox', { name: '入点时间' }).fill('1.250'); await controls.getByRole('textbox', { name: '出点时间' }).fill('4.750');
   await controls.getByRole('button',{name:'聚焦选区',exact:true}).click();
   report.results.before = await page.evaluate(() => ({ readyState: fixtureVideo.readyState, buffered: Array.from({ length: fixtureVideo.buffered.length }, (_, i) => [fixtureVideo.buffered.start(i), fixtureVideo.buffered.end(i)]) }));
   await controls.getByRole('slider', { name: '播放位置', exact: true }).evaluate(input => { input.value = '7'; input.dispatchEvent(new Event('input', { bubbles: true })); });
