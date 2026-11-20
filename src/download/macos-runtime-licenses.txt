@@ -3003,4 +3003,3 @@ one at http://mozilla.org/MPL/2.0/.
 
 ***** END LICENSE BLOCK *****
 @(#) $RCSfile: certdata.txt,v $ $Revision: 1.80 $ $Date: 2011/11/03 15:11:58 $
-
