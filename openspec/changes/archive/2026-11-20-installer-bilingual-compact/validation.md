@@ -30,3 +30,7 @@
 ## 后续用户决定
 
 2026-11-20 用户要求去掉安装器内部右上大图标，只保留标题栏与完成页图标。按此覆盖旧截图中的页首样式；重新编译并补最终窗口证据，早期完整流程证据继续仅覆盖其未变行为。另对中文安装目录补自有目录安装/Launcher注册及现有Unicode路径链检查，实际覆盖见交付回执。
+
+最终产品候选为干净 `9e345e9f8787a8ed457334b64a6a6b5b54c9f2e2`，EXE SHA-256 `0dd94b04a1264ec5d7f2f723b02fca4932a58c4bfc04c38b56421010b0bab9fb`，9,327,948 bytes。`final-en/initial-0.png`、`final-zh/initial-0.png` 已亲看移除页首图后的普通候选；`final-finish/finished-0.png` 已亲看同源 ValidationBuild 完成页保留图标。此轮来源授权窗口实际 15:26:59.166–15:28:20.478 +08（统一守卫截止 15:28:54.166），结束进程及自有注册清理见 `final-preview-cleanup.json`。`chinese-path-result.json` 记录中文加空格目录安装/Launcher注册成功及清晰未测边界；独立 reviewer 对最终源码、哈希和上述图像已给 PASS。
+
+独立只读 reviewer `/root/installer_review` 已对最终产品、普通中英与完成页截图、候选哈希和中文路径边界给出 PASS，报告/回执保存在证据根目录。精确产品 head `9e345e9f8787a8ed457334b64a6a6b5b54c9f2e2` 的 Rust Windows CI [44694626873](https://github.com/Wutpeach/Ameow/actions/runs/44694626873) 已 success，包含 all-targets、tests、locked/offline 发行输入、拒绝边界及安装器 fixture。后续归档仅文档；仍对最终 PR head 和合并后 main 检查实际状态，不用此旧 head 代替。
