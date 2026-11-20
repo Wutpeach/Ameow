@@ -88,11 +88,16 @@ if ($Fixture) { $defines += '/DValidationBuild=1' }
 $definition = Record (Join-Path $repository 'distribution/ameow.iss') 'distribution/ameow.iss'
 $packaging = Record $PSCommandPath 'scripts/package_windows.ps1'
 $includeRecord = Record $include 'payload.iss'
+$installerResources = @('assets/brand/ameow.ico', 'distribution/ameow-wizard.png', 'distribution/ameow-wizard-large.png', 'distribution/languages/ChineseSimplified.isl', 'distribution/languages/ChineseTraditional.isl') | ForEach-Object { Record (Join-Path $repository $_) $_ }
+$compilerMessages = Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') 'Default.isl'
+$installerSource = [ordered]@{commit=(& git -C $repository rev-parse HEAD);tree=(& git -C $repository rev-parse 'HEAD^{tree}');dirty=[bool](& git -C $repository status --porcelain)}
 & $Iscc /Qp @defines (Join-Path $repository 'distribution/ameow.iss') *> (Join-Path $output 'inno-build.log')
 if ($LASTEXITCODE -ne 0) { throw "Inno compilation failed; see $output/inno-build.log" }
 Check-Record (Join-Path $repository $definition.path) $definition
 Check-Record $PSCommandPath $packaging
 Check-Record $include $includeRecord
+foreach ($resource in $installerResources) { Check-Record (Join-Path $repository $resource.path) $resource }
+Check-Record (Join-Path (Split-Path -Parent $Iscc) 'Default.isl') $compilerMessages
 # Recheck the immutable core and update archive after compilation, not just before staging.
 foreach ($member in $report.members) { Check-Record (Join-Path $payload $member.path) $member }
 Check-Record (Join-Path $output $portableName) $report.portable
@@ -108,6 +113,6 @@ $manifest = Record (Join-Path $output $manifestName) $manifestName
 $assets = @($installer, $portable, $report.update, $manifest)
 foreach ($asset in $assets) { Check-Record (Join-Path $output $asset.path) $asset }
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'), [string[]]@($assets | ForEach-Object { "$($_.sha256)  $($_.path)" }), $utf8)
-$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerDefinition=$definition;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
+$result = [ordered]@{schema=1;mode=$suffix;fixture=[bool]$Fixture;productionKeyCreated=$false;build=$report.build;installer=$installer;portable=$portable;update=$report.update;manifest=$manifest;assets=$assets;members=$report.members;installerSource=$installerSource;installerDefinition=$definition;installerResources=@($installerResources);compilerMessages=$compilerMessages;packaging=$packaging;compiler=(Record $Iscc 'ISCC.exe')}
 [IO.File]::WriteAllText((Join-Path $output 'delivery.json'), ($result | ConvertTo-Json -Depth 30), $utf8)
 Write-Output "Windows delivery: $output/delivery.json ($suffix; nothing uploaded)"
