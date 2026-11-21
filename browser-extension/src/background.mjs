@@ -5,7 +5,7 @@ const sessions = new Sessions(chrome);
 let work = Promise.resolve();
 const enqueue = action => { const next = work.then(action); work = next.catch(() => {}); return next; };
 async function reconcile() {
-  await pages.reconcile();
+  await enqueue(() => pages.reconcile());
   await chrome.alarms.create('ameow-sync', { periodInMinutes: 1 });
   return enqueue(() => sessions.sync());
 }
@@ -13,6 +13,7 @@ chrome.runtime.onInstalled.addListener(() => { void reconcile(); });
 chrome.runtime.onStartup.addListener(() => { void reconcile(); });
 chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === 'ameow-sync') void reconcile(); });
 chrome.permissions.onRemoved.addListener(() => { void reconcile(); });
+chrome.permissions.onAdded.addListener(() => { void enqueue(() => pages.reconcile()); });
 let changes;
 const changedDomains = new Set();
 chrome.cookies.onChanged.addListener(change => {

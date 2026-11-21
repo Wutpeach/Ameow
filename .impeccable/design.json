@@ -489,6 +489,11 @@
         "name": "Browser Session Simplicity",
         "body": "2026-11-21本人手动Gallery反馈取代connect-v8默认呈现。默认仅实际授权站点品牌徽章和站名，主圆形与标签居中，角标/菜单不参与布局；短名/长省略名/中英文保持同一中心。实心主题角标独立分层，整徽章hover和focus同样短提示，失败不表示未授权；所有交互底色实际圆角绘制与裁剪。移除/安全诊断按需，技术计数/分区/来源ID/时间不常驻，完整长值由提示/诊断取得。配置扩展一击执行真实配置，同页路径/复制与独立通用Demo；没有中间页、步数、浏览器选择或常驻播放控件。进入即动作、约5秒清楚四步循环；可见失焦继续，隐藏/最小化/离屏/Reduced暂停，恢复不补算隐藏时间，不强制聚焦。Gallery仅一个可见配置/演示项，旧alias只内部兼容。Reduced显示完整静态。Popup当前网页、必要scope/动作及简短恢复保持；只复制既有安全投影，不含Cookie值/凭据/账号/私密URL。复用Palette、UI字体、control/circle圆角、锚定提示与当前树焦点，实际值以src/settings_browser_sessions.rs为准。",
         "section": "components"
+      },
+      {
+        "name": "Page Tools Default",
+        "body": "新安装页面工具在www.youtube.com与www.bilibili.com合格点播播放器默认可见，正常浏览器页面权限和真实注入为前提。Popup保留一个简洁开关；主动关闭及已有false按站点记忆，刷新/重启/正常升级不强开，再开恢复现有页面。权限暂缺/被撤销与主动关闭分开，不写成false偏好、不假开或循环申请。开关/胶囊显示不自动授予Cookie同步或下载，关闭工具不改grants，撤销会话保留仍启用工具所需页面访问。仅这两个固定源增加标准安装期权限，无额外授权向导；预览用真实Popup和外层安全合成状态，不充作真实安装证据。",
+        "section": "components"
       }
     ],
     "dos": [
