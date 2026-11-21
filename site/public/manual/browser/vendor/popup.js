@@ -916,7 +916,7 @@ var safeId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,80}$/.tes
 var safeSource = (value) => ["Microsoft Edge", "Chrome / Chromium"].includes(value) ? value : t("\u672A\u77E5\u6765\u6E90", "Unknown source");
 function connection(kind) {
   connectionState = kind;
-  $("connection").textContent = kind === "ready" ? t("\u8FDE\u63A5\u53EF\u7528", "Connected") : kind === "unavailable" ? t("\u8FDE\u63A5\u4E0D\u53EF\u7528", "Unavailable") : t("\u8FDE\u63A5\u5F85\u786E\u8BA4", "Connection unknown");
+  $("connection").textContent = kind === "ready" ? t("\u684C\u9762\u5DF2\u8FDE\u63A5", "Desktop connected") : kind === "unavailable" ? t("\u684C\u9762\u8FDE\u63A5\u4E0D\u53EF\u7528", "Desktop unavailable") : t("\u684C\u9762\u8FDE\u63A5\u672A\u77E5", "Desktop connection unknown");
   $("connection").toggleAttribute("data-ready", kind === "ready");
   $("connection").toggleAttribute("data-error", kind === "unavailable");
 }
@@ -926,6 +926,16 @@ function status(text, detail = "", error = false) {
   $("status-detail").textContent = detail;
   $("status").toggleAttribute("data-error", error);
   $("notice").toggleAttribute("data-error", error);
+  $("notice").toggleAttribute("data-success", false);
+}
+function recovery(code) {
+  if (code === "E_PERMISSION") return t("\u7AD9\u70B9\u6743\u9650\u5DF2\u79FB\u9664\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u540E\u540C\u6B65\u3002", "Site permission was removed. Allow access and sync again.");
+  if (code === "E_COOKIE_READ") return t("\u65E0\u6CD5\u8BFB\u53D6\u6D4F\u89C8\u5668\u4F1A\u8BDD\uFF0C\u8BF7\u68C0\u67E5\u6D4F\u89C8\u5668\u540E\u91CD\u8BD5\u3002", "Could not read the browser session. Check your browser and retry.");
+  if (/^E_BRIDGE(?:_|$)/.test(code || "")) return t("\u65E0\u6CD5\u8FDE\u63A5\u684C\u9762\u7AEF\uFF0C\u8BF7\u68C0\u67E5\u6269\u5C55\u914D\u7F6E\u4E0E Ameow \u540E\u91CD\u8BD5\u3002", "Could not connect to the desktop app. Check extension setup and Ameow, then retry.");
+  if (code === "E_SESSION_PROTOCOL") return t("\u684C\u9762\u7AEF\u8FDE\u63A5\u4E0D\u517C\u5BB9\uFF0C\u8BF7\u66F4\u65B0 Ameow \u540E\u91CD\u8BD5\u3002", "Desktop connection is incompatible. Update Ameow and retry.");
+  if (code === "E_SESSION_STORAGE") return t("\u65E0\u6CD5\u4FDD\u5B58\u4F1A\u8BDD\uFF0C\u8BF7\u68C0\u67E5\u5B58\u50A8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002", "Could not save the session. Check storage and retry.");
+  if (code === "E_SESSION_REVOKED" || code === "E_SESSION_SOURCE_CHANGED") return t("\u6388\u6743\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002", "Access changed. Authorize again.");
+  return t("\u540C\u6B65\u9047\u5230\u95EE\u9898\uFF0C\u8BF7\u68C0\u67E5\u8FDE\u63A5\u540E\u91CD\u8BD5\u3002", "Sync encountered a problem. Check the connection and retry.");
 }
 async function send(action, extra = {}) {
   let response;
@@ -978,12 +988,14 @@ function render(state) {
   $("authorize").disabled = false;
   $("replace-copy").hidden = !valid || !current || own;
   lastError = state.error || own && grant?.error || current?.last_result?.error;
-  if (lastError) status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), t("\u8BF7\u91CD\u8BD5\u540C\u6B65\u3002", "Try syncing again."), true);
+  if (lastError) status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery(lastError), true);
   else if (grant?.pending) status(t("\u6B63\u5728\u540C\u6B65", "Syncing"));
   else if (current?.cookie_count === 0) status(t("\u6CA1\u6709\u53EF\u7528\u4F1A\u8BDD", "No available session"), t("\u8BF7\u5728\u6D4F\u89C8\u5668\u786E\u8BA4\u672C\u7AD9\u5DF2\u767B\u5F55\uFF0C\u7136\u540E\u91CD\u65B0\u540C\u6B65\u3002", "Check that you are signed in, then sync again."));
   else if (current && !current.last_result) status(t("\u540C\u6B65\u7ED3\u679C\u672A\u77E5", "Sync status unknown"));
-  else if (current) status(t("\u5DF2\u540C\u6B65", "Synced"));
-  else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
+  else if (current) {
+    status(t("\u5DF2\u540C\u6B65", "Synced"));
+    $("notice").setAttribute("data-success", "");
+  } else status(valid ? "" : t("\u4F1A\u8BDD\u72B6\u6001\u6682\u4E0D\u53EF\u786E\u8BA4", "Session status unavailable"));
   $("sync").textContent = lastError ? t("\u91CD\u8BD5\u540C\u6B65", "Retry sync") : t("\u7ACB\u5373\u540C\u6B65", "Sync now");
   updateDiagnostic();
 }
@@ -1030,7 +1042,7 @@ $("toggle-tools").addEventListener("click", async () => {
     toolsEnabled = reply.value.enabled;
     $("toggle-tools").setAttribute("aria-pressed", String(toolsEnabled));
     $("toggle-tools").setAttribute("aria-label", toolsEnabled ? t("\u5173\u95ED\u9875\u9762\u5DE5\u5177", "Turn off page tools") : t("\u542F\u7528\u9875\u9762\u5DE5\u5177", "Enable page tools"));
-    $("page-status").textContent = toolsEnabled ? t("\u64AD\u653E\u5355\u4E2A\u70B9\u64AD\u89C6\u9891\u540E\uFF0C\u64AD\u653E\u5668\u53F3\u4E0A\u89D2\u53EF\u89C1 Ameow \u56FE\u6807\u3002", "Play a single on-demand video to see the Ameow icon in the player.") : "";
+    $("page-status").textContent = "";
   } catch {
     $("page-status").textContent = t("\u9875\u9762\u5DE5\u5177\u672A\u66F4\u65B0\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u6269\u5C55\u540E\u91CD\u8BD5\u3002", "Page tools were not updated. Reopen the extension and try again.");
   } finally {
@@ -1048,6 +1060,10 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
       const result = await send("authorize", { replaces: current?.grant_id || null, source_name: sourceName });
       if (result[site] !== "synced") throw Error(result[site]);
     } else {
+      if (action === "sync" && lastError === "E_PERMISSION" && !await chrome.permissions.request({ origins: scope(site) })) {
+        status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery("E_PERMISSION"), true);
+        return;
+      }
       const result = await send(action);
       if (!["synced", "revoked"].includes(result[site])) throw Error(result[site]);
     }
@@ -1057,14 +1073,15 @@ for (const action of ["authorize", "sync", "revoke"]) $(action).addEventListener
     lastError = error.message;
     $("sync").textContent = t("\u91CD\u8BD5\u540C\u6B65", "Retry sync");
     updateDiagnostic();
-    status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), t("\u8BF7\u91CD\u8BD5\u540C\u6B65\u3002", "Try syncing again."), true);
+    status(t("\u540C\u6B65\u672A\u5B8C\u6210", "Sync did not complete"), recovery(lastError), true);
   } finally {
     for (const id of ["authorize", "sync", "revoke"]) $(id).disabled = false;
   }
 });
 for (const [id, zh, en] of [
   ["unauthorized", "\u672A\u6388\u6743", "Not authorized"],
-  ["revoke", "\u79FB\u9664", "Remove"],
+  ["revoke", "\u79FB\u9664\u6388\u6743", "Remove access"],
+  ["session-title", "\u767B\u5F55\u6001\u540C\u6B65", "Session sync"],
   ["replace-copy", "\u6539\u7528\u6B64\u6D4F\u89C8\u5668\u4F1A\u66FF\u6362\u5F53\u524D\u6765\u6E90\u3002", "Using this browser replaces the current source."],
   ["diagnostics-title", "\u8BCA\u65AD", "Diagnostics"],
   ["copy-diagnostic", "\u590D\u5236\u8BCA\u65AD\u62A5\u544A", "Copy diagnostic report"],
@@ -1088,6 +1105,7 @@ try {
   site = siteFromUrl(tab.url);
   $("site").textContent = site;
   $("site").title = site;
+  $("site").setAttribute("aria-label", site);
   $("scope").textContent = t("\u5141\u8BB8\u81EA\u52A8\u540C\u6B65 " + site + " \u53CA\u5176\u5B50\u57DF\u7684 Cookie\uFF0C\u4EC5\u7528\u4E8E Ameow \u4E0B\u8F7D\u3002", "Allow automatic cookie sync for " + site + " and its subdomains, for Ameow downloads only.");
   await refresh();
 } catch (error) {

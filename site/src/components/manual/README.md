@@ -17,13 +17,16 @@ blurred ghost. Pointer capture handles mouse/touch drop and cancellation; clicki
 or keyboard selection remains an equivalent action. It changes example state only.
 The Compact/Full motion owner in surface-motion.js is retained.
 
-The active popup is pinned to product 94183d09. session-assets.json records exact
+The active popup is pinned to approved product c9f7ca43, merged at a089cfaa.
+session-assets.json records exact
 HTML/CSS/compiled JS/license/build identities. sources/popup.html keeps the original
 HTML; the served wrapper adds only CSP, local paths and safe sample responses.
 The API boundary is page-local: no accounts, Native registration, real permission
 request or system clipboard. Diagnostic copying writes preview memory. Page tools
 default on; a deliberate off choice is remembered per example site independently
 of session authorization. Theme binding reads the original stylesheet palette.
+Its actual hierarchy is current site, page tools, session sync, then diagnostics.
+The previous 941 popup identity remains pinned to aa9bcb78 for recovery.
 
 The former 01c2fad5 native screenshots and video remain historical assets, pinned
 to frozen candidate c617b99b in previousCandidate. Current pages do not embed the
