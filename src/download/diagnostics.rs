@@ -10,6 +10,74 @@ pub struct Failure {
     pub stage: String,
     pub reason: String,
     pub suggestion: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engine: Option<EngineFailure>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<FailureContext>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EngineReport {
+    Unknown,
+    Http(u16),
+    Timeout,
+    Dns,
+    Tls,
+    ProxyConnection,
+    ConnectionReset,
+    DiskFull,
+    PermissionDenied,
+}
+impl EngineReport {
+    fn description(&self) -> String {
+        match self {
+            Self::Http(status) if (100..=599).contains(status) => format!("HTTP {status} (reported by downloader; response not independently verified)"),
+            Self::Timeout => "connection/read timed out (reported by downloader)".into(),
+            Self::Dns => "DNS resolution failed (reported by downloader)".into(),
+            Self::Tls => "TLS/certificate failure (reported by downloader)".into(),
+            Self::ProxyConnection => "proxy connection failed (reported by downloader; target HTTP status unknown)".into(),
+            Self::ConnectionReset => "connection reset (reported by downloader)".into(),
+            Self::DiskFull => "disk full (reported by downloader)".into(),
+            Self::PermissionDenied => "file permission denied (reported by downloader)".into(),
+            _ => "unknown; no classified engine error was retained".into(),
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EngineOutput { CompleteLines, NoCompleteLines, Truncated }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EngineStage { Resolve, Transfer }
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EngineFailure {
+    #[serde(default)]
+    pub stage: Option<EngineStage>,
+    pub exit_code: u32,
+    pub observed_at_ms: u64,
+    pub report: EngineReport,
+    pub output: EngineOutput,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FailureContext {
+    pub job_id: u64,
+    pub attempt: u64,
+    pub occurred_at_ms: u64,
+    pub runtime_digest: Option<String>,
+    pub runtime_versions: Vec<(String, String)>,
+    pub executable_sha256: Option<String>,
+}
+impl FailureContext {
+    pub(crate) fn capture(job_id: u64, attempt: u64, runtime: Option<&super::runtime::RuntimeLease>, engine: Option<&EngineFailure>) -> Self {
+        static EXE_HASH: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+        Self {
+            job_id, attempt,
+            occurred_at_ms: engine.map_or_else(super::progress::now_ms, |e| e.observed_at_ms),
+            runtime_digest: runtime.map(|r| r.digest.clone()),
+            runtime_versions: runtime.map_or_else(Vec::new, |r| r.versions.clone()),
+            executable_sha256: EXE_HASH.get_or_init(|| {
+                std::env::current_exe().ok().and_then(|p| std::fs::File::open(p).ok())
+                    .and_then(|f| super::runtime::hash(f).ok())
+            }).clone(),
+        }
+    }
 }
 #[derive(Clone, Copy, Debug)]
 pub enum FailureCode {
@@ -27,6 +95,13 @@ pub enum FailureCode {
     FallbackFailed,
 }
 impl Failure {
+    pub(crate) fn safe(&self) -> Self {
+        let mut safe = known(&self.code, &self.stage);
+        safe.downloader = self.downloader;
+        safe.engine = self.engine.clone();
+        safe.context = self.context.clone();
+        safe
+    }
     pub fn new(code: FailureCode, stage: &str) -> Self {
         known(
             match code {
@@ -102,8 +177,8 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
             "Check the connection; retry manually if needed",
         ),
         "E_ACCESS_DENIED" => (
-            "The site requires permission or authentication",
-            "Use a public video you can download",
+            "The downloader reported restricted access",
+            "Check access to the original page before retrying manually",
         ),
         "E_UNAVAILABLE" => (
             "This public video is unavailable",
@@ -150,7 +225,7 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
             "Copy the safe diagnostics before retrying",
         ),
         "E_HTTP_FORBIDDEN" => (
-            "The site rejected a media request with HTTP 403; the cause is unconfirmed",
+            "The downloader reported HTTP 403; the cause is unconfirmed",
             "Check the public video page; no automatic retry is scheduled",
         ),
         _ => (
@@ -199,6 +274,8 @@ pub(crate) fn known(code: &str, stage: &str) -> Failure {
     };
     Failure {
         downloader: None,
+        engine: None,
+        context: None,
         code: code.into(),
         stage: stage.into(),
         reason: reason.into(),
@@ -278,16 +355,18 @@ pub fn copy_with_versions(
         "unknown"
     };
     let mut text = format!(
-        "Ameow {}\nPlatform: windows-x64\nJob: {job}\nSite: {site}\n",
-        env!("CARGO_PKG_VERSION")
+        "Ameow {}\nPlatform: {}\nBuild: {}\nSource commit: {}\nSource SHA256: {}\nJob: {job}\nSite: {site}\n",
+        env!("CARGO_PKG_VERSION"), crate::app_update::TARGET,
+        if cfg!(debug_assertions) { "debug" } else { "release" },
+        fingerprint(option_env!("AMEOW_DEV_BUILD_COMMIT"), 40),
+        fingerprint(option_env!("AMEOW_DEV_BUILD_SOURCE_SHA256"), 64),
     );
     for (component, version) in versions.iter().take(8) {
         let sanitize = |value: &str| value.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).take(48).collect::<String>();
-        text.push_str(&format!("Runtime: {} {}
-", sanitize(component), sanitize(version)));
+        text.push_str(&format!("Declared runtime: {} {}\n", sanitize(component), sanitize(version)));
     }
     for (index, failure) in failures.iter().take(6).enumerate() {
-        let safe = known(&failure.code, &failure.stage);
+        let safe = failure.safe();
         if let Some(engine) = failure.downloader { text.push_str(&format!("Downloader: {}\n", engine.label())); }
         else if safe.stage == "primary-resolve" { text.push_str("Downloader: yt-dlp\n"); }
         else if safe.stage.starts_with("fallback-") { text.push_str("Downloader: gallery-dl\n"); }
@@ -299,10 +378,38 @@ pub fn copy_with_versions(
             safe.reason,
             safe.suggestion
         ));
+        if let Some(context) = failure.context.as_ref().filter(|c| c.job_id == job) {
+            text.push_str(&format!("Attempt: {}\nFailure time: {}\nEXE SHA256: {}\nRuntime digest: {}\n",
+                context.attempt, crate::browser_sessions::utc_timestamp(context.occurred_at_ms / 1000),
+                fingerprint(context.executable_sha256.as_deref(), 64), fingerprint(context.runtime_digest.as_deref(), 64)));
+            for (name, version) in context.runtime_versions.iter().take(8) {
+                if matches!(name.as_str(), "yt-dlp" | "gallery-dl" | "ffmpeg" | "ffprobe" | "deno" | "python")
+                    && !version.is_empty() && version.len() <= 96
+                    && version.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'-' | b'_')) {
+                    text.push_str(&format!("Actual runtime: {name} {version}\n"));
+                }
+            }
+        } else {
+            text.push_str("Attempt/time/build/runtime identity: unknown; not retained for this failure\n");
+        }
+        if let Some(engine) = &failure.engine {
+            text.push_str(&format!("Engine phase: {}\nEngine exit code: {}\nEngine report: {}\nEngine evidence: {}\n",
+                match engine.stage { Some(EngineStage::Resolve) => "resolve", Some(EngineStage::Transfer) => "transfer", None => "unknown" },
+                engine.exit_code, engine.report.description(), match engine.output {
+                    EngineOutput::CompleteLines => "bounded stderr lines examined; raw text excluded",
+                    EngineOutput::NoCompleteLines => "no complete stderr lines available",
+                    EngineOutput::Truncated => "stderr capture truncated; cause not classified",
+                }));
+        } else {
+            text.push_str("Engine exit/report: unknown; not retained or not an engine failure\n");
+        }
     }
     // Closed ASCII vocabulary plus bounded numeric fields is the final redaction/size gate.
     text.chars()
         .filter(|c| c.is_ascii() && (!c.is_control() || *c == '\n'))
         .take(4096)
         .collect()
+}
+fn fingerprint(value: Option<&str>, length: usize) -> &str {
+    value.filter(|s| s.len() == length && s.bytes().all(|b| b.is_ascii_hexdigit())).unwrap_or("unknown")
 }

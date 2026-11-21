@@ -1,6 +1,42 @@
 use super::*;
 use crate::download::diagnostics::copy_text;
 
+#[test]
+fn safe_engine_facts_preserve_exit_and_report_without_the_error_payload() {
+    for (error, expected) in [
+        ("ERROR: HTTP Error 403: Forbidden", EngineReport::Http(403)),
+        ("ERROR: HTTP Error 418: Teapot", EngineReport::Http(418)),
+        ("ERROR: Unable to download webpage: connection timed out", EngineReport::Timeout),
+        ("ERROR: Unable to download webpage: getaddrinfo failed", EngineReport::Dns),
+        ("ERROR: Unable to download webpage: SSL: CERTIFICATE_VERIFY_FAILED", EngineReport::Tls),
+        ("ERROR: Unable to download media: ConnectionResetError: connection reset by peer", EngineReport::ConnectionReset),
+        ("ERROR: Unable to write file: No space left on device", EngineReport::DiskFull),
+        ("ERROR: Unable to write file: Permission denied", EngineReport::PermissionDenied),
+        ("ERROR: opaque failure", EngineReport::Unknown),
+        ("[debug] HTTP Error 403: Forbidden", EngineReport::Unknown),
+        ("ERROR: failed at https://example.com/HTTP%20Error%20403?token=PRIVATE", EngineReport::Unknown),
+    ] {
+        let failure = classify(&Phase::Downloading, &format!("transfer engine exit 42: {error} Cookie: PRIVATE Authorization: PRIVATE https://cdn.example/signed?token=PRIVATE C:\\Private\\file"));
+        let engine = failure.engine.as_ref().unwrap();
+        assert_eq!(engine.exit_code, 42);
+        assert_eq!(engine.report, expected, "{error}");
+        assert!(engine.observed_at_ms > 0);
+        let text = copy_text(7, "youtube", &[failure]);
+        assert!(text.contains("Engine exit code: 42"));
+        assert!(!text.contains("PRIVATE") && !text.contains("://") && !text.contains("Cookie"));
+        if let EngineReport::Http(status) = expected {
+            assert!(text.contains(&format!("HTTP {status} (reported by downloader; response not independently verified)")));
+        }
+    }
+    for (output, expected) in [("", EngineOutput::NoCompleteLines), ("[truncated stderr]", EngineOutput::Truncated)] {
+        let failure = classify(&Phase::Resolving, &format!("resolve engine exit 1: {output}"));
+        let engine = failure.engine.unwrap();
+        assert_eq!(engine.exit_code, 1);
+        assert_eq!(engine.report, EngineReport::Unknown);
+        assert_eq!(engine.output, expected);
+    }
+}
+
 const CONNECT: &str =
     include_str!("../../../../tests/fixtures/network-diagnostics/yt-proxy-connect.txt");
 const TIMEOUT: &str =

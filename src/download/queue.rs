@@ -1848,6 +1848,8 @@ mod tests {
         }
         let attack = Failure {
             downloader: None,
+            engine: None,
+            context: None,
             code: "E_UNKNOWN\nCookie: SECRET".into(),
             stage: "transfer https://cdn/signed?x=SECRET".into(),
             reason: "C:\\Users\\secret\\private".into(),
@@ -1871,6 +1873,40 @@ mod tests {
             diagnostics::safe_title("public https://cdn/signed?token=secret C:\\Users\\private")
                 .contains("[redacted]")
         );
+    }
+    #[test]
+    fn copy_command_keeps_typed_failure_facts_and_actual_runtime_identity() -> Result<(), String> {
+        let root = tempfile::tempdir().unwrap();
+        let backend = fake_backend(root.path());
+        let job = backend.submit("https://youtu.be/jNQXAC9IVRw".into())?;
+        let mut failure = native_diagnostics::classify(&Phase::Downloading,
+            "transfer engine exit 17: ERROR: HTTP Error 403: Forbidden Cookie: PRIVATE https://cdn.example/?token=PRIVATE");
+        failure.context = Some(diagnostics::FailureContext {
+            job_id: job, attempt: 1, occurred_at_ms: 1_795_000_000_000,
+            runtime_digest: Some("a".repeat(64)), runtime_versions: vec![("yt-dlp".into(), "2099.01.01".into())],
+            executable_sha256: Some("b".repeat(64)),
+        });
+        let persisted = serde_json::to_vec(&failure.safe()).unwrap();
+        let failure: Failure = serde_json::from_slice(&persisted).unwrap();
+        {
+            let mut model = lock(&backend.shared.model);
+            assert_eq!(model.launch(), Some(job));
+            model.settled(job, Snapshot { failure: Some(failure.clone()), phase: Phase::Failure, engine: Some(super::super::contract::Downloader::YtDlp),
+                resources_released: true, ..Default::default() });
+        }
+        let CommandReply::Diagnostic(text) = backend.apply(QueueCommand::CopyDiagnostic(job)) else { panic!("copy refused") };
+        for fact in ["[transfer]", "Attempt: 1", "Failure time:", "Engine exit code: 17", "HTTP 403 (reported by downloader",
+            "Actual runtime: yt-dlp 2099.01.01", &format!("Runtime digest: {}", "a".repeat(64)), &format!("EXE SHA256: {}", "b".repeat(64))] {
+            assert!(text.contains(fact), "{fact}: {text}");
+        }
+        assert!(!text.contains("PRIVATE") && !text.contains("://") && !text.contains("Cookie"));
+        let mut legacy = serde_json::to_value(failure).unwrap();
+        legacy.as_object_mut().unwrap().remove("engine");
+        legacy.as_object_mut().unwrap().remove("context");
+        let legacy: Failure = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.engine.is_none() && legacy.context.is_none());
+        assert!(diagnostics::copy_text(job, "youtube", &[legacy]).contains("Engine exit/report: unknown"));
+        Ok(())
     }
     #[test]
     fn opaque_http_failure_copy_does_not_invent_headers_or_application_recovery() {
@@ -3007,12 +3043,17 @@ impl Model {
             .failure
             .unwrap_or_else(|| Failure::new(FailureCode::Unknown, "unknown"));
         let mut attempt_failure = if snapshot.fallback {
-            diagnostics::known(&failure.code, &format!("fallback-{}", failure.stage))
+            let mut tagged = failure.clone();
+            tagged.stage = diagnostics::known(&failure.code, &format!("fallback-{}", failure.stage)).stage;
+            tagged
         } else { failure.clone() };
         attempt_failure.downloader = snapshot.engine;
         record.history.push(attempt_failure);
         let display_failure = if snapshot.fallback {
-            Failure::new(FailureCode::FallbackFailed, &failure.stage)
+            let mut display = Failure::new(FailureCode::FallbackFailed, &failure.stage);
+            display.engine = failure.engine.clone();
+            display.context = failure.context.clone();
+            display
         } else { failure.clone() };
         record.view.message = format!("{}: {}", display_failure.code, display_failure.reason);
         record.view.failure = Some(display_failure);
@@ -4096,6 +4137,8 @@ fn dispatch(shared: Arc<Shared>) {
                     }
                     result.map_err(|error| Failure {
                         downloader: None,
+                        engine: None,
+                        context: None,
                         code: "E_RUNTIME".into(),
                         stage: "runtime".into(),
                         reason: error.message,

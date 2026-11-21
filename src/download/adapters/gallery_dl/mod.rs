@@ -73,32 +73,44 @@ impl DownloaderAdapter for GalleryDlAdapter {
         }
         let mut phase = Phase::Resolving;
         let mut native_unsupported = false;
-        run(request, context, &mut phase, &mut native_unsupported).map_err(|e| {
+        let mut engine = None;
+        run(request, context, &mut phase, &mut native_unsupported, &mut engine).map(|mut batch| {
+            if let Some(failure) = &mut batch.failure && failure.engine.is_none() { failure.engine = engine.clone(); }
+            batch
+        }).map_err(|e| {
             let _ = context.write_evidence("adapter-error.log", e.chars().take(65536).collect::<String>().as_bytes());
-            if context.cancelled() {
+            let mut failure = if context.cancelled() {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else if e.starts_with("E_RUNTIME:") {
                 Failure::new(FailureCode::Runtime, "runtime")
             } else if native_unsupported {
-                Failure::new(FailureCode::UnsupportedUrl, "resolve")
+                let mut failure = Failure::new(FailureCode::UnsupportedUrl, "resolve");
+                failure.engine = classify_gallery_error(&phase, &e).engine;
+                failure
             } else {
                 classify_gallery_error(&phase, &e)
-            }
+            };
+            if failure.engine.is_none() { failure.engine = engine; }
+            failure
         })
     }
 }
 fn classify_gallery_error(phase: &Phase, error: &str) -> Failure {
+    let mut failure = super::yt_dlp::diagnostics::classify(phase, error);
     if let Some(stage) = native_proxy_error(error)
         && matches!((phase, stage), (Phase::Resolving, "resolve") | (Phase::Downloading, "transfer"))
     {
-        return crate::download::diagnostics::known("E_NETWORK_TEMPORARY", stage);
+        let mut mapped = crate::download::diagnostics::known("E_NETWORK_TEMPORARY", stage);
+        mapped.engine = failure.engine;
+        if let Some(engine) = &mut mapped.engine { engine.report = crate::download::diagnostics::EngineReport::ProxyConnection; }
+        return mapped;
     }
-    let failure = super::yt_dlp::diagnostics::classify(phase, error);
     if failure.code == "E_UNSUPPORTED_URL" {
-        crate::download::diagnostics::known("E_ENGINE_FAILED", &failure.stage)
-    } else {
-        failure
+        let mut mapped = crate::download::diagnostics::known("E_ENGINE_FAILED", &failure.stage);
+        mapped.engine = failure.engine.take();
+        return mapped;
     }
+    failure
 }
 fn native_proxy_error(error: &str) -> Option<&'static str> {
     if error.len() > 4096 {
@@ -195,6 +207,7 @@ fn invoke(
     context: &ExecutionContext<'_>,
     args: Vec<String>,
     label: &str,
+    engine: &mut Option<crate::download::diagnostics::EngineFailure>,
     callback: Option<
         Arc<dyn Fn(crate::download::process_supervisor::ProcessObservation) + Send + Sync>,
     >,
@@ -220,11 +233,12 @@ fn invoke(
             callback,
         )
         .map_err(|e| format!("E_RUNTIME: {e}"))?;
+    *engine = Some(super::yt_dlp::diagnostics::observe(&result, label));
     context.write_evidence(&format!("{label}-stdout.log"), &result.stdout)?;
     context.write_evidence(&format!("{label}-stderr.log"), &result.stderr)?;
     fs::write(
         context.workspace().join(format!("{label}-settlement.log")),
-        format!("exit_code: {}\n{:#?}\n", result.exit_code, result.facts),
+        format!("exit_code: {}\nobserved_at_ms: {}\n{:#?}\n", result.exit_code, crate::download::progress::now_ms(), result.facts),
     )
     .map_err(|e| format!("E_STORAGE: {e}"))?;
     if !result.facts.resources_releasable() {
@@ -321,6 +335,7 @@ fn run(
     context: &ExecutionContext<'_>,
     phase: &mut Phase,
     native_unsupported: &mut bool,
+    engine: &mut Option<crate::download::diagnostics::EngineFailure>,
 ) -> Result<ProducedBatch, String> {
     let generic = matches!(request.accepted.object, Object::Generic { .. });
     if generic {
@@ -336,7 +351,7 @@ fn run(
         "--".into(),
         request.accepted.intent.url.clone(),
     ]);
-    let result = invoke(context, args, "resolve", None)?;
+    let result = invoke(context, args, "resolve", engine, None)?;
     resolved(&result, &request.accepted.intent.url, generic, native_unsupported)?;
     let (identity, expected) =
         preflight(request, &result.stdout)?;
@@ -455,7 +470,7 @@ fn run(
             });
         }
     });
-    let result = invoke(context, args, "transfer", Some(callback))?;
+    let result = invoke(context, args, "transfer", engine, Some(callback))?;
     let mut paths = BTreeSet::new();
     let mut bad = false;
     for (file, skip) in [("gallery-after.jsonl", false), ("gallery-skip.jsonl", true)] {

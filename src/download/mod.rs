@@ -702,11 +702,16 @@ fn execute(
     } else {
         None
     };
+    if matches!(phase, Phase::Failure | Phase::Partial) && let Some(failure) = &mut failure {
+        failure.downloader = lock(&state).snapshot.engine;
+        failure.context = Some(diagnostics::FailureContext::capture(job, attempt, lease.as_deref(), failure.engine.as_ref()));
+    }
     if (authentication.is_some() || prepared.inspect_only) && let Some(failure) = &failure {
         message = format!("{}: {}", failure.code, failure.reason);
     }
     if let Some(working) = workspace.as_ref() {
-        let _ = fs::write(working.path().join("attempt-error.log"), &message);
+        let summary = failure.as_ref().map(|f| serde_json::to_string(&f.safe()).expect("typed safe failure")).unwrap_or_else(|| message.clone());
+        let _ = fs::write(working.path().join("attempt-error.log"), summary);
     }
     if let Some(stage) = destination_stage.as_mut() {
         {

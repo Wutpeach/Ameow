@@ -1,6 +1,6 @@
 use crate::download::{
     Phase,
-    diagnostics::{Failure, known},
+    diagnostics::{EngineFailure, EngineOutput, EngineReport, EngineStage, Failure, known},
 };
 pub(crate) fn engine_stderr(stderr: &[u8], truncated: bool) -> String {
     if truncated {
@@ -65,6 +65,29 @@ fn proxy_failure(cause: &str) -> bool {
             .next()
             .is_some_and(|exception| exception.trim_end().ends_with("))"))
 }
+fn reported_error(cause: &str) -> EngineReport {
+    if proxy_failure(cause) { return EngineReport::ProxyConnection; }
+    // Never classify words embedded in a URL/path as a downloader error.
+    let text = cause.split_whitespace().filter(|s| !s.contains("://") && !s.contains('\\') && !s.starts_with('/'))
+        .collect::<Vec<_>>().join(" ");
+    if let Some(rest) = text.split_once("http error ").map(|(_, rest)| rest)
+        && rest.as_bytes().get(3) == Some(&b':')
+        && let Ok(status) = rest[..3].parse::<u16>()
+        && (100..=599).contains(&status) {
+        return EngineReport::Http(status);
+    }
+    if text.contains("timed out") || text.contains("readtimeout") || text.contains("connecttimeout") { EngineReport::Timeout }
+    else if ["temporary failure in name resolution", "name or service not known", "getaddrinfo failed", "failed to resolve"].iter().any(|s| text.contains(s)) { EngineReport::Dns }
+    else if ["certificate verify failed", "certificate_verify_failed", "tls handshake", "sslerror"].iter().any(|s| text.contains(s)) { EngineReport::Tls }
+    else if text.contains("connection reset by peer") || text.contains("connectionreseterror") { EngineReport::ConnectionReset }
+    else if ["no space left on device", "not enough space on the disk", "winerror 112", "os error 112"].iter().any(|s| text.contains(s)) { EngineReport::DiskFull }
+    else if text.contains("permission denied") || text.contains("winerror 5") || text.contains("os error 5)") { EngineReport::PermissionDenied }
+    else { EngineReport::Unknown }
+}
+pub(crate) fn observe(outcome: &crate::download::process_supervisor::ProcessOutcome, label: &str) -> EngineFailure {
+    classify(&Phase::Resolving, &format!("{label} engine exit {}: {}", outcome.exit_code,
+        engine_stderr(&outcome.stderr, outcome.facts.stderr_truncated))).engine.expect("native invocation envelope")
+}
 
 pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     let stage = match phase {
@@ -86,14 +109,15 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
         lower
             .lines()
             .filter_map(|line| {
+                let line = if line.starts_with("resolve engine exit ") || line.starts_with("transfer engine exit ") {
+                    line.split_once(':').map_or("", |(_, error)| error.trim())
+                } else { line };
                 if line.starts_with("error:") {
-                    Some(line)
-                } else if line.starts_with("resolve engine exit ")
-                    || line.starts_with("transfer engine exit ")
-                {
-                    line.split_once(':')
-                        .map(|(_, error)| error.trim())
-                        .filter(|error| error.starts_with("error:"))
+                    Some(line.to_owned())
+                } else if let Some((name, error)) = line.strip_prefix('[').and_then(|s| s.split_once("][error] "))
+                    && !name.is_empty() && name.len() <= 64
+                    && name.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-')) {
+                    Some(format!("error: {error}"))
                 } else {
                     None
                 }
@@ -103,7 +127,7 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     } else {
         lower.clone()
     };
-    let failed_engine = lower
+    let exit_code = lower
         .split_once(": ")
         .and_then(|(envelope, _)| {
             envelope
@@ -111,14 +135,24 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
                 .or_else(|| envelope.strip_prefix("transfer engine exit "))?
                 .parse::<u32>()
                 .ok()
-        })
-        .is_some_and(|exit| exit != 0);
+        });
+    let engine_failure = exit_code.map(|exit_code| EngineFailure {
+        stage: Some(if lower.starts_with("resolve engine exit ") { EngineStage::Resolve } else { EngineStage::Transfer }),
+        exit_code, observed_at_ms: crate::download::progress::now_ms(),
+        report: if exit_code == 0 || lower.contains("[truncated stderr]") { EngineReport::Unknown } else { reported_error(&cause) },
+        output: if lower.contains("[truncated stderr]") { EngineOutput::Truncated }
+            else if lower.split_once(": ").is_none_or(|(_, s)| s.trim().is_empty()) { EngineOutput::NoCompleteLines }
+            else { EngineOutput::CompleteLines },
+    });
+    let failed_engine = exit_code.is_some_and(|exit| exit != 0);
     if failed_engine
         && evidence.len() <= 4096
         && matches!(phase, Phase::Resolving | Phase::Downloading)
         && proxy_failure(&cause)
     {
-        return known("E_NETWORK_TEMPORARY", stage);
+        let mut failure = known("E_NETWORK_TEMPORARY", stage);
+        failure.engine = engine_failure;
+        return failure;
     }
     // Status evidence is anchored to actual engine error wording, not arbitrary numbers.
     let code = if evidence.starts_with("E_CLIP_UNSUPPORTED:") {
@@ -206,7 +240,9 @@ pub fn classify(phase: &Phase, evidence: &str) -> Failure {
     // 403 and unknown failures intentionally never become guesses about network/authentication.
     // Opaque engine stderr cannot establish a real HTTP response header, even if a line looks
     // like one. The current native engine has no verified response-header side channel.
-    known(code, stage)
+    let mut failure = known(code, stage);
+    failure.engine = engine_failure;
+    failure
 }
 
 #[cfg(test)]

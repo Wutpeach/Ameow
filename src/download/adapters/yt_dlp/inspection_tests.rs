@@ -108,6 +108,7 @@ fn supervised_inspection_runs_only_resolve_and_retains_no_raw_output() -> Result
                 std::process::exit(1);
             }
             eprintln!("Authorization: SYNTHETIC_PRIVATE");
+            if std::path::Path::new("bad-json").exists() { println!("{{"); return; }
             println!("{}", r#"{"id":"jNQXAC9IVRw","extractor_key":"Youtube","title":"Authorization: Bearer OTHER_SECRET","duration":3,"requested_formats":[{"height":720,"vcodec":"avc1","url":"https://cdn.example/?sig=SYNTHETIC_PRIVATE"}]}"#);
         }
     "##).map_err(|e| e.to_string())?;
@@ -172,7 +173,7 @@ fn supervised_inspection_runs_only_resolve_and_retains_no_raw_output() -> Result
         quality: Quality::Balanced,
         output_dir: root.path().into(),
     })?;
-    let summary = inspect_resolve(&accepted, &context, &network::Route::Direct)?;
+    let summary = inspect_resolve(&accepted, &context, &network::Route::Direct, &mut None)?;
     assert_eq!(summary.selected[0].height, Some(720));
     assert_eq!(summary.identity.title, "");
     assert_eq!(admitted.lock().unwrap()[0].title, "");
@@ -205,6 +206,14 @@ fn supervised_inspection_runs_only_resolve_and_retains_no_raw_output() -> Result
             "unexpected evidence {name}"
         );
     }
+    fs::write(work.path().join("bad-json"), b"").map_err(|e| e.to_string())?;
+    let failure = YtDlpAdapter::new(requirements.clone()).inspect(&ExecutionRequest { accepted, resume: None }, &context).unwrap_err();
+    assert_eq!(failure.code, "E_METADATA_INVALID_JSON");
+    assert_eq!(failure.engine.as_ref().unwrap().exit_code, 0);
+    assert_eq!(failure.engine.as_ref().unwrap().stage, Some(crate::download::diagnostics::EngineStage::Resolve));
+    let copy = crate::download::diagnostics::copy_text(1, "youtube", &[failure]);
+    assert!(copy.contains("Engine phase: resolve") && copy.contains("Engine exit code: 0"));
+    assert!(!copy.contains("SYNTHETIC_PRIVATE") && !copy.contains("OTHER_SECRET"));
     Ok(())
 }
 

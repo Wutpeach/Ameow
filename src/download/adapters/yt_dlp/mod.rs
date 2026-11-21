@@ -30,7 +30,7 @@ use crate::download::{
         AdapterEvent, AdapterResult, ExecutionRequest, MediaKind, ProducedArtifact,
         VerificationRequirements, VideoExpectation,
     },
-    diagnostics::{Failure, FailureCode},
+    diagnostics::{EngineFailure, Failure, FailureCode},
     network,
     process_supervisor::{self, ProcessObservation},
     runtime::TrustedRuntimeRequirements,
@@ -94,6 +94,7 @@ impl DownloaderAdapter for YtDlpAdapter {
         let accepted = &request.accepted;
         let working = context.workspace();
         let mut phase = Phase::Resolving;
+        let mut engine_observation = None;
         let result = (|| {
             if context.cancelled() {
                 return Err("Cancelled before extraction".into());
@@ -106,7 +107,7 @@ impl DownloaderAdapter for YtDlpAdapter {
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
             append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
             resolve_args(&mut args, accepted);
-            let bytes = invoke(context, args, None, InvocationPhase::Resolve, #[cfg(target_os = "macos")] None)?;
+            let bytes = invoke(context, args, None, &mut engine_observation, InvocationPhase::Resolve, #[cfg(target_os = "macos")] None)?;
             let metadata = parse_metadata(&bytes)?;
             media_observation(context, "resolve-media.json", &metadata)?;
             check_generic_object(accepted, &metadata)?;
@@ -209,7 +210,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                     }
                 }
             });
-            let record = invoke(context, args, Some(output), InvocationPhase::Transfer, #[cfg(target_os = "macos")] Some(&metadata))?;
+            let record = invoke(context, args, Some(output), &mut engine_observation, InvocationPhase::Transfer, #[cfg(target_os = "macos")] Some(&metadata))?;
             phase = Phase::Validating;
             let final_path = parse_final_record(&record)?;
             let final_metadata = fs::symlink_metadata(&final_path).map_err(|e| e.to_string())?;
@@ -254,12 +255,15 @@ impl DownloaderAdapter for YtDlpAdapter {
             if context.cancelled() {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else {
-                diagnostics::classify(&phase, &error)
+                let mut failure = diagnostics::classify(&phase, &error);
+                if failure.engine.is_none() { failure.engine = engine_observation; }
+                failure
             }
         })
     }
     fn inspect(&self, request: &ExecutionRequest, context: &ExecutionContext<'_>) -> Result<crate::download::inspection::Inspection, Failure> {
         let accepted = &request.accepted;
+        let mut engine_observation = None;
         let result = (|| {
             if context.cancelled() { return Err("Cancelled before extraction".into()); }
             if request.resume.is_some() || accepted.intent.clip.is_some() || matches!(accepted.object, Object::Gallery { .. }) {
@@ -269,16 +273,20 @@ impl DownloaderAdapter for YtDlpAdapter {
             check_generic_destination(accepted)?;
             let route = network::engine_route(&accepted.intent.url)
                 .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
-            inspect_resolve(accepted, context, &route)
+            inspect_resolve(accepted, context, &route, &mut engine_observation)
         })();
         result.map_err(|error: String| {
             if context.cancelled() { Failure::new(FailureCode::Cancelled, "cleanup") }
-            else { diagnostics::classify(&Phase::Resolving, &error) }
+            else {
+                let mut failure = diagnostics::classify(&Phase::Resolving, &error);
+                if failure.engine.is_none() { failure.engine = engine_observation; }
+                failure
+            }
         })
     }
 }
 
-fn inspect_resolve(accepted: &Accepted, context: &ExecutionContext<'_>, route: &network::Route) -> Result<crate::download::inspection::Inspection, String> {
+fn inspect_resolve(accepted: &Accepted, context: &ExecutionContext<'_>, route: &network::Route, engine: &mut Option<EngineFailure>) -> Result<crate::download::inspection::Inspection, String> {
     let mut args = engine_args(context, route, accepted.intent.quality)?;
     resolve_args(&mut args, accepted);
     // Inspection keeps native output in memory only, even for anonymous attempts.
@@ -287,6 +295,7 @@ fn inspect_resolve(accepted: &Accepted, context: &ExecutionContext<'_>, route: &
     let outcome = context.run_ytdlp(command, InvocationPhase::Resolve, None, None)?;
     #[cfg(not(target_os = "macos"))]
     let outcome = context.run(command, None)?;
+    *engine = Some(diagnostics::observe(&outcome, "resolve"));
     validate_engine_outcome(&outcome, "resolve")?;
     if context.cancelled() { return Err("Cancelled after extraction".into()); }
     let metadata = parse_metadata(&outcome.stdout)?;
@@ -486,6 +495,7 @@ fn invoke(
     context: &ExecutionContext<'_>,
     args: Vec<String>,
     output: Option<Arc<dyn Fn(ProcessObservation) + Send + Sync>>,
+    engine: &mut Option<EngineFailure>,
     invocation: InvocationPhase,
     #[cfg(target_os = "macos")] resolution: Option<&Value>,
 ) -> Result<Vec<u8>, String> {
@@ -511,11 +521,12 @@ fn invoke(
     let outcome = context.run_ytdlp(command, invocation, resolution, output)?;
     #[cfg(not(target_os = "macos"))]
     let outcome = context.run(command, output)?;
+    *engine = Some(diagnostics::observe(&outcome, label));
     context.write_evidence(&format!("{label}-stdout.log"), &outcome.stdout)?;
     context.write_evidence(&format!("{label}-stderr.log"), &outcome.stderr)?;
     fs::write(
         working.join(format!("{label}-settlement.txt")),
-        format!("{:?}", outcome.facts),
+        format!("exit_code: {}\nobserved_at_ms: {}\n{:?}", outcome.exit_code, crate::download::progress::now_ms(), outcome.facts),
     )
     .map_err(|e| e.to_string())?;
     validate_engine_outcome(&outcome, label)?;
