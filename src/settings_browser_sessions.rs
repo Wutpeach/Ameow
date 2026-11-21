@@ -42,6 +42,12 @@ impl BrowserUi {
         }
     }
     fn copy_path(&self) -> Option<&Path> { self.path.as_deref() }
+    fn advance_demo_clock(&mut self, now: Instant, run: bool) {
+        if run {
+            if let Some(previous) = self.tick { self.elapsed += now.saturating_duration_since(previous); }
+            self.tick = Some(now);
+        } else { self.tick = None; }
+    }
 }
 
 fn brand(site: &str) -> (&str, &'static str) {
@@ -163,14 +169,16 @@ impl SettingsWindow {
             let focus_for_paint = focus.clone(); let focused_for_paint = focused.clone();
             let control = gpui_base::Button::new(SharedString::from(key)).track_focus(&focus).disabled(self.passive.get())
                 .accessibility_label(tip.clone()).w(px(100.)).min_h(px(90.)).flex().flex_col().items_center().gap(px(4.))
-                .border_1().border_color(transparent_black()).rounded(px(8.))
-                .when(self.keyboard_focus, |s| s.focus(move |s| s.border_color(p.blue)))
+                .border_1().border_color(transparent_black()).rounded(px(8.)).overflow_hidden()
+                .when(is_open, |s| s.bg(p.badge.opacity(0.4)))
+                .when(self.keyboard_focus, |s| s.focus(move |s| s.rounded(px(8.)).border_color(p.blue).bg(p.badge.opacity(0.4))))
                 .on_prepaint(move |_, window, _| {
                     let next = focus_for_paint.is_focused(window);
                     if focused_for_paint.replace(next) != next { window.request_animation_frame(); }
                 })
                 .tooltip_above(&self.tooltips, move |_, cx| cx.new(|_| HelpTooltip { text: tooltip.clone(), night: p.night }).into())
-                .cursor_pointer().hover(move |s| s.bg(p.badge.opacity(0.4)))
+                .cursor_pointer().hover(move |s| s.rounded(px(8.)).bg(p.badge.opacity(0.4)))
+                .active(move |s| s.rounded(px(8.)).bg(p.border))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.browser_ui.selected = if this.browser_ui.selected.as_deref() == Some(id.as_str()) { None } else { Some(id.clone()) };
                     this.browser_ui.menu_focus_pending = this.browser_ui.selected.is_some() && this.keyboard_focus;
@@ -181,7 +189,7 @@ impl SettingsWindow {
                         .child(svg().path(icon).size(px(icon_size)).text_color(p.primary_text())))
                     .child(div().absolute().right_0().bottom_0().size(px(20.)).rounded_full().border_2().border_color(p.surface).bg(badge_color)
                         .flex().items_center().justify_center().child(svg().path(state_icon).size(px(12.)).text_color(p.surface))))
-                .child(div().w_full().text_size(px(13.)).truncate().child(name));
+                .child(div().w_full().text_center().text_size(px(13.)).truncate().child(name));
             let mut item = container.relative().flex_none().child(control);
             if keyboard_hint {
                 item = item.child(div().absolute().left_0().bottom(px(84.)).child(deferred(anchored().anchor(gpui::Anchor::BottomLeft)
@@ -278,11 +286,11 @@ impl SettingsWindow {
         let p = Palette::new(self.projection.night);
         let l = self.projection.language;
         let reduced = self.projection.reduced;
-        let at = if reduced { 0.8 } else { (self.browser_ui.elapsed.as_secs_f32() % 9.) / 9. };
-        let reset = if at >= 0.945 { (1. - ((at - 0.945) / 0.02)).clamp(0., 1.) } else { 1. };
-        let toggle = ((at - 0.155) / 0.017).clamp(0., 1.) * reset;
-        let pasted = at >= 0.535 && at < 0.965;
-        let selected = at >= 0.72 && at < 0.965;
+        let at = if reduced { 0.80 } else { (self.browser_ui.elapsed.as_secs_f32() % 5.) / 5. };
+        let reset = if at >= 0.93 { (1. - ((at - 0.93) / 0.03)).clamp(0., 1.) } else { 1. };
+        let toggle = ((at - 0.12) / 0.025).clamp(0., 1.) * reset;
+        let pasted = at >= 0.535 && at < 0.96;
+        let selected = at >= 0.75 && at < 0.96;
         let mock_path = self.browser_ui.path.as_ref().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default();
         let anchors = &self.browser_ui.anchors;
 
@@ -296,7 +304,7 @@ impl SettingsWindow {
         let load = div().flex().items_center().gap(px(8.)).opacity(0.35 + 0.65 * toggle)
             .child(pin("2", p)).child(demo_anchor(anchors.clone(), 1,
                 div().px(px(8.)).py(px(4.)).rounded(px(6.)).border_1().border_color(p.border)
-                    .bg(if (0.337..0.362).contains(&at) { p.badge } else { p.surface })
+                    .bg(if (0.307..0.335).contains(&at) { p.badge } else { p.surface })
                     .child(l.text("加载已解压的扩展", "Load unpacked")).into_any_element()));
         let browser = div().w_full().rounded(px(8.)).border_1().border_color(p.border).bg(p.surface).overflow_hidden()
             .child(div().px(px(12.)).py(px(8.)).border_b_1().border_color(p.border).text_color(p.neutral)
@@ -328,7 +336,7 @@ impl SettingsWindow {
         if !reduced {
             if let (Some(origin), Some(points)) = (self.browser_ui.origin.get(), demo_points(&self.browser_ui.anchors.borrow(), at)) {
                 let x = points.x - origin.x; let y = points.y - origin.y;
-                let pulse = [0.155_f32, 0.34, 0.515, 0.70].into_iter().map(|click| (1. - ((at - click) / 0.025).abs()).clamp(0., 1.)).fold(0_f32, f32::max);
+                let pulse = [0.12_f32, 0.31, 0.515, 0.73].into_iter().map(|click| (1. - ((at - click) / 0.025).abs()).clamp(0., 1.)).fold(0_f32, f32::max);
                 stage = stage.child(div().absolute().left(x - px(8.)).top(y - px(8.)).size(px(18. + pulse * 10.))
                     .rounded_full().border_2().border_color(p.blue.opacity(pulse * 0.8)))
                     .child(demo_cursor(p).absolute().left(x).top(y));
@@ -339,14 +347,16 @@ impl SettingsWindow {
     }
 
     pub(super) fn browser_demo_tick(&mut self, window: &mut Window) {
-        let run = self.page == Page::Download && self.browser_ui.guide > 0 && !self.projection.reduced && self.browser_ui.visible.get() && window.is_window_active();
-        let now = Instant::now();
-        if run {
-            if let Some(previous) = self.browser_ui.tick { self.browser_ui.elapsed += now.saturating_duration_since(previous); }
-            self.browser_ui.tick = Some(now);
-            window.request_animation_frame();
-        } else { self.browser_ui.tick = None; }
+        let run = demo_should_run(self.page == Page::Download && self.browser_ui.guide > 0, self.projection.reduced, self.browser_ui.visible.get(), window.is_visible());
+        self.browser_ui.advance_demo_clock(Instant::now(), run);
+        if run { window.request_animation_frame(); }
     }
+    pub(super) fn browser_demo_visibility(&mut self, visible: bool) {
+        if !visible { self.browser_ui.advance_demo_clock(Instant::now(), false); }
+    }
+}
+fn demo_should_run(guide: bool, reduced: bool, on_screen: bool, window_visible: bool) -> bool {
+    guide && !reduced && on_screen && window_visible
 }
 
 fn pin(number: &'static str, p: Palette) -> Div {
@@ -394,8 +404,9 @@ fn demo_anchor(anchors: Rc<RefCell<[Option<Bounds<Pixels>>; 4]>>, index: usize, 
 fn demo_points(anchors: &[Option<Bounds<Pixels>>; 4], t: f32) -> Option<Point<Pixels>> {
     let target = |i: usize| anchors[i].map(|b| b.origin + point(b.size.width * 0.5, b.size.height * 0.5));
     let targets = [target(0)?, target(1)?, target(2)?, target(3)?];
-    let stops = [(0., targets[0]), (0.155, targets[0]), (0.34, targets[1]),
-        (0.515, targets[2]), (0.70, targets[3]), (0.94, targets[3]), (1., targets[0])];
+    let start = targets[0] - point(px(18.), px(10.));
+    let stops = [(0., start), (0.12, targets[0]), (0.31, targets[1]),
+        (0.515, targets[2]), (0.73, targets[3]), (0.90, targets[3]), (1., start)];
     for pair in stops.windows(2) {
         let (a, from) = pair[0]; let (b, to) = pair[1];
         if t <= b {
@@ -436,10 +447,31 @@ mod tests {
     #[::core::prelude::v1::test]
     fn pointer_follows_four_distinct_steps_and_loops() {
         let anchors = [0., 20., 40., 60.].map(|y| Some(Bounds::new(point(px(0.), px(y)), size(px(10.), px(10.)))));
-        for (time, y) in [(0.155, 5.), (0.34, 25.), (0.515, 45.), (0.70, 65.)] {
+        for (time, y) in [(0.12, 5.), (0.31, 25.), (0.515, 45.), (0.73, 65.)] {
             assert_eq!(demo_points(&anchors, time), Some(point(px(5.), px(y))));
         }
         assert_eq!(demo_points(&anchors, 1.), demo_points(&anchors, 0.));
+        assert_ne!(demo_points(&anchors, 0.), demo_points(&anchors, 0.12));
+    }
+    #[::core::prelude::v1::test]
+    fn demo_clock_pauses_without_counting_hidden_time() {
+        let mut ui = BrowserUi::default();
+        let start = Instant::now();
+        ui.advance_demo_clock(start, demo_should_run(true, false, true, true));
+        ui.advance_demo_clock(start + Duration::from_secs(1), demo_should_run(true, false, true, true));
+        assert_eq!(ui.elapsed, Duration::from_secs(1));
+        ui.advance_demo_clock(start + Duration::from_secs(2), demo_should_run(true, false, true, false));
+        assert!(ui.tick.is_none());
+        ui.advance_demo_clock(start + Duration::from_secs(102), demo_should_run(true, false, true, true));
+        assert_eq!(ui.elapsed, Duration::from_secs(1));
+        ui.advance_demo_clock(start + Duration::from_secs(103), demo_should_run(true, false, true, true));
+        assert_eq!(ui.elapsed, Duration::from_secs(2));
+        ui.advance_demo_clock(start + Duration::from_secs(104), demo_should_run(true, true, true, true));
+        assert!(ui.tick.is_none());
+        ui.advance_demo_clock(start + Duration::from_secs(105), demo_should_run(true, false, true, true));
+        ui.advance_demo_clock(start + Duration::from_secs(106), demo_should_run(true, false, false, true));
+        assert!(ui.tick.is_none());
+        assert_eq!(ui.elapsed, Duration::from_secs(2));
     }
     #[::core::prelude::v1::test]
     fn first_visible_measurement_records_origin_without_short_circuiting() {

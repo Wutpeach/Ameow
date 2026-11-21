@@ -243,7 +243,7 @@ pub struct SettingsWindow {
     main: WeakEntity<Prototype>,
     projection: Projection,
     _observer: Subscription,
-    _browser_activation: Subscription,
+    _browser_visibility: Subscription,
     _component_menu_blur: Subscription,
     focus: FocusHandle,
     component_menu_focus: FocusHandle,
@@ -323,7 +323,10 @@ impl SettingsWindow {
         }
         #[cfg(target_os = "windows")]
         crate::brand_icons::set_window(hwnd(window));
-        let browser_activation = cx.observe_window_activation(window, |_, _, cx| cx.notify());
+        let browser_visibility = cx.observe_window_visibility(window, |this, visibility, _, cx| {
+            this.browser_demo_visibility(visibility.is_visible());
+            cx.notify();
+        });
         let observer = cx.observe(&main, |this, main, cx| {
             if this.projection.preview { return; }
             let next = Projection::from_main(main.read(cx));
@@ -391,7 +394,7 @@ impl SettingsWindow {
             main: main.downgrade(),
             projection,
             _observer: observer,
-            _browser_activation: browser_activation,
+            _browser_visibility: browser_visibility,
             _component_menu_blur: component_menu_blur,
             focus,
             component_menu_focus,
