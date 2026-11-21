@@ -7,6 +7,8 @@ pub mod contract;
 pub mod adapter;
 pub mod adapters;
 pub mod composition;
+#[cfg(all(windows, debug_assertions, feature = "cancel-fixture"))]
+pub mod cancel_fixture;
 pub mod verification;
 #[cfg_attr(target_os = "macos", path = "process_supervisor_macos.rs")]
 pub mod process_supervisor;
@@ -235,20 +237,33 @@ impl Coordinator {
             .map_err(|_| "E_RUNTIME: Cannot create attempt owner".into())
     }
     fn cancel(&self, job: u64) -> bool {
+        self.cancel_outcome(job, || true) == queue::CancelOutcome::Accepted
+    }
+    fn cancel_outcome(&self, job: u64, owner_live: impl FnOnce() -> bool) -> queue::CancelOutcome {
+        use queue::CancelOutcome;
         let mut state = lock(&self.state);
-        if state.snapshot.job_id != job
-            || state.snapshot.phase.terminal()
-            || state.snapshot.phase == Phase::Idle
-            || (state.snapshot.delivered.is_some() && state.snapshot.collection.is_none())
-        {
-            return false;
+        if state.snapshot.job_id != job || state.snapshot.phase == Phase::Idle {
+            return CancelOutcome::OwnerUnavailable;
+        }
+        if state.snapshot.delivered.is_some() && state.snapshot.collection.is_none() {
+            return CancelOutcome::AlreadyCommitted;
+        }
+        if state.snapshot.phase.terminal() {
+            return CancelOutcome::Terminal;
+        }
+        if !owner_live() {
+            return CancelOutcome::OwnerUnavailable;
+        }
+        if state.control.is_cancelled() {
+            return CancelOutcome::Accepted;
         }
         state.control.cancel();
         state.snapshot.transfer_progress = None;
+        state.snapshot.gallery_progress = None;
         state.snapshot.revision += 1;
         state.snapshot.message = "Cancellation requested; waiting for ownership barriers".into();
         state.publish();
-        true
+        CancelOutcome::Accepted
     }
     fn retry_cleanup(&self, job: u64) -> bool {
         let state = lock(&self.state);
@@ -273,6 +288,7 @@ fn update(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, _mess
         state.snapshot.phase = phase.clone();
         if phase != Phase::Downloading {
             state.snapshot.transfer_progress = None;
+            state.snapshot.gallery_progress = None;
         }
         state.snapshot.message = match phase {
             Phase::Held => "Ownership retained; explicit cleanup retry required".into(),
@@ -295,6 +311,7 @@ fn terminal(state: &Arc<Mutex<State>>, job: u64, attempt: u64, phase: Phase, mes
     {
         state.snapshot.phase = phase;
         state.snapshot.transfer_progress = None;
+        state.snapshot.gallery_progress = None;
         state.snapshot.message = message;
         state.snapshot.terminal_count += 1;
         state.snapshot.resources_released = true;

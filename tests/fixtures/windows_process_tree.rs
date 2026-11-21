@@ -84,6 +84,17 @@ fn main() {
             marker(path, "grandchild");
             thread::sleep(Duration::from_secs(60));
         }
+        "bounded-writer" => {
+            marker(path, "root");
+            for index in 0..256 {
+                std::fs::write(
+                    path.parent().unwrap().join(format!("synthetic-{index:03}.tmp")),
+                    [b'x'; 1024],
+                )
+                .unwrap();
+                thread::sleep(Duration::from_millis(50));
+            }
+        }
         "flood" => {
             marker(path, "root");
             let stderr = thread::spawn(|| {

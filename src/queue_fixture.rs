@@ -30,6 +30,7 @@ pub fn job(id: u64, phase: JobPhase, ticket: Option<u64>, fraction: Option<f32>)
     let terminal = phase.terminal();
     JobSnapshot {
         job_id: id,
+        cancellation_requested: false,
         revision: 1,
         attempt: u32::from(ticket.is_some()),
         phase: phase.clone(),

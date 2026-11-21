@@ -320,6 +320,7 @@ struct Owner {
     held: bool,
     cleanup: bool,
     terminate_sent: bool,
+    cancel_seen: bool,
     retry_seen: u64,
     began: Instant,
     #[cfg(test)]
@@ -349,6 +350,7 @@ impl Owner {
             held: false,
             cleanup: false,
             terminate_sent: false,
+            cancel_seen: false,
             retry_seen: 0,
             began: Instant::now(),
             #[cfg(test)]
@@ -367,6 +369,23 @@ impl Owner {
         self.held |= await_retry;
         self.cleanup = true;
         *lock(&self.consumer_state.status) = Some(ProcessObservation::Held(reason));
+    }
+    fn advance_cleanup_request(&mut self, control: &Control) -> bool {
+        let epoch = control.retry_epoch.load(Ordering::Acquire);
+        let cancelled = control.is_cancelled();
+        let first_cancel = cancelled && !self.cancel_seen;
+        self.cancel_seen |= cancelled;
+        let explicit_retry = epoch != self.retry_seen;
+        if explicit_retry || (first_cancel && self.held) {
+            self.retry_seen = epoch;
+            self.held = false;
+            self.cleanup = true;
+            self.terminate_sent = false;
+        }
+        if cancelled {
+            self.cleanup = true;
+        }
+        explicit_retry || first_cancel
     }
     fn initialize(
         &mut self,
@@ -595,22 +614,13 @@ impl Owner {
         spec: &ProcessSpec,
         control: &Control,
     ) -> Result<Option<Result<ProcessOutcome, String>>, String> {
-        let epoch = control.retry_epoch.load(Ordering::Acquire);
-        if epoch != self.retry_seen {
-            self.retry_seen = epoch;
-            self.held = false;
-            self.cleanup = true;
-            self.terminate_sent = false;
-        }
+        self.advance_cleanup_request(control);
         if self.held {
             return Ok(None);
         }
         #[cfg(test)]
         if self.hooks.owner_panic.swap(false, Ordering::AcqRel) {
             panic!("test-only owner operation panic");
-        }
-        if control.is_cancelled() {
-            self.cleanup = true;
         }
         if spec
             .timeout
@@ -932,8 +942,7 @@ fn run_internal(
             }
         }
         // A worker failure never permits release. A new owner driver uses the same handles.
-        let epoch = lock(&owner).retry_seen;
-        while control.retry_epoch.load(Ordering::Acquire) == epoch {
+        while !lock(&owner).advance_cleanup_request(control) {
             thread::sleep(Duration::from_millis(10));
         }
     }
