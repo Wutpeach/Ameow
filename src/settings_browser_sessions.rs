@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 pub(super) struct BrowserUi {
     pub guide: u8,
+    pub(super) guide_focus_pending: bool,
     selected: Option<String>,
     pub(super) details: bool,
     setup_requested: bool,
@@ -20,7 +21,7 @@ pub(super) struct BrowserUi {
 }
 impl Default for BrowserUi {
     fn default() -> Self {
-        Self { guide: 0, selected: None, details: false, setup_requested: false,
+        Self { guide: 0, guide_focus_pending: false, selected: None, details: false, setup_requested: false,
             setup_error: None, path: None, chrome: false, paused: false, manual_motion: false,
             elapsed: Duration::ZERO, tick: None, visible: Rc::new(Cell::new(false)),
             anchors: Rc::new(RefCell::new([None; 4])), origin: Rc::new(Cell::new(None)) }
@@ -70,7 +71,7 @@ impl SettingsWindow {
             self.browser_ui.setup_requested = false;
             match result {
                 Ok(()) => match ameow_next::browser_sessions::native::extension_directory() {
-                    Ok(path) => { self.browser_ui.path = Some(path); self.browser_ui.guide = 2; self.scroll.set_offset(point(px(0.), px(0.))); }
+                    Ok(path) => { self.browser_ui.path = Some(path); self.browser_ui.guide = 2; self.browser_ui.guide_focus_pending = true; self.scroll.set_offset(point(px(0.), px(0.))); }
                     Err(error) => self.browser_ui.setup_error = Some(error),
                 },
                 Err(error) => self.browser_ui.setup_error = Some(error.clone()),
@@ -79,11 +80,19 @@ impl SettingsWindow {
     }
     pub(super) fn close_browser_guide(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_ui.guide = 0;
+        self.browser_ui.guide_focus_pending = false;
         self.browser_ui.setup_requested = false;
         self.browser_ui.tick = None;
         if let Some(focus) = self.control_focus.borrow().get("browser-connect").cloned() {
             let reveal = self.reveal_focus.clone();
-            window.on_next_frame(move |window, cx| { reveal.set(true); window.focus(&focus, cx); });
+            let owner = cx.entity().downgrade();
+            window.on_next_frame(move |window, cx| {
+                let _ = owner.update(cx, |this, cx| {
+                    if this.page == Page::Download && this.browser_ui.guide == 0 {
+                        reveal.set(true); window.focus(&focus, cx);
+                    }
+                });
+            });
         }
         cx.notify();
     }
@@ -95,7 +104,7 @@ impl SettingsWindow {
             .child(div().flex().flex_wrap().items_center().justify_between().gap(px(12.))
                 .child(div().text_size(px(15.)).font_weight(FontWeight::MEDIUM).child(l.text("浏览器会话", "Browser sessions")))
                 .child(self.button("browser-connect", l.text("连接浏览器", "Connect browser"), true, ButtonStyle::Standard, cx, |this, _, cx| {
-                    this.browser_ui.guide = 1; this.browser_ui.setup_error = None;
+                    this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true; this.browser_ui.setup_error = None;
                     this.browser_ui.setup_requested = false; this.scroll.set_offset(point(px(0.), px(0.))); cx.notify();
                 })))
             .child(div().mt(px(12.)).text_color(p.neutral).child(authorized_count(status.sites.len(), l)));
@@ -185,7 +194,7 @@ impl SettingsWindow {
         let mut page = div().w_full().flex().flex_col()
             .child(div().flex().items_center().gap(px(8.))
                 .child(self.icon_button("browser-guide-back", "icons/chevron-left.svg", l.text("返回", "Back"), true, cx, |this, window, cx| {
-                    if this.browser_ui.guide == 2 { this.browser_ui.guide = 1; this.browser_ui.tick = None; cx.notify(); }
+                    if this.browser_ui.guide == 2 { this.browser_ui.guide = 1; this.browser_ui.guide_focus_pending = true; this.browser_ui.tick = None; cx.notify(); }
                     else { this.close_browser_guide(window, cx); }
                 }))
                 .child(div().flex_1().min_w(px(0.)).text_size(px(15.)).font_weight(FontWeight::MEDIUM)
@@ -200,11 +209,13 @@ impl SettingsWindow {
             }
             let busy = self.browser_ui.setup_requested || self.projection.bridge_config_pending;
             let label = if busy { l.text("正在配置…", "Setting up…") } else if self.browser_ui.setup_error.is_some() { l.text("重试配置", "Retry setup") } else { l.text("配置本机连接", "Set up this computer") };
-            page = page.child(div().mt(px(20.)).child(self.button("browser-setup", label, !busy, ButtonStyle::Standard, cx, |this, _, cx| {
+            page = page.child(div().mt(px(20.)).child(self.button("browser-setup", label, !busy, ButtonStyle::Standard, cx, |this, window, cx| {
                 this.browser_ui.setup_error = None;
+                if let Some(focus) = this.control_focus.borrow().get("browser-guide-back") { window.focus(focus, cx); }
                 if this.projection.preview {
                     this.browser_ui.preview_path();
                     this.browser_ui.guide = 2;
+                    this.browser_ui.guide_focus_pending = true;
                 } else {
                     let accepted = this.main.update(cx, |main, cx| {
                         let now = main.now();

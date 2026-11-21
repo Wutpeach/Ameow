@@ -1603,6 +1603,18 @@ impl Render for SettingsWindow {
         let forward = self.previous_page.is_none_or(|(page, notices)| (self.page as u8, self.notices_open) >= (page as u8, notices));
         let direction = if forward { 1. } else { -1. };
         let current = build(self, self.page, self.notices_open, cx);
+        if self.page == Page::Download && self.browser_ui.guide > 0 && self.browser_ui.guide_focus_pending {
+            self.browser_ui.guide_focus_pending = false;
+            let guide = self.browser_ui.guide;
+            if let Some(focus) = self.control_focus.borrow().get("browser-guide-back").cloned() {
+                let owner = cx.entity().downgrade();
+                window.on_next_frame(move |window, cx| {
+                    let _ = owner.update(cx, |this, cx| {
+                        if this.page == Page::Download && this.browser_ui.guide == guide { window.focus(&focus, cx); }
+                    });
+                });
+            }
+        }
         let mut content = div().relative().w_full().when(self.notices_open, |s| s.h_full());
         if let Some((old_page, notices)) = self.previous_page {
             self.passive.set(true);
@@ -2208,6 +2220,7 @@ impl Prototype {
                 view.notice = None;
                 view.browser_ui = browser_sessions_ui::BrowserUi::default();
                 view.browser_ui.guide = match scene.state.as_str() { "browser-connect" => 1, "browser-connect-demo" => 2, _ => 0 };
+                view.browser_ui.guide_focus_pending = view.browser_ui.guide > 0;
                 view.browser_ui.details = scene.state == "browser-session-long";
                 if view.browser_ui.guide == 2 { view.browser_ui.preview_path(); }
                 view.open_pending = scene.state == "folder-opening";
