@@ -89,7 +89,7 @@ button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1;
 .submit:not([data-status]) svg,.submit:not([data-status]) path { fill:currentColor; stroke:none; }
 .submit:not(:disabled):hover { opacity:.85; background:var(--text); }
 .submit[data-status=accepted] { background:var(--success); color:#fff; }
-.precision { width:64px; display:flex; justify-content:center; gap:4px; color:var(--muted); font-size:13px; line-height:20px; }
+.precision { width:64px; display:flex; justify-content:center; gap:4px; border-radius:999px; color:var(--muted); font-size:13px; line-height:20px; }
 .precision svg { width:16px; height:16px; stroke-width:1.5; }
 .precision-check { opacity:0; }
 .precision[aria-pressed=true] { color:var(--text); background:var(--control); }
