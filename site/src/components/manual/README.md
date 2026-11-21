@@ -12,8 +12,11 @@ on in-page example state: no credentials, Native connection or download submissi
 Theme selection follows Starlight. At narrow widths preserve control sizes; give
 readers a visible hint and keyboard access when a native layout needs local panning.
 
-Session UI assets are pinned to product 01c2fad5 / PR76; session-assets.json records
-the original file hashes and native capture scope. NativeSessionFigure displays
+The product code head is d5298347 / PR76; the capture and popup build head remains
+01c2fad5. The product author confirms the later focus-lifecycle repair and OpenSpec
+archive do not change popup, brands, Peek, visible layouts or animation drawing.
+session-assets.json records both identities, original hashes and capture scope.
+NativeSessionFigure displays
 unmodified Gallery screenshots and the uninterrupted 10-second native MP4. Its
 viewing controls only play media; pictured product controls do not execute actions.
 The English installation still uses the original English poster; playing the
@@ -25,3 +28,8 @@ popup.html adds CSP, the synthetic sample-contract responses and local resource
 paths; popup-fixture.js replaces only Chrome APIs and binds the parent theme using
 the original stylesheet palette. Never connect these examples to Native, accounts
 or a real permission request. The Peek bundle and its existing media are unchanged.
+
+The product asset erratum excludes true-entry Esc/Tab conclusions from the original
+captures. No keyboard-enter-reopens.png is referenced here, and no captured frame
+is claimed as proof of the later focus repair. The separate close → entry → Enter
+image pair remains valid within the product author's evidence scope.

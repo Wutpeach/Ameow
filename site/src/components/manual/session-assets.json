@@ -2,7 +2,7 @@
   "sourceSha256": "07012443c03404331e38659fdb434b45d2937e80b8009b0e54890efa2178bdc9",
   "popup": "Original HTML in sources/popup.html; CSS/JS/license/build retained in public vendor. Example HTML only adds offline adapter, CSP and local asset paths.",
   "nativeCapture": "Isolated synthetic Gallery; no accounts. Native MP4 is 10 seconds of continuous capture, not seek frames. Only outside-window edges cropped.",
-  "exeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
+  "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
   "productPr": "https://github.com/Wutpeach/Ameow/pull/76",
   "assets": [
     {
@@ -72,7 +72,10 @@
       "sha256": "decaa2cc34461d9dfe56090fad507a4a25ece11a148fcae8dc83e8264dcd5869"
     }
   ],
-  "productHead": "01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b",
+  "productCodeHead": "d52983473b887d72110fb5a5339618ec558bbbb3",
+  "captureHead": "01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b",
+  "popupBuildHead": "01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b",
+  "visualEquivalence": "Product author reports d5298347 changes guide entry/step focus lifecycle and OpenSpec archival only. Popup, brands, Peek, visible layout and animation drawing remain unchanged; original captures and hashes are retained. This is not keyboard evidence for the new code head.",
   "peek": "Unchanged against main1ee6e36f according to product handoff; existing page frontend and media retained.",
   "nativeCropBox": [
     8,
