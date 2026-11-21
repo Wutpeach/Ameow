@@ -1,0 +1,100 @@
+{
+  "library": "Simple Icons",
+  "commit": "32e030086fdc605196391aab28519b14dc4295b4",
+  "projectLicense": "CC0-1.0",
+  "icons": [
+    {
+      "sha256": "0b31005ccf765a9d37be2c42f1d36e44572ccadb088250626d9905ae5d4f3d21",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/bilibili.svg",
+      "title": "Bilibili",
+      "slug": "bilibili",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "Bilibili",
+        "hex": "00A1D6",
+        "source": "https://www.bilibili.com"
+      },
+      "individualLicense": null
+    },
+    {
+      "sha256": "5038808acbbc4e6edda16cbeb1cc6dec80e4e4ee4e227e039c41229fa222aa8c",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/youtube.svg",
+      "title": "YouTube",
+      "slug": "youtube",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "YouTube",
+        "hex": "FF0000",
+        "source": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors",
+        "guidelines": "https://www.youtube.com/howyoutubeworks/resources/brand-resources/#logos-icons-and-colors"
+      },
+      "individualLicense": null
+    },
+    {
+      "sha256": "49752973164fbbf4464fbb4776f011c1eff207e5d7ad9254e031af025814eb75",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/bluesky.svg",
+      "title": "Bluesky",
+      "slug": "bluesky",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "Bluesky",
+        "hex": "1185FE",
+        "source": "https://bsky.social/about/blog/press-faq",
+        "guidelines": "https://bsky.social/about/blog/press-faq",
+        "aliases": {
+          "aka": [
+            "bsky"
+          ]
+        }
+      },
+      "individualLicense": null
+    },
+    {
+      "sha256": "6f4ffffc940e8eb072b20c42f2aa87cf5de6cc0325ecec0bba0e936e7e31e218",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/imgur.svg",
+      "title": "Imgur",
+      "slug": "imgur",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "Imgur",
+        "hex": "1BB76E",
+        "source": "https://imgurinc.com/press",
+        "guidelines": "https://help.imgur.com/hc/en-us/articles/202062878-Trademark-Use-Policy"
+      },
+      "individualLicense": null
+    },
+    {
+      "sha256": "693e68863eceb8dc9f72e2acd386ab9c20a10858dab2c076212f7084cb7a32fe",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/x.svg",
+      "title": "X",
+      "slug": "x",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "X",
+        "hex": "000000",
+        "source": "https://x.com",
+        "guidelines": "https://about.x.com/en/who-we-are/brand-toolkit",
+        "aliases": {
+          "aka": [
+            "Twitter"
+          ]
+        }
+      },
+      "individualLicense": null
+    },
+    {
+      "sha256": "8769e0252009f9babc5f1de2ba6c0638411a2104e7f6f3af6b13cc8310cbd992",
+      "immutableSourceUrl": "https://github.com/simple-icons/simple-icons/blob/32e030086fdc605196391aab28519b14dc4295b4/icons/vimeo.svg",
+      "title": "Vimeo",
+      "slug": "vimeo",
+      "viewBox": "0 0 24 24",
+      "metadata": {
+        "title": "Vimeo",
+        "hex": "1AB7EA",
+        "source": "https://press.vimeo.com/brand-guidelines",
+        "guidelines": "https://press.vimeo.com/brand-guidelines"
+      },
+      "individualLicense": null
+    }
+  ]
+}

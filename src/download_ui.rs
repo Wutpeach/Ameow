@@ -31,6 +31,7 @@ pub enum UiReply {
     Cancel { job: u64, receipt: CancelReceipt },
     PreparationRetry(CommandReply),
     RuntimeUpdate(CommandReply),
+    BrowserBridge(Result<(), String>),
     Settings(CommandReply),
     Diagnostic { job: u64, text: String },
     StartupError(String),
@@ -126,6 +127,8 @@ pub struct DownloadUi {
     pub upstream: ameow_next::download::upstream::UpstreamChecker,
     pub engine_command_pending: bool,
     pub engine_notice: Option<bool>,
+    pub bridge_config_pending: bool,
+    pub bridge_config_result: Option<Result<(), String>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum SettingsStatus {
@@ -213,7 +216,10 @@ impl DownloadUi {
                     Ok(command) => {
                         if worker_launch.as_ref().is_some_and(|s| !s.commands_allowed())
                             && !matches!(&command, QueueCommand::Stop | QueueCommand::Cancel(_) | QueueCommand::RetryCleanup(_) | QueueCommand::CopyDiagnostic(_) | QueueCommand::CopyPreparationDiagnostic) {
-                            let _ = sender.send(UiReply::Reply(CommandReply::Error("E_APP_UPDATE_STARTING_OR_DRAINING".into())));
+                            let event = if matches!(&command, QueueCommand::InstallBrowserBridge) {
+                                UiReply::BrowserBridge(Err("E_APP_UPDATE_STARTING_OR_DRAINING".into()))
+                            } else { UiReply::Reply(CommandReply::Error("E_APP_UPDATE_STARTING_OR_DRAINING".into())) };
+                            let _ = sender.send(event);
                             continue;
                         }
                         append_evidence(&mut evidence, &started, command_summary(&command));
@@ -221,6 +227,7 @@ impl DownloadUi {
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
                         let retrying_preparation = matches!(&command, QueueCommand::RetryPreparation);
                         let updating_runtime = matches!(&command, QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended);
+                        let configuring_bridge = matches!(&command, QueueCommand::InstallBrowserBridge);
                         let retry_source = match &command { QueueCommand::Retry(id) => Some(*id), _ => None };
                         let row_command = match &command {
                             QueueCommand::Cancel(id) => Some((*id, false)),
@@ -240,6 +247,9 @@ impl DownloadUi {
                             reply if saving => UiReply::Settings(reply),
                             reply if retrying_preparation => UiReply::PreparationRetry(reply),
                             reply if updating_runtime => UiReply::RuntimeUpdate(reply),
+                            reply if configuring_bridge => UiReply::BrowserBridge(
+                                if matches!(reply, CommandReply::Applied(true)) { Ok(()) }
+                                else { Err(coordinator.snapshot().browser_sessions.notice.unwrap_or_else(|| "E_SESSION_REGISTRATION".into())) }),
                             reply if retry_source.is_some() => UiReply::Retry { source: retry_source.unwrap(), reply },
                             reply if row_command.is_some() => {
                                 let (job, cleanup) = row_command.unwrap();
@@ -447,6 +457,8 @@ impl DownloadUi {
             app_update: None,
             engine_command_pending: false,
             engine_notice: None,
+            bridge_config_pending: false,
+            bridge_config_result: None,
         }
     }
     pub(super) fn evidence(&self, value: serde_json::Value) {
@@ -460,8 +472,11 @@ impl DownloadUi {
             return false;
         }
         let cancel = match &command { QueueCommand::Cancel(job) => Some(*job), _ => None };
+        let configuring_bridge = matches!(&command, QueueCommand::InstallBrowserBridge);
+        if configuring_bridge && self.bridge_config_pending { return false; }
         match self.commands.try_send(command) {
             Ok(()) => {
+                if configuring_bridge { self.bridge_config_pending = true; self.bridge_config_result = None; }
                 if let Some(job) = cancel {
                     self.row_notices.remove(&job);
                     let attempt = self.snapshot.as_ref().and_then(|s| s.jobs.iter().find(|j| j.job_id == job)).map_or(0, |j| j.attempt);
@@ -503,6 +518,13 @@ impl DownloadUi {
         self.acknowledged_settings.clone().or_else(|| self.snapshot
             .as_ref()
             .map(|snapshot| snapshot.settings.clone()))
+    }
+    fn fail_startup(&mut self, error: String) {
+        if self.bridge_config_pending {
+            self.bridge_config_pending = false;
+            self.bridge_config_result = Some(Err(error.clone()));
+        }
+        self.startup_error = Some(error);
     }
     pub fn preparation_retry_available(&self) -> bool {
         !self.fixture && !self.preparation_retry_pending
@@ -1680,6 +1702,10 @@ impl Prototype {
                     ui.engine_command_pending = false;
                     ui.engine_notice = Some(matches!(reply, CommandReply::Applied(true)));
                 }
+                UiReply::BrowserBridge(result) => {
+                    ui.bridge_config_pending = false;
+                    ui.bridge_config_result = Some(result);
+                }
                 UiReply::Retry { source, reply } => {
                     ui.evidence(serde_json::json!({"type":"retry-reply","source":source,"accepted":matches!(reply, CommandReply::Accepted(_))}));
                     ui.complete_retry(source, &reply, now);
@@ -1698,7 +1724,7 @@ impl Prototype {
                     }.into(), !matches!(&reply, CommandReply::Applied(true))));
                 }
                 UiReply::StartupError(error) => {
-                    ui.startup_error = Some(error);
+                    ui.fail_startup(error);
                 }
                 UiReply::Settings(reply) => {
                     self.shortcut.complete(matches!(&reply, CommandReply::SettingsSaved(_)));
@@ -4300,6 +4326,26 @@ mod tests {
 mod shortcut_settings_tests {
     use super::{DownloadUi, Settings, Quality, ThemePreference, LanguagePreference, TrayIconPreference,
         QueueCommand, CommandReply, Arc, Mutex, mpsc, PathBuf};
+    #[test]
+    fn bridge_configuration_waits_for_its_own_reply_and_rejects_duplicates() {
+        let (commands, receiver) = mpsc::sync_channel(1);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, Arc::new(Mutex::new(None)));
+        ui.bridge_config_result = Some(Ok(())); // A previous configuration cannot finish this request.
+        assert!(ui.send(QueueCommand::InstallBrowserBridge, 1));
+        assert!(ui.bridge_config_pending);
+        assert!(ui.bridge_config_result.is_none());
+        assert!(!ui.send(QueueCommand::InstallBrowserBridge, 2));
+        assert!(matches!(receiver.try_recv().unwrap(), QueueCommand::InstallBrowserBridge));
+        assert!(receiver.try_recv().is_err());
+        ui.fail_startup("E_SESSION_STORAGE".into());
+        assert!(!ui.bridge_config_pending);
+        assert_eq!(ui.bridge_config_result, Some(Err("E_SESSION_STORAGE".into())));
+        drop(receiver);
+        assert!(!ui.send(QueueCommand::InstallBrowserBridge, 3));
+        assert!(!ui.bridge_config_pending);
+    }
     #[test]
     fn shortcut_settings_publish_only_after_ack_and_preserve_other_preferences() {
         let (commands, receiver) = mpsc::sync_channel(2);

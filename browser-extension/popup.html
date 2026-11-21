@@ -1,16 +1,14 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ameow</title><link rel="stylesheet" href="popup.css"></head>
 <body><main>
-  <h1>Ameow</h1>
-  <section id="page-tools" hidden>
-    <button id="toggle-tools" disabled>启用页面工具</button>
-    <p class="secondary">在播放器旁下载整段或选择片段。与下方 Cookie 授权分别控制。</p>
-    <p id="page-status" role="status" aria-live="polite"></p>
-  </section>
-  <h2 id="site">站点授权</h2>
-  <p id="scope">正在读取当前网页…</p>
-  <p id="source" class="secondary"></p>
-  <p id="status" role="status" aria-live="polite"></p>
-  <div class="actions"><button id="authorize" disabled>授权此站点</button><button id="sync" hidden>立即同步</button><button id="revoke" hidden>移除</button></div>
-  <p class="secondary">仅同步此浏览器已有会话。可下载内容与画质由网站和下载器决定。</p>
+  <header><h1><span class="cat" aria-hidden="true"></span>Ameow</h1><span id="connection" role="status"></span></header>
+  <div class="site-heading"><h2 id="site"></h2><span id="unauthorized" class="tag" hidden></span></div>
+  <p id="scope" class="secondary"></p>
+  <div id="source-line" class="source-line" hidden><span id="source"></span><span id="auto-sync"></span></div>
+  <div id="notice" class="notice" hidden><strong id="status" role="status" aria-live="polite"></strong><p id="status-detail"></p></div>
+  <p id="partitioned" class="secondary" hidden></p>
+  <p id="replace-copy" class="secondary" hidden></p>
+  <div class="actions"><button id="authorize" disabled></button><button id="sync" hidden></button><span class="spacer"></span><button id="revoke" class="quiet" hidden></button></div>
+  <details id="details" hidden><summary id="details-title"></summary><dl><dt id="browser-label"></dt><dd id="browser-value"></dd><dt id="installation-label"></dt><dd id="installation-value"></dd><dt id="snapshot-label"></dt><dd id="snapshot-value"></dd><dt id="result-label"></dt><dd id="result-value"></dd><dt>Cookie</dt><dd id="cookie-value"></dd><dt id="excluded-label" hidden></dt><dd id="excluded-value" hidden></dd></dl><p id="details-copy" class="secondary"></p></details>
+  <section id="page-tools" hidden><div><strong id="tools-title"></strong><p id="tools-copy" class="secondary"></p><p id="page-status" role="status" aria-live="polite"></p></div><button id="toggle-tools" class="toggle" aria-pressed="false" disabled></button></section>
 </main><script type="module" src="popup.js"></script></body></html>
