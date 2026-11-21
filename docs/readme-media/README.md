@@ -79,6 +79,11 @@ above and FFmpeg/FFprobe. The server binds only to `127.0.0.1`, on
 and checker when another worktree already owns 8871. Its controls switch language, GitHub light/dark and
 GIF/static poster views; they do not change the README. Stop it with Ctrl+C.
 
+For a self-contained HTML export, set `README_PREVIEW_FILE` to its absolute path
+and run `check.mjs` directly. No preview server is needed; file-mode checks also
+reject external resource requests. Media crops follow their actual headings,
+so introductory, setup and FAQ sections can change without mislabeling evidence.
+
 Checks decode every GIF frame with FFmpeg, preserve all three unaffected GIFs
 and their posters against the reviewed `1ee6e36f` Git baseline, and check
 README image/alt/local-link paths and six badge slots, then inspect both languages

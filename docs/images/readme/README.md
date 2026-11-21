@@ -11,7 +11,6 @@ Both READMEs share them, with localized copy and alternative text. They are
 | [Clip selection](clip-selection.gif) / [poster](clip-poster.png) | PR64's unchanged Peek UI runs in a local example player using Ameow's public homepage dancer clip. Marker at 1s, range to 4s; no download submission. |
 | [Session sync](session-sync.gif) / [poster](session-sync-poster.png) | Approved Popup v2 from PR76, rendered headlessly from the unchanged frozen product build. One synthetic, already-authorized bilibili.com page moves from Sync status unknown to Synced. Page tools stays on independently, with Diagnostics collapsed. The transport adapts the approved preview's safe responses; no permission dialog, Cookie, Native host or account is accessed. |
 
-Clips and session sync are development previews, absent from the 0.5.0 release.
 The session GIF starts **after site authorization** and shows an explicit sync;
 it does not depict browser permission confirmation or prove that a website will
 accept the cached session.
