@@ -33,6 +33,15 @@ Use separate build and output paths outside the source checkout. Full packaging 
 
 Keep application build identity separate from later documentation-only commits. After publication is authorized, publish the approved application tag/release and its matching assets before merging download-link changes; a site change on `main` deploys Pages. A draft pull request builds the site without deploying it. Check public asset availability after release; proposed URLs and successful builds do not establish availability.
 
+The browser extension has a maintained Popup workbench at http://127.0.0.1:4322/.
+Start it from the repository root after installing the extension dependencies:
+
+    npm --prefix browser-extension run preview
+
+It loads current Popup sources at actual dimensions with selectable synthetic
+states, themes and languages. See the [Popup preview guide](browser-extension/preview/README.md)
+for use and checks.
+
 The site requires Node >=22.19.0. Use `npm ci --prefix site`, `npm --prefix site run dev` or `npm --prefix site run build`; no root Node package is needed.
 
 Keep development discussions and delivery results in the relevant Issue/PR. Use a separate task directory or the ignored root `evidence/` directory for temporary validation output; `docs/` holds maintained engineering guides. Historical reports describe their original candidates and environments. Preserve unrelated working changes, user data and existing release assets.

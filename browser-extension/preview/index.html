@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ameow · Popup 预览</title><link rel="stylesheet" href="/lab.css"></head>
+<body>
+<header class="lab-header"><div><h1>Popup 预览</h1><p>当前源码 · 原始尺寸 · 可交互</p></div><button id="reload-source">重新载入最新源码</button></header>
+<main class="workspace">
+  <aside><h2>界面状态</h2><nav id="scenes" aria-label="界面状态"></nav><p class="scope-note">仅替换浏览器接口的响应。预览里的操作不读取账号，也不连接桌面程序。</p></aside>
+  <section class="preview-area" aria-label="Popup 预览区">
+    <div class="controls">
+      <label class="scene-select">界面状态<select id="scene"></select></label>
+      <label>主题<select id="theme"><option value="light">浅色</option><option value="dark">深色</option></select></label>
+      <label>语言<select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
+      <label>当前网页<select id="site"></select></label>
+      <label>页面工具<select id="tools"><option value="on">开启</option><option value="off">主动关闭</option><option value="missing">缺少访问权限</option></select></label>
+    </div>
+    <div class="preview-heading"><div><h2 id="scene-title">未授权</h2><p id="scene-description"></p></div><button id="reset">重置此场景</button></div>
+    <div class="view-options"><span>真实尺寸 · 100%</span><output id="dimensions" aria-live="polite">正在读取尺寸…</output></div>
+    <div class="stage" id="stage"><div class="popup-shell"><iframe id="popup" title="Ameow Popup · 当前源码" width="240" height="217" sandbox="allow-scripts allow-same-origin"></iframe></div></div>
+    <div class="preview-footer"><p id="current-state" role="status"></p><p>尺寸来自实际渲染，高度上限600px。浏览器缩放设为100%可按原尺寸查看。</p><p>直接读取当前Popup源码，使用合成场景，不读取真实账号。</p></div>
+    <p id="error" role="alert" hidden></p>
+  </section>
+</main>
+<footer class="source-footer"><span id="source">正在载入源码信息…</span><details><summary>源码与预览说明</summary><p>直接读取当前工作区的Popup HTML、CSS和脚本，通过现有esbuild构建并保留源码身份。主题使用产品CSS规则；上方控件属于预览面板。</p><p>“就绪”表示扩展连接可用，不表示桌面程序在线。复制诊断只写入预览内存。</p><pre id="source-details"></pre><p><a href="https://developer.chrome.com/docs/extensions/reference/api/action#popup" target="_blank" rel="noreferrer">Chromium Popup 尺寸规则</a></p></details></footer>
+<script type="module" src="/lab.js"></script>
+</body></html>
