@@ -368,7 +368,7 @@
       "name": "页面视频胶囊与 Peek",
       "kind": "toolbar",
       "refersTo": "page-video-toolbar / page-video-controls",
-      "description": "28px高剪刀/猫图文胶囊，展开146px且内容固定布局。Peek为预览→64px全宽轨道→32px图标栏，8px 10px边距，系统UI字。右侧只有Ameow纯色图标+下载胶囊，高32px、图标16px、间距6px、横向内边距12px；等待/受理与禁用态继续辨识。右下不设关闭按钮，点浮窗外或Esc回到原播放器，保留胶囊、草稿和页面工具偏好。单Marker空时添加/有标记时清空，左右边缘直接拉入/出端，不设独立清理按钮；时间按需编辑。单点完整Marker、有效双端相向端帽；Peek展示禁选而编辑保持原生。现值见browser-extension/src/page-ui.css，正式行为见page-video-tools。"
+      "description": "28px高剪刀/猫图文胶囊，展开146px且内容固定布局。Peek为预览→64px全宽轨道→32px图标栏，8px 10px边距，系统UI字。右侧保留Ameow纯色图标+下载胶囊，高32px、图标16px、间距6px、横向内边距12px；左邻为固定64×32px、6px圆角的精确勾选按钮，默认关闭/中性透明底，开启实心勾选与轻微底色。hover/focus说明关键帧偏差及重新编码更慢，Tab/Space可用。同作品关开和清标记保留，换视频/分P重置；提交等待禁用、拒绝保留。等待/受理与禁用态继续辨识。右下不设关闭按钮，点浮窗外或Esc回到原播放器，保留胶囊、草稿和页面工具偏好。单Marker空时添加/有标记时清空，左右边缘直接拉入/出端，不设独立清理按钮；时间按需编辑。单点完整Marker、有效双端相向端帽；Peek展示禁选而编辑保持原生。现值见browser-extension/src/page-ui.css，正式行为见page-video-tools。"
     },
     {
       "name": "标准操作",

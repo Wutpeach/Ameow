@@ -1,4 +1,4 @@
-"""Owned synthetic non-keyframe clips through the real queue, yt-dlp, FFmpeg and verifier."""
+"""Owned precise non-keyframe clips through the real queue, yt-dlp, FFmpeg and verifier."""
 import argparse
 import hashlib
 import http.client
@@ -11,6 +11,7 @@ import ssl
 import struct
 import subprocess
 import threading
+import time
 from urllib.parse import urlsplit
 
 p = argparse.ArgumentParser()
@@ -21,6 +22,7 @@ p.add_argument('--runtime-root', type=Path, help='fixed task-owned runtime cache
 p.add_argument('--host', type=Path, help='candidate native helper for synthetic attempt-Jar verification')
 p.add_argument('--cases', nargs='+', choices=['hls', 'dash', 'http', 'hls-auth', 'auth-range'], default=['hls', 'dash', 'http'])
 p.add_argument('--https-auth', action='store_true', help='owned self-signed CONNECT fixture; no system trust changes')
+p.add_argument('--chunk-delay-ms', type=int, default=0, help='bounded fixture throttling for real progress observation')
 p.add_argument('--openssl', type=Path, default=Path('C:/Program Files/Git/usr/bin/openssl.exe'))
 args = p.parse_args()
 root = args.root.resolve(); root.mkdir(parents=True, exist_ok=False)
@@ -98,10 +100,14 @@ class Handler(BaseHTTPRequestHandler):
         else: self.send_response(200)
         content_type = 'text/html' if current in ['hls-auth', 'auth-range'] and url.path == '/ameow-issue33-1.mp4' else 'application/vnd.apple.mpegurl' if name.endswith('.m3u8') else 'application/dash+xml' if name.endswith('.mpd') else 'video/mp4' if name.endswith(('.mp4', '.m4s')) else 'video/mp2t'
         self.send_header('Content-Type', content_type); self.send_header('Content-Length', str(len(data))); self.send_header('Accept-Ranges', 'bytes'); self.end_headers()
-        requests.append(dict(case=current, path=url.path, method=self.command, range=range_header, bytes=len(data) if body else 0, synthetic_auth='AMEOW_CLIP_TEST_ONLY' in self.headers.get('Cookie', '')))
+        event=dict(case=current, path=url.path, method=self.command, range=range_header, bytes=0, synthetic_auth='AMEOW_CLIP_TEST_ONLY' in self.headers.get('Cookie', ''))
+        requests.append(event)
         if body:
-            try: self.wfile.write(data)
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError): pass
+            try:
+                for offset in range(0,len(data),4096):
+                    chunk=data[offset:offset+4096]; self.wfile.write(chunk); self.wfile.flush(); event['bytes']+=len(chunk)
+                    if args.chunk_delay_ms: time.sleep(args.chunk_delay_ms/1000)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, ssl.SSLEOFError): pass
 server = ThreadingHTTPServer(('127.0.0.1', 0), Handler); server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True).start()
 results = []
@@ -127,7 +133,8 @@ try:
         current = name
         out = root / 'desktop' / ('output-' + name); out.mkdir(parents=True)
         command = [args.driver.resolve(), '--runtime-root', runtime, '--output', out, '--quality', 'saver',
-                   '--url', f'{"https" if args.https_auth else "http"}://example.com/ameow-issue33-{number}.mp4', '--start-ms', '1250', '--end-ms', '4750',
+                   '--url', f'{"https" if args.https_auth else "http"}://example.com/ameow-issue33-{number}.mp4', '--start-ms', '1250', '--end-ms', '4750', '--precise',
+                   '--progress-timeline', root / (name + '-progress.jsonl'),
                    '--app-update-fixture-dir', root, '--app-update-fixture-media-port', str(server.server_port)]
         if args.https_auth: command.append('--app-update-fixture-media-tls')
         result = subprocess.run([str(s) for s in command], capture_output=True, creationflags=flags, timeout=180)
@@ -144,6 +151,7 @@ try:
             (root / 'synthetic-engine-probe-redacted.log').write_bytes(diagnostic.stderr.replace(b'AMEOW_CLIP_TEST_ONLY', b'[FIXTURE]'))
             jar.unlink()
         assert result.returncode == 0 and final['stopped'] and job['phase'] == 'Success', (name, job.get('message'), job.get('failure'))
+        assert job['accepted']['intent']['clip']['precise'] is True
         assert job['resources_released'] and not job['slot_owned']
         delivered = Path(job['delivered']['path'])
         assert hashlib.sha256(delivered.read_bytes()).hexdigest() == job['delivered']['sha256'].lower()

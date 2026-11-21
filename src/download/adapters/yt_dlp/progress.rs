@@ -472,7 +472,7 @@ mod tests {
     use serde_json::json;
     fn clip_feed() -> ProgressFeed {
         let metadata = json!({"format_id":"v","protocol":"https","vcodec":"h264","acodec":"aac"});
-        ProgressFeed::selected(&metadata).with_clip(Some(crate::download::request::ClipRange { start_ms: 2000, end_ms: 10000 }))
+        ProgressFeed::selected(&metadata).with_clip(Some(crate::download::request::ClipRange { start_ms: 2000, end_ms: 10000, precise: false }))
     }
     fn clip_record(time: &str, speed: &str, status: &str) -> String {
         format!("frame=25\nfps=17.8\nstream_0_0_q=-1.0\nbitrate=2600kbits/s\ntotal_size=2621488\nout_time_us={time}\nout_time_ms={time}\nout_time=00:00:02.000000\ndup_frames=0\ndrop_frames=0\nspeed={speed}\nprogress={status}\n")
@@ -511,7 +511,7 @@ mod tests {
         assert_eq!((unknown.fraction, unknown.media_speed), (Some(0.25), None));
         assert!(clip_feed().push(true, 1, &record, 0).is_none());
         assert!(feed(false).push(false, 1, &record, 0).is_none());
-        assert!(ProgressFeed::selected(&Value::Null).with_clip(Some(crate::download::request::ClipRange { start_ms: 0, end_ms: 8000 })).push(false, 1, &record, 0).is_none());
+        assert!(ProgressFeed::selected(&Value::Null).with_clip(Some(crate::download::request::ClipRange { start_ms: 0, end_ms: 8000, precise: false })).push(false, 1, &record, 0).is_none());
     }
     #[test]
     fn native_float_estimates_keep_live_fragment_progress_but_reject_invalid_byte_counts() {

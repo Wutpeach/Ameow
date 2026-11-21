@@ -141,9 +141,12 @@ impl DownloaderAdapter for YtDlpAdapter {
             let mut args = engine_args(context, &route, accepted.intent.quality)?;
             generic_args(&mut args, accepted, false);
             if let Some(range) = accepted.intent.clip {
-                // Native sections seek remote input and copy streams near keyframes.
+                // Precision is opt-in; the ordinary section path keeps native stream copy.
                 args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into(),
-                    "--downloader-args".into(), "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats".into()]);
+                    "--downloader-args".into(), if range.precise {
+                        "ffmpeg_o:-c:v libx264 -preset fast -crf 18 -c:a aac -b:a 192k -f matroska -progress pipe:1 -stats_period 0.2 -nostats"
+                    } else { "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats" }.into()]);
+                if range.precise { args.push("--force-keyframes-at-cuts".into()); }
             }
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
             append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
@@ -236,8 +239,9 @@ impl DownloaderAdapter for YtDlpAdapter {
                 return Err("E_IDENTITY: transfer differs from admitted object".into());
             }
             let before = read_selection(&working.join(SELECTION_FILE)).ok();
-            let video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
+            let mut video = transfer_expectation(&actual, before.as_ref(), accepted.intent.quality)?;
             let verification = if let Some(range) = accepted.intent.clip {
+                if range.precise { video.codec = Some(crate::download::contract::VideoCodec::H264); }
                 check_clip_source(&actual, range)?;
                 check_clip_record(&actual, range)?;
                 let source_duration = clip_source_duration(&actual);

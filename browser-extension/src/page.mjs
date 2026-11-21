@@ -17,6 +17,7 @@ const icons = {
   play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
+  precision: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3"/><path class="precision-check" d="m5 8 2 2 4-4"/></svg>',
 };
 const errors = {
   E_CLIP_UNSUPPORTED: "浏览器连接或桌面版本不支持此功能，请更新同一候选后重试。",
@@ -55,7 +56,7 @@ function mediaForPage(boundVideo) {
 }
 class PageVideoTools {
   constructor() {
-    this.binding = null; this.draft = { start_ms: null, end_ms: null }; this.pending = false; this.stopped = false;
+    this.binding = null; this.draft = { start_ms: null, end_ms: null }; this.precise = false; this.pending = false; this.stopped = false;
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
     this.onVisibility = () => { if (!document.hidden) void this.refresh(); };
     document.addEventListener("visibilitychange", this.onVisibility);
@@ -80,7 +81,7 @@ class PageVideoTools {
       if (this.binding?.key !== target.key || this.video !== media.video || this.player !== media.player) {
         const changed = this.binding?.key !== target.key;
         this.unbind();
-        if (changed) this.draft = { start_ms: null, end_ms: null };
+        if (changed) { this.draft = { start_ms: null, end_ms: null }; this.precise = false; }
         this.binding = target; this.video = media.video; this.player = media.player; this.mount();
       } else this.binding = target;
     } catch (error) {
@@ -136,6 +137,7 @@ class PageVideoTools {
     const bound = this.binding; this.pending = true; this.wake();
     this.toolbar.dataset.status = "pending"; this.download.disabled = true;
     if (this.submitButton) { this.submitButton.disabled = true; this.setSubmitStatus("pending"); }
+    if (this.precisionButton) this.precisionButton.disabled = true;
     this.status("");
     try {
       await request("page-submit", { key: bound.key, url: bound.url, clip: range, request_id: crypto.randomUUID() });
@@ -203,8 +205,13 @@ class PageVideoTools {
       if (!editor.hidden) this.inputs[0].focus({ preventScroll: true }); else edit.focus({ preventScroll: true });
     };
     tool(tools, "view", "聚焦选区", icons.focus, "icon view-toggle");
+    this.precisionButton = iconButton(actions, "precise", "精确切分", icons.precision + '<span>精确</span>', "icon precision");
+    this.precisionButton.onclick = () => {
+      if (this.pending) return;
+      this.precise = !this.precise; this.updateFields(); this.status("");
+    };
     this.submitButton = tool(actions, "submit", "下载片段", icons.download + '<span aria-hidden="true">下载</span>', "icon submit");
-    this.submitButton.onclick = () => void this.submit({ ...this.draft });
+    this.submitButton.onclick = () => void this.submit({ ...this.draft, ...(this.precise ? { precise: true } : {}) });
     this.seek = this.controls.querySelector('.track input'); this.seek.max = this.video.duration;
     this.seek.oninput = () => { this.video.currentTime = Number(this.seek.value); this.updatePlayback(); };
     this.inputs = [this.controls.querySelector("#clip-in"), this.controls.querySelector("#clip-out")];
@@ -502,6 +509,12 @@ class PageVideoTools {
     let valid = false;
     try { clipRange(this.draft, this.video.duration); valid = true; } catch { /* Incomplete drafts are normal. */ }
     this.submitButton.disabled = !valid || this.pending || this.submitButton.dataset.status === "accepted";
+    this.precisionButton.disabled = this.pending;
+    this.precisionButton.setAttribute("aria-pressed", String(this.precise));
+    this.precisionButton.dataset.tip = this.precise
+      ? "精确切分，按所选时间处理，可能需要重新编码，耗时更长。"
+      : "快速切分，边界可能偏移到附近关键帧。";
+    this.precisionButton.setAttribute("aria-description", this.precisionButton.dataset.tip);
     const marked = this.draft.start_ms !== null || this.draft.end_ms !== null;
     this.markerButton.setAttribute("aria-pressed", String(marked));
     this.markerButton.setAttribute("aria-label", marked ? "清除标记" : "添加标记");

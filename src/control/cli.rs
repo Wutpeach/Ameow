@@ -260,7 +260,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
             Action::Request(Command::Inspect { url: one()?, quality: quality.unwrap_or(Quality::Highest) })
         }
         "submit" => Action::Request(Command::Submit {
-            clip: start_ms.zip(end_ms).map(|(start_ms, end_ms)| crate::download::request::ClipRange { start_ms, end_ms }.validate().map_err(invalid)).transpose()?,
+            clip: start_ms.zip(end_ms).map(|(start_ms, end_ms)| crate::download::request::ClipRange { start_ms, end_ms, precise: false }.validate().map_err(invalid)).transpose()?,
             url: one()?,
             quality,
             output_dir,
@@ -439,7 +439,7 @@ fn owner_summary(greeting: &Response) -> serde_json::Value {
     serde_json::json!({"instance_id":greeting.instance_id,"protocol_version":greeting.protocol_version,
         "pid":result["pid"].as_u64(),"app_version":result["app_version"].as_str(),"build_hash":"unknown",
         "startup_pending":result["startup_pending"].as_bool(),"commands_allowed":result["commands_allowed"].as_bool(),
-        "capabilities":{"clip_v1":result["clip_v1"].as_bool(),"inspection_v1":result["inspection_v1"].as_bool(),"browser_sessions_v1":result["browser_sessions_v1"].as_bool()}})
+        "capabilities":{"clip_v1":result["clip_v1"].as_bool(),"precise_clip_v1":result["precise_clip_v1"].as_bool(),"inspection_v1":result["inspection_v1"].as_bool(),"browser_sessions_v1":result["browser_sessions_v1"].as_bool()}})
 }
 
 fn response_ok(response: Response) -> Result<Response, ControlError> {
@@ -664,9 +664,8 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
         inspection_ready(greeting.result.as_ref().ok_or_else(|| ControlError::new("E_PROTOCOL", "hello omitted result"))?)?;
     }
     if matches!(&options.action, Action::Request(Command::Submit { .. })) {
-        if matches!(&options.action, Action::Request(Command::Submit { clip: Some(_), .. }))
-            && greeting.result.as_ref().and_then(|v| v["clip_v1"].as_bool()) != Some(true) {
-            return Err(ControlError::new("E_CLIP_UNSUPPORTED", "Desktop owner does not support clip intervals; request was not sent").into());
+        if let Action::Request(Command::Submit { clip: Some(range), .. }) = &options.action {
+            clip_ready(greeting.result.as_ref().ok_or_else(|| ControlError::new("E_PROTOCOL", "hello omitted result"))?, *range)?;
         }
         let started = Instant::now();
         loop {
@@ -802,6 +801,25 @@ fn print_error(json: bool, failure: CliError) -> i32 {
     status
 }
 
+fn clip_ready(hello: &serde_json::Value, range: crate::download::request::ClipRange) -> Result<(), ControlError> {
+    if hello["clip_v1"] != true {
+        return Err(ControlError::new("E_CLIP_UNSUPPORTED", "Desktop owner does not support clip intervals; request was not sent"));
+    }
+    if range.precise && hello["precise_clip_v1"] != true {
+        return Err(ControlError::new("E_CLIP_UNSUPPORTED", "Desktop owner does not support precise clips; request was not sent"));
+    }
+    Ok(())
+}
+#[test]
+fn precise_clip_requires_explicit_owner_capability_before_submit() {
+    let fast = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750, precise: false };
+    let precise = crate::download::request::ClipRange { precise: true, ..fast };
+    assert!(clip_ready(&serde_json::json!({"clip_v1":true}), fast).is_ok());
+    for hello in [serde_json::json!({}), serde_json::json!({"clip_v1":true}), serde_json::json!({"clip_v1":true,"precise_clip_v1":false})] {
+        assert_eq!(clip_ready(&hello, precise).unwrap_err().code, "E_CLIP_UNSUPPORTED");
+    }
+    assert!(clip_ready(&serde_json::json!({"clip_v1":true,"precise_clip_v1":true}), precise).is_ok());
+}
 /// The browser bridge shares CLI startup, handshake and acceptance.
 pub(crate) fn browser_submit(instance_root: Option<PathBuf>, url: String, clip: Option<crate::download::request::ClipRange>, request_id: String) -> Result<serde_json::Value, String> {
     if let Some(range) = clip { range.validate()?; }

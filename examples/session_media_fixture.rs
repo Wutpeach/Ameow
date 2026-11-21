@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
         coordinator.save_settings(settings)?;
         let clip = match (value("--start-ms"), value("--end-ms")) {
-            (Some(start), Some(end)) => Some(ameow_next::download::request::ClipRange { start_ms: start.parse()?, end_ms: end.parse()? }.validate()?),
+            (Some(start), Some(end)) => Some(ameow_next::download::request::ClipRange { start_ms: start.parse()?, end_ms: end.parse()?, precise: args.iter().any(|a| a == "--precise") }.validate()?),
             (None, None) => None,
             _ => return Err("both --start-ms and --end-ms are required".into()),
         };

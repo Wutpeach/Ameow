@@ -76,6 +76,7 @@ export class PageTools {
     if (!/^[a-f0-9-]{36}$/.test(message.request_id || "")) throw Error("E_INVALID_REQUEST");
     const ping = await this.api.runtime.sendNativeMessage(HOST, { version: 1, request_id: crypto.randomUUID(), operation: { operation: "ping" } });
     if (!ping?.ok || !ping.bridge?.capabilities?.includes("page_submit_v1") || clip && !ping.bridge.capabilities.includes("clip_v1")) throw Error("E_CLIP_UNSUPPORTED");
+    if (clip?.precise && !ping.bridge.capabilities.includes("precise_clip_v1")) throw Error("E_CLIP_UNSUPPORTED");
     const reply = await this.api.runtime.sendNativeMessage(HOST, { version: 1, request_id: message.request_id, operation: { operation: "submit", url: target.url, clip } });
     if (reply?.version !== 1 || reply.request_id !== message.request_id || !reply.ok || typeof reply.accepted?.task_id !== "string") throw Error(reply?.error || "E_BRIDGE");
     return reply.accepted;

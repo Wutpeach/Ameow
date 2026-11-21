@@ -26,6 +26,26 @@ test('an older native bridge refuses clip submission before any submit operation
   assert.deepEqual(calls, ['ping']);
 });
 
+test('precision is typed, preserved through native submission, and never downgraded for older hosts', async () => {
+  const range={start_ms:1250,end_ms:4750};
+  assert.deepEqual(clipRange({...range,precise:true},10),{...range,precise:true});
+  assert.deepEqual(clipRange({...range,precise:false},10),range);
+  for(const precise of [null,1,'true']) assert.throws(()=>clipRange({...range,precise},10));
+  const target={key:'youtube:jNQXAC9IVRw',url:'https://www.youtube.com/watch?v=jNQXAC9IVRw',duration:10};
+  for(const supported of [false,true]) {
+    const calls=[];
+    const pages=new PageTools({runtime:{sendNativeMessage:async (_host,message)=>{
+      calls.push(message);
+      return message.operation.operation==='ping' ? {ok:true,bridge:{capabilities:['page_submit_v1','clip_v1',...(supported?['precise_clip_v1']:[])]}}
+        : {version:1,ok:true,request_id:message.request_id,accepted:{task_id:'fixture:1'}};
+    }}});
+    pages.binding=async()=>target;
+    const action=()=>pages.submit({...target,clip:{...range,precise:true},request_id:'00000000-0000-0000-0000-000000000000'},{});
+    if(supported) { await action(); assert.deepEqual(calls[1].operation.clip,{...range,precise:true}); }
+    else { await assert.rejects(action(),/E_CLIP_UNSUPPORTED/); assert.equal(calls.length,1); }
+  }
+});
+
 test('cookie revocation survives a bridge outage without collecting or disabling page tools', async () => {
   const saved = { source_id: 'owned-fixture', grants: { 'youtube.com': { grant_id: 'owned-grant', sequence: 0 } }, page_tools: { 'www.youtube.com': true } };
   const removed = [], calls = [];

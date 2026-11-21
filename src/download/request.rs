@@ -27,12 +27,14 @@ pub struct DownloadIntent {
     pub quality: Quality,
     pub output_dir: PathBuf,
 }
-/// A frozen source-time interval. Version 1 uses native fast sections, without re-encoding.
+/// A frozen source-time interval; fast stream copy unless precision is explicitly selected.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ClipRange {
     pub start_ms: u64,
     pub end_ms: u64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub precise: bool,
 }
 impl ClipRange {
     pub fn validate(self) -> Result<Self, String> {
@@ -246,14 +248,27 @@ mod generic_tests {
     use super::*;
     #[test]
     fn clip_milliseconds_are_validated_without_changing_source_identity() {
-        for (start_ms, end_ms) in [(0, 0), (5, 4), (0, u64::MAX)] { assert!(ClipRange { start_ms, end_ms }.validate().is_err()); }
-        let clip = ClipRange { start_ms: 1250, end_ms: 4750 }.validate().unwrap();
+        for (start_ms, end_ms) in [(0, 0), (5, 4), (0, u64::MAX)] { assert!(ClipRange { start_ms, end_ms, precise: false }.validate().is_err()); }
+        let clip = ClipRange { start_ms: 1250, end_ms: 4750, precise: false }.validate().unwrap();
         assert_eq!(clip.section(), "*1.250-4.750");
         let original = accept("https://youtu.be/jNQXAC9IVRw").unwrap();
         let mut intent = original.intent.clone(); intent.clip = Some(clip);
         let selected = Accepted::new(intent).unwrap();
         assert_eq!(selected.object, original.object);
         assert!(serde_json::from_value::<ClipRange>(serde_json::json!({"start_ms":0,"end_ms":1,"mode":"copy"})).is_err());
+    }
+    #[test]
+    fn precise_clip_is_explicit_and_legacy_intervals_keep_fast_semantics() {
+        let legacy = serde_json::json!({"start_ms":1250,"end_ms":4750});
+        let range: ClipRange = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(!range.precise);
+        assert_eq!(serde_json::to_value(range).unwrap(), legacy);
+        let exact: ClipRange = serde_json::from_value(serde_json::json!({"start_ms":1250,"end_ms":4750,"precise":true})).unwrap();
+        assert!(exact.precise);
+        assert_ne!(exact, range);
+        for invalid in [serde_json::json!(null), serde_json::json!("true"), serde_json::json!(1)] {
+            assert!(serde_json::from_value::<ClipRange>(serde_json::json!({"start_ms":0,"end_ms":1,"precise":invalid})).is_err());
+        }
     }
     fn accept(url: &str) -> Result<Accepted, String> {
         Accepted::new(DownloadIntent { clip: None, url: url.into(), quality: Quality::Balanced, output_dir: std::env::temp_dir() })

@@ -89,6 +89,13 @@ button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1;
 .submit:not([data-status]) svg,.submit:not([data-status]) path { fill:currentColor; stroke:none; }
 .submit:not(:disabled):hover { opacity:.85; background:var(--text); }
 .submit[data-status=accepted] { background:var(--success); color:#fff; }
+.precision { width:64px; display:flex; justify-content:center; gap:4px; color:var(--muted); font-size:13px; line-height:20px; }
+.precision svg { width:16px; height:16px; stroke-width:1.5; }
+.precision-check { opacity:0; }
+.precision[aria-pressed=true] { color:var(--text); background:var(--control); }
+.precision[aria-pressed=true] rect { fill:var(--text); }
+.precision[aria-pressed=true] .precision-check { opacity:1; stroke:var(--surface); }
+.precision[data-tip]::after { width:220px; max-width:calc(100vw - 32px); white-space:normal; text-align:left; left:auto; right:0; transform:none; }
 .time-editor { display:flex; gap:10px; margin-top:8px; }
 .field { display:flex; align-items:center; gap:6px; min-width:0; flex:1; height:32px; background:var(--control); border-radius:6px; color:var(--muted); padding-left:8px; font-size:11px; }
 .field input { width:100%; height:32px; min-width:0; background:transparent; color:var(--text); border:1px solid transparent; border-radius:5px; padding:4px 6px 4px 0; font-size:12px; line-height:20px; font-variant-numeric:tabular-nums; caret-color:var(--focus); }

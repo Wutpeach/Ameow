@@ -1132,13 +1132,13 @@ mod tests {
         let root = tempfile::tempdir().map_err(|e| e.to_string())?;
         let backend = fake_backend(root.path());
         let url = "https://youtu.be/jNQXAC9IVRw".to_string();
-        let first = ClipRange { start_ms: 1250, end_ms: 4750 };
-        let second = ClipRange { start_ms: 2250, end_ms: 5750 };
+        let first = ClipRange { start_ms: 1250, end_ms: 4750, precise: false };
+        let second = ClipRange { precise: true, ..first };
         backend.submit(url.clone())?;
-        let clip = backend.submit_clip(url.clone(), None, None, Some(first))?;
-        backend.submit_clip(url.clone(), None, None, Some(second))?;
+        backend.submit_clip(url.clone(), None, None, Some(first))?;
+        let clip = backend.submit_clip(url.clone(), None, None, Some(second))?;
         assert!(backend.submit_clip(url.clone(), None, None, Some(first)).unwrap_err().starts_with("E_DUPLICATE"));
-        assert!(backend.submit_clip(url, None, None, Some(ClipRange { start_ms: 5, end_ms: 5 })).is_err());
+        assert!(backend.submit_clip(url, None, None, Some(ClipRange { start_ms: 5, end_ms: 5, precise: false })).is_err());
         {
             let mut model = lock(&backend.shared.model);
             let record = model.records.get_mut(&clip).unwrap();
@@ -1149,7 +1149,7 @@ mod tests {
         }
         let retried = backend.retry(clip)?;
         let view = backend.snapshot();
-        assert_eq!(view.jobs.iter().find(|j| j.job_id == retried).unwrap().accepted.intent.clip, Some(first));
+        assert_eq!(view.jobs.iter().find(|j| j.job_id == retried).unwrap().accepted.intent.clip, Some(second));
         assert_eq!(view.jobs.iter().find(|j| j.job_id == clip).unwrap().phase, JobPhase::Failure);
         Ok(())
     }

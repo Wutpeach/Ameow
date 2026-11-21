@@ -729,7 +729,7 @@ impl Server {
         };
         match command {
             Command::Hello {} => Ok(
-                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true,"inspection_v1":cfg!(all(feature="dev-tools", debug_assertions)),"browser_sessions_v1":true}),
+                json!({"pid":std::process::id(),"app_version":crate::app_update::BUILD_VERSION,"commands_allowed":allowed,"startup_pending":false,"clip_v1":true,"precise_clip_v1":true,"inspection_v1":cfg!(all(feature="dev-tools", debug_assertions)),"browser_sessions_v1":true}),
             ),
             Command::List {} | Command::ListPage { .. } => {
                 let after = match command {

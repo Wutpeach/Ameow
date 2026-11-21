@@ -6,11 +6,12 @@ export function pageHost(value) {
   try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password && Object.hasOwn(PAGE_ORIGINS, u.hostname) ? u.hostname : null; } catch { return null; }
 }
 export function clipRange(value, duration) {
-  if (!value || Object.keys(value).some(k => !["start_ms", "end_ms"].includes(k))
+  if (!value || Object.keys(value).some(k => !["start_ms", "end_ms", "precise"].includes(k))
+    || Object.hasOwn(value, "precise") && typeof value.precise !== "boolean"
     || !Number.isSafeInteger(value.start_ms) || !Number.isSafeInteger(value.end_ms)
     || value.start_ms < 0 || value.end_ms <= value.start_ms
     || Number.isFinite(duration) && value.end_ms > Math.round(duration * 1000)) throw Error("E_CLIP_RANGE");
-  return { start_ms: value.start_ms, end_ms: value.end_ms };
+  return { start_ms: value.start_ms, end_ms: value.end_ms, ...(value.precise ? { precise: true } : {}) };
 }
 export function parseTime(value) {
   if (!/^\d+(?::\d{1,2}){0,2}(?:\.\d{1,3})?$/.test(value.trim())) return null;

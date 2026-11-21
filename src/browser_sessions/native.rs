@@ -73,7 +73,7 @@ pub fn serve_with_instance(input: &mut impl Read, output: &mut impl Write, root:
                                 .ok()
                                 .and_then(|p| fs::File::open(p).ok())
                                 .and_then(|f| crate::download::runtime::hash(f).ok());
-                            response["bridge"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sha256":sha256,"capabilities":["ping","report_failure","page_submit_v1","clip_v1"]});
+                            response["bridge"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sha256":sha256,"capabilities":["ping","report_failure","page_submit_v1","clip_v1","precise_clip_v1"]});
                         }
                         response
                     }

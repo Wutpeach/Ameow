@@ -34,15 +34,28 @@ pub fn verify_clip(
     let info: Value = serde_json::from_slice(&fs::read(workspace.join("ffprobe.json")).map_err(|e| e.to_string())?)
         .map_err(|_| "E_MEDIA_UNVERIFIED: clip probe unavailable")?;
     let duration = positive(&info["format"]["duration"]).ok_or("E_MEDIA_UNVERIFIED: clip duration missing")?;
-    validate_clip_duration(duration, range, source_duration)?;
+    let frame_seconds = info["streams"].as_array().and_then(|streams| streams.iter().find(|s| s["codec_type"] == "video"))
+        .and_then(|stream| stream["avg_frame_rate"].as_str()).and_then(|rate| rate.split_once('/'))
+        .and_then(|(num, den)| Some(den.parse::<f64>().ok()? / num.parse::<f64>().ok()?))
+        .filter(|frame| frame.is_finite() && *frame > 0.);
+    let tolerance = if range.precise {
+        Some(frame_seconds.ok_or("E_MEDIA_UNVERIFIED: precise clip frame timing unavailable")? + 0.05)
+    } else { None };
+    validate_clip_duration(duration, range, source_duration, tolerance)?;
     let decoded = decoded_duration(path, workspace, lease, control, observer, true)?;
-    validate_clip_duration(decoded, range, source_duration)?;
+    validate_clip_duration(decoded, range, source_duration, tolerance)?;
     Ok(media)
 }
-fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRange, source_duration: Option<f64>) -> Result<(), String> {
+fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRange, source_duration: Option<f64>, precise_tolerance: Option<f64>) -> Result<(), String> {
     // Fast stream copy may include a preceding GOP. Bound the supported slack;
     // never turn a short selection into a whole-source success.
     let requested = range.duration_seconds();
+    if range.precise {
+        let tolerance = precise_tolerance.ok_or("E_MEDIA_UNVERIFIED: precise clip timing unavailable")?;
+        return if duration.is_finite() && duration > 0. && (duration - requested).abs() <= tolerance
+            && !source_duration.is_some_and(|source| requested < source - 1. && duration >= source - 0.25) { Ok(()) }
+            else { Err("E_MEDIA_INVALID: precise clip differs from the selected duration".into()) };
+    }
     if !duration.is_finite()
         || duration < (requested - 0.25).max(0.001) || duration > requested + 10.
         || source_duration.is_some_and(|source| requested < source - 1. && duration >= source - 0.25) {
@@ -55,12 +68,15 @@ mod clip_tests {
     use super::*;
     #[test]
     fn fast_clip_allows_gop_slack_but_rejects_whole_or_truncated_output() {
-        let range = crate::download::request::ClipRange { start_ms: 301250, end_ms: 309750 };
-        for duration in [8.5, 9.75, 12.] { assert!(validate_clip_duration(duration, range, Some(600.)).is_ok()); }
-        for duration in [0., 3., 19., 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.)).is_err()); }
-        assert!(validate_clip_duration(600., range, None).is_err());
-        let short = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750 };
-        assert!(validate_clip_duration(8., short, Some(8.)).is_err());
+        let range = crate::download::request::ClipRange { start_ms: 301250, end_ms: 309750, precise: false };
+        for duration in [8.5, 9.75, 12.] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_ok()); }
+        for duration in [0., 3., 19., 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.), None).is_err()); }
+        assert!(validate_clip_duration(600., range, None, None).is_err());
+        let short = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750, precise: false };
+        assert!(validate_clip_duration(8., short, Some(8.), None).is_err());
+        let precise = crate::download::request::ClipRange { precise: true, ..short };
+        for duration in [3.48, 3.5, 3.56] { assert!(validate_clip_duration(duration, precise, Some(8.), Some(0.09)).is_ok()); }
+        for duration in [3., 3.75, 8., f64::NAN] { assert!(validate_clip_duration(duration, precise, Some(8.), Some(0.09)).is_err()); }
     }
 }
 pub(super) fn verify_media(
