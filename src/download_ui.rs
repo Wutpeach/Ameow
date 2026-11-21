@@ -6,7 +6,7 @@ mod native_settings_transport;
 use ameow_next::download::{
     preparation::{ErrorCategory, PreparationPhase, PreparationSnapshot, PreparationStage},
     queue::{
-        CommandReply, JobPhase, JobSnapshot, QueueCommand, QueueSnapshot,
+        CancelOutcome, CancelReceipt, CommandReply, JobPhase, JobSnapshot, QueueCommand, QueueSnapshot,
     },
     request::Quality,
     runtime::RuntimeManager,
@@ -28,6 +28,7 @@ pub enum UiReply {
     Reply(CommandReply),
     Retry { source: u64, reply: CommandReply },
     RowCommand { job: u64, cleanup: bool, reply: CommandReply },
+    Cancel { job: u64, receipt: CancelReceipt },
     PreparationRetry(CommandReply),
     RuntimeUpdate(CommandReply),
     Settings(CommandReply),
@@ -115,6 +116,8 @@ pub struct DownloadUi {
     hovered_action: Option<QueueActionHint>,
     action_focus: Vec<QueueActionFocus>,
     retry_pending: std::collections::HashSet<u64>,
+    cancel_pending: std::collections::HashMap<u64, (u32, CancelFeedback)>,
+    cancel_blocked: std::collections::HashMap<u64, u32>,
     pub preparation_hovered: bool,
     preparation_retry_pending: bool,
     preparation_copied_at: Option<u64>,
@@ -132,6 +135,8 @@ pub enum SettingsStatus {
     Saved,
     Failed(String),
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CancelFeedback { Sending, Accepted }
 impl DownloadUi {
     pub fn start() -> Self {
         let launch = ameow_next::control::launch_session(&std::env::args().collect::<Vec<_>>()).expect("validated launcher session").map(Arc::new);
@@ -150,7 +155,14 @@ impl DownloadUi {
                 let root = match &isolated { Some(root) => root.join("runtime"), None => value("--runtime-root").map(PathBuf::from).map_or_else(RuntimeManager::default_root, Ok)? };
                 let settings_path = match &isolated { Some(root) => root.join("settings.json"), None => value("--settings-path").map(PathBuf::from).unwrap_or_else(|| root.join("ui-settings.json")) };
                 let output_dir = match &isolated { Some(root) => root.join("output"), None => value("--output").map(PathBuf::from).map_or_else(crate::tray::downloads_directory, Ok)? };
-                ameow_next::download::composition::download_coordinator(root, settings_path, Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() })
+                let defaults = Settings { quality: Quality::Balanced, output_dir, theme: Default::default(), language: Default::default(), tray_icon: Default::default(), shortcut: Default::default() };
+                #[cfg(all(windows, debug_assertions, feature = "cancel-fixture"))]
+                if let Some(origin) = value("--cancel-fixture") {
+                    if isolated.is_none() { return Err("Cancel fixture requires --instance-root".into()); }
+                    let services = ameow_next::download::cancel_fixture::services(root, &origin, &value("--cancel-fixture-mode").unwrap_or_else(|| "native".into()))?;
+                    return ameow_next::download::queue::DownloadCoordinator::new(services, settings_path, defaults);
+                }
+                ameow_next::download::composition::download_coordinator(root, settings_path, defaults)
             })();
             let coordinator = match setup {
                 Ok(coordinator) => coordinator,
@@ -215,7 +227,13 @@ impl DownloadUi {
                             QueueCommand::RetryCleanup(id) => Some((*id, true)),
                             _ => None,
                         };
-                        let reply = coordinator.apply(command);
+                        let (reply, cancellation) = match command {
+                            QueueCommand::Cancel(id) => {
+                                let receipt = coordinator.cancel_receipt(id);
+                                (CommandReply::Applied(receipt.outcome == CancelOutcome::Accepted), Some(receipt))
+                            },
+                            command => (coordinator.apply(command), None),
+                        };
                         append_evidence(&mut evidence, &started, reply_summary(&reply));
                         let event = match reply {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic_job.unwrap_or(0), text },
@@ -225,7 +243,8 @@ impl DownloadUi {
                             reply if retry_source.is_some() => UiReply::Retry { source: retry_source.unwrap(), reply },
                             reply if row_command.is_some() => {
                                 let (job, cleanup) = row_command.unwrap();
-                                UiReply::RowCommand { job, cleanup, reply }
+                                if let Some(receipt) = cancellation { UiReply::Cancel { job, receipt } }
+                                else { UiReply::RowCommand { job, cleanup, reply } }
                             }
                             reply => UiReply::Reply(reply),
                         };
@@ -319,6 +338,8 @@ impl DownloadUi {
         self.directory_drop_pending = false;
         self.row_notices.clear();
         self.retry_pending.clear();
+        self.cancel_pending.clear();
+        self.cancel_blocked.clear();
         self.preparation_status = None;
         self.preparation_copy_pending = false;
         self.preparation_copied_at = None;
@@ -412,6 +433,8 @@ impl DownloadUi {
             hovered_action: None,
             action_focus: Vec::new(),
             retry_pending: Default::default(),
+            cancel_pending: Default::default(),
+            cancel_blocked: Default::default(),
             preparation_hovered: false,
             preparation_retry_pending: false,
             preparation_copied_at: None,
@@ -436,8 +459,16 @@ impl DownloadUi {
         if self.fixture && matches!(command, QueueCommand::Submit { .. } | QueueCommand::SubmitWithOptions { .. } | QueueCommand::SaveSettings(_) | QueueCommand::RetryPreparation | QueueCommand::UpgradeEngine { .. } | QueueCommand::RestoreRecommended) {
             return false;
         }
+        let cancel = match &command { QueueCommand::Cancel(job) => Some(*job), _ => None };
         match self.commands.try_send(command) {
-            Ok(()) => true,
+            Ok(()) => {
+                if let Some(job) = cancel {
+                    self.row_notices.remove(&job);
+                    let attempt = self.snapshot.as_ref().and_then(|s| s.jobs.iter().find(|j| j.job_id == job)).map_or(0, |j| j.attempt);
+                    self.cancel_pending.insert(job, (attempt, CancelFeedback::Sending));
+                }
+                true
+            },
             Err(error) => {
                 let (mpsc::TrySendError::Full(command) | mpsc::TrySendError::Disconnected(command)) = error;
                 match command {
@@ -638,6 +669,11 @@ impl DownloadUi {
         let Some(snapshot) = self.snapshot.clone() else {
             return;
         };
+        self.cancel_pending.retain(|id, (attempt, feedback)| snapshot.jobs.iter().any(|job|
+            job.job_id == *id && !job.phase.terminal() && !job.cancellation_requested
+                && (*feedback == CancelFeedback::Sending || job.attempt <= *attempt)));
+        self.cancel_blocked.retain(|id, attempt| snapshot.jobs.iter().any(|job|
+            job.job_id == *id && job.attempt <= *attempt));
         let chosen = self
             .presentation
             .update(&snapshot, self.queue_open, if self.named_preview.is_some() { 0 } else { now })
@@ -675,7 +711,8 @@ impl DownloadUi {
                 self.selected_job = Some(job.job_id);
             }
             self.selected_presentation = Some(presentation);
-            let fraction = if job.phase == JobPhase::Downloading && job.gallery_progress.is_none() {
+            let fraction = if job.phase == JobPhase::Downloading && job.gallery_progress.is_none()
+                && self.cancel_feedback(&job).is_none() {
                 presentation_fraction(
                     job.transfer_progress.as_ref(),
                     ameow_next::download::progress::now_ms(),
@@ -752,6 +789,11 @@ impl DownloadUi {
     }
     fn complete_retry(&mut self, source: u64, reply: &CommandReply, now: u64) {
         self.retry_pending.remove(&source);
+        if matches!(reply, CommandReply::Accepted(_)) {
+            self.cancel_pending.remove(&source);
+            self.cancel_blocked.remove(&source);
+            self.row_notices.remove(&source);
+        }
         self.presentation.retry_reply(source, reply);
         if let CommandReply::Accepted(job) = reply {
             // The source Failure retires on acceptance; the new waiting row owns this notice.
@@ -781,7 +823,14 @@ impl DownloadUi {
         self.row_notices.insert(job, (text, now));
     }
     fn complete_row_command(&mut self, job: u64, cleanup: bool, reply: &CommandReply, now: u64) {
-        if matches!(reply, CommandReply::Applied(true)) { return; }
+        if !cleanup {
+            self.cancel_pending.remove(&job);
+            if matches!(reply, CommandReply::Applied(true)) {
+                let attempt = self.snapshot.as_ref().and_then(|s| s.jobs.iter().find(|j| j.job_id == job)).map_or(0, |j| j.attempt);
+                self.cancel_pending.insert(job, (attempt, CancelFeedback::Accepted));
+                return;
+            }
+        } else if matches!(reply, CommandReply::Applied(true)) { return; }
         let text = if cleanup { "清理未受理，请重试" } else { "取消未受理，请重试" };
         if job == 0 {
             // Shared preparation cleanup addresses owner0; retain feedback on its visible Held rows.
@@ -791,6 +840,58 @@ impl DownloadUi {
         } else {
             self.set_row_notice(job, text, now);
         }
+    }
+    fn cancel_feedback(&self, job: &JobSnapshot) -> Option<&'static str> {
+        if job.phase.terminal() { return None; }
+        if self.cancel_pending.get(&job.job_id).is_some_and(|(_, feedback)| *feedback == CancelFeedback::Sending) {
+            return Some("正在发送取消…");
+        }
+        if job.phase == JobPhase::Held { return job.cancellation_requested.then_some("清理待确认"); }
+        (job.cancellation_requested || self.cancel_pending.contains_key(&job.job_id)).then_some("正在取消…")
+    }
+    fn cancel_allowed(&self, id: u64) -> bool {
+        self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|job| job.job_id == id
+            && !job.phase.terminal() && !job.cancellation_requested && !self.cancel_pending.contains_key(&id)
+            && self.cancel_blocked.get(&id).is_none_or(|attempt| *attempt < job.attempt)
+            && (!s.preparation_owner_lost || job.slot_owned)))
+    }
+    fn complete_cancel(&mut self, id: u64, attempt: Option<u32>, outcome: CancelOutcome, now: u64) {
+        if self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|job|
+            job.job_id == id && attempt.is_some_and(|attempt| job.attempt > attempt))) {
+            if self.cancel_pending.get(&id).is_some_and(|(pending, _)| attempt.is_some_and(|attempt| *pending <= attempt)) {
+                self.cancel_pending.remove(&id);
+            }
+            return;
+        }
+        if outcome == CancelOutcome::Accepted {
+            self.cancel_blocked.remove(&id);
+            self.cancel_pending.insert(id, (attempt.unwrap_or(0), CancelFeedback::Accepted));
+            return;
+        }
+        self.cancel_pending.remove(&id);
+        if let Some(attempt) = attempt { self.cancel_blocked.insert(id, attempt); }
+        let text = match outcome {
+            CancelOutcome::AlreadyCommitted => "文件已保存，无法取消",
+            CancelOutcome::Terminal => "任务已结束",
+            CancelOutcome::OwnerUnavailable => "执行异常，清理未确认",
+            CancelOutcome::UnknownJob => "任务不存在",
+            CancelOutcome::Accepted => unreachable!(),
+        };
+        self.set_row_notice(id, text, now);
+    }
+    fn request_cancel(&mut self, id: u64, now: u64) {
+        if self.cancel_allowed(id) { self.send(QueueCommand::Cancel(id), now); }
+    }
+    fn main_label(&self, job: &JobSnapshot, snapshot: &QueueSnapshot, now: u64) -> String {
+        if let Some(feedback) = self.cancel_feedback(job) { return feedback.into(); }
+        if let Some(notice) = self.row_notice(job.job_id, now).filter(|text| matches!(*text,
+            "取消未受理，请重试" | "文件已保存，无法取消" | "任务已结束" | "执行异常，清理未确认" | "任务不存在")) {
+            return notice.into();
+        }
+        if job.phase == JobPhase::Downloading {
+            if let Some((count, total)) = job.gallery_progress { gallery_progress_label(count, total) }
+            else { transfer_label(job.transfer_progress.as_ref(), ameow_next::download::progress::now_ms()) }
+        } else { preparation_wait_label(&job.phase, snapshot).unwrap_or_else(|| phase_label(job)) }
     }
 }
 fn append_evidence(file: &mut Option<File>, started: &Instant, mut event: serde_json::Value) {
@@ -932,6 +1033,12 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "任务状态已变化，请重新查看" => "Task changed. Check again.",
         "清理未受理，请重试" => "Cleanup rejected. Retry.",
         "取消未受理，请重试" => "Cancel rejected. Retry.",
+        "正在发送取消…" => "Sending cancel…",
+        "正在取消…" => "Cancelling…",
+        "文件已保存，无法取消" => "File saved; cannot cancel",
+        "任务已结束" => "Job already ended",
+        "任务不存在" => "Job not found",
+        "执行异常，清理未确认" => "Execution lost; cleanup unconfirmed",
         "已重新准备组件" => "Component setup restarted",
         "组件状态已变化，请重新查看" => "Component state changed. Check again.",
         "窗口尚未就绪" => "Window not ready",
@@ -955,6 +1062,9 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
 }
 
 pub fn phase_label(job: &JobSnapshot) -> String {
+    if job.cancellation_requested && !job.phase.terminal() && job.phase != JobPhase::Held {
+        return "正在取消…".into();
+    }
     match job.phase {
         JobPhase::Queued => "等待下载".into(),
         JobPhase::Preparing => "准备下载组件".into(),
@@ -1172,7 +1282,7 @@ fn queue_row_icons(job: &JobSnapshot, preparation_held: bool) -> &'static [Queue
     }
 }
 fn queue_progress_label(job: &JobSnapshot, fraction: Option<f32>, now: u64) -> String {
-    if job.phase != JobPhase::Downloading { return phase_label(job); }
+    if job.phase != JobPhase::Downloading || job.cancellation_requested { return phase_label(job); }
     if let Some((count, total)) = job.gallery_progress { return gallery_progress_label(count, total); }
     let label = transfer_label(job.transfer_progress.as_ref(), now);
     let Some(fraction) = fraction else { return label; };
@@ -1194,6 +1304,8 @@ fn gallery_progress_label(count: usize, total: Option<usize>) -> String {
 fn queue_row_status(job: &JobSnapshot, snapshot: &QueueSnapshot, fraction: Option<f32>, now: u64) -> String {
     if snapshot.preparation_owner_lost && !job.slot_owned && !job.phase.terminal() {
         "清理未确认".into()
+    } else if job.cancellation_requested && !job.phase.terminal() {
+        phase_label(job)
     } else if job.phase == JobPhase::Preparing {
         // Queue-only concise copy fits the fixed status slot. Other surfaces retain details.
         if snapshot.preparation_held {
@@ -1275,8 +1387,9 @@ impl DownloadUi {
         match icon {
             QueueIcon::Retry | QueueIcon::Copy | QueueIcon::Clear =>
                 matches!(job.phase, JobPhase::Failure | JobPhase::Partial) && !self.retry_pending.contains(&id),
-            QueueIcon::Cancel => !job.phase.terminal() && (!snapshot.preparation_owner_lost || job.slot_owned),
-            QueueIcon::Cleanup => job.phase == JobPhase::Held &&
+            QueueIcon::Cancel => self.cancel_allowed(id),
+            QueueIcon::Cleanup => job.phase == JobPhase::Held
+                && !self.cancel_pending.get(&id).is_some_and(|(_, feedback)| *feedback == CancelFeedback::Sending) &&
                 (job.slot_owned || snapshot.preparation_held && !snapshot.preparation_owner_lost),
         }
     }
@@ -1298,7 +1411,7 @@ impl DownloadUi {
                 if self.named_preview.is_some() { self.complete_diagnostic(id, Ok(()), now); }
                 else { self.send(QueueCommand::CopyDiagnostic(id), now); }
             }
-            QueueIcon::Cancel => { self.send(QueueCommand::Cancel(id), now); }
+            QueueIcon::Cancel => self.request_cancel(id, now),
             QueueIcon::Cleanup => {
                 let slot_owned = self.snapshot.as_ref().is_some_and(|s| s.jobs.iter().any(|j| j.job_id == id && j.slot_owned));
                 self.send(QueueCommand::RetryCleanup(if slot_owned { id } else { 0 }), now);
@@ -1570,6 +1683,9 @@ impl Prototype {
                 UiReply::RowCommand { job, cleanup, reply } => {
                     ui.complete_row_command(job, cleanup, &reply, now);
                 }
+                UiReply::Cancel { job, receipt } => {
+                    ui.complete_cancel(job, receipt.attempt, receipt.outcome, now);
+                }
                 UiReply::PreparationRetry(reply) => {
                     ui.preparation_retry_pending = false;
                     ui.preparation_status = Some((match &reply {
@@ -1629,6 +1745,8 @@ impl Prototype {
                 "upstream":{"pending":upstream.pending,"worker_running":upstream.worker_running,"checked_at_ms":upstream.checked_at_ms,
                     "result":upstream.result.as_ref().map(|result|match result {Ok(version)=>serde_json::json!({"stable_release":version}),Err(error)=>serde_json::json!({"error":format!("{error:?}")})})},
                 "selected_attempt":ui.selected_presentation.as_ref().map(|(_, attempt, _)| *attempt),"primary_fraction":ui.selected_fraction,
+                "selected_status":ui.snapshot.as_ref().and_then(|s| s.jobs.iter().find(|j| Some(j.job_id) == ui.selected_job).map(|j| ui.main_label(j, s, now))),
+                "cancellation_rows":ui.snapshot.as_ref().map(|s| s.jobs.iter().filter(|j| ui.row_visible(j, now)).map(|j| serde_json::json!({"job":j.job_id,"cancellation_requested":j.cancellation_requested,"cancel_enabled":ui.cancel_allowed(j.job_id),"status":ui.cancel_feedback(j).map(str::to_owned).unwrap_or_else(||queue_row_status(j,s,None,now))})).collect::<Vec<_>>()),
                 "tween_fraction":self.model.progress.sample(now),"displayed_percent":ui.selected_fraction.map(|_| ((if self.model.reduced { self.model.progress.target } else { self.model.progress.sample(now) }).min(0.99) * 100.).round() as u32),
                 "observed_at_ms":ameow_next::download::progress::now_ms(),
                 "fullness":self.model.fullness,"queue_open":ui.queue_open,"exit_open":ui.exit_open,"hidden":ui.hidden,"badge":ui.badge(),
@@ -1816,9 +1934,12 @@ impl Prototype {
         if let Some(ui) = &mut self.downloads
             && let Some(job) = ui.selected_job
         {
-            ui.send(QueueCommand::Cancel(job), now);
+            ui.request_cancel(job, now);
         }
         cx.notify();
+    }
+    pub(super) fn main_cancel_allowed(&self) -> bool {
+        self.downloads.as_ref().is_none_or(|ui| ui.selected_job.is_some_and(|id| ui.cancel_allowed(id)))
     }
     pub(super) fn copy_download(&mut self, cx: &mut Context<Self>) {
         let now = self.now();
@@ -1852,17 +1973,7 @@ impl Prototype {
                 .selected_job
                 .and_then(|id| snapshot.jobs.iter().find(|job| job.job_id == id))
             {
-                return Some(local_text(ui.language, &if job.phase == JobPhase::Downloading && job.gallery_progress.is_some() {
-                    let (count, total) = job.gallery_progress.unwrap();
-                    gallery_progress_label(count, total)
-                } else if job.phase == JobPhase::Downloading {
-                    transfer_label(
-                        job.transfer_progress.as_ref(),
-                        ameow_next::download::progress::now_ms(),
-                    )
-                } else {
-                    preparation_wait_label(&job.phase, snapshot).unwrap_or_else(|| phase_label(job))
-                }));
+                return Some(local_text(ui.language, &ui.main_label(job, snapshot, self.now())));
             }
         }
         Some(local_text(ui.language, "准备下载"))
@@ -2184,7 +2295,8 @@ impl Prototype {
                 let preparation_wait = snapshot.and_then(|s| preparation_wait_label(&job.phase, s));
                 let fraction = if success {
                     Some(1.)
-                } else if job.phase == JobPhase::Downloading && job.gallery_progress.is_none() {
+                } else if job.phase == JobPhase::Downloading && job.gallery_progress.is_none()
+                    && ui.cancel_feedback(job).is_none() {
                     presentation_fraction(job.transfer_progress.as_ref(), transfer_now)
                 } else {
                     None
@@ -2201,7 +2313,8 @@ impl Prototype {
                 let title = ui.row_title(job, now);
                 // Hints replace only text in a fixed slot; the fill still uses current snapshot facts.
                 // Actual command outcomes remain in the separate first-line title viewport.
-                let row_status = local_text(ui.language, &ui.row_action_label(id, focused, now).map(str::to_owned)
+                let row_status = local_text(ui.language, &ui.cancel_feedback(job).filter(|label| *label != "清理待确认")
+                    .or_else(|| ui.row_action_label(id, focused, now)).map(str::to_owned)
                     .unwrap_or_else(|| snapshot.map_or_else(String::new, |snapshot| queue_row_status(job, snapshot, fraction, transfer_now))));
                 let icons = queue_row_icons(job, preparation_held);
                 let title_width = queue_title_width(icons.len());
@@ -3092,6 +3205,111 @@ mod tests {
         ui.queue_open = true;
         ui.snapshot = Some(Arc::new(crate::queue_fixture::snapshot(vec![crate::queue_fixture::job(5, phase, slot.then_some(5), None)])));
         (ui, receiver)
+    }
+    #[test]
+    fn cancellation_feedback_is_immediate_and_survives_reply_and_progress_refresh() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+        ui.request_cancel(5, 100);
+        assert!(matches!(receiver.try_recv(), Ok(QueueCommand::Cancel(5))));
+        let job = &ui.snapshot.as_ref().unwrap().jobs[0];
+        assert_eq!(ui.cancel_feedback(job), Some("正在发送取消…"));
+        assert_eq!(ui.main_label(job, ui.snapshot.as_ref().unwrap(), 100), "正在发送取消…");
+        ui.request_cancel(5, 101);
+        assert!(receiver.try_recv().is_err());
+        ui.complete_row_command(5, false, &CommandReply::Applied(true), 102);
+        assert_eq!(ui.cancel_feedback(&ui.snapshot.as_ref().unwrap().jobs[0]), Some("正在取消…"));
+        let mut model = crate::model::Model::new(0, true);
+        let mut indicator = indicator::Indicator::default();
+        for phase in [JobPhase::Downloading, JobPhase::Validating, JobPhase::Publishing] {
+            let snapshot = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+            snapshot.jobs[0].phase = phase;
+            snapshot.jobs[0].cancellation_requested = true;
+            ui.present(&mut model, &mut indicator, 103);
+            let snapshot = ui.snapshot.as_ref().unwrap();
+            assert_eq!(ui.selected_fraction, None);
+            assert_eq!(ui.main_label(&snapshot.jobs[0], snapshot, 103), "正在取消…");
+            assert_eq!(queue_row_status(&snapshot.jobs[0], snapshot, Some(0.8), 103), "正在取消…");
+            assert!(!ui.cancel_allowed(5));
+        }
+    }
+    #[test]
+    fn cancellation_rejection_restores_actions_and_held_keeps_cleanup_available() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+        ui.request_cancel(5, 100);
+        receiver.try_recv().unwrap();
+        ui.complete_row_command(5, false, &CommandReply::Applied(false), 101);
+        assert!(ui.cancel_allowed(5));
+        assert_eq!(ui.row_notice(5, 101), Some("取消未受理，请重试"));
+        let snapshot = ui.snapshot.as_ref().unwrap();
+        assert_eq!(ui.main_label(&snapshot.jobs[0], snapshot, 101), "取消未受理，请重试");
+        drop(receiver);
+        ui.request_cancel(5, 102);
+        assert!(ui.cancel_allowed(5), "a disconnected channel must not strand a pending state");
+        let snapshot = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+        snapshot.jobs[0].phase = JobPhase::Held;
+        snapshot.jobs[0].cancellation_requested = true;
+        assert_eq!(ui.cancel_feedback(&ui.snapshot.as_ref().unwrap().jobs[0]), Some("清理待确认"));
+        assert!(!ui.row_action_allowed(5, QueueIcon::Cancel, 103));
+        assert!(ui.row_action_allowed(5, QueueIcon::Cleanup, 103));
+        let snapshot = Arc::make_mut(ui.snapshot.as_mut().unwrap());
+        snapshot.jobs[0].phase = JobPhase::Cancelled;
+        assert_eq!(phase_label(&snapshot.jobs[0]), "已取消");
+        let job = snapshot.jobs[0].clone();
+        assert_eq!(ui.cancel_feedback(&job), None);
+    }
+    #[test]
+    fn authoritative_cancel_refusal_blocks_stale_download_snapshot_only_for_its_attempt() {
+        use super::*;
+        for (outcome, expected) in [
+            (CancelOutcome::AlreadyCommitted, "文件已保存，无法取消"),
+            (CancelOutcome::OwnerUnavailable, "执行异常，清理未确认"),
+            (CancelOutcome::Terminal, "任务已结束"),
+        ] {
+            let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+            let attempt = ui.snapshot.as_ref().unwrap().jobs[0].attempt;
+            ui.request_cancel(5, 100);
+            receiver.try_recv().unwrap();
+            ui.complete_cancel(5, Some(attempt), outcome, 101);
+            assert_eq!(ui.row_notice(5, 101), Some(expected));
+            assert!(!ui.cancel_allowed(5), "the reply carries facts absent from a stale queue snapshot");
+            let snapshot = ui.snapshot.as_ref().unwrap();
+            assert_eq!(ui.main_label(&snapshot.jobs[0], snapshot, 101), expected);
+            Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt += 1;
+            assert!(ui.cancel_allowed(5), "an old refusal cannot disable a new attempt");
+            ui.request_cancel(5, 102);
+            receiver.try_recv().unwrap();
+            ui.complete_cancel(5, Some(attempt), CancelOutcome::OwnerUnavailable, 103);
+            assert_eq!(ui.cancel_feedback(&ui.snapshot.as_ref().unwrap().jobs[0]), Some("正在发送取消…"),
+                "a late previous-attempt reply cannot replace current feedback");
+        }
+    }
+    #[test]
+    fn cancel_receipt_bridges_newer_authority_and_clears_finished_attempt_feedback() {
+        use super::*;
+        let (mut ui, receiver) = row_ui(JobPhase::Downloading, true);
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt = 0;
+        ui.request_cancel(5, 100);
+        receiver.try_recv().unwrap();
+        ui.complete_cancel(5, Some(1), CancelOutcome::AlreadyCommitted, 101);
+        let mut model = crate::model::Model::new(0, true);
+        let mut indicator = indicator::Indicator::default();
+        ui.present(&mut model, &mut indicator, 102);
+        assert!(!ui.cancel_allowed(5), "a newer authoritative refusal survives an older projection");
+        assert!(!ui.cancel_pending.contains_key(&5));
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt = 1;
+        ui.present(&mut model, &mut indicator, 103);
+        assert!(!ui.cancel_allowed(5));
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt = 2;
+        ui.present(&mut model, &mut indicator, 104);
+        assert!(ui.cancel_allowed(5));
+        ui.request_cancel(5, 105);
+        receiver.try_recv().unwrap();
+        Arc::make_mut(ui.snapshot.as_mut().unwrap()).jobs[0].attempt = 3;
+        ui.complete_cancel(5, Some(2), CancelOutcome::Accepted, 106);
+        assert!(ui.cancel_allowed(5), "an old reply retires its own pending feedback");
+        assert!(!ui.cancel_pending.contains_key(&5));
     }
     #[test]
     fn queue_returns_to_full_after_last_visible_row_is_cleared() {
@@ -4034,6 +4252,7 @@ mod tests {
         assert!(!message.contains("重试"));
         snapshot.jobs.push(JobSnapshot {
             job_id: 7,
+            cancellation_requested: false,
             revision: 1,
             attempt: 1,
             phase: JobPhase::Held,

@@ -76,6 +76,8 @@ pub struct JobSnapshot {
     pub message: String,
     pub failure: Option<Failure>,
     pub transfer_progress: Option<super::progress::TransferProgress>,
+    #[serde(default)]
+    pub cancellation_requested: bool,
     pub delivered: Option<DeliveredFile>,
     #[serde(default)]
     pub collection: Option<super::contract::CollectionState>,
@@ -143,6 +145,374 @@ mod tests {
             observe_preparation(&backend.shared, event.clone());
             assert_eq!(backend.snapshot().runtime_update.phase, expected);
             assert_eq!(runtime_update_phase(phase), Some(expected));
+        }
+        Ok(())
+    }
+    #[test]
+    fn cancelled_held_job_waits_for_cleanup_and_outer_join_without_stopping_another_job() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let first = backend.submit("https://youtu.be/00000000001".into())?;
+        let second = backend.submit("https://youtu.be/00000000002".into())?;
+        let first_runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+        let second_runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+        for (runner, job, phase) in [(&first_runner, first, Phase::Held), (&second_runner, second, Phase::Downloading)] {
+            let mut state = lock(&runner.state);
+            state.snapshot.job_id = job;
+            state.snapshot.attempt = 1;
+            state.snapshot.revision = 1;
+            state.snapshot.phase = phase;
+            state.snapshot.resources_released = false;
+            state.publish();
+        }
+        let first_state = first_runner.state.clone();
+        let first_control = lock(&first_runner.state).control.clone();
+        let second_state = second_runner.state.clone();
+        let second_control = lock(&second_runner.state).control.clone();
+        let epoch = first_control.cleanup_revision();
+        let worker_control = first_control.clone();
+        let (terminal_sent, terminal_seen) = std::sync::mpsc::channel();
+        let (release_first, wait_first) = std::sync::mpsc::channel();
+        let (release_second, wait_second) = std::sync::mpsc::channel();
+        let first_owner = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !worker_control.is_cancelled() || worker_control.cleanup_revision() == epoch {
+                assert!(Instant::now() < deadline, "cleanup retry was not delivered");
+                thread::sleep(Duration::from_millis(5));
+            }
+            super::super::terminal(&first_state, first, 1, Phase::Cancelled, String::new());
+            terminal_sent.send(()).unwrap();
+            wait_first.recv_timeout(Duration::from_secs(10)).unwrap();
+        });
+        let second_owner = thread::spawn(move || {
+            wait_second.recv_timeout(Duration::from_secs(10)).unwrap();
+            super::super::terminal(&second_state, second, 1, Phase::Failure, String::new());
+        });
+        {
+            let mut model = lock(&backend.shared.model);
+            model.preparation_requested = false;
+            assert_eq!(model.launch(), Some(first));
+            assert_eq!(model.launch(), Some(second));
+            model.records.get_mut(&first).unwrap().running = Some(RunningAttempt {
+                runner: first_runner, owner: first_owner, seen_revision: 0, seen_settlements: 0,
+            });
+            model.records.get_mut(&second).unwrap().running = Some(RunningAttempt {
+                runner: second_runner, owner: second_owner, seen_revision: 0, seen_settlements: 0,
+            });
+            backend.shared.publish(&model);
+        }
+        let shared = backend.shared.clone();
+        let dispatcher = thread::spawn(move || dispatch(shared));
+        wait_until(&backend, |v| v.jobs[0].phase == JobPhase::Held)?;
+        assert!(backend.cancel(first));
+        let cancelling = backend.snapshot();
+        assert!(cancelling.jobs[0].cancellation_requested);
+        assert_eq!(cancelling.jobs[0].phase, JobPhase::Held);
+        assert!(!cancelling.jobs[1].cancellation_requested);
+        assert!(!second_control.is_cancelled());
+        assert!(backend.cancel(first));
+        assert_eq!(first_control.cleanup_revision(), epoch);
+        assert!(backend.retry_cleanup(first));
+        assert_eq!(first_control.cleanup_revision(), epoch + 1);
+        terminal_seen.recv_timeout(Duration::from_secs(10)).map_err(|e| e.to_string())?;
+        let waiting = backend.snapshot();
+        assert_eq!(waiting.active_slots, 2);
+        assert!(waiting.jobs[0].slot_owned);
+        assert_eq!(waiting.jobs[0].terminal_count, 0);
+        assert!(!backend.retry_cleanup(first));
+        release_first.send(()).unwrap();
+        let joined = wait_until(&backend, |v| v.jobs[0].phase == JobPhase::Cancelled)?;
+        assert_eq!(joined.active_slots, 1);
+        assert_eq!(joined.jobs[0].terminal_count, 1);
+        assert!(joined.jobs[0].resources_released);
+        assert!(joined.jobs[0].cancellation_requested);
+        assert!(joined.jobs[0].events.iter().any(|event| event.kind == "attempt-joined-slot-release"));
+        assert_eq!(joined.jobs[1].phase, JobPhase::Downloading);
+        assert!(!second_control.is_cancelled());
+        release_second.send(()).unwrap();
+        wait_until(&backend, |v| v.jobs[1].phase == JobPhase::Failure)?;
+        backend.stop();
+        wait_until(&backend, |v| v.stopped)?;
+        dispatcher.join().map_err(|_| "dispatcher panic")?;
+        Ok(())
+    }
+
+    #[test]
+    fn cancel_rejects_lost_owner_and_old_snapshots_default_to_no_request() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let job = backend.submit("https://youtu.be/00000000001".into())?;
+        let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+        {
+            let mut state = lock(&runner.state);
+            state.snapshot.job_id = job;
+            state.snapshot.attempt = 1;
+            state.snapshot.phase = Phase::Held;
+        }
+        let owner = thread::spawn(|| panic!("synthetic owner loss"));
+        while !owner.is_finished() { thread::yield_now(); }
+        {
+            let mut model = lock(&backend.shared.model);
+            assert_eq!(model.launch(), Some(job));
+            model.records.get_mut(&job).unwrap().running = Some(RunningAttempt {
+                runner, owner, seen_revision: 0, seen_settlements: 0,
+            });
+            backend.shared.publish(&model);
+        }
+        assert_eq!(backend.cancel_receipt(job), CancelReceipt {
+            attempt: Some(1), outcome: CancelOutcome::OwnerUnavailable,
+        });
+        assert!(!backend.cancel(job));
+        assert!(!backend.retry_cleanup(job));
+        let snapshot = backend.snapshot();
+        assert!(!snapshot.jobs[0].cancellation_requested);
+        assert!(snapshot.jobs[0].slot_owned);
+        let mut old = serde_json::to_value(&snapshot.jobs[0]).map_err(|e| e.to_string())?;
+        old.as_object_mut().unwrap().remove("cancellation_requested");
+        let restored: JobSnapshot = serde_json::from_value(old).map_err(|e| e.to_string())?;
+        assert!(!restored.cancellation_requested);
+        let owner = lock(&backend.shared.model).records.get_mut(&job).unwrap().running.take().unwrap().owner;
+        assert!(owner.join().is_err());
+        {
+            let mut model = lock(&backend.shared.model);
+            model.preparation_held = true;
+            *lock(&backend.shared.preparation_owner_live) = true;
+        }
+        let preparation_control = lock(&backend.shared.preparation_control).clone();
+        let epoch = preparation_control.cleanup_revision();
+        assert_eq!(backend.cancel_outcome(job), CancelOutcome::OwnerUnavailable);
+        assert!(!backend.cancel(job));
+        assert!(!backend.retry_cleanup(job));
+        assert_eq!(preparation_control.cleanup_revision(), epoch);
+        Ok(())
+    }
+
+    #[test]
+    fn cancellation_fact_matches_publish_arbitration() -> Result<(), String> {
+        use super::super::{contract::{MediaKind, VerifiedFacts}, output::{DestinationStage, VerifiedMedia}};
+        for _ in 0..20 {
+            let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+            let source = root.path().join("source.mkv");
+            fs::write(&source, b"settled output").map_err(|e| e.to_string())?;
+            let media = VerifiedMedia {
+                path: source, bytes: 14, sha256: super::super::runtime::hash(&b"settled output"[..])?,
+                kind: MediaKind::Data, facts: VerifiedFacts::default(), identity_guard: None,
+            };
+            let mut stage = DestinationStage::create(&media, root.path(), 1)?;
+            stage.fill(&media)?;
+            let partial = stage.path.clone();
+            let backend = fake_backend(root.path());
+            let job = backend.submit("https://youtu.be/00000000001".into())?;
+            let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+            {
+                let mut state = lock(&runner.state);
+                state.snapshot.job_id = job;
+                state.snapshot.attempt = 1;
+                state.snapshot.phase = Phase::Publishing;
+                state.snapshot.resources_released = false;
+                state.publish();
+            }
+            let (release, wait) = std::sync::mpsc::channel();
+            {
+                let mut model = lock(&backend.shared.model);
+                assert_eq!(model.launch(), Some(job));
+                model.records.get_mut(&job).unwrap().running = Some(RunningAttempt {
+                    runner: runner.clone(), owner: thread::spawn(move || { let _ = wait.recv(); }),
+                    seen_revision: 0, seen_settlements: 0,
+                });
+                backend.shared.publish(&model);
+            }
+            let barrier = Arc::new(std::sync::Barrier::new(2));
+            let start = barrier.clone();
+            let publisher = runner.clone();
+            let destination = root.path().to_path_buf();
+            let worker = thread::spawn(move || {
+                start.wait();
+                let result = super::super::commit_delivery(&publisher.state, job, 1, &mut stage, &destination, "delivered", media);
+                stage.cleanup()?;
+                result
+            });
+            barrier.wait();
+            let outcome = backend.cancel_outcome(job);
+            assert!(matches!(outcome, CancelOutcome::Accepted | CancelOutcome::AlreadyCommitted));
+            let cancelled = outcome == CancelOutcome::Accepted;
+            let result = worker.join().map_err(|_| "publisher panic")?;
+            assert_eq!(backend.snapshot().jobs[0].cancellation_requested, cancelled);
+            if cancelled {
+                assert!(result.is_err());
+                assert!(runner.snapshot().delivered.is_none());
+                assert!(!root.path().join("delivered.mkv").exists());
+            } else {
+                result?;
+                let delivered = runner.snapshot().delivered.ok_or("Missing delivered media")?;
+                assert_eq!(fs::read(delivered.path).map_err(|e| e.to_string())?, b"settled output");
+                assert!(!backend.cancel(job));
+            }
+            assert!(!partial.exists());
+            release.send(()).unwrap();
+            let owner = lock(&backend.shared.model).records.get_mut(&job).unwrap().running.take().unwrap().owner;
+            owner.join().map_err(|_| "synthetic owner panic")?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn committed_file_rejects_cancel_before_cleanup_and_owner_join_even_when_held() -> Result<(), String> {
+        use super::super::{contract::{MediaKind, VerifiedFacts}, output::{DestinationStage, VerifiedMedia}};
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let source = root.path().join("source.mkv");
+        fs::write(&source, b"settled output").map_err(|e| e.to_string())?;
+        let media = VerifiedMedia {
+            path: source, bytes: 14, sha256: super::super::runtime::hash(&b"settled output"[..])?,
+            kind: MediaKind::Data, facts: VerifiedFacts::default(), identity_guard: None,
+        };
+        let mut stage = DestinationStage::create(&media, root.path(), 1)?;
+        stage.fill(&media)?;
+        let backend = fake_backend(root.path());
+        let job = backend.submit("https://youtu.be/00000000001".into())?;
+        let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+        {
+            let mut state = lock(&runner.state);
+            state.snapshot.job_id = job;
+            state.snapshot.attempt = 1;
+            state.snapshot.phase = Phase::Publishing;
+            state.snapshot.resources_released = false;
+            state.publish();
+        }
+        let (release, wait) = std::sync::mpsc::channel();
+        {
+            let mut model = lock(&backend.shared.model);
+            assert_eq!(model.launch(), Some(job));
+            model.records.get_mut(&job).unwrap().running = Some(RunningAttempt {
+                runner: runner.clone(), owner: thread::spawn(move || { let _ = wait.recv(); }),
+                seen_revision: 0, seen_settlements: 0,
+            });
+            backend.shared.publish(&model);
+        }
+        super::super::commit_delivery(&runner.state, job, 1, &mut stage, root.path(), "delivered", media)?;
+        let delivered = runner.snapshot().delivered.ok_or("Missing committed file")?.path;
+        let control = lock(&runner.state).control.clone();
+        for phase in [Phase::Publishing, Phase::Held] {
+            super::super::update(&runner.state, job, 1, phase, String::new());
+            let snapshot = runner.snapshot();
+            {
+                let mut model = lock(&backend.shared.model);
+                project_attempt(&mut model, job, &snapshot);
+                backend.shared.publish(&model);
+            }
+            let before = backend.snapshot();
+            assert!(before.jobs[0].delivered.is_none(), "queue delivery is projected only after join");
+            assert!(before.jobs[0].slot_owned);
+            assert!(!before.jobs[0].cancellation_requested);
+            assert_eq!(backend.cancel_receipt(job), CancelReceipt {
+                attempt: Some(1), outcome: CancelOutcome::AlreadyCommitted,
+            });
+            assert!(!backend.cancel(job));
+            assert!(matches!(backend.apply(QueueCommand::Cancel(job)), CommandReply::Applied(false)));
+            assert!(!control.is_cancelled());
+            assert_eq!(backend.snapshot().revision, before.revision);
+            assert_eq!(fs::read(&delivered).map_err(|e| e.to_string())?, b"settled output");
+        }
+        let epoch = control.cleanup_revision();
+        assert!(backend.retry_cleanup(job));
+        assert_eq!(control.cleanup_revision(), epoch + 1);
+        stage.cleanup()?;
+        super::super::terminal(&runner.state, job, 1, Phase::Success, String::new());
+        assert_eq!(backend.cancel_outcome(job), CancelOutcome::AlreadyCommitted);
+        assert!(backend.snapshot().jobs[0].slot_owned);
+        assert!(!control.is_cancelled());
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if lock(&backend.shared.model).records[&job].running.as_ref().unwrap().owner.is_finished() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "owner did not exit");
+            thread::yield_now();
+        }
+        assert_eq!(backend.cancel_receipt(job), CancelReceipt {
+            attempt: Some(1), outcome: CancelOutcome::AlreadyCommitted,
+        });
+        let owner = lock(&backend.shared.model).records.get_mut(&job).unwrap().running.take().unwrap().owner;
+        owner.join().map_err(|_| "synthetic owner panic")?;
+        assert_eq!(fs::read(delivered).map_err(|e| e.to_string())?, b"settled output");
+        Ok(())
+    }
+
+    #[test]
+    fn pending_cancel_is_terminal_and_gallery_retry_starts_without_a_cancellation_request() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let backend = fake_backend(root.path());
+        let pending = backend.submit("https://youtu.be/00000000001".into())?;
+        assert_eq!(backend.cancel_receipt(pending), CancelReceipt {
+            attempt: Some(0), outcome: CancelOutcome::Accepted,
+        });
+        let cancelled = backend.snapshot();
+        assert_eq!(cancelled.jobs[0].phase, JobPhase::Cancelled);
+        assert!(cancelled.jobs[0].cancellation_requested);
+        assert_eq!(backend.cancel_outcome(pending), CancelOutcome::Terminal);
+        assert!(!backend.cancel(pending));
+        assert_eq!(backend.cancel_receipt(pending + 1), CancelReceipt {
+            attempt: None, outcome: CancelOutcome::UnknownJob,
+        });
+        let gallery = backend.submit("https://imgur.com/a/abcde".into())?;
+        {
+            let mut model = lock(&backend.shared.model);
+            model.terminal(gallery, JobPhase::Partial);
+            let record = model.records.get_mut(&gallery).unwrap();
+            record.cancelled = true;
+            record.view.cancellation_requested = true;
+            backend.shared.publish(&model);
+        }
+        assert_eq!(backend.retry(gallery)?, gallery);
+        let view = backend.snapshot();
+        let gallery = view.jobs.iter().find(|item| item.job_id == gallery).unwrap();
+        assert_eq!(gallery.phase, JobPhase::Queued);
+        assert!(!gallery.cancellation_requested);
+        Ok(())
+    }
+
+    #[test]
+    fn cancellation_receipt_captures_attempt_at_the_same_authority_as_launch() -> Result<(), String> {
+        for _ in 0..30 {
+            let root = tempfile::tempdir().map_err(|e| e.to_string())?;
+            let backend = Arc::new(fake_backend(root.path()));
+            let job = backend.submit("https://youtu.be/00000000001".into())?;
+            let runner = Arc::new(Coordinator::with_services(composition::services(root.path().into())));
+            {
+                let mut state = lock(&runner.state);
+                state.snapshot.job_id = job;
+                state.snapshot.attempt = 1;
+                state.snapshot.phase = Phase::Downloading;
+            }
+            let (release, wait) = std::sync::mpsc::channel();
+            let owner = thread::spawn(move || { let _ = wait.recv(); });
+            let barrier = Arc::new(std::sync::Barrier::new(2));
+            let start = barrier.clone();
+            let launcher = backend.clone();
+            let launch = thread::spawn(move || {
+                start.wait();
+                let mut model = lock(&launcher.shared.model);
+                if model.launch() == Some(job) {
+                    model.records.get_mut(&job).unwrap().running = Some(RunningAttempt {
+                        runner, owner, seen_revision: 0, seen_settlements: 0,
+                    });
+                }
+                launcher.shared.publish(&model);
+            });
+            barrier.wait();
+            let receipt = backend.cancel_receipt(job);
+            launch.join().map_err(|_| "launcher panic")?;
+            let snapshot = backend.snapshot();
+            assert_eq!(receipt.outcome, CancelOutcome::Accepted);
+            assert_eq!(receipt.attempt, Some(snapshot.jobs[0].attempt));
+            assert!(matches!(receipt.attempt, Some(0 | 1)));
+            assert!(snapshot.jobs[0].cancellation_requested);
+            let _ = release.send(());
+            let running = lock(&backend.shared.model).records.get_mut(&job).unwrap().running.take();
+            if let Some(running) = running {
+                running.owner.join().map_err(|_| "synthetic owner panic")?;
+            }
         }
         Ok(())
     }
@@ -594,8 +964,10 @@ mod tests {
             revision: 10,
             phase: Phase::Downloading,
             transfer_progress: Some(sample.clone()),
+            gallery_progress: Some((1, Some(3))),
             ..Default::default()
         };
+        let (release, wait) = std::sync::mpsc::channel();
         {
             let mut model = lock(&backend.shared.model);
             assert_eq!(model.launch(), Some(job));
@@ -646,7 +1018,7 @@ mod tests {
             assert!(model.records[&job].view.transfer_progress.is_none());
             model.records.get_mut(&job).unwrap().running = Some(RunningAttempt {
                 runner: runner.clone(),
-                owner: thread::spawn(|| {}),
+                owner: thread::spawn(move || { let _ = wait.recv(); }),
                 seen_revision: 0,
                 seen_settlements: 0,
             });
@@ -662,12 +1034,29 @@ mod tests {
             project_attempt(&mut model, job, &snapshot);
             backend.shared.publish(&model);
         }
+        assert_eq!(backend.cancel_receipt(job), CancelReceipt {
+            attempt: Some(1), outcome: CancelOutcome::Accepted,
+        });
+        let accepted = backend.snapshot();
+        let accepted_job = accepted.jobs.iter().find(|item| item.job_id == job).unwrap();
+        assert!(accepted_job.cancellation_requested);
+        assert!(accepted_job.transfer_progress.is_none());
+        assert!(accepted_job.gallery_progress.is_none());
         assert!(backend.cancel(job));
+        assert_eq!(backend.snapshot().revision, accepted.revision);
         {
             let mut model = lock(&backend.shared.model);
             snapshot.revision += 1;
             project_attempt(&mut model, job, &snapshot);
             assert!(model.records[&job].view.transfer_progress.is_none());
+            assert!(model.records[&job].view.gallery_progress.is_none());
+            assert!(model.records[&job].view.cancellation_requested);
+            snapshot.phase = Phase::Held;
+            snapshot.revision += 1;
+            project_attempt(&mut model, job, &snapshot);
+            assert_eq!(model.records[&job].view.phase, JobPhase::Held);
+            assert!(model.records[&job].view.cancellation_requested);
+            release.send(()).unwrap();
             let running = model.records.get_mut(&job).unwrap().running.take().unwrap();
             running.owner.join().unwrap();
             model.settled(
@@ -1589,6 +1978,7 @@ mod tests {
         assert_eq!(view.unfinished, 1);
         assert!(!view.jobs[0].resources_released);
         assert!(!backend.cancel(job));
+        assert!(!backend.snapshot().jobs[0].cancellation_requested);
         let error = backend
             .submit("https://youtu.be/00000000002".into())
             .unwrap_err();
@@ -1597,6 +1987,7 @@ mod tests {
         backend.stop();
         let view = backend.snapshot();
         assert!(!view.stopped);
+        assert!(!view.jobs[0].cancellation_requested);
         assert!(!view.jobs[0].phase.terminal());
         assert_eq!(view.jobs[0].job_id, job);
         assert_eq!(view.jobs[0].terminal_count, 0);
@@ -2196,6 +2587,21 @@ pub enum CommandReply {
     Error(String),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CancelOutcome {
+    Accepted,
+    AlreadyCommitted,
+    Terminal,
+    OwnerUnavailable,
+    UnknownJob,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CancelReceipt {
+    pub attempt: Option<u32>,
+    pub outcome: CancelOutcome,
+}
+
 struct RunningAttempt {
     runner: Arc<Coordinator>,
     owner: JoinHandle<()>,
@@ -2446,6 +2852,7 @@ impl Model {
                     },
                     failure: None,
                     transfer_progress: None,
+                    cancellation_requested: false,
                     delivered: None,
                     collection: None,
                     gallery_progress: None,
@@ -2725,32 +3132,50 @@ impl DownloadCoordinator {
         Ok(saved)
     }
     pub fn cancel(&self, job: u64) -> bool {
+        self.cancel_outcome(job) == CancelOutcome::Accepted
+    }
+    pub fn cancel_outcome(&self, job: u64) -> CancelOutcome {
+        self.cancel_receipt(job).outcome
+    }
+    pub fn cancel_receipt(&self, job: u64) -> CancelReceipt {
         let mut model = lock(&self.shared.model);
         let unresolved_preparation = model.preparation_owner_lost;
         let Some(record) = model.records.get_mut(&job) else {
-            return false;
+            return CancelReceipt { attempt: None, outcome: CancelOutcome::UnknownJob };
         };
-        if record.view.phase.terminal() || (record.view.slot_owned && record.running.is_none()) {
-            return false;
+        let attempt = Some(record.view.attempt);
+        let receipt = |outcome| CancelReceipt { attempt, outcome };
+        if record.view.phase.terminal() {
+            return receipt(CancelOutcome::Terminal);
+        }
+        if record.view.slot_owned && record.running.is_none() {
+            return receipt(CancelOutcome::OwnerUnavailable);
         }
         if unresolved_preparation && !record.view.slot_owned {
-            return false;
+            return receipt(CancelOutcome::OwnerUnavailable);
         }
-        if let Some(attempt) = &record.running {
-            if !attempt.runner.cancel(job) {
-                return false;
+        if let Some(running) = &record.running {
+            let outcome = running.runner.cancel_outcome(job, || !running.owner.is_finished());
+            if outcome != CancelOutcome::Accepted {
+                return receipt(outcome);
+            }
+            if record.cancelled {
+                return receipt(CancelOutcome::Accepted);
             }
             record.cancelled = true;
+            record.view.cancellation_requested = true;
             record.view.transfer_progress = None;
+            record.view.gallery_progress = None;
             record.view.message = "Cancellation requested; waiting for ownership barriers".into();
             model.event(job, "cancel-requested");
         } else {
             record.cancelled = true;
+            record.view.cancellation_requested = true;
             record.view.message = "Cancelled before execution".into();
             model.terminal(job, JobPhase::Cancelled);
         }
         self.shared.publish(&model);
-        true
+        receipt(CancelOutcome::Accepted)
     }
     pub fn retry(&self, failed_job: u64) -> Result<u64, String> {
         let _ordered = lock(&self.shared.command_gate);
@@ -2772,6 +3197,7 @@ impl DownloadCoordinator {
             record.view.failure = None;
             record.view.terminal_count = 0;
             record.cancelled = false;
+            record.view.cancellation_requested = false;
             model.ready.push_back(failed_job);
             model.event(failed_job, "collection-retry-queued");
             self.shared.publish(&model);
@@ -2804,7 +3230,10 @@ impl DownloadCoordinator {
             return false;
         };
         if let Some(attempt) = &record.running {
-            return attempt.runner.retry_cleanup(job);
+            return !attempt.owner.is_finished() && attempt.runner.retry_cleanup(job);
+        }
+        if record.view.slot_owned {
+            return false;
         }
         self.retry_preparation_cleanup(&model)
     }
@@ -3001,13 +3430,15 @@ fn stop_shared(shared: &Shared) {
     for job in jobs {
         if let Some(record) = model.records.get_mut(&job) {
             record.view.transfer_progress = None;
+            record.view.gallery_progress = None;
             if record.view.phase.terminal() {
                 continue;
             }
             if let Some(attempt) = &record.running {
                 // Publication arbitration stays with the attempt owner; committed success survives stop/cancel.
-                if attempt.runner.cancel(job) {
+                if !attempt.owner.is_finished() && attempt.runner.cancel(job) {
                     record.cancelled = true;
+                    record.view.cancellation_requested = true;
                 }
                 record.view.message = "Stopping; waiting for exact ownership settlement".into();
                 model.event(job, "stop-requested");
@@ -3018,6 +3449,7 @@ fn stop_shared(shared: &Shared) {
                         "Runtime preparation owner ended; cleanup unconfirmed; safe exit blocked"
                             .into();
                 } else {
+                    record.view.cancellation_requested = true;
                     record.view.message = "Withdrawn during stop".into();
                     model.terminal(job, JobPhase::Cancelled);
                 }
@@ -3122,7 +3554,11 @@ fn project_attempt(model: &mut Model, job: u64, snapshot: &Snapshot) {
     running.seen_revision = snapshot.revision;
     let engine_changed = snapshot.engine.is_some() && record.view.engine != snapshot.engine;
     record.view.engine = snapshot.engine;
-    record.view.gallery_progress = snapshot.gallery_progress;
+    record.view.gallery_progress = if !record.cancelled && !model.stopping {
+        snapshot.gallery_progress
+    } else {
+        None
+    };
     record.view.collection = snapshot.collection.clone();
     record.view.transfer_progress =
         if snapshot.phase == Phase::Downloading && !record.cancelled && !model.stopping {

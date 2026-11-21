@@ -826,7 +826,7 @@ fn job_view(instance: &str, job: &JobSnapshot) -> Value {
 fn job_summary(instance: &str, job: &JobSnapshot) -> Value {
     json!({"task_id":format!("{instance}:{}",job.job_id),"job_id":job.job_id,"revision":job.revision,"attempt":job.attempt,"phase":job.phase,
         "accepted":job.accepted,"identity":job.identity,"title":job.title,"message":job.message,"failure":job.failure,"engine":job.engine,
-        "transfer_progress":job.transfer_progress,"gallery_progress":job.gallery_progress,"slot_owned":job.slot_owned,"resources_released":job.resources_released,
+        "transfer_progress":job.transfer_progress,"gallery_progress":job.gallery_progress,"cancellation_requested":job.cancellation_requested,"slot_owned":job.slot_owned,"resources_released":job.resources_released,
         "collection":job.collection.as_ref().map(|c|json!({"directory":c.directory,"total":c.total,"saved_files":c.files.len()}))})
 }
 fn file_page(instance: &str, job: &JobSnapshot, after: usize) -> Value {
