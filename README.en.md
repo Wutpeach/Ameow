@@ -44,7 +44,7 @@ Configure the browser connection in Ameow and copy the extension folder path. On
 Then open the extension on a webpage, confirm the site scope and authorize it to sync the existing session for downloads. Sync does not sign you in or guarantee that the site still accepts the session.
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="Click Sync now for an already-authorized example site; the Ameow extension shows that site's browser source and latest sync result." width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="Click Sync now for an already-authorized bilibili.com example; the popup shows only the current webpage's site as its result changes from unknown to Snapshot updated, with Microsoft Edge as the source." width="560">
 </p>
 
 ## Development and building

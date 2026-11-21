@@ -44,7 +44,7 @@
 随后在网页打开扩展，确认站点范围并授权，同步已有会话供下载复用。同步不会替你登录，也不保证网站仍接受该会话。
 
 <p align="center">
-  <img src="docs/images/readme/session-sync.gif" alt="在已授权的示例站点点击立即同步，Ameow 扩展显示同一站点的浏览器来源与最近同步结果。" width="560">
+  <img src="docs/images/readme/session-sync.gif" alt="在已授权的 bilibili.com 示例中点击立即同步，扩展只显示当前网页站点；最近结果从未知变为快照已更新，来源为 Microsoft Edge。" width="560">
 </p>
 
 ## 开发与构建

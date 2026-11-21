@@ -27,18 +27,23 @@ the pin. New recordings produce raw media for review.
 ## Extension session sync
 
 The popup's HTML, CSS and built JS are used unchanged. The renderer checks the
-build's source hash against pinned PR63 source, injects only a synthetic browser
-transport, and blocks external requests. No extension is installed.
+frozen PR76 build's source identity and exact HTML/CSS/JS/cat SVG hashes, injects
+only the credential-free [product response contract](session-sync/sample-contract.json),
+and blocks external requests. No extension is installed. The current webpage's
+already-authorized site moves from an unknown result to an updated snapshot.
 
 ```powershell
 $env:PLAYWRIGHT_MODULE = '<absolute-path-to-playwright-core/index.mjs>'
 $env:CHROMIUM_PATH = '<absolute-path-to-headless-chromium-executable>'
-$extensionDist = '<absolute-path-to-PR63/browser-extension/dist>'
+$extensionDist = '<absolute-path-to-reviewed-PR76/popup-dist>'
 node docs/readme-media/session-sync/render.mjs $extensionDist
 ```
 
-Use the pinned PR63 source object and a matching extension build produced with
-its lockfile. Set `PLAYWRIGHT_MODULE` to an installed `playwright-core` module
+Use the frozen PR76 product build at `01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b`,
+whose identity is recorded in the media sources. The script also compares HTML
+and CSS with that Git object, normalizing line endings only; the served resource
+bytes remain unchanged. A fresh build with different line endings or bytes needs
+its own review before changing the pins. Set `PLAYWRIGHT_MODULE` to an installed `playwright-core` module
 file and `CHROMIUM_PATH` to the Chromium executable to use. These variables also
 apply to `check.mjs`; provide your own paths explicitly. Node.js and FFmpeg must
 be available. No project dependencies are added.
