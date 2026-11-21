@@ -11,6 +11,14 @@ colors:
   red-light: "#e3474c"
   red-dark: "#ee5c61"
   error-text-light: "#b8323c"
+  popup-action-light: "#006acb"
+  popup-action-dark: "#3d9aff"
+  popup-action-hover-light: "#005bab"
+  popup-action-hover-dark: "#75b5ff"
+  popup-action-text-light: "#ffffff"
+  popup-action-text-dark: "#102338"
+  popup-success-text-light: "#16733b"
+  popup-success-text-dark: "#3cbb72"
   surface-light: "#ffffff"
   surface-dark: "#232427"
   neutral-light: "#62656b"
@@ -82,6 +90,18 @@ components:
     controlHeight: "32px"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"
+  browser-popup:
+    width: "320px"
+    padding: "20px"
+    brandType: "14px / 600"
+    siteType: "16px / 600"
+    sectionType: "13px / 600"
+    sectionGap: "16px"
+    sectionPadding: "12px"
+    toggleTrack: "36px × 20px"
+    toggleHit: "36px × 32px"
+    actionColor: "{colors.popup-action-light}"
+    actionTextColor: "{colors.popup-action-text-light}"
   button-standard:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.primary-text-light}"
@@ -140,7 +160,7 @@ components:
 
 Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。
 
-本文记录截至 2026-11-20 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。
+本文记录截至 2026-11-21 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。
 
 **Key Characteristics:**
 
@@ -209,6 +229,18 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 **The Hit Target Rule.** 点击范围与可见底色分开。Full 右上关闭点击范围 28px，队列 X 点击范围 24px；二者可见圆底均为 18px，图标不随点击范围缩放。保留键盘焦点以及可见底色外、点击范围内的悬停和按压反馈。
 
 ## Components
+
+### 浏览器会话与配置扩展
+
+设置默认只以实际授权站点的品牌圆形徽章和站名为主体，不在下方常驻共享详情、状态文字行、浏览器来源、快照时间或技术说明。站名与主圆形品牌图标居中，角标和菜单不参与主图标/标签布局；短名、长省略名、中英文和各品牌均保持同一中心。未知站点使用合理短标签或省略，完整值由整徽章提示和按需诊断取得。状态角标具有实心主题底色、必要描边与留白，和品牌图形、选择环各自分层；鼠标悬浮和键盘焦点获得相同的简短状态说明，失败不表示授权被移除。徽章hover/按下/焦点/选中的实际背景绘制与裁剪均为主题圆角矩形，移除和诊断保持按需可发现。
+
+“配置扩展 / Set up extension”点击后立即执行既有本机配置，直接呈现真实扩展路径/复制及下方独立中性底色的“操作演示 / Demo”。不再提供中间配置确认页、步数页码、Edge/Chrome选择或常驻播放/暂停按钮。普通动态模式进入即有动作、约5秒通用四步循环，末尾停顿短且步骤可读；可见窗口失去输入焦点仍继续播放，只有隐藏/最小化、离开演示可视区或减少动态时暂停，不强制聚焦。减少动态显示完整静态步骤，恢复可见不补算隐藏时间。Gallery只保留一个可见配置/演示入口，旧内部alias不在列表重复。配置进度、实际错误和必要重试就近简短呈现，焦点随当前可见树重建。
+
+设置与Popup的Cookie数、分区术语、时间、来源安装ID等放在按需折叠的诊断文本框，提供“复制诊断报告”；只使用既有安全投影，不含Cookie值、凭据、账号或私密URL。Popup仍以当前网页站点、必要授权范围、有用动作和简短恢复提示为主。上述2026-11-21本人手动Gallery反馈取代旧connect-v8的常驻共享详情、两步配置及演示观看控制，不从历史截图恢复。具体原生值见[settings_browser_sessions.rs](src/settings_browser_sessions.rs)。
+
+页面工具在新安装取得正常浏览器页面访问后，于www.youtube.com及www.bilibili.com合格点播播放器就绪时默认可见，不要求先打开Popup。Popup只保留一个简洁页面工具开关，主动关闭按站点记忆，刷新/重启/正常升级不强开；临时缺权与关闭偏好分开。开关不自动授权或同步Cookie，关闭工具不撤销登录态，撤销登录态不误停仍启用工具。仅两个支持源增加正常安装期访问，不扩全站点、不另做授权向导。独立预览呈现真实默认和主动关闭，合成样例不充当安装验收。
+
+Popup按当前站点→页面工具→登录态同步→折叠诊断排列，“未授权”只属于登录态同步分组。系统sans正文13px，品牌14px/600、站点16px/600、分组13px/600；默认长域省略，鼠标可取完整title，键盘聚焦可换行读全文，不缩字。正常同步用紧凑原位文字，不占整块提示底；已知失败只给安全原因和相应恢复方向，原始技术值继续折叠。开关视觉轨道36×20px、实际命中36×32px，与标题行对齐，普通ON往返不追加说明或挪动控件。Popup局部主操作使用popup-action及popup-action-text浅深成对颜色，开启旋钮共用该前景，连接成功文字使用popup-success-text；这些可读性角色不改变原生全局Palette。
 
 ### 按钮与复制反馈
 

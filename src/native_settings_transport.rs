@@ -29,6 +29,7 @@ impl DownloadUi {
                     Ok(command) => {
                         writeln!(log, "{}", command_summary(&command)).unwrap();
                         let saving = matches!(&command, QueueCommand::SaveSettings(_));
+                        let configuring_bridge = matches!(&command, QueueCommand::InstallBrowserBridge);
                         if saving && let Ok(delay) = std::fs::read_to_string(root.join("save-delay-ms"))
                             && let Ok(delay) = delay.trim().parse::<u64>() {
                             std::thread::sleep(Duration::from_millis(delay.min(2000)));
@@ -42,6 +43,7 @@ impl DownloadUi {
                         let event = match reply {
                             CommandReply::Diagnostic(text) => UiReply::Diagnostic { job: diagnostic.unwrap_or(0), text },
                             reply if saving => UiReply::Settings(reply),
+                            _ if configuring_bridge => UiReply::BrowserBridge(Err("E_SESSION_ISOLATED".into())),
                             reply => UiReply::Reply(reply),
                         };
                         let _ = sender.send(event);
@@ -88,6 +90,9 @@ fn isolated_transport_saves_through_real_owner_and_refuses_download_actions() {
     assert!(ui.send(QueueCommand::Submit { url: "https://example.com/video".into() }, 2));
     let reply = ui.replies.recv_timeout(Duration::from_secs(1)).unwrap();
     assert!(matches!(reply, UiReply::Reply(CommandReply::Error(_))));
+    assert!(ui.send(QueueCommand::InstallBrowserBridge, 2));
+    let reply = ui.replies.recv_timeout(Duration::from_secs(1)).unwrap();
+    assert!(matches!(reply, UiReply::BrowserBridge(Err(code)) if code == "E_SESSION_ISOLATED"));
     assert!(ui.snapshot.as_ref().unwrap().jobs.is_empty());
     assert!(ui.send(QueueCommand::Stop, 3));
     while !ui.snapshot.as_ref().is_some_and(|s| s.stopped) { spin(&mut ui); }

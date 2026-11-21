@@ -20,7 +20,11 @@ impl Scene {
 }
 pub fn scenes() -> Vec<Scene> { serde_json::from_str(CATALOG).expect("embedded preview catalog") }
 pub fn find(name: &str) -> Result<Scene, String> {
-    scenes().into_iter().find(|s| s.name == name).ok_or_else(|| format!("未知预览场景：{name}"))
+    // Keep old automation addresses working without duplicating the visible Gallery entry.
+    let canonical = if name == "settings.browser-connect-demo" { "settings.browser-connect" } else { name };
+    let mut scene = scenes().into_iter().find(|s| s.name == canonical).ok_or_else(|| format!("未知预览场景：{name}"))?;
+    scene.name = name.to_owned();
+    Ok(scene)
 }
 
 fn mascot_transition(model: &mut crate::model::Model, reveal: &mut crate::mascot_reveal::Reveal, state: &str, now: u64) -> bool {
@@ -293,6 +297,23 @@ mod tests {
         }
         assert!(find("does-not-exist").is_err());
         assert!(find("queue.empty").is_err());
+    }
+    #[test]
+    fn browser_setup_has_one_visible_entry_and_preserves_legacy_transport_address() {
+        let catalog = scenes();
+        assert_eq!(catalog.iter().filter(|s| s.name.starts_with("settings.browser-connect")).count(), 1);
+        let canonical = find("settings.browser-connect").unwrap();
+        let legacy = find("settings.browser-connect-demo").unwrap();
+        assert_eq!(legacy.state, canonical.state);
+        assert_eq!(legacy.name, "settings.browser-connect-demo");
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("control.json");
+        let mut session = Session::new(Some(path.clone()), &legacy.name).unwrap();
+        assert!(matches!(session.poll(), Some(Change::Scene(_))));
+        session.ack(None);
+        let ack: serde_json::Value = serde_json::from_slice(&fs::read(path.with_extension("ack.json")).unwrap()).unwrap();
+        assert_eq!(ack["scene"], legacy.name);
+        assert!(snapshot(&legacy).jobs.is_empty());
     }
     #[test]
     fn requests_switch_reject_and_quit_without_touching_another_session() {

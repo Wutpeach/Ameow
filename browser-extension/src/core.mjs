@@ -111,10 +111,9 @@ export class Sessions {
     return this.sync(site);
   }
   async releasePermission(site) {
-    const { page_tools = {} } = await this.api.storage.local.get('page_tools');
     // Chromium removes a narrower grant with its encompassing origin. Keep the
-    // existing HTTPS permission while page tools need it; never request it again.
-    const keepHttps = Object.entries(PAGE_ORIGINS).some(([host]) => page_tools[host] && within(host, site));
+    // HTTPS permission for the required page-tool hosts; never request it again.
+    const keepHttps = Object.keys(PAGE_ORIGINS).some(host => within(host, site));
     const origins = scope(site).filter(origin => !keepHttps || !origin.startsWith('https:'));
     if (origins.length) await this.api.permissions.remove({ origins });
   }

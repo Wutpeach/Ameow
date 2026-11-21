@@ -27,7 +27,7 @@
       "obligation": "Preserve ISC/Feather MIT and actual adapted-source/unknown-tag disclosure.",
       "source": "distribution/notices/icon-licenses.txt",
       "destination": "licenses/icon-licenses.txt",
-      "sha256": "4ECAEC64BBDE5A30317ED62A24E62E81FE3DD94571C0A92D56BCFA383BD11E98"
+      "sha256": "704D854E4245A0F860B5D2E34904F7508034A7FDEA4CF8B60AFC2E6F8434BE81"
     },
     {
       "kind": "Rust material/provenance",

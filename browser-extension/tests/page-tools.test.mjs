@@ -18,20 +18,6 @@ test('editable time preserves milliseconds and rejects malformed or out-of-bound
   for (const value of ['-1', 'Infinity', '1:60', '1.0001', '', '1::2']) assert.equal(parseTime(value), null);
   for (const value of [{ start_ms: null, end_ms: 10 }, { start_ms: 5, end_ms: 5 }, { start_ms: 0, end_ms: 11000 }, { start_ms: 0, end_ms: 1, mode: 'copy' }]) assert.throws(() => clipRange(value, 10));
 });
-test('page tool enablement is independent from cookie grants and disabling retains shared permission', async () => {
-  const saved = { grants: { 'youtube.com': { grant_id: 'kept' } } }, registered = [];
-  const api = { storage: { local: { get: async () => structuredClone(saved), set: async value => Object.assign(saved, value) } },
-    permissions: { contains: async () => true }, tabs: { query: async () => [] }, scripting: {
-      getRegisteredContentScripts: async () => registered,
-      registerContentScripts: async rows => registered.push(...rows),
-      unregisterContentScripts: async () => { registered.length = 0; },
-    } };
-  const pages = new PageTools(api);
-  await pages.reconcile(); assert.equal(registered.length, 0, 'cookie consent cannot turn on page scripts');
-  await pages.set('www.youtube.com', true, 1); assert.equal(registered.length, 1);
-  await pages.set('www.youtube.com', false, 1); assert.equal(registered.length, 0);
-  assert.deepEqual(saved.grants, { 'youtube.com': { grant_id: 'kept' } });
-});
 test('an older native bridge refuses clip submission before any submit operation', async () => {
   const calls = [], target = { key: 'youtube:jNQXAC9IVRw', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', duration: 19 };
   const pages = new PageTools({ runtime: { sendNativeMessage: async (_host, message) => { calls.push(message.operation.operation); return { ok: true, bridge: { capabilities: ['ping', 'report_failure'] } }; } } });
@@ -50,4 +36,34 @@ test('cookie revocation survives a bridge outage without collecting or disabling
   await sessions.revoke('youtube.com'); assert(saved.grants['youtube.com'].revoking);
   assert.deepEqual(removed, ['http://*.youtube.com/*']); assert(saved.page_tools['www.youtube.com']);
   unavailable = false; await sessions.sync(); assert.deepEqual(saved.grants, {}); assert(calls.includes('revoke'));
+});
+
+test('default registration injects open tabs once, retains explicit off and respects actual permission', async () => {
+  const saved = {grants:{'youtube.com':{grant_id:'kept'}}}, registered = new Map(), attached = new Set(), removed = [], stops = [];
+  const permissions = new Set(['https://www.youtube.com/*', 'https://www.bilibili.com/*']);
+  const api = { storage: { local: { get: async () => structuredClone(saved), set: async value => Object.assign(saved, structuredClone(value)) } },
+    permissions: { contains: async ({ origins }) => origins.every(x => permissions.has(x)), remove: async v => removed.push(v) },
+    tabs: { query: async ({ url }) => [{ id: url[0].includes('youtube') ? 1 : 2 }], sendMessage: async (id, msg) => { stops.push([id, msg]); attached.delete(id); } },
+    scripting: { getRegisteredContentScripts: async () => [...registered.values()],
+      registerContentScripts: async rows => rows.forEach(x => registered.set(x.id, x)),
+      unregisterContentScripts: async ({ ids }) => ids.forEach(id => registered.delete(id)),
+      executeScript: async ({ target, func }) => func ? [{ result: attached.has(target.tabId) }] : (attached.add(target.tabId), []),
+      insertCSS: async ({ target }) => { assert(!attached.has(target.tabId)); } } };
+  const pages = new PageTools(api);
+  await pages.reconcile(); assert.equal(registered.size, 2); assert.deepEqual([...attached], [1, 2]); assert(saved.grants['youtube.com']);
+  await pages.reconcile(); assert.equal(registered.size, 2); assert.deepEqual([...attached], [1, 2]);
+  await pages.set('www.youtube.com', false); assert.equal(await pages.enabled('www.youtube.com'), false); assert.equal(registered.size, 1); assert(stops.length >= 1); assert.deepEqual(removed, []); assert(saved.grants['youtube.com']);
+  const restarted = new PageTools(api); await restarted.reconcile(); assert.equal(await restarted.enabled('www.youtube.com'), false); assert.equal(saved.page_tools['www.youtube.com'], false);
+  permissions.delete('https://www.bilibili.com/*'); await pages.reconcile(); assert.equal(await pages.enabled('www.bilibili.com'), false); assert.equal(registered.size, 0); assert.notEqual(saved.page_tools['www.bilibili.com'], false);
+  permissions.add('https://www.bilibili.com/*'); await pages.reconcile(); assert.equal(await pages.enabled('www.bilibili.com'), true); assert.equal(await pages.enabled('www.youtube.com'), false); assert.equal(registered.size, 1);
+  await pages.set('www.youtube.com', true); assert.equal(await pages.enabled('www.youtube.com'), true); assert(attached.has(1));
+});
+
+test('session permission release keeps required page host even when page tools are off', async () => {
+  const removed = [], api = { storage: { local: { get: async () => ({ page_tools: { 'www.youtube.com': false } }) } }, permissions: { remove: async ({ origins }) => removed.push(...origins) } };
+  const sessions = new Sessions(api);
+  await sessions.releasePermission('youtube.com');
+  assert.deepEqual(removed, ['http://*.youtube.com/*']);
+  await sessions.releasePermission('example.com');
+  assert(removed.includes('https://*.example.com/*'));
 });
