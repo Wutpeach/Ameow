@@ -6,15 +6,17 @@ description: Use page tools, authorize a site's browser session, and select one 
 import ClipDemo from '../../../../components/manual/ClipDemo.astro';
 import ExtensionDemo from '../../../../components/manual/ExtensionDemo.astro';
 
-Download a whole video or select a clip on supported pages, and optionally authorize an existing site session. This requires a version with browser extension support; 0.5.0 does not provide it. Use matching extension and desktop versions.
+Download a whole video or select a clip on supported pages, and optionally authorize an existing site session. Browser extension support requires 0.5.1 or later. Use the extension and desktop app from the same version.
 
 <span id="connection"></span>
 
 ## Install and connect
 
-In Settings → Download → Browser sessions, choose Install browser connection. Use the adjacent folder action to find the matching extension; in Edge or Chrome's extension manager, enable Developer mode and choose Load unpacked. Open the extension on an ordinary page and check its connection status.
+1. In the desktop app, open Settings → Download → Browser sessions, choose Connect browser, then Set up this computer and Copy path.
+2. In the Edge or Chrome browser you want to use, open extension management, enable Developer mode, choose Load unpacked, paste the path, and select that folder.
+3. Open the Ameow extension on an ordinary page and check the connection status. Follow the next section to enable page tools or authorize the current site.
 
-Complete packages include the matching extension; source builds place it in <code>browser-extension/dist</code>. Keep the app, connection helper, and extension from the same version, and do not move a registered helper on its own. Chromium browsers are supported; Firefox is not yet available.
+After setting up this computer, load the extension in that same browser. Complete packages include the matching extension; source builds place it in <code>browser-extension/dist</code>. Chromium browsers are supported; Firefox is not yet available.
 
 <span id="permissions"></span>
 
@@ -30,12 +32,12 @@ Enable **page tools** and allow page access to show the toolbar in the player. T
 
 Authorize the site in a browser where you are already signed in. The extension syncs the existing session; it does not sign in for you. It continues updating after session changes, browser startup, or reconnection. The downloader and site determine downloadability and visible formats.
 
-In Settings → Download → Browser sessions, check the browser source and latest sync result. Switching sources requires Use this browser instead (改用此浏览器). Remove deletes Ameow's saved session for that site without signing you out.
+In Settings → Download → Browser sessions, select a site badge to check its browser source and latest sync result. The extension shows only the current page's site. To replace the source, choose Use this browser (改用此浏览器) in the browser you want to use. Remove deletes Ameow's saved session for that site without signing you out.
 
 <details>
 <summary>Cache and sync results</summary>
 
-The connection can save a cache protected for the current system user while the desktop app is closed. The last successful cache may precede a newer failure; reading it is not a new sync success. A new success is needed after reconnection. A cache does not guarantee that the site still accepts the session or offers membership quality.
+The latest sync result and last successful cache time appear separately. An older cache may remain after a failed sync; finding no cookies does not confirm that you are signed in. The actual result determines whether the site still accepts the session and which quality levels it offers.
 
 </details>
 
