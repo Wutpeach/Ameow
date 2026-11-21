@@ -11,3 +11,17 @@ Keep vendor files unchanged and retain LICENSES.txt. Fixture adapters operate on
 on in-page example state: no credentials, Native connection or download submission.
 Theme selection follows Starlight. At narrow widths preserve control sizes; give
 readers a visible hint and keyboard access when a native layout needs local panning.
+
+Session UI assets are pinned to product 01c2fad5 / PR76; session-assets.json records
+the original file hashes and native capture scope. NativeSessionFigure displays
+unmodified Gallery screenshots and the uninterrupted 10-second native MP4. Its
+viewing controls only play media; pictured product controls do not execute actions.
+The English installation still uses the original English poster; playing the
+shared native recording shows the Chinese product UI. Reduced motion keeps the
+poster, and playback pauses offscreen or while the document is hidden.
+
+sources/popup.html and vendor/popup.css and popup.js retain the original product bytes.
+popup.html adds CSP, the synthetic sample-contract responses and local resource
+paths; popup-fixture.js replaces only Chrome APIs and binds the parent theme using
+the original stylesheet palette. Never connect these examples to Native, accounts
+or a real permission request. The Peek bundle and its existing media are unchanged.

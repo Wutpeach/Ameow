@@ -1,7 +1,7 @@
 ---
 interface Props { lang?: 'zh' | 'en'; }
 const { lang = 'zh' } = Astro.props;
-const src = import.meta.env.BASE_URL.replace(/\/$/,'') + '/manual/browser/popup.html';
+const src = import.meta.env.BASE_URL.replace(/\/$/,'') + '/manual/browser/popup.html?lang=' + lang;
 ---
 <figure class="extension-figure" data-figure="extension"><ameow-extension-demo><iframe src={src} title={lang === 'en' ? 'Ameow browser extension: page tools and site authorization' : 'Ameow 扩展：页面工具与站点授权'} sandbox="allow-scripts allow-same-origin" /></ameow-extension-demo></figure>
 <script>

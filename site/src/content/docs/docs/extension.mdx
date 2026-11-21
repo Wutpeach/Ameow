@@ -5,6 +5,7 @@ description: 使用页面工具、主动授权站点登录态，以及在 Peek �
 
 import ClipDemo from '../../../components/manual/ClipDemo.astro';
 import ExtensionDemo from '../../../components/manual/ExtensionDemo.astro';
+import NativeSessionFigure from '../../../components/manual/NativeSessionFigure.astro';
 
 在支持的视频页面下载整段或选择片段，也可主动授权同步已有的站点登录态。浏览器扩展需要 0.5.1 或更新版本；请使用同一版本的扩展与桌面端。
 
@@ -18,11 +19,13 @@ import ExtensionDemo from '../../../components/manual/ExtensionDemo.astro';
 
 配置本机连接后，还需在同一浏览器加载扩展。完整包携带配套扩展；源码构建目录为 <code>browser-extension/dist</code>。目前支持 Chromium 浏览器，Firefox 尚未接入。
 
+<NativeSessionFigure scene="connect" />
+
 <span id="permissions"></span>
 
 ## 页面工具与站点授权
 
-启用**页面工具**并允许网页访问，才能在播放器显示工具条。若要同步登录态，另在扩展中选择「授权此站点」，核对站点及子域范围并确认浏览器权限。未授权站点仍以匿名方式尝试。
+启用**页面工具**并允许网页访问，才能在播放器显示工具条。若要同步登录态，另在扩展中选择「授权并同步」，核对站点及子域范围并确认浏览器权限。未授权站点仍以匿名方式尝试。
 
 <ExtensionDemo />
 

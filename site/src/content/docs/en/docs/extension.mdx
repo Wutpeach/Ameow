@@ -5,6 +5,7 @@ description: Use page tools, authorize a site's browser session, and select one 
 
 import ClipDemo from '../../../../components/manual/ClipDemo.astro';
 import ExtensionDemo from '../../../../components/manual/ExtensionDemo.astro';
+import NativeSessionFigure from '../../../../components/manual/NativeSessionFigure.astro';
 
 Download a whole video or select a clip on supported pages, and optionally authorize an existing site session. Browser extension support requires 0.5.1 or later. Use the extension and desktop app from the same version.
 
@@ -18,11 +19,13 @@ Download a whole video or select a clip on supported pages, and optionally autho
 
 After setting up this computer, load the extension in that same browser. Complete packages include the matching extension; source builds place it in <code>browser-extension/dist</code>. Chromium browsers are supported; Firefox is not yet available.
 
+<NativeSessionFigure scene="connect" lang="en" />
+
 <span id="permissions"></span>
 
 ## Page tools and site authorization
 
-Enable **page tools** and allow page access to show the toolbar in the player. To sync a session, separately choose Authorize this site (授权此站点), check the site and subdomain scope, and confirm the browser permission. Unauthorized sites continue with anonymous attempts.
+Enable **page tools** and allow page access to show the toolbar in the player. To sync a session, separately choose Authorize & sync, check the site and subdomain scope, and confirm the browser permission. Unauthorized sites continue with anonymous attempts.
 
 <ExtensionDemo lang="en" />
 
