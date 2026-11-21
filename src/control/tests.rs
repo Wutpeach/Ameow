@@ -1,5 +1,21 @@
 use super::*;
 
+#[cfg(all(feature = "dev-tools", windows))]
+pub(crate) fn retry_inspection_cleanup_for_test(queue: &DownloadCoordinator, job: u64) {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().canonicalize().unwrap();
+    let mut server = Server::start(&path).unwrap();
+    let instance = server.instance_id.clone();
+    let client = std::thread::spawn(move || rpc(&path, &request(&instance, "cleanup_retry_01", Command::Retry {task_id:format!("{instance}:{job}")})));
+    let until = Instant::now() + Duration::from_secs(5);
+    while !client.is_finished() && Instant::now() < until { server.poll(queue, false, false); std::thread::sleep(Duration::from_millis(5)); }
+    let reply = client.join().unwrap().unwrap();
+    assert!(reply.ok, "{reply:?}");
+    let result = reply.result.unwrap();
+    assert_eq!(result["cleanup_retry"], true);
+    assert_eq!(result["job_id"], job);
+}
+
 fn isolated_server() -> Server {
     let (_, receiver) = mpsc::sync_channel(1);
     Server {
@@ -22,10 +38,27 @@ fn request(instance: &str, id: &str, command: Command) -> Request {
 
 fn submit() -> Command {
     Command::Submit {
+        clip: None,
         url: "https://youtu.be/jNQXAC9IVRw".into(),
         quality: None,
         output_dir: None,
     }
+}
+#[test]
+fn clip_changes_conflict_with_the_original_request_receipt() {
+    let root = tempfile::tempdir().unwrap();
+    let queue = DownloadCoordinator::update_test_queue(root.path());
+    let mut server = isolated_server();
+    let mut command = submit();
+    if let Command::Submit { clip, .. } = &mut command { *clip = Some(crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750 }); }
+    let req = request("instance_current", "clip_request_01", command.clone());
+    let (first, _) = server.handle(&req, &queue, true);
+    let (replay, notice) = server.handle(&req, &queue, true);
+    assert_eq!(serde_json::to_value(first).unwrap(), serde_json::to_value(replay).unwrap());
+    assert!(notice.is_none());
+    if let Command::Submit { clip, .. } = &mut command { clip.as_mut().unwrap().start_ms = 2250; }
+    let changed = request("instance_current", "clip_request_01", command);
+    assert_eq!(error(server.handle(&changed, &queue, true).0), "E_REQUEST_CONFLICT");
 }
 
 fn error(response: Response) -> String {

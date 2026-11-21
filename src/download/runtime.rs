@@ -323,7 +323,7 @@ impl TrustedRuntimeRequirements {
             empty: false,
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "dev-tools", debug_assertions)))]
     pub(crate) fn empty() -> Self {
         Self {
             probes: BTreeMap::new(),

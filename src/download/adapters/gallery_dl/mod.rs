@@ -74,10 +74,7 @@ impl DownloaderAdapter for GalleryDlAdapter {
         let mut phase = Phase::Resolving;
         let mut native_unsupported = false;
         run(request, context, &mut phase, &mut native_unsupported).map_err(|e| {
-            let _ = fs::write(
-                context.workspace().join("adapter-error.log"),
-                e.chars().take(65536).collect::<String>(),
-            );
+            let _ = context.write_evidence("adapter-error.log", e.chars().take(65536).collect::<String>().as_bytes());
             if context.cancelled() {
                 Failure::new(FailureCode::Cancelled, "cleanup")
             } else if e.starts_with("E_RUNTIME:") {
@@ -165,11 +162,18 @@ fn native_unsupported_url(
         || outcome.stderr == format!("{line}\n").as_bytes()
 }
 fn common(
-    _context: &ExecutionContext<'_>,
+    context: &ExecutionContext<'_>,
     request: &ExecutionRequest,
 ) -> Result<Vec<String>, String> {
     let route = network::engine_route(&request.accepted.intent.url)
         .map_err(|e| format!("E_NETWORK_ENGINE_ROUTE_UNSUPPORTED: {e}"))?;
+    Ok(engine_args(context, request, &route))
+}
+pub(crate) fn engine_args(
+    context: &ExecutionContext<'_>,
+    request: &ExecutionRequest,
+    route: &network::Route,
+) -> Vec<String> {
     let mut args = vec![
         "--config-ignore".into(),
         "--proxy".into(),
@@ -182,7 +186,10 @@ fn common(
     args.extend(["-o".into(), "extractor.metadata-url=ameow_source".into(),
         "-o".into(), "extractor.metadata-path=ameow_path".into(),
         "--range".into(), if matches!(request.accepted.object, Object::Generic { .. }) { "1-2" } else { "1-1001" }.into()]);
-    Ok(args)
+    if let Some(auth) = context.authentication {
+        args.extend(auth.arguments());
+    }
+    args
 }
 fn invoke(
     context: &ExecutionContext<'_>,
@@ -213,16 +220,8 @@ fn invoke(
             callback,
         )
         .map_err(|e| format!("E_RUNTIME: {e}"))?;
-    fs::write(
-        context.workspace().join(format!("{label}-stdout.log")),
-        &result.stdout,
-    )
-    .map_err(|e| format!("E_STORAGE: {e}"))?;
-    fs::write(
-        context.workspace().join(format!("{label}-stderr.log")),
-        &result.stderr,
-    )
-    .map_err(|e| format!("E_STORAGE: {e}"))?;
+    context.write_evidence(&format!("{label}-stdout.log"), &result.stdout)?;
+    context.write_evidence(&format!("{label}-stderr.log"), &result.stderr)?;
     fs::write(
         context.workspace().join(format!("{label}-settlement.log")),
         format!("exit_code: {}\n{:#?}\n", result.exit_code, result.facts),
@@ -282,14 +281,14 @@ fn preflight(request: &ExecutionRequest, data: &[u8]) -> Result<(Identity, BTree
         Object::Generic { url } => (Site::Generic, format!("{:x}", Sha256::digest(url.as_bytes()))),
         _ => return Err("Wrong adapter".into()),
     };
-    Ok((Identity { title: crate::download::diagnostics::safe_title(title.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(&id)), id, site, part: None }, files))
+    Ok((Identity { title: title.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| id.clone()), id, site, part: None }, files))
 }
 fn check_known_identity(accepted: &Accepted, meta: &Value) -> Result<(), String> {
     let Object::Gallery { site, id } = &accepted.object else { return Ok(()); };
     let (actual, expected) = match site {
         Site::Imgur => {
             let (kind, id) = id.split_once(':').ok_or("E_IDENTITY: invalid accepted gallery")?;
-            (if kind == "album" { meta["album"]["id"].as_str() } else { meta["id"].as_str() }, id)
+            (if kind == "album" { meta["ameow_album_id"].as_str().or_else(|| meta["album"]["id"].as_str()) } else { meta["id"].as_str() }, id)
         },
         Site::Bluesky => (meta["post_id"].as_str(), id.rsplit_once('/').ok_or("E_IDENTITY: invalid accepted post")?.1),
         _ => return Ok(()),
@@ -341,10 +340,7 @@ fn run(
     resolved(&result, &request.accepted.intent.url, generic, native_unsupported)?;
     let (identity, expected) =
         preflight(request, &result.stdout)?;
-    let expected_paths: Vec<PathBuf> = expected
-        .keys()
-        .map(|name| PathBuf::from("gallery-media").join(name))
-        .collect();
+    let expected_paths = collection_paths(&expected);
     if let Some(resume) = &request.resume {
         if !same_collection(&resume.expected_paths, resume.total, &expected_paths) {
             return Err("E_IDENTITY: collection contents changed since previous attempt".into());
@@ -407,7 +403,11 @@ fn run(
     if generic {
         super::yt_dlp::check_generic_destination(&request.accepted)?;
     }
-    let pp = json!([{"name":"metadata","mode":"jsonl","event":"after","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-after.jsonl"},{"name":"metadata","mode":"jsonl","event":"skip","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-skip.jsonl"}]);
+    let mut pp = json!([{"name":"metadata","mode":"jsonl","event":"after","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-after.jsonl"},{"name":"metadata","mode":"jsonl","event":"skip","base-directory":context.workspace().to_string_lossy(),"filename":"gallery-skip.jsonl"}]);
+    for entry in pp.as_array_mut().unwrap() {
+        entry["include"] = json!(["ameow_path", "ameow_source", "id", "filename", "image_key", "post_id", "ameow_album_id"]);
+    }
+    pp.as_array_mut().unwrap().insert(0, json!({"name":"metadata", "mode":"modify", "event":["after", "skip"], "fields":{"ameow_album_id":"{album[id]}"}}));
     let mut args = common(context, request)?;
     args.extend([
         "-o".into(),
@@ -491,6 +491,8 @@ fn run(
             }
         }
     }
+    // A retry may acquire or lose authorization; public item paths must keep the same scheme.
+    paths = neutral_paths(&root, paths, &copied)?;
     let artifacts = paths
         .into_iter()
         .map(|name| ProducedArtifact {
@@ -526,6 +528,24 @@ fn run(
         expected_paths,
     })
 }
+fn collection_paths(expected: &BTreeMap<PathBuf, Value>) -> Vec<PathBuf> {
+    // item_key already hashes native identity; never key the collection by authentication.
+    expected.keys().map(|name| PathBuf::from("gallery-media").join(name)).collect()
+}
+fn neutral_name(name: &Path) -> PathBuf {
+    PathBuf::from(format!("item-{:x}.data", Sha256::digest(name.as_os_str().as_encoded_bytes())))
+}
+fn neutral_paths(root: &Path, paths: BTreeSet<PathBuf>, copied: &BTreeSet<PathBuf>) -> Result<BTreeSet<PathBuf>, String> {
+    let mut result = BTreeSet::new();
+    for name in paths {
+        let neutral = neutral_name(&name);
+        // Prior verified copies belong to this attempt; engine output may replace them on retry.
+        if copied.contains(&neutral) { fs::remove_file(root.join(&neutral)).map_err(|_| "E_STORAGE: resume item cleanup failed")?; }
+        output::move_no_replace(&root.join(name), &root.join(&neutral)).map_err(|_| "E_STORAGE: cannot neutralize native item name")?;
+        result.insert(neutral);
+    }
+    Ok(result)
+}
 fn same_collection(previous: &[PathBuf], total: Option<usize>, current: &[PathBuf]) -> bool {
     let old: BTreeSet<_> = previous.iter().collect();
     let new: BTreeSet<_> = current.iter().collect();
@@ -551,6 +571,33 @@ mod diagnostic_regressions;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn authenticated_native_names_are_opaque_and_stable_on_resume() {
+        let root = tempfile::tempdir().unwrap();
+        let original = PathBuf::from("private-response-name.png");
+        fs::write(root.path().join(&original), b"first").unwrap();
+        let first = neutral_paths(root.path(), BTreeSet::from([original.clone()]), &BTreeSet::new()).unwrap();
+        let name = first.first().unwrap();
+        assert_eq!(name, &neutral_name(&original), "expected collection paths and delivered item keys share the opaque name");
+        assert!(!name.to_string_lossy().contains("private-response"));
+        fs::write(root.path().join(&original), b"updated").unwrap();
+        let next = neutral_paths(root.path(), BTreeSet::from([original]), &first).unwrap();
+        assert_eq!(next, first);
+        assert_eq!(fs::read(root.path().join(name)).unwrap(), b"updated");
+    }
+    #[test]
+    fn collection_retry_identity_is_independent_of_authorization() {
+        let request = request("https://bsky.app/profile/test.example/post/abc123");
+        let rows = json!([[3,"https://cdn.test/image.jpg",{"filename":"normal-image","post_id":"abc123"}]]);
+        let (_, expected) = preflight(&request, &serde_json::to_vec(&rows).unwrap()).unwrap();
+        let previous = collection_paths(&expected);
+        // Both first attempt and retry call the same auth-independent key/path functions.
+        let (_, refreshed) = preflight(&request, &serde_json::to_vec(&rows).unwrap()).unwrap();
+        assert!(same_collection(&previous, Some(1), &collection_paths(&refreshed)));
+        let mut changed = rows; changed[0][2]["filename"] = json!("different-item");
+        let (_, changed) = preflight(&request, &serde_json::to_vec(&changed).unwrap()).unwrap();
+        assert!(!same_collection(&previous, Some(1), &collection_paths(&changed)));
+    }
     use crate::download::request::{Accepted, DownloadIntent, Quality};
     #[test]
     fn only_exact_native_gallery_unsupported_output_allows_fallback() {
@@ -593,7 +640,7 @@ mod tests {
     fn request(url: &str) -> ExecutionRequest {
         let output = std::env::temp_dir();
         ExecutionRequest {
-            accepted: Accepted::new(DownloadIntent {
+            accepted: Accepted::new(DownloadIntent { clip: None,
                 url: url.into(),
                 quality: Quality::Balanced,
                 output_dir: output,

@@ -24,6 +24,45 @@ pub fn verify(
         path, workspace, expected, false, lease, control, observer, probe_tool,
     )
 }
+pub fn verify_clip(
+    path: &Path, workspace: &Path, expected: &VideoExpectation,
+    range: crate::download::request::ClipRange, source_duration: Option<f64>, lease: &RuntimeLease, control: &Control,
+    observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>, probe_tool: &str,
+) -> Result<VerifiedMedia, String> {
+    range.validate()?;
+    let media = verify(path, workspace, expected, lease, control, observer.clone(), probe_tool)?;
+    let info: Value = serde_json::from_slice(&fs::read(workspace.join("ffprobe.json")).map_err(|e| e.to_string())?)
+        .map_err(|_| "E_MEDIA_UNVERIFIED: clip probe unavailable")?;
+    let duration = positive(&info["format"]["duration"]).ok_or("E_MEDIA_UNVERIFIED: clip duration missing")?;
+    validate_clip_duration(duration, range, source_duration)?;
+    let decoded = decoded_duration(path, workspace, lease, control, observer, true)?;
+    validate_clip_duration(decoded, range, source_duration)?;
+    Ok(media)
+}
+fn validate_clip_duration(duration: f64, range: crate::download::request::ClipRange, source_duration: Option<f64>) -> Result<(), String> {
+    // Fast stream copy may include a preceding GOP. Bound the supported slack;
+    // never turn a short selection into a whole-source success.
+    let requested = range.duration_seconds();
+    if !duration.is_finite()
+        || duration < (requested - 0.25).max(0.001) || duration > requested + 10.
+        || source_duration.is_some_and(|source| requested < source - 1. && duration >= source - 0.25) {
+        return Err("E_CLIP_UNSUPPORTED: fast cut is outside the bounded keyframe interval".into());
+    }
+    Ok(())
+}
+#[cfg(test)]
+mod clip_tests {
+    use super::*;
+    #[test]
+    fn fast_clip_allows_gop_slack_but_rejects_whole_or_truncated_output() {
+        let range = crate::download::request::ClipRange { start_ms: 301250, end_ms: 309750 };
+        for duration in [8.5, 9.75, 12.] { assert!(validate_clip_duration(duration, range, Some(600.)).is_ok()); }
+        for duration in [0., 3., 19., 600., f64::NAN] { assert!(validate_clip_duration(duration, range, Some(600.)).is_err()); }
+        assert!(validate_clip_duration(600., range, None).is_err());
+        let short = crate::download::request::ClipRange { start_ms: 1250, end_ms: 4750 };
+        assert!(validate_clip_duration(8., short, Some(8.)).is_err());
+    }
+}
 pub(super) fn verify_media(
     path: &Path,
     workspace: &Path,
@@ -134,6 +173,7 @@ fn inspect(
             lease,
             control,
             observer,
+            false,
         )?);
     }
     media.kind = MediaKind::Video;
@@ -217,6 +257,7 @@ fn decoded_duration(
     lease: &RuntimeLease,
     control: &Control,
     observer: Arc<dyn Fn(ProcessObservation) + Send + Sync>,
+    clip: bool,
 ) -> Result<f64, String> {
     let recovery = Control::default();
     let decode_control = if control.is_cancelled() {
@@ -227,7 +268,7 @@ fn decoded_duration(
     let outcome = process_supervisor::run(
         ProcessSpec {
             executable: lease.file("ffmpeg.exe")?,
-            args: ["-nostdin", "-v", "error", "-xerror", "-i"]
+            args: ["-nostdin", "-v", "error", "-xerror", "-stats_period", "10", "-i"]
                 .into_iter()
                 .map(str::to_string)
                 .chain([path.display().to_string()])
@@ -235,6 +276,8 @@ fn decoded_duration(
                     [
                         "-map",
                         "0:v:0",
+                        "-map",
+                        "0:a?",
                         "-progress",
                         "pipe:1",
                         "-nostats",
@@ -250,11 +293,7 @@ fn decoded_duration(
             env: crate::download::runtime::child_environment(workspace)?,
             stdout_limit: 65536,
             stderr_limit: 65536,
-            timeout: Some(Duration::from_secs(if control.is_cancelled() {
-                1
-            } else {
-                30
-            })),
+            timeout: if control.is_cancelled() { Some(Duration::from_secs(1)) } else if clip { None } else { Some(Duration::from_secs(30)) },
         },
         decode_control,
         observer,

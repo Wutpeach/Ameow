@@ -182,9 +182,9 @@ impl Presentation {
         let chosen = snapshot
             .jobs
             .iter()
-            .filter(|job| job.slot_owned && !job.phase.terminal() && job.start_order.is_some())
+            .filter(|job| !job.inspect_only && job.slot_owned && !job.phase.terminal() && job.start_order.is_some())
             .max_by_key(|job| job.start_order)
-            .or_else(|| snapshot.jobs.iter().find(|job| !job.phase.terminal()));
+            .or_else(|| snapshot.jobs.iter().find(|job| !job.inspect_only && !job.phase.terminal()));
         self.foreground = chosen.map(|job| (job.job_id, false));
         chosen.map(|job| job.job_id)
     }
@@ -194,6 +194,7 @@ impl Presentation {
             .for_each(|deadline| *deadline = None);
     }
     pub fn visible(&self, job: &JobSnapshot, now: u64) -> bool {
+        if job.inspect_only { return false; }
         match job.phase {
             JobPhase::Success => self
                 .successes
@@ -210,7 +211,7 @@ impl Presentation {
         snapshot
             .jobs
             .iter()
-            .filter(|job| matches!(job.phase, JobPhase::Failure | JobPhase::Partial) && !self.dismissed.contains(&job.job_id))
+            .filter(|job| !job.inspect_only && matches!(job.phase, JobPhase::Failure | JobPhase::Partial) && !self.dismissed.contains(&job.job_id))
             .count()
     }
     pub fn clear(&mut self, job: u64) {

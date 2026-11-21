@@ -3,6 +3,9 @@ use std::{env, fs, path::PathBuf};
 mod notices;
 
 fn main() {
+    if env::var_os("CARGO_FEATURE_DEV_TOOLS").is_some() {
+        dev_identity();
+    }
     println!("cargo:rerun-if-env-changed=AMEOW_FIXTURE_BUILD_VERSION");
     println!("cargo:rerun-if-changed=assets/brand");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
@@ -92,4 +95,34 @@ END
     embed_resource::compile_for(resource, ["ameow"], embed_resource::NONE)
         .manifest_required()
         .expect("Windows brand icons must be embedded");
+}
+
+fn dev_identity() {
+    use sha2::{Digest, Sha256};
+    use std::process::Command;
+    let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let inputs = ["Cargo.toml", "Cargo.lock", "build.rs", "build_support", "src", "assets", "vendor", "rust-toolchain.toml", "scripts/preview-scenes.json"];
+    let output = Command::new("git").current_dir(&root).args(["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--"]).args(inputs).output().expect("git for dev build identity");
+    assert!(output.status.success(), "git for dev build identity");
+    let mut paths: Vec<_> = output.stdout.split(|b| *b == 0).filter(|p| !p.is_empty()).map(|p| String::from_utf8(p.to_vec()).unwrap()).collect();
+    paths.sort();
+    paths.dedup();
+    let mut digest = Sha256::new();
+    for path in paths {
+        println!("cargo:rerun-if-changed={path}");
+        digest.update(path.as_bytes());
+        digest.update([0]);
+        match fs::read(root.join(&path)) {
+            Ok(bytes) => { digest.update((bytes.len() as u64).to_le_bytes()); digest.update(bytes); }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => digest.update(b"deleted"),
+            Err(error) => panic!("dev identity input: {error}"),
+        }
+    }
+    // Include newly authored source before its first commit as well.
+    for path in ["src", "build_support"] {
+        println!("cargo:rerun-if-changed={path}");
+    }
+    let head = Command::new("git").current_dir(&root).args(["rev-parse", "HEAD"]).output().unwrap();
+    println!("cargo:rustc-env=AMEOW_DEV_BUILD_COMMIT={}", String::from_utf8(head.stdout).unwrap().trim());
+    println!("cargo:rustc-env=AMEOW_DEV_BUILD_SOURCE_SHA256={:x}", digest.finalize());
 }

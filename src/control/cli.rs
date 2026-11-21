@@ -102,7 +102,7 @@ fn spawn_app(process: &mut Process) -> Result<(), ControlError> {
     Ok(())
 }
 
-const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
+const HELP: &str = "Ameow CLI\n\nUsage: ameow-cli [--json] [--no-start] [--app PATH] [--instance-root PATH] <command>\n\nCommands:\n  submit URL [--quality highest|balanced|saver] [--output DIR] [--start-ms I --end-ms O]\n  list | show ID | cancel ID | retry ID | wait ID [--timeout SECONDS]\n  settings | sessions | components | diagnose [ID]\n\nA mutation can be replayed with --request-id ID --instance-id ID from its receipt.\nExamples:\n  ameow-cli --json submit https://example.com/media --quality balanced\n  ameow-cli --json wait INSTANCE:JOB --timeout 300\n\nExit: 0 success, 2 invalid input, 3 partial, 4 failed, 5 cancelled, 6 timeout, 7 connection, 8 protocol, 9 rejected.\n";
 
 #[derive(Debug)]
 struct Options {
@@ -139,6 +139,8 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
     let mut instance_id = None;
     let mut quality = None;
     let mut output_dir = None;
+    let mut start_ms = None;
+    let mut end_ms = None;
     let mut timeout = None;
     let mut positionals = Vec::new();
     let mut args = args.into_iter();
@@ -148,6 +150,8 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
                 .ok_or_else(|| invalid(format!("{arg} requires a value")))
         };
         match arg.as_str() {
+            "--start-ms" if start_ms.is_none() => start_ms = Some(value()?.parse::<u64>().map_err(|_| invalid("start-ms must be nonnegative integer milliseconds"))?),
+            "--end-ms" if end_ms.is_none() => end_ms = Some(value()?.parse::<u64>().map_err(|_| invalid("end-ms must be nonnegative integer milliseconds"))?),
             "--json" if !json => json = true,
             "--no-start" if !no_start => no_start = true,
             "--app" if app.is_none() => app = Some(PathBuf::from(value()?)),
@@ -216,11 +220,13 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
         .first()
         .map(String::as_str)
         .ok_or_else(|| invalid("missing command; use --help"))?;
-    if quality.is_some() && name != "submit"
+    if quality.is_some() && !matches!(name, "submit" | "inspect")
+        || (start_ms.is_some() || end_ms.is_some()) && name != "submit"
+        || start_ms.is_some() != end_ms.is_some()
         || output_dir.is_some() && name != "submit"
         || timeout.is_some() && name != "wait"
-        || request_id.is_some() && !matches!(name, "submit" | "cancel" | "retry")
-        || instance_id.is_some() != request_id.is_some()
+        || request_id.is_some() && !matches!(name, "submit" | "inspect" | "cancel" | "retry")
+        || (instance_id.is_some() != request_id.is_some() && !(name == "inspect" && instance_id.is_some()))
     {
         return Err(invalid("option does not apply to this command"));
     }
@@ -246,7 +252,15 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
             none()?;
             Action::Version
         }
+        "inspect" => {
+            if !cfg!(all(feature = "dev-tools", debug_assertions)) { return Err(ControlError::new("E_DEV_DISABLED", "inspect requires debug dev-tools")); }
+            if instance_id.is_none() || app.is_some() {
+                return Err(invalid("dev inspect requires --instance-id of an existing owner; --instance-root optionally selects an isolated domain; --app is not supported"));
+            }
+            Action::Request(Command::Inspect { url: one()?, quality: quality.unwrap_or(Quality::Highest) })
+        }
         "submit" => Action::Request(Command::Submit {
+            clip: start_ms.zip(end_ms).map(|(start_ms, end_ms)| crate::download::request::ClipRange { start_ms, end_ms }.validate().map_err(invalid)).transpose()?,
             url: one()?,
             quality,
             output_dir,
@@ -266,6 +280,7 @@ fn parse(args: Vec<String>) -> Result<Options, ControlError> {
             none()?;
             Action::Request(Command::Settings {})
         }
+        "sessions" => { none()?; Action::Request(Command::BrowserSessions {}) }
         "components" => {
             none()?;
             Action::Request(Command::Components {})
@@ -412,6 +427,21 @@ fn hello(path: &Path) -> Result<Response, ControlError> {
     rpc(path, &request(Command::Hello {}, None, None)?)
 }
 
+fn inspection_ready(result: &serde_json::Value) -> Result<(), ControlError> {
+    if result["inspection_v1"].as_bool() != Some(true) {
+        return Err(ControlError::new("E_INSPECTION_UNSUPPORTED", "Selected owner does not support metadata inspection; request was not sent"));
+    }
+    if !startup_ready(result)? { return Err(ControlError::new("E_STARTING", "Selected owner is still starting; request was not sent")); }
+    Ok(())
+}
+fn owner_summary(greeting: &Response) -> serde_json::Value {
+    let result = greeting.result.as_ref().unwrap_or(&serde_json::Value::Null);
+    serde_json::json!({"instance_id":greeting.instance_id,"protocol_version":greeting.protocol_version,
+        "pid":result["pid"].as_u64(),"app_version":result["app_version"].as_str(),"build_hash":"unknown",
+        "startup_pending":result["startup_pending"].as_bool(),"commands_allowed":result["commands_allowed"].as_bool(),
+        "capabilities":{"clip_v1":result["clip_v1"].as_bool(),"inspection_v1":result["inspection_v1"].as_bool(),"browser_sessions_v1":result["browser_sessions_v1"].as_bool()}})
+}
+
 fn response_ok(response: Response) -> Result<Response, ControlError> {
     if response.ok {
         Ok(response)
@@ -427,7 +457,7 @@ fn terminal_exit(phase: &str, resources_released: bool) -> Option<i32> {
         return None;
     }
     match phase {
-        "Success" => Some(0),
+        "Success" | "Inspected" => Some(0),
         "Partial" => Some(3),
         "Failure" => Some(4),
         "Cancelled" => Some(5),
@@ -630,7 +660,14 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
         )
         .into());
     }
+    if matches!(&options.action, Action::Request(Command::Inspect { .. })) {
+        inspection_ready(greeting.result.as_ref().ok_or_else(|| ControlError::new("E_PROTOCOL", "hello omitted result"))?)?;
+    }
     if matches!(&options.action, Action::Request(Command::Submit { .. })) {
+        if matches!(&options.action, Action::Request(Command::Submit { clip: Some(_), .. }))
+            && greeting.result.as_ref().and_then(|v| v["clip_v1"].as_bool()) != Some(true) {
+            return Err(ControlError::new("E_CLIP_UNSUPPORTED", "Desktop owner does not support clip intervals; request was not sent").into());
+        }
         let started = Instant::now();
         loop {
             let state = greeting
@@ -658,6 +695,7 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
             }
         }
     }
+    let owner = owner_summary(&greeting);
     match &options.action {
         Action::Request(command) => {
             let req = request(
@@ -678,6 +716,7 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
                 }
                 _ => {}
             }
+            reply.owner = Some(owner.clone());
             Ok((reply, 0))
         }
         Action::Wait { task_id, timeout } => {
@@ -709,7 +748,9 @@ fn execute(options: &Options) -> Result<(Response, i32), CliError> {
                         ControlError::new("E_PROTOCOL", "show response omitted resource settlement")
                     })?;
                 if let Some(status) = terminal_exit(phase, released) {
-                    return Ok((finish_files(&path, &instance, task_id, reply)?, status));
+                    let mut reply = finish_files(&path, &instance, task_id, reply)?;
+                    reply.owner = Some(owner.clone());
+                    return Ok((reply, status));
                 }
                 if timeout.is_some_and(|limit| start.elapsed() >= limit) {
                     return Err(ControlError::new(
@@ -761,6 +802,17 @@ fn print_error(json: bool, failure: CliError) -> i32 {
     status
 }
 
+/// The browser bridge shares CLI startup, handshake and acceptance.
+pub(crate) fn browser_submit(instance_root: Option<PathBuf>, url: String, clip: Option<crate::download::request::ClipRange>, request_id: String) -> Result<serde_json::Value, String> {
+    if let Some(range) = clip { range.validate()?; }
+    let app = if instance_root.is_some() {
+        Some(std::env::current_exe().map_err(|_| "E_LAUNCH")?.with_file_name(if cfg!(windows) { "ameow.exe" } else { "ameow" }))
+    } else { None };
+    let options = Options { json: true, no_start: false, app, instance_root, request_id: Some(request_id), instance_id: None,
+        action: Action::Request(Command::Submit { url, clip, quality: None, output_dir: None }) };
+    let (reply, _) = execute(&options).map_err(|e| e.error.code)?;
+    reply.result.filter(|v| v["task_id"].is_string()).ok_or_else(|| "E_PROTOCOL".into())
+}
 pub fn run() -> i32 {
     let raw_args: Vec<_> = std::env::args_os().skip(1).collect();
     let wants_json = raw_args.iter().any(|arg| arg == "--json");
@@ -774,6 +826,15 @@ pub fn run() -> i32 {
             );
         }
     };
+    let mut args = args;
+    let dev_inspect = args.iter().position(|arg| arg == "dev").filter(|index| args.get(index + 1).is_some_and(|arg| arg == "inspect"));
+    if let Some(index) = dev_inspect { args.remove(index); }
+    if dev_inspect.is_none() && args.iter().find(|arg| arg.as_str() != "--json").is_some_and(|arg| arg == "dev") {
+        #[cfg(all(feature = "dev-tools", debug_assertions))]
+        return super::dev::run(args.into_iter().filter(|arg| arg != "--json").skip(1).collect());
+        #[cfg(not(all(feature = "dev-tools", debug_assertions)))]
+        return print_error(wants_json, ControlError::new("E_DEV_DISABLED", "dev requires a debug build with --features dev-tools").into());
+    }
     let options = match parse(args) {
         Ok(options) => options,
         Err(error) => return print_error(wants_json, error.into()),
@@ -806,7 +867,7 @@ pub fn run() -> i32 {
                 if options.json {
                     println!(
                         "{}",
-                        serde_json::to_string(&response).expect("serializable response")
+                        serde_json::to_string(&{ let mut value = serde_json::to_value(&response).expect("serializable response"); value["client"] = serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"protocol_version":PROTOCOL_VERSION}); value }).expect("serializable response")
                     );
                 } else if let Some(result) = response.result {
                     println!(
@@ -824,6 +885,46 @@ pub fn run() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inspection_negotiation_and_owner_summary_do_not_infer_support() {
+        let old = serde_json::json!({"pid":12,"app_version":"0.5.0","startup_pending":false,"commands_allowed":true});
+        assert_eq!(inspection_ready(&old).unwrap_err().code,"E_INSPECTION_UNSUPPORTED");
+        let mut current = old.clone(); current["inspection_v1"] = true.into(); current["startup_pending"] = true.into();
+        assert_eq!(inspection_ready(&current).unwrap_err().code,"E_STARTING");
+        current["startup_pending"] = false.into(); current["commands_allowed"] = false.into();
+        assert_eq!(inspection_ready(&current).unwrap_err().code,"E_APP_UPDATE_BUSY");
+        current["commands_allowed"] = true.into(); assert!(inspection_ready(&current).is_ok());
+        let req = request(Command::Hello {},None,None).unwrap();
+        let summary = owner_summary(&Response::from_result(&req,"known-owner",Ok(old)));
+        assert_eq!(summary["instance_id"],"known-owner"); assert_eq!(summary["pid"],12);
+        assert!(summary["capabilities"]["inspection_v1"].is_null()); assert_eq!(summary["build_hash"],"unknown");
+        assert_eq!(terminal_exit("Inspected",true),Some(0)); assert_eq!(terminal_exit("Inspected",false),None);
+    }
+    #[cfg(all(feature="dev-tools", debug_assertions))]
+    #[test]
+    fn inspection_parser_requires_explicit_owner_and_rejects_download_options() {
+        let base = ["inspect","https://example.com/work","--instance-root","D:/Synthetic","--instance-id","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"];
+        assert!(parse(words(&base)).is_ok());
+        for end in [["--output","D:/Synthetic"],["--start-ms","0"],["--app","dummy.exe"]] {
+            let mut args=words(&base); args.extend(words(&end)); assert!(parse(args).is_err());
+        }
+        assert!(parse(words(&base[..2])).is_err());
+        assert!(parse(words(&["inspect","https://example.com/work","--instance-id","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"])).is_ok());
+    }
+    #[cfg(all(feature="dev-tools", debug_assertions))]
+    #[test]
+    fn inspection_uses_the_selected_existing_owner_over_normal_transport() {
+        let temp=tempfile::tempdir().unwrap(); let root=temp.path().canonicalize().unwrap();
+        let queue=crate::download::queue::DownloadCoordinator::update_test_queue(&root);
+        let mut server=super::super::Server::start(&root).unwrap(); let id=server.instance_id.clone();
+        let options=parse(vec!["inspect".into(),"https://youtu.be/jNQXAC9IVRw".into(),"--instance-root".into(),root.to_string_lossy().into_owned(),"--instance-id".into(),id.clone()]).unwrap();
+        let client=thread::spawn(move || execute(&options)); let until=Instant::now()+Duration::from_secs(5);
+        while !client.is_finished() && Instant::now()<until { server.poll(&queue,true,false); thread::sleep(Duration::from_millis(5)); }
+        let (reply,status)=client.join().unwrap().map_err(|error| error.error.code).unwrap(); assert_eq!(status,0); assert_eq!(reply.instance_id,id);
+        assert_eq!(reply.owner.unwrap()["capabilities"]["inspection_v1"],true);
+        assert_eq!(queue.snapshot().jobs.len(),1); assert!(queue.snapshot().jobs[0].inspect_only);
+        assert!(queue.snapshot().jobs[0].delivered.is_none());
+    }
     #[cfg(windows)]
     #[test]
     fn windows_arguments_preserve_quotes_spaces_and_trailing_slashes() {

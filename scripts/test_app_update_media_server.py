@@ -41,6 +41,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         job, selected = allowed[url.path]
+        # Explicit local failure latch; recovery is a separate evidence file, never a deletion.
+        if (root / f'fail-{job}').exists() and not (root / f'recover-{job}').exists():
+            record(event='injected-http-failure', media=job)
+            self.send_error(503)
+            return
         payload = selected.read_bytes()
         if selected.name == 'master.m3u8':
             payload = payload.replace(b'VARIANT', f'ameow-issue33-{job}/index.m3u8'.encode())
