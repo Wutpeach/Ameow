@@ -94,6 +94,60 @@ pub struct ProgressFeed {
     postprocessing: bool,
     primary: Option<usize>,
     timeline: Timeline,
+    clip: Option<ClipFeed>,
+}
+#[derive(Default)]
+struct ClipBlock {
+    time_us: Option<u64>,
+    speed: Option<f64>,
+    speed_seen: bool,
+}
+struct ClipFeed {
+    duration_us: u64,
+    block: Option<ClipBlock>,
+    position_us: u64,
+}
+impl ClipFeed {
+    fn push(&mut self, line: &[u8], now: u64) -> Option<TransferProgress> {
+        let Some((key, value)) = std::str::from_utf8(line).ok().and_then(|s| s.split_once('=')) else {
+            self.block = None;
+            return None;
+        };
+        if key == "frame" {
+            self.block = value.trim().parse::<u64>().ok().map(|_| ClipBlock::default());
+            return None;
+        }
+        let block = self.block.as_mut()?;
+        match key {
+            "out_time_us" if block.time_us.is_none() => {
+                block.time_us = value.parse::<u64>().ok().filter(|n| *n <= MAX_BYTES);
+                if block.time_us.is_none() { self.block = None; }
+            }
+            "speed" if !block.speed_seen => {
+                block.speed_seen = true;
+                block.speed = value.trim().strip_suffix('x').and_then(|v| v.parse::<f64>().ok())
+                    .filter(|s| s.is_finite() && *s >= 0.);
+                if block.speed.is_none() && value.trim() != "N/A" { self.block = None; }
+            }
+            "progress" => {
+                let block = self.block.take()?;
+                let time = block.time_us.filter(|t| *t >= self.position_us)?;
+                if !block.speed_seen || !matches!(value, "continue" | "end") { return None; }
+                self.position_us = time;
+                return Some(TransferProgress {
+                    phase: if value == "end" { TransferPhase::Processing } else { TransferPhase::Clip },
+                    fraction: (value == "continue").then(|| (time as f64 / self.duration_us as f64).min(1.) as f32),
+                    media_speed: (value == "continue").then_some(block.speed).flatten(),
+                    observed_at_ms: now,
+                    ..Default::default()
+                });
+            }
+            "fps" | "bitrate" | "total_size" | "out_time_ms" | "out_time" | "dup_frames" | "drop_frames" => {}
+            key if key.starts_with("stream_") && key.ends_with("_q") => {}
+            _ => self.block = None,
+        }
+        None
+    }
 }
 fn scalar_bytes(value: &Value) -> Option<u64> {
     if let Some(n) = value.as_u64() {
@@ -154,6 +208,7 @@ impl ProgressFeed {
             latest: None,
             last_publish: None,
             postprocessing: false,
+            clip: None,
         }
     }
     #[cfg(test)]
@@ -204,10 +259,19 @@ impl ProgressFeed {
             latest: None,
             last_publish: None,
             postprocessing: false,
+            clip: None,
         }
     }
     pub(super) fn with_timeline(mut self, timeline: Timeline) -> Self {
         self.timeline = timeline;
+        self
+    }
+    pub(super) fn with_clip(mut self, range: Option<crate::download::request::ClipRange>) -> Self {
+        if let Some(range) = range.filter(|r| r.end_ms > r.start_ms)
+            && self.primary.is_some()
+        {
+            self.clip = Some(ClipFeed { duration_us: (range.end_ms - range.start_ms) * 1000, block: None, position_us: 0 });
+        }
         self
     }
     pub fn push(
@@ -217,11 +281,25 @@ impl ProgressFeed {
         text: &str,
         now: u64,
     ) -> Option<TransferProgress> {
-        let lines = self.frames[usize::from(stderr)].push(sequence, text);
+        let frame = &mut self.frames[usize::from(stderr)];
+        if !stderr && (sequence != frame.sequence.saturating_add(1) || text.len() > 24_576)
+            && let Some(clip) = &mut self.clip
+        { clip.block = None; }
+        let lines = frame.push(sequence, text);
         let mut changed = false;
         let mut urgent = false;
         for line in lines {
-            if let Some(raw) = line.strip_prefix(b"AMEOW_PP=") {
+            if !stderr && !self.postprocessing
+                && let Some(clip) = &mut self.clip
+                && let Some(sample) = clip.push(&line, now)
+            {
+                urgent |= sample.phase == TransferPhase::Processing;
+                self.postprocessing |= sample.phase == TransferPhase::Processing;
+                self.timeline.record(serde_json::json!({"observed_at_ms":now,"phase":sample.phase,
+                    "position_us":clip.position_us,"duration_us":clip.duration_us,"fraction":sample.fraction,"media_speed":sample.media_speed}));
+                self.latest = Some(sample);
+                changed = true;
+            } else if let Some(raw) = line.strip_prefix(b"AMEOW_PP=") {
                 let Ok(value) = serde_json::from_slice::<Value>(raw) else {
                     continue;
                 };
@@ -242,6 +320,7 @@ impl ProgressFeed {
                     downloaded_bytes: 0,
                     exact_total_bytes: None,
                     bytes_per_second: None,
+                    media_speed: None,
                     fraction: None,
                     observed_at_ms: now,
                     merging: value["status"] == "started",
@@ -252,6 +331,8 @@ impl ProgressFeed {
                 changed = true;
                 urgent = true;
             } else if let Some(raw) = line.strip_prefix(b"AMEOW_PROGRESS=") {
+                // The external downloader's final file size is not clip network progress.
+                if self.clip.is_some() { continue; }
                 if self.postprocessing {
                     continue;
                 }
@@ -354,6 +435,7 @@ impl ProgressFeed {
                     estimated_total_bytes,
                     phase,
                     bytes_per_second: if status == "downloading" { speed } else { None },
+                    media_speed: None,
                     fraction,
                     observed_at_ms: now,
                     merging: false,
@@ -388,6 +470,49 @@ impl ProgressFeed {
 mod tests {
     use super::*;
     use serde_json::json;
+    fn clip_feed() -> ProgressFeed {
+        let metadata = json!({"format_id":"v","protocol":"https","vcodec":"h264","acodec":"aac"});
+        ProgressFeed::selected(&metadata).with_clip(Some(crate::download::request::ClipRange { start_ms: 2000, end_ms: 10000 }))
+    }
+    fn clip_record(time: &str, speed: &str, status: &str) -> String {
+        format!("frame=25\nfps=17.8\nstream_0_0_q=-1.0\nbitrate=2600kbits/s\ntotal_size=2621488\nout_time_us={time}\nout_time_ms={time}\nout_time=00:00:02.000000\ndup_frames=0\ndrop_frames=0\nspeed={speed}\nprogress={status}\n")
+    }
+    #[test]
+    fn clip_native_time_and_multiplier_are_never_download_byte_facts() {
+        let mut feed = clip_feed();
+        for (i, time) in [2000000, 4000000, 6000000].into_iter().enumerate() {
+            let sample = feed.push(false, i as u64 + 1, &clip_record(&time.to_string(), "0.713x", "continue"), i as u64 * 250).unwrap();
+            assert_eq!(sample.phase, TransferPhase::Clip);
+            assert_eq!(sample.fraction_at(i as u64 * 250), Some(time as f32 / 8000000.));
+            assert_eq!(sample.media_speed_at(i as u64 * 250), Some(0.713));
+            assert_eq!(sample.media_speed_at(i as u64 * 250 + 2000), None);
+            assert_eq!((sample.downloaded_bytes, sample.exact_total_bytes, sample.estimated_total_bytes, sample.speed_at(i as u64 * 250)), (0, None, None, None));
+        }
+        let ended = feed.push(false, 4, &clip_record("8005333", "0.71x", "end"), 800).unwrap();
+        assert_eq!((ended.phase, ended.fraction_at(800), ended.media_speed_at(800)), (TransferPhase::Processing, None, None));
+        assert!(feed.push(false, 5, &clip_record("8006000", "1x", "continue"), 1050).is_none());
+    }
+    #[test]
+    fn clip_blocks_require_complete_stdout_without_gaps_or_invalid_scalars() {
+        let record = clip_record("2000000", "0.7x", "continue");
+        for cut in 1..record.len() {
+            let mut feed = clip_feed();
+            assert!(feed.push(false, 1, &record[..cut], 0).is_none());
+            assert_eq!(feed.push(false, 2, &record[cut..], 250).unwrap().fraction, Some(0.25));
+            let mut feed = clip_feed();
+            assert!(feed.push(false, 1, &record[..cut], 0).is_none());
+            assert!(feed.push(false, 3, &record[cut..], 250).is_none());
+            assert_eq!(feed.push(false, 4, &record, 500).unwrap().fraction, Some(0.25));
+        }
+        for (time, speed) in [("-1", "0.7x"), ("1.5", "0.7x"), ("2000000", "NaNx"), ("2000000", "infx"), ("2000000", "-1x")] {
+            assert!(clip_feed().push(false, 1, &clip_record(time, speed, "continue"), 0).is_none());
+        }
+        let unknown = clip_feed().push(false, 1, &clip_record("2000000", "N/A", "continue"), 0).unwrap();
+        assert_eq!((unknown.fraction, unknown.media_speed), (Some(0.25), None));
+        assert!(clip_feed().push(true, 1, &record, 0).is_none());
+        assert!(feed(false).push(false, 1, &record, 0).is_none());
+        assert!(ProgressFeed::selected(&Value::Null).with_clip(Some(crate::download::request::ClipRange { start_ms: 0, end_ms: 8000 })).push(false, 1, &record, 0).is_none());
+    }
     #[test]
     fn native_float_estimates_keep_live_fragment_progress_but_reject_invalid_byte_counts() {
         let mut parser = feed(true);

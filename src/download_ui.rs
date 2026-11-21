@@ -1060,6 +1060,7 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
         "取消未受理，请重试" => "Cancel rejected. Retry.",
         "正在发送取消…" => "Sending cancel…",
         "正在取消…" => "Cancelling…",
+        "切片中" => "Clipping",
         "文件已保存，无法取消" => "File saved; cannot cancel",
         "任务已结束" => "Job already ended",
         "任务不存在" => "Job not found",
@@ -1078,6 +1079,7 @@ fn local_text(language: crate::ui_text::Language, text: &str) -> String {
             if let Some(count) = text.strip_prefix("已保存 ") { return format!("Saved {count}"); }
             if let Some(count) = text.strip_prefix("已下载 ") { return format!("Downloaded {}", count.trim_end_matches('个')); }
             if let Some(rate) = text.strip_prefix("下载 ") { return format!("Downloading {rate}"); }
+            if let Some(rate) = text.strip_prefix("处理速度 ") { return format!("Processing {rate}"); }
             if let Some(rate) = text.strip_prefix("估算 ") { return format!("Est. {rate}"); }
             if let Some(job) = text.strip_prefix("已复制任务 ").and_then(|s| s.strip_suffix(" 的诊断")) { return format!("Copied diagnostic for job {job}"); }
             return language.message(text);
@@ -1140,6 +1142,9 @@ fn transfer_label(
         match sample.phase {
             ameow_next::download::progress::TransferPhase::Audio => return "音频下载中".into(),
             ameow_next::download::progress::TransferPhase::Processing => return "处理中".into(),
+            ameow_next::download::progress::TransferPhase::Clip => return sample.media_speed_at(now)
+                .filter(|speed| *speed < 1000.)
+                .map_or_else(|| "切片中".into(), |speed| format!("处理速度 {speed:.1}×")),
             _ => {}
         }
     }
@@ -1318,6 +1323,7 @@ fn queue_progress_label(job: &JobSnapshot, fraction: Option<f32>, now: u64) -> S
     // The phase is already conveyed by the blue track; keep percent and measured rate legible.
     match label.split_once(' ') {
         Some(("下载" | "估算", rate)) if rate.ends_with("/s") => format!("{percent} {rate}"),
+        Some(("处理速度", rate)) if rate.ends_with('×') => format!("{percent} {rate}"),
         _ => percent,
     }
 }
@@ -2843,7 +2849,14 @@ mod tests {
                 assert_eq!(model.progress.target, fraction);
                 let row = queue_row_status(job, snapshot, Some(fraction), at);
                 assert!(row.contains('%'));
-                println!("{}", serde_json::json!({"bytes":sample.downloaded_bytes,"fraction":fraction,"ring_target":model.progress.target,"row":row}));
+                let main = transfer_label(Some(sample), at);
+                if sample.phase == ameow_next::download::progress::TransferPhase::Clip {
+                    assert_eq!(sample.speed_at(at), None);
+                    if sample.media_speed_at(at).is_some_and(|s| s < 1000.) {
+                        assert!(row.ends_with('×') && main.starts_with("处理速度 "));
+                    }
+                }
+                println!("{}", serde_json::json!({"bytes":sample.downloaded_bytes,"fraction":fraction,"ring_target":model.progress.target,"row":row,"main":main}));
                 fractions.push(fraction);
             }
         }
@@ -4251,6 +4264,26 @@ mod tests {
         assert_eq!(exit.resolve(None, false), None);
         assert_eq!(exit.resolve(None, true), Some(ExitAction::Quit));
         assert_eq!(exit.resolve(None, true), None);
+    }
+    #[test]
+    fn clip_progress_uses_media_multiplier_and_obeys_cancel_and_freshness() {
+        use super::*;
+        use ameow_next::download::progress::{TransferPhase, TransferProgress};
+        use crate::ui_text::Language;
+        let mut job = crate::queue_fixture::job(1, JobPhase::Downloading, Some(1), None);
+        job.transfer_progress = Some(TransferProgress {
+            phase: TransferPhase::Clip, fraction: Some(0.5), media_speed: Some(0.713),
+            observed_at_ms: 100, ..Default::default()
+        });
+        let sample = job.transfer_progress.as_ref();
+        assert_eq!(presentation_fraction(sample, 100), Some(0.5));
+        assert_eq!(transfer_label(sample, 100), "处理速度 0.7×");
+        assert_eq!(queue_progress_label(&job, presentation_fraction(sample, 100), 100), "50% 0.7×");
+        assert_eq!(local_text(Language::English, &transfer_label(sample, 100)), "Processing 0.7×");
+        assert_eq!(local_text(Language::English, &transfer_label(sample, 2100)), "Clipping");
+        assert_eq!(queue_progress_label(&job, presentation_fraction(sample, 2100), 2100), "切片中");
+        job.cancellation_requested = true;
+        assert_eq!(queue_progress_label(&job, Some(0.5), 100), "正在取消…");
     }
     #[test]
     fn transfer_label_uses_live_measurement_and_never_finished_or_stale_speed() {

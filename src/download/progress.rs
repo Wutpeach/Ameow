@@ -7,12 +7,13 @@ pub fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis().min(u64::MAX as u128) as u64)
 }
-/// The fraction describes only the primary video (or sole media stream).
+/// The fraction describes the primary stream's bytes, or a clip's output media time.
 /// Later transport and processing phases intentionally carry no numeric progress.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TransferPhase {
     #[default]
     Primary,
+    Clip,
     Audio,
     Processing,
 }
@@ -25,6 +26,9 @@ pub struct TransferProgress {
     #[serde(default)]
     pub phase: TransferPhase,
     pub bytes_per_second: Option<f64>,
+    /// FFmpeg media seconds per wall second; never network throughput.
+    #[serde(default)]
+    pub media_speed: Option<f64>,
     pub fraction: Option<f32>,
     pub observed_at_ms: u64,
     pub merging: bool,
@@ -35,12 +39,16 @@ impl TransferProgress {
     }
     pub fn speed_at(&self, now: u64) -> Option<f64> {
         self.bytes_per_second
-            .filter(|speed| !self.merging && self.recent(now) && speed.is_finite() && *speed >= 0.)
+            .filter(|speed| self.phase != TransferPhase::Clip && !self.merging && self.recent(now) && speed.is_finite() && *speed >= 0.)
+    }
+    pub fn media_speed_at(&self, now: u64) -> Option<f64> {
+        self.media_speed.filter(|speed| self.phase == TransferPhase::Clip && !self.merging
+            && self.recent(now) && speed.is_finite() && *speed >= 0.)
     }
     pub fn fraction_at(&self, now: u64) -> Option<f32> {
         self.fraction.filter(|fraction| {
             !self.merging
-                && self.phase == TransferPhase::Primary
+                && matches!(self.phase, TransferPhase::Primary | TransferPhase::Clip)
                 && self.recent(now)
                 && fraction.is_finite()
                 && (0. ..=1.).contains(fraction)

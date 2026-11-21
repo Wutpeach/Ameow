@@ -142,7 +142,8 @@ impl DownloaderAdapter for YtDlpAdapter {
             generic_args(&mut args, accepted, false);
             if let Some(range) = accepted.intent.clip {
                 // Native sections seek remote input and copy streams near keyframes.
-                args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into()]);
+                args.extend(["--download-sections".into(), range.section(), "--downloader-args".into(), "ffmpeg_i:-seekable 1 -xerror".into(),
+                    "--downloader-args".into(), "ffmpeg_o:-progress pipe:1 -stats_period 0.2 -nostats".into()]);
             }
             #[cfg(all(feature = "app-update-fixture", debug_assertions))]
             append_fixture_tls(&mut args, &accepted.intent.url, &route, &std::env::args().collect::<Vec<_>>());
@@ -198,7 +199,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                         && let Ok(proof) = identity::proof(&accepted_for_progress, &value)
                         && proof.identity.canonical_key() == expected
                     {
-                        state.1 = progress::ProgressFeed::selected(&value).with_timeline(timeline.clone());
+                        state.1 = progress::ProgressFeed::selected(&value).with_clip(accepted_for_progress.intent.clip).with_timeline(timeline.clone());
                         state.0 = true;
                     }
                     if let Some(sample) =

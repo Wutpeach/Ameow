@@ -92,6 +92,16 @@ pub fn snapshot(scene: &Scene) -> QueueSnapshot {
     let mut s = match scene.state.as_str() {
         "resolving" => snapshot(vec![job(1, JobPhase::Resolving, Some(1), None)]),
         "downloading" | "long-title" => snapshot(vec![job(1, JobPhase::Downloading, Some(1), Some(0.46))]),
+        "clip" => {
+            let mut j = job(1, JobPhase::Downloading, Some(1), Some(0.46));
+            let p = j.transfer_progress.as_mut().unwrap();
+            p.phase = TransferPhase::Clip;
+            p.media_speed = Some(2.4);
+            p.bytes_per_second = None;
+            p.downloaded_bytes = 0;
+            p.exact_total_bytes = None;
+            snapshot(vec![j])
+        }
         "gallery" | "gallery-unknown" => {
             let mut j = job(1, JobPhase::Downloading, Some(1), None);
             j.gallery_progress = Some((4, (scene.state == "gallery").then_some(5)));

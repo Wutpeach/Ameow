@@ -33,7 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => return Err("invalid quality".into()),
     };
     let url = value("--url").ok_or("--url required")?;
-    if !matches!(url.as_str(), "http://example.com/ameow-issue33-1.mp4" | "http://example.com/ameow-issue33-2.mp4" | "http://example.com/ameow-issue33-3.mp4") { return Err("only fixed synthetic media URLs are supported".into()); }
+    if !matches!(url.as_str(), "http://example.com/ameow-issue33-1.mp4" | "http://example.com/ameow-issue33-2.mp4" | "http://example.com/ameow-issue33-3.mp4"
+        | "https://example.com/ameow-issue33-1.mp4") { return Err("only fixed synthetic media URLs are supported".into()); }
     let settings = Settings {
         quality,
         output_dir: PathBuf::from(value("--output").ok_or("--output required")?),
