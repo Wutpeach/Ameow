@@ -48,7 +48,7 @@ class AmeowEjsProbeIE(InfoExtractor):
     _VALID_URL = r'ameow-ejs-probe:(?P<id>test)'
 
     def _real_extract(self, url):
-        if not getattr(sys, 'frozen', False) or __version__ != '2026.08.19':
+        if not getattr(sys, 'frozen', False) or __version__ != '2026.10.26':
             raise ExtractorError('Pinned packaged executable required', expected=True)
         if self.get_param('remote_components') or self.get_param('cachedir') is not False:
             raise ExtractorError('Remote components/cache must be disabled', expected=True)
@@ -89,7 +89,7 @@ class AmeowEjsProbeIE(InfoExtractor):
         if len(providers) != 1 or providers[0].is_dev:
             raise ExtractorError('Official non-dev Deno provider required', expected=True)
         provider = providers[0]
-        if provider.runtime_info.version != '2.9.7':
+        if provider.runtime_info.version != '2.9.8':
             raise ExtractorError('Pinned Deno version required', expected=True)
         emit('provider_identity', cls=type(provider).__name__, module=type(provider).__module__,
              instance=id(provider), runtime=str(provider.runtime_info), dev=provider.is_dev)

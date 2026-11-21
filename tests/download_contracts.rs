@@ -281,7 +281,8 @@ fn native_sources_reject_local_files_and_credentials_without_metadata_replay() -
 }
 #[test]
 #[ignore = "Requires genuine production-prepared cache via AMEOW_RUNTIME_TEST_ROOT"]
-fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> Result<(), String> {
+#[cfg(windows)]
+fn genuine_cache_corruption_is_preserved_and_repaired_without_executing_tampered_runtime() -> Result<(), String> {
     let root = std::path::PathBuf::from(
         std::env::var("AMEOW_RUNTIME_TEST_ROOT").map_err(|e| e.to_string())?,
     );
@@ -293,51 +294,30 @@ fn genuine_cache_corruption_is_rejected_without_executing_tampered_runtime() -> 
         |_| {},
     )?;
     let digest = lease.digest.clone();
-    let copy = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
-    let target = copy.path().join(format!("runtime-{digest}"));
-    fs::create_dir(&target).map_err(|e| e.to_string())?;
-    for name in [
-        "yt-dlp.exe",
-        "deno.exe",
-        "ffmpeg.exe",
-        "ffprobe.exe",
-        "gallery-dl.exe",
-        "complete.json",
-    ] {
-        fs::copy(
-            root.join(format!("runtime-{digest}")).join(name),
-            target.join(name),
-        )
-        .map_err(|e| e.to_string())?;
+    for name in ["complete.json", "deno.exe"] {
+        let copy = tempfile::tempdir_in(&root).map_err(|e| e.to_string())?;
+        let target = copy.path().join(format!("runtime-{digest}"));
+        fs::create_dir(&target).map_err(|e| e.to_string())?;
+        for file in ["yt-dlp.exe", "deno.exe", "ffmpeg.exe", "ffprobe.exe", "gallery-dl.exe", "complete.json"] {
+            fs::copy(lease.directory.join(file), target.join(file)).map_err(|e| e.to_string())?;
+        }
+        let corrupted = b"tampered bytes not to execute";
+        fs::write(target.join(name), corrupted).map_err(|e| e.to_string())?;
+        let repaired = RuntimeManager::new(copy.path().into()).prepare(
+            &composition::requirements(),
+            &Control::default(),
+            Arc::new(|_| {}),
+            |_| {},
+        )?;
+        // Invalid caches stay untouched; only a newly verified sibling can provide a lease.
+        assert_ne!(repaired.directory, target);
+        assert_eq!(repaired.digest, digest);
+        assert_eq!(fs::read(target.join(name)).map_err(|e| e.to_string())?, corrupted);
+        let original = lease.file("deno.exe")?;
+        let expected = hash(fs::File::open(original).map_err(|e| e.to_string())?)?;
+        check_file(&repaired.file("deno.exe")?, &expected)?;
+        println!(">>> Preserved corrupt {name}; verified immutable sibling: {}", repaired.directory.display());
     }
-    fs::write(target.join("complete.json"), b"incomplete").map_err(|e| e.to_string())?;
-    let error = RuntimeManager::new(copy.path().into())
-        .prepare(
-            &composition::requirements(),
-            &Control::default(),
-            Arc::new(|_| {}),
-            |_| {},
-        )
-        .err()
-        .ok_or("Bad marker accepted")?;
-    assert!(error.contains("completion manifest mismatch"));
-    fs::copy(
-        root.join(format!("runtime-{digest}")).join("complete.json"),
-        target.join("complete.json"),
-    )
-    .map_err(|e| e.to_string())?;
-    fs::write(target.join("deno.exe"), b"tampered executable not to run")
-        .map_err(|e| e.to_string())?;
-    let error = RuntimeManager::new(copy.path().into())
-        .prepare(
-            &composition::requirements(),
-            &Control::default(),
-            Arc::new(|_| {}),
-            |_| {},
-        )
-        .err()
-        .ok_or("Bad binary accepted")?;
-    assert!(error.contains("SHA-256 mismatch"));
     Ok(())
 }
 #[test]

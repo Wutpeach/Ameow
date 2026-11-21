@@ -2381,7 +2381,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== gallery wheel: gallery_dl-1.32.19.dist-info/licenses/LICENSE =====
+===== gallery wheel: gallery_dl-1.32.20.dist-info/licenses/LICENSE =====
                     GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
 
@@ -2722,7 +2722,7 @@ consider it more useful to permit linking proprietary applications with the
 library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.
 
-===== requests wheel: requests-2.32.5.dist-info/licenses/LICENSE =====
+===== requests wheel: requests-2.34.2.dist-info/licenses/LICENSE =====
 
                                  Apache License
                            Version 2.0, January 2004
@@ -2899,10 +2899,14 @@ Public License instead of this License.
       incurred by, or claims asserted against, such Contributor by reason
       of your accepting any such warranty or additional liability.
 
-===== idna wheel: idna-3.10.dist-info/LICENSE.md =====
+===== requests wheel: requests-2.34.2.dist-info/licenses/NOTICE =====
+Requests
+Copyright 2019 Kenneth Reitz
+
+===== idna wheel: idna-3.20.dist-info/licenses/LICENSE.md =====
 BSD 3-Clause License
 
-Copyright (c) 2013-2024, Kim Davies and contributors.
+Copyright (c) 2013-2026, Kim Davies and contributors.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -2932,7 +2936,7 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-===== urllib3 wheel: urllib3-2.5.0.dist-info/licenses/LICENSE.txt =====
+===== urllib3 wheel: urllib3-2.8.0.dist-info/licenses/LICENSE.txt =====
 MIT License
 
 Copyright (c) 2008-2020 Andrey Petrov and contributors.
@@ -2955,7 +2959,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== charset wheel: charset_normalizer-3.4.3.dist-info/licenses/LICENSE =====
+===== charset wheel: charset_normalizer-3.5.2.dist-info/licenses/LICENSE =====
 MIT License
 
 Copyright (c) 2025 TAHRI Ahmed R.
@@ -2978,7 +2982,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== certifi wheel: certifi-2026.2.25.dist-info/licenses/LICENSE =====
+===== certifi wheel: certifi-2026.10.23.dist-info/licenses/LICENSE =====
 This package contains a modified version of ca-bundle.crt:
 
 ca-bundle.crt -- Bundle of CA Root Certificates

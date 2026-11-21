@@ -6,14 +6,14 @@
       "obligation": "Describe pinned components, license material and unresolved source and notice coverage.",
       "source": "src/download/macos-runtime-notice-inputs.md",
       "destination": "licenses/macos-runtime-notice-inputs.md",
-      "sha256": "139F5516392186D63BE1DEE8BF306CB014DC7C23565A6CD99411236ADF00012E"
+      "sha256": "0479A6B94EAF5CD9D0F51E5AFFC04E78B8CE466A4E09989B6131FDFA9EE3B963"
     },
     {
       "kind": "macOS Python and gallery license texts",
       "obligation": "Preserve the verified Python and wheel license texts; review remaining bundled native dependencies.",
       "source": "src/download/macos-runtime-licenses.txt",
       "destination": "licenses/macos-runtime-licenses.txt",
-      "sha256": "CE83BCC90F9394DCE5D95192CDAFBF161F569A57385CFD690515D735D4CADD46"
+      "sha256": "26A81CD14FCECF1FF5D2445876148063595A8B391E90A384C11FD5EEC4A0DBCF"
     },
     {
       "kind": "macOS FFmpeg GPL text",

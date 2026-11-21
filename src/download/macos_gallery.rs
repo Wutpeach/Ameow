@@ -23,12 +23,12 @@ const MAX_UNPACKED: u64 = 512 * 1024 * 1024;
 struct Wheel { name: &'static str, url: &'static str, bytes: u64, sha256: &'static str }
 
 const WHEELS: &[Wheel] = &[
-    Wheel { name: "gallery.whl", url: "https://files.pythonhosted.org/packages/5d/c3/87c38fa0d392455a14b3f32b8a3acf0887ced4689a7b5fc6e0d9f761213f/gallery_dl-1.32.19-py3-none-any.whl", bytes: 946594, sha256: "F6B1EB5E9A7409A988B754335D99DBB1873E130D133ED5D164D32E5E645D1C50" },
-    Wheel { name: "requests.whl", url: "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", bytes: 64738, sha256: "2462F94637A34FD532264295E186976DB0F5D453D1CDD31473C85A6A161AFFB6" },
-    Wheel { name: "idna.whl", url: "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl", bytes: 70442, sha256: "946D195A0D259CBBA61165E88E65941F16E9B36EA6DDB97F00452BAE8B1287D3" },
-    Wheel { name: "urllib3.whl", url: "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", bytes: 129795, sha256: "E6B01673C0FA6A13E374B50871808EB3BF7046C4B125B216F6BF1CC604CFF0DC" },
-    Wheel { name: "charset.whl", url: "https://files.pythonhosted.org/packages/8a/1f/f041989e93b001bc4e44bb1669ccdcf54d3f00e628229a85b08d330615c5/charset_normalizer-3.4.3-py3-none-any.whl", bytes: 53175, sha256: "CE571AB16D890D23B5C278547BA694193A45011FF86A9162A71307ED9F86759A" },
-    Wheel { name: "certifi.whl", url: "https://files.pythonhosted.org/packages/9a/3c/c17fb3ca2d9c3acff52e30b309f538586f9f5b9c9cf454f3845fc9af4881/certifi-2026.2.25-py3-none-any.whl", bytes: 153684, sha256: "027692E4402AD994F1C42E52A4997A9763C646B73E4096E4D5D6DB8AF1D6F0FA" },
+    Wheel { name: "gallery.whl", url: "https://files.pythonhosted.org/packages/8f/f7/a80d1aa77cabd8a96aacd1c63c530774e15795fa92e9383757b3161af3d2/gallery_dl-1.32.20-py3-none-any.whl", bytes: 952644, sha256: "E09729C8F24F788AC64A663268603377FBF51D4B97818D49E2150C5D78067709" },
+    Wheel { name: "requests.whl", url: "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", bytes: 73075, sha256: "2A0D60C172F83AC6AB31E4554906C0F3B3588D37B5CB939B1C061F4907E278E0" },
+    Wheel { name: "idna.whl", url: "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", bytes: 69583, sha256: "AB7AE7122974553370F0BDB919E1A960B2CD1BC1EF0276416D896DB81C14582C" },
+    Wheel { name: "urllib3.whl", url: "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", bytes: 135717, sha256: "0CF3CAE568D36AA9576B28DFB35F11328F1CB974CA7647D9475EBB86C75AC6E3" },
+    Wheel { name: "charset.whl", url: "https://files.pythonhosted.org/packages/fc/ad/d07d7862a62ffa6d79d68074d14823243dd235a77c45262acbf6adeb28bf/charset_normalizer-3.5.2-py3-none-any.whl", bytes: 68872, sha256: "B6B751274ACB69D77B3323D6B7DBAA3C7FDFC1EB829B7EB61D262F32E1AF9685" },
+    Wheel { name: "certifi.whl", url: "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl", bytes: 135082, sha256: "E9B54DE76E530BB6CF0CCD036787103ACB58FD42BA930EA8BF948DDBAA2F61D1" },
 ];
 
 fn fail(stage: S, category: E) -> F { F::new(C::GalleryDl, stage, category) }

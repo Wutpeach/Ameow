@@ -31,7 +31,7 @@ fn macos_runtime_notices_are_checked_and_do_not_change_windows_output() {
     let windows = notices::assemble_for_target(root.path(), "0.1.0", "windows").unwrap();
     assert!(mac.contains("Martin Riedl FFmpeg and ffprobe"));
     assert!(mac.contains("GNU GENERAL PUBLIC LICENSE"));
-    assert!(mac.contains("gallery_dl-1.32.19.dist-info/licenses/LICENSE"));
+    assert!(mac.contains("gallery_dl-1.32.20.dist-info/licenses/LICENSE"));
     assert!(!windows.contains("Martin Riedl FFmpeg and ffprobe"));
     for path in notices::MACOS_TEXTS {
         let modified = fixture();
