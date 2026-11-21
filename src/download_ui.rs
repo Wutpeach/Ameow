@@ -2812,6 +2812,44 @@ impl ExitIssue {
 #[cfg(test)]
 mod tests {
     use super::{ErrorCategory, PreparationPhase, PreparationStage};
+    #[test]
+    #[ignore = "Replays a task-owned real queue trace from AMEOW_PROGRESS_QUEUE_TRACE; no window or synthetic byte values"]
+    fn real_queue_trace_updates_existing_main_and_row_progress() {
+        use super::*;
+        let path = std::env::var("AMEOW_PROGRESS_QUEUE_TRACE").unwrap();
+        let snapshots: Vec<QueueSnapshot> = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        let (commands, _) = mpsc::sync_channel(1);
+        let (evidence, _) = mpsc::sync_channel(1);
+        let (_, replies) = mpsc::channel();
+        let latest = Arc::new(Mutex::new(None));
+        let mut ui = DownloadUi::with_transport(commands, evidence, replies, latest.clone());
+        ui.queue_open = true;
+        let mut model = crate::model::Model::new(0, true);
+        let mut indicator = indicator::Indicator::default();
+        let mut fractions = Vec::new();
+        for (index, mut snapshot) in snapshots.into_iter().enumerate() {
+            let at = ameow_next::download::progress::now_ms();
+            // Replay only refreshes the observation clock; bytes, totals and phases are recorded facts.
+            for job in &mut snapshot.jobs {
+                if let Some(sample) = &mut job.transfer_progress { sample.observed_at_ms = at; }
+            }
+            *latest.lock().unwrap() = Some(Arc::new(snapshot));
+            ui.poll();
+            ui.present(&mut model, &mut indicator, index as u64 * 250);
+            if let Some(fraction) = ui.selected_fraction {
+                let snapshot = ui.snapshot.as_ref().unwrap();
+                let job = snapshot.jobs.iter().find(|j| Some(j.job_id) == ui.selected_job).unwrap();
+                let sample = job.transfer_progress.as_ref().unwrap();
+                assert_eq!(model.progress.target, fraction);
+                let row = queue_row_status(job, snapshot, Some(fraction), at);
+                assert!(row.contains('%'));
+                println!("{}", serde_json::json!({"bytes":sample.downloaded_bytes,"fraction":fraction,"ring_target":model.progress.target,"row":row}));
+                fractions.push(fraction);
+            }
+        }
+        fractions.dedup();
+        assert!(fractions.len() >= 3, "real trace must contain changing live primary progress");
+    }
 
     #[test]
     fn partial_rows_show_verified_counts_and_failure_actions() {

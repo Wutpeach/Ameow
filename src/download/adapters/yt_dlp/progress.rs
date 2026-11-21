@@ -96,7 +96,13 @@ pub struct ProgressFeed {
     timeline: Timeline,
 }
 fn scalar_bytes(value: &Value) -> Option<u64> {
-    value.as_u64().filter(|n| *n <= MAX_BYTES)
+    if let Some(n) = value.as_u64() {
+        return (n <= MAX_BYTES).then_some(n);
+    }
+    // Native fragment estimates use integral JSON floats, even for exact byte counts.
+    value.as_f64()
+        .filter(|n| n.is_finite() && *n >= 0. && *n <= MAX_BYTES as f64 && n.fract() == 0.)
+        .map(|n| n as u64)
 }
 impl ProgressFeed {
     pub fn selected(metadata: &Value) -> Self {
@@ -382,6 +388,23 @@ impl ProgressFeed {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn native_float_estimates_keep_live_fragment_progress_but_reject_invalid_byte_counts() {
+        let mut parser = feed(true);
+        for (index, bytes) in [1024, 64512, 130048, 261120].into_iter().enumerate() {
+            let line = format!(
+                "AMEOW_PROGRESS={{\"status\":\"downloading\",\"format_id\":\"v\",\"downloaded_bytes\":{bytes},\"total_bytes\":null,\"total_bytes_estimate\":458532.0,\"speed\":104698.59329996954}}\n"
+            );
+            let sample = parser.push(false, index as u64 + 1, &line, index as u64 * 250).unwrap();
+            assert_eq!(sample.downloaded_bytes, bytes);
+            assert_eq!(sample.exact_total_bytes, None);
+            assert_eq!(sample.estimated_total_bytes, Some(458532));
+            assert_eq!(sample.fraction, Some(bytes as f32 / 458532.));
+        }
+        for raw in ["-1", "-1.0", "1.5", "9007199254740993", "9007199254740994.0", "1e300", "null", "\"458532.0\""] {
+            assert_eq!(scalar_bytes(&serde_json::from_str(raw).unwrap()), None, "{raw}");
+        }
+    }
     #[test]
     fn incomplete_selected_identity_never_promotes_audio_to_primary() {
         for invalid_id in [Value::Null, json!(""), json!("x".repeat(129))] {

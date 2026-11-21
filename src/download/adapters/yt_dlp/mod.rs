@@ -51,6 +51,8 @@ const SELECTION_FILE: &str = "selection.txt";
 const SELECTION_PREFIX: &str = "AMEOW_SELECTION=";
 // Native output-template projection excludes request headers, URLs and downloader Cookie data.
 const SAFE_METADATA: &str = "%(.{id,extractor_key,_type,_old_archive_ids,width,height,vcodec,acodec,format_id,fps,tbr,duration,ext,protocol,is_live,live_status,playlist_index,section_start,section_end})j";
+// Progress needs each native selected stream, rather than the merged format ID.
+const SAFE_SELECTION: &str = r#"{"id":%(id)j,"extractor_key":%(extractor_key)j,"_type":%(_type)j,"_old_archive_ids":%(_old_archive_ids)j,"width":%(width)j,"height":%(height)j,"vcodec":%(vcodec)j,"acodec":%(acodec)j,"format_id":%(format_id)j,"protocol":%(protocol)j,"_ameow_selected_formats":%(requested_formats.:.{format_id,protocol,vcodec,acodec})j}"#;
 
 const METADATA_LIMIT: usize = process_supervisor::MAX_STDOUT_CAPTURE;
 const EVIDENCE: &[(&str, u64)] = &[
@@ -164,7 +166,7 @@ impl DownloaderAdapter for YtDlpAdapter {
                 "--progress-template".into(),
                 progress::PP_TEMPLATE.into(),
                 "--print-to-file".into(),
-                format!("before_dl:{SELECTION_PREFIX}{}", if context.authentication.is_some() { SAFE_METADATA } else { "%()j" }),
+                format!("before_dl:{SELECTION_PREFIX}{}", if context.authentication.is_some() { SAFE_SELECTION } else { "%()j" }),
                 working.join(SELECTION_FILE).display().to_string(),
                 "--print-to-file".into(),
                 "after_move:AMEOW_FINAL=%(filepath)j".into(),
@@ -570,7 +572,13 @@ fn read_selection(path: &Path) -> Result<Value, String> {
     if lines.next().is_some() {
         return Err("Multiple native selection observations".into());
     }
-    parse_metadata(record.as_bytes())
+    let mut metadata = parse_metadata(record.as_bytes())?;
+    // Native traversal yields [] for a single stream; its root remains the selection.
+    if let Some(selected) = metadata.as_object_mut().and_then(|o| o.remove("_ameow_selected_formats"))
+        && selected.as_array().is_some_and(|streams| !streams.is_empty()) {
+        metadata["requested_formats"] = selected;
+    }
+    Ok(metadata)
 }
 pub(crate) fn parse_final_record(bytes: &[u8]) -> Result<PathBuf, String> {
     if bytes.len() > 4096 {
@@ -764,28 +772,7 @@ use crate::download::{request::{self, Accepted, DownloadIntent}};
 }
 
 #[cfg(test)]
-mod selection_record_tests {
-    use super::*;
-    #[test]
-    fn only_one_complete_bounded_native_selection_can_attest_progress_or_final_result() {
-        let root = tempfile::tempdir().unwrap();
-        let record = root.path().join(SELECTION_FILE);
-        fs::write(&record, b"AMEOW_SELECTION={\"height\":480}\n").unwrap();
-        assert_eq!(read_selection(&record).unwrap()["height"], 480);
-        for bytes in [
-            b"".as_slice(),
-            b"AMEOW_SELECTION={}",
-            b"AMEOW_SELECTION={}\nAMEOW_SELECTION={}\n",
-            b"AMEOW_SELECTION={broken}\n",
-            b"unmarked={}\n",
-        ] {
-            fs::write(&record, bytes).unwrap();
-            assert!(read_selection(&record).is_err());
-        }
-        fs::write(&record, vec![b'x'; METADATA_LIMIT + 1]).unwrap();
-        assert!(read_selection(&record).is_err());
-    }
-}
+mod selection_record_tests;
 
 #[cfg(test)]
 mod generic_tests {

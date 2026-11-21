@@ -42,6 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancel = value("--cancel-after-ms")
         .map(|s| s.parse::<u64>())
         .transpose()?;
+    let cancel_after_progress = value("--cancel-after-progress-ms")
+        .map(|s| s.parse::<u64>()).transpose()?;
     // Keep probe settings separate from both the user's defaults and the runtime cache.
     let isolated = tempfile::tempdir()?;
     let coordinator = ameow_next::download::composition::download_coordinator(
@@ -58,6 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let start = Instant::now();
         let mut revision = None;
         let mut cancelled = false;
+        let mut progress_started = None;
         loop {
             let snapshot = coordinator.snapshot();
             if revision != Some(snapshot.revision) {
@@ -65,6 +68,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 revision = Some(snapshot.revision);
             }
             let item = snapshot.jobs.iter().find(|item| item.job_id == job).ok_or("Job missing")?;
+            if item.transfer_progress.as_ref().is_some_and(|p| p.fraction.is_some()) {
+                progress_started.get_or_insert_with(Instant::now);
+            }
             if item.phase.terminal() {
                 if item.phase != JobPhase::Success {
                     if let Some(path) = value("--diagnostic-output")
@@ -81,7 +87,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if snapshot.preparation.phase == PreparationPhase::Failed {
                 return Err("Shared runtime preparation failed; see queue snapshot".into());
             }
-            if !cancelled && cancel.is_some_and(|ms| start.elapsed().as_millis() >= ms as u128) {
+            if !cancelled && (cancel.is_some_and(|ms| start.elapsed().as_millis() >= ms as u128)
+                || cancel_after_progress.zip(progress_started).is_some_and(|(ms, at)| at.elapsed().as_millis() >= ms as u128)) {
                 coordinator.cancel(job);
                 cancelled = true;
             }
