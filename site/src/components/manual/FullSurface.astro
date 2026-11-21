@@ -1,12 +1,11 @@
 ---
 import AppIcon from './AppIcon.astro';
-interface Props { state?: 'idle' | 'progress' | 'hover' | 'saved'; en?: boolean; }
-const { state = 'idle', en = false } = Astro.props;
+interface Props { state?: 'idle' | 'progress' | 'hover' | 'saved'; en?: boolean; queueControl?: boolean; }
+const { state = 'idle', en = false, queueControl = false } = Astro.props;
 // PR42 22a5f059: the bundled GPUI Kit 0.9.0 folder artwork, at 24px in both states.
 const folderOutline = 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z';
 ---
 <div class:list={['full-surface', { receiving: state === 'hover' }]}>
-  <span class="close"><AppIcon name="close" size={12} /></span>
   {state === 'progress' && <div class="indicator">
     <!-- src/indicator.rs: 50px canvas, r=22.5, 5px stroke, top origin. -->
     <svg width="50" height="50" viewBox="0 0 50 50" aria-hidden="true">
@@ -30,16 +29,21 @@ const folderOutline = 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-
     </svg>
     <span class="status directory-status">{state === 'hover' ? (en ? 'Drop to set folder' : '松开设为目录') : (en ? 'Folder updated' : '目录已更新')}</span>
   </div>}
-  <span class="info"><AppIcon name="info" size={14} /></span>
-  {state === 'progress' && <span class="queue-badge">4</span>}
+  {state === 'progress' && (queueControl ? <button class="queue-badge" data-open-queue type="button" aria-label={en ? 'Open queue: 4 tasks' : '打开队列：4个任务'} aria-expanded="false"><span>4</span><i /></button> : <span class="queue-badge"><span>4</span><i /></span>)}
 </div>
 <style>
   .full-surface { position: relative; width: 200px; height: 200px; flex: none; border-radius: 20px; background: var(--fig-surface); color: var(--fig-muted); box-shadow: 0 3px 16px rgb(0 0 0 / 0.08); font-family: var(--sl-font); }
   .full-surface.receiving { background: color-mix(in srgb, var(--fig-badge) 35%, var(--fig-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fig-muted) 30%, transparent), 0 3px 16px rgb(0 0 0 / 0.08); }
   .close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--fig-badge); }
   .info { position: absolute; bottom: 14px; left: 14px; display: flex; }
-  .queue-badge { position: absolute; bottom: 14px; right: 14px; min-width: 20px; height: 20px; border-radius: 10px; display: grid; place-items: center; background: var(--fig-badge); font: 11px var(--sl-font-mono); }
-  .indicator { position: absolute; top: 61px; left: 52px; width: 96px; height: 99px; text-align: center; color: var(--fig-blue); font-family: var(--sl-font-mono); }
+  .queue-badge { position: absolute; top: 10px; left: 10px; width: 42px; height: 28px; padding: 0; border: 2px solid var(--fig-border); border-radius: 20px; display: flex; align-items: center; gap: 5px; background: var(--fig-badge); color: inherit; font: 500 12px "JetBrains Mono", monospace; }
+  .queue-badge>span { width: 16px; text-align: right; }
+  .queue-badge>i { position: relative; width: 11px; height: 8px; }
+  .queue-badge>i::before,.queue-badge>i::after { content: ''; position: absolute; top: 0; width: 8px; height: 8px; border-radius: 50%; }
+  .queue-badge>i::before { left: 3px; background: var(--fig-blue); } .queue-badge>i::after { left: 0; background: var(--fig-red,#e3474c); }
+  button.queue-badge { cursor: pointer; }
+  button.queue-badge:focus-visible { outline: 2px solid var(--fig-blue); outline-offset: 3px; }
+  .indicator { position: absolute; top: 61px; left: 52px; width: 96px; height: 99px; text-align: center; color: var(--fig-blue); font-family: "JetBrains Mono", "Microsoft YaHei UI", monospace; }
   .indicator svg { display: block; margin-inline: auto; }
   .status { position: absolute; top: 59px; left: 0; width: 96px; height: 16px; border: 1px solid color-mix(in srgb, var(--fig-blue) 30%, transparent); border-radius: 8px; font-size: 8px; line-height: 14px; }
   .cancel { position: absolute; top: 83px; left: 41px; display: flex; color: var(--fig-muted); }

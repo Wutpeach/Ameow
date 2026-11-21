@@ -1,61 +1,28 @@
 ---
-import lightCat from '../../../../assets/mascot/light.svg?raw';
-import nightCat from '../../../../assets/mascot/night.svg?raw';
 import AppIcon from './AppIcon.astro';
-import FullSurface from './FullSurface.astro';
+import DesktopDemo from './DesktopDemo.astro';
 import SettingsPanel from './SettingsPanel.astro';
-interface Props { kind: 'start' | 'queue' | 'folder' | 'updates' | 'mac' | 'settings-general' | 'settings-download'; lang?: 'zh' | 'en'; }
+import ShortcutPanel from './ShortcutPanel.astro';
+interface Props { kind: 'start' | 'queue' | 'folder' | 'mac' | 'settings-general' | 'settings-download' | 'shortcut'; lang?: 'zh' | 'en'; }
 const { kind, lang = 'zh' } = Astro.props;
 const en = lang === 'en';
 const text = (zh: string, english: string) => en ? english : zh;
 const descriptions = {
+  shortcut: text('录入呼出／隐藏 Ameow 快捷键，Tab或失焦保存，Esc取消，X清空。', 'Record the Show/hide Ameow shortcut. Tab or blur saves, Escape cancels, and X clears.'),
   'settings-general': text('常规侧栏选中。上方为开机启动开关，下方为主题、语言和托盘图标的选择；框选的偏好选择后自动保存。', 'General is selected in the sidebar. Launch at login is above the Theme, Language, and Tray icon selectors. The highlighted preferences save automatically.'),
-  'settings-download': text('下载侧栏选中。标注1对应更改按钮，用来选择保存文件夹；标注2对应路径右侧的复制按钮。C盘Downloads为示例路径。', 'Download is selected in the sidebar. Annotation 1 marks Change, which selects a destination folder. Annotation 2 marks Copy beside the path. C drive Downloads is an example path.'),
+  'settings-download': text('下载侧栏选中。更改按钮用于选择保存文件夹；复制位于路径右侧。C盘Downloads为示例路径。', 'Download is selected in the sidebar. Change selects a destination folder, and Copy is beside the path. C drive Downloads is an example path.'),
   start: text('指针靠近猫咪所在的 Compact 后展开 Full；在 Full 按 Ctrl+V 或 Command+V 提交复制的链接。', 'Move the pointer near the Compact cat to expand Full, then press Ctrl+V or Command+V to submit a copied link.'),
-  queue: text('Full 显示下载进度；右下角数字打开队列，可分别查看下载中、等待与失败任务。', 'Full shows download progress. The bottom-right count opens the queue with downloading, waiting, and failed tasks.'),
+  queue: text('Full 显示下载进度；左上角数量打开队列，可分别查看下载中、等待与失败任务。', 'Full shows download progress. The top-left count opens the queue with downloading, waiting, and failed tasks.'),
   folder: text('将一个可写文件夹拖到 Full，浅灰文件夹和光晕表示可以松开；成功后彩色文件夹、圆环和信息胶囊确认目录已更新。', 'Drag one writable folder onto Full. A pale-gray folder and glow show where to release; a colored folder, ring, and status pill confirm the saved destination.'),
-  updates: text('关于页更新 Ameow 应用并重启；组件管理更新 yt-dlp 等下载工具，供后续下载使用。', 'About updates and restarts Ameow. Components management updates download tools such as yt-dlp for later downloads.'),
   mac: text('点击 Mac 菜单栏猫咪图标，可打开 Ameow、设置或退出；关闭设置窗口后应用继续运行。', 'Click the cat in the Mac menu bar to open Ameow, open Settings, or quit. Closing Settings keeps the app running.'),
 };
 ---
 <figure class="manual-figure" data-figure={kind}>
-  <div class="figure-content" role="img" aria-label={descriptions[kind]}>
+  <div class="figure-content" role={['start', 'queue', 'folder', 'shortcut', 'settings-general', 'settings-download'].includes(kind) ? 'group' : 'img'} aria-label={descriptions[kind]}>
+    {kind === 'shortcut' && <ShortcutPanel en={en} />}
     {kind === 'settings-general' && <SettingsPanel page="general" en={en} />}
     {kind === 'settings-download' && <SettingsPanel page="download" en={en} />}
-    {kind === 'start' && <div class="flow">
-      <div class="step">
-        <div class="compact-area">
-          <div class="compact">
-            <span class="light-cat" set:html={lightCat} />
-            <span class="night-cat" set:html={nightCat} />
-          </div>
-          <svg class="pointer" width="24" height="30" viewBox="0 0 24 30" aria-hidden="true"><path d="M3 2v21l6-5 4 9 4-2-4-9h8Z" fill="var(--fig-text)" stroke="var(--fig-surface)" stroke-width="2"/></svg>
-        </div>
-        <span class="step-label">{text('靠近 Compact', 'Move near Compact')}</span>
-      </div>
-      <span class="connector"><AppIcon name="arrow" size={24} /></span>
-      <div class="step"><FullSurface /><span class="step-label">{text('在 Full 粘贴链接', 'Paste a link in Full')}</span><span class="keys">Ctrl+V · Command+V</span></div>
-    </div>}
-    {kind === 'queue' && <div class="flow">
-      <div class="step"><FullSurface state="progress" en={en} /><span class="step-label">{text('点右下角数字', 'Select the bottom-right count')}</span></div>
-      <span class="connector"><AppIcon name="arrow" size={24} /></span>
-      <div class="queue-panel">
-        <div class="queue-heading"><strong>{text('队列', 'Queue')}</strong><span class="summary"><AppIcon name="download" size={12} />1 <AppIcon name="clock" size={12} />2</span></div>
-        <div class="queue-row"><span>{text('海岸漫步', 'Coastal walk')}</span><div class="row-state"><span class="track"><span /></span><span>60%</span></div></div>
-        <div class="queue-row"><span>{text('山间日出', 'Mountain sunrise')}</span><div class="row-state"><span class="track waiting" /><span>{text('等待', 'Queued')}</span></div></div>
-        <div class="queue-row"><span>{text('城市夜景', 'City at night')}</span><div class="row-state"><span class="track waiting" /><span>{text('等待', 'Queued')}</span></div></div>
-        <div class="queue-row"><span>{text('雨天花园', 'Rainy garden')}</span><div class="row-state failed"><span>{text('失败', 'Failed')}</span><span class="retry"><AppIcon name="retry" size={14} />{text('重试', 'Retry')}</span></div></div>
-      </div>
-    </div>}
-    {kind === 'folder' && <div class="flow">
-      <div class="step"><FullSurface state="hover" en={en} /><span class="step-label">{text('拖入文件夹，松开以更改', 'Drop a folder to change the destination')}</span></div>
-      <span class="connector"><AppIcon name="arrow" size={24} /></span>
-      <div class="step"><FullSurface state="saved" en={en} /><span class="step-label">{text('保存成功后短暂确认', 'Brief confirmation after saving')}</span></div>
-    </div>}
-    {kind === 'updates' && <div class="update-paths">
-      <div class="update-path"><span class="path-heading"><AppIcon name="info" size={20} /><strong>{text('关于', 'About')}</strong></span><span class="path-object">Ameow</span><span class="path-action"><AppIcon name="update" />{text('检查应用更新', 'Check app updates')}</span><span class="path-result">{text('重启并更新应用', 'Restart and update the app')}</span></div>
-      <div class="update-path"><span class="path-heading"><AppIcon name="blocks" size={20} /><strong>{text('组件管理', 'Components')}</strong></span><span class="path-object">yt-dlp · FFmpeg · …</span><span class="path-action"><AppIcon name="download" />{text('选择可信组件版本', 'Choose a trusted tool version')}</span><span class="path-result">{text('供后续下载使用', 'Use for later downloads')}</span></div>
-    </div>}
+    {(['start', 'queue', 'folder'] as const).map(mode => kind === mode && <DesktopDemo mode={mode} en={en} />)}
     {kind === 'mac' && <div class="mac-example">
       <div class="menu-bar"><span /><span class="menu-trigger"><AppIcon name="menuCat" size={18} /></span></div>
       <div class="native-menu">
@@ -66,41 +33,14 @@ const descriptions = {
       </div>
     </div>}
   </div>
-  <figcaption>{kind === 'settings-download' ? text('操作示意 · 路径为示例', 'Workflow illustration · example path') : text('操作示意', 'Workflow illustration')}</figcaption>
 </figure>
 <style>
-  .manual-figure { --fig-surface: #232427; --fig-text: #e6e7e9; --fig-muted: #a5a8ad; --fig-badge: #2b2c2f; --fig-border: #424348; --fig-blue: #3d9aff; --fig-green: #3cbb72; margin: 1.75rem 0 2rem; }
-  :global(:root[data-theme='light']) .manual-figure { --fig-surface: #fff; --fig-text: #27282b; --fig-muted: #62656b; --fig-badge: #f2f2f3; --fig-border: #dedee1; --fig-blue: #0285ff; --fig-green: #199a4d; }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../../assets/fonts/JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../../assets/fonts/JetBrainsMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+  .manual-figure { --fig-surface: #232427; --fig-text: #e6e7e9; --fig-muted: #a5a8ad; --fig-badge: #2b2c2f; --fig-border: #424348; --fig-blue: #3d9aff; --fig-green: #3cbb72; --fig-red: #ee5c61; margin: 1.75rem 0 2rem; }
+  :global(:root[data-theme='light']) .manual-figure { --fig-surface: #fff; --fig-text: #27282b; --fig-muted: #62656b; --fig-badge: #f2f2f3; --fig-border: #dedee1; --fig-blue: #0285ff; --fig-green: #199a4d; --fig-red: #e3474c; }
   .figure-content { padding: 28px 20px; border: 1px solid var(--sl-color-hairline); border-radius: 12px; background: var(--sl-color-bg-sidebar); color: var(--fig-text); }
   .manual-figure :global(*) { box-sizing: border-box; margin-block: 0; }
-  .flow { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); align-items: center; gap: 16px; }
-  .step { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; min-width: 0; }
-  .step-label { font-size: 14px; line-height: 1.5; }
-  .keys { color: var(--fig-muted); font-size: 12px; }
-  .connector { display: flex; justify-content: center; color: var(--fig-muted); }
-  .compact-area { height: 200px; display: grid; place-items: center; position: relative; }
-  .compact { width: 60px; height: 60px; border-radius: 50%; background: var(--fig-surface); box-shadow: 0 3px 16px rgb(0 0 0 / 0.08); }
-  .compact :global(svg) { display: block; width: 60px; height: 60px; }
-  .light-cat { display: none; }
-  :global(:root[data-theme='light']) .light-cat { display: block; }
-  :global(:root[data-theme='light']) .night-cat { display: none; }
-  .pointer { position: absolute; top: 115px; left: calc(50% + 22px); }
-  .queue-panel { width: 200px; max-width: 100%; margin-inline: auto; padding: 12px 10px; border-radius: 20px; background: var(--fig-surface); box-shadow: 0 3px 16px rgb(0 0 0 / 0.08); font: 11px var(--sl-font-mono); }
-  .queue-heading { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding-bottom: 10px; }
-  .queue-heading strong { font-size: 13px; }
-  .summary { display: flex; align-items: center; gap: 4px; padding: 3px 6px; background: var(--fig-badge); border-radius: 6px; color: var(--fig-muted); }
-  .queue-row { height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-  .row-state { display: grid; grid-template-columns: 122px 54px; gap: 4px; align-items: center; font-size: 9px; text-align: right; color: var(--fig-muted); }
-  .track { display: block; height: 3px; border-radius: 2px; background: var(--fig-badge); }
-  .track > span { display: block; height: 100%; width: 60%; border-radius: inherit; background: var(--fig-blue); }
-  .failed { color: var(--fig-text); text-align: left; }
-  .retry { display: flex; align-items: center; justify-content: end; gap: 3px; }
-  .update-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
-  .update-path { display: flex; flex-direction: column; gap: 18px; }
-  .path-heading, .path-action { display: flex; align-items: center; gap: 8px; }
-  .path-object { font-size: 16px; font-weight: 500; }
-  .path-action { font-size: 14px; }
-  .path-result { padding-top: 14px; border-top: 1px solid var(--fig-border); font-size: 13px; color: var(--fig-muted); }
   .mac-example { width: 260px; max-width: 100%; margin-inline: auto; }
   .menu-bar { height: 30px; display: flex; align-items: center; justify-content: space-between; padding-inline: 12px; background: var(--fig-badge); border-radius: 5px; font-size: 12px; }
   .menu-trigger { display: grid; place-items: center; height: 30px; padding-inline: 8px; background: var(--fig-border); }
@@ -108,13 +48,7 @@ const descriptions = {
   .menu-item { display: block; padding: 5px 10px; line-height: 1.5; }
   .menu-item.selected { background: var(--fig-badge); border-radius: 4px; }
   .menu-rule { display: block; margin: 4px 7px; border-top: 1px solid var(--fig-border); }
-  figcaption { margin-top: 8px; color: var(--sl-color-gray-2); font-size: 12px; }
   @media (max-width: 40rem) {
     .figure-content { padding: 24px 12px; }
-    .flow { grid-template-columns: 1fr; gap: 20px; }
-    .connector { transform: rotate(90deg); }
-    .compact-area { height: 90px; }
-    .pointer { top: 60px; }
-    .update-paths { grid-template-columns: 1fr; gap: 32px; }
   }
 </style>

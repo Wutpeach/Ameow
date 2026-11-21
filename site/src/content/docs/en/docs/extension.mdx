@@ -1,0 +1,65 @@
+---
+title: Browser extension and clips
+description: Use page tools, authorize a site's browser session, and select one clip in Peek.
+---
+
+import ClipDemo from '../../../../components/manual/ClipDemo.astro';
+import ExtensionDemo from '../../../../components/manual/ExtensionDemo.astro';
+
+Download a whole video or select a clip on supported pages, and optionally authorize an existing site session. This requires a version with browser extension support; 0.5.0 does not provide it. Use matching extension and desktop versions.
+
+<span id="connection"></span>
+
+## Install and connect
+
+In Settings → Download → Browser sessions, choose Install browser connection. Use the adjacent folder action to find the matching extension; in Edge or Chrome's extension manager, enable Developer mode and choose Load unpacked. Open the extension on an ordinary page and check its connection status.
+
+Complete packages include the matching extension; source builds place it in <code>browser-extension/dist</code>. Keep the app, connection helper, and extension from the same version, and do not move a registered helper on its own. Chromium browsers are supported; Firefox is not yet available.
+
+<span id="permissions"></span>
+
+## Page tools and site authorization
+
+Enable **page tools** and allow page access to show the toolbar in the player. To sync a session, separately choose Authorize this site (授权此站点), check the site and subdomain scope, and confirm the browser permission. Unauthorized sites continue with anonymous attempts.
+
+<ExtensionDemo lang="en" />
+
+<span id="sessions"></span>
+
+## Sync an existing browser session
+
+Authorize the site in a browser where you are already signed in. The extension syncs the existing session; it does not sign in for you. It continues updating after session changes, browser startup, or reconnection. The downloader and site determine downloadability and visible formats.
+
+In Settings → Download → Browser sessions, check the browser source and latest sync result. Switching sources requires Use this browser instead (改用此浏览器). Remove deletes Ameow's saved session for that site without signing you out.
+
+<details>
+<summary>Cache and sync results</summary>
+
+The connection can save a cache protected for the current system user while the desktop app is closed. The last successful cache may precede a newer failure; reading it is not a new sync success. A new success is needed after reconnection. A cache does not guarantee that the site still accepts the session or offers membership quality.
+
+</details>
+
+<span id="page-tools"></span>
+
+## Download a whole video from the page
+
+On a single on-demand Bilibili or YouTube video, enable page tools and hover over the Ameow icon at the top-right of the player. Choose Download (下载) or Clip (切片). Page tools do not automatically authorize a session; return to the specific video page if the target cannot be matched.
+
+<span id="clips"></span>
+
+## Select one clip
+
+Move the playhead and press Marker to add a point. Drag either side to set the in and out boundaries; pressing Marker again clears an existing point or range.
+
+<ClipDemo lang="en" />
+
+Check the range and choose Download clip (下载片段). Each submission contains one range from one work; fast cutting may place actual boundaries near keyframes.
+
+<details>
+<summary>More controls</summary>
+
+I and O set the respective boundary at the current playback position. Time inputs can be selected and edited; display-only text cannot. Focus selection (聚焦选区) enlarges the visible window without changing the range when returning to the whole video. Reopening Peek on the same work retains the draft; changing videos clears it. Esc closes Peek and restores the page. Clearing a draft does not cancel a submitted task. Data usage and waiting time depend on the source.
+
+</details>
+
+See [Downloads and queue](../desktop/links-and-queue/) for progress and failures, and [Supported sources and quality](../supported-sites/) for quality and containers.

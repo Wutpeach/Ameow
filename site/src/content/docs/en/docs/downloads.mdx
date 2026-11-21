@@ -13,7 +13,7 @@ import { Steps } from '@astrojs/starlight/components';
 | Windows x64 portable | [Portable ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
 | macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
 
-Mac requires macOS 13 or later; testing covers macOS 26.3 arm64. Intel Macs, Universal, and Linux are outside this version's scope. The minimum-version declaration does not establish verification on older systems.
+Mac requires macOS 13 or later and Apple Silicon. Intel Macs, Universal, and Linux are outside this version's scope.
 
 ## Windows
 
@@ -24,6 +24,10 @@ Mac requires macOS 13 or later; testing covers macOS 26.3 arm64. Intel Macs, Uni
 
 Keep the portable directory intact. Exit before moving it, then check shortcuts and login startup. Uninstall keeps user data by default.
 
+The linked 0.5.0 installer is in English. The newer installer follows the Windows display language for Chinese or English and falls back to English for other languages; the [app language](../desktop/settings/) is separate. Region, date, and number formats do not choose the installer language.
+
+The 0.5.0 package does not include the CLI added later. See the [command-line guide](../cli/) for availability and use in versions that include it.
+
 ## Mac
 
 1. Download and extract the Mac ZIP, place `Ameow.app` in `/Applications` or `~/Applications`, and open it from Finder. You do not need to install Homebrew or Python separately.
@@ -33,4 +37,9 @@ Keep the portable directory intact. Exit before moving it, then check shortcuts 
 
 In the Rust app, check for application updates in [Settings → About](../desktop/settings/), then follow the download and restart prompts. Download components are managed separately in Components.
 
-To move from the old Electron app, install the Rust package for your platform above and choose your save folder and preferences again. The two apps keep their data separate. Old settings, caches, and history are not automatically migrated, and automatic upgrades from Electron to Rust are not promised.
+<details>
+<summary>Moving from the old Electron app</summary>
+
+Install the Rust app and choose your save folder and preferences again. The apps keep separate data; old settings, caches, and history do not migrate automatically, and an automatic upgrade is not promised.
+
+</details>

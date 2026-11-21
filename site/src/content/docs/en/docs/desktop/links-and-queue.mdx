@@ -5,17 +5,11 @@ description: Follow download progress, cancel or retry tasks, and hide or restor
 
 import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
-Copy a [supported media link](../../supported-sites/) and paste it into Ameow. Select the count at Full's bottom-right to open the queue. Up to three tasks occupy execution slots; the rest wait.
+Copy a [supported media link](../../supported-sites/) and paste it into Ameow. Select the count at Full's top-left to open the queue. Up to three tasks occupy execution slots; the rest wait.
 
 <ManualFigure kind="queue" lang="en" />
 
-| Stage | What you can do |
-| --- | --- |
-| Queued, preparing | Wait for execution or components; cancellation is available. |
-| Downloading, post-processing | Wait for saving to finish; a percentage may be unavailable. |
-| Completed | Open the folder selected when the task was submitted. |
-| Failed, partial | Read the message, copy diagnostics, or retry when offered. |
-| Cancelled | Submit again if needed. |
+Use Cancel for unfinished tasks and wait for stopping and cleanup to be confirmed. Normal downloads finish after post-processing and saving; a percentage may be unavailable. Once complete, open the submission folder. For failed or partial tasks, read the message, copy diagnostics, or retry when offered; submit again after cancellation is confirmed.
 
 The same unfinished video cannot be submitted twice. Tasks retain their submitted quality and folder. Clearing records does not delete files; the queue is not retained after exit.
 
@@ -34,11 +28,8 @@ The same unfinished video cannot be submitted twice. Tasks retain their submitte
 
 The cat rests in Compact; download information appears in Full. Light theme shows a black cat, Dark a white cat. The cat stays still with the system's reduced-motion setting enabled.
 
-| Action | Result |
-| --- | --- |
-| Right-click Full | Choose [quality](../../supported-sites/#quality), open settings, hide, or quit. |
-| Double-click Full's empty background | Open the [confirmed destination](../output-folder/). |
-| Hide | Downloads continue; choose Open from the tray/Mac menu bar to restore the window. |
-| Quit | Stop tasks and wait for safe cleanup. Only cleanup problems display recovery actions; collapsing the view or pressing Esc does not cancel quitting. |
+While Ameow is running, press the default `Ctrl+Shift+F` to summon Full at the pointer. Press again while Full has keyboard focus to hide it; downloads continue. Right-click Full to choose [quality](../../supported-sites/#quality), open settings, hide, or quit. Double-click its empty background to open the [confirmed destination](../output-folder/). Restore a hidden window from the tray or Mac menu bar. Quitting stops tasks and waits for safe cleanup; problems show recovery actions. Collapsing the view or pressing Esc does not cancel quitting.
+
+Summoning alone does not read the clipboard or submit a task. Once expansion finishes, moving the pointer away resumes normal collapse rules; download, menu, and other states retain their own behavior. Change or clear the shortcut in [General settings](../settings/#shortcut). If the shortcut is unavailable or has been cleared, use the tray or Mac menu bar to open Ameow. Start the app first if it is not running.
 
 For download or saving problems, see [Troubleshooting](../../troubleshooting/).

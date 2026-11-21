@@ -13,9 +13,45 @@ This section is for contributors. To install the app, use [downloads](../downloa
 cargo build --locked --bin ameow
 ```
 
-Run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. Finder startup, system login items, and full-app updates use `Ameow.app`; prerequisites are in the [Mac packaging script](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh). Mac testing covers 26.3 arm64; the declared minimum of 13 does not establish verification on older systems.
+Run `./target/debug/ameow.exe` on Windows or `./target/debug/ameow` on Mac. Finder startup, system login items, and full-app updates use `Ameow.app`; prerequisites are in the [Mac packaging script](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh).
 
-## Data and test inputs {#data}
+## CLI
+
+For package installation and commands, see [Command line and agents](../cli/). The following commands require source that includes the CLI.
+
+Build ordinary control with its adjacent application, using one fixed target:
+
+~~~sh
+cargo build --locked --bin ameow --bin ameow-cli --target-dir target
+~~~
+
+Run `./target/debug/ameow-cli.exe --help` in Windows PowerShell, or `./target/debug/ameow-cli --help` in Mac zsh/bash. Help does not start the app. See the repository [CLI reference](https://github.com/Wutpeach/Ameow/blob/main/docs/cli.md) for an isolated desktop instance from a source build.
+
+For developer scenarios only, build a debug CLI with `dev-tools`. There is no setting to enable it, and release builds explicitly reject this feature. Build once in a source checkout containing that entry:
+
+~~~sh
+cargo build --locked --features dev-tools --bin ameow-cli --target-dir target
+~~~
+
+Windows PowerShell:
+
+~~~powershell
+./target/debug/ameow-cli.exe dev --help
+./target/debug/ameow-cli.exe dev scenario --root evidence/dev-success --case success
+~~~
+
+Mac zsh/bash:
+
+~~~sh
+./target/debug/ameow-cli dev --help
+./target/debug/ameow-cli dev scenario --root evidence/dev-success --case success
+~~~
+
+Use a fresh root for each scenario. `scenario` uses a fixed offline adapter with the real task core, without a GUI or network downloads. `dev run` uses production downloaders, may prepare components and access the network, and needs a real media URL you choose. See the repository [CLI developer guide](https://github.com/Wutpeach/Ameow/blob/2c916bc78a593cae3e5cc2f8961cb07374002def/docs/developer-cli.md) for examples and parameters.
+
+<span id="data"></span>
+
+## Data and test inputs
 
 | Platform | Current user data directory |
 | --- | --- |

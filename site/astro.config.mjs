@@ -48,7 +48,7 @@ export default defineConfig({
 				{ label: '开始使用', translations: { en: 'Get started' }, items: ['docs', 'docs/downloads'] },
 				{ label: '使用指南', translations: { en: 'Using Ameow' }, items: [
 					'docs/desktop/links-and-queue', 'docs/desktop/output-folder',
-					'docs/supported-sites', 'docs/desktop/settings',
+					'docs/supported-sites', 'docs/desktop/settings', 'docs/extension', 'docs/cli',
 				] },
 				{ label: '遇到问题', translations: { en: 'Get help' }, items: ['docs/troubleshooting'] },
 				'docs/developer',

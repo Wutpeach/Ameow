@@ -13,7 +13,7 @@ description: Supported video, image, and gallery entries, and download quality c
 | Bluesky | Images in a single post. |
 | Other public HTTP(S) links | Can be attempted. The downloader must identify and deliver a single video or image; arbitrary web pages are not guaranteed. |
 
-YouTube and Bilibili playlist or series parameters are rejected; copy the specific video address. Content requiring login, membership, or regional access may be unavailable; the app does not import browser sessions. Page or permission changes can also affect downloads. See [download problems](../troubleshooting/#downloads).
+YouTube and Bilibili playlist or series parameters are rejected; copy the specific video address. Unauthorized sites use anonymous attempts. Matching versions can [authorize a site's session](../extension/); 0.5.0 does not include session sync. Login, membership, region, and site changes can affect downloads; see [download problems](../troubleshooting/#downloads).
 
 <span id="quality"></span>
 
@@ -27,4 +27,8 @@ Before submitting, choose in Full's right-click menu:
 | Balanced (default) | 1080p |
 | Saver | 480p |
 
-Actual resolution and file format depend on the site's media. A cap does not guarantee that resolution or resize images. Each task retains its submitted quality, including on retry.
+Resolution and format depend on the site's media; the cap does not resize images. Tasks and retries retain their submitted quality. The menu stays open after saving; choices are unavailable while saving, and failure keeps the previous value and shows a message.
+
+## File formats
+
+Video downloads using yt-dlp merge or remux to MKV while preserving the original audio codec. A container extension and the audio and video codecs inside it are different things; a quality choice does not guarantee a codec or editor compatibility. Image downloads use a different path. If [an editor has no sound](../troubleshooting/#editor-audio), check the file format and the editor's support.

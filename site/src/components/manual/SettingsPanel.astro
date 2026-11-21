@@ -2,94 +2,54 @@
 import AppIcon from './AppIcon.astro';
 interface Props { page: 'general' | 'download'; en?: boolean; }
 const { page, en = false } = Astro.props;
-const text = (zh: string, english: string) => en ? english : zh;
+const t = (zh: string, english: string) => en ? english : zh;
 const navigation = [
-  { id: 'general', icon: 'sliders' as const, label: text('常规', 'General') },
-  { id: 'download', icon: 'download' as const, label: text('下载', 'Download') },
-  { id: 'components', icon: 'blocks' as const, label: text('组件与诊断', 'Components') },
-  { id: 'about', icon: 'info' as const, label: text('关于', 'About') },
+  { id: 'general', icon: 'sliders' as const, label: t('常规', 'General') },
+  { id: 'download', icon: 'download' as const, label: t('下载', 'Download') },
+  { id: 'components', icon: 'blocks' as const, label: t('组件与诊断', 'Components') },
+  { id: 'about', icon: 'info' as const, label: t('关于', 'About') },
 ];
-const preferences = [
-  [text('主题', 'Theme'), text('跟随系统', 'System')],
-  [text('语言', 'Language'), text('跟随系统', 'System')],
-  [text('托盘图标', 'Tray icon'), text('跟随外观', 'Follow appearance')],
-];
+const preferences = [[t('主题', 'Theme'), t('跟随系统', 'System')], [t('语言', 'Language'), t('跟随系统', 'System')], [t('托盘图标', 'Tray icon'), t('跟随外观', 'Follow appearance')]];
 ---
-<div class="settings-example" data-settings-view={page}>
-  <div class="settings-panel">
-    <div class="settings-sidebar">
-      {navigation.map(item => <span class:list={['nav-item', { selected: item.id === page }]}><AppIcon name={item.icon} size={14} /><span>{item.label}</span></span>)}
-    </div>
-    <div class="settings-content">
-      <strong class="panel-title">{page === 'general' ? text('常规', 'General') : text('下载', 'Download')}</strong>
+<p class="pan-guide">{t('左右滑动查看完整界面', 'Swipe sideways to see the full interface')}</p>
+<div class="viewport" role="region" data-settings-viewport tabindex="0" aria-label={t('下载设置，可横向滚动查看', 'Download settings; scroll horizontally to view')}>
+  <div class="panel">
+    <div class="sidebar">{navigation.map(item => <span class:list={['nav', { selected: item.id === page }]}><AppIcon name={item.icon} size={14} /><span>{item.label}</span></span>)}</div>
+    <div class="content">
+      <strong class="title">{page === 'general' ? t('常规', 'General') : t('下载', 'Download')}</strong>
       {page === 'general' ? <>
-        <div class="settings-row startup"><span>{text('开机启动', 'Launch at login')}</span><span class="switch"><span /></span></div>
-        <div class="preferences focus-area">
-          <span class="annotation-number group-number">1</span>
-          {preferences.map(([label, value]) => <div class="settings-row"><span>{label}</span><span class="select-value"><span>{value}</span><AppIcon name="down" size={12} /></span></div>)}
-        </div>
-      </> : <div class="download-fields">
-        <div class="location-row">
-          <span>{text('下载位置', 'Download location')}</span>
-          <span class="location-actions"><span class="icon-control"><AppIcon name="folderOpen" /></span><span class="change-control"><span class="annotation-number">1</span>{text('更改', 'Change')}</span></span>
-        </div>
-        <div class="path-field"><code>C:&#92;<wbr />Downloads</code><span class="copy-control"><span class="annotation-number">2</span><AppIcon name="copy" /></span></div>
-      </div>}
+        <div class="row"><span>{t('开机启动', 'Launch at login')}</span><span class="switch"><span /></span></div>
+        {preferences.map(([label, value]) => <div class="row"><span>{label}</span><span class="select"><span>{value}</span><AppIcon name="down" size={12} /></span></div>)}
+        <div class="section-title">{t('快捷键', 'Shortcut')}</div>
+        <div class="row"><span>{t('呼出／隐藏 Ameow', 'Show / hide Ameow')}</span><span class="select">Ctrl+Shift+F</span></div>
+      </> : <>
+        <div class="row"><span>{t('下载位置', 'Download location')}</span><span class="actions"><span class="icon"><AppIcon name="folderOpen" /></span><span class="change">{t('更改', 'Change')}</span></span></div>
+        <div class="path"><span>C:&#92;Downloads</span><span class="icon"><AppIcon name="copy" /></span></div>
+      </>}
     </div>
-  </div>
-  <div class="annotations">
-    <span><span class="annotation-number">1</span>{page === 'general' ? text('选择后自动保存', 'Selections save automatically') : text('选择文件夹', 'Choose a folder')}</span>
-    {page === 'download' && <span><span class="annotation-number">2</span>{text('复制路径', 'Copy the path')}</span>}
   </div>
 </div>
+<script>
+  for (const viewport of document.querySelectorAll<HTMLElement>('[data-settings-viewport]')) if (matchMedia('(max-width:40rem)').matches) requestAnimationFrame(() => { viewport.scrollLeft = 144; });
+</script>
 <style>
-  .settings-example :global(span) { font-size: inherit; }
-  .settings-panel { display: grid; grid-template-columns: 124px minmax(0, 1fr); border-radius: 12px; background: var(--fig-surface); box-shadow: 0 3px 16px rgb(0 0 0 / 0.08); overflow: hidden; color: var(--fig-text); font-family: var(--sl-font); }
-  .settings-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 16px 10px; background: color-mix(in srgb, var(--fig-badge) 65%, var(--fig-surface)); }
-  .settings-example .nav-item { display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 6px; font-size: 12px; line-height: 18px; color: var(--fig-muted); }
-  .settings-example .nav-item > span { font-size: inherit; white-space: nowrap; }
-  .nav-item.selected { background: var(--fig-badge); color: var(--fig-text); }
-  .settings-content { min-width: 0; padding: 20px; }
-  .settings-example .panel-title { display: block; font-size: 16px; font-weight: 500; margin-bottom: 18px; }
-  .settings-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 46px; font-size: 13px; line-height: 20px; }
-  .settings-row > span:first-child { flex-shrink: 0; }
-  .settings-example .startup { margin-bottom: 12px; }
-  .switch { width: 32px; height: 18px; flex: none; padding: 3px; border-radius: 9px; background: color-mix(in srgb, var(--fig-muted) 30%, transparent); }
+  .pan-guide { display: none; padding-bottom: 12px; color: var(--fig-muted); font: 14px/1.5 var(--sl-font); }
+  .viewport:focus-visible { outline: 2px solid var(--fig-blue); outline-offset: 3px; }
+  .viewport { overflow: hidden; border-radius: 12px; }
+  .panel { display: grid; grid-template-columns: 144px 1fr; min-width: 550px; background: var(--fig-surface); color: var(--fig-text); font: 13px/20px "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+  .sidebar { display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; background: color-mix(in srgb, var(--fig-badge) 55%, var(--fig-surface)); }
+  .nav { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px; border-radius: 6px; color: var(--fig-muted); white-space: nowrap; }
+  .nav.selected { color: var(--fig-text); background: var(--fig-border); }
+  .content { min-width: 0; padding: 20px 24px 24px; }
+  .title { display: block; margin-bottom: 16px; font-size: 15px; font-weight: 500; }
+  .row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .select { display: flex; align-items: center; justify-content: space-between; flex: none; width: 192px; height: 32px; padding: 0 10px; border: 1px solid var(--fig-border); border-radius: 6px; }
+  .section-title { margin-top: 24px; font-size: 13px; font-weight: 500; }
+  .switch { width: 32px; height: 18px; padding: 3px; border-radius: 9px; background: color-mix(in srgb, var(--fig-muted) 30%, transparent); }
   .switch > span { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--fig-surface); }
-  .preferences { position: relative; padding: 5px 10px; }
-  .focus-area { outline: 1px dashed var(--fig-blue); outline-offset: 3px; border-radius: 6px; }
-  .annotation-number { display: inline-grid; place-items: center; width: 19px; height: 19px; flex: none; border-radius: 50%; border: 1px solid var(--fig-blue); background: var(--fig-surface); color: var(--fig-text); font: 500 11px/1 var(--sl-font); }
-  .group-number { position: absolute; top: -12px; left: -12px; }
-  .select-value { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; width: 160px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--fig-border); background: var(--fig-surface); font-size: 12px; }
-  .select-value > span:first-child { overflow-wrap: anywhere; }
-  .download-fields { padding-block: 8px 14px; }
-  .location-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; font-size: 13px; line-height: 20px; }
-  .location-actions { display: flex; align-items: center; gap: 8px; }
-  .icon-control, .copy-control { display: grid; place-items: center; width: 32px; height: 32px; flex: none; color: var(--fig-muted); }
-  .change-control { position: relative; display: inline-flex; align-items: center; justify-content: center; height: 32px; padding-inline: 12px; border-radius: 6px; border: 1px solid var(--fig-border); outline: 1px solid var(--fig-blue); outline-offset: 2px; font-size: 13px; }
-  .change-control .annotation-number, .copy-control .annotation-number { position: absolute; right: -9px; top: -12px; }
-  .settings-example .path-field { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; min-height: 44px; margin-top: 10px; border-radius: 6px; background: color-mix(in srgb, var(--fig-badge) 55%, transparent); }
-  .path-field code { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--fig-text); font: 12px/20px var(--sl-font-mono); overflow-wrap: anywhere; }
-  .copy-control { position: relative; outline: 1px solid var(--fig-blue); outline-offset: 1px; border-radius: 6px; }
-  .settings-example .annotations { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 20px; font-size: 13px; line-height: 20px; color: var(--fig-muted); }
-  .annotations > span { display: inline-flex; align-items: center; gap: 8px; }
-  @media (max-width: 40rem) {
-    .settings-panel { grid-template-columns: 100px minmax(0, 1fr); }
-    .settings-sidebar { padding: 12px 5px; gap: 4px; }
-    .settings-example .nav-item { gap: 5px; padding: 8px 4px; font-size: 11px; }
-    .nav-item :global(.app-icon) { width: 12px !important; height: 12px !important; }
-    .settings-content { padding: 16px 12px; }
-    .settings-example .panel-title { margin-bottom: 14px; }
-    .settings-row { align-items: stretch; flex-direction: column; gap: 4px; padding-block: 6px; font-size: 12px; }
-    .settings-row.startup { flex-direction: row; align-items: center; gap: 6px; }
-    .settings-row.startup > span:first-child { flex-shrink: 1; }
-    .preferences { padding-inline: 4px; }
-    .select-value { width: 100%; padding-inline: 7px; font-size: 11px; }
-    .location-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .location-actions { align-self: flex-end; }
-    .location-row, .change-control { font-size: 12px; }
-    .settings-example .path-field { padding-left: 8px; gap: 4px; }
-    .path-field code { font-size: 11px; }
-    .settings-example .annotations { gap: 12px; }
-  }
+  .actions { display: flex; align-items: center; gap: 8px; }
+  .icon { display: grid; place-items: center; width: 32px; height: 32px; color: var(--fig-muted); flex: none; }
+  .change { display: grid; place-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--fig-border); border-radius: 6px; }
+  .path { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 6px 6px 6px 12px; border-radius: 6px; background: color-mix(in srgb, var(--fig-badge) 55%, transparent); font-size: 12px; }
+  @media (max-width: 40rem) { .pan-guide { display: block; } .viewport { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--fig-border) transparent; } }
 </style>

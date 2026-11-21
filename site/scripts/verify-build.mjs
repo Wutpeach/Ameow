@@ -22,7 +22,7 @@ assert.doesNotMatch(home, /name="robots"\s+content="noindex"/, 'Product homepage
 assert.match(home, /id="top"/, 'Homepage must retain the brand target');
 assert.match(home, /id="get"/, 'Homepage must retain the platform download section');
 assert.equal([...home.matchAll(/href="#get"/g)].length, 1, 'Homepage must have one acquisition CTA');
-const required = ['docs', 'en/docs', 'docs/developer', 'en/docs/developer', 'docs/downloads', 'en/docs/downloads'];
+const required = ['docs', 'en/docs', 'docs/developer', 'en/docs/developer', 'docs/downloads', 'en/docs/downloads', 'docs/extension', 'en/docs/extension', 'docs/cli', 'en/docs/cli'];
 for (const route of required) assert(pages.has(route + '/index.html'), 'Missing required route: ' + route);
 for (const route of ['docs', 'en/docs']) {
   const html = pages.get(route + '/index.html');
@@ -37,8 +37,7 @@ const figures = [
   ['desktop/links-and-queue/', 'queue'],
   ['desktop/output-folder/', 'folder'],
   ['desktop/output-folder/', 'settings-download'],
-  ['desktop/settings/', 'settings-general'],
-  ['desktop/settings/', 'updates'],
+  ['desktop/settings/', 'shortcut'],
   ['troubleshooting/', 'mac'],
 ];
 for (const locale of ['docs', 'en/docs']) for (const [route, kind] of figures) {
@@ -48,11 +47,20 @@ for (const locale of ['docs', 'en/docs']) for (const [route, kind] of figures) {
   const start = html.indexOf('data-figure="' + kind + '"');
   assert(start >= 0, name + ' must render ' + kind);
   const figure = html.slice(start, html.indexOf('</figure>', start));
-  assert.match(figure, /role="img"[^>]*aria-label="[^"]+"/, name + ' must describe ' + kind);
-  assert(figure.includes(locale === 'docs' ? '操作示意' : 'Workflow illustration'), name + ' must label ' + kind);
+  assert.match(figure, /role="(?:img|group)"[^>]*aria-label="[^"]+"/, name + ' must describe ' + kind);
+  assert.doesNotMatch(figure, /<figcaption\b/, name + ' must omit repetitive illustration captions');
+}
+for (const locale of ['docs', 'en/docs']) {
+  const extension = pages.get(locale + '/extension/index.html');
+  assert.match(extension, /<ameow-clip-demo\b/, locale + ' must include the interactive clip illustration');
+  assert.doesNotMatch(extension.slice(extension.indexOf('<ameow-clip-demo'), extension.indexOf('</ameow-clip-demo>')), /<details|<summary/, locale + ' clip steps must be always visible');
+  assert.match(extension, /manual\/browser\/popup[.]html/, locale + ' must embed the real extension popup');
+  assert.match(extension, /manual\/browser\/clip[.]html/, locale + ' must embed the real clip frontend');
+
+  assert.doesNotMatch(extension, /review-banner|review-notes/, locale + ' must not expose internal review records');
 }
 for (const locale of ['docs', 'en/docs']) for (const route of [
-  'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',
+  'review-notes', 'browser-extension', 'extension/install', 'extension/connection', 'extension/cookies-and-login',
   'troubleshooting/extension-disconnected', 'advanced/ae-compatibility', 'releases',
 ]) {
   assert(!pages.has(locale + '/' + route + '/index.html'), 'Retired manual route returned: ' + route);
@@ -76,6 +84,7 @@ assert.equal(targetFor(new URL(base + 'en/docs/', origin)), 'en/docs/index.html'
 assert.throws(() => targetFor(new URL(origin + '/docs/')));
 let checked = 0;
 for (const [name, html] of pages) {
+  assert.doesNotMatch(html, /review-banner|review-notes|本地候选|审阅说明|朋友试用包|special-token|Local documentation candidate/, name + ' exposes internal handoff notes');
   assert.doesNotMatch(html, /rust-(?:settings|compact)[^" ]*[.]png/, name + ' must not reuse retired application screenshots');
   const route = name.endsWith('index.html') ? name.slice(0, -'index.html'.length) : name;
   const current = new URL(base + route, origin);

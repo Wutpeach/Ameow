@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';"><title>Ameow</title><link rel="stylesheet" href="vendor/popup.css"></head>
+<body data-pagefind-ignore="all"><main>
+  <h1>Ameow</h1>
+  <section id="page-tools" hidden>
+    <button id="toggle-tools" disabled>启用页面工具</button>
+    <p class="secondary">在播放器旁下载整段或选择片段。与下方 Cookie 授权分别控制。</p>
+    <p id="page-status" role="status" aria-live="polite"></p>
+  </section>
+  <h2 id="site">站点授权</h2>
+  <p id="scope">正在读取当前网页…</p>
+  <p id="source" class="secondary"></p>
+  <p id="status" role="status" aria-live="polite"></p>
+  <div class="actions"><button id="authorize" disabled>授权此站点</button><button id="sync" hidden>立即同步</button><button id="revoke" hidden>移除</button></div>
+  <p class="secondary">仅同步此浏览器已有会话。可下载内容与画质由网站和下载器决定。</p>
+</main><script src="popup-fixture.js"></script><script type="module" src="vendor/popup.js"></script></body></html>

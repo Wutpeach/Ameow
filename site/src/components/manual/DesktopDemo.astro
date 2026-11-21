@@ -1,0 +1,93 @@
+---
+import lightCat from '../../../../assets/mascot/light.svg?raw';
+import nightCat from '../../../../assets/mascot/night.svg?raw';
+import FullSurface from './FullSurface.astro';
+import AppIcon from './AppIcon.astro';
+import QueueGlyph from './QueueGlyph.astro';
+interface Props { mode: 'start' | 'queue' | 'folder'; en?: boolean; }
+const { mode, en = false } = Astro.props;
+const t = (zh: string, english: string) => en ? english : zh;
+---
+<ameow-desktop-demo data-mode={mode} data-lang={en ? 'en' : 'zh'}>
+  {mode === 'start' && <>
+    <p class="hint"><span class="mouse-hint">{t('把鼠标放到小猫上', 'Hover over the cat')}</span><span class="touch-hint">{t('轻点小猫展开', 'Tap the cat to expand')}</span></p>
+    <div class="desktop-stage start-stage"><div class="window-carrier" data-motion-carrier>
+      <button class="native-window" data-summon type="button" aria-label={t('展开或收起 Ameow', 'Expand or collapse Ameow')} aria-expanded="false">
+        <span class="window-surface" data-window-surface><span class="compact" data-compact><span class="light-cat" set:html={lightCat} /><span class="night-cat" set:html={nightCat} /></span><span class="native-content" data-full /></span>
+      </button>
+    </div></div>
+    <p class="hint paste-hint" data-paste-hint>{t('在 Full 按', 'In Full, press')} <kbd>Ctrl+V</kbd> / <kbd>⌘V</kbd> {t('粘贴链接', 'to paste a link')}</p>
+  </>}
+  {mode === 'queue' && <>
+    <p class="hint">{t('点左上角数量，查看队列', 'Select the top-left count to open the queue')}</p>
+    <div class="desktop-stage queue-stage">
+      <div data-queue-full><FullSurface state="progress" en={en} queueControl /></div>
+      <section class="queue-panel" data-queue-panel aria-label={t('下载队列', 'Download queue')} hidden>
+        <div class="queue-heading"><button type="button" data-close-queue aria-label={t('返回 Full', 'Back to Full')}><AppIcon name="arrow" /></button><strong>{t('队列', 'Queue')}</strong><span class="summary"><span><AppIcon name="download" size={12} />1</span><span><AppIcon name="clock" size={12} />2</span></span></div>
+        <div class="queue-list"><div class="queue-row"><span class="queue-title"><span>{t('海岸漫步', 'Coastal walk')}</span><QueueGlyph kind="cancel" /></span><div class="row-state"><span class="track"><span /></span><span>60%</span></div></div>
+        <div class="queue-row"><span class="queue-title"><span>{t('山间日出', 'Mountain sunrise')}</span><QueueGlyph kind="cancel" /></span><div class="row-state"><span class="track waiting" /><span>{t('等待下载', 'Queued')}</span></div></div>
+        <div class="queue-row"><span class="queue-title"><span>{t('城市夜景', 'City at night')}</span><QueueGlyph kind="cancel" /></span><div class="row-state"><span class="track waiting" /><span>{t('等待下载', 'Queued')}</span></div></div>
+        <div class="queue-row"><span class="queue-title"><span>{t('雨天花园', 'Rainy garden')}</span><span class="row-actions"><QueueGlyph kind="retry" /><QueueGlyph kind="copy" /><QueueGlyph kind="clear" /></span></span><div class="row-state failed"><span class="track waiting" /><span>{t('下载失败', 'Failed')}</span></div></div></div>
+      </section>
+    </div>
+  </>}
+  {mode === 'folder' && <>
+    <p class="hint">{t('把文件夹拖到 Full，或点选后再点 Full', 'Drag the folder onto Full, or select it and then select Full')}</p>
+    <div class="folder-example">
+      <button class="folder-source" data-folder-source type="button" aria-pressed="false"><AppIcon name="folder" size={28} /><span>Downloads</span></button>
+      <button class="folder-target" data-folder-target type="button" aria-label={t('松开以更改示例保存位置', 'Drop to change the example destination')}>
+        <span data-folder-state="idle"><FullSurface en={en} /></span>
+        <span data-folder-state="hover" hidden><FullSurface state="hover" en={en} /></span>
+        <span data-folder-state="saved" hidden><FullSurface state="saved" en={en} /></span>
+      </button>
+    </div>
+    <span class="sr-only" data-folder-status role="status" />
+  </>}
+</ameow-desktop-demo>
+<script>import './desktop-demo.js';</script>
+<style>
+  ameow-desktop-demo { display: block; font: 14px/1.6 var(--sl-font); }
+  ameow-desktop-demo :global([hidden]) { display: none !important; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--fig-blue); outline-offset: 4px; }
+  .hint { margin: 0; text-align: center; color: var(--fig-muted); font-size: 14px; }
+  .touch-hint { display: none; }
+  .desktop-stage { display: grid; place-items: center; min-height: 260px; }
+  .window-carrier { width: 228px; height: 228px; position: relative; }
+  .native-window { position: absolute; margin: 0; padding: 0; border: 0; background: transparent; outline: none; appearance: none; -webkit-tap-highlight-color: transparent; }
+  .native-window:focus-visible { outline: none; }
+  .window-surface { position: absolute; display: block; overflow: hidden; background: var(--fig-surface); box-shadow: 0 2px 5px rgb(0 0 0 / .085); }
+  .native-window:focus-visible .window-surface { outline: 2px solid var(--fig-blue); outline-offset: 3px; }
+  .native-content { position: absolute; inset: 0; pointer-events: none; }
+  .compact { display: block; position: absolute; left: 0; top: 0; pointer-events: none; }
+  .compact :global(svg) { display: block; width: 100%; height: 100%; }
+  .light-cat { display: none; }
+  :global(:root[data-theme='light']) .light-cat { display: block; }
+  :global(:root[data-theme='light']) .night-cat { display: none; }
+  .paste-hint { min-height: 24px; visibility: hidden; }
+  kbd { color: var(--fig-text); font: inherit; }
+  .queue-stage { min-height: 260px; }
+  .queue-panel { width: 200px; height: 200px; padding: 10px; border-radius: 20px; background: var(--fig-surface); box-shadow: 0 3px 16px rgb(0 0 0 / .08); color: var(--fig-muted); font: 10px "JetBrains Mono", "Microsoft YaHei UI", monospace; }
+  .queue-heading { display: flex; align-items: center; gap: 6px; height: 40px; }
+  .queue-heading strong { font: 500 10px "JetBrains Mono", "Microsoft YaHei UI", monospace; }
+  .queue-heading button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; transform: rotate(180deg); }
+  .summary { display: flex; align-items: center; gap: 8px; height: 22px; margin-left: auto; padding: 0 6px; background: var(--fig-badge); border-radius: 6px; color: var(--fig-muted); }
+  .queue-list { height: 140px; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+  .queue-list::-webkit-scrollbar { display: none; }
+  .queue-title { display: flex; align-items: center; justify-content: space-between; gap: 4px; height: 24px; }
+  .queue-title>span:first-child { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .row-actions { display: flex; gap: 2px; flex: none; }
+  .summary>span { display: flex; align-items: center; gap: 4px; }
+  .queue-row { display: flex; flex-direction: column; justify-content: center; gap: 4px; height: 56px; border-bottom: 1px solid var(--fig-border); }
+  .row-state { display: grid; grid-template-columns: 122px 54px; gap: 4px; align-items: center; text-align: right; color: var(--fig-muted); font-size: 8px; }
+  .track { height: 3px; border-radius: 2px; background: var(--fig-badge); }
+  .track>span { display: block; height: 100%; width: 60%; border-radius: inherit; background: var(--fig-blue); }
+  .failed { color: var(--fig-red); text-align: left; }
+  .retry { display: flex; justify-content: end; align-items: center; gap: 3px; }
+  .folder-example { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 24px 40px; padding-block: 28px; }
+  .folder-source { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fig-muted); touch-action: none; user-select: none; }
+  .folder-source[aria-pressed='true'] { border-color: var(--fig-blue); color: var(--fig-blue); }
+  .folder-target { padding: 0; border: 0; border-radius: 20px; background: transparent; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media(hover:none) { .mouse-hint { display: none; } .touch-hint { display: inline; } }
+</style>

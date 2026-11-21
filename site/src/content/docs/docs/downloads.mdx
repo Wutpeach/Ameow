@@ -13,7 +13,7 @@ import { Steps } from '@astrojs/starlight/components';
 | Windows x64 便携版 | [便携 ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow_0.5.0_windows_x64_portable.zip) |
 | macOS Apple Silicon | [Mac ZIP](https://github.com/Wutpeach/Ameow/releases/download/v0.5.0/Ameow-0.5.0-macos-arm64.zip) |
 
-Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、Universal 和 Linux 不在此版本范围内；最低版本声明不代表较旧系统均已验证。
+Mac 要求 macOS 13 或更新系统及 Apple Silicon。此版本不支持 Intel Mac、Universal 或 Linux。
 
 ## Windows
 
@@ -24,6 +24,10 @@ Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、U
 
 便携版请保持目录完整。移动前先退出，之后核对快捷方式和开机启动。卸载默认保留用户数据。
 
+本页的 0.5.0 安装程序为英文。新版按 Windows 显示语言选择中文或 English，其他语言回退 English；[应用内语言](../desktop/settings/)单独设置。地区、日期和数字格式不决定安装语言。
+
+0.5.0 不含后续加入的命令行工具；包含该工具的版本及调用方式见[命令行](../cli/)。
+
 ## Mac
 
 1. 下载并解压 Mac ZIP，将 `Ameow.app` 放入 `/Applications` 或 `~/Applications`，从 Finder 打开。无需另行安装 Homebrew 或 Python。
@@ -33,4 +37,9 @@ Mac 要求 macOS 13 或更新系统，实测为 macOS 26.3 arm64。Intel Mac、U
 
 Rust 版在[设置的关于页](../desktop/settings/)检查应用更新，按提示下载并重启。下载组件在组件与诊断页单独管理。
 
-从旧 Electron 版转用时，请按本页的平台入口安装 Rust 版，再重新选择保存位置和偏好。两版数据隔离，不自动迁移旧配置、缓存或历史，也不承诺旧 Electron 自动升级到 Rust 版。
+<details>
+<summary>从旧 Electron 版转用</summary>
+
+安装 Rust 版并重新选择保存位置和偏好。两版数据隔离，不自动迁移旧配置、缓存或历史，也不承诺自动升级。
+
+</details>

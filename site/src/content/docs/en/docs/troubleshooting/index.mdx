@@ -29,6 +29,12 @@ Retry a failed or partial task when offered; its original quality and folder are
 2. Open the [destination folder](../desktop/output-folder/). If you changed it after submitting, check the task's original location; retries also retain it.
 3. For a failed task, resolve permissions or space problems and submit again. The app's data directory is not a fallback download location.
 
+<span id="editor-audio"></span>
+
+## No sound in an editor
+
+If a player has sound but an editor detects no audio track, keep the original and check the editor version, container, and codecs. In one Windows Resolve Studio case, an H.264 + Opus MKV had audio after remuxing to MP4 without re-encoding. Results vary with the file and editor version; Ameow does not perform this conversion automatically.
+
 <span id="mac"></span>
 
 ## Mac entry points and startup
@@ -37,9 +43,18 @@ Ameow runs in the menu bar with no Dock icon by default. Closing settings does n
 
 <ManualFigure kind="mac" lang="en" />
 
-If the floating window is missing, choose Open or return to a normal desktop. Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
+If the floating window is missing, choose Open from the menu bar or return to a normal desktop.
+
+<details>
+<summary>Window, paste, and startup details</summary>
+
+Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
+
+If pasting into Full does nothing on macOS 0.5.0, check the app version. The fix is included in newer source; the original 0.5.0 package has not changed. In a version containing the fix, use `Command+V` in Full; its right-click menu has no Paste item. If it still fails, report the version, entry point, and steps.
 
 If macOS blocks launch, check the [installed version and source](../downloads/) and keep the complete system message for a report. Follow system prompts for login-startup or update authorization; see [Settings and updates](../desktop/settings/).
+
+</details>
 
 ## Report a problem
 
