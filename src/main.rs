@@ -57,7 +57,6 @@ struct Assets;
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
         Ok(match path {
-            "brands/demo-cursor.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/demo-cursor.svg"))),
             "brands/bilibili.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/bilibili.svg"))),
             "brands/youtube.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/youtube.svg"))),
             "brands/bluesky.svg" => Some(Cow::Borrowed(include_bytes!("../assets/brands/bluesky.svg"))),
@@ -87,7 +86,7 @@ impl AssetSource for Assets {
         })
     }
     fn list(&self, prefix: &str) -> anyhow::Result<Vec<SharedString>> {
-        let mut paths: Vec<SharedString> = ["brands/demo-cursor.svg", "brands/bilibili.svg", "brands/youtube.svg", "brands/bluesky.svg",
+        let mut paths: Vec<SharedString> = ["brands/bilibili.svg", "brands/youtube.svg", "brands/bluesky.svg",
             "brands/imgur.svg", "brands/x.svg", "brands/vimeo.svg",
             "icons/x.svg", "icons/copy.svg", "icons/check.svg", "icons/eye-off.svg",
             "icons/settings.svg", "icons/sliders-horizontal.svg", "icons/download.svg",

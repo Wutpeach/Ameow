@@ -45,6 +45,7 @@ fn brand_size(site: &str) -> f32 {
     match site { "youtube.com" => 30., "x.com" => 26., "bilibili.com" | "bsky.app" | "imgur.com" | "vimeo.com" => 28., _ => 26. }
 }
 fn failed(site: &SiteView) -> bool { site.last_result.as_ref().is_some_and(|r| r.error.is_some()) }
+fn show_latest_on_summary(site: &SiteView) -> bool { site.cookie_count > 0 || failed(site) }
 fn short_status(site: &SiteView, l: Language) -> &'static str {
     if failed(site) { l.text("最近失败", "Latest failed") }
     else if site.cookie_count == 0 { l.text("空会话", "Empty session") }
@@ -97,7 +98,7 @@ impl SettingsWindow {
                     this.browser_ui.guide = 1; this.browser_ui.setup_error = None;
                     this.browser_ui.setup_requested = false; this.scroll.set_offset(point(px(0.), px(0.))); cx.notify();
                 })))
-            .child(div().mt(px(12.)).text_color(p.neutral).child(format!("{} {}", status.sites.len(), l.text("个已授权站点", "authorized sites"))));
+            .child(div().mt(px(12.)).text_color(p.neutral).child(authorized_count(status.sites.len(), l)));
         if status.error.is_some() {
             body = body.child(div().mt(px(12.)).child(inline_notice(p, l.text("会话缓存暂不可读，请重试。", "Session cache is unavailable. Try again."), true)));
         } else if status.notice.as_ref().is_some_and(|s| s != "installed") {
@@ -155,8 +156,10 @@ impl SettingsWindow {
                         } else { this.session_command(ameow_next::download::queue::QueueCommand::RemoveBrowserSession { site: site_name.clone(), grant_id: grant.clone() }, cx); }
                     })))
                 .child(div().mt(px(8.)).text_color(p.neutral).child(break_long(source_name)))
-                .child(div().text_color(p.neutral).child(format!("{} · {}", l.text("快照", "Snapshot"), ameow_next::browser_sessions::utc_timestamp(site.synced_at))))
-                .child(div().mt(px(6.)).text_color(if failed(site) { error_text(p) } else { p.neutral }).child(latest));
+                .child(div().text_color(p.neutral).child(format!("{} · {}", l.text("快照", "Snapshot"), ameow_next::browser_sessions::utc_timestamp(site.synced_at))));
+            if show_latest_on_summary(site) {
+                detail = detail.child(div().mt(px(6.)).text_color(if failed(site) { error_text(p) } else { p.neutral }).child(latest.clone()));
+            }
             if site.cookie_count == 0 {
                 detail = detail.child(div().mt(px(8.)).child(l.text("没有可用 Cookie", "No usable cookies")))
                     .child(div().text_color(p.neutral).child(l.text("请在浏览器登录后重新同步。", "Sign in in your browser, then sync again.")));
@@ -168,6 +171,7 @@ impl SettingsWindow {
                     .child(format!("{}: {}", l.text("来源", "Source"), break_long(source_name)))
                     .child(div().child(format!("ID: {}", break_long(&site.source_id))))
                     .child(div().child(format!("{}: {}", l.text("上次成功缓存", "Last successful snapshot"), ameow_next::browser_sessions::utc_timestamp(site.synced_at))))
+                    .when(!show_latest_on_summary(site), |s| s.child(div().child(latest)))
                     .child(div().child(format!("Cookie: {}", site.cookie_count))));
             }
             body = body.child(detail);
@@ -279,7 +283,7 @@ impl SettingsWindow {
             if let Some(bounds) = children.into_iter().reduce(|a, b| a.union(&b)) {
                 let viewport = scroll.bounds();
                 let shown = bounds.bottom() > viewport.top() && bounds.top() < viewport.bottom();
-                let changed = visible.replace(shown) != shown || origin.replace(Some(bounds.origin)) != Some(bounds.origin);
+                let changed = record_demo_measurement(&visible, &origin, shown, bounds.origin);
                 if changed && shown { window.request_animation_frame(); }
             }
         }).child(div().flex().flex_col().child(browser).child(folder));
@@ -290,8 +294,7 @@ impl SettingsWindow {
                 let pulse = [0.155_f32, 0.34, 0.515, 0.70].into_iter().map(|click| (1. - ((at - click) / 0.025).abs()).clamp(0., 1.)).fold(0_f32, f32::max);
                 stage = stage.child(div().absolute().left(x - px(8.)).top(y - px(8.)).size(px(18. + pulse * 10.))
                     .rounded_full().border_2().border_color(p.blue.opacity(pulse * 0.8)))
-                    .child(div().absolute().left(x).top(y).size(px(24.))
-                        .child(svg().path("brands/demo-cursor.svg").size(px(24.))));
+                    .child(demo_cursor(p).absolute().left(x).top(y));
             }
         }
         let header = div().flex().flex_wrap().items_center().gap(px(8.))
@@ -320,6 +323,30 @@ impl SettingsWindow {
 fn pin(number: &'static str, p: Palette) -> Div {
     div().size(px(20.)).flex_none().rounded_full().bg(p.primary_text()).text_color(p.surface)
         .flex().items_center().justify_center().text_size(px(12.)).child(number)
+}
+fn record_demo_measurement(visible: &Cell<bool>, origin: &Cell<Option<Point<Pixels>>>, shown: bool, point: Point<Pixels>) -> bool {
+    let visibility_changed = visible.replace(shown) != shown;
+    let origin_changed = origin.replace(Some(point)) != Some(point);
+    visibility_changed || origin_changed
+}
+fn demo_cursor(p: Palette) -> impl IntoElement + Styled {
+    canvas(|_, _, _| (), move |bounds, _, window, _| {
+        // The accepted cursor's SVG path, drawn in two colors; GPUI SVGs are monochrome masks.
+        let points = [(1.5, 1.5), (1.5, 22.5), (7.3, 17.4), (11.8, 26.4),
+            (16.1, 24.3), (11.6, 15.4), (19.6, 14.0), (1.5, 1.5)];
+        let mut fill_path = PathBuilder::fill();
+        let mut border = PathBuilder::stroke(px(1.5));
+        for (index, (x, y)) in points.into_iter().enumerate() {
+            let point = bounds.origin + point(px(x), px(y));
+            if index == 0 { fill_path.move_to(point); border.move_to(point); }
+            else { fill_path.line_to(point); border.line_to(point); }
+        }
+        if let Ok(path) = fill_path.build() { window.paint_path(path, p.surface); }
+        if let Ok(path) = border.build() { window.paint_path(path, p.primary_text()); }
+    }).w(px(24.)).h(px(28.))
+}
+fn authorized_count(count: usize, l: Language) -> String {
+    format!("{} {}", count, l.text("个已授权站点", if count == 1 { "authorized site" } else { "authorized sites" }))
 }
 fn break_long(text: &str) -> String {
     let mut result = String::new();
@@ -365,14 +392,36 @@ mod tests {
         assert_eq!(demo_points(&anchors, 1.), demo_points(&anchors, 0.));
     }
     #[::core::prelude::v1::test]
+    fn first_visible_measurement_records_origin_without_short_circuiting() {
+        let visible = Cell::new(false);
+        let origin = Cell::new(None);
+        let position = point(px(100.), px(200.));
+        assert!(record_demo_measurement(&visible, &origin, true, position));
+        assert!(visible.get());
+        assert_eq!(origin.get(), Some(position));
+        assert!(!record_demo_measurement(&visible, &origin, true, position));
+        let moved = point(px(100.), px(120.));
+        assert!(record_demo_measurement(&visible, &origin, true, moved));
+        assert_eq!(origin.get(), Some(moved));
+    }
+    #[::core::prelude::v1::test]
     fn failed_and_empty_snapshots_are_distinct() {
         let mut site = SiteView { site: "example.com".into(), source_id: "源".into(), source_name: "Unknown".into(), grant_id: "x".into(), synced_at: 1, cookie_count: 0, skipped_partitioned: 2, last_result: None };
         assert_eq!(short_status(&site, Language::Chinese), "空会话");
+        assert!(!show_latest_on_summary(&site));
+        site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 2, error: None });
+        assert!(!show_latest_on_summary(&site));
+        site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 3, error: Some(SyncError::Bridge) });
+        assert!(show_latest_on_summary(&site));
+        site.last_result = None;
         site.cookie_count = 3;
         assert_eq!(short_status(&site, Language::Chinese), "结果未知");
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 2, error: Some(SyncError::Bridge) });
         assert_eq!(short_status(&site, Language::Chinese), "最近失败");
         assert_eq!(site.synced_at, 1);
         assert_eq!(break_long("源"), "源");
+        assert_eq!(authorized_count(1, Language::English), "1 authorized site");
+        assert_eq!(authorized_count(0, Language::English), "0 authorized sites");
+        assert_eq!(authorized_count(2, Language::English), "2 authorized sites");
     }
 }
