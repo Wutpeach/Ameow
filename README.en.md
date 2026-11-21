@@ -39,7 +39,9 @@ Mark a section on the video page and send it to the cat. Fast cuts may start or 
 
 ## Browser session sync
 
-Authorize a site in the extension to sync its existing browser session for later downloads. Sync does not sign you in.
+Configure the browser connection in Ameow and copy the extension folder path. On the extensions page in the same Chrome or Edge browser, enable developer mode, load the unpacked extension, paste the path and select the folder.
+
+Then open the extension on a webpage, confirm the site scope and authorize it to sync the existing session for downloads. Sync does not sign you in or guarantee that the site still accepts the session.
 
 <p align="center">
   <img src="docs/images/readme/session-sync.gif" alt="Click Sync now for an already-authorized example site; the Ameow extension shows that site's browser source and latest sync result." width="560">

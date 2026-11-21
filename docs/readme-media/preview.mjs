@@ -6,6 +6,8 @@ import { resolve, dirname, join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const output = join(root, 'docs/readme-media/.work/preview');
+const port = Number(process.env.README_PREVIEW_PORT || 8871);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('README_PREVIEW_PORT must be an integer from 1024 to 65535');
 await mkdir(output, { recursive: true });
 if (process.argv.includes('--build')) {
   let cachedStyles;
@@ -57,4 +59,4 @@ const server = createServer(async (request, response) => {
     response.end(await readFile(file));
   } catch (error) { response.writeHead(error.code === 'ENOENT' ? 404 : 500); response.end(error.message); }
 });
-server.listen(8871, '127.0.0.1', () => console.log('README review: http://127.0.0.1:8871/ (Chinese/English, GitHub light/dark, GIFs/posters)'));
+server.listen(port, '127.0.0.1', () => console.log(`README review: http://127.0.0.1:${port}/ (Chinese/English, GitHub light/dark, GIFs/posters)`));

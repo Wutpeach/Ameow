@@ -52,18 +52,22 @@ are documented in the media sources and checked by `check.mjs`.
 
 ```powershell
 node docs/readme-media/preview.mjs --build
+$env:README_PREVIEW_PORT = '8873' # Use an unused port for this worktree.
 node docs/readme-media/preview.mjs
 # In a second terminal:
+$env:README_PREVIEW_PORT = '8873'
 node docs/readme-media/check.mjs
 ```
 
 The first command uses the authenticated `gh` CLI for GitHub Markdown rendering
 and caches GitHub's public styles. Browser checks require the two tool paths
-above, FFmpeg/FFprobe, and Python. The server binds only
-`http://127.0.0.1:8871/`. Its controls switch language, GitHub light/dark and
+above and FFmpeg/FFprobe. The server binds only to `127.0.0.1`, on
+`README_PREVIEW_PORT` (8871 by default). Use the same unused port for the server
+and checker when another worktree already owns 8871. Its controls switch language, GitHub light/dark and
 GIF/static poster views; they do not change the README. Stop it with Ctrl+C.
 
-Checks decode every GIF frame with FFmpeg, check both clip hashes,
+Checks decode every GIF frame with FFmpeg, preserve all three unaffected GIFs
+and their posters against the reviewed `1ee6e36f` Git baseline, and check
 README image/alt/local-link paths and six badge slots, then inspect both languages
 at desktop and 320px in GitHub light/dark. Tight section screenshots and a short
 result JSON stay in `.work/check/`. These checks verify the media and reading
