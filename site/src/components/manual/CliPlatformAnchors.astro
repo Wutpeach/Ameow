@@ -1,0 +1,12 @@
+<script>
+  const selectPlatform = () => {
+    const label = location.hash === '#mac' ? 'Mac' : location.hash === '#windows' ? 'Windows' : null;
+    if (!label) return;
+    for (const group of document.querySelectorAll('starlight-tabs[data-sync-key="cli-platform"]')) {
+      const tab = [...group.querySelectorAll<HTMLAnchorElement>('[role="tab"]')].find(tab => tab.textContent?.trim() === label);
+      if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
+    }
+  };
+  customElements.whenDefined('starlight-tabs').then(selectPlatform);
+  addEventListener('hashchange', selectPlatform);
+</script>

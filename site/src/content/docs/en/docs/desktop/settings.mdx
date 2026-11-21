@@ -7,25 +7,55 @@ import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
 Open settings from Full's right-click menu, the Windows tray, or the Mac menu bar. Closing settings does not quit the app.
 
-<ManualFigure kind="settings-general" lang="en" />
+Choose theme, language, and tray icon in General. Choose quality in [Full's right-click menu](../../supported-sites/#quality). Download settings manage the [save location](../output-folder/).
 
-Choose quality in [Full's right-click menu](../../supported-sites/#quality). Download settings manage the [save location](../output-folder/).
+<span id="shortcut"></span>
+
+## Summon shortcut
+
+Record Show / hide Ameow in General. The default is `Ctrl+Shift+F`.
+
+<ManualFigure kind="shortcut" lang="en" />
+
+Leave the field or press Tab to save, press Esc to cancel, or use X to clear and disable it. On Mac the default appears as `⌃⇧F`.
+
+<details>
+<summary>Shortcut conflicts or save failures</summary>
+
+An occupied combination or failed save keeps the previous preference. If the original shortcut is also unavailable, a message appears beside the field. A new shortcut takes effect only after a successful save.
+
+</details>
+
+## Browser sessions
+
+In Download settings, choose Set up extension and copy the displayed path. Follow [Install and connect](../../extension/#connection) to load the extension in your browser.
+
+Authorized sites appear as brand badges and names. Hover or focus a site to see its status. For help with a sync problem, expand diagnostics and copy the report. See [Browser session sync](../../extension/#sessions) for authorization and removal.
+
 
 ## Update the app
 
 Check in About, then follow the download and restart prompts. You can enable automatic checks, background downloads, and automatic restart after tasks finish. Running tasks finish safely first.
 
-<ManualFigure kind="updates" lang="en" />
+<details>
+<summary>Update and recovery details</summary>
 
-Windows launches the new version through the Launcher. Mac updates the complete `Ameow.app`, requesting system authorization only when directory permissions require it. Cancelling authorization or failing verification leaves the update uninstalled. Follow recovery prompts if replacement or startup fails; user data is retained.
+Windows launches the new version through the Launcher. Mac updates the complete `Ameow.app`, requesting system authorization when directory permissions require it. Cancelling authorization or failing verification leaves the update uninstalled. Follow recovery prompts if replacement or startup fails; user data is retained.
+
+</details>
 
 <span id="components"></span>
 
 ## Manage download components
 
-Ameow prepares required components on first use. Normal startup checks stay quiet with a healthy cache. In Components, manually check stable yt-dlp versions, then confirm a selection to download, verify, and switch safely. Checking alone does not change versions.
+Ameow prepares components on first use. In Components, check stable yt-dlp versions and confirm a selection to download, verify, and switch. Checking alone does not change versions.
 
-If preparation fails, follow the message to retry or confirm restoring the recommended version. A healthy cache with signed proof can recover offline; a cache without proof needs network access. Failure keeps the original selection. Do not replace cached programs manually or clear app data.
+<details>
+<summary>Component preparation and recovery</summary>
+
+Startup checks stay quiet with a healthy cache. If preparation fails, follow the prompt to retry or confirm restoring the recommended version. A healthy cache with signed proof can recover offline; one without proof needs network access. Failure keeps the original selection. Do not replace cached programs manually or clear app data.
+
+</details>
 
 <details>
 <summary>What each component does</summary>

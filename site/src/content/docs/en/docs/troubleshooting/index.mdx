@@ -3,6 +3,7 @@ title: Troubleshooting
 description: Find help for failed downloads, missing files, or Mac startup problems.
 ---
 
+import { Aside, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
 <span id="downloads"></span>
@@ -25,9 +26,17 @@ Retry a failed or partial task when offered; its original quality and folder are
 
 ## Missing files
 
+<Steps>
 1. Confirm the queue shows completion; wait until post-processing finishes.
 2. Open the [destination folder](../desktop/output-folder/). If you changed it after submitting, check the task's original location; retries also retain it.
 3. For a failed task, resolve permissions or space problems and submit again. The app's data directory is not a fallback download location.
+</Steps>
+
+<span id="editor-audio"></span>
+
+## No sound in an editor
+
+If a player has sound but an editor detects no audio track, keep the original and check the editor version, container, and codecs. In one Windows Resolve Studio case, an H.264 + Opus MKV had audio after remuxing to MP4 without re-encoding. Results vary with the file and editor version; Ameow does not perform this conversion automatically.
 
 <span id="mac"></span>
 
@@ -37,10 +46,23 @@ Ameow runs in the menu bar with no Dock icon by default. Closing settings does n
 
 <ManualFigure kind="mac" lang="en" />
 
-If the floating window is missing, choose Open or return to a normal desktop. Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
+If the floating window is missing, choose Open from the menu bar or return to a normal desktop.
+
+<details>
+<summary>Window, paste, and startup details</summary>
+
+Compact follows ordinary Spaces but does not cover another app's fullscreen Space. This behavior does not apply to Full or settings.
+
+Press `Command+V` in Full to paste; its right-click menu has no Paste item. If nothing happens, include the app version, entry point, and steps in your report.
 
 If macOS blocks launch, check the [installed version and source](../downloads/) and keep the complete system message for a report. Follow system prompts for login-startup or update authorization; see [Settings and updates](../desktop/settings/).
 
+</details>
+
 ## Report a problem
 
-Copy diagnostics from a failed task or Components. Include system/app versions, time, and reproducible steps in [GitHub Issues](https://github.com/Wutpeach/Ameow/issues). Review before sending and hide personal paths, private links, and login details. Do not clear app data for routine troubleshooting.
+Copy diagnostics from a failed task or Components. Include system/app versions, time, and reproducible steps in [GitHub Issues](https://github.com/Wutpeach/Ameow/issues).
+
+<Aside title="Before sending">
+Review diagnostics and hide personal paths, private links, and login details. Routine troubleshooting does not require clearing app data.
+</Aside>

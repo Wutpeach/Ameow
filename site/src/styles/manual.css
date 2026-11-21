@@ -1,0 +1,5 @@
+/* Changelog metadata only; Black owns document layout and component typography. */
+.sl-markdown-content .release-meta {
+  font-size: .875rem;
+  color: var(--muted-foreground);
+}

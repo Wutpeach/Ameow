@@ -1,0 +1,96 @@
+---
+import AppIcon from './AppIcon.astro';
+interface Props { en?: boolean; }
+const { en = false } = Astro.props;
+const t = (zh: string, english: string) => en ? english : zh;
+const navigation = [{ icon: 'sliders' as const, label: t('常规', 'General') }, { icon: 'download' as const, label: t('下载', 'Download') }, { icon: 'blocks' as const, label: t('组件与诊断', 'Components') }, { icon: 'info' as const, label: t('关于', 'About') }];
+const preferences = [[t('主题', 'Theme'), t('跟随系统', 'System')], [t('语言', 'Language'), t('跟随系统', 'System')], [t('托盘图标', 'Tray icon'), t('跟随外观', 'Follow appearance')]];
+---
+<ameow-shortcut-demo data-lang={en ? 'en' : 'zh'}>
+  <p class="pan-guide">{t('左右滑动查看完整界面', 'Swipe sideways to see the full interface')}</p>
+  <div class="viewport" role="region" tabindex="0" aria-label={t('常规设置，可横向滚动查看', 'General settings; scroll horizontally to view')}><div class="panel">
+    <div class="sidebar">{navigation.map((item, i) => <span class:list={['nav', { selected: i === 0 }]}><AppIcon name={item.icon} size={14} /><span>{item.label}</span></span>)}</div>
+    <div class="content">
+      <strong class="title">{t('常规', 'General')}</strong>
+      <div class="row"><span>{t('开机启动', 'Launch at login')}</span><span class="switch"><span /></span></div>
+      {preferences.map(([label, value]) => <div class="row"><span>{label}</span><span class="select"><span>{value}</span><AppIcon name="down" size={12} /></span></div>)}
+      <div class="section-title">{t('快捷键', 'Shortcut')}</div>
+      <div class="row"><span>{t('呼出／隐藏 Ameow', 'Show / hide Ameow')}</span><span class="field"><button type="button" data-record aria-label={t('修改呼出快捷键', 'Change summon shortcut')}>Ctrl+Shift+F</button><button type="button" data-clear aria-label={t('清空呼出快捷键', 'Clear summon shortcut')}><AppIcon name="close" size={14} /></button></span></div>
+      <div class="notice" data-notice hidden>{t('此组合不可用', 'Shortcut unavailable')}</div>
+      <span class="sr-only" role="status" data-status></span>
+    </div>
+  </div></div>
+</ameow-shortcut-demo>
+<script>
+  class ShortcutDemo extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.ready) return;
+      this.dataset.ready = 'true';
+      const record = this.querySelector<HTMLButtonElement>('[data-record]')!;
+      const clear = this.querySelector<HTMLButtonElement>('[data-clear]')!;
+      const field = this.querySelector<HTMLElement>('.field')!;
+      const notice = this.querySelector<HTMLElement>('[data-notice]')!;
+      const status = this.querySelector<HTMLElement>('[data-status]')!;
+      const en = this.dataset.lang === 'en';
+      const viewport = this.querySelector<HTMLElement>('.viewport')!;
+      if (matchMedia('(max-width:40rem)').matches) requestAnimationFrame(() => { viewport.scrollLeft = 144; });
+      let saved = 'Ctrl+Shift+F', draft: string | null = null, recording = false;
+      const render = () => {
+        record.textContent = recording && !draft ? (en ? 'Press shortcut…' : '按下组合键…') : draft || saved || (en ? 'Set shortcut' : '设置快捷键');
+        clear.hidden = !(draft || saved);
+        field.classList.toggle('recording', recording);
+      };
+      const finish = (cancel = false) => {
+        if (!recording) return;
+        if (!cancel && draft) saved = draft;
+        recording = false; draft = null; render();
+        status.textContent = cancel ? (en ? 'Entry cancelled' : '已取消录入') : (en ? 'Shortcut updated' : '快捷键已更新');
+      };
+      record.addEventListener('click', () => { if (!recording) { recording = true; draft = null; notice.hidden = true; render(); } });
+      record.addEventListener('keydown', event => {
+        if (!recording) return;
+        if (event.key === 'Tab') { finish(); return; }
+        event.preventDefault();
+        if (event.key === 'Escape') { notice.hidden = true; finish(true); return; }
+        if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
+        const key = event.key.toUpperCase();
+        const valid = (/^[A-Z0-9]$/.test(key) || /^F(?:[1-9]|10|11)$/.test(key)) && (event.ctrlKey || event.altKey) && !event.metaKey && !(!event.altKey && !event.shiftKey && ['C','V','X','Z','Q','W','H','M'].includes(key));
+        draft = valid ? [event.ctrlKey && 'Ctrl', event.altKey && 'Alt', event.shiftKey && 'Shift', key].filter(Boolean).join('+') : null;
+        notice.hidden = valid; render();
+      });
+      record.addEventListener('blur', () => finish());
+      clear.addEventListener('mousedown', event => event.preventDefault());
+      clear.addEventListener('click', () => { saved = ''; draft = null; recording = false; notice.hidden = true; render(); record.focus(); status.textContent = en ? 'Shortcut cleared' : '快捷键已清空'; });
+      render();
+    }
+  }
+  if (!customElements.get('ameow-shortcut-demo')) customElements.define('ameow-shortcut-demo', ShortcutDemo);
+</script>
+<style>
+  ameow-shortcut-demo { display: block; }
+  .pan-guide { display: none; padding-bottom: 12px; color: var(--fig-muted); font: 14px/1.5 var(--sl-font); }
+  .viewport:focus-visible { outline: 2px solid var(--fig-blue); outline-offset: 3px; }
+  .viewport { overflow: hidden; border-radius: 12px; }
+  .panel { display: grid; grid-template-columns: 144px 1fr; min-width: 550px; background: var(--fig-surface); color: var(--fig-text); font: 13px/20px "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+  .sidebar { display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; background: color-mix(in srgb, var(--fig-badge) 55%, var(--fig-surface)); }
+  .nav { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px; border-radius: 6px; color: var(--fig-muted); white-space: nowrap; }
+  .nav.selected { color: var(--fig-text); background: var(--fig-border); }
+  .content { min-width: 0; padding: 20px 24px 24px; }
+  .title { display: block; margin-bottom: 16px; font-size: 15px; font-weight: 500; }
+  .row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .select, .field { display: flex; align-items: center; justify-content: space-between; flex: none; width: 192px; height: 32px; border: 1px solid var(--fig-border); border-radius: 6px; }
+  .select { padding: 0 10px; }
+  .section-title { margin-top: 24px; font-size: 13px; font-weight: 500; }
+  .switch { width: 32px; height: 18px; padding: 3px; border-radius: 9px; background: color-mix(in srgb, var(--fig-muted) 30%, transparent); }
+  .switch > span { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--fig-surface); }
+  .field.recording, .field:focus-within { border-color: var(--fig-blue); }
+  button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  [data-record] { flex: 1; min-width: 0; height: 30px; padding: 0 10px; overflow: hidden; text-align: left; white-space: nowrap; }
+  [data-clear] { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border-radius: 6px; color: var(--fig-muted); }
+  button:hover { background: var(--fig-badge); }
+  button:focus-visible { outline: 2px solid var(--fig-blue); outline-offset: -2px; }
+  .notice { padding: 8px 10px; border-radius: 6px; color: var(--fig-text); background: var(--fig-badge); }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  @media (max-width: 40rem) { .pan-guide { display: block; } .viewport { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--fig-border) transparent; } }
+</style>

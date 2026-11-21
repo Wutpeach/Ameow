@@ -1,0 +1,173 @@
+{
+  "productCodeHead": "c9f7ca43cbc1e0acda24207d232763c931222cc4",
+  "popupBuildHead": "c9f7ca43cbc1e0acda24207d232763c931222cc4",
+  "productPr": "https://github.com/Wutpeach/Ameow/pull/76",
+  "popup": "Original product HTML/CSS/JS and safe API boundary only; diagnostics copy stays in preview memory.",
+  "sourceSha256": "2e1d393c1a08a401e94e4e005bdbdf7424c733b1b27c6944082fc250ce7be2b3",
+  "previousCandidate": {
+    "captureExeSha256": "14cdd01acb36d940fbdd4bdfce07566d5659c3b4e7a1ce099c4ce8ae830a021a",
+    "revision": "c617b99bb2e0ac48b71ced51a50396c5b37ffe20",
+    "captureHead": "01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b",
+    "sourceSha256": "07012443c03404331e38659fdb434b45d2937e80b8009b0e54890efa2178bdc9",
+    "scope": "Historical records resolved at the frozen candidate revision; old native figures are not used by current pages.",
+    "popupBuildHead": "01c2fad5d24ea7e0cc35f8aad8fe0fc9657e156b",
+    "assets": [
+      {
+        "sitePath": "site/src/components/manual/sources/popup.html",
+        "packagePath": "popup-dist/popup.html",
+        "bytes": 1828,
+        "sha256": "30002a681db7d0e6a75c74706e2a94f7805457f7f885bcde85a1cf1e5c3e825a"
+      },
+      {
+        "sitePath": "site/public/manual/browser/vendor/popup.css",
+        "packagePath": "popup-dist/popup.css",
+        "bytes": 3833,
+        "sha256": "720c029ea7635d19cece77aa9ef5fb0b6a869bde9ae5d50d519001d763237aa3"
+      },
+      {
+        "sitePath": "site/public/manual/browser/vendor/popup.js",
+        "packagePath": "popup-dist/popup.js",
+        "bytes": 187689,
+        "sha256": "7ad0231c14d3b6eda2eee31e586f7346714ec5a62e966d71c423aaaaef354953"
+      },
+      {
+        "sitePath": "site/public/manual/browser/vendor/ameow-cat.svg",
+        "packagePath": "popup-dist/ameow-cat.svg",
+        "bytes": 2071,
+        "sha256": "337bf491c6c84891f9246a70e535dca23bc3ed34fb71cc158d431a8893a9bc21"
+      },
+      {
+        "sitePath": "site/public/manual/browser/vendor/LICENSES.txt",
+        "packagePath": "popup-dist/LICENSES.txt",
+        "bytes": 5477,
+        "sha256": "0b1761c8058e69bdcbcabd129abf5e7cf5643b2aabb557f4527a1b34c6318247"
+      },
+      {
+        "sitePath": "site/public/manual/browser/vendor/build.json",
+        "packagePath": "popup-dist/build.json",
+        "bytes": 163,
+        "sha256": "3865bd15a0ee1ff06701f189b28e77c8a9adb19da69a0c594b9a0841e3b7febf"
+      },
+      {
+        "sitePath": "site/public/manual/sessions/overview-zh.png",
+        "packagePath": "native/multi-overview.png",
+        "bytes": 27792,
+        "sha256": "7c50410416c306616d6986353aba4cebb746c86d135b454bd16c9dd33b596e35"
+      },
+      {
+        "sitePath": "site/public/manual/sessions/overview-en.png",
+        "packagePath": "native/english-one-site.png",
+        "bytes": 20727,
+        "sha256": "d881200ad39523f6ab2ff7f0fd796c76917a100e398c5158ca50074a6ce14f42"
+      },
+      {
+        "sitePath": "site/public/manual/sessions/connect-zh.png",
+        "packagePath": "native/connect-path.png",
+        "bytes": 23409,
+        "sha256": "bd596c71f6f49248852f373345a0406edcee62883b96ba68681d39c9df48693e"
+      },
+      {
+        "sitePath": "site/public/manual/sessions/connect-en.png",
+        "packagePath": "native/reduced-en-dark.png",
+        "bytes": 22130,
+        "sha256": "7f331467d5d4e901a565735a2198c8cf384603f8045cca89adc3ae44d63b4fbf"
+      },
+      {
+        "sitePath": "site/public/manual/sessions/connect.mp4",
+        "packagePath": "native/native-loop.mp4",
+        "bytes": 66479,
+        "sha256": "decaa2cc34461d9dfe56090fad507a4a25ece11a148fcae8dc83e8264dcd5869"
+      }
+    ],
+    "productCodeHead": "d52983473b887d72110fb5a5339618ec558bbbb3"
+  },
+  "nativeCaptureHead": null,
+  "nativeAssetsPending": true,
+  "peek": "Original Peek bundle and sample media unchanged; no recreation.",
+  "nativeBuildHead": "18a55881ce44fddbcbf784264a4555f6d0a533e9",
+  "assets": [
+    {
+      "packagePath": "popup.html",
+      "sitePath": "site/src/components/manual/sources/popup.html",
+      "bytes": 1615,
+      "sha256": "1c1d1f4ba235a36cab9895950e184566371acae708593b1a15fb7810fffe8cbc"
+    },
+    {
+      "packagePath": "popup.css",
+      "sitePath": "site/public/manual/browser/vendor/popup.css",
+      "bytes": 4279,
+      "sha256": "63e1b3f7c4c31be3489bfc3b8800cee71afaea8fae82ccd323f419124c0e57e2"
+    },
+    {
+      "packagePath": "popup.js",
+      "sitePath": "site/public/manual/browser/vendor/popup.js",
+      "bytes": 190375,
+      "sha256": "f53bf2310efd39bd364b01e6157ebe3562632a1351f508af9256781edf4a66a5"
+    },
+    {
+      "packagePath": "ameow-cat.svg",
+      "sitePath": "site/public/manual/browser/vendor/ameow-cat.svg",
+      "bytes": 2071,
+      "sha256": "337bf491c6c84891f9246a70e535dca23bc3ed34fb71cc158d431a8893a9bc21"
+    },
+    {
+      "packagePath": "LICENSES.txt",
+      "sitePath": "site/public/manual/browser/vendor/LICENSES.txt",
+      "bytes": 5477,
+      "sha256": "0b1761c8058e69bdcbcabd129abf5e7cf5643b2aabb557f4527a1b34c6318247"
+    },
+    {
+      "packagePath": "build.json",
+      "sitePath": "site/public/manual/browser/vendor/build.json",
+      "bytes": 163,
+      "sha256": "04e2bcc2a7c17087b02585e153f72a0b400d494e943de63d07539f3c6643d14e"
+    }
+  ],
+  "previousPopupCandidates": [
+    {
+      "revision": "aa9bcb78",
+      "productCodeHead": "94183d094e50017dc7e3e56ffea16e006ddf450e",
+      "sourceSha256": "2271b132fc6e619487d6c5a9bdb39b8e5ef6f6f28a5eb01c5b21a13dca6e3c44",
+      "assets": [
+        {
+          "sha256": "283651a2ef031b597f4f4bee2620c565f19389a173ef7ee6755967eaf1d65729",
+          "packagePath": "popup-dist/popup.html",
+          "bytes": 1446,
+          "sitePath": "site/src/components/manual/sources/popup.html"
+        },
+        {
+          "sha256": "27cf5487c4b18fcffe2509aee2bbe2516bea761a6b3efeb2dc7b92f059140a0d",
+          "packagePath": "popup-dist/popup.css",
+          "bytes": 3697,
+          "sitePath": "site/public/manual/browser/vendor/popup.css"
+        },
+        {
+          "sha256": "ce9de6f1f7ea4577a44fa00db8cbfff44d857e96f6083e6f4dfa30bc75a95bf0",
+          "packagePath": "popup-dist/popup.js",
+          "bytes": 188589,
+          "sitePath": "site/public/manual/browser/vendor/popup.js"
+        },
+        {
+          "sha256": "337bf491c6c84891f9246a70e535dca23bc3ed34fb71cc158d431a8893a9bc21",
+          "packagePath": "popup-dist/ameow-cat.svg",
+          "bytes": 2071,
+          "sitePath": "site/public/manual/browser/vendor/ameow-cat.svg"
+        },
+        {
+          "sha256": "0b1761c8058e69bdcbcabd129abf5e7cf5643b2aabb557f4527a1b34c6318247",
+          "packagePath": "popup-dist/LICENSES.txt",
+          "bytes": 5477,
+          "sitePath": "site/public/manual/browser/vendor/LICENSES.txt"
+        },
+        {
+          "sha256": "caf99d28eb2cef6be5310b9d22da4223d33e5b286cefd65a25ef8ea689f93773",
+          "packagePath": "popup-dist/build.json",
+          "bytes": 163,
+          "sitePath": "site/public/manual/browser/vendor/build.json"
+        }
+      ]
+    }
+  ],
+  "mergedMainHead": "a089cfaaf83c90202f2740125bc6242d537da51b",
+  "assetPackage": "popup-layout-v2-20261121/dist"
+}

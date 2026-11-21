@@ -13,11 +13,11 @@ description: Rust / GPUI 工具链、启动与数据路径。
 cargo build --locked --bin ameow
 ```
 
-Windows 运行 `./target/debug/ameow.exe`，Mac 运行 `./target/debug/ameow`。Finder 启动、系统登录项和完整应用更新使用 `Ameow.app`；前置条件见 [Mac 打包脚本](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh)。Mac 实测为 26.3 arm64，最低 13 的声明不代表较旧系统均已验证。
+Windows 运行 `./target/debug/ameow.exe`，Mac 运行 `./target/debug/ameow`。Finder 启动、系统登录项和完整应用更新使用 `Ameow.app`；前置条件见 [Mac 打包脚本](https://github.com/Wutpeach/Ameow/blob/main/scripts/package_macos.sh)。
 
 ## CLI
 
-普通用户的版本可用性、完整包安装和命令见[命令行与 Agent](../cli/)。源码 main 已有普通桌面控制 CLI；`dev` 开发入口需要包含 [PR #61](https://github.com/Wutpeach/Ameow/pull/61) 的检出。以下在自己独立的开发目录中运行，不需要切换正在使用的旧工作树。
+完整包安装与命令见[命令行与 Agent](../cli/)。
 
 普通控制 CLI 与相邻应用一起构建，使用固定 target：
 
@@ -27,7 +27,7 @@ cargo build --locked --bin ameow --bin ameow-cli --target-dir target
 
 Windows PowerShell 运行 `./target/debug/ameow-cli.exe --help`；Mac zsh/bash 运行 `./target/debug/ameow-cli --help`。运行 help 不会启动应用。源码开发中的独立桌面实例用法见仓库 [CLI 参考](https://github.com/Wutpeach/Ameow/blob/main/docs/cli.md)。
 
-仅开发场景才构建带 `dev-tools` 的 debug CLI。它没有设置开关，release 构建明确拒绝此特性。在包含 PR #61 的目录构建一次：
+仅开发场景才构建带 `dev-tools` 的 debug CLI。它没有设置开关，release 构建明确拒绝此特性：
 
 ~~~sh
 cargo build --locked --features dev-tools --bin ameow-cli --target-dir target
@@ -47,9 +47,11 @@ Mac zsh/bash：
 ./target/debug/ameow-cli dev scenario --root evidence/dev-success --case success
 ~~~
 
-每次场景使用新根。`scenario` 使用固定离线 Adapter 与真实任务核心，不启动 GUI、不联网下载；`dev run` 则调用正式下载器，可能准备组件并联网，需要自己的真实媒体 URL。独立候选检出步骤、真实 run 示例、工具替代与完整参数集中在仓库 [CLI 开发指南](https://github.com/Wutpeach/Ameow/blob/main/docs/developer-cli.md)。
+每次场景使用新根。`scenario` 使用固定离线 Adapter 与真实任务核心，不启动 GUI、不联网下载；`dev run` 则调用正式下载器，可能准备组件并联网，需要自己的真实媒体 URL。更多示例和参数见仓库 [CLI 开发指南](https://github.com/Wutpeach/Ameow/blob/main/docs/developer-cli.md)。
 
-## 数据与测试输入 {#data}
+<span id="data"></span>
+
+## 数据与测试输入
 
 | 平台 | 当前用户数据目录 |
 | --- | --- |

@@ -1,0 +1,77 @@
+---
+interface Props { scene: 'connect' | 'sessions'; lang?: 'zh' | 'en'; }
+const { scene, lang = 'zh' } = Astro.props;
+const t = (zh: string, en: string) => lang === 'en' ? en : zh;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '') + '/manual/sessions/';
+const image = base + (scene === 'connect' ? 'connect-' : 'overview-') + lang + '.png';
+const label = scene === 'connect'
+  ? t('在浏览器中加载 Ameow 扩展', 'Load the Ameow browser extension')
+  : t('浏览器会话：已授权站点与选中站点的详情', 'Browser sessions: authorized sites and the selected site details');
+---
+<figure class="native-figure" data-figure={'native-' + scene}>
+  <ameow-native-session data-lang={lang}>
+    <p class="pan-guide">{t('左右滑动查看完整界面', 'Swipe sideways to see the full interface')}</p>
+    <div class="viewport" tabindex="0" role="region" aria-label={label}>
+      {scene === 'connect'
+        ? <video width="564" height="432" src={base + 'connect.mp4'} poster={image} preload="none" muted playsinline disableRemotePlayback aria-label={t('浏览器扩展加载演示', 'Extension loading demo, Chinese product interface')} />
+        : <img width="564" height="432" src={image} alt={label} loading="lazy" />}
+    </div>
+    {scene === 'connect' && <>
+      <div class="playback"><button data-play type="button" aria-pressed="false">{t('播放', 'Play (Chinese UI)')}</button><button data-replay type="button">{t('重播', 'Replay')}</button></div>
+      <p data-error hidden><a href={base + 'connect.mp4'}>{t('打开演示视频', 'Open the demo video')}</a></p>
+    </>}
+  </ameow-native-session>
+</figure>
+<script>
+  class NativeSession extends HTMLElement {
+    connectedCallback() {
+      const viewport = this.querySelector<HTMLElement>('.viewport')!;
+      if (matchMedia('(max-width:40rem)').matches) requestAnimationFrame(() => { viewport.scrollLeft = 144; });
+      const video = this.querySelector('video');
+      if (!video || this.cleanup) return;
+      const play = this.querySelector<HTMLButtonElement>('[data-play]')!;
+      const replay = this.querySelector<HTMLButtonElement>('[data-replay]')!;
+      const error = this.querySelector<HTMLElement>('[data-error]')!;
+      const reduced = matchMedia('(prefers-reduced-motion:reduce)');
+      const update = () => {
+        play.textContent = this.dataset.lang === 'en' ? (video.paused ? 'Play (Chinese UI)' : 'Pause') : (video.paused ? '播放' : '暂停');
+        play.setAttribute('aria-pressed', String(!video.paused));
+      };
+      const start = () => { if (!reduced.matches) video.play().catch(() => { error.hidden = false; }); };
+      const toggle = () => video.paused ? start() : video.pause();
+      const restart = () => { video.currentTime = 0; start(); };
+      const hide = () => { if (document.hidden || reduced.matches) video.pause(); };
+      const observer = new IntersectionObserver(entries => { if (!entries[0].isIntersecting) video.pause(); });
+      observer.observe(this);
+      play.addEventListener('click', toggle);
+      replay.addEventListener('click', restart);
+      video.addEventListener('play', update);
+      video.addEventListener('pause', update);
+      video.addEventListener('ended', update);
+      document.addEventListener('visibilitychange', hide);
+      reduced.addEventListener('change', hide);
+      this.cleanup = () => {
+        video.pause(); observer.disconnect();
+        play.removeEventListener('click', toggle); replay.removeEventListener('click', restart);
+        video.removeEventListener('play', update); video.removeEventListener('pause', update); video.removeEventListener('ended', update);
+        document.removeEventListener('visibilitychange', hide); reduced.removeEventListener('change', hide);
+      };
+    }
+    cleanup: (() => void) | null = null;
+    disconnectedCallback() { this.cleanup?.(); this.cleanup = null; }
+  }
+  if (!customElements.get('ameow-native-session')) customElements.define('ameow-native-session', NativeSession);
+</script>
+<style>
+  .native-figure { margin: 1.75rem 0 2rem; }
+  ameow-native-session { display: block; }
+  .viewport { width: 100%; max-width: 566px; margin-inline: auto; overflow-x: auto; border: 1px solid var(--sl-color-hairline); border-radius: 12px; scrollbar-width: thin; scrollbar-color: var(--sl-color-gray-4) transparent; }
+  .viewport:focus-visible, button:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 3px; }
+  .viewport img, .viewport video { display: block; width: 564px; max-width: none; height: 432px; margin: 0; }
+  .pan-guide { display: none; padding-bottom: 12px; color: var(--sl-color-gray-2); font: 14px/1.5 var(--sl-font); }
+  .playback { display: flex; gap: 4px; margin-top: 8px; }
+  button { min-height: 36px; padding: 5px 10px; color: var(--sl-color-gray-2); background: transparent; border: 0; border-radius: 6px; font: 14px/1.6 var(--sl-font); cursor: pointer; }
+  button:hover { background: var(--sl-color-bg-sidebar); }
+  @media (max-width:40rem) { .pan-guide { display: block; } }
+  @media (prefers-reduced-motion:reduce) { .playback { display: none; } }
+</style>

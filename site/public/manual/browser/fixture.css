@@ -1,0 +1,1 @@
+html,body{margin:0;height:100%;font-family:system-ui;background:#f2f2f3}body{display:grid;place-items:center}.bpx-player-container{position:relative;width:100%;aspect-ratio:16/9;background:#000}video{width:100%;height:100%;object-fit:contain}.ameow-peek::backdrop{background:transparent!important}html[data-theme=dark],html[data-theme=dark] body{background:#2b2c2f}

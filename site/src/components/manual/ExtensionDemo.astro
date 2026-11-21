@@ -1,0 +1,20 @@
+---
+interface Props { lang?: 'zh' | 'en'; }
+const { lang = 'zh' } = Astro.props;
+const src = import.meta.env.BASE_URL.replace(/\/$/,'') + '/manual/browser/popup.html?lang=' + lang;
+---
+<figure class="extension-figure" data-figure="extension"><ameow-extension-demo><iframe src={src} title={lang === 'en' ? 'Ameow browser extension: page tools and site authorization' : 'Ameow 扩展：页面工具与站点授权'} sandbox="allow-scripts allow-same-origin" /></ameow-extension-demo></figure>
+<script>
+  import { frameTheme } from './product-frames.js';
+  class ExtensionDemo extends HTMLElement {
+    cleanup: (() => void) | null = null;
+    connectedCallback(){if(this.cleanup)return;this.cleanup=frameTheme(this,'popup');}
+    disconnectedCallback(){this.cleanup?.();this.cleanup=null;}
+  }
+  if(!customElements.get('ameow-extension-demo'))customElements.define('ameow-extension-demo',ExtensionDemo);
+</script>
+<style>
+  .extension-figure { margin: 1.75rem 0 2rem; }
+  ameow-extension-demo { display: block; }
+  iframe { display: block; width: 320px; max-width: 100%; height: 420px; margin: 0 auto; border: 1px solid var(--sl-color-hairline); border-radius: 12px; }
+</style>

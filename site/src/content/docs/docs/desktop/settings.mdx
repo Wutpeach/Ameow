@@ -7,25 +7,57 @@ import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 从 Full 右键菜单、Windows 托盘或 Mac 菜单栏打开设置。关闭设置窗口不会退出应用。
 
-<ManualFigure kind="settings-general" />
+在常规页选择主题、语言和托盘图标。画质在 [Full 右键菜单](../../supported-sites/#quality)选择；下载页管理[保存位置](../output-folder/)。
 
-画质在 [Full 右键菜单](../../supported-sites/#quality)选择；下载页管理[保存位置](../output-folder/)。
+<span id="shortcut"></span>
+
+## 呼出快捷键
+
+在常规页录入「呼出／隐藏 Ameow」，默认为 `Ctrl+Shift+F`。
+
+<ManualFigure kind="shortcut" />
+
+失焦或按 Tab 保存，Esc 取消录入，X 清空并关闭快捷键。Mac 默认显示为 `⌃⇧F`。
+
+<details>
+<summary>快捷键冲突或保存失败</summary>
+
+组合被占用或保存失败时保留原设置；如果原快捷键也不可用，字段附近会提示。新组合仅在保存成功后生效。
+
+</details>
+
+<span id="browser-sessions"></span>
+
+## 浏览器会话
+
+在下载页选择「配置扩展」，复制显示的扩展路径，按[安装与连接](../../extension/#connection)在浏览器加载扩展。
+
+已授权站点以徽章和站名显示，悬停或用键盘聚焦查看状态。需要排查同步问题时，展开诊断并复制报告。授权与移除操作见[登录态同步](../../extension/#sessions)。
+
 
 ## 更新应用
 
 在关于页检查更新，按提示下载并重启。可启用自动检查、后台下载和任务结束后自动重启更新；任务会先安全结束。
 
-<ManualFigure kind="updates" />
+<details>
+<summary>更新与恢复详情</summary>
 
-Windows 通过 Launcher 启动新版本；Mac 更新完整的 `Ameow.app`，仅在目录权限需要时请求系统授权。取消授权或校验失败不会安装更新；替换或启动失败时按提示恢复，用户数据保留。
+Windows 通过 Launcher 启动新版本；Mac 更新完整的 `Ameow.app`，目录权限需要时请求系统授权。取消授权或校验失败不会安装；替换或启动失败时按提示恢复，用户数据保留。
+
+</details>
 
 <span id="components"></span>
 
 ## 管理下载组件
 
-首次使用由 Ameow 准备所需组件，已有健康缓存时正常启动自检保持安静。在组件与诊断页手动检查 yt-dlp 稳定版本，确认选择后才下载、验证并安全切换；查询本身不会更换版本。
+首次使用由 Ameow 准备组件。在组件与诊断页可检查 yt-dlp 稳定版本，确认选择后下载、验证并切换；查询本身不会更换版本。
 
-准备失败时查看该页提示，可明确重试或确认恢复推荐版本。健康且带签名证明的缓存可离线恢复，缺少证明时需要联网；失败保留原选择。不要手动替换缓存程序或清空应用数据。
+<details>
+<summary>组件准备与恢复</summary>
+
+健康缓存的启动自检保持安静。准备失败时按提示重试或确认恢复推荐版本；健康且带签名证明的缓存可离线恢复，缺少证明时需要联网，失败保留原选择。不要手动替换缓存程序或清空应用数据。
+
+</details>
 
 <details>
 <summary>各组件的用途</summary>

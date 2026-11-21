@@ -1,0 +1,73 @@
+---
+title: Browser extension and clips
+description: Use page tools, authorize a site's browser session, and select one clip in Peek.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+import ClipDemo from '../../../../components/manual/ClipDemo.astro';
+import ExtensionDemo from '../../../../components/manual/ExtensionDemo.astro';
+
+Download a whole video or select a clip on supported pages, and optionally authorize an existing site session.
+
+<span id="connection"></span>
+
+## Install and connect
+
+<Steps>
+1. In the desktop app, open Settings → Download → Browser sessions and choose Set up extension. When setup finishes, copy the displayed extension path.
+2. In the Edge or Chrome browser you want to use, open extension management, enable Developer mode, choose Load unpacked, paste the path, and select that folder.
+3. Open the Ameow extension on a regular website to enable page tools or authorize the current site.
+</Steps>
+
+The demo on the setup page shows how to load it. Use the extension supplied with your desktop app version.
+
+
+<span id="permissions"></span>
+
+## Page tools and site authorization
+
+**Page tools** are on by default. Allow page access to show download and clip actions in the player. You can turn them off in the extension; your choice is remembered per site. Session sync needs separate authorization for the current site, so check the scope shown by the extension before confirming.
+
+<ExtensionDemo lang="en" />
+
+<span id="sessions"></span>
+
+## Sync an existing browser session
+
+Authorize the site in a browser where you are already signed in to keep the session in sync. Ameow does not sign in for you. The site and downloader determine available content and quality.
+
+Authorized sites appear as badges and names in the desktop app. Hover or focus a site to see its status. The extension shows only the current page's site; to switch browser sources, follow its prompts in the browser you want to use.
+
+To remove authorization, open the extension on that site and choose Remove. This deletes Ameow's saved session without signing you out of the website.
+
+<details>
+<summary>Troubleshoot a sync problem</summary>
+
+First check that you are still signed in to the site in the source browser. To report a problem, expand diagnostics and copy the diagnostic report.
+
+</details>
+
+<span id="page-tools"></span>
+
+## Download a whole video from the page
+
+On a single on-demand Bilibili or YouTube video, hover over the Ameow icon at the top-right of the player. Choose Download or Clip. If the icon is missing, check page tools and page access in the extension.
+
+<span id="clips"></span>
+
+## Select one clip
+
+Move the playhead and press Marker to add a point. Drag either side to set the in and out boundaries; pressing Marker again clears an existing point or range.
+
+<ClipDemo lang="en" />
+
+Check the range and choose Download clip (下载片段). Each submission contains one range from one work; fast cutting may place actual boundaries near keyframes.
+
+<details>
+<summary>More controls</summary>
+
+I and O set the respective boundary at the current playback position. Time inputs can be selected and edited; display-only text cannot. Focus selection (聚焦选区) enlarges the visible window without changing the range when returning to the whole video. Reopening Peek on the same work retains the draft; changing videos clears it. Esc closes Peek and restores the page. Clearing a draft does not cancel a submitted task. Data usage and waiting time depend on the source.
+
+</details>
+
+See [Downloads and queue](../desktop/links-and-queue/) for progress and failures, and [Supported sources and quality](../supported-sites/) for quality and containers.

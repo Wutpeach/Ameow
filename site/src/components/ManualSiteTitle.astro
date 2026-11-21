@@ -1,0 +1,31 @@
+---
+import ThemeSiteTitle from 'starlight-theme-black/overrides/SiteTitle.astro';
+---
+<ThemeSiteTitle />
+
+<script>
+  // Preserve the theme's phone menu; only make its version list collapsible.
+  if (document.documentElement.hasAttribute('data-has-sidebar')) {
+    for (const section of document.querySelectorAll('.mobile-nav-section')) {
+      const label = section.querySelector(':scope > .mobile-nav-label');
+      const links = section.querySelector(':scope > .mobile-nav-links');
+      if (label?.textContent?.trim() !== 'Changelog' || !links) continue;
+      const versions = document.createElement('details');
+      versions.className = 'changelog-versions';
+      versions.open = Boolean(links.querySelector('[data-active="true"]'));
+      const summary = document.createElement('summary');
+      for (const attribute of label.attributes) summary.setAttribute(attribute.name, attribute.value);
+      summary.textContent = label.textContent;
+      versions.append(summary, links);
+      label.replaceWith(versions);
+      for (const link of links.querySelectorAll('[data-active="true"]')) link.setAttribute('aria-current', 'page');
+    }
+  }
+</script>
+
+<style>
+  :global(.mobile-nav .changelog-versions > summary) { cursor: pointer; }
+  :global(.mobile-nav .changelog-versions > summary:focus-visible) { outline: 2px solid var(--ring); outline-offset: 4px; }
+  :global(.mobile-nav .changelog-versions > .mobile-nav-links) { margin-top: 1rem; }
+  :global(.mobile-nav .changelog-versions a[aria-current='page']) { font-weight: 600; text-decoration: underline; text-underline-offset: .25em; }
+</style>

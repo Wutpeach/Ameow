@@ -3,6 +3,7 @@ title: 排查问题
 description: 按下载失败、找不到文件或 Mac 启动问题查找解决办法。
 ---
 
+import { Aside, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 <span id="downloads"></span>
@@ -25,9 +26,17 @@ import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 ## 找不到文件
 
+<Steps>
 1. 确认队列显示完成，后处理结束前继续等待。
 2. 打开[保存目录](../desktop/output-folder/)。提交后若切换过目录，查看任务原来的位置；重试也沿用原目录。
 3. 若任务失败，解决目录权限或空间问题后重新提交。用户数据目录不是下载文件的替代位置。
+</Steps>
+
+<span id="editor-audio"></span>
+
+## 编辑器中没有声音
+
+播放器有声而编辑器没有音轨时，请保留原件并检查编辑器版本、容器和编码。一个 Windows Resolve Studio 个案中，H.264＋Opus 的 MKV 无重编码换封装为 MP4 后导入有声；结果因文件和编辑器版本而异，Ameow 不会自动进行此转换。
 
 <span id="mac"></span>
 
@@ -37,10 +46,23 @@ Mac 默认在菜单栏运行，没有 Dock 图标。关闭设置窗口不会退�
 
 <ManualFigure kind="mac" />
 
-看不到悬浮窗口时先选择打开，或切回普通桌面：Compact 跟随普通 Spaces，不覆盖其他应用的全屏空间。此行为不适用于 Full 或设置窗口。
+看不到悬浮窗口时先从菜单栏选择打开，或切回普通桌面。
+
+<details>
+<summary>窗口、粘贴与启动详情</summary>
+
+Compact 跟随普通 Spaces，不覆盖其他应用的全屏空间；此行为不适用于 Full 或设置窗口。
+
+在 Full 按 `Command+V` 粘贴；Full 右键菜单没有粘贴项。如果没有响应，请在反馈中附上应用版本、入口和操作步骤。
 
 系统阻止启动时，核对[安装版本与来源](../downloads/)，保留完整系统提示再反馈。开机启动或更新的授权按系统提示处理，见[设置与更新](../desktop/settings/)。
 
+</details>
+
 ## 反馈问题
 
-从失败任务或组件与诊断页复制诊断，附上系统／应用版本、发生时间和可复现步骤，在 [GitHub Issues](https://github.com/Wutpeach/Ameow/issues) 查询或反馈。发送前检查内容，隐藏私人路径、私有链接和登录信息；不要为排障清空应用数据。
+从失败任务或组件与诊断页复制诊断，附上系统／应用版本、发生时间和可复现步骤，在 [GitHub Issues](https://github.com/Wutpeach/Ameow/issues) 查询或反馈。
+
+<Aside title="发送之前">
+检查诊断内容，隐藏私人路径、私有链接和登录信息。普通排障无需清空应用数据。
+</Aside>

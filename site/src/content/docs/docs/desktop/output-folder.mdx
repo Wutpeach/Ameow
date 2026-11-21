@@ -3,6 +3,7 @@ title: 保存位置
 description: 选择输出目录、拖入文件夹和打开下载结果。
 ---
 
+import { Aside } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 在设置的下载页选择存在且可写的文件夹，也可打开目录或复制路径。
@@ -15,9 +16,11 @@ import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
 <ManualFigure kind="folder" />
 
-- **成功后才生效。** 没有成功反馈时在设置中核对路径。文件、多目录、无效或不可写目录不会切换成功。
-- **只影响新任务。** 已排队任务和失败重试仍使用提交时的目录。
-- **不移动文件。** 拖入目录仅改变保存位置，不会收集或移动目录内容。
+看到成功反馈后，新的保存位置才会生效。文件、多个文件夹或不可写目录不会切换位置。
+
+<Aside title="已有任务和文件">
+新位置只用于新任务；排队任务和重试沿用提交时的目录，已有文件不会移动。
+</Aside>
 
 ## 打开下载结果
 

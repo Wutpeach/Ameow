@@ -1,18 +1,22 @@
 ---
 title: Quick start
-description: Start Ameow 0.5.0, paste a link, and complete your first download.
+description: Start Ameow, paste a link, and complete your first download.
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../components/manual/ManualFigure.astro';
 
-Ameow 0.5.0 is a floating download app for Windows and Apple Silicon Macs. [Download and install](./downloads/), then launch from the Start menu or `AmeowLauncher.exe` on Windows, or open `Ameow.app` from Finder on Mac.
+Ameow is a floating download app for Windows and Apple Silicon Macs. [Download and install](./downloads/), then launch from the Start menu or `AmeowLauncher.exe` on Windows, or open `Ameow.app` from Finder on Mac.
 
 <ManualFigure kind="start" lang="en" />
 
-1. Open settings from Full's right-click menu or the tray/Mac menu bar and choose a destination folder.
-2. Copy a public media link and paste it into Ameow with the shortcut shown above. First use may need network access to prepare components.
-3. Wait for downloading and post-processing to finish, then double-click Full's empty background to open the destination.
+<Steps>
+1. Choose a destination in settings and copy a public media link.
+2. Move near the cat to expand Full, then press `Ctrl+V` or `⌘V` to paste. You can also press `Ctrl+Shift+F` to summon Full at the pointer.
+3. Wait for the download and post-processing to finish, then double-click Full's empty background to open the destination.
+</Steps>
+
+On first use, Ameow may need network access to prepare download components.
 
 <CardGrid>
 <LinkCard title="Downloads and queue" href="./desktop/links-and-queue/" description="Follow progress, cancel, or retry." />
@@ -21,4 +25,6 @@ Ameow 0.5.0 is a floating download app for Windows and Apple Silicon Macs. [Down
 <LinkCard title="Settings and updates" href="./desktop/settings/" description="Appearance, components, and app updates." />
 </CardGrid>
 
-For scripts and agents, see the [command-line guide](./cli/). Need help? See [Troubleshooting](./troubleshooting/). To contribute code, start with [For developers](./developer/).
+In your browser, [select a clip or authorize a site's session](./extension/). For terminal use, see the [command-line guide](./cli/).
+
+Need help? See [Troubleshooting](./troubleshooting/). To contribute code, start with [For developers](./developer/).

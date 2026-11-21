@@ -3,6 +3,7 @@ title: Save location
 description: Choose the output folder, drop a folder, and open downloaded files.
 ---
 
+import { Aside } from '@astrojs/starlight/components';
 import ManualFigure from '../../../../../components/manual/ManualFigure.astro';
 
 In Download settings, choose an existing writable folder, open it, or copy its path.
@@ -15,9 +16,11 @@ Drag one writable folder onto Full and use the feedback below to confirm the cha
 
 <ManualFigure kind="folder" lang="en" />
 
-- **A successful save confirms the change.** Check the path in settings if no confirmation appears. Files, multiple folders, invalid paths, and unwritable folders do not switch the destination.
-- **New tasks use the new location.** Queued tasks and retries keep the folder selected at submission.
-- **Existing files stay put.** Dropping a folder only changes the destination; it does not collect or move its contents.
+The new location takes effect after success feedback. Files, multiple folders, and unwritable folders do not switch the destination.
+
+<Aside title="Existing tasks and files">
+New tasks use the new location. Queued tasks and retries keep their submission folder, and existing files stay put.
+</Aside>
 
 ## Open downloaded files
 

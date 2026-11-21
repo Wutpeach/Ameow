@@ -1,18 +1,22 @@
 ---
 title: 快速上手
-description: 启动 Ameow 0.5.0，粘贴链接并完成第一次下载。
+description: 启动 Ameow，粘贴链接并完成第一次下载。
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 import ManualFigure from '../../../components/manual/ManualFigure.astro';
 
-Ameow 0.5.0 是 Windows 和 Apple Silicon Mac 上的悬浮下载应用。先[下载并安装](./downloads/)，Windows 从开始菜单或 `AmeowLauncher.exe` 启动，Mac 从 Finder 打开 `Ameow.app`。
+Ameow 是 Windows 和 Apple Silicon Mac 上的悬浮下载应用。先[下载并安装](./downloads/)，Windows 从开始菜单或 `AmeowLauncher.exe` 启动，Mac 从 Finder 打开 `Ameow.app`。
 
 <ManualFigure kind="start" />
 
-1. 从 Full 右键菜单或托盘／Mac 菜单栏打开设置，选择保存文件夹。
-2. 复制公开媒体链接，在 Ameow 按图示快捷键粘贴。首次使用可能先联网准备组件。
+<Steps>
+1. 在设置中选择保存文件夹，复制公开媒体链接。
+2. 靠近小猫展开 Full，按 `Ctrl+V` 或 `⌘V` 粘贴；也可按 `Ctrl+Shift+F` 在鼠标处呼出。
 3. 等待下载和后处理完成，双击 Full 空白背景打开保存位置。
+</Steps>
+
+首次使用时，Ameow 可能需要联网准备下载组件。
 
 <CardGrid>
 <LinkCard title="下载与队列" href="./desktop/links-and-queue/" description="查看进度、取消或重试。" />
@@ -21,4 +25,6 @@ Ameow 0.5.0 是 Windows 和 Apple Silicon Mac 上的悬浮下载应用。先[下
 <LinkCard title="设置与更新" href="./desktop/settings/" description="外观、组件和应用更新。" />
 </CardGrid>
 
-脚本或 Agent 调用见[命令行指南](./cli/)。需要帮助？查看[遇到问题](./troubleshooting/)。贡献源码请从[开发资料](./developer/)开始。
+在浏览器中[选择片段或授权站点会话](./extension/)；从终端使用请参阅[命令行](./cli/)。
+
+需要帮助？查看[遇到问题](./troubleshooting/)。贡献源码请从[开发资料](./developer/)开始。
