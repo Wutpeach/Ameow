@@ -196,12 +196,16 @@ fn inspection_uses_formal_session_and_settles_without_transfer_or_delivery() {
             j.job_id == cancelled && j.phase == JobPhase::Cancelled && j.resources_released
         })
     });
+    let observed_before_revoke = observed.lock().unwrap().len();
     let revoked = queue.inspect(url.into(), Quality::Highest).unwrap();
     wait(&queue, |s| {
         s.jobs
             .iter()
             .any(|j| j.job_id == revoked && j.phase == JobPhase::Resolving)
+            && observed.lock().unwrap().len() > observed_before_revoke
     });
+    // Slot admission can report Resolving before the attempt takes its session snapshot.
+    assert!(observed.lock().unwrap().last().unwrap().is_some());
     store.remove("youtube.com", &"b".repeat(32)).unwrap();
     wait(&queue, |s| {
         s.jobs
