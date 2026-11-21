@@ -40,8 +40,8 @@ try {
   report.results.spaceClear = await page.evaluate(() => ({ draft: { ...ameowPageTools.draft }, dialogOpen: !!document.querySelector('.ameow-peek[open]') }));
   assert.equal(report.results.spaceClear.draft.start_ms, null); assert(report.results.spaceClear.dialogOpen);
   await marks(); await clear.press('Enter'); assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isDisabled()); report.results.enterClear = true;
-  const close = controls.getByRole('button', { name: '关闭预览' }); await close.focus(); await close.press('Space');
-  await page.locator('.ameow-peek').waitFor({ state: 'detached' }); report.results.spaceClose = true;
+  assert.equal(await controls.locator('[data-action=close]').count(), 0); await page.keyboard.press('Escape');
+  await page.locator('.ameow-peek').waitFor({ state: 'detached' }); report.results.escapeClose = true;
   await open(); await marks();
   const submit = controls.getByRole('button', { name: '下载片段', exact: true }); await submit.focus(); await submit.press('Space');
   await controls.getByRole('button', { name: '已加入队列', exact: true }).waitFor();

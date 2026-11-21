@@ -1,6 +1,11 @@
 :root { color-scheme:light dark; font:13px/1.5 "Segoe UI",-apple-system,BlinkMacSystemFont,"Microsoft YaHei UI",sans-serif; color:#303238; background:#fff; --secondary:#62656b; --control:#f2f2f3; --hover:#e5e7eb; --focus:#0285ff; --action-bg:#006acb; --action-hover:#005bab; --action-fg:#fff; --danger:#b8323c; --notice:#f7f7f8; --success:#16733b; --border:#ecedef; }
 * { box-sizing:border-box; }
-body { margin:0; width:320px; max-width:100vw; }
+/* The action host measures intrinsic size before it has a final viewport. */
+html,body { width:320px; min-width:320px; }
+/* Chromium adds a root scrollbar outside the measured popup width. Keep scrolling inside 320px. */
+html { scrollbar-width:none; }
+html::-webkit-scrollbar { width:0; }
+body { margin:0; }
 main { padding:20px; }
 header,.site-heading,.actions,.session-heading,.page-tools-row { display:flex; align-items:center; gap:8px; }
 header { justify-content:space-between; margin-bottom:24px; }

@@ -71,7 +71,7 @@ try {
     row.queueAck = true;
     await page.locator('.ameow-peek').screenshot({ path: join(directory, site + '-accepted.png') });
     await controls.locator('[data-action=marker]').click(); assert(await controls.getByRole('button', { name: '下载片段', exact: true }).isDisabled());
-    await controls.getByRole('button', { name: '关闭预览' }).click(); await page.locator('.ameow-peek').waitFor({ state: 'detached' });
+    await page.mouse.click(3, 3); await page.locator('.ameow-peek').waitFor({ state: 'detached' });
     let done;
     await until(() => { const value = command('show', accepted.task_id); done = value.result; return done?.resources_released && ['Success', 'Failure', 'Cancelled'].includes(done.phase); }, 'owned public clip settlement', 150000);
     row.result = done;

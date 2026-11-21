@@ -12,9 +12,8 @@ const icons = {
   edit: '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/></svg>',
   focus: '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="M9 9h6v6H9Z"/></svg>',
   whole: '<svg viewBox="0 0 24 24"><path d="M3 8V3h5m8 0h5v5M3 16v5h5m13-5v5h-5"/></svg>',
-  download: '<svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>',
+  download: cat,
   waiting: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-  close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>',
@@ -204,9 +203,8 @@ class PageVideoTools {
       if (!editor.hidden) this.inputs[0].focus({ preventScroll: true }); else edit.focus({ preventScroll: true });
     };
     tool(tools, "view", "聚焦选区", icons.focus, "icon view-toggle");
-    this.submitButton = tool(actions, "submit", "下载片段", icons.download, "icon submit");
+    this.submitButton = tool(actions, "submit", "下载片段", icons.download + '<span aria-hidden="true">下载</span>', "icon submit");
     this.submitButton.onclick = () => void this.submit({ ...this.draft });
-    tool(actions, "close", "关闭预览", icons.close).onclick = () => this.closePeek();
     this.seek = this.controls.querySelector('.track input'); this.seek.max = this.video.duration;
     this.seek.oninput = () => { this.video.currentTime = Number(this.seek.value); this.updatePlayback(); };
     this.inputs = [this.controls.querySelector("#clip-in"), this.controls.querySelector("#clip-out")];
@@ -256,7 +254,7 @@ class PageVideoTools {
     if (state) this.submitButton.dataset.status = state; else delete this.submitButton.dataset.status;
     const label = state === "pending" ? "等待 Ameow 受理…" : state === "accepted" ? "已加入队列" : "下载片段";
     this.submitButton.setAttribute("aria-label", label); this.submitButton.dataset.tip = label;
-    this.submitButton.innerHTML = state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download;
+    this.submitButton.innerHTML = (state === "pending" ? icons.waiting : state === "accepted" ? icons.check : icons.download) + '<span aria-hidden="true">下载</span>';
   }
   markCurrent() {
     if (this.draft.start_ms !== null || this.draft.end_ms !== null) this.clearSelection();
@@ -470,12 +468,15 @@ class PageVideoTools {
     if (!originalConnected) this.video.pause();
     this.placeholder.replaceWith(this.player);
     document.documentElement.style.setProperty("overflow", this.savedOverflow, this.savedOverflowPriority);
+    // Peek let the capsule idle; restore its focus target before the dialog returns focus.
+    if (originalConnected) this.wake();
     this.dialog.close(); this.dialog.remove();
     this.dialog = null; this.controls = null; this.submitButton = null; this.closing = false;
     window.dispatchEvent(new Event("resize"));
     if (originalConnected) {
       if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
       window.scrollTo(this.savedScroll);
+      this.rest();
     }
   }
   togglePlayback() {

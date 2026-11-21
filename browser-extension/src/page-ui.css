@@ -85,8 +85,9 @@ button[data-tip]::after { content:attr(data-tip); position:absolute; bottom:calc
 button[data-tip]:hover::after,button[data-tip]:focus-visible::after { opacity:1; }
 .tools > :first-child::after { left:0; transform:none; }
 .actions > :last-child::after { left:auto; right:0; transform:none; }
-.submit { background:var(--text); color:var(--surface); }
-.submit:hover { opacity:.85; background:var(--text); }
+.submit { width:auto; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 12px; border-radius:999px; background:var(--text); color:var(--surface); }
+.submit:not([data-status]) svg,.submit:not([data-status]) path { fill:currentColor; stroke:none; }
+.submit:not(:disabled):hover { opacity:.85; background:var(--text); }
 .submit[data-status=accepted] { background:var(--success); color:#fff; }
 .time-editor { display:flex; gap:10px; margin-top:8px; }
 .field { display:flex; align-items:center; gap:6px; min-width:0; flex:1; height:32px; background:var(--control); border-radius:6px; color:var(--muted); padding-left:8px; font-size:11px; }

@@ -88,6 +88,8 @@ components:
     markerShape: "single: full / range: inward in-out caps"
     textSelection: "display: none / editable: native"
     controlHeight: "32px"
+    downloadAction: "Ameow monochrome icon + 下载 capsule"
+    closeAction: "backdrop / Escape"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"
   browser-popup:
@@ -231,6 +233,8 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 ## Components
 
 ### 浏览器会话与配置扩展
+
+切片 Peek 底栏右侧只有一个「Ameow 纯色图标 下载」胶囊按钮，高32px、图标16px、间距6px、横向内边距12px。下载保留等待/受理与禁用态辨识；右下不另设关闭按钮，点击浮窗外或按Esc回到原播放器，保留胶囊、同作品草稿及页面工具偏好。
 
 设置默认只以实际授权站点的品牌圆形徽章和站名为主体，不在下方常驻共享详情、状态文字行、浏览器来源、快照时间或技术说明。站名与主圆形品牌图标居中，角标和菜单不参与主图标/标签布局；短名、长省略名、中英文和各品牌均保持同一中心。未知站点使用合理短标签或省略，完整值由整徽章提示和按需诊断取得。状态角标具有实心主题底色、必要描边与留白，和品牌图形、选择环各自分层；鼠标悬浮和键盘焦点获得相同的简短状态说明，失败不表示授权被移除。徽章hover/按下/焦点/选中的实际背景绘制与裁剪均为主题圆角矩形，移除和诊断保持按需可发现。
 
