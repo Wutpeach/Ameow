@@ -78,7 +78,7 @@ async function launch(profile='profile') {
   });
 }
 async function popup(browserContext=context) {
-  const page = await browserContext.newPage(); await page.setViewportSize({ width: 320, height: 430 });
+  const page = await browserContext.newPage(); await page.setViewportSize({ width: 240, height: 430 });
   // A tab displaying the popup cannot inherit the toolbar popup's active-tab context.
   // Only this API result is replaced, with the local fixture page's public identity.
   await page.addInitScript(() => { chrome.tabs.query = async () => [{ url: 'https://www.example.com/fixture' }]; });
@@ -106,7 +106,7 @@ try {
     { name: 'unrelated', value: 'UNAUTHORIZED_SYNTHETIC', domain: '.evil.net', path: '/', secure: true },
   ]);
   let page = await popup();
-  await page.getByRole('button', { name: '授权此站点', exact: true }).click();
+  await page.locator('#authorize').click();
   await until(() => desktopSessions()?.sites?.find(s => s.site === 'example.com' && s.cookie_count === 1), 'first browser authorization reaches desktop');
   assert.equal(desktopSessions().sites[0].source_name,values.browser==='edge'?'Microsoft Edge':'Chrome / Chromium');
   snapshot('v1');
@@ -119,7 +119,7 @@ try {
     const cached = desktopSessions().sites[0].synced_at;
     const worker = context.serviceWorkers()[0];
     await worker.evaluate(() => { globalThis.originalCookieRead = chrome.cookies.getAll; chrome.cookies.getAll = async () => { throw Error('synthetic read failure'); }; });
-    await page.getByRole('button', {name:'立即同步',exact:true}).click();
+    await page.locator('#sync').click();
     await until(() => desktopSessions()?.sites?.[0]?.last_result?.error === 'E_COOKIE_READ', 'browser failure reaches desktop status');
     await pause(1100);
     assert.equal(desktopSessions().sites[0].synced_at,cached);
@@ -127,7 +127,7 @@ try {
     evidence.checks.push('failed browser sync preserves cached time and survives desktop polling');
     await page.screenshot({path:join(directory,'sync-failure.png')});
     await worker.evaluate(() => { chrome.cookies.getAll = globalThis.originalCookieRead; });
-    await page.getByRole('button', {name:'立即同步',exact:true}).click();
+    await page.locator('#sync').click();
     await until(() => desktopSessions()?.sites?.[0]?.last_result?.error === null, 'fresh successful sync clears failure');
     evidence.checks.push('fresh successful browser receipt clears the reported failure');
   } else if(!values['source-isolation-only']) {
@@ -150,21 +150,21 @@ try {
     const otherPage=await popup(otherContext);
     const local=await otherPage.evaluate(()=>chrome.storage.local.get('source_id'));assert.notEqual(local.source_id,original);
     assert.equal(desktopSessions().sites[0].source_id,original,'a fresh profile does not silently replace the source');
-    await otherPage.getByRole('button',{name:'改用此浏览器',exact:true}).click();
-    await until(()=>otherPage.locator('#authorize').isEnabled(),'replacement handler finishes');
+    await otherPage.locator('#authorize').click();
+    await until(()=>otherPage.locator('#sync').isEnabled(),'replacement handler finishes');
     evidence.sourceReplacementStatus=await otherPage.locator('#status').textContent();
     evidence.sourceReplacementState=await otherPage.evaluate(async()=>{const s=await chrome.storage.local.get('grants');const g=s.grants?.['example.com'];return {localGrantPresent:Boolean(g),error:g?.error||null,pending:g?.pending||false};});
     const afterLocal=await otherPage.evaluate(()=>chrome.storage.local.get('source_id'));
     const observed=desktopSessions().sites[0].source_id;
     evidence.sourceIdentityCheck={initialLocalIsString:typeof local.source_id==='string',originalIsString:typeof original==='string',localPersisted:local.source_id===afterLocal.source_id,desktopStillOriginal:observed===original,desktopMatchesCurrentLocal:observed===afterLocal.source_id};
     await until(()=>desktopSessions()?.sites?.[0]?.source_id===local.source_id,'explicit source replacement');snapshot('v1');
-    page=originalPage;await page.getByRole('button',{name:'立即同步',exact:true}).click();
+    page=originalPage;await page.locator('#sync').click();
     await until(()=>page.evaluate(()=>chrome.permissions.contains({origins:['https://*.example.com/*']})).then(granted=>!granted),'old profile loses revoked authorization');
     assert.equal(desktopSessions().sites[0].source_id,local.source_id);snapshot('v1');
     evidence.checks.push('independent profile source requires explicit replacement; old source cannot overwrite and loses its grant');
     page=otherPage;
   }else{page=await popup();}
-  await page.getByRole('button', { name: '移除', exact: true }).click();
+  await page.locator('#site-actions').click();await page.locator('#revoke').click();
   await until(() => desktopSessions()?.sites?.length === 0, 'permission revocation reaches desktop'); snapshot('revoked');
   assert.equal(await page.evaluate(() => chrome.permissions.contains({ origins: ['https://*.example.com/*'] })), false);
   evidence.checks.push('browser permission removed and desktop cache revoked');

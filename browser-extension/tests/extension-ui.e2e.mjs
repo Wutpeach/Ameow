@@ -70,6 +70,8 @@ async function actionPopup() {
   await send('Runtime.enable');
   for (let n = 0; n < 50 && !await evaluate('!!document.querySelector("#site")?.textContent'); n++) await pause(50);
   for (let n = 0; n < 200 && !await evaluate('!!document.querySelector("#connection[data-error],#connection[data-ready]")'); n++) await pause(50);
+  assert.equal(await evaluate('document.documentElement.hasAttribute("data-initializing")'),false,'native Popup must complete initialization');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("main")).visibility'),'visible');
   return {
     evaluate, context: views[0],
     click: async selector => {
@@ -156,7 +158,7 @@ try {
     await open();
     const popup = await actionPopup();
     const before = await popup.metrics();
-    assert.equal(before.width, 320); assert.equal(before.bodyWidth, 320); assert.equal(before.scrollWidth, 320);
+    assert.equal(before.width, 240); assert.equal(before.bodyWidth, 240); assert.equal(before.scrollWidth, 240);
     await popup.screenshot(site + '-native-popup.png');
     await popup.click('#toggle-tools');
     for (let n = 0; n < 50 && await popup.evaluate('document.querySelector("#toggle-tools").getAttribute("aria-pressed") !== "false"'); n++) await pause(50);
@@ -181,17 +183,14 @@ try {
   const popup = await actionPopup();
   await pause(250);
   const closed = await popup.metrics();
-  assert.equal(closed.site, longDomain); assert.equal(closed.width, 320); assert.equal(closed.scrollWidth, 320);
+  assert.equal(closed.site, longDomain); assert.equal(closed.width, 240); assert.equal(closed.scrollWidth, 240);
   await popup.screenshot('long-domain-native-popup.png');
   await popup.evaluate('document.querySelector("#site").focus()'); await pause(150);
-  const focused = await popup.metrics(); assert.equal(focused.width, 320); assert.equal(focused.scrollWidth, 320);
-  await popup.evaluate('document.querySelector("#diagnostics").open = true'); await pause(250);
-  const expanded = await popup.metrics(); assert.equal(expanded.width, 320); assert.equal(expanded.scrollWidth, 320); assert(expanded.contentHeight > closed.contentHeight);
-  await popup.screenshot('long-domain-diagnostics-native-popup.png');
+  const focused = await popup.metrics(); assert.equal(focused.width, 240); assert.equal(focused.scrollWidth, 240); assert.equal(focused.contentHeight,closed.contentHeight);
   await popup.evaluate('document.querySelector("#copy-diagnostic").focus()');
   const diagnosticScroll = await popup.evaluate('({top:document.scrollingElement.scrollTop,bottom:document.querySelector("#copy-diagnostic").getBoundingClientRect().bottom,height:innerHeight})');
   assert(diagnosticScroll.bottom <= diagnosticScroll.height, 'diagnostic copy remains keyboard reachable');
-  report.popup = { context: popup.context, closed, focused, expanded, diagnosticScroll };
+  report.popup = { context: popup.context, closed, focused, diagnosticScroll };
   // The browser decodes each manifest/action image at its advertised dimensions.
   const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
   report.icons = [];

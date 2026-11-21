@@ -1,11 +1,18 @@
 import { siteFromUrl, scope, SYNC_ERRORS } from './core.mjs';
 import { PAGE_ORIGINS, pageHost } from './page-core.mjs';
+import copyIcon from '../../assets/copy.svg';
+import checkIcon from '../../assets/check.svg';
+import refreshIcon from '../../assets/rotate-ccw.svg';
+import alertIcon from '../../assets/circle-alert.svg';
+import infoIcon from '../../assets/info.svg';
+import chevronIcon from '../../assets/chevron-down.svg';
+const icons = {copy:copyIcon, check:checkIcon, refresh:refreshIcon, alert:alertIcon, info:infoIcon, chevron:chevronIcon};
 const $ = id => document.getElementById(id);
 const english = (navigator.language || '').toLowerCase().startsWith('en');
 const t = (zh, en) => english ? en : zh;
 document.documentElement.lang = english ? 'en' : 'zh-CN';
 let site, current, sourceId, lastGrant, lastError, connectionState = 'unknown', host, tabId, toolsEnabled = false;
-let copiedTimer;
+let copiedTimer, feedbackTimer, diagnosticReport = '', authorized = false, pending = false, busy = '', syncedFeedback = false, stateKnown = false;
 const sourceName = navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : 'Chrome / Chromium';
 const errorEn = { E_COOKIE_READ:'Could not read browser cookies', E_BRIDGE:'Browser connection failed', E_SESSION_STORAGE:'Session storage failed', E_SESSION_LIMIT:'Session exceeds the sync limit', E_SESSION_INVALID:'Session data was not accepted', E_SESSION_PROTOCOL:'Browser bridge is incompatible', E_SESSION_STALE:'Sync message expired', E_PERMISSION:'Site permission was removed', E_SESSION_REVOKED:'Site authorization was removed', E_SESSION_SOURCE_CHANGED:'Site source changed', E_BRIDGE_NOT_REGISTERED:'Browser bridge registration was not found', E_BRIDGE_FORBIDDEN:'Browser denied the connection', E_BRIDGE_START:'Browser bridge could not start', E_BRIDGE_EXIT:'Browser bridge exited', E_BRIDGE_IO:'Browser connection failed' };
 const errorText = code => { const messages = english ? errorEn : SYNC_ERRORS; return typeof code === 'string' && Object.hasOwn(messages, code) ? messages[code] : t('原因未知', 'Reason unknown'); };
@@ -14,13 +21,55 @@ const safeId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.tes
 const safeSource = value => ['Microsoft Edge', 'Chrome / Chromium'].includes(value) ? value : t('未知来源', 'Unknown source');
 function connection(kind) {
   connectionState = kind;
-  $('connection').textContent = kind === 'ready' ? t('扩展连接就绪','Extension connection ready') : kind === 'unavailable' ? t('扩展连接不可用','Extension connection unavailable') : t('扩展连接未知','Extension connection unknown');
+  const full = kind === 'ready' ? t('扩展连接就绪','Extension connection ready') : kind === 'unavailable' ? t('扩展连接不可用','Extension connection unavailable') : t('扩展连接未知','Extension connection unknown');
+  $('connection').textContent = kind === 'ready' ? t('就绪','Ready') : kind === 'unavailable' ? t('未连接','Disconnected') : t('未知','Unknown');
+  $('connection').setAttribute('aria-label', full);
+  $('connection-title').textContent = full;
+  $('connection-detail').textContent = kind === 'ready' ? t('可同步本站登录态。','Site session sync is available.') : t('请检查扩展配置后重试。','Check extension setup and retry.');
   $('connection').toggleAttribute('data-ready', kind === 'ready'); $('connection').toggleAttribute('data-error', kind === 'unavailable');
 }
 function status(text, detail = '', error = false) {
-  $('notice').hidden = !text; $('status').textContent = text; $('status-detail').textContent = detail;
-  $('status').toggleAttribute('data-error', error); $('notice').toggleAttribute('data-error', error);
-  $('notice').toggleAttribute('data-success', false);
+  $('notice').hidden = !text || connectionState === 'unavailable';
+  $('status').textContent = text; $('status-detail').textContent = detail;
+  $('notice').setAttribute('aria-label', text + t('，查看提示','; view details'));
+  $('notice').title = text;
+  $('notice').toggleAttribute('data-error', error);
+  $('notice').replaceChildren(makeIcon(error ? 'alert' : 'info'));
+  if (connectionState === 'unavailable' && detail) $('connection-detail').textContent = detail;
+  if (!text && $('session-help').matches(':popover-open')) $('session-help').hidePopover();
+  if (text) $('announcement').textContent = text;
+}
+function makeIcon(name, hover = false) {
+  const mark=document.createElement('span'); mark.className='icon icon-'+name; mark.setAttribute('aria-hidden','true');
+  // Trusted project SVGs are bundled into popup.js, without new runtime asset paths.
+  mark.innerHTML=icons[name]+(hover?icons.refresh:'');
+  if(hover)mark.lastElementChild.classList.add('icon-alt');
+  return mark;
+}
+function paintButton(button, text, icon, hover) {
+  const children = [];
+  if (icon) children.push(makeIcon(icon,Boolean(hover)));
+  const label = document.createElement('span'); label.className = 'action-label';
+  const normal = document.createElement('span'); normal.className = 'label-default'; normal.textContent = text; label.append(normal);
+  if (hover) { const alternate = document.createElement('span'); alternate.className = 'label-hover'; alternate.textContent = hover; alternate.setAttribute('aria-hidden','true'); label.append(alternate); }
+  if (text) children.push(label);
+  button.replaceChildren(...children);
+}
+function controls() {
+  const working = Boolean(busy) || pending;
+  $('authorize').disabled = working || !stateKnown; $('sync').disabled = working || !stateKnown; $('revoke').disabled = working;
+  $('revoke').textContent = busy === 'revoke' ? t('移除中','Removing') : t('移除授权','Remove access');
+  $('sync').setAttribute('aria-busy', String(working));
+  $('authorize').setAttribute('aria-busy', String(busy === 'authorize'));
+  paintButton($('authorize'), busy === 'authorize' ? t('授权中','Allowing') : t('授权','Authorize'), busy === 'authorize' ? 'refresh' : null);
+  const needsPermission = lastError === 'E_PERMISSION';
+  const text = working ? t('同步中','Syncing') : needsPermission ? t('重新授权','Allow again') : syncedFeedback ? t('已同步','Synced') : t('已授权','Allowed');
+  const hover = !working && !needsPermission && !syncedFeedback ? t('同步','Sync') : null;
+  paintButton($('sync'), text, working ? 'refresh' : needsPermission ? null : 'check', hover);
+  $('sync').toggleAttribute('data-authorized', Boolean(hover));
+  $('sync').setAttribute('aria-label', working ? t('正在同步登录态','Syncing site session') : needsPermission ? t('重新授权并同步本站登录态','Allow access and sync this site') : t('已授权，点击同步本站登录态','Site authorized; sync this site'));
+  $('sync').title = needsPermission ? t('重新授权并同步','Allow access and sync') : t('点击同步登录态','Sync this site session');
+  $('authorize').setAttribute('aria-label', t('授权并同步本站登录态','Authorize and sync this site'));
 }
 function recovery(code) {
   if (code === 'E_PERMISSION') return t('站点权限已移除，请重新授权后同步。','Site permission was removed. Allow access and sync again.');
@@ -49,7 +98,7 @@ function updateDiagnostic() {
   const excluded = Number.isSafeInteger(row?.skipped_partitioned) && row.skipped_partitioned >= 0 ? row.skipped_partitioned : unknown;
   // Only fixed labels and validated, bounded session projection fields enter the report.
   const domain = typeof site === 'string' && site.length <= 253 && /^[a-z0-9.-]+$/i.test(site) ? site : unknown;
-  $('diagnostic-report').textContent = [
+  diagnosticReport = [
     `${t('站点','Site')}: ${domain}`,
     `${t('扩展连接','Extension connection')}: ${connectionState === 'ready' ? t('就绪','Ready') : connectionState === 'unavailable' ? t('不可用','Unavailable') : unknown}`,
     `${t('浏览器','Browser')}: ${source}`,
@@ -70,21 +119,21 @@ function render(state) {
   if (valid) current = state.sites.find(row => row?.site === site);
   const grant = state.grant, own = current ? current.source_id === sourceId : Boolean(grant);
   lastGrant = grant;
-  $('unauthorized').hidden = !valid || Boolean(current || grant);
-  $('scope').hidden = !valid || own;
+  authorized = own; stateKnown = valid || own; pending = Boolean(own && grant?.pending);
+  $('page-unavailable').hidden = true;
   $('authorize').hidden = !valid || own; $('sync').hidden = !own; $('revoke').hidden = !own;
+  $('site-actions').hidden = !own;
+  if (!own && $('site-menu').matches(':popover-open')) $('site-menu').hidePopover();
   $('retry-status').hidden = valid || own;
-  $('authorize').textContent = current ? t('改用此浏览器','Use this browser') : t('授权并同步','Authorize & sync');
-  $('authorize').disabled = false;
-  $('replace-copy').hidden = !valid || !current || own;
-  lastError = state.error || (own && grant?.error) || current?.last_result?.error;
+  const ownRow = own ? current : undefined;
+  lastError = state.error || (own && grant?.error) || ownRow?.last_result?.error;
   if (lastError) status(t('同步未完成','Sync did not complete'), recovery(lastError), true);
-  else if (grant?.pending) status(t('正在同步','Syncing'));
-  else if (current?.cookie_count === 0) status(t('没有可用会话','No available session'), t('请在浏览器确认本站已登录，然后重新同步。','Check that you are signed in, then sync again.'));
-  else if (current && !current.last_result) status(t('同步结果未知','Sync status unknown'));
-  else if (current) { status(t('已同步','Synced')); $('notice').setAttribute('data-success',''); }
+  else if (pending) status('');
+  else if (ownRow?.cookie_count === 0) status(t('暂无登录态','No session available'), t('先在本站登录，再点击同步。','Sign in on this site, then sync again.'));
+  else if (ownRow && !ownRow.last_result) status(t('同步结果未知','Sync status unknown'), t('点击同步以更新状态。','Sync to update the status.'));
+  else if (ownRow) status('');
   else status(valid ? '' : t('会话状态暂不可确认','Session status unavailable'));
-  $('sync').textContent = lastError ? t('重试同步','Retry sync') : t('立即同步','Sync now');
+  controls();
   updateDiagnostic();
 }
 async function refresh() { render(await send('status')); }
@@ -100,11 +149,15 @@ $('retry-status').addEventListener('click', async () => {
 $('copy-diagnostic').addEventListener('click', async () => {
   clearTimeout(copiedTimer);
   try {
-    await navigator.clipboard.writeText($('diagnostic-report').textContent);
-    $('copy-error').hidden = true; $('copy-diagnostic').textContent = t('已复制','Copied');
-    copiedTimer = setTimeout(() => { $('copy-diagnostic').textContent = t('复制诊断报告','Copy diagnostic report'); }, 2000);
+    await navigator.clipboard.writeText(diagnosticReport);
+    $('copy-error').hidden = true; paintButton($('copy-diagnostic'), '', 'check');
+    $('copy-diagnostic').setAttribute('data-copied',''); $('copy-diagnostic').setAttribute('aria-label',t('已复制诊断报告','Diagnostic report copied')); $('copy-diagnostic').title = t('已复制','Copied');
+    $('announcement').textContent = t('诊断报告已复制','Diagnostic report copied');
+    copiedTimer = setTimeout(() => { paintButton($('copy-diagnostic'), '', 'copy'); $('copy-diagnostic').removeAttribute('data-copied'); $('copy-diagnostic').setAttribute('aria-label',t('复制诊断报告','Copy diagnostic report')); $('copy-diagnostic').title=t('复制诊断报告','Copy diagnostic report'); }, 2000);
   } catch {
-    $('copy-diagnostic').textContent = t('复制诊断报告','Copy diagnostic report');
+    paintButton($('copy-diagnostic'), '', 'copy'); $('copy-diagnostic').removeAttribute('data-copied');
+    $('copy-diagnostic').setAttribute('aria-label',t('复制诊断报告','Copy diagnostic report'));
+    $('copy-diagnostic').title=t('复制诊断报告','Copy diagnostic report');
     $('copy-error').textContent = t('无法复制，请重试。','Could not copy. Try again.'); $('copy-error').hidden = false;
   }
 });
@@ -122,7 +175,7 @@ $('toggle-tools').addEventListener('click', async () => {
   finally { $('toggle-tools').disabled = false; }
 });
 for (const action of ['authorize','sync','revoke']) $(action).addEventListener('click', async () => {
-  for (const id of ['authorize','sync','revoke']) $(id).disabled = true;
+  busy = action; controls();
   try {
     if (action === 'authorize') {
       if (!await chrome.permissions.request({ origins:scope(site) })) { status(t('未授权','Not authorized')); return; }
@@ -134,38 +187,74 @@ for (const action of ['authorize','sync','revoke']) $(action).addEventListener('
       if (!['synced','revoked'].includes(result[site])) throw Error(result[site]);
     }
     await refresh();
+    if (action !== 'revoke') {
+      clearTimeout(feedbackTimer); syncedFeedback = true;
+      feedbackTimer = setTimeout(() => {syncedFeedback = false; controls();}, 2000);
+      $('announcement').textContent = t('登录态已同步','Site session synced');
+    }
   } catch (error) {
     if (/^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(error.message)) connection('unavailable');
-    lastError = error.message; $('sync').textContent = t('重试同步','Retry sync'); updateDiagnostic();
+    lastError = error.message; updateDiagnostic();
     status(t('同步未完成','Sync did not complete'), recovery(lastError), true);
   }
-  finally { for (const id of ['authorize','sync','revoke']) $(id).disabled = false; }
+  finally { busy = ''; controls(); if (action === 'revoke' && !authorized) $('authorize').focus(); }
 });
 for (const [id, zh, en] of [
-  ['unauthorized','未授权','Not authorized'], ['revoke','移除授权','Remove access'], ['session-title','登录态同步','Session sync'],
-  ['replace-copy','改用此浏览器会替换当前来源。','Using this browser replaces the current source.'],
-  ['diagnostics-title','诊断','Diagnostics'], ['copy-diagnostic','复制诊断报告','Copy diagnostic report'], ['retry-status','重试','Retry'],
+  ['revoke','移除授权','Remove access'], ['session-title','登录态同步','Session sync'],
+  ['diagnostics-title','诊断','Diagnostics'], ['retry-status','重试','Retry'],
   ['tools-title','页面工具','Page tools']
 ]) $(id).textContent = t(zh,en);
+for(const mark of document.querySelectorAll('.icon')) {
+  const name=[...mark.classList].find(value=>value.startsWith('icon-'))?.slice(5);
+  if(icons[name])mark.replaceWith(makeIcon(name));
+}
+$('site-actions').setAttribute('aria-label',t('站点选项','Site options')); $('site-actions').title=t('站点选项','Site options');
+$('copy-diagnostic').setAttribute('aria-label',t('复制诊断报告','Copy diagnostic report')); $('copy-diagnostic').title=t('复制诊断报告','Copy diagnostic report');
+$('page-unavailable').textContent=t('请在网站打开','Open a website');
+$('site').addEventListener('focus', () => {
+  if ($('site').matches(':focus-visible') && $('site').scrollWidth > $('site').clientWidth) {
+    $('site-full').textContent=site; $('site-full').showPopover();
+  }
+});
+const hideFullSite=() => {if ($('site-full').matches(':popover-open')) $('site-full').hidePopover();};
+$('site').addEventListener('blur',hideFullSite);
+$('site').addEventListener('keydown',event=>{if(event.key==='Escape')hideFullSite();});
+paintButton($('retry-status'), t('重试','Retry'), 'refresh');
+controls();
 connection('unknown');
 updateDiagnostic();
 try {
   const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
   host = pageHost(tab.url); tabId = tab.id;
+  site = siteFromUrl(tab.url); $('site').textContent = site; $('site').title = site; $('site').setAttribute('aria-label',site);
+  $('authorize').title = t('允许同步本站及子域的登录态，仅用于 Ameow 下载','Allow this site and its subdomains for Ameow downloads');
+  const [pageResult, sessionResult] = await Promise.allSettled([
+    host ? chrome.runtime.sendMessage({ action:'pages-status', host }) : null,
+    send('status'),
+  ]);
   if (host) {
     $('page-tools').hidden = false;
-    const reply = await chrome.runtime.sendMessage({ action:'pages-status', host });
-    toolsEnabled = Boolean(reply?.value?.enabled);
-    $('toggle-tools').setAttribute('aria-pressed', String(toolsEnabled));
-    $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
-    $('toggle-tools').disabled = false;
+    if (pageResult.status === 'fulfilled' && pageResult.value?.ok && typeof pageResult.value.value?.enabled === 'boolean') {
+      toolsEnabled = pageResult.value.value.enabled;
+      $('toggle-tools').setAttribute('aria-pressed', String(toolsEnabled));
+      $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
+      $('toggle-tools').disabled = false;
+    } else {
+      $('page-status').textContent = t('页面工具状态不可用，请重新打开扩展。','Page tools status unavailable. Reopen the extension.');
+      $('toggle-tools').setAttribute('aria-label', t('页面工具状态不可用','Page tools status unavailable'));
+    }
   }
-  site = siteFromUrl(tab.url); $('site').textContent = site; $('site').title = site; $('site').setAttribute('aria-label',site);
-  $('scope').textContent = t('允许自动同步 ' + site + ' 及其子域的 Cookie，仅用于 Ameow 下载。', 'Allow automatic cookie sync for ' + site + ' and its subdomains, for Ameow downloads only.');
-  await refresh();
+  if (sessionResult.status === 'rejected') throw sessionResult.reason;
+  render(sessionResult.value);
 } catch (error) {
   connection(site && /^E_BRIDGE|^E_SESSION_PROTOCOL/.test(error.message) ? 'unavailable' : 'unknown');
   lastError = error.message; updateDiagnostic();
-  $('retry-status').hidden = !site;
+  $('retry-status').hidden = !site || authorized;
+  $('authorize').hidden=true; $('sync').hidden=!authorized;
+  if (!site) { $('site').textContent=t('当前页面','Current page'); $('authorize').hidden=true; $('sync').hidden=true; $('page-unavailable').hidden=false; }
   status(site ? t('扩展连接不可用','Extension connection unavailable') : t('请在普通网站页面打开扩展','Open the extension on a regular website'), '', true);
+  if (!site) $('notice').hidden=true;
+} finally {
+  document.querySelector('main').getBoundingClientRect();
+  document.documentElement.removeAttribute('data-initializing');
 }

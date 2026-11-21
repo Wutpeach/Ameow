@@ -93,13 +93,17 @@ components:
     desktopPadding: "8px 10px"
     typography: "{typography.body}"
   browser-popup:
-    width: "320px"
-    padding: "20px"
-    brandType: "14px / 600"
-    siteType: "16px / 600"
-    sectionType: "13px / 600"
-    sectionGap: "16px"
-    sectionPadding: "12px"
+    width: "240px"
+    padding: "12px"
+    brandType: "13px / 600"
+    siteType: "15px / 600"
+    sectionType: "13px / 400"
+    sectionGap: "4px"
+    sectionPadding: "0px"
+    rowHeight: "36px"
+    actionSize: "88px × 32px"
+    iconSize: "14px"
+    statusDot: "6px"
     toggleTrack: "36px × 20px"
     toggleHit: "36px × 32px"
     actionColor: "{colors.popup-action-light}"
@@ -162,7 +166,7 @@ components:
 
 Ameow 的界面用圆环、图标、短标签和稳定的布局呈现下载。操作靠近对象，状态反馈发生在原位；已经由图形、标题或当前值表达的信息，不再堆成副标题、长按钮或说明段落。Compact 只承担收起外观，下载信息集中在 Full；设置与诊断按需提供完整信息。
 
-本文记录截至 2026-11-21 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。
+本文记录截至 2026-11-22 的用户确认边界与现行代码配置。设计边界约束后续修改；具体实现值以 [tokens.rs](src/tokens.rs)、[download_ui.rs](src/download_ui.rs)、[settings_window.rs](src/settings_window.rs) 和对应 owner 为准。发现差异时先查用户最新决定与受影响实现，不能把偶发现象或旧证据中的废弃样式重新立为规则。
 
 **Key Characteristics:**
 
@@ -240,11 +244,11 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 
 “配置扩展 / Set up extension”点击后立即执行既有本机配置，直接呈现真实扩展路径/复制及下方独立中性底色的“操作演示 / Demo”。不再提供中间配置确认页、步数页码、Edge/Chrome选择或常驻播放/暂停按钮。普通动态模式进入即有动作、约5秒通用四步循环，末尾停顿短且步骤可读；可见窗口失去输入焦点仍继续播放，只有隐藏/最小化、离开演示可视区或减少动态时暂停，不强制聚焦。减少动态显示完整静态步骤，恢复可见不补算隐藏时间。Gallery只保留一个可见配置/演示入口，旧内部alias不在列表重复。配置进度、实际错误和必要重试就近简短呈现，焦点随当前可见树重建。
 
-设置与Popup的Cookie数、分区术语、时间、来源安装ID等放在按需折叠的诊断文本框，提供“复制诊断报告”；只使用既有安全投影，不含Cookie值、凭据、账号或私密URL。Popup仍以当前网页站点、必要授权范围、有用动作和简短恢复提示为主。上述2026-11-21本人手动Gallery反馈取代旧connect-v8的常驻共享详情、两步配置及演示观看控制，不从历史截图恢复。具体原生值见[settings_browser_sessions.rs](src/settings_browser_sessions.rs)。
+设置的Cookie数、分区术语、时间、来源安装ID等放在按需折叠的诊断文本框；Popup只提供诊断行与复制图标，不展示日志。两者只使用既有安全投影，不含Cookie值、凭据、账号或私密URL。Popup以当前网页站点、单个授权/同步动作和按需恢复为主，必要站点及子域范围由当前站点和授权控件提示表达。上述2026-11-21本人手动Gallery反馈取代旧connect-v8的常驻共享详情、两步配置及演示观看控制，不从历史截图恢复。具体原生值见[settings_browser_sessions.rs](src/settings_browser_sessions.rs)。
 
 页面工具在新安装取得正常浏览器页面访问后，于www.youtube.com及www.bilibili.com合格点播播放器就绪时默认可见，不要求先打开Popup。Popup只保留一个简洁页面工具开关，主动关闭按站点记忆，刷新/重启/正常升级不强开；临时缺权与关闭偏好分开。开关不自动授权或同步Cookie，关闭工具不撤销登录态，撤销登录态不误停仍启用工具。仅两个支持源增加正常安装期访问，不扩全站点、不另做授权向导。独立预览呈现真实默认和主动关闭，合成样例不充当安装验收。
 
-Popup按当前站点→页面工具→登录态同步→折叠诊断排列，“未授权”只属于登录态同步分组。系统sans正文13px，品牌14px/600、站点16px/600、分组13px/600；默认长域省略，鼠标可取完整title，键盘聚焦可换行读全文，不缩字。正常同步用紧凑原位文字，不占整块提示底；已知失败只给安全原因和相应恢复方向，原始技术值继续折叠。开关视觉轨道36×20px、实际命中36×32px，与标题行对齐，普通ON往返不追加说明或挪动控件。Popup局部主操作使用popup-action及popup-action-text浅深成对颜色，开启旋钮共用该前景，连接成功文字使用popup-success-text；这些可读性角色不改变原生全局Palette。
+Popup采用2026-11-22用户验收的紧凑界面：宽240px、内边距12px，普通场景内容高约217px。按当前站点→页面工具→登录态同步→诊断复制排列。系统sans正文13px、品牌13px/600、站点15px/600，普通行标签13px/400、行高36px。登录态只保留一个88×32px主按钮：未授权点击授权，已授权显示已授权，hover或键盘焦点显示同步，点击直接同步；真实处理中禁用，成功只在原按钮短暂反馈。移除授权放站点菜单，不常驻来源浏览器说明。诊断只保留名称与有可访问名称的复制图标，不展开日志。已知失败通过可点击且键盘可达的小提示提供安全原因和恢复方向，不把失败当作失去授权。右上角用就绪/未连接/未知短标签及6px语义色圆点，完整可访问名称继续标识扩展连接，不表示桌面在线。长域默认省略，鼠标title及不改变布局的键盘全文提示可读，不因失焦移动按钮或吞首点；内部页面直接显示请在网站打开。图标14px、复制命中32px，开关轨道36×20px、命中36×32px；普通ON往返不追加说明。初始查询收敛后一次显示真实界面，初始开关赋值不播放过渡；失败也结束初始化显示恢复入口，不缓存旧成功冒充本次连接。浅深对比度覆盖hover状态，普通复制/重试使用中性色，局部授权动作和开启旋钮继续复用popup-action及其前景。
 
 ### 按钮与复制反馈
 

@@ -1,14 +1,15 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ameow</title><link rel="stylesheet" href="popup.css"></head>
-<body><main>
-  <header><h1><span class="cat" aria-hidden="true"></span>Ameow</h1><span id="connection" role="status"></span></header>
-  <div class="site-heading"><h2 id="site" tabindex="0"></h2></div>
-  <section id="page-tools" class="page-tools" hidden><div class="page-tools-row"><strong id="tools-title"></strong><button id="toggle-tools" class="toggle" aria-pressed="false" disabled><span></span></button></div><p id="page-status" role="status" aria-live="polite"></p></section>
-  <section class="session"><div class="session-heading"><strong id="session-title"></strong><span id="unauthorized" class="tag" hidden></span></div>
-  <p id="scope" class="secondary" hidden></p>
-  <div id="notice" class="notice" hidden><strong id="status" role="status" aria-live="polite"></strong><p id="status-detail"></p></div>
-  <p id="replace-copy" class="secondary" hidden></p>
-  <div class="actions"><button id="authorize" disabled></button><button id="sync" hidden></button><button id="retry-status" hidden></button><span class="spacer"></span><button id="revoke" class="quiet" hidden></button></div>
-  </section>
-  <details id="diagnostics"><summary id="diagnostics-title"></summary><pre id="diagnostic-report" tabindex="0"></pre><button id="copy-diagnostic"></button><p id="copy-error" role="status" aria-live="polite" hidden></p></details>
-</main><script type="module" src="popup.js"></script></body></html>
+<html lang="zh-CN" data-initializing><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ameow</title><link rel="stylesheet" href="popup.css"></head>
+<body data-variant="compact"><main>
+  <header><h1><span class="cat" aria-hidden="true"></span>Ameow</h1><button id="connection" class="connection" type="button" popovertarget="connection-help" aria-label="扩展连接状态"></button></header>
+  <div class="site-heading"><h2 id="site" tabindex="0"></h2><button id="site-actions" class="icon-button site-actions" popovertarget="site-menu" aria-label="站点选项" hidden><span class="icon icon-chevron" aria-hidden="true"></span></button></div>
+  <section id="page-tools" hidden><div class="setting-row"><span id="tools-title"></span><button id="toggle-tools" class="toggle" aria-pressed="false" disabled><span></span></button></div><p id="page-status" role="status" aria-live="polite"></p></section>
+  <section class="session"><div class="setting-row"><div class="setting-label"><span id="session-title"></span><button id="notice" class="icon-button notice" type="button" popovertarget="session-help" aria-label="查看同步提示" hidden><span class="icon icon-alert" aria-hidden="true"></span></button></div><div class="actions"><button id="authorize" class="session-action" disabled></button><button id="sync" class="session-action" hidden></button><button id="retry-status" class="session-action" hidden></button><span id="page-unavailable" class="short-state" hidden></span></div></div></section>
+  <div id="diagnostics" class="diagnostics"><span id="diagnostics-title"></span><button id="copy-diagnostic" class="icon-button" aria-label="复制诊断报告"><span class="icon icon-copy" aria-hidden="true"></span></button></div><p id="copy-error" class="copy-error" role="status" aria-live="polite" hidden></p>
+  <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+</main>
+<div id="site-menu" class="popover site-menu" popover><button id="revoke" hidden></button></div>
+<div id="connection-help" class="popover" popover><strong id="connection-title"></strong><p id="connection-detail"></p></div>
+<div id="session-help" class="popover" popover><strong id="status"></strong><p id="status-detail"></p></div>
+<div id="site-full" class="popover site-full" popover="manual" role="tooltip"></div>
+<script type="module" src="popup.js"></script></body></html>
