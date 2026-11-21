@@ -11,6 +11,14 @@ colors:
   red-light: "#e3474c"
   red-dark: "#ee5c61"
   error-text-light: "#b8323c"
+  popup-action-light: "#006acb"
+  popup-action-dark: "#3d9aff"
+  popup-action-hover-light: "#005bab"
+  popup-action-hover-dark: "#75b5ff"
+  popup-action-text-light: "#ffffff"
+  popup-action-text-dark: "#102338"
+  popup-success-text-light: "#16733b"
+  popup-success-text-dark: "#3cbb72"
   surface-light: "#ffffff"
   surface-dark: "#232427"
   neutral-light: "#62656b"
@@ -82,6 +90,18 @@ components:
     controlHeight: "32px"
     desktopPadding: "8px 10px"
     typography: "{typography.body}"
+  browser-popup:
+    width: "320px"
+    padding: "20px"
+    brandType: "14px / 600"
+    siteType: "16px / 600"
+    sectionType: "13px / 600"
+    sectionGap: "16px"
+    sectionPadding: "12px"
+    toggleTrack: "36px × 20px"
+    toggleHit: "36px × 32px"
+    actionColor: "{colors.popup-action-light}"
+    actionTextColor: "{colors.popup-action-text-light}"
   button-standard:
     backgroundColor: "{colors.surface-light}"
     textColor: "{colors.primary-text-light}"
@@ -219,6 +239,8 @@ Compact 可见表面为 60px，圆角取 compact；Full 可见表面为 200px，
 设置与Popup的Cookie数、分区术语、时间、来源安装ID等放在按需折叠的诊断文本框，提供“复制诊断报告”；只使用既有安全投影，不含Cookie值、凭据、账号或私密URL。Popup仍以当前网页站点、必要授权范围、有用动作和简短恢复提示为主。上述2026-11-21本人手动Gallery反馈取代旧connect-v8的常驻共享详情、两步配置及演示观看控制，不从历史截图恢复。具体原生值见[settings_browser_sessions.rs](src/settings_browser_sessions.rs)。
 
 页面工具在新安装取得正常浏览器页面访问后，于www.youtube.com及www.bilibili.com合格点播播放器就绪时默认可见，不要求先打开Popup。Popup只保留一个简洁页面工具开关，主动关闭按站点记忆，刷新/重启/正常升级不强开；临时缺权与关闭偏好分开。开关不自动授权或同步Cookie，关闭工具不撤销登录态，撤销登录态不误停仍启用工具。仅两个支持源增加正常安装期访问，不扩全站点、不另做授权向导。独立预览呈现真实默认和主动关闭，合成样例不充当安装验收。
+
+Popup按当前站点→页面工具→登录态同步→折叠诊断排列，“未授权”只属于登录态同步分组。系统sans正文13px，品牌14px/600、站点16px/600、分组13px/600；默认长域省略，鼠标可取完整title，键盘聚焦可换行读全文，不缩字。正常同步用紧凑原位文字，不占整块提示底；已知失败只给安全原因和相应恢复方向，原始技术值继续折叠。开关视觉轨道36×20px、实际命中36×32px，与标题行对齐，普通ON往返不追加说明或挪动控件。Popup局部主操作使用popup-action及popup-action-text浅深成对颜色，开启旋钮共用该前景，连接成功文字使用popup-success-text；这些可读性角色不改变原生全局Palette。
 
 ### 按钮与复制反馈
 

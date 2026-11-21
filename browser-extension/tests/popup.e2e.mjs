@@ -31,8 +31,8 @@ try { for(const scenario of cases){
  await page.locator('main').screenshot({path:`${evidence}/${scenario.name}-default.png`});
  if(scenario.name.startsWith('zero'))assert.equal(await page.locator('#status').innerText(),'没有可用会话');
  if(scenario.name.startsWith('failed')){assert.equal(await page.locator('#status').innerText(),'Sync did not complete');assert.equal(await page.locator('#unauthorized').isVisible(),false);}
- if(scenario.name.startsWith('unavailable')){assert.equal(await page.locator('#connection').innerText(),'Unavailable');assert.equal(await page.locator('#authorize').isVisible(),false);}
- if(scenario.name.startsWith('incomplete')||scenario.name.startsWith('null-status')){assert.equal(await page.locator('#connection').innerText(),'Connection unknown');if(scenario.value===null){assert(await page.locator('#retry-status').isVisible());await page.locator('#retry-status').click();assert.equal((await page.evaluate(()=>window.__calls)).filter(x=>x.action==='status').length,2);}}
+ if(scenario.name.startsWith('unavailable')){assert.equal(await page.locator('#connection').innerText(),'Desktop unavailable');assert.equal(await page.locator('#authorize').isVisible(),false);}
+ if(scenario.name.startsWith('incomplete')||scenario.name.startsWith('null-status')){assert.equal(await page.locator('#connection').innerText(),'Desktop connection unknown');if(scenario.value===null){assert(await page.locator('#retry-status').isVisible());await page.locator('#retry-status').click();assert.equal((await page.evaluate(()=>window.__calls)).filter(x=>x.action==='status').length,2);}}
  if(scenario.name.startsWith('other-source')){assert(await page.locator('#scope').isVisible());assert.match(await page.locator('#scope').innerText(),/example.com and its subdomains/);await page.locator('#authorize').click();const calls=await page.evaluate(()=>window.__calls);assert.equal(calls.find(x=>x.action==='authorize').replaces,'grant');assert(calls.find(x=>x.permission)?.permission.origins.length);}
  if(scenario.name.startsWith('unauthorized')){assert(await page.locator('#scope').isVisible());await page.locator('#authorize').click();assert((await page.evaluate(()=>window.__calls)).some(x=>x.action==='authorize'));}
  if(scenario.name.startsWith('zero-partitioned')){
@@ -41,7 +41,7 @@ try { for(const scenario of cases){
    await page.evaluate(()=>window.__copyFailure=true);await page.locator('#copy-diagnostic').click();assert(await page.locator('#copy-error').isVisible());assert.equal(await page.locator('#copy-diagnostic').innerText(),'复制诊断报告');
    await page.evaluate(()=>window.__copyFailure=false);await page.locator('#copy-diagnostic').click();assert.equal(await page.locator('#copy-diagnostic').innerText(),'已复制');
    await page.locator('#sync').click();await page.locator('#revoke').click();const calls=await page.evaluate(()=>window.__calls);assert(calls.some(x=>x.action==='sync'));assert(calls.some(x=>x.action==='revoke'));
-   await page.evaluate(()=>window.__failure='sync');await page.locator('#sync').click();assert.equal(await page.locator('#connection').innerText(),'连接不可用');report=await page.locator('#diagnostic-report').innerText();assert.match(report,/保留的快照/);
+   await page.evaluate(()=>window.__failure='sync');await page.locator('#sync').click();assert.equal(await page.locator('#connection').innerText(),'桌面连接不可用');report=await page.locator('#diagnostic-report').innerText();assert.match(report,/保留的快照/);
    await page.locator('main').screenshot({path:`${evidence}/diagnostics-open.png`});
  }
  if(scenario.name.startsWith('failed')){await page.locator('#diagnostics-title').click();const report=await page.locator('#diagnostic-report').innerText();assert.match(report,/Retained snapshot/);assert.match(report,/Could not read/);}

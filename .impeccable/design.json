@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-21T07:50:55.763864Z",
+  "generatedAt": "2026-11-21T09:48:39.188837Z",
   "title": "Design System: Ameow",
   "extensions": {
     "colorMeta": {
@@ -242,6 +242,38 @@
       "primary-text-dark": {
         "displayName": "正文（深色）",
         "role": "neutral"
+      },
+      "popup-action-light": {
+        "displayName": "Popup 主操作（浅色）",
+        "role": "primary"
+      },
+      "popup-action-dark": {
+        "displayName": "Popup 主操作（深色）",
+        "role": "primary"
+      },
+      "popup-action-hover-light": {
+        "displayName": "Popup 主操作悬浮（浅色）",
+        "role": "primary"
+      },
+      "popup-action-hover-dark": {
+        "displayName": "Popup 主操作悬浮（深色）",
+        "role": "primary"
+      },
+      "popup-action-text-light": {
+        "displayName": "Popup 主操作前景（浅色）",
+        "role": "neutral"
+      },
+      "popup-action-text-dark": {
+        "displayName": "Popup 主操作前景（深色）",
+        "role": "neutral"
+      },
+      "popup-success-text-light": {
+        "displayName": "Popup 成功文字（浅色）",
+        "role": "success"
+      },
+      "popup-success-text-dark": {
+        "displayName": "Popup 成功文字（深色）",
+        "role": "success"
       }
     },
     "typographyMeta": {
@@ -417,6 +449,12 @@
       "description": "仅在需要解释错误时出现，浅底、图标和原因一起对齐内容区；不用于 Full 底部 toast。",
       "html": "<div class=\"ds-notice\" role=\"note\"><svg width=\"14\" height=\"14\" aria-hidden=\"true\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"1.8\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" />\n  <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" />\n</svg><span>读取失败，请重试</span></div>",
       "css": ".ds-notice { display:flex; align-items:center; gap:8px; padding:10px; border-radius:6px; background:rgba(227,71,76,.07); color:#b8323c; font:400 12px/18px \"Segoe UI\",\"Microsoft YaHei UI\",sans-serif; } .ds-notice svg { flex-shrink:0; } @media (prefers-color-scheme:dark) { .ds-notice { background:rgba(238,92,97,.12); color:#ee5c61; } }"
+    },
+    {
+      "name": "浏览器 Popup",
+      "kind": "panel",
+      "refersTo": "browser-popup",
+      "description": "Popup按当前站点→页面工具→登录态同步→折叠诊断排列，“未授权”只属于登录态同步分组。系统sans正文13px，品牌14px/600、站点16px/600、分组13px/600；默认长域省略，鼠标可取完整title，键盘聚焦可换行读全文，不缩字。正常同步用紧凑原位文字，不占整块提示底；已知失败只给安全原因和相应恢复方向，原始技术值继续折叠。开关视觉轨道36×20px、实际命中36×32px，与标题行对齐，普通ON往返不追加说明或挪动控件。Popup局部主操作使用popup-action及popup-action-text浅深成对颜色，开启旋钮共用该前景，连接成功文字使用popup-success-text；这些可读性角色不改变原生全局Palette。"
     }
   ],
   "narrative": {
@@ -493,6 +531,11 @@
       {
         "name": "Page Tools Default",
         "body": "新安装页面工具在www.youtube.com与www.bilibili.com合格点播播放器默认可见，正常浏览器页面权限和真实注入为前提。Popup保留一个简洁开关；主动关闭及已有false按站点记忆，刷新/重启/正常升级不强开，再开恢复现有页面。权限暂缺/被撤销与主动关闭分开，不写成false偏好、不假开或循环申请。开关/胶囊显示不自动授予Cookie同步或下载，关闭工具不改grants，撤销会话保留仍启用工具所需页面访问。仅这两个固定源增加标准安装期权限，无额外授权向导；预览用真实Popup和外层安全合成状态，不充作真实安装证据。",
+        "section": "components"
+      },
+      {
+        "name": "Popup Layout and Type",
+        "body": "Popup按当前站点→页面工具→登录态同步→折叠诊断排列，“未授权”只属于登录态同步分组。系统sans正文13px，品牌14px/600、站点16px/600、分组13px/600；默认长域省略，鼠标可取完整title，键盘聚焦可换行读全文，不缩字。正常同步用紧凑原位文字，不占整块提示底；已知失败只给安全原因和相应恢复方向，原始技术值继续折叠。开关视觉轨道36×20px、实际命中36×32px，与标题行对齐，普通ON往返不追加说明或挪动控件。Popup局部主操作使用popup-action及popup-action-text浅深成对颜色，开启旋钮共用该前景，连接成功文字使用popup-success-text；这些可读性角色不改变原生全局Palette。",
         "section": "components"
       }
     ],

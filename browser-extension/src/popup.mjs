@@ -14,12 +14,22 @@ const safeId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.tes
 const safeSource = value => ['Microsoft Edge', 'Chrome / Chromium'].includes(value) ? value : t('未知来源', 'Unknown source');
 function connection(kind) {
   connectionState = kind;
-  $('connection').textContent = kind === 'ready' ? t('连接可用','Connected') : kind === 'unavailable' ? t('连接不可用','Unavailable') : t('连接待确认','Connection unknown');
+  $('connection').textContent = kind === 'ready' ? t('桌面已连接','Desktop connected') : kind === 'unavailable' ? t('桌面连接不可用','Desktop unavailable') : t('桌面连接未知','Desktop connection unknown');
   $('connection').toggleAttribute('data-ready', kind === 'ready'); $('connection').toggleAttribute('data-error', kind === 'unavailable');
 }
 function status(text, detail = '', error = false) {
   $('notice').hidden = !text; $('status').textContent = text; $('status-detail').textContent = detail;
   $('status').toggleAttribute('data-error', error); $('notice').toggleAttribute('data-error', error);
+  $('notice').toggleAttribute('data-success', false);
+}
+function recovery(code) {
+  if (code === 'E_PERMISSION') return t('站点权限已移除，请重新授权后同步。','Site permission was removed. Allow access and sync again.');
+  if (code === 'E_COOKIE_READ') return t('无法读取浏览器会话，请检查浏览器后重试。','Could not read the browser session. Check your browser and retry.');
+  if (/^E_BRIDGE(?:_|$)/.test(code || '')) return t('无法连接桌面端，请检查扩展配置与 Ameow 后重试。','Could not connect to the desktop app. Check extension setup and Ameow, then retry.');
+  if (code === 'E_SESSION_PROTOCOL') return t('桌面端连接不兼容，请更新 Ameow 后重试。','Desktop connection is incompatible. Update Ameow and retry.');
+  if (code === 'E_SESSION_STORAGE') return t('无法保存会话，请检查存储空间后重试。','Could not save the session. Check storage and retry.');
+  if (code === 'E_SESSION_REVOKED' || code === 'E_SESSION_SOURCE_CHANGED') return t('授权已变更，请重新授权。','Access changed. Authorize again.');
+  return t('同步遇到问题，请检查连接后重试。','Sync encountered a problem. Check the connection and retry.');
 }
 async function send(action, extra = {}) {
   let response;
@@ -68,11 +78,11 @@ function render(state) {
   $('authorize').disabled = false;
   $('replace-copy').hidden = !valid || !current || own;
   lastError = state.error || (own && grant?.error) || current?.last_result?.error;
-  if (lastError) status(t('同步未完成','Sync did not complete'), t('请重试同步。','Try syncing again.'), true);
+  if (lastError) status(t('同步未完成','Sync did not complete'), recovery(lastError), true);
   else if (grant?.pending) status(t('正在同步','Syncing'));
   else if (current?.cookie_count === 0) status(t('没有可用会话','No available session'), t('请在浏览器确认本站已登录，然后重新同步。','Check that you are signed in, then sync again.'));
   else if (current && !current.last_result) status(t('同步结果未知','Sync status unknown'));
-  else if (current) status(t('已同步','Synced'));
+  else if (current) { status(t('已同步','Synced')); $('notice').setAttribute('data-success',''); }
   else status(valid ? '' : t('会话状态暂不可确认','Session status unavailable'));
   $('sync').textContent = lastError ? t('重试同步','Retry sync') : t('立即同步','Sync now');
   updateDiagnostic();
@@ -107,7 +117,7 @@ $('toggle-tools').addEventListener('click', async () => {
     toolsEnabled = reply.value.enabled;
     $('toggle-tools').setAttribute('aria-pressed', String(toolsEnabled));
     $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
-    $('page-status').textContent = toolsEnabled ? t('播放单个点播视频后，播放器右上角可见 Ameow 图标。','Play a single on-demand video to see the Ameow icon in the player.') : '';
+    $('page-status').textContent = '';
   } catch { $('page-status').textContent = t('页面工具未更新，请重新打开扩展后重试。','Page tools were not updated. Reopen the extension and try again.'); }
   finally { $('toggle-tools').disabled = false; }
 });
@@ -119,6 +129,7 @@ for (const action of ['authorize','sync','revoke']) $(action).addEventListener('
       const result = await send('authorize', { replaces:current?.grant_id || null, source_name:sourceName });
       if (result[site] !== 'synced') throw Error(result[site]);
     } else {
+      if (action === 'sync' && lastError === 'E_PERMISSION' && !await chrome.permissions.request({ origins:scope(site) })) { status(t('同步未完成','Sync did not complete'), recovery('E_PERMISSION'), true); return; }
       const result = await send(action);
       if (!['synced','revoked'].includes(result[site])) throw Error(result[site]);
     }
@@ -126,12 +137,12 @@ for (const action of ['authorize','sync','revoke']) $(action).addEventListener('
   } catch (error) {
     if (/^E_BRIDGE(?:_|$)|^E_SESSION_PROTOCOL$/.test(error.message)) connection('unavailable');
     lastError = error.message; $('sync').textContent = t('重试同步','Retry sync'); updateDiagnostic();
-    status(t('同步未完成','Sync did not complete'), t('请重试同步。','Try syncing again.'), true);
+    status(t('同步未完成','Sync did not complete'), recovery(lastError), true);
   }
   finally { for (const id of ['authorize','sync','revoke']) $(id).disabled = false; }
 });
 for (const [id, zh, en] of [
-  ['unauthorized','未授权','Not authorized'], ['revoke','移除','Remove'],
+  ['unauthorized','未授权','Not authorized'], ['revoke','移除授权','Remove access'], ['session-title','登录态同步','Session sync'],
   ['replace-copy','改用此浏览器会替换当前来源。','Using this browser replaces the current source.'],
   ['diagnostics-title','诊断','Diagnostics'], ['copy-diagnostic','复制诊断报告','Copy diagnostic report'], ['retry-status','重试','Retry'],
   ['tools-title','页面工具','Page tools']
@@ -149,7 +160,7 @@ try {
     $('toggle-tools').setAttribute('aria-label', toolsEnabled ? t('关闭页面工具','Turn off page tools') : t('启用页面工具','Enable page tools'));
     $('toggle-tools').disabled = false;
   }
-  site = siteFromUrl(tab.url); $('site').textContent = site; $('site').title = site;
+  site = siteFromUrl(tab.url); $('site').textContent = site; $('site').title = site; $('site').setAttribute('aria-label',site);
   $('scope').textContent = t('允许自动同步 ' + site + ' 及其子域的 Cookie，仅用于 Ameow 下载。', 'Allow automatic cookie sync for ' + site + ' and its subdomains, for Ameow downloads only.');
   await refresh();
 } catch (error) {
