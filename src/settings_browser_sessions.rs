@@ -65,6 +65,11 @@ fn session_diagnostic(site: &SiteView, l: Language) -> String {
         Some(r) if r.error.is_some() => l.text("失败", "Failed"),
         Some(_) => l.text("成功", "Succeeded"),
     };
+    let result = match site.last_result.as_ref() {
+        Some(r) => format!("{} · {}{}", ameow_next::browser_sessions::utc_timestamp(r.at), result,
+            r.error.map(|error| format!(" ({error:?})")).unwrap_or_default()),
+        None => result.to_owned(),
+    };
     format!("{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}",
         l.text("站点", "Site"), site.site, l.text("来源安装 ID", "Source installation ID"), site.source_id, l.text("上次快照", "Last snapshot"),
         ameow_next::browser_sessions::utc_timestamp(site.synced_at), l.text("最近同步", "Latest sync"), result,
@@ -454,7 +459,9 @@ mod tests {
         let mut site = SiteView { site: "example.com".into(), source_id: "源".into(), source_name: "Unknown".into(), grant_id: "x".into(), synced_at: 1, cookie_count: 0, skipped_partitioned: 2, last_result: None };
         assert_eq!(short_status(&site, Language::Chinese), "已授权；没有可用会话");
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 2, error: None });
+        assert_eq!(short_status(&site, Language::Chinese), "已授权；没有可用会话");
         site.last_result = Some(ameow_next::browser_sessions::SyncResult { at: 3, error: Some(SyncError::Bridge) });
+        assert_eq!(short_status(&site, Language::Chinese), "已授权；最近同步未完成");
         site.last_result = None;
         site.cookie_count = 3;
         assert_eq!(short_status(&site, Language::Chinese), "已授权；同步结果未知");
@@ -465,6 +472,8 @@ mod tests {
         let report = session_diagnostic(&site, Language::English);
         assert!(report.contains("example.com"));
         assert!(report.contains("Failed"));
+        assert!(report.contains("Bridge"));
+        assert!(report.contains(&ameow_next::browser_sessions::utc_timestamp(2)));
         assert!(report.contains(&site.source_id));
         assert!(!report.contains(&site.source_name));
     }
