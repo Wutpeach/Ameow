@@ -1,4 +1,5 @@
 //! Development-only scene browser. Every scene runs in an owned preview process.
+mod popup;
 use crate::{preview, tokens};
 use gpui::{prelude::*, *};
 use gpui_base::{Button, Root};
@@ -88,6 +89,7 @@ struct Gallery {
     motion: bool,
     english: bool,
     session: Option<PreviewProcess>,
+    popup: popup::PopupPreview,
     notice: String,
     error: bool,
     accepted_at: Option<Instant>,
@@ -110,7 +112,7 @@ impl Gallery {
         let scenes = preview::scenes();
         let surface = scenes[0].surface.clone();
         let mut this = Self {
-            scenes, surface, selected: 0, night: false, motion: false, english: false, session: None,
+            scenes, surface, selected: 0, night: false, motion: false, english: false, session: None, popup: Default::default(),
             notice: String::new(), error: false, accepted_at: None,
             output, image: None, capture: None, batch: None, serial: 0, scroll: ScrollHandle::new(),
         };
@@ -121,7 +123,11 @@ impl Gallery {
         cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_millis(100)).await;
-                if this.update(cx, |this, cx| { this.poll(); cx.notify(); }).is_err() { break; }
+                if this.update(cx, |this, cx| {
+                    this.poll();
+                    if let Some(url) = this.popup.poll() { this.open_popup_url(url, cx); }
+                    cx.notify();
+                }).is_err() { break; }
             }
         }).detach();
         this
@@ -247,6 +253,37 @@ impl Gallery {
             .font(tokens::desktop_ui_font()).text_size(px(13.)).line_height(px(20.))
             .hover(move |s| s.bg(p.badge)).focus(move |s| s.border_color(p.blue))
     }
+    fn open_popup_url(&mut self, url: &str, cx: &mut Context<Self>) {
+        // Native acceptance records dispatch without opening the user's browser.
+        #[cfg(debug_assertions)]
+        if let Some(path) = std::env::var_os("AMEOW_GALLERY_URL_CAPTURE") {
+            let result = fs::write(path, serde_json::json!({"url":url,"openedAt":SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()}).to_string());
+            if let Err(error) = result { self.popup.message = format!("无法记录预览地址：{error}"); }
+            return;
+        }
+        cx.open_url(url);
+    }
+    fn popup_detail(&self, cx: &mut Context<Self>) -> Div {
+        let p = tokens::Palette::new(self.night);
+        let error_text = if p.night { p.red } else { rgb(0xb8323c).into() };
+        let label = if self.popup.starting() { "正在启动…" } else if self.popup.ready() { "再次打开" } else { "打开预览" };
+        div().flex_1().min_w(px(0.)).h_full().p(px(20.)).flex().flex_col().gap(px(12.))
+            .child(div().text_size(px(18.)).font_weight(FontWeight::MEDIUM).child("扩展 Popup"))
+            .child(div().text_color(p.neutral).child("使用当前扩展源码，按真实尺寸预览。"))
+            .child(div().flex().items_center().gap(px(6.))
+                .child(div().size(px(6.)).rounded_full().bg(if self.popup.failed() { p.red } else if self.popup.ready() { p.green } else { p.neutral }))
+                .child(self.popup.status()))
+            .child(div().flex().flex_wrap().gap(px(8.))
+                .child(self.button("gallery-popup-open", label, false).disabled(self.popup.starting()).child(label)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if let Some(url) = this.popup.open() { this.open_popup_url(url, cx); }
+                        cx.notify();
+                    })))
+                .when(self.popup.can_stop(), |s| s.child(self.button("gallery-popup-stop", "停止服务", false).child("停止服务")
+                    .on_click(cx.listener(|this, _, _, cx| { this.popup.stop(); cx.notify(); })))))
+            .child(div().text_size(px(12.)).text_color(p.neutral).child(popup::URL))
+            .when(!self.popup.message.is_empty(), |s| s.child(div().text_color(error_text).child(self.popup.message.clone())))
+    }
 }
 impl Drop for Gallery {
     fn drop(&mut self) {
@@ -283,6 +320,14 @@ impl Render for Gallery {
                     cx.notify();
                 })));
         }
+        let popup_selected = self.surface == "extension-popup";
+        sidebar = sidebar.child(self.button("gallery-popup", "扩展 Popup", popup_selected)
+            .disabled(busy).w_full().justify_start().child("扩展 Popup")
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.surface = "extension-popup".into();
+                this.session = None; this.image = None; this.accepted_at = None;
+                cx.notify();
+            })));
         let mut list = div().id("gallery-scenes").w(px(280.)).flex_none().h_full().overflow_y_scroll()
             .track_scroll(&self.scroll).p(px(12.)).flex().flex_col().gap(px(6.)).border_r_1().border_color(p.border);
         for (index, scene) in self.scenes.iter().enumerate().filter(|(_,s)| s.surface == self.surface) {
@@ -294,7 +339,7 @@ impl Render for Gallery {
                 .on_click(cx.listener(move |this, _, _, cx| { this.select(index); cx.notify(); })));
         }
         let scene = &self.scenes[self.selected];
-        let detail = div().flex_1().min_w(px(0.)).h_full().p(px(20.)).flex().flex_col().gap(px(12.))
+        let detail = if popup_selected { self.popup_detail(cx) } else { div().flex_1().min_w(px(0.)).h_full().p(px(20.)).flex().flex_col().gap(px(12.))
             .child(div().text_size(px(18.)).font_weight(FontWeight::MEDIUM).child(scene.name.clone()))
             .child(div().text_color(p.neutral).child(scene.description.clone()))
             .child(div().flex().flex_wrap().gap(px(8.))
@@ -325,13 +370,13 @@ impl Render for Gallery {
                 .when_some(self.image.clone(), |s,path| s.child(img(path).max_w_full().max_h_full().object_fit(ObjectFit::Contain)))
                 .when(self.image.is_none(), |s| s.child(div().p(px(16.)).text_color(p.neutral).child("在真实预览窗口中检查交互，或点击“截图”在此查看。"))))
             .child(div().text_size(px(12.)).text_color(p.neutral)
-                .child(format!("“本分类截图”截取当前分类的双主题状态；“全部截图”会依次显示 {} 个真实窗口，约 3–5 分钟，请在桌面空闲时使用。", self.scenes.len()*2)));
+                .child(format!("“本分类截图”截取当前分类的双主题状态；“全部截图”会依次显示 {} 个真实窗口，约 3–5 分钟，请在桌面空闲时使用。", self.scenes.len()*2))) };
         div().size_full().bg(p.surface).text_color(p.primary_text()).font(tokens::desktop_ui_font())
             .text_size(px(13.)).line_height(px(20.)).flex().flex_col()
             .child(div().h(px(64.)).px(px(20.)).flex().items_center().justify_between().border_b_1().border_color(p.border)
                 .child(div().text_size(px(20.)).font_weight(FontWeight::MEDIUM).child("Ameow Gallery"))
                 .child(div().text_size(px(12.)).text_color(p.neutral).child(format!("{} 个真实场景 · 隔离预览", self.scenes.len()))))
-            .child(div().flex_1().min_h(px(0.)).flex().child(sidebar).child(list).child(detail))
+            .child(div().flex_1().min_h(px(0.)).flex().child(sidebar).when(!popup_selected, |s| s.child(list)).child(detail))
     }
 }
 

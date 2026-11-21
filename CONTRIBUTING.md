@@ -34,7 +34,10 @@ Use separate build and output paths outside the source checkout. Full packaging 
 Keep application build identity separate from later documentation-only commits. After publication is authorized, publish the approved application tag/release and its matching assets before merging download-link changes; a site change on `main` deploys Pages. A draft pull request builds the site without deploying it. Check public asset availability after release; proposed URLs and successful builds do not establish availability.
 
 The browser extension has a maintained Popup workbench at http://127.0.0.1:4322/.
-Start it from the repository root after installing the extension dependencies:
+In the native Gallery, choose **扩展 Popup → 打开预览** to start or reuse the
+current checkout's service and open the workbench. Gallery only stops a service
+it started. Node.js and the extension dependencies must be installed.
+You can also start it from the repository root:
 
     npm --prefix browser-extension run preview
 
