@@ -1,0 +1,62 @@
+{
+  "synthetic": true,
+  "source_head": "c9f7ca43cbc1e0acda24207d232763c931222cc4",
+  "source_preview_sha256": "22b8c08584e19e02e25d0371cb3319b6ecdd0a7eb26f5b1cd26f3d2b2fdc62ea",
+  "site": "bilibili.com",
+  "tab": {
+    "id": 1,
+    "url": "https://www.bilibili.com/video/SYNTHETIC_UI_ONLY"
+  },
+  "status_response": {
+    "unknown_result": {
+      "ok": true,
+      "value": {
+        "sites": [
+          {
+            "site": "bilibili.com",
+            "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_name": "Microsoft Edge",
+            "grant_id": "grant",
+            "synced_at": 1700000000,
+            "last_result": null,
+            "cookie_count": 2,
+            "skipped_partitioned": 0
+          }
+        ],
+        "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "grant": {}
+      }
+    },
+    "saved": {
+      "ok": true,
+      "value": {
+        "sites": [
+          {
+            "site": "bilibili.com",
+            "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_name": "Microsoft Edge",
+            "grant_id": "grant",
+            "synced_at": 1700000000,
+            "last_result": {
+              "at": 1700000001,
+              "error": null
+            },
+            "cookie_count": 2,
+            "skipped_partitioned": 0
+          }
+        ],
+        "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "grant": {}
+      }
+    }
+  },
+  "other_messages": {
+    "pages_status": {
+      "ok": true,
+      "value": {
+        "enabled": true
+      }
+    }
+  },
+  "limits": "Adapted from the approved preview unknown/synced responses for one synthetic bilibili.com page. Page tools enabled independently. No cookies, account, real permission, clipboard, Native or registration."
+}
